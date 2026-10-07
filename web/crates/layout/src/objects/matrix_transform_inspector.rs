@@ -94,29 +94,26 @@ pub fn MatrixTransformInspector(
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::OriginX, label: "Origin X", unit: "mm",
-                        value: origin.x, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: origin.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::OriginY, label: "Origin Y", unit: "mm",
-                        value: origin.y, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: origin.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::MatrixRotation, label: "Rotation", unit: "°",
-                        value: *rotation, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: *rotation, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                 }
                 MirrorTransformField {
                     owner: owner.clone(), snapshot_token, revision, value: *mirror,
                     mirror_y_locked: *mirror_y_locked, request_sequence,
-                    editable: props.mount.editable, busy: props.mount.busy,
+                    editable: props.mount.editable, 
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
             },
@@ -128,15 +125,13 @@ pub fn MatrixTransformInspector(
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::RowOffsetX, label: "Offset X", unit: "mm",
-                        value: offset.x, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: offset.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::RowOffsetY, label: "Offset Y", unit: "mm",
-                        value: offset.y, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: offset.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                 }
@@ -145,7 +140,7 @@ pub fn MatrixTransformInspector(
                     field: MatrixTransformField::RowOffsetReset,
                     baseline: MatrixTransformValue::Offset(*offset),
                     value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
-                    request_sequence, editable: props.mount.editable, busy: props.mount.busy,
+                    request_sequence, editable: props.mount.editable, 
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                 }
                 span { class: "m1-matrix-field-context", "Row {row}" }
@@ -166,29 +161,26 @@ pub fn MatrixTransformInspector(
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::ColumnSplay, label: "Splay", unit: "°",
-                        value: *splay_angle, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: *splay_angle, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     OriginModeTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         custom: *custom_origin, request_sequence,
-                        editable: props.mount.editable, busy: props.mount.busy,
+                        editable: props.mount.editable, 
                         feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                     }
                     div { class: "m1-matrix-inspector-fields",
                         NumericTransformField {
                             owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::SplayOriginX, label: "Origin X", unit: "mm",
-                            value: splay_origin.x, request_sequence, editable: props.mount.editable,
-                            busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                            value: splay_origin.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                             on_edit, splay_affect,
                         }
                         NumericTransformField {
                             owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::SplayOriginY, label: "Origin Y", unit: "mm",
-                            value: splay_origin.y, request_sequence, editable: props.mount.editable,
-                            busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                            value: splay_origin.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                             on_edit, splay_affect,
                         }
                     }
@@ -196,7 +188,7 @@ pub fn MatrixTransformInspector(
                         select {
                             "aria-label": "Splay affects",
                             value: if splay_affect() == MatrixSplayAffect::Column { "column" } else { "following" },
-                            disabled: !props.mount.editable || props.mount.busy,
+                            disabled: !props.mount.editable,
                             onchange: move |event: FormEvent| {
                                 splay_affect.set(if event.value() == "column" { MatrixSplayAffect::Column } else { MatrixSplayAffect::Following });
                             },
@@ -207,7 +199,7 @@ pub fn MatrixTransformInspector(
                     button {
                         r#type: "button",
                         class: "m1-secondary",
-                        disabled: !props.mount.editable || props.mount.busy,
+                        disabled: !props.mount.editable,
                         onclick: move |_| props.on_pick_splay_origin.call(()),
                         "Pick origin"
                     }
@@ -218,23 +210,20 @@ pub fn MatrixTransformInspector(
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::ColumnStagger, label: "Stagger", unit: "mm",
-                        value: *stagger, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: *stagger, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     div { class: "m1-matrix-inspector-fields",
                         NumericTransformField {
                             owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::ColumnOffsetX, label: "Offset X", unit: "mm",
-                            value: offset.x, request_sequence, editable: props.mount.editable,
-                            busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                            value: offset.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                             on_edit, splay_affect,
                         }
                         NumericTransformField {
                             owner: owner.clone(), snapshot_token, revision,
                             field: MatrixTransformField::ColumnOffsetY, label: "Offset Y", unit: "mm",
-                            value: offset.y, request_sequence, editable: props.mount.editable,
-                            busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                            value: offset.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                             on_edit, splay_affect,
                         }
                     }
@@ -243,7 +232,7 @@ pub fn MatrixTransformInspector(
                         field: MatrixTransformField::ColumnOffsetReset,
                         baseline: MatrixTransformValue::Offset(*offset),
                         value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
-                        request_sequence, editable: props.mount.editable, busy: props.mount.busy,
+                        request_sequence, editable: props.mount.editable, 
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                     }
                     span { class: "m1-matrix-field-context", "Column {column}" }
@@ -267,29 +256,26 @@ pub fn MatrixTransformInspector(
             rsx! {
                 EnabledTransformField {
                     owner: owner.clone(), snapshot_token, revision, value: *enabled,
-                    request_sequence, editable: props.mount.editable, busy: props.mount.busy,
+                    request_sequence, editable: props.mount.editable, 
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
                 div { class: "m1-matrix-inspector-fields",
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::KeyOffsetX, label: "Local X", unit: "mm",
-                        value: offset.x, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: offset.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::KeyOffsetY, label: "Local Y", unit: "mm",
-                        value: offset.y, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: offset.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     NumericTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::KeyRotation, label: "Key rotation", unit: "°",
-                        value: *rotation, request_sequence, editable: props.mount.editable,
-                        busy: props.mount.busy, feedback: props.mount.feedback.clone(),
+                        value: *rotation, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                 }
@@ -298,20 +284,19 @@ pub fn MatrixTransformInspector(
                     field: MatrixTransformField::KeyTransformReset,
                     baseline: MatrixTransformValue::CellTransform { offset: *offset, rotation: *rotation },
                     value: MatrixTransformValue::CellTransform { offset: Vec2 { x: 0.0, y: 0.0 }, rotation: 0.0 },
-                    request_sequence, editable: props.mount.editable, busy: props.mount.busy,
+                    request_sequence, editable: props.mount.editable, 
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                 }
                 KeyAssemblyField {
                     owner: owner.clone(), snapshot_token, revision, value: definition_id.clone(),
-                    choices: choices.clone(), request_sequence, editable: props.mount.editable,
-                    busy: props.mount.busy, feedback: props.mount.feedback.clone(), on_edit,
+                    choices: choices.clone(), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(), on_edit,
                     splay_affect,
                 }
                 AttachedComponentsField {
                     owner: owner.clone(), snapshot_token, revision, value: assemblies.clone(),
                     choices: component_choices.clone(), mirror_target: *mirror_target,
                     assemblies_local: *assemblies_local, request_sequence,
-                    editable: props.mount.editable, busy: props.mount.busy,
+                    editable: props.mount.editable, 
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
                 span { class: "m1-matrix-field-context", "Key {row}, {column}" }
@@ -325,9 +310,6 @@ pub fn MatrixTransformInspector(
                 span { "{projection.label}" }
             }
             {body}
-            if props.mount.busy {
-                p { class: "m1-matrix-edit-status", role: "status", "Saving transform change…" }
-            }
         }
     }
 }
@@ -343,7 +325,6 @@ struct NumericTransformFieldProps {
     value: f64,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -354,7 +335,6 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.to_string());
     let mut baseline = use_signal(|| props.value);
     let mut dirty = use_signal(|| false);
-    let mut conflict = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitted = use_signal(|| None::<u64>);
     let mut status = use_signal(|| None::<String>);
@@ -369,7 +349,6 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
     let mut draft_effect = draft;
     let mut baseline_effect = baseline;
     let mut dirty_effect = dirty;
-    let mut conflict_effect = conflict;
     let mut error_effect = error;
     let mut submitted_effect = submitted;
     let mut status_effect = status;
@@ -385,7 +364,6 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
                     draft_effect.set(value.to_string());
                     baseline_effect.set(value);
                     dirty_effect.set(false);
-                    conflict_effect.set(false);
                     error_effect.set(None);
                     submitted_effect.set(None);
                     status_effect.set(Some("Saved".to_owned()));
@@ -406,17 +384,13 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
                 }
                 None => {}
             }
-            if baseline_effect() != value {
-                if dirty_effect() {
-                    conflict_effect.set(true);
-                } else {
-                    draft_effect.set(value.to_string());
-                    baseline_effect.set(value);
-                    conflict_effect.set(false);
-                    error_effect.set(None);
-                    status_effect.set(None);
-                    submitted_effect.set(None);
-                }
+            // A dirty draft keeps the user's value: the latest committed value wins.
+            if baseline_effect() != value && !dirty_effect() {
+                draft_effect.set(value.to_string());
+                baseline_effect.set(value);
+                error_effect.set(None);
+                status_effect.set(None);
+                submitted_effect.set(None);
             }
         },
     ));
@@ -429,10 +403,9 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
         let on_edit = props.on_edit;
         let affect = props.splay_affect;
         let editable = props.editable;
-        let busy = props.busy;
         let mut sequence = sequence;
         move || {
-            if !editable || busy || submitted().is_some() {
+            if !editable || submitted().is_some() {
                 return;
             }
             let next = match draft().trim().parse::<f64>() {
@@ -447,7 +420,6 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
                 draft.set(accepted_value.to_string());
                 baseline.set(accepted_value);
                 dirty.set(false);
-                conflict.set(false);
                 error.set(None);
                 status.set(None);
                 submitted.set(None);
@@ -473,43 +445,35 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
             submitted.set(Some(id));
             dirty.set(true);
             error.set(None);
-            conflict.set(false);
             status.set(Some("Saving…".to_owned()));
             on_edit.call(request);
         }
     };
     let current = draft();
-    let has_error = error().is_some() || conflict();
-    let error_message = if conflict() {
-        Some("The accepted value changed. Edit this draft to apply it to the current value, or press Escape to reload.".to_owned())
-    } else {
-        error().or_else(|| {
-            props
-                .feedback
-                .iter()
-                .find(|item| {
-                    item.owner == props.owner
-                        && item.field == props.field
-                        && submitted() == Some(item.request_id)
-                        && item.state == MatrixTransformState::Failed
-                })
-                .and_then(|item| item.message.clone())
-        })
-    };
+    let has_error = error().is_some();
+    let error_message = error().or_else(|| {
+        props
+            .feedback
+            .iter()
+            .find(|item| {
+                item.owner == props.owner
+                    && item.field == props.field
+                    && submitted() == Some(item.request_id)
+                    && item.state == MatrixTransformState::Failed
+            })
+            .and_then(|item| item.message.clone())
+    });
     rsx! {
         label { class: if has_error { "m1-matrix-field has-error" } else { "m1-matrix-field" },
             span { "{props.label}" }
             span { class: "m1-matrix-field-input",
                 input {
                     r#type: "number", step: "any", value: "{current}",
-                    readonly: !props.editable || props.busy,
+                    readonly: !props.editable,
                     "aria-label": props.label,
                     "aria-invalid": has_error,
                     oninput: move |event: FormEvent| {
-                        if conflict() {
-                            baseline.set(accepted_value);
-                            conflict.set(false);
-                        } else if !dirty() {
+                        if !dirty() {
                             baseline.set(accepted_value);
                         }
                         draft.set(event.value());
@@ -528,7 +492,6 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
                                 draft.set(accepted_value.to_string());
                                 baseline.set(accepted_value);
                                 dirty.set(false);
-                                conflict.set(false);
                                 error.set(None);
                                 status.set(None);
                                 submitted.set(None);
@@ -554,7 +517,6 @@ struct MirrorTransformFieldProps {
     mirror_y_locked: bool,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -597,7 +559,7 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
             select {
                 "aria-label": "Mirror matrix",
                 value: mirror_value(value),
-                disabled: !props.editable || props.busy,
+                disabled: !props.editable,
                 onchange: move |event: FormEvent| {
                     let next = match event.value().as_str() { "x" => Some(Mirror::X), "y" => Some(Mirror::Y), _ => None };
                     if next == value || (next == Some(Mirror::Y) && props.mirror_y_locked) { return; }
@@ -629,7 +591,6 @@ struct OriginModeTransformFieldProps {
     custom: bool,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -671,7 +632,7 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
             select {
                 "aria-label": "Splay origin",
                 value: if custom { "custom" } else { "base" },
-                disabled: !props.editable || props.busy,
+                disabled: !props.editable,
                 onchange: move |event: FormEvent| {
                     let next = event.value() == "custom";
                     if next == custom { return; }
@@ -702,7 +663,6 @@ struct EnabledTransformFieldProps {
     value: bool,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -722,7 +682,7 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                 && item.state == MatrixTransformState::Failed
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable || props.busy;
+    let disabled = !props.editable;
     let mut sequence = props.request_sequence;
     let owner = props.owner.clone();
     let current = props.value;
@@ -762,7 +722,6 @@ struct KeyAssemblyFieldProps {
     choices: Vec<(String, String)>,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -782,7 +741,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
                 && item.state == MatrixTransformState::Failed
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable || props.busy;
+    let disabled = !props.editable;
     let mut sequence = props.request_sequence;
     let owner = props.owner.clone();
     let current = props.value.clone();
@@ -827,7 +786,6 @@ struct AttachedComponentsFieldProps {
     assemblies_local: bool,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -847,7 +805,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                 && item.state == MatrixTransformState::Failed
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable || props.busy;
+    let disabled = !props.editable;
     let sequence = props.request_sequence;
     let owner = props.owner.clone();
     let token = props.snapshot_token;
@@ -884,7 +842,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                     baseline: MatrixTransformValue::Bool(true),
                     value: MatrixTransformValue::Bool(false),
                     request_sequence: props.request_sequence, editable: props.editable,
-                    busy: props.busy, feedback: props.feedback.clone(),
+                    feedback: props.feedback.clone(),
                     splay_affect: props.splay_affect, on_edit: props.on_edit,
                 }
             } else {
@@ -948,7 +906,6 @@ struct ResetTransformButtonProps {
     value: MatrixTransformValue,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixTransformFeedback>,
     splay_affect: Signal<MatrixSplayAffect>,
     on_edit: EventHandler<MatrixTransformRequest>,
@@ -978,7 +935,7 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 && item.state == MatrixTransformState::Failed
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable || props.busy;
+    let disabled = !props.editable;
     let mut sequence = props.request_sequence;
     let owner = props.owner.clone();
     let baseline = props.baseline.clone();

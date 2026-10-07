@@ -3,16 +3,14 @@ use crate::presentation::objects::{
     ScopedTreeContext, TreeContext, use_workspace_matrix_transform,
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, ReadModel, Scope, SelectionMode, SessionEpoch,
-    SnapshotToken,
-};
+use crate::runtime::project_name_test_support as support;
+use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{
-    Board, EditOperation, Matrix, MatrixAssembly, MatrixCell, MatrixScene, MatrixSceneCell, Part,
-    PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
+    Board, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
+    Side, Vec2,
 };
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -133,17 +131,12 @@ fn definition(id: &str, name: &str) -> PartDefinition {
     }
 }
 
-fn fixture() -> (ReadModel, ScopedTreeContext) {
-    let scope = Scope {
-        session_epoch: SessionEpoch(81),
-        document_id: "matrix-transform-mounted".into(),
-        board_id: "board".into(),
-        instance_id: None,
-    };
-    let mut document = ProjectDoc::empty(&scope.document_id, "Matrix transform fixture");
-    document.revision = 12;
+/// A one-key matrix document. The test opens it through the real Session and Core, which
+/// generate the scene the Inspector reads.
+fn fixture() -> (ProjectDoc, TreeContext) {
+    let mut document = ProjectDoc::empty("matrix-transform-mounted", "Matrix transform fixture");
     document.boards.push(Board {
-        id: scope.board_id.clone(),
+        id: "board".into(),
         name: "Board".into(),
         outline_ids: vec![],
         part_ids: vec!["key-part".into()],
@@ -182,7 +175,7 @@ fn fixture() -> (ReadModel, ScopedTreeContext) {
         origin: Vec2::default(),
         definition_id: "key-definition".into(),
         part_ids: vec!["key-part".into()],
-        board_id: Some(scope.board_id.clone()),
+        board_id: Some("board".into()),
         mirror: None,
         rotation: None,
         edge_gap: None,
@@ -210,67 +203,18 @@ fn fixture() -> (ReadModel, ScopedTreeContext) {
             assemblies_local: None,
         }],
     });
-    let scene = SceneDelta {
-        module_scenes: vec![],
-        revision: 12,
-        transaction_id: "matrix-transform-mounted-fixture".into(),
-        changed_ids: vec![],
-        transforms: vec![],
-        matrix_scenes: vec![MatrixScene {
-            matrix_id: "matrix".into(),
-            cells: vec![MatrixSceneCell {
-                row: 0,
-                column: 0,
-                enabled: true,
-                member_id: Some("key-part".into()),
-                pose: Pose2 {
-                    at: Vec2::default(),
-                    rotation: 0.0,
-                },
-            }],
-            columns: vec![],
-        }],
-        contours: vec![],
-        board_contours: vec![],
-        board_readiness: vec![],
-        board_outline_scenes: vec![],
-        finding_markers: vec![],
-        findings: vec![],
-        readiness: Readiness {
-            layout: true,
-            outline: true,
-            pcb: true,
-            case_ready: false,
-        },
-    };
-    let snapshot = AcceptedSnapshot {
-        token: SnapshotToken(13),
-        session_epoch: scope.session_epoch,
-        document: Arc::new(document),
-        scene: Arc::new(scene),
-    };
-    let model = ReadModel {
-        lifecycle: Lifecycle::Ready,
-        durability: Durability::Saved { revision: 12 },
-        accepted: Some(snapshot),
-        active_board_id: scope.board_id.clone(),
-        ..ReadModel::default()
-    };
-    let selected = ScopedTreeContext {
-        scope,
-        context: TreeContext::Key {
+    (
+        document,
+        TreeContext::Key {
             matrix_id: "matrix".into(),
             row: 0,
             column: 0,
         },
-    };
-    (model, selected)
+    )
 }
 
-fn two_key_fixture(include_standalone: bool) -> (ReadModel, ScopedTreeContext) {
-    let (mut model, mut selected) = fixture();
-    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
-    let document = Arc::make_mut(&mut snapshot.document);
+fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = fixture();
     let first_key = "matrix/matrix/r0c0";
     let second_key = "matrix/matrix/r0c1";
     document.boards[0].part_ids[0] = first_key.into();
@@ -306,25 +250,6 @@ fn two_key_fixture(include_standalone: bool) -> (ReadModel, ScopedTreeContext) {
         generator_parameters: None,
     });
     document.parts[0].id = first_key.into();
-    let scene = Arc::make_mut(&mut snapshot.scene);
-    scene.matrix_scenes[0].cells[0].member_id = Some(first_key.into());
-    scene.matrix_scenes[0].cells.push(MatrixSceneCell {
-        row: 0,
-        column: 1,
-        enabled: true,
-        member_id: Some(second_key.into()),
-        pose: Pose2 {
-            at: Vec2 { x: 19.0, y: 0.0 },
-            rotation: 0.0,
-        },
-    });
-    model.selected_part_ids = vec![first_key.into()];
-    model.selection_anchor_id = Some(first_key.into());
-    selected.context = TreeContext::Key {
-        matrix_id: "matrix".into(),
-        row: 0,
-        column: 0,
-    };
     if include_standalone {
         document.boards[0].part_ids.push("standalone-part".into());
         document.parts.push(Part {
@@ -343,13 +268,11 @@ fn two_key_fixture(include_standalone: bool) -> (ReadModel, ScopedTreeContext) {
             generator_parameters: None,
         });
     }
-    (model, selected)
+    (document, selected)
 }
 
-fn three_key_fixture() -> (ReadModel, ScopedTreeContext) {
-    let (mut model, selected) = two_key_fixture(false);
-    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
-    let document = Arc::make_mut(&mut snapshot.document);
+fn three_key_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = two_key_fixture(false);
     let third_key = "matrix/matrix/r0c2";
     document.boards[0].part_ids.push(third_key.into());
     let matrix = &mut document.matrices[0];
@@ -381,31 +304,31 @@ fn three_key_fixture() -> (ReadModel, ScopedTreeContext) {
         properties: None,
         generator_parameters: None,
     });
-    Arc::make_mut(&mut snapshot.scene).matrix_scenes[0]
-        .cells
-        .push(MatrixSceneCell {
-            row: 0,
-            column: 2,
-            enabled: true,
-            member_id: Some(third_key.into()),
-            pose: Pose2 {
-                at: Vec2 { x: 38.0, y: 0.0 },
-                rotation: 0.0,
-            },
-        });
-    (model, selected)
+    (document, selected)
 }
 
-fn mount_selection_probe(
-    model: ReadModel,
-    selected: ScopedTreeContext,
+/// Open `document` through the real Session and Core, select `selected_ids` the way the
+/// canvas does, and mount the transform Inspector over that runtime.
+async fn mount_selection_probe(
+    root_id: &'static str,
+    document: ProjectDoc,
+    context: TreeContext,
+    selected_ids: &[&str],
 ) -> (Probe, web_sys::Element) {
-    let runtime = Runtime::new().expect("browser Runtime initializes");
-    runtime.set_layout_component_inspector_test_state(model, Some(selected.scope.clone()));
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document).await;
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: selected_ids.iter().map(|id| (*id).to_owned()).collect(),
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    let scope = runtime.scope().expect("the opened project has a scope");
     let probe = Probe {
         runtime,
-        selected,
-        root_id: "matrix-transform-multiselect-mounted-test",
+        selected: ScopedTreeContext { scope, context },
+        root_id,
         selected_context: Rc::default(),
         adapter: Rc::default(),
     };
@@ -422,10 +345,37 @@ fn mount_selection_probe(
     (probe, root)
 }
 
+fn accepted_cell(probe: &Probe, column: u32) -> boardstudio_core::model::MatrixCell {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "matrix")
+        .and_then(|matrix| {
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == column)
+                .cloned()
+        })
+        .expect("the matrix cell exists")
+}
+
 #[wasm_bindgen_test]
 async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
-    let (model, selected) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(model, selected.clone());
+    let (document, context) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-multiselect-mounted-test",
+        document,
+        context,
+        &["matrix/matrix/r0c0"],
+    )
+    .await;
+    let selected = probe.selected.clone();
     settle().await;
     let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let hit_context = TreeContext::Key {
@@ -499,8 +449,15 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
 
 #[wasm_bindgen_test]
 async fn additive_mixed_component_selection_keeps_first_part_group_context() {
-    let (model, selected) = two_key_fixture(true);
-    let (probe, root) = mount_selection_probe(model, selected.clone());
+    let (document, context) = two_key_fixture(true);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-multiselect-mounted-test",
+        document,
+        context,
+        &["matrix/matrix/r0c0"],
+    )
+    .await;
+    let selected = probe.selected.clone();
     settle().await;
     let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let part_context = TreeContext::Component {
@@ -545,8 +502,14 @@ async fn additive_mixed_component_selection_keeps_first_part_group_context() {
 
 #[wasm_bindgen_test]
 async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys() {
-    let (mut model, selected) = three_key_fixture();
-    let (probe, root) = mount_selection_probe(model.clone(), selected.clone());
+    let (document, context) = three_key_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-multiselect-mounted-test",
+        document,
+        context,
+        &["matrix/matrix/r0c0"],
+    )
+    .await;
     settle().await;
     let ctrl_click = |column: u32| {
         let document = web_sys::window().unwrap().document().unwrap();
@@ -574,23 +537,14 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
     };
 
     ctrl_click(1);
-    model.selected_part_ids = vec!["matrix/matrix/r0c0".into(), "matrix/matrix/r0c1".into()];
-    probe
-        .runtime
-        .set_layout_component_inspector_test_state(model.clone(), Some(selected.scope.clone()));
+    settle().await;
     ctrl_click(2);
-    model.selected_part_ids.push("matrix/matrix/r0c2".into());
-    probe
-        .runtime
-        .set_layout_component_inspector_test_state(model.clone(), Some(selected.scope.clone()));
+    settle().await;
 
     // Removing C leaves A and B selected; C is still a live key, so the Inspector
     // must be re-anchored to a member that remains selected.
     ctrl_click(2);
-    model.selected_part_ids.pop();
-    probe
-        .runtime
-        .set_layout_component_inspector_test_state(model.clone(), Some(selected.scope.clone()));
+    settle().await;
     let selected_context = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(
         matches!(
@@ -610,10 +564,6 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
     // Removing B leaves A. Keep the key-specific Inspector and verify its edit
     // command changes A's cell rather than the deselected B cell.
     ctrl_click(1);
-    model.selected_part_ids.pop();
-    probe
-        .runtime
-        .set_layout_component_inspector_test_state(model, Some(selected.scope.clone()));
     settle().await;
     let selected_context = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(
@@ -637,7 +587,6 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
         .expect("remaining selected key keeps its local transform field")
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap();
-    let _ = probe.runtime.take_layout_component_inspector_test_events();
     local_x.set_value("5");
     let input = web_sys::EventInit::new();
     input.set_bubbles(true);
@@ -652,19 +601,17 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
             &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
         )
         .unwrap();
+    support::run_pending(&probe.runtime).await;
     settle().await;
-    let events = probe.runtime.take_layout_component_inspector_test_events();
-    assert!(
-        matches!(
-            events.as_slice(),
-            [Event::Edit { command, .. }]
-                if matches!(&command.operation, EditOperation::SetMatrix { matrix, .. }
-                    if matrix.cells.iter().find(|cell| cell.row == 0 && cell.column == 0)
-                        .is_some_and(|cell| cell.offset.is_some_and(|offset| offset.x == 5.0))
-                        && matrix.cells.iter().find(|cell| cell.row == 0 && cell.column == 1)
-                            .is_some_and(|cell| cell.offset.is_some_and(|offset| offset.x == 6.0)))
-        ),
-        "the remaining key control must target A and leave B unchanged: {events:?}"
+    assert_eq!(
+        accepted_cell(&probe, 0).offset.map(|offset| offset.x),
+        Some(5.0),
+        "the remaining key control edits A"
+    );
+    assert_eq!(
+        accepted_cell(&probe, 1).offset.map(|offset| offset.x),
+        Some(6.0),
+        "the deselected B cell is unchanged"
     );
     root.remove();
 }
@@ -676,26 +623,15 @@ async fn settle() {
 #[wasm_bindgen_test]
 async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement()
  {
-    let (model, selected) = fixture();
-    let runtime = Runtime::new().expect("browser Runtime initializes");
-    runtime.set_layout_component_inspector_test_state(model, Some(selected.scope.clone()));
-    let probe = Probe {
-        runtime,
-        selected,
-        root_id: "matrix-transform-inspector-mounted-test",
-        selected_context: Rc::default(),
-        adapter: Rc::default(),
-    };
+    let (document, context) = fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-inspector-mounted-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
     let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    root.set_id(probe.root_id);
-    document.body().unwrap().append_child(&root).unwrap();
-    let mut dom = VirtualDom::new(matrix_transform_host);
-    dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
     settle().await;
 
     let selector = document
@@ -738,18 +674,15 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
     selector
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
         .unwrap();
+    support::run_pending(&probe.runtime).await;
     settle().await;
-    let events = probe.runtime.take_layout_component_inspector_test_events();
     assert!(
-        matches!(
-            events.as_slice(),
-            [Event::Edit { command, .. }]
-                if matches!(&command.operation, EditOperation::SetMatrix { matrix, .. }
-                    if matrix.id == "matrix" && matrix.cells.iter().find(|cell| cell.row == 0 && cell.column == 0)
-                        .is_some_and(|cell| cell.assemblies.iter().any(|assembly|
-                            assembly.id == "led" && assembly.definition_id == "replacement-definition")))
-        ),
-        "the mounted controller must submit the selected replacement against the current key: {events:?}"
+        accepted_cell(&probe, 0)
+            .assemblies
+            .iter()
+            .any(|assembly| assembly.id == "led"
+                && assembly.definition_id == "replacement-definition"),
+        "the accepted key carries the selected replacement"
     );
     root.remove();
 }

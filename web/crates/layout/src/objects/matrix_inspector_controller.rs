@@ -2674,4 +2674,111 @@ mod tests {
         assert_eq!(renamed.name, "Renamed layout");
         assert_eq!(matrix.name.as_deref(), Some("right keys"));
     }
+
+    mod queued_edits {
+        use super::super::*;
+        use crate::presentation::objects::matrix_edit_test_support as fixture;
+        use crate::runtime::project_name_test_support as support;
+        use wasm_bindgen_test::wasm_bindgen_test;
+
+        fn field_ticket(
+            runtime: &Rc<Runtime>,
+            field: MatrixEditField,
+            value: MatrixEditValue,
+        ) -> EditTicket {
+            EditTicket::begin(
+                runtime,
+                "layout-matrix-inspector",
+                Some("matrix".into()),
+                matrix_field_resolver(
+                    fixture::MATRIX_ID.into(),
+                    MatrixNameTarget::Matrix,
+                    field,
+                    value,
+                    None,
+                ),
+            )
+        }
+
+        #[wasm_bindgen_test]
+        async fn rapid_rows_then_pitch_both_survive_and_undo_removes_pitch_then_rows() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let original = fixture::accepted_matrix(&runtime);
+            // Hold the first Core reply so the pitch edit queues behind the rows edit.
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+            let rows = field_ticket(&runtime, MatrixEditField::Rows, MatrixEditValue::Rows(2));
+            support::drive_pending(&runtime);
+            entered.await.expect("the rows edit reached Core");
+            let pitch = field_ticket(
+                &runtime,
+                MatrixEditField::PitchX,
+                MatrixEditValue::PitchX(21.0),
+            );
+            support::drive_pending(&runtime);
+            release.send(()).expect("release the held rows reply");
+            fixture::settle_ticket(&runtime, &pitch).await;
+
+            assert!(matches!(rows.settlement(true), Settlement::Landed { .. }));
+            assert!(matches!(pitch.settlement(true), Settlement::Landed { .. }));
+            let accepted = fixture::accepted_matrix(&runtime);
+            assert_eq!(accepted.rows, 2, "the rows edit survived");
+            assert_eq!(accepted.pitch.x, 21.0, "the pitch edit applied on top of it");
+
+            fixture::undo(&runtime).await;
+            let after_one = fixture::accepted_matrix(&runtime);
+            assert_eq!(after_one.pitch.x, original.pitch.x, "one Undo removes the pitch");
+            assert_eq!(after_one.rows, 2, "the rows edit is still applied");
+            fixture::undo(&runtime).await;
+            assert_eq!(fixture::accepted_matrix(&runtime).rows, original.rows);
+        }
+
+        #[wasm_bindgen_test]
+        async fn editing_a_matrix_deleted_before_the_edit_runs_retires_with_a_reason() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+            let delete = EditTicket::begin(
+                &runtime,
+                "layout-matrix-delete",
+                Some("matrix delete".into()),
+                matrix_delete_resolver(fixture::MATRIX_ID.into()),
+            );
+            support::drive_pending(&runtime);
+            entered.await.expect("the delete reached Core");
+            let rename = field_ticket(
+                &runtime,
+                MatrixEditField::Name,
+                MatrixEditValue::Name(Some("Renamed".into())),
+            );
+            support::drive_pending(&runtime);
+            release.send(()).expect("release the held delete");
+            fixture::settle_ticket(&runtime, &rename).await;
+
+            assert!(matches!(delete.settlement(true), Settlement::Landed { .. }));
+            match rename.settlement(true) {
+                Settlement::Failed { message } => assert!(
+                    message.contains("no longer exists"),
+                    "the reason is explained: {message}"
+                ),
+                other => panic!("expected a retirement with a reason, got {other:?}"),
+            }
+        }
+
+        #[wasm_bindgen_test]
+        async fn one_shot_tickets_report_pending_until_they_settle() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+            let delete = EditTicket::begin(
+                &runtime,
+                "layout-matrix-delete",
+                Some("matrix delete".into()),
+                matrix_delete_resolver(fixture::MATRIX_ID.into()),
+            );
+            support::drive_pending(&runtime);
+            entered.await.expect("the delete reached Core");
+            assert!(delete.is_pending(), "the one-shot control stays disabled");
+            release.send(()).expect("release the held delete");
+            fixture::settle_ticket(&runtime, &delete).await;
+            assert!(!delete.is_pending());
+        }
+    }
 }

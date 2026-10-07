@@ -7919,7 +7919,6 @@ fn Editor() -> Element {
                             &projection.owner.context,
                             objects::TreeContext::Column { .. }
                         ) && mount.editable
-                            && !mount.busy
                         {
                             pending.set(Some(projection.owner.clone()));
                         }

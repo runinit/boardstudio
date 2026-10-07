@@ -14,6 +14,7 @@ mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_toolbar;
 mod layout_transform_toolbar;
+mod matrix_edit_test_support;
 mod matrix_inspector;
 mod matrix_inspector_controller;
 mod matrix_placement_controller;

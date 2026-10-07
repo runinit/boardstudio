@@ -4,18 +4,19 @@ use super::matrix_transform_inspector::{
     MatrixTransformRequest, MatrixTransformState,
 };
 use super::{ScopedTreeContext, TreeContext};
-use crate::matrix_transform_lifecycle::{AcceptedIdentity, PendingSettlement, pending_settlement};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, build_operation,
     catalogue_retry_due, component_edit_admitted_by_catalogue,
 };
-use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
-    Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, MatrixSplayAffect, ProjectDoc, Vec2,
+    EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc,
+    Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -23,10 +24,106 @@ use wasm_bindgen_futures::spawn_local;
 #[derive(Clone)]
 struct PendingTransformEdit {
     request: MatrixTransformRequest,
-    operation_id: OperationId,
-    outcome: OutcomeSlot,
-    base_token: SnapshotToken,
-    base_revision: u64,
+    ticket: EditTicket,
+}
+
+/// Resolve one transform field edit against the accepted document at execution time. The
+/// matrix and the row, column or key the field belongs to are read from the accepted
+/// document and only the user's committed value is applied, so queued edits compose and the
+/// latest committed value wins. `catalogue_definitions` are the catalogue entries the value
+/// may need; only those the accepted document lacks are added.
+pub fn transform_edit_resolver(
+    matrix_id: String,
+    board_id: String,
+    context: TreeContext,
+    field: MatrixTransformField,
+    value: MatrixTransformValue,
+    splay_affect: MatrixSplayAffect,
+    catalogue_definitions: Vec<PartDefinition>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Some(matrix) = document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            let Some(fields) = transform_fields(accepted, &board_id, &context, matrix) else {
+                return Resolution::Retire(
+                    "The selected row, column or key no longer exists.".into(),
+                );
+            };
+            if field_value(&fields, field).as_ref() == Some(&value) {
+                return Resolution::Unchanged;
+            }
+            let operation = match build_operation(
+                matrix,
+                &fields,
+                field,
+                value.clone(),
+                splay_affect.clone(),
+            ) {
+                Ok(operation) => operation,
+                Err(message) => return Resolution::Retire(message),
+            };
+            let missing = |id: &String| {
+                !document
+                    .definitions
+                    .iter()
+                    .any(|definition| &definition.id == id)
+            };
+            let operation = match (field, operation, &value) {
+                (
+                    MatrixTransformField::KeyAssembly,
+                    EditOperation::SetMatrix { matrix, .. },
+                    MatrixTransformValue::Text(id),
+                ) => EditOperation::SetMatrix {
+                    matrix,
+                    definitions: missing(id)
+                        .then(|| {
+                            catalogue_definitions
+                                .iter()
+                                .find(|definition| &definition.id == id)
+                                .cloned()
+                        })
+                        .flatten()
+                        .map(|definition| vec![definition]),
+                },
+                (
+                    MatrixTransformField::KeyAttached,
+                    EditOperation::SetMatrix { matrix, .. },
+                    MatrixTransformValue::Attached(list),
+                ) => {
+                    let definitions = list
+                        .iter()
+                        .filter(|(_, id)| missing(id))
+                        .filter_map(|(_, id)| {
+                            catalogue_definitions
+                                .iter()
+                                .find(|definition| &definition.id == id)
+                                .cloned()
+                        })
+                        .collect::<Vec<_>>();
+                    EditOperation::SetMatrix {
+                        matrix,
+                        definitions: (!definitions.is_empty()).then_some(definitions),
+                    }
+                }
+                (_, operation, _) => operation,
+            };
+            Resolution::Submit(EditCommand {
+                base_revision: 0,
+                transaction_id: String::new(),
+                phase: EditPhase::Commit,
+                target_ids: vec![matrix.id.clone()],
+                operation,
+            })
+        },
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,7 +146,6 @@ pub struct MatrixTransformInspectorMount {
     pub projection: Option<MatrixTransformProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
-    pub busy: bool,
     pub feedback: Vec<MatrixTransformFeedback>,
     pub on_edit: EventHandler<MatrixTransformRequest>,
     pub splay_affect: Signal<MatrixSplayAffect>,
@@ -63,7 +159,7 @@ impl MatrixTransformInspectorMount {
         let MatrixTransformFields::Column { splay_origin, .. } = &projection.fields else {
             return false;
         };
-        if !self.editable || self.busy || !point.x.is_finite() || !point.y.is_finite() {
+        if !self.editable || !point.x.is_finite() || !point.y.is_finite() {
             return false;
         }
         let Some(request_id) = (self.request_sequence)().checked_add(1) else {
@@ -125,7 +221,7 @@ pub fn use_workspace_matrix_transform(
 
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_signal(|| None::<PendingTransformEdit>);
+    let pending = use_signal(Vec::<PendingTransformEdit>::new);
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     use_drop({
@@ -248,15 +344,6 @@ pub fn use_workspace_matrix_transform(
                 return;
             }
             last_request_id.set(request.request_id);
-            if pending.read().is_some() {
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some("Wait for the current transform change to finish, then retry.".into()),
-                );
-                return;
-            }
             let Some(selected) = selected_context.read().clone() else {
                 return;
             };
@@ -292,40 +379,6 @@ pub fn use_workspace_matrix_transform(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            if !(AcceptedIdentity {
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-            })
-            .admits(AcceptedIdentity {
-                token: request.snapshot_token,
-                revision: request.revision,
-            }) {
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some(
-                        "The accepted document changed. Review the current field and retry.".into(),
-                    ),
-                );
-                return;
-            }
-            let Some(current_baseline) = field_value(&current.fields, request.field) else {
-                return;
-            };
-            if current_baseline != request.baseline {
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some("The accepted value changed. Review the current field and retry.".into()),
-                );
-                return;
-            }
-            if request.value == request.baseline {
-                publish_feedback(&mut feedback, &request, MatrixTransformState::Saved, None);
-                return;
-            }
             let Some(matrix) = snapshot
                 .document
                 .matrices
@@ -378,100 +431,57 @@ pub fn use_workspace_matrix_transform(
                 );
                 return;
             }
-            let operation = match build_operation(
+            // Validate the typed value now so a bad entry is explained inline; the resolver
+            // repeats the build against whatever is accepted when the edit runs.
+            if let Err(message) = build_operation(
                 matrix,
                 &current.fields,
                 request.field,
                 request.value.clone(),
                 request.splay_affect.clone(),
             ) {
-                Ok(operation) => operation,
-                Err(message) => {
-                    publish_feedback(
-                        &mut feedback,
-                        &request,
-                        MatrixTransformState::Failed,
-                        Some(message),
-                    );
-                    return;
+                publish_feedback(
+                    &mut feedback,
+                    &request,
+                    MatrixTransformState::Failed,
+                    Some(message),
+                );
+                return;
+            }
+            let catalogue_definitions = match (&request.field, &request.value) {
+                (MatrixTransformField::KeyAssembly, MatrixTransformValue::Text(id)) => {
+                    switch_catalog()
+                        .into_iter()
+                        .filter(|definition| &definition.id == id)
+                        .collect()
                 }
+                (MatrixTransformField::KeyAttached, MatrixTransformValue::Attached(list)) => {
+                    switch_catalog()
+                        .into_iter()
+                        .filter(|definition| list.iter().any(|(_, id)| id == &definition.id))
+                        .collect()
+                }
+                _ => Vec::new(),
             };
-            let operation = match (request.field, operation, &request.value) {
-                (
-                    MatrixTransformField::KeyAssembly,
-                    EditOperation::SetMatrix { matrix, .. },
-                    MatrixTransformValue::Text(id),
-                ) => {
-                    let definitions = (!snapshot
-                        .document
-                        .definitions
-                        .iter()
-                        .any(|definition| &definition.id == id))
-                    .then(|| {
-                        switch_catalog()
-                            .into_iter()
-                            .find(|definition| &definition.id == id)
-                    })
-                    .flatten()
-                    .map(|definition| vec![definition]);
-                    EditOperation::SetMatrix {
-                        matrix,
-                        definitions,
-                    }
-                }
-                (
-                    MatrixTransformField::KeyAttached,
-                    EditOperation::SetMatrix { matrix, .. },
-                    MatrixTransformValue::Attached(list),
-                ) => {
-                    let catalog = switch_catalog();
-                    let definitions = list
-                        .iter()
-                        .filter(|(_, id)| {
-                            !snapshot
-                                .document
-                                .definitions
-                                .iter()
-                                .any(|definition| &definition.id == id)
-                        })
-                        .filter_map(|(_, id)| {
-                            catalog
-                                .iter()
-                                .find(|definition| &definition.id == id)
-                                .cloned()
-                        })
-                        .collect::<Vec<_>>();
-                    EditOperation::SetMatrix {
-                        matrix,
-                        definitions: (!definitions.is_empty()).then_some(definitions),
-                    }
-                }
-                (_, operation, _) => operation,
-            };
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let transaction_id = format!(
-                "matrix-transform-{}-{}-{}",
-                editor_instance_id, request.request_id, operation_id.0
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-matrix-transform",
+                Some("transform".into()),
+                transform_edit_resolver(
+                    request.owner.matrix_id.clone(),
+                    request.owner.scope.board_id.clone(),
+                    request.owner.context.clone(),
+                    request.field,
+                    request.value.clone(),
+                    request.splay_affect.clone(),
+                    catalogue_definitions,
+                ),
             );
-            pending.set(Some(PendingTransformEdit {
+            pending.write().push(PendingTransformEdit {
                 request: request.clone(),
-                operation_id,
-                outcome,
-                base_token: snapshot.token,
-                base_revision: snapshot.document.revision,
-            }));
-            publish_feedback(&mut feedback, &request, MatrixTransformState::Pending, None);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id,
-                    phase: EditPhase::Commit,
-                    target_ids: vec![matrix.id.clone()],
-                    operation,
-                },
+                ticket,
             });
+            publish_feedback(&mut feedback, &request, MatrixTransformState::Pending, None);
         }
     });
 
@@ -479,7 +489,6 @@ pub fn use_workspace_matrix_transform(
         projection,
         request_sequence,
         editable,
-        busy: pending.read().is_some(),
         feedback: feedback.read().clone(),
         on_edit,
         splay_affect,
@@ -562,14 +571,54 @@ fn project_current_for(
         .matrices
         .iter()
         .find(|matrix| matrix.id == *matrix_id)?;
-    let fields = match &selected.context {
+    let fields = transform_fields(snapshot, &scope.board_id, &selected.context, matrix)?;
+    // Transform edits queue behind each other: the inspector stays editable while an earlier
+    // edit is applying or saving.
+    let editable = matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) && matches!(
+        model.durability,
+        Durability::Saved { .. } | Durability::Saving { .. }
+    ) && model.display_preview.is_none()
+        && model.gesture.is_none();
+    Some((
+        MatrixTransformProjection {
+            owner: MatrixTransformInspectorOwner {
+                editor_instance_id: context.editor_instance_id,
+                workspace: context.workspace,
+                context_generation: context.context_generation,
+                scope_generation: context.scope_generation,
+                scope: scope.clone(),
+                matrix_id: matrix.id.clone(),
+                context: selected.context.clone(),
+            },
+            snapshot_token: snapshot.token,
+            revision: snapshot.document.revision,
+            label: super::context_label(model, &selected.context)
+                .unwrap_or_else(|| format!("Matrix {}", matrix.id)),
+            fields,
+        },
+        editable,
+    ))
+}
+
+/// The field projection of the selected row, column or key from an accepted snapshot. The
+/// Inspector renders it and the edit resolver reads it again at execution time.
+fn transform_fields(
+    snapshot: &AcceptedSnapshot,
+    board_id: &str,
+    context: &TreeContext,
+    matrix: &Matrix,
+) -> Option<MatrixTransformFields> {
+    Some(match context {
         TreeContext::Matrix { .. } => MatrixTransformFields::Matrix {
             origin: matrix.origin,
             rotation: matrix.rotation.unwrap_or(0.0),
             mirror: matrix.mirror,
             mirror_y_locked: matrix_has_linked_layout(
                 &snapshot.document,
-                &scope.board_id,
+                board_id,
                 &matrix.id,
             ),
         },
@@ -640,33 +689,7 @@ fn project_current_for(
             }
         }
         _ => return None,
-    };
-    let editable = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-        && model.display_preview.is_none()
-        && model.gesture.is_none();
-    Some((
-        MatrixTransformProjection {
-            owner: MatrixTransformInspectorOwner {
-                editor_instance_id: context.editor_instance_id,
-                workspace: context.workspace,
-                context_generation: context.context_generation,
-                scope_generation: context.scope_generation,
-                scope: scope.clone(),
-                matrix_id: matrix.id.clone(),
-                context: selected.context.clone(),
-            },
-            snapshot_token: snapshot.token,
-            revision: snapshot.document.revision,
-            label: super::context_label(model, &selected.context)
-                .unwrap_or_else(|| format!("Matrix {}", matrix.id)),
-            fields,
-        },
-        editable,
-    ))
+    })
 }
 
 fn workspace_route_matches(current: &str, owner: &str) -> bool {
@@ -799,118 +822,51 @@ fn field_value(
 fn settle_pending(
     runtime: &Runtime,
     scope_generation: u64,
-    pending: &mut Signal<Option<PendingTransformEdit>>,
+    pending: &mut Signal<Vec<PendingTransformEdit>>,
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
 ) {
-    let Some(waiting) = pending.read().clone() else {
+    let waiting = pending.read().clone();
+    if waiting.is_empty() {
         return;
-    };
-    let model = runtime.model();
+    }
     let scope = runtime.scope();
-    let target_is_current = scope.as_ref() == Some(&waiting.request.owner.scope)
-        && scope_generation == waiting.request.owner.scope_generation;
-    let outcome = match pending_settlement(waiting.outcome.borrow().clone(), target_is_current) {
-        PendingSettlement::Wait => {
-            if !target_is_current {
-                feedback.set(Vec::new());
+    let mut remaining = Vec::with_capacity(waiting.len());
+    let mut changed = false;
+    for edit in waiting {
+        let live = scope.as_ref() == Some(&edit.request.owner.scope)
+            && scope_generation == edit.request.owner.scope_generation;
+        match edit.ticket.settlement(live) {
+            Settlement::Pending => remaining.push(edit),
+            Settlement::Landed { .. } => {
+                changed = true;
+                publish_feedback(feedback, &edit.request, MatrixTransformState::Saved, None);
             }
-            return;
-        }
-        PendingSettlement::Suppress => {
-            pending.set(None);
-            feedback.set(Vec::new());
-            return;
-        }
-        PendingSettlement::Settle(outcome) => outcome,
-    };
-    match outcome {
-        TerminalOutcome::Completed => {
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if matches!(model.durability, Durability::Failed { .. })
-                || matches!(
-                    model.lifecycle,
-                    Lifecycle::RecoveryRequired | Lifecycle::Closed
-                )
-            {
-                finish_pending(pending, feedback, &waiting, MatrixTransformState::Failed,
-                    Some("The transform completed, but the accepted document did not save. Retry after recovery.".into()));
-                return;
-            }
-            if snapshot.token == waiting.base_token
-                || snapshot.document.revision <= waiting.base_revision
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-            {
-                return;
-            }
-            let value = project_current_for(
-                runtime,
-                &model,
-                scope.as_ref(),
-                Some(&ScopedTreeContext {
-                    scope: waiting.request.owner.scope.clone(),
-                    context: waiting.request.owner.context.clone(),
-                }),
-                ProjectionContext {
-                    editor_instance_id: waiting.request.owner.editor_instance_id,
-                    context_generation: waiting.request.owner.context_generation,
-                    scope_generation: waiting.request.owner.scope_generation,
-                    workspace: waiting.request.owner.workspace,
-                },
-                waiting.request.owner.workspace,
-            )
-            .and_then(|(projection, _)| field_value(&projection.fields, waiting.request.field));
-            if value.as_ref() == Some(&waiting.request.value) {
-                finish_pending(
-                    pending,
+            Settlement::Failed { message } => {
+                changed = true;
+                publish_feedback(
                     feedback,
-                    &waiting,
-                    MatrixTransformState::Saved,
-                    None,
+                    &edit.request,
+                    MatrixTransformState::Failed,
+                    Some(message),
                 );
-            } else {
-                finish_pending(pending, feedback, &waiting, MatrixTransformState::Failed,
-                    Some("The saved transform does not contain the requested value. Review the current field and retry.".into()));
             }
-        }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => {
-            finish_pending(
-                pending,
-                feedback,
-                &waiting,
-                MatrixTransformState::Failed,
-                Some(message),
-            );
-        }
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
-            finish_pending(pending, feedback, &waiting, MatrixTransformState::Failed,
-                Some("The transform did not complete in the active session. Review the current value and retry.".into()));
+            Settlement::Retired => {
+                changed = true;
+                if live {
+                    publish_feedback(
+                        feedback,
+                        &edit.request,
+                        MatrixTransformState::Failed,
+                        Some("The transform did not complete in the active session. Review the current value and retry.".into()),
+                    );
+                } else {
+                    feedback.set(Vec::new());
+                }
+            }
         }
     }
-}
-
-fn finish_pending(
-    pending: &mut Signal<Option<PendingTransformEdit>>,
-    feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
-    waiting: &PendingTransformEdit,
-    state: MatrixTransformState,
-    message: Option<String>,
-) {
-    if pending
-        .read()
-        .as_ref()
-        .is_some_and(|current| current.operation_id == waiting.operation_id)
-    {
-        pending.set(None);
-        publish_feedback(feedback, &waiting.request, state, message);
+    if changed {
+        pending.set(remaining);
     }
 }
 
@@ -946,4 +902,78 @@ fn publish_feedback(
         entries.remove(index);
     }
     feedback.set(entries);
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod queued_edits {
+    use super::*;
+    use crate::presentation::objects::matrix_edit_test_support as fixture;
+    use crate::runtime::project_name_test_support as support;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn origin_ticket(
+        runtime: &Rc<Runtime>,
+        field: MatrixTransformField,
+        value: f64,
+    ) -> EditTicket {
+        EditTicket::begin(
+            runtime,
+            "layout-matrix-transform",
+            Some("transform".into()),
+            transform_edit_resolver(
+                fixture::MATRIX_ID.into(),
+                fixture::BOARD_ID.into(),
+                TreeContext::Matrix {
+                    matrix_id: fixture::MATRIX_ID.into(),
+                },
+                field,
+                MatrixTransformValue::Number(value),
+                MatrixSplayAffect::Column,
+                Vec::new(),
+            ),
+        )
+    }
+
+    #[wasm_bindgen_test]
+    async fn two_transform_fields_committed_back_to_back_both_survive() {
+        let runtime = fixture::open_matrix_runtime().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let x = origin_ticket(&runtime, MatrixTransformField::OriginX, 5.0);
+        support::drive_pending(&runtime);
+        entered.await.expect("the X edit reached Core");
+        let y = origin_ticket(&runtime, MatrixTransformField::OriginY, 7.0);
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held X reply");
+        fixture::settle_ticket(&runtime, &y).await;
+
+        assert!(matches!(x.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(y.settlement(true), Settlement::Landed { .. }));
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.origin,
+            Vec2 { x: 5.0, y: 7.0 },
+            "the Y edit resolved against the document the X edit produced"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_committed_transform_value_wins_over_a_changed_baseline() {
+        let runtime = fixture::open_matrix_runtime().await;
+        // Another edit moves the origin first; the later commit still lands its own value.
+        let first = origin_ticket(&runtime, MatrixTransformField::OriginX, 3.0);
+        fixture::settle_ticket(&runtime, &first).await;
+        let second = origin_ticket(&runtime, MatrixTransformField::OriginX, 9.0);
+        fixture::settle_ticket(&runtime, &second).await;
+        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        assert_eq!(fixture::accepted_matrix(&runtime).origin.x, 9.0);
+        // Committing the value that is already accepted resolves Unchanged: it lands without
+        // a new revision.
+        let revision = runtime.model().accepted.unwrap().document.revision;
+        let same = origin_ticket(&runtime, MatrixTransformField::OriginX, 9.0);
+        fixture::settle_ticket(&runtime, &same).await;
+        assert!(matches!(same.settlement(true), Settlement::Landed { .. }));
+        assert_eq!(runtime.model().accepted.unwrap().document.revision, revision);
+    }
 }

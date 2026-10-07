@@ -7,7 +7,10 @@ use crate::presentation::{
     canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{Durability, Event, Lifecycle};
+use boardstudio_application::{
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution,
+};
+use boardstudio_web_runtime::edit_ticket::EditTicket;
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Matrix, MatrixScene, MatrixSplayAffect,
     MatrixSplayChange, Vec2,
@@ -539,7 +542,7 @@ pub fn LayoutTransformToolOverlay(
                 active.preview_submitted = true;
             }
             if !same_transform_as_start(&active, &operation) {
-                submit_transform_edit(&runtime_for_end, &active, operation, EditPhase::Commit);
+                commit_transform_drag(&runtime_for_end, &active, &operation);
             } else if active.preview_submitted {
                 clear_transform_preview(&runtime_for_end, &active);
             }
@@ -603,15 +606,14 @@ pub fn LayoutTransformToolOverlay(
         if !matches!(
             key.key().as_str(),
             "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
-        ) || !transform_owner_is_current(
+        ) || !transform_nudge_admitted(
             &runtime_for_key,
             workspace,
             scope_generation,
             selected_context,
             &owner_for_key,
             &context_for_key,
-        ) || !transform_start_is_editable(&runtime_for_key, &owner_for_key, &matrix_for_key)
-        {
+        ) {
             return;
         }
         let Some(target) = key
@@ -634,61 +636,34 @@ pub fn LayoutTransformToolOverlay(
                 _ => 0.0,
             },
         };
-        let operation = match target.get_attribute("aria-label").as_deref() {
+        let nudge = match target.get_attribute("aria-label").as_deref() {
             Some("Drag to stagger") => {
-                let mut next = matrix_for_key.clone();
                 let row = context_row(&context_for_key);
-                let index = row.unwrap_or(selected_column) as usize;
-                let offsets = if row.is_some() {
-                    &mut next.row_offsets
-                } else {
-                    &mut next.column_offsets
-                };
-                offsets.resize(offsets.len().max(index + 1), Vec2::default());
-                offsets[index].x += delta.x;
-                offsets[index].y += delta.y;
-                EditOperation::SetMatrix {
-                    matrix: next,
-                    definitions: None,
+                TransformNudge::Stagger {
+                    row_axis: row.is_some(),
+                    index: row.unwrap_or(selected_column),
                 }
             }
-            Some("Move splay origin") => EditOperation::SetMatrixSplay {
-                matrix_id: matrix_for_key.id.clone(),
+            Some("Move splay origin") => TransformNudge::SplayOrigin {
                 column: selected_column,
-                change: MatrixSplayChange::Origin {
-                    world: Some(Vec2 {
-                        x: handle_point.x + delta.x,
-                        y: handle_point.y + delta.y,
-                    }),
-                },
             },
-            Some("Drag to splay") if delta.x != 0.0 => EditOperation::SetMatrixSplay {
-                matrix_id: matrix_for_key.id.clone(),
+            Some("Drag to splay") if delta.x != 0.0 => TransformNudge::SplayAngle {
                 column: selected_column,
-                change: MatrixSplayChange::Angle {
-                    angle: angle_degrees
-                        + delta.x.signum() * if key.shift_key() { 5.0 } else { 1.0 },
-                    affect: splay_affect(),
-                },
+                degrees: delta.x.signum() * if key.shift_key() { 5.0 } else { 1.0 },
+                affect: splay_affect(),
             },
             _ => return,
         };
         key.prevent_default();
         key.stop_propagation();
-        let Some(revision) = owner_for_key.revision else {
-            return;
-        };
-        let operation_id = runtime_for_key.operation();
-        runtime_for_key.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: revision,
-                transaction_id: format!("layout-transform-key-{}", operation_id.0),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix_for_key.id.clone()],
-                operation,
-            },
-        });
+        // A held key queues one step per repeat; each resolves against the matrix the
+        // previous steps produced.
+        let _ = EditTicket::begin(
+            &runtime_for_key,
+            "layout-transform-nudge",
+            Some("transform".into()),
+            transform_nudge_resolver(matrix_for_key.id.clone(), nudge, delta),
+        );
     });
 
     let selected_row = context_row(&context);
@@ -771,6 +746,285 @@ pub fn LayoutTransformToolOverlay(
             }
         }
     }
+}
+
+/// What a handle key press moves, captured as intent. The step is a delta: the resolver
+/// applies it to the matrix accepted when the edit runs.
+#[derive(Clone, Debug, PartialEq)]
+enum TransformNudge {
+    Stagger { row_axis: bool, index: u32 },
+    SplayOrigin { column: u32 },
+    SplayAngle {
+        column: u32,
+        degrees: f64,
+        affect: MatrixSplayAffect,
+    },
+}
+
+fn accepted_matrix<'a>(accepted: &'a AcceptedSnapshot, matrix_id: &str) -> Option<&'a Matrix> {
+    accepted
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+}
+
+fn accepted_basis<'a>(
+    accepted: &'a AcceptedSnapshot,
+    matrix_id: &str,
+    column: u32,
+) -> Option<&'a boardstudio_core::model::MatrixColumnBasis> {
+    accepted
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == matrix_id)?
+        .columns
+        .iter()
+        .find(|basis| basis.column == column)
+}
+
+fn stagger_by(matrix: &Matrix, row_axis: bool, index: u32, delta: Vec2) -> Matrix {
+    let mut next = matrix.clone();
+    let offsets = if row_axis {
+        &mut next.row_offsets
+    } else {
+        &mut next.column_offsets
+    };
+    offsets.resize(offsets.len().max(index as usize + 1), Vec2::default());
+    offsets[index as usize].x += delta.x;
+    offsets[index as usize].y += delta.y;
+    next
+}
+
+fn transform_commit(transaction_id: String, matrix_id: &str, operation: EditOperation) -> Resolution {
+    Resolution::Submit(EditCommand {
+        base_revision: 0,
+        transaction_id,
+        phase: EditPhase::Commit,
+        target_ids: vec![matrix_id.to_owned()],
+        operation,
+    })
+}
+
+/// Resolve a handle key press: the step is added to the accepted matrix (stagger offset) or
+/// to the accepted column basis (splay origin and angle).
+fn transform_nudge_resolver(matrix_id: String, nudge: TransformNudge, delta: Vec2) -> EditResolver {
+    EditResolver::new(
+        "layout-transform-nudge",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = accepted_matrix(accepted, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            let operation = match &nudge {
+                TransformNudge::Stagger { row_axis, index } => EditOperation::SetMatrix {
+                    matrix: stagger_by(matrix, *row_axis, *index, delta),
+                    definitions: None,
+                },
+                TransformNudge::SplayOrigin { column } => {
+                    let Some(basis) = accepted_basis(accepted, &matrix_id, *column) else {
+                        return Resolution::Retire("The selected column no longer exists.".into());
+                    };
+                    EditOperation::SetMatrixSplay {
+                        matrix_id: matrix_id.clone(),
+                        column: *column,
+                        change: MatrixSplayChange::Origin {
+                            world: Some(Vec2 {
+                                x: basis.splay_origin.x + delta.x,
+                                y: basis.splay_origin.y + delta.y,
+                            }),
+                        },
+                    }
+                }
+                TransformNudge::SplayAngle {
+                    column,
+                    degrees,
+                    affect,
+                } => {
+                    let Some(basis) = accepted_basis(accepted, &matrix_id, *column) else {
+                        return Resolution::Retire("The selected column no longer exists.".into());
+                    };
+                    EditOperation::SetMatrixSplay {
+                        matrix_id: matrix_id.clone(),
+                        column: *column,
+                        change: MatrixSplayChange::Angle {
+                            angle: basis.splay_angle + degrees,
+                            affect: affect.clone(),
+                        },
+                    }
+                }
+            };
+            transform_commit(String::new(), &matrix_id, operation)
+        },
+    )
+}
+
+/// The net transform a drag produced, captured when it ends: stagger and angle as deltas
+/// from the drag's start, a splay origin as the point it was dropped on.
+#[derive(Clone, Debug, PartialEq)]
+enum TransformDragResult {
+    Stagger {
+        row_axis: bool,
+        index: u32,
+        delta: Vec2,
+    },
+    SplayAngle {
+        column: u32,
+        delta_degrees: f64,
+        affect: MatrixSplayAffect,
+    },
+    SplayOrigin {
+        column: u32,
+        world: Option<Vec2>,
+    },
+}
+
+fn transform_drag_result(drag: &TransformDrag, operation: &EditOperation) -> Option<TransformDragResult> {
+    match (&drag.gesture, operation) {
+        (
+            TransformGesture::Stagger { row_axis, index },
+            EditOperation::SetMatrix { matrix, .. },
+        ) => {
+            let offset = |matrix: &Matrix| {
+                let offsets = if *row_axis {
+                    &matrix.row_offsets
+                } else {
+                    &matrix.column_offsets
+                };
+                offsets.get(*index as usize).copied().unwrap_or_default()
+            };
+            let (start, end) = (offset(&drag.matrix), offset(matrix));
+            Some(TransformDragResult::Stagger {
+                row_axis: *row_axis,
+                index: *index,
+                delta: Vec2 {
+                    x: end.x - start.x,
+                    y: end.y - start.y,
+                },
+            })
+        }
+        (
+            TransformGesture::Splay { column, .. },
+            EditOperation::SetMatrixSplay {
+                change: MatrixSplayChange::Angle { angle, affect },
+                ..
+            },
+        ) => Some(TransformDragResult::SplayAngle {
+            column: *column,
+            delta_degrees: angle
+                - drag
+                    .matrix
+                    .column_splays
+                    .get(*column as usize)
+                    .copied()
+                    .unwrap_or(0.0),
+            affect: affect.clone(),
+        }),
+        (
+            TransformGesture::Origin { column },
+            EditOperation::SetMatrixSplay {
+                change: MatrixSplayChange::Origin { world },
+                ..
+            },
+        ) => Some(TransformDragResult::SplayOrigin {
+            column: *column,
+            world: *world,
+        }),
+        _ => None,
+    }
+}
+
+/// Resolve a finished drag against the accepted matrix: the drag's net transform is applied
+/// to whatever is accepted when the edit runs, so a drag queued behind other edits composes.
+fn transform_drag_resolver(
+    matrix_id: String,
+    transaction_id: String,
+    result: TransformDragResult,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-transform-drag",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = accepted_matrix(accepted, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            let operation = match &result {
+                TransformDragResult::Stagger {
+                    row_axis,
+                    index,
+                    delta,
+                } => EditOperation::SetMatrix {
+                    matrix: stagger_by(matrix, *row_axis, *index, *delta),
+                    definitions: None,
+                },
+                TransformDragResult::SplayAngle {
+                    column,
+                    delta_degrees,
+                    affect,
+                } => EditOperation::SetMatrixSplay {
+                    matrix_id: matrix_id.clone(),
+                    column: *column,
+                    change: MatrixSplayChange::Angle {
+                        angle: matrix
+                            .column_splays
+                            .get(*column as usize)
+                            .copied()
+                            .unwrap_or(0.0)
+                            + delta_degrees,
+                        affect: affect.clone(),
+                    },
+                },
+                TransformDragResult::SplayOrigin { column, world } => {
+                    EditOperation::SetMatrixSplay {
+                        matrix_id: matrix_id.clone(),
+                        column: *column,
+                        change: MatrixSplayChange::Origin { world: *world },
+                    }
+                }
+            };
+            transform_commit(transaction_id.clone(), &matrix_id, operation)
+        },
+    )
+}
+
+fn commit_transform_drag(runtime: &Rc<Runtime>, drag: &TransformDrag, operation: &EditOperation) {
+    let Some(result) = transform_drag_result(drag, operation) else {
+        return;
+    };
+    let _ = EditTicket::begin(
+        runtime,
+        "layout-transform-drag",
+        Some("transform".into()),
+        transform_drag_resolver(drag.matrix.id.clone(), drag.transaction_id.clone(), result),
+    );
+}
+
+/// A handle key press is a delta intent, so it stays admitted while earlier presses are
+/// still applying: only the selection, scope and workspace must be the live owner.
+fn transform_nudge_admitted(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    generation: Signal<u64>,
+    selected_context: Signal<Option<ScopedTreeContext>>,
+    owner: &LayoutOwnerIdentity,
+    context: &TreeContext,
+) -> bool {
+    let model = runtime.model();
+    owner.workspace == "Layout"
+        && workspace() == owner.workspace
+        && generation() == owner.generation
+        && runtime.scope() == owner.scope
+        && matches!(
+            model.lifecycle,
+            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+        )
+        && model.display_preview.is_none()
+        && model.gesture.is_none()
+        && owner.scope.as_ref().is_some_and(|scope| {
+            model.active_board_id == scope.board_id
+                && model.active_instance_id == scope.instance_id
+                && selected_context()
+                    .is_some_and(|selected| selected.scope == *scope && selected.context == *context)
+        })
 }
 
 fn context_matrix_id(context: &TreeContext) -> Option<&str> {
@@ -1389,5 +1643,85 @@ mod shortcut_tests {
         }
 
         root.remove();
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod nudge_tests {
+    use super::*;
+    use boardstudio_web_runtime::edit_ticket::Settlement;
+    use crate::presentation::objects::matrix_edit_test_support as fixture;
+    use crate::runtime::project_name_test_support as support;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn nudge_ticket(runtime: &Rc<Runtime>, delta: Vec2) -> EditTicket {
+        EditTicket::begin(
+            runtime,
+            "layout-transform-nudge",
+            Some("transform".into()),
+            transform_nudge_resolver(
+                fixture::MATRIX_ID.into(),
+                TransformNudge::Stagger {
+                    row_axis: false,
+                    index: 0,
+                },
+                delta,
+            ),
+        )
+    }
+
+    #[wasm_bindgen_test]
+    async fn three_handle_nudges_queued_behind_a_gated_reply_move_the_matrix_three_steps() {
+        let runtime = fixture::open_matrix_runtime().await;
+        let step = Vec2 { x: 0.0, y: 0.1 };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first = nudge_ticket(&runtime, step);
+        support::drive_pending(&runtime);
+        entered.await.expect("the first nudge reached Core");
+        let second = nudge_ticket(&runtime, step);
+        let third = nudge_ticket(&runtime, step);
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held reply");
+        fixture::settle_ticket(&runtime, &third).await;
+
+        for ticket in [&first, &second, &third] {
+            assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        }
+        let offset = fixture::accepted_matrix(&runtime).column_offsets[0];
+        assert!(
+            (offset.y - 0.3).abs() < 1e-9,
+            "three steps of 0.1 compose to 0.3, got {}",
+            offset.y
+        );
+        assert_eq!(offset.x, 0.0);
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_drag_commit_applies_its_net_transform_to_the_accepted_matrix() {
+        let runtime = fixture::open_matrix_runtime().await;
+        // Another stagger edit lands while the drag was in flight; the drag's net delta
+        // composes with it instead of restoring the matrix the drag started from.
+        let other = nudge_ticket(&runtime, Vec2 { x: 0.0, y: 1.0 });
+        fixture::settle_ticket(&runtime, &other).await;
+        let drag = EditTicket::begin(
+            &runtime,
+            "layout-transform-drag",
+            Some("transform".into()),
+            transform_drag_resolver(
+                fixture::MATRIX_ID.into(),
+                "layout-transform-test".into(),
+                TransformDragResult::Stagger {
+                    row_axis: false,
+                    index: 0,
+                    delta: Vec2 { x: 2.0, y: 0.0 },
+                },
+            ),
+        );
+        fixture::settle_ticket(&runtime, &drag).await;
+        assert!(matches!(drag.settlement(true), Settlement::Landed { .. }));
+        let offset = fixture::accepted_matrix(&runtime).column_offsets[0];
+        assert_eq!(offset, Vec2 { x: 2.0, y: 1.0 });
     }
 }
