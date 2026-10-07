@@ -1,12 +1,14 @@
 use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
+use crate::project_name::{
+    ProjectNameKey, ProjectNameOwner, ProjectNameRejection, project_name_resolver,
+};
 use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
-use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
 #[cfg(test)]
 use boardstudio_core::model::{EditCommand, EditPhase};
 use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, JsString, Object};
@@ -22,35 +24,35 @@ enum ListStatus {
     Failed,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ProjectNameOwner {
-    session_epoch: SessionEpoch,
-    document_id: String,
-}
-
-impl From<&AcceptedSnapshot> for ProjectNameOwner {
-    fn from(snapshot: &AcceptedSnapshot) -> Self {
-        Self {
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-        }
-    }
-}
-
 #[derive(Clone)]
 struct ProjectNameCommitAction {
     runtime: Rc<Runtime>,
     owner: ProjectNameOwner,
     mounted: Rc<Cell<bool>>,
-    tickets: Signal<Vec<(ProjectNameOwner, EditTicket)>>,
+    edits: PendingEditSignals<ProjectNameKey>,
+    /// The project the latest submitted rename belongs to; its observation is live only
+    /// while that project stays accepted.
+    submitted_owner: Rc<std::cell::RefCell<Option<ProjectNameOwner>>>,
 }
 
 impl ProjectNameCommitAction {
     fn commit(&self, value: &str) {
-        if let Some(ticket) = commit_project_name(&self.runtime, &self.owner, &self.mounted, value)
-        {
-            let mut tickets = self.tickets;
-            tickets.write().push((self.owner.clone(), ticket));
+        match project_name_resolver(&self.runtime, &self.owner, &self.mounted, value) {
+            Ok(resolver) => {
+                self.edits.begin_field(
+                    &self.runtime,
+                    ProjectNameKey::Name,
+                    "project-name",
+                    Some("project name".into()),
+                    resolver,
+                    value,
+                );
+                *self.submitted_owner.borrow_mut() = Some(self.owner.clone());
+            }
+            Err(ProjectNameRejection::OwnerChanged) => self
+                .runtime
+                .report("Project changed while renaming; the project name was not changed."),
+            Err(_) => {}
         }
     }
 }
@@ -506,12 +508,16 @@ pub fn Library(
         .unwrap_or_default();
     let mut project_name = use_signal(|| current_name.clone());
     let mut name_dirty = use_signal(|| false);
-    let name_tickets = use_signal(Vec::<(ProjectNameOwner, EditTicket)>::new);
     let mut name_failure = use_signal(|| None::<String>);
+    let name_edits = use_hook(PendingEditSignals::<ProjectNameKey>::new);
+    name_edits.bind_field(ProjectNameKey::Name, project_name, name_failure);
+    let submitted_name_owner =
+        use_hook(|| Rc::new(std::cell::RefCell::new(None::<ProjectNameOwner>)));
     let name_version = version();
     let observed_name = use_hook(|| Rc::new(std::cell::RefCell::new(None)));
     use_effect(use_reactive((&name_owner, &current_name, &name_version), {
-        let mut name_tickets = name_tickets;
+        let name_edits = name_edits.clone();
+        let submitted_name_owner = submitted_name_owner.clone();
         move |(owner, current_name, _)| {
             let observed = (owner.clone(), current_name.clone());
             let changed = observed_name.borrow().as_ref() != Some(&observed);
@@ -520,29 +526,16 @@ pub fn Library(
                 .as_ref()
                 .is_some_and(|(previous, _)| previous != &owner);
             *observed_name.borrow_mut() = Some(observed);
-            let mut pending = name_tickets.peek().clone();
-            let had_tickets = !pending.is_empty();
-            pending.retain(|(ticket_owner, ticket)| {
-                match ticket.settlement(owner.as_ref() == Some(ticket_owner)) {
-                    Settlement::Pending => true,
-                    Settlement::Failed { message } => {
-                        name_failure.set(Some(message));
-                        false
-                    }
-                    Settlement::Landed { .. } | Settlement::Retired => false,
-                }
-            });
-            if owner_changed
-                || (pending.is_empty() && !*name_dirty.peek() && (changed || had_tickets))
-            {
+            let owner_is_live = owner.is_some() && *submitted_name_owner.borrow() == owner;
+            let results = name_edits.settle(owner_is_live, |_| current_name.clone());
+            let settled = !results.is_empty();
+            let pending = name_edits.is_pending(&ProjectNameKey::Name);
+            if owner_changed || (!pending && !*name_dirty.peek() && (changed || settled)) {
                 project_name.set(current_name);
                 name_dirty.set(false);
             }
             if owner_changed {
                 name_failure.set(None);
-            }
-            if pending.len() != name_tickets.peek().len() {
-                name_tickets.set(pending);
             }
         }
     }));
@@ -583,7 +576,8 @@ pub fn Library(
         runtime: runtime.clone(),
         owner,
         mounted: mounted.clone(),
-        tickets: name_tickets,
+        edits: name_edits.clone(),
+        submitted_owner: submitted_name_owner.clone(),
     });
     #[cfg(all(test, target_arch = "wasm32"))]
     PROJECT_NAME_ACTION_PROBE.with(|probe| *probe.borrow_mut() = name_action.clone());
@@ -972,53 +966,6 @@ pub fn Library(
             if !new_error().is_empty() { p { role: "alert", "{new_error()}" } }
         }
     }
-}
-
-fn renamed_document(document: &ProjectDoc, value: &str) -> Option<ProjectDoc> {
-    let name = value.trim();
-    if name.is_empty() || name == document.name {
-        return None;
-    }
-    let mut renamed = document.clone();
-    renamed.name = name.to_owned();
-    Some(renamed)
-}
-
-fn commit_project_name(
-    runtime: &Rc<Runtime>,
-    owner: &ProjectNameOwner,
-    mounted: &Rc<Cell<bool>>,
-    value: &str,
-) -> Option<EditTicket> {
-    if !mounted.get() {
-        return None;
-    }
-    let snapshot = runtime.model().accepted?;
-    if *owner != ProjectNameOwner::from(&snapshot) {
-        runtime.report("Project changed while renaming; the project name was not changed.");
-        return None;
-    }
-    let name = value.trim().to_owned();
-    if name.is_empty() {
-        return None;
-    }
-    let resolver = EditResolver::new("project-name", move |accepted: &AcceptedSnapshot| {
-        let Some(document) = renamed_document(&accepted.document, &name) else {
-            return Resolution::Unchanged;
-        };
-        Resolution::submit(
-            vec![document.id.clone()],
-            EditOperation::ReplaceDocument {
-                document: Box::new(document),
-            },
-        )
-    });
-    Some(EditTicket::begin(
-        runtime,
-        "project-name",
-        Some("project name".into()),
-        resolver,
-    ))
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -2554,7 +2501,14 @@ mod queued_rename_tests {
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        commit_project_name(&runtime, &owner, &Rc::new(Cell::new(true)), "Renamed");
+        ProjectNameCommitAction {
+            runtime: runtime.clone(),
+            owner,
+            mounted: Rc::new(Cell::new(true)),
+            edits: PendingEditSignals::new(),
+            submitted_owner: Rc::default(),
+        }
+        .commit("Renamed");
         support::drive_pending(&runtime);
         release.send(()).unwrap();
         for _ in 0..20 {
