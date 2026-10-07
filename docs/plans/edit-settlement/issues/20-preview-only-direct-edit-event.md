@@ -1,6 +1,6 @@
 # 20: The direct edit event carries previews only
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 18
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-commits-are-intents-the-direct-edit-event-carries-previews-only-2026-10-07)
@@ -73,3 +73,27 @@ python3 scripts/check-doc-links.py
 
 - Constraining what resolvers return (typed Core edits, ADR-0006).
 - Stale previews drawn after a queued commit (`docs/backlog.md`).
+
+## Outcome
+
+Merged to `dev` in `a479152fd` (implementation commits `320e82a34`,
+`a327f4d4e`, `4f6702ef7`, `d908780c4`, `d8467b3cd`, `a9e42f92`).
+`PreviewEdit` carries no phase; Session constructs previews, and former direct test
+commits use `ResolveEdit`. The three production preview paths and strict captured
+routes retain their behaviour. Standards and Spec reviews found no issues.
+
+Checks: lint, WASM typecheck, documentation links and WASM test inventory passed;
+Application 29/29 and runtime native 102/102 passed. All Rust workspace tests passed.
+Affected browser suites passed: runtime 33, shared UI 8+1, Case 60, Parts 50, PCB 38,
+Layout 92 plus setup guide 1, and mounted page runner 42. CAD browser 15, host 6,
+UI model 4, Keycaps 27 and Library 13 also passed. The browser gate caught an omitted
+Layout WASM test-helper migration; `a9e42f92` fixes it and both reviews were refreshed.
+
+Full gates are not green: the full Keymap browser suite times out after 17/21 at
+`failed_binding_restores_accepted_field_and_explains_failure`; the same timeout
+reproduced on the exact starting commit `19598aea0`, whose isolated test passed 1/1.
+The nested worktree cannot discover the separate CAD oracle workspace. Running the
+unchanged CAD gate from canonical `dev` instead yielded 49 passed, 1 failed, 4 ignored:
+`core_internal_gasket_fixtures_export_connected_positive_regions`, rotated-concave
+bottom volume expected 80481.2399 versus 80579.55733514718 (tolerance 0.1). Core, CAD
+and contracts sources were identical to `dev`; these baseline gates remain follow-ups.

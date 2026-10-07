@@ -42,7 +42,7 @@ answered (see Decisions so far).
 - Field edits queue freely; one-shot actions disable their control while pending: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06), terms in [CONTEXT.md](../../../CONTEXT.md).
 - The latest committed value wins; resolvers retire only for a vanished or ineligible target, so the Matrix Transform Inspector's baseline rejection goes: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06).
 - Landed means landed: per-panel content checks are deleted; mechanical closure evidence is decided in [Case, mechanical settings and project/board names](issues/16-case-and-metadata.md).
-- Every action uses a resolver, field-scoped ones included; keyboard nudges become delta intents; previews stay on `Event::Edit`: [cluster migration rules](issues/08-parts-custom-definition-fields.md#migration-rules-same-for-every-cluster-ticket).
+- Every action uses a resolver, field-scoped ones included; keyboard nudges become delta intents; previews use `Event::PreviewEdit`: [cluster migration rules](issues/08-parts-custom-definition-fields.md#migration-rules-same-for-every-cluster-ticket).
 - Commits are intents everywhere; the direct edit event becomes preview-only at the type level, with no test escape hatch ([ticket 20](issues/20-preview-only-direct-edit-event.md)): [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-commits-are-intents-the-direct-edit-event-carries-previews-only-2026-10-07), [ticket 18](issues/18-decide-restrict-event-edit.md#answer).
 - `ReplaceDocument` is reserved for import and recovery as the direction; typed Core edits are a new effort starting with `SetWiringMode` after ticket 20: [ADR-0006](../../adr/0006-replace-document-for-import-and-recovery.md), [ticket 19](issues/19-decide-first-typed-core-edits.md#answer), [typed Core edits map](../typed-core-edits/map.md).
 
@@ -107,6 +107,9 @@ answered (see Decisions so far).
   path, and records the remaining replacement resolvers and preview-only direct
   events; the evidence for human decisions 18/19 is refreshed:
   [issues/17-cleanup.md](issues/17-cleanup.md).
+
+- 20 Direct edits are preview-only; test commits resolve as intents, with strict captured
+  routes preserved: [issues/20-preview-only-direct-edit-event.md](issues/20-preview-only-direct-edit-event.md).
 
 ## Not yet specified
 

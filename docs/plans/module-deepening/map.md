@@ -38,8 +38,8 @@ finish      13 cleanup (07, 08, 09, 10, 12)
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. Frontier now:
-ES-20, 10 and 11, in parallel.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20 is resolved; 03, 06 and TCE-01 are unblocked. Independent tickets 10 and 11
+are claimed and running.
 
 ## Decisions so far
 
@@ -61,6 +61,9 @@ ES-20, 10 and 11, in parallel.
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- ES-20 Preview-only direct events landed; former test commits use resolvers:
+  [Outcome](../edit-settlement/issues/20-preview-only-direct-edit-event.md#outcome).
 
 ## Tickets
 
