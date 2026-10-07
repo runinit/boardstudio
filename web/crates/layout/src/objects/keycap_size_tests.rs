@@ -815,7 +815,7 @@ async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
 #[wasm_bindgen_test]
 async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use boardstudio_core::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 
     let runtime = support::new_runtime();
