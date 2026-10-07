@@ -4712,7 +4712,7 @@ fn Editor() -> Element {
         part_placement::canvas_world_center(min_x, max_x, min_y, max_y, model.camera.center);
     let part_placement =
         part_placement::use_controller_placement(part_placement::PartPlacementHost {
-            runtime: part_placement::runtime_adapter(runtime.clone()),
+            runtime: runtime.clone(),
             load_definition: Rc::new(|document, definition_id| {
                 Box::pin(async move {
                     parts::load_component_definition(&document, &definition_id).await
