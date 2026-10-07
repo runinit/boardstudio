@@ -35,7 +35,8 @@ run in parallel; the "touches" column is what keeps them apart.
 | 4d | [Matrix fields complete the PendingEdits tracer](issues/18-matrix-field-pending-edits.md) | Matrix controller/Inspector fields and helper binding | Shared helpers, Matrix actions |
 | 4e | [PendingEdits and Matrix tracer integration gate](issues/05-pending-edits-module.md) | Tracker/evidence only; orchestrator-owned | All five implementation slices |
 | 5 | [07](issues/07-layout-panels-onto-pending-edits.md) Layout panels | `web/crates/layout`, `ui-shared/geometry_scripts.rs`, `web/src/presentation/` | 05, 06, 12 |
-| 5 | [08](issues/08-parts-and-pcb-onto-pending-edits.md) Parts and PCB | `web/crates/parts`, `web/crates/pcb` | 05 |
+| parallel prep | [Parts and PCB native tests prepare the panel migration](issues/19-parts-pcb-native-test-preparation.md) | Three Parts native test modules; PCB native owner tests | Native Runtime, resolution constructors |
+| 5 | [08](issues/08-parts-and-pcb-onto-pending-edits.md) Parts and PCB | `web/crates/parts`, `web/crates/pcb` | Tracer gate, native test preparation |
 | 5 | [09](issues/09-case-keymap-keycaps-library-onto-pending-edits.md) Case, Keymap, Keycaps, Library | those four crates | 05 |
 | 5 | [TCE-02](../typed-core-edits/issues/02-mechanical-settings-patch.md) mechanical patch | `core/`, `web/crates/case/src/mechanical_settings*` | TCE-01 and a spec pass (`needs-info`) |
 | 6 | [13](issues/13-cleanup.md) cleanup | docs, leftovers | 07, 08, 09, 10, 12 |
@@ -76,6 +77,16 @@ panel migrations blocked on that gate.
   that absolute workdir; start by confirming `git rev-parse HEAD` and the diff range.
   The shared canonical GitNexus index is advisory for worktree edits: confirm stale,
   empty or UNKNOWN results against the current source and never reindex an agent tree.
+
+## Third-app test preparation
+
+The user wants three separate apps to work concurrently. The native-test preparation
+slice gives the third app a bounded coding assignment before shared helpers are ready:
+remove the existing Parts test pumps and add missing PCB native owner regression
+coverage. Its production behavior stays unchanged. It runs alongside Runtime/Matrix
+work and the second app's UI helpers, then merges before Parts/PCB panel settlement.
+Use the same separate worktree, single orchestrator, explicit file ownership and Chrome
+lease rules above. Do not dispatch this assignment to agents here concurrently.
 
 ## Claiming and resolving
 

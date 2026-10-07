@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: 05
+Blocked by: 05, 19
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 
 ## What to build
@@ -21,6 +21,14 @@ layer. Files (at `915d305c0`):
   `mode`, `pins`, `part_input_settings/owner` (`owner_is_live`).
 
 Typed Core edits 01 also edits `pcb_wiring/mode.rs`; whichever lands second rebases.
+
+## Test preparation dependency
+
+[Parts and PCB native tests prepare the panel migration](19-parts-pcb-native-test-preparation.md)
+runs independently on the merged Runtime/constructors in the user's third AI app.
+It owns the named test drivers and PCB native owner regression coverage. Reuse its
+merged tests; do not repeat or overwrite that preparation. Remaining hand-resolved or
+dormant domain tests in this ticket's other files still migrate here as needed.
 
 ## Migration rules (same for 07, 08 and 09)
 

@@ -46,6 +46,7 @@ independent export leases
             Editor tracer ── Editor workspace state
 cross-effort typed wiring ── mechanical patch (approved spec required)
              typed wiring + outline split ── outline intents (human)
+independent Parts/PCB native-test preparation (native Runtime + constructors) ── Parts + PCB
 finish       cleanup after the three panel migrations, export leases and workspace state
 ```
 
@@ -115,6 +116,7 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 - [06 Separate outline version planning from its Inspector and overlays](issues/06-split-outline-lifecycle.md)
 - [07 Layout panels settle through `PendingEdits`](issues/07-layout-panels-onto-pending-edits.md)
 - [08 Parts and PCB panels settle through `PendingEdits`](issues/08-parts-and-pcb-onto-pending-edits.md)
+- [Parts and PCB native tests prepare the panel migration](issues/19-parts-pcb-native-test-preparation.md)
 - [09 Case, Keymap, Keycaps and Library settle through `PendingEdits`](issues/09-case-keymap-keycaps-library-onto-pending-edits.md)
 - [10 One export-lease module owns export capture and currency](issues/10-export-leases.md)
 - [11 Editor state tracer: canvas navigation and layout findings](issues/11-editor-state-tracer.md)
@@ -131,6 +133,20 @@ separate files. The user has reserved the shared-helper slice for a separate AI 
 external worktree; agents here must not claim it. The orchestrator prepares its
 interface/base/worktree handoff after the keyed collection merges. Matrix fields follow both; the orchestrator closes the tracer gate only after
 combined verification. The three wider panel migrations then run in parallel.
+
+## Three-app allocation
+
+- This chat runs captured Scope, keyed settlement and Matrix actions/integration, then
+  Layout panels.
+- The user's second app owns the reserved shared UI helpers, then can take the
+  Case/Keymap/Keycaps/Library migration after the tracer gate.
+- The user's third app can start the claimed
+  [Parts and PCB native test preparation](issues/19-parts-pcb-native-test-preparation.md)
+  now, then take Parts/PCB settlement after its preparation and the tracer gate merge.
+
+The test-preparation stream touches only Parts test modules and the existing PCB native
+owner test file, so it does not share files with the Runtime, UI helpers or Matrix
+streams. Wider panel behavior still waits for the complete tracer.
 
 ## Out of scope
 
