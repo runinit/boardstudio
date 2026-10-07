@@ -9,7 +9,7 @@ use boardstudio_core::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
@@ -110,8 +110,6 @@ pub struct KeycapsEditRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeycapsEditStatus {
     Pending,
-    Blocked(String),
-    Saved,
     Failed(String),
 }
 
@@ -169,14 +167,77 @@ pub struct KeycapsSettingsActions {
     pub on_discard: EventHandler<KeycapsRetryIdentity>,
 }
 
-#[derive(Clone)]
-struct KeycapsTicket {
+/// A field's logical identity: the latest edit for it replaces the earlier observation.
+type KeycapsPendingKey = (KeycapsEditTarget, KeycapEditField);
+
+struct KeycapsObservation {
+    key: KeycapsPendingKey,
     request: KeycapsEditRequest,
-    ticket: EditTicket,
+    operation: OperationId,
+}
+
+/// The latest observed edit per field and the request that produced it.
+#[derive(Default)]
+struct KeycapsPending {
+    edits: PendingEdits<KeycapsPendingKey>,
+    observations: Vec<KeycapsObservation>,
+}
+
+impl KeycapsPending {
+    fn begin(
+        &mut self,
+        runtime: &Rc<Runtime>,
+        request: KeycapsEditRequest,
+        resolver: EditResolver,
+    ) -> OperationId {
+        let key = (request.target.clone(), request.change.field());
+        let operation = self.edits.begin(
+            runtime,
+            key.clone(),
+            "keycaps",
+            Some("keycap settings".into()),
+            resolver,
+        );
+        self.observations.retain(|existing| existing.key != key);
+        self.observations.push(KeycapsObservation {
+            key,
+            request,
+            operation,
+        });
+        operation
+    }
+
+    fn has_terminal(&self) -> bool {
+        self.observations
+            .iter()
+            .any(|observation| !self.edits.is_pending(&observation.key))
+    }
+
+    /// Drain terminal results with the request each one observed. Panel ownership is
+    /// per request, so callers decide each result's liveness from its request.
+    fn settle(&mut self) -> Vec<(KeycapsObservation, PendingEditResult<KeycapsPendingKey>)> {
+        let results = self.edits.settle(true);
+        let mut settled = Vec::with_capacity(results.len());
+        for result in results {
+            let key = match &result {
+                PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key } => key,
+            };
+            if let Some(index) = self
+                .observations
+                .iter()
+                .position(|observation| observation.key == *key)
+            {
+                settled.push((self.observations.remove(index), result));
+            }
+        }
+        settled
+    }
 }
 
 #[derive(Clone, Copy)]
-struct KeycapsTickets(Signal<Vec<KeycapsTicket>>);
+struct KeycapsTickets(Signal<KeycapsPending>);
 
 // These values belong only to outstanding field tickets. They are presentation drafts,
 // never used to construct a replacement document or as the accepted baseline.
@@ -187,16 +248,16 @@ fn pending_changes(
     let Some(tickets) = try_consume_context::<KeycapsTickets>() else {
         return vec![];
     };
-    tickets
-        .0
-        .read()
+    let pending = tickets.0.read();
+    pending
+        .observations
         .iter()
         .filter(|entry| {
             entry.request.scope == actions.scope
                 && entry.request.scope_generation == actions.scope_generation
                 && entry.request.selection_generation == actions.selection_generation
                 && entry.request.target == *target
-                && entry.ticket.is_pending()
+                && pending.edits.is_pending(&entry.key)
         })
         .map(|entry| entry.request.change.clone())
         .collect()
@@ -262,7 +323,7 @@ pub fn use_keycaps_settings_actions(
     });
     let request_sequence = use_signal(|| 0_u64);
     let last_request_id = use_signal(|| 0_u64);
-    let pending = use_signal(Vec::<KeycapsTicket>::new);
+    let pending = use_signal(KeycapsPending::default);
     use_context_provider(|| KeycapsTickets(pending));
     let feedback = use_signal(|| None::<FeedbackState>);
     let mut retry_drafts =
@@ -334,11 +395,13 @@ pub fn use_keycaps_settings_actions(
                 workspace(),
                 live_key_id.as_deref(),
             );
-            let mut tickets = pending.peek().clone();
-            let before = tickets.len();
-            tickets.retain(|entry| {
+            if !pending.peek().has_terminal() {
+                return;
+            }
+            for (observation, result) in pending.write().settle() {
+                let request = observation.request;
                 let live = request_owner_is_current(
-                    &entry.request,
+                    &request,
                     editor_instance_id,
                     live_scope.as_ref(),
                     generation,
@@ -346,38 +409,33 @@ pub fn use_keycaps_settings_actions(
                     live_key_id.as_deref(),
                     workspace(),
                 );
-                let status = match entry.ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => {
+                let status = match result {
+                    PendingEditResult::Landed { .. } if live => {
                         remove_retry_draft_through(
                             &mut retry_drafts,
-                            &entry.request.target,
-                            &entry.request.change.field(),
-                            entry.request.request_id,
+                            &request.target,
+                            &request.change.field(),
+                            request.request_id,
                         );
-                        Some(KeycapsEditStatus::Saved)
+                        None
                     }
-                    Settlement::Failed { message } => {
-                        keep_retry_draft(&mut retry_drafts, &entry.request, message.clone());
+                    PendingEditResult::Failed { message, .. } if live => {
+                        keep_retry_draft(&mut retry_drafts, &request, message.clone());
                         Some(KeycapsEditStatus::Failed(message))
                     }
-                    Settlement::Retired => None,
+                    _ => None,
                 };
                 if feedback
                     .peek()
                     .as_ref()
-                    .is_some_and(|state| state.request.request_id == entry.request.request_id)
+                    .is_some_and(|state| state.request.request_id == request.request_id)
                 {
                     feedback.set(status.map(|status| FeedbackState {
-                        request: entry.request.clone(),
-                        operation_id: Some(entry.ticket.operation()),
+                        request: request.clone(),
+                        operation_id: Some(observation.operation),
                         status,
                     }));
                 }
-                false
-            });
-            if before != tickets.len() {
-                pending.set(tickets);
             }
         }
     }));
@@ -1093,7 +1151,7 @@ fn retry_identity_is_current(
 
 fn submit_keycap_edit(
     runtime: &Rc<Runtime>,
-    pending: &mut Signal<Vec<KeycapsTicket>>,
+    pending: &mut Signal<KeycapsPending>,
     feedback: &mut Signal<Option<FeedbackState>>,
     request: KeycapsEditRequest,
 ) {
@@ -1120,13 +1178,12 @@ fn submit_keycap_edit(
         }
         Resolution::submit(vec![target_id(&intent.target, &intent.scope)], operation)
     });
-    let ticket = EditTicket::begin(runtime, "keycaps", Some("keycap settings".into()), resolver);
+    let operation = pending.write().begin(runtime, request.clone(), resolver);
     feedback.set(Some(FeedbackState {
-        request: request.clone(),
-        operation_id: Some(ticket.operation()),
+        request,
+        operation_id: Some(operation),
         status: KeycapsEditStatus::Pending,
     }));
-    pending.write().push(KeycapsTicket { request, ticket });
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1342,8 +1399,6 @@ fn settings_feedback(
         if let Some(feedback) = feedback {
             match &feedback.status {
                 KeycapsEditStatus::Pending => rsx! { p { role: "status", "Saving keycap settings…" } },
-                KeycapsEditStatus::Blocked(message) => rsx! { p { role: "status", "{message}" } },
-                KeycapsEditStatus::Saved => rsx! { p { role: "status", "Keycap settings saved." } },
                 KeycapsEditStatus::Failed(message) => rsx! { p { role: "alert", "{message}" } },
             }
         }
@@ -1619,8 +1674,6 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
             if let Some(feedback) = feedback {
                 match &feedback.status {
                     KeycapsEditStatus::Pending => rsx! { p { role: "status", "Saving keycap override…" } },
-                    KeycapsEditStatus::Blocked(message) => rsx! { p { role: "status", "{message}" } },
-                    KeycapsEditStatus::Saved => rsx! { p { role: "status", "Keycap override saved." } },
                     KeycapsEditStatus::Failed(message) => rsx! { p { role: "alert", "{message}" } },
                 }
             }
