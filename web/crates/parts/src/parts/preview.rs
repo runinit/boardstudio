@@ -1053,8 +1053,9 @@ fn PartsPreviewLayers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{Board, ProjectDoc, SceneDelta};
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
+    use boardstudio_core::model::{Board, ProjectDoc};
     use std::sync::Arc;
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Element as DomElement, HtmlElement};
@@ -1156,12 +1157,11 @@ mod tests {
         }
     }
 
-    fn accepted_parts_fixture() -> (AcceptedSnapshot, Scope) {
+    async fn accepted_parts_fixture() -> (Rc<crate::runtime::Runtime>, AcceptedSnapshot, Scope) {
         let mut document = ProjectDoc::empty("parts-renderer-init-project", "Parts test");
         document.revision = 7;
-        let board_id = "parts-renderer-init-board";
         document.boards.push(Board {
-            id: board_id.into(),
+            id: "parts-renderer-init-board".into(),
             name: "Parts test board".into(),
             outline_ids: Vec::new(),
             part_ids: Vec::new(),
@@ -1170,40 +1170,16 @@ mod tests {
             traces: Vec::new(),
             vias: Vec::new(),
         });
-        let session_epoch = SessionEpoch(3);
-        let scope = Scope {
-            session_epoch,
-            document_id: document.id.clone(),
-            board_id: board_id.into(),
-            instance_id: None,
-        };
-        let scene: SceneDelta = serde_json::from_value(serde_json::json!({
-            "revision": 7,
-            "transactionId": "parts-renderer-init-fixture",
-            "changedIds": [],
-            "transforms": [],
-            "matrixScenes": [],
-            "contours": [],
-            "boardContours": [],
-            "boardReadiness": [],
-            "findings": [],
-            "readiness": {
-                "layout": false,
-                "outline": false,
-                "pcb": false,
-                "case": false
-            }
-        }))
-        .unwrap();
-        (
-            AcceptedSnapshot {
-                token: SnapshotToken(11),
-                session_epoch,
-                document: Arc::new(document),
-                scene: Arc::new(scene),
-            },
-            scope,
-        )
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let snapshot = runtime
+            .model()
+            .accepted
+            .expect("the parts project is accepted");
+        let scope = runtime
+            .scope()
+            .expect("the accepted parts project has a scope");
+        (runtime, snapshot, scope)
     }
 
     fn click_button(root: &DomElement, label: &str) {
@@ -1254,9 +1230,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn parts_renderer_initialization_failure_keeps_form_and_returns_to_2d() {
-        let runtime = crate::runtime::Runtime::new().expect("browser runtime fixture initializes");
-        let (snapshot, scope) = accepted_parts_fixture();
-        runtime.set_definition_name_test_state(snapshot.clone(), Some(scope.clone()));
+        let (runtime, snapshot, scope) = accepted_parts_fixture().await;
         let mut definition = definition();
         definition.generator = None;
         definition.kicad_source = Some(KicadSource {
@@ -1339,7 +1313,7 @@ mod tests {
         assert_eq!(after.document.id, before.document.id);
         assert!(Arc::ptr_eq(&after.document, &before.document));
         assert!(
-            runtime.take_definition_name_test_event().is_none(),
+            support::take_held_effects(&runtime).is_empty(),
             "the mounted renderer failure and 2D return must not submit a project edit"
         );
         root.remove();

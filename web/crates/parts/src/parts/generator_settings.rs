@@ -1453,8 +1453,9 @@ fn GeneratorParameterField(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use boardstudio_core::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
     use futures_channel::oneshot;
     use std::sync::Arc;
     use std::{cell::RefCell, collections::VecDeque};
@@ -1563,10 +1564,28 @@ mod tests {
         let mut second = first.clone();
         second.id = "test:other-mx-switch".into();
         second.name = "Other MX switch".into();
-        let snapshot = snapshot(vec![first.clone(), second.clone()], 4);
-        let scope = scope();
-        let runtime = Runtime::new().expect("browser Runtime fixture initializes");
-        runtime.set_definition_name_test_state(snapshot.clone(), Some(scope.clone()));
+        let mut document = ProjectDoc::empty("generator-merge", "Sofle v2");
+        document.revision = 4;
+        document.definitions = vec![first.clone(), second.clone()];
+        document.boards.push(Board {
+            id: "left-pcb".into(),
+            name: "Left PCB".into(),
+            outline_ids: Vec::new(),
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let snapshot = runtime
+            .model()
+            .accepted
+            .expect("the generator project is accepted");
+        let scope = runtime
+            .scope()
+            .expect("the accepted generator project has a scope");
         let requests = Rc::new(RefCell::new(VecDeque::new()));
         let fixture = Rc::new(GeneratorMountedFixture {
             snapshot,

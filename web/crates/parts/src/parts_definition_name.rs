@@ -629,15 +629,9 @@ mod tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use crate::runtime::Runtime;
-    use boardstudio_application::{
-        Completion, Effect, Event as AppEvent, SaveResult, Scope, Session,
-    };
-    use boardstudio_core::{
-        CoreEngine,
-        model::ProjectDoc,
-        model::{EditCommand, EditOperation, EditPhase},
-    };
+    use crate::runtime::{Runtime, project_name_test_support as support};
+    use boardstudio_application::{Event as AppEvent, Scope};
+    use boardstudio_core::model::ProjectDoc;
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -652,7 +646,6 @@ mod mounted_tests {
         scope: Signal<Option<Scope>>,
         selection: Signal<Option<(Option<Scope>, String)>>,
         definition: Signal<PartDefinition>,
-        runtime: Rc<Runtime>,
     }
 
     struct Seed {
@@ -685,7 +678,6 @@ mod mounted_tests {
             scope,
             selection,
             definition,
-            runtime: use_context::<Rc<Runtime>>(),
         });
         rsx! {
             div { "data-snapshot-revision": "{snapshot().document.revision}",
@@ -711,70 +703,17 @@ mod mounted_tests {
         gloo_timers::future::TimeoutFuture::new(80).await;
     }
 
-    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
-        let mut pending = initial;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn accept_document_replacement(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        operation_id: u64,
-        document: ProjectDoc,
-        target_id: &str,
-    ) -> AcceptedSnapshot {
-        let current = session.read_model().accepted.as_ref().unwrap().clone();
-        let effects = session.submit(AppEvent::Edit {
-            operation_id: OperationId(operation_id),
-            command: EditCommand {
-                base_revision: current.document.revision,
-                transaction_id: format!("parts04-mounted-refresh-{operation_id}"),
-                phase: EditPhase::Commit,
-                target_ids: vec![target_id.to_owned()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(document),
-                },
-            },
-        });
-        advance(session, core, effects);
-        session.read_model().accepted.as_ref().unwrap().clone()
-    }
-
-    fn open_document(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(AppEvent::Open {
-            operation_id: OperationId(900),
-            document,
-        });
-        advance(&mut session, &mut core, effects);
-        assert!(session.read_model().accepted.is_some());
-        (session, core)
+    /// Open `document` through the real Session and Core on a fresh Runtime and return what the
+    /// mounted editor is given: the accepted snapshot and its scope.
+    async fn opened(document: ProjectDoc) -> (Rc<Runtime>, AcceptedSnapshot, Option<Scope>) {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let snapshot = runtime
+            .model()
+            .accepted
+            .expect("the opened document is accepted");
+        let scope = runtime.scope();
+        (runtime, snapshot, scope)
     }
 
     fn input() -> HtmlInputElement {
@@ -890,11 +829,7 @@ mod mounted_tests {
             ])).unwrap();
         }
         document.definitions = vec![first, second];
-        let runtime = Runtime::new().unwrap();
-        let (mut session, mut core) = open_document(document);
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
-        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let (runtime, snapshot, scope) = opened(document).await;
         let state = Rc::new(RefCell::new(None));
         let seed = Rc::new(Seed {
             snapshot: snapshot.clone(),
@@ -964,8 +899,8 @@ mod mounted_tests {
         assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("7"));
         settle().await;
         assert_eq!(pad_number_input().value(), "7");
-        let mut refreshed_doc = session
-            .read_model()
+        let mut refreshed_doc = runtime
+            .model()
             .accepted
             .as_ref()
             .unwrap()
@@ -974,11 +909,13 @@ mod mounted_tests {
             .clone();
         refreshed_doc.definitions[1].pads[0].id = "renamed-pad".into();
         refreshed_doc.definitions[1].pads[0].at.y = 4.0;
-        let refreshed =
-            accept_document_replacement(&mut session, &mut core, 911, refreshed_doc, "second");
-        controls
-            .runtime
-            .set_definition_name_test_state(refreshed.clone(), scope.clone());
+        let refreshed = support::replace_document(
+            &runtime,
+            "parts04-mounted-refresh-911",
+            "second",
+            refreshed_doc,
+        )
+        .await;
         controls.snapshot.set(refreshed.clone());
         controls
             .definition
@@ -1000,12 +937,13 @@ mod mounted_tests {
         );
         let _ = pad_number_input().blur();
         settle().await;
-        let event = runtime
-            .take_definition_name_test_event()
-            .expect("dirty row draft submits against the accepted renamed pad");
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.as_ref().unwrap().clone();
+        assert_eq!(
+            accepted.document.revision,
+            refreshed.document.revision + 1,
+            "dirty row draft submits one edit against the accepted renamed pad"
+        );
         assert_eq!(accepted.document.definitions[1].pads[0].id, "renamed-pad");
         assert_eq!(accepted.document.definitions[1].pads[0].number, "7");
         assert_eq!(accepted.document.definitions[1].pads[0].at.y, 4.0);
@@ -1016,11 +954,13 @@ mod mounted_tests {
         let mut survivor = with_survivor.definitions[1].pads[0].clone();
         survivor.id = "surviving-pad".into();
         with_survivor.definitions[1].pads.push(survivor);
-        let expanded =
-            accept_document_replacement(&mut session, &mut core, 912, with_survivor, "second");
-        controls
-            .runtime
-            .set_definition_name_test_state(expanded.clone(), scope.clone());
+        let expanded = support::replace_document(
+            &runtime,
+            "parts04-mounted-refresh-912",
+            "second",
+            with_survivor,
+        )
+        .await;
         controls.snapshot.set(expanded.clone());
         controls
             .definition
@@ -1036,17 +976,15 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        let removal = runtime
-            .take_definition_name_test_event()
-            .expect("production Remove pad emits one scoped edit");
-        let effects = session.submit(removal);
-        advance(&mut session, &mut core, effects);
-        let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.as_ref().unwrap().clone();
+        assert_eq!(
+            accepted.document.revision,
+            expanded.document.revision + 1,
+            "production Remove pad emits one scoped edit"
+        );
         assert_eq!(accepted.document.definitions[1].pads.len(), 1);
         assert_eq!(accepted.document.definitions[1].pads[0].id, "surviving-pad");
-        controls
-            .runtime
-            .set_definition_name_test_state(accepted.clone(), scope.clone());
         controls.snapshot.set(accepted.clone());
         controls
             .definition
@@ -1066,17 +1004,18 @@ mod mounted_tests {
             .definition
             .set(accepted.document.definitions[0].clone());
         controls.snapshot.set(accepted.clone());
-        controls
-            .runtime
-            .set_definition_name_test_state(accepted.clone(), scope.clone());
         settle().await;
         assert_eq!(pad_id_input().value(), "shared-pad");
         assert_eq!(pad_number_input().value(), "1");
         let _ = pad_number_input().blur();
         settle().await;
         assert!(
-            runtime.take_definition_name_test_event().is_none(),
+            support::take_held_effects(&runtime).is_empty(),
             "dirty values owned by the prior definition cannot commit into the next owner"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            accepted.document.revision
         );
         crate::parts_custom_definition::clear_pad_number_draft_for_test();
         root.remove();
@@ -1099,11 +1038,7 @@ mod mounted_tests {
             ])).unwrap();
         }
         document.definitions = vec![first, second];
-        let runtime = Runtime::new().unwrap();
-        let (session, _core) = open_document(document);
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
-        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let (runtime, snapshot, scope) = opened(document).await;
         let state = Rc::new(RefCell::new(None));
         let seed = Rc::new(Seed {
             snapshot: snapshot.clone(),
@@ -1167,14 +1102,31 @@ mod mounted_tests {
         // height must not discard the local width draft.
         type_value(&courtyard_width_input(), "12");
         settle().await;
-        let mut refreshed_second = snapshot.document.definitions[1].clone();
-        refreshed_second.courtyard = vec![
+        let mut refreshed_doc = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref()
+            .clone();
+        refreshed_doc.definitions[1].courtyard = vec![
             boardstudio_core::model::Vec2 { x: -5.0, y: -4.0 },
             boardstudio_core::model::Vec2 { x: 5.0, y: -4.0 },
             boardstudio_core::model::Vec2 { x: 5.0, y: 4.0 },
             boardstudio_core::model::Vec2 { x: -5.0, y: 4.0 },
         ];
-        controls.definition.set(refreshed_second.clone());
+        let refreshed = support::replace_document(
+            &runtime,
+            "parts-name-mounted-height-refresh",
+            "second",
+            refreshed_doc,
+        )
+        .await;
+        controls.snapshot.set(refreshed.clone());
+        controls
+            .definition
+            .set(refreshed.document.definitions[1].clone());
         settle().await;
         assert_eq!(courtyard_width_input().value(), "12");
         assert_eq!(courtyard_height_input().value(), "8");
@@ -1184,10 +1136,23 @@ mod mounted_tests {
         // otherwise identical.
         type_value(&pad_x_input(), "9");
         settle().await;
-        let _ = runtime.take_definition_name_test_event();
-        let mut refreshed_second_pad = refreshed_second;
-        refreshed_second_pad.pads[0].at.y = 4.0;
-        controls.definition.set(refreshed_second_pad);
+        // Anything the focus change submitted lands before the next accepted refresh, so the
+        // refresh below is built on the Session's latest accepted document.
+        support::run_pending(&runtime).await;
+        let latest = runtime.model().accepted.as_ref().unwrap().clone();
+        let mut refreshed_pad_doc = latest.document.as_ref().clone();
+        refreshed_pad_doc.definitions[1].pads[0].at.y = 4.0;
+        let refreshed_pad = support::replace_document(
+            &runtime,
+            "parts-name-mounted-pad-refresh",
+            "second",
+            refreshed_pad_doc,
+        )
+        .await;
+        controls.snapshot.set(refreshed_pad.clone());
+        controls
+            .definition
+            .set(refreshed_pad.document.definitions[1].clone());
         settle().await;
         assert_eq!(pad_x_input().value(), "9");
         assert_eq!(pad_y_input().value(), "4");
@@ -1197,7 +1162,7 @@ mod mounted_tests {
             .set(Some((scope.clone(), "first".into())));
         controls
             .definition
-            .set(snapshot.document.definitions[0].clone());
+            .set(refreshed_pad.document.definitions[0].clone());
         settle().await;
         assert_eq!(courtyard_width_input().value(), "10");
         assert_eq!(pad_x_input().value(), "0");
@@ -1205,8 +1170,12 @@ mod mounted_tests {
         let _ = pad_x_input().blur();
         settle().await;
         assert!(
-            runtime.take_definition_name_test_event().is_none(),
+            support::take_held_effects(&runtime).is_empty(),
             "dirty values owned by the prior definition cannot commit into the next owner"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            refreshed_pad.document.revision
         );
         root.remove();
     }
@@ -1215,11 +1184,7 @@ mod mounted_tests {
     async fn mounted_unchanged_blur_does_not_rewrite_empty_courtyard_or_create_history() {
         let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
         document.definitions = vec![definition("selected", "Empty courtyard")];
-        let runtime = Runtime::new().unwrap();
-        let (session, _core) = open_document(document);
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
-        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let (runtime, snapshot, scope) = opened(document).await;
         let state = Rc::new(RefCell::new(None));
         let seed = Rc::new(Seed {
             snapshot: snapshot.clone(),
@@ -1264,19 +1229,14 @@ mod mounted_tests {
         let _ = width.blur();
         settle().await;
         assert!(
-            runtime.take_definition_name_test_event().is_none(),
+            support::take_held_effects(&runtime).is_empty(),
             "unchanged DraftInput blur must not turn an empty courtyard into an authored rectangle"
         );
-        assert!(
-            session
-                .read_model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .definitions[0]
-                .courtyard
-                .is_empty()
+        let accepted = runtime.model().accepted.unwrap();
+        assert!(accepted.document.definitions[0].courtyard.is_empty());
+        assert_eq!(
+            accepted.document.revision, snapshot.document.revision,
+            "an unchanged blur creates no history"
         );
         root.remove();
     }
@@ -1298,11 +1258,7 @@ mod mounted_tests {
             {"id":"net-a","name":"A","pins":[{"partId":"instance-a","padId":"old"},{"partId":"instance-b","padId":"old"}]},
             {"id":"net-b","name":"B","pins":[{"partId":"instance-a","padId":"keep"}]}
         ])).unwrap();
-        let runtime = Runtime::new().unwrap();
-        let (mut session, mut core) = open_document(document);
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
-        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
+        let (runtime, snapshot, scope) = opened(document).await;
         let state = Rc::new(RefCell::new(None));
         let seed = Rc::new(Seed {
             snapshot: snapshot.clone(),
@@ -1346,24 +1302,25 @@ mod mounted_tests {
         let _ = field.blur();
         settle().await;
 
-        let event = runtime
-            .take_definition_name_test_event()
-            .expect("mounted definition field submits one Runtime edit");
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.as_ref().unwrap().clone();
+        assert_eq!(
+            accepted.document.revision,
+            snapshot.document.revision + 1,
+            "mounted definition field submits one Runtime edit"
+        );
         assert_eq!(accepted.document.definitions[0].pads[0].id, "renamed");
         assert_eq!(accepted.document.nets[0].pins[0].pad_id, "renamed");
         assert_eq!(accepted.document.nets[0].pins[1].pad_id, "renamed");
         assert_eq!(accepted.document.nets[1].pins[0].pad_id, "keep");
 
-        let undo_effects = session.submit(AppEvent::Undo {
-            operation_id: OperationId(81),
+        runtime.submit(AppEvent::Undo {
+            operation_id: runtime.operation(),
         });
-        advance(&mut session, &mut core, undo_effects);
+        support::run_pending(&runtime).await;
         assert_eq!(
-            session
-                .read_model()
+            runtime
+                .model()
                 .accepted
                 .as_ref()
                 .unwrap()
@@ -1391,15 +1348,11 @@ mod mounted_tests {
             definition("selected", "Original name"),
             definition("other", "Other definition"),
         ];
-        let runtime = Runtime::new().unwrap();
-        let (mut session, mut core) = open_document(document);
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
+        let (runtime, snapshot, scope) = opened(document).await;
         assert!(
             scope.is_some(),
             "the mounted editor uses the accepting Session scope"
         );
-        runtime.set_definition_name_test_state(snapshot.clone(), scope.clone());
         let state = Rc::new(RefCell::new(None));
         let seed = Rc::new(Seed {
             snapshot: snapshot.clone(),
@@ -1425,7 +1378,7 @@ mod mounted_tests {
             .unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
-        dom.provide_root_context(runtime);
+        dom.provide_root_context(runtime.clone());
         dioxus_web::launch::launch_virtual_dom(
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
@@ -1443,25 +1396,10 @@ mod mounted_tests {
         unrelated
             .parameters
             .insert("independent".into(), serde_json::json!(42));
-        let unrelated_event = AppEvent::Edit {
-            operation_id: controls.runtime.operation(),
-            command: EditCommand {
-                base_revision: snapshot.document.revision,
-                transaction_id: "parts-name-unrelated-edit".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["unrelated".into()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(unrelated),
-                },
-            },
-        };
-        let effects = session.submit(unrelated_event);
-        advance(&mut session, &mut core, effects);
-        let latest = session.read_model().accepted.as_ref().unwrap().clone();
+        let latest =
+            support::replace_document(&runtime, "parts-name-unrelated-edit", "unrelated", unrelated)
+                .await;
         assert!(latest.document.revision > initial_revision);
-        controls
-            .runtime
-            .set_definition_name_test_state(latest.clone(), scope.clone());
         controls.snapshot.set(latest.clone());
         settle().await;
         assert_eq!(
@@ -1471,13 +1409,13 @@ mod mounted_tests {
         );
 
         let _ = input().blur();
-        let event = controls
-            .runtime
-            .take_definition_name_test_event()
-            .expect("the mounted blur callback submits through Runtime");
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        let committed = session.read_model().accepted.as_ref().unwrap().clone();
+        support::run_pending(&runtime).await;
+        let committed = runtime.model().accepted.as_ref().unwrap().clone();
+        assert_eq!(
+            committed.document.revision,
+            latest.document.revision + 1,
+            "the mounted blur callback submits through Runtime"
+        );
         assert_eq!(
             committed.document.definitions[0].name, "Dirty name draft",
             "the mounted blur must submit using the refreshed accepted capture"
@@ -1488,27 +1426,11 @@ mod mounted_tests {
             "the production commit must preserve the unrelated accepted edit"
         );
 
-        let mut latest = committed;
-        let mut renamed = latest.document.as_ref().clone();
+        let mut renamed = committed.document.as_ref().clone();
         renamed.definitions[0].name = "Accepted external name".into();
-        let rename_event = AppEvent::Edit {
-            operation_id: controls.runtime.operation(),
-            command: EditCommand {
-                base_revision: latest.document.revision,
-                transaction_id: "parts-name-external-rename".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["selected".into()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(renamed),
-                },
-            },
-        };
-        let effects = session.submit(rename_event);
-        advance(&mut session, &mut core, effects);
-        latest = session.read_model().accepted.as_ref().unwrap().clone();
-        controls
-            .runtime
-            .set_definition_name_test_state(latest.clone(), scope.clone());
+        let latest =
+            support::replace_document(&runtime, "parts-name-external-rename", "selected", renamed)
+                .await;
         controls.snapshot.set(latest.clone());
         controls
             .definition

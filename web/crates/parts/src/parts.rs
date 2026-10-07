@@ -450,7 +450,7 @@ fn add_object_groups<'a>(
 #[cfg(test)]
 mod add_object_menu_tests {
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken};
+    use boardstudio_application::SnapshotToken;
     use std::{cell::RefCell, rc::Rc, sync::Arc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -539,23 +539,19 @@ mod add_object_menu_tests {
         }
     }
 
-    fn catalogue_snapshot() -> AcceptedSnapshot {
-        let document = ProjectDoc::empty("catalogue-loading-error", "Catalogue states");
-        let scene: boardstudio_core::model::SceneDelta =
-            serde_json::from_value(serde_json::json!({
-                "revision": 0,
-                "transactionId": "catalogue-loading-error",
-                "changedIds": [], "transforms": [], "matrixScenes": [],
-                "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
-                "readiness": {"layout": false, "outline": false, "pcb": false, "case": false}
-            }))
-            .unwrap();
-        AcceptedSnapshot {
-            token: SnapshotToken(10),
-            session_epoch: SessionEpoch(3),
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        }
+    /// The catalogue panel is given the accepted snapshot of a project the real Session opened.
+    async fn catalogue_fixture() -> CatalogueMountedFixture {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::open_document(
+            &runtime,
+            ProjectDoc::empty("catalogue-loading-error", "Catalogue states"),
+        )
+        .await;
+        let snapshot = runtime
+            .model()
+            .accepted
+            .expect("the catalogue project is accepted");
+        CatalogueMountedFixture { snapshot, runtime }
     }
 
     #[component]
@@ -686,13 +682,7 @@ mod add_object_menu_tests {
                     .unwrap_or_else(|_| Err("catalogue test request dropped".into()))
             })
         }));
-        let fixture = Rc::new(CatalogueMountedFixture {
-            snapshot: catalogue_snapshot(),
-            runtime: crate::runtime::Runtime::new().expect("browser Runtime fixture initializes"),
-        });
-        fixture
-            .runtime
-            .set_definition_name_test_state(fixture.snapshot.clone(), None);
+        let fixture = Rc::new(catalogue_fixture().await);
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("parts-catalogue-source-state-test");

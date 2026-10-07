@@ -6872,9 +6872,10 @@ pub mod firmware_export_test_support {
         }
     }
 
-    pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
+    /// The one-board document `opened_session` opens. Browser tests that need a real accepted
+    /// board project start from it, add what they exercise, and open it through the in-process
+    /// adapter (`project_name_test_support::open_document`).
+    pub fn board_document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("zmk-export-test", "ZMK export test");
         document.boards.push(Board {
             id: "main-board".into(),
@@ -6886,9 +6887,15 @@ pub mod firmware_export_test_support {
             traces: Vec::new(),
             vias: Vec::new(),
         });
+        document
+    }
+
+    pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
+        let mut session = Session::new();
+        let mut core = CoreEngine::new();
         let mut effects = session.submit(Event::Open {
             operation_id: OperationId(1),
-            document,
+            document: board_document(),
         });
         while let Some(effect) = effects.pop() {
             match effect {
@@ -7688,6 +7695,77 @@ pub mod project_name_test_support {
     /// Route saves into the in-process memory store. Requires `install` to have run.
     pub fn install_memory_persistence(runtime: &Runtime) {
         installed(runtime).use_memory_saves();
+    }
+
+    /// Install the in-process adapters with memory saves and open `document` through the real
+    /// Session and Core, leaving it accepted, saved and ready. Browser tests that need an
+    /// opened project start here instead of giving Runtime a fabricated read model.
+    pub async fn open_document(runtime: &Rc<Runtime>, document: ProjectDoc) {
+        install(runtime, Session::new(), boardstudio_core::CoreEngine::new());
+        install_memory_persistence(runtime);
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document,
+        });
+        run_pending(runtime).await;
+    }
+
+    /// Commit `document` as one `ReplaceDocument` edit through the real Session and Core,
+    /// driving every pending effect, and return the snapshot it was accepted as.
+    pub async fn replace_document(
+        runtime: &Rc<Runtime>,
+        transaction_id: &str,
+        target_id: &str,
+        document: ProjectDoc,
+    ) -> AcceptedSnapshot {
+        let base_revision = runtime
+            .model()
+            .accepted
+            .expect("an accepted document is open")
+            .document
+            .revision;
+        runtime.submit(Event::Edit {
+            operation_id: runtime.operation(),
+            command: boardstudio_core::model::EditCommand {
+                base_revision,
+                transaction_id: transaction_id.to_owned(),
+                phase: boardstudio_core::model::EditPhase::Commit,
+                target_ids: vec![target_id.to_owned()],
+                operation: boardstudio_core::model::EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+            },
+        });
+        run_pending(runtime).await;
+        runtime
+            .model()
+            .accepted
+            .expect("the edited document stays accepted")
+    }
+
+    /// Make `board_id` the active board through the real Session.
+    pub async fn navigate(runtime: &Rc<Runtime>, board_id: &str) {
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: board_id.to_owned(),
+            instance_id: None,
+        });
+        run_pending(runtime).await;
+    }
+
+    /// The effects Session asked Runtime to run that no test has driven yet. Generation and
+    /// export jobs are outside the adapter, so tests read these to see what Session started.
+    /// Taking them also keeps a later `run_pending` from starting the job.
+    pub fn take_held_effects(runtime: &Runtime) -> Vec<Effect> {
+        std::mem::take(&mut *runtime.held_effects.borrow_mut())
+    }
+
+    /// Deliver a completion to Session as the executor that ran the effect would have. Tests
+    /// use it for the generation jobs the adapter does not run; the effects it produces are
+    /// held like those of a submitted event.
+    pub fn complete(runtime: &Rc<Runtime>, completion: Completion) {
+        let effects = runtime.complete(completion);
+        runtime.held_effects.borrow_mut().extend(effects);
     }
 
     fn installed(runtime: &Runtime) -> Rc<InProcessAdapters> {
