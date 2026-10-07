@@ -27,8 +27,8 @@ which remaining whole-document replacements become typed Core edits.
 The [review and decision brief](decision-brief.md) records the Astra/high follow-up
 and the open questions for tickets 18 and 19. The [cleanup audit](../../investigations/edit-settlement-cleanup-audit.md),
 [Event edit options](../../investigations/edit-event-restriction-options.md) and
-[whole-document resolver inventory](replace-document-resolvers.md) are provisional
-until ticket 15 merges and ticket 17 completes; they do not resolve those tickets.
+[whole-document resolver inventory](replace-document-resolvers.md) reflect the completed
+cluster migration and cleanup. They prepare, but do not answer, human decisions 18 and 19.
 
 ## Decisions so far
 
@@ -99,6 +99,11 @@ until ticket 15 merges and ticket 17 completes; they do not resolve those ticket
   tickets; exact post-landing selection, queued profiles/models and generator
   upload/Apply races are covered:
   [issues/15-parts-remainder.md](issues/15-parts-remainder.md).
+
+- 17 Cleanup removes Runtime feature interception, keeps one edit-ticket settlement
+  path, and records the remaining replacement resolvers and preview-only direct
+  events; the evidence for human decisions 18/19 is refreshed:
+  [issues/17-cleanup.md](issues/17-cleanup.md).
 
 ## Not yet specified
 
