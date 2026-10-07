@@ -96,3 +96,35 @@ python3 scripts/check-wasm-tests.py
   native-compilable.
 - Observe before submitting, so a synchronous settlement can't be missed. The
   existing outcome observer documents this.
+
+## Outcome
+
+Commits: "Add the edit ticket module for presentation" and "Import the session-changed
+reason and deduplicate the ticket test fixture" (after the claim).
+
+- `web/crates/runtime/src/edit_ticket.rs` compiles natively and in wasm (no Dioxus, no
+  browser handles). `EditTicket::begin(port, label, feature, resolver)` allocates the
+  operation, observes the outcome and landing before submitting `Event::ResolveEdit`, and
+  `settlement(owner_is_live)` answers `Pending` / `Landed { revision }` / `Failed {
+  message }` / `Retired`; `is_pending()` supports the ADR-0005 amendment's disabled
+  one-shot controls. The port is implemented for `Rc<Runtime>` (wasm-gated, since
+  `Runtime::submit` needs `&Rc<Self>`) and for a native `NativeEditDriver` whose submit
+  drives a real `Session` and `CoreEngine` synchronously, saving into memory, with gates
+  that park or fail the next Core reply or save.
+- One mapping (`settlement_of`) covers every `TerminalOutcome`: Completed with a landing
+  lands at that revision; the session-moved-on rejection (`DOCUMENT_SESSION_CHANGED`, now a
+  public const in application and used at the pump rejection) retires; other rejections,
+  recovery refusals, save failures and executor failures fail with one phrasing each and an
+  optional feature noun (default "edit"); Superseded/Cancelled/Closed retire; a Completed
+  without a landing (not producible for resolve-edit operations) fails defensively.
+- Documented deviation from the spec sketch: `settlement` takes the owner-liveness answer
+  only — the read model turned out unnecessary for the mapping, since the landed revision
+  comes from the observed landing. Retired is returned for a departed owner whatever the
+  outcome (including no outcome yet), per the ticket's liveness criterion.
+- No controller migrated; the module's docs carry the five-line usage example for
+  ticket 06.
+
+Checks (all pass): `cargo test -p boardstudio-web-runtime --locked` — 103 passed (11 new
+edit-ticket tests through the driver, including a table of every outcome-to-settlement
+mapping); `cargo test -p boardstudio-application --locked` — 29 passed;
+`python3 scripts/check.py typecheck`; `python3 scripts/check-wasm-tests.py`.

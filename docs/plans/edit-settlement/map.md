@@ -45,6 +45,8 @@ which remaining whole-document replacements become typed Core edits.
   saves re-report the original: [issues/02-settlement-reports-landing.md](issues/02-settlement-reports-landing.md).
 - 03 Session resolves pending edits against the accepted document; `Event::ResolveEdit`
   submits intent, resolved at execution: [issues/03-session-resolves-pending-edits.md](issues/03-session-resolves-pending-edits.md).
+- 04 The edit ticket module landed in the web runtime crate: one port, one outcome
+  mapping, standard wording, `is_pending`: [issues/04-web-edit-ticket.md](issues/04-web-edit-ticket.md).
 
 ## Not yet specified
 
