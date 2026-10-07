@@ -26,7 +26,7 @@ pub struct BoardSetupMount {
 }
 
 #[derive(Clone)]
-struct PendingBoard {
+struct BoardSubmission {
     owner: BoardCreateOwner,
     board_id: String,
     ticket: EditTicket,
@@ -84,7 +84,7 @@ pub fn use_board_setup(
     generation: Signal<u64>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
 ) -> BoardSetupMount {
-    let mut pending = use_signal(|| None::<PendingBoard>);
+    let mut pending = use_signal(|| None::<BoardSubmission>);
     use_effect(use_reactive((&version(), &workspace(), &generation()), {
         let runtime = runtime.clone();
         move |(_, current_workspace, current_generation)| {
@@ -113,13 +113,12 @@ pub fn use_board_setup(
             }
         }
     }));
-    let owner =
-        board_source(&runtime, workspace(), generation()).filter(|_| {
-            !pending
-                .read()
-                .as_ref()
-                .is_some_and(|waiting| waiting.ticket.is_pending())
-        });
+    let owner = board_source(&runtime, workspace(), generation()).filter(|_| {
+        !pending
+            .read()
+            .as_ref()
+            .is_some_and(|waiting| waiting.ticket.is_pending())
+    });
     let on_add = use_callback({
         let runtime = runtime.clone();
         move |owner: BoardCreateOwner| {
@@ -164,7 +163,7 @@ pub fn use_board_setup(
                 Some("board".into()),
                 add_board_resolver(board_id.clone(), outline_id),
             );
-            pending.set(Some(PendingBoard {
+            pending.set(Some(BoardSubmission {
                 owner: owner.clone(),
                 board_id,
                 ticket,

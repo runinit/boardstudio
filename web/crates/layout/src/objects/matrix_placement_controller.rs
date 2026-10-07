@@ -19,7 +19,7 @@ use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
-struct PendingPlacement {
+struct PlacementSubmission {
     owner: MatrixPlacementOwner,
     ticket: EditTicket,
     matrix_id: String,
@@ -102,7 +102,7 @@ pub fn use_matrix_placement(
     let request_id = use_signal(|| 0u64);
     let preparing = use_signal(|| None::<MatrixPlacementOwner>);
     let placement = use_signal(|| None::<MatrixPlacementProjection>);
-    let pending = use_signal(|| None::<PendingPlacement>);
+    let pending = use_signal(|| None::<PlacementSubmission>);
     let error = use_signal(|| None::<String>);
 
     use_effect(use_reactive(
@@ -472,7 +472,7 @@ pub fn use_matrix_placement(
                 Some("matrix placement".into()),
                 place_matrix_resolver(active.matrix, active.definitions),
             );
-            pending.set(Some(PendingPlacement {
+            pending.set(Some(PlacementSubmission {
                 owner: movement.owner.clone(),
                 ticket,
                 matrix_id,
@@ -590,7 +590,7 @@ fn same_accepted_source(runtime: &Runtime, owner: &MatrixPlacementOwner) -> bool
 fn placement_selection_is_current(
     runtime: &Runtime,
     selected_context: &Signal<Option<ScopedTreeContext>>,
-    pending: &PendingPlacement,
+    pending: &PlacementSubmission,
 ) -> bool {
     runtime.model().selected_part_ids == pending.selected_part_ids
         && selected_context.peek().as_ref() == pending.selected_context.as_ref()

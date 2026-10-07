@@ -22,7 +22,7 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
-struct PendingTransformEdit {
+struct TransformSubmission {
     request: MatrixTransformRequest,
     ticket: EditTicket,
 }
@@ -221,7 +221,7 @@ pub fn use_workspace_matrix_transform(
 
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_signal(Vec::<PendingTransformEdit>::new);
+    let pending = use_signal(Vec::<TransformSubmission>::new);
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     use_drop({
@@ -477,7 +477,7 @@ pub fn use_workspace_matrix_transform(
                     catalogue_definitions,
                 ),
             );
-            pending.write().push(PendingTransformEdit {
+            pending.write().push(TransformSubmission {
                 request: request.clone(),
                 ticket,
             });
@@ -616,11 +616,7 @@ fn transform_fields(
             origin: matrix.origin,
             rotation: matrix.rotation.unwrap_or(0.0),
             mirror: matrix.mirror,
-            mirror_y_locked: matrix_has_linked_layout(
-                &snapshot.document,
-                board_id,
-                &matrix.id,
-            ),
+            mirror_y_locked: matrix_has_linked_layout(&snapshot.document, board_id, &matrix.id),
         },
         TreeContext::Row { row, .. } => MatrixTransformFields::Row {
             row: *row,
@@ -822,7 +818,7 @@ fn field_value(
 fn settle_pending(
     runtime: &Runtime,
     scope_generation: u64,
-    pending: &mut Signal<Vec<PendingTransformEdit>>,
+    pending: &mut Signal<Vec<TransformSubmission>>,
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
 ) {
     let waiting = pending.read().clone();
@@ -913,11 +909,7 @@ mod queued_edits {
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    fn origin_ticket(
-        runtime: &Rc<Runtime>,
-        field: MatrixTransformField,
-        value: f64,
-    ) -> EditTicket {
+    fn origin_ticket(runtime: &Rc<Runtime>, field: MatrixTransformField, value: f64) -> EditTicket {
         EditTicket::begin(
             runtime,
             "layout-matrix-transform",
@@ -974,6 +966,9 @@ mod queued_edits {
         let same = origin_ticket(&runtime, MatrixTransformField::OriginX, 9.0);
         fixture::settle_ticket(&runtime, &same).await;
         assert!(matches!(same.settlement(true), Settlement::Landed { .. }));
-        assert_eq!(runtime.model().accepted.unwrap().document.revision, revision);
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            revision
+        );
     }
 }

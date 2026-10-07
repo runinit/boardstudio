@@ -8,14 +8,14 @@ use super::matrix_inspector::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
-    SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
+    TerminalOutcome,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_core::model::{
     DiodeDirection, EditCommand, EditOperation, EditPhase, Matrix, MatrixAssembly, MatrixCell,
     PartDefinition, ProjectDoc, Side, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -26,20 +26,20 @@ use wasm_bindgen_futures::spawn_local;
 /// A committed Matrix Inspector field edit. Field edits queue freely, so several can be
 /// in flight; each keeps its own ticket and settles into its own feedback entry.
 #[derive(Clone)]
-struct PendingMatrixEdit {
+struct MatrixSubmission {
     request: MatrixEditRequest,
     ticket: EditTicket,
 }
 
 /// The preset action: one-shot, disabled while its ticket is pending.
 #[derive(Clone)]
-struct PendingMatrixPreset {
+struct MatrixPresetSubmission {
     request: MatrixPresetRequest,
     ticket: EditTicket,
 }
 
 #[derive(Clone)]
-struct PendingMatrixDelete {
+struct MatrixDeletionSubmission {
     request: MatrixDeleteRequest,
     ticket: EditTicket,
 }
@@ -59,7 +59,10 @@ fn ticket_is_pending(ticket: Option<&EditTicket>) -> bool {
 }
 
 fn matrix_of<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Matrix> {
-    document.matrices.iter().find(|matrix| matrix.id == matrix_id)
+    document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
 }
 
 fn commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
@@ -286,9 +289,9 @@ pub fn use_matrix_inspector(
 
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_signal(Vec::<PendingMatrixEdit>::new);
-    let pending_preset = use_signal(|| None::<PendingMatrixPreset>);
-    let pending_delete = use_signal(|| None::<PendingMatrixDelete>);
+    let pending = use_signal(Vec::<MatrixSubmission>::new);
+    let pending_preset = use_signal(|| None::<MatrixPresetSubmission>);
+    let pending_delete = use_signal(|| None::<MatrixDeletionSubmission>);
     let pending_unlink = use_signal(|| None::<EditTicket>);
     let one_shot_busy = move || {
         ticket_is_pending(pending_preset.read().as_ref().map(|p| &p.ticket))
@@ -483,7 +486,7 @@ pub fn use_matrix_inspector(
                     catalogue_definition,
                 ),
             );
-            pending.write().push(PendingMatrixEdit {
+            pending.write().push(MatrixSubmission {
                 request: request.clone(),
                 ticket,
             });
@@ -648,7 +651,7 @@ pub fn use_matrix_inspector(
                     Some("matrix preset".into()),
                     matrix_preset_resolver(request.owner.matrix_id.clone(), prepared),
                 );
-                pending.set(Some(PendingMatrixPreset {
+                pending.set(Some(MatrixPresetSubmission {
                     request: request.clone(),
                     ticket,
                 }));
@@ -700,7 +703,7 @@ pub fn use_matrix_inspector(
                 Some("matrix delete".into()),
                 matrix_delete_resolver(request.owner.matrix_id.clone()),
             );
-            pending_delete.set(Some(PendingMatrixDelete { request, ticket }));
+            pending_delete.set(Some(MatrixDeletionSubmission { request, ticket }));
         }
     });
 
@@ -1044,7 +1047,9 @@ pub fn switch_choices(
             let label = match definition.id.as_str() {
                 "generator:ceoloide/switch_mx" => "MX switch".into(),
                 "generator:ceoloide/switch_choc_v1_v2" => "Choc V1 / V2 switch".into(),
-                "generator:ceoloide/switch_gateron_ks27_ks33" => "Gateron KS27 / KS33 switch".into(),
+                "generator:ceoloide/switch_gateron_ks27_ks33" => {
+                    "Gateron KS27 / KS33 switch".into()
+                }
                 _ => definition.name.clone(),
             };
             (definition.id, label)
@@ -1333,7 +1338,7 @@ fn project_current_for(
 fn settle_pending(
     runtime: &Runtime,
     scope_generation: u64,
-    pending: &mut Signal<Vec<PendingMatrixEdit>>,
+    pending: &mut Signal<Vec<MatrixSubmission>>,
     feedback: &mut Signal<Vec<MatrixEditFeedback>>,
 ) {
     let waiting = pending.read().clone();
@@ -1384,7 +1389,7 @@ fn settle_pending(
 fn settle_pending_preset(
     runtime: &Runtime,
     scope_generation: u64,
-    pending: &mut Signal<Option<PendingMatrixPreset>>,
+    pending: &mut Signal<Option<MatrixPresetSubmission>>,
     feedback: &mut Signal<Vec<MatrixEditFeedback>>,
 ) {
     let Some(waiting) = pending.read().clone() else {
@@ -1411,7 +1416,7 @@ fn settle_pending_preset(
 fn settle_pending_delete(
     runtime: &Rc<Runtime>,
     scope_generation: u64,
-    pending: &mut Signal<Option<PendingMatrixDelete>>,
+    pending: &mut Signal<Option<MatrixDeletionSubmission>>,
     selected_context: Signal<Option<ScopedTreeContext>>,
 ) {
     let Some(waiting) = pending.read().clone() else {
@@ -1475,9 +1480,9 @@ fn settle_pending_unlink(
 }
 
 fn finish_action(
-    pending: &mut Signal<Option<PendingMatrixPreset>>,
+    pending: &mut Signal<Option<MatrixPresetSubmission>>,
     feedback: &mut Signal<Vec<MatrixEditFeedback>>,
-    waiting: &PendingMatrixPreset,
+    waiting: &MatrixPresetSubmission,
     state: MatrixEditState,
     message: Option<String>,
 ) {
@@ -2138,7 +2143,9 @@ async fn wait_for_variant_edit(
             Settlement::Landed { .. } => return Ok(()),
             Settlement::Failed { message } => return Err(message),
             Settlement::Retired => {
-                return Err("The matrix preset edit did not complete for the copied project.".into());
+                return Err(
+                    "The matrix preset edit did not complete for the copied project.".into(),
+                );
             }
         }
         gloo_timers::future::TimeoutFuture::new(25).await;
@@ -2722,11 +2729,17 @@ mod tests {
             assert!(matches!(pitch.settlement(true), Settlement::Landed { .. }));
             let accepted = fixture::accepted_matrix(&runtime);
             assert_eq!(accepted.rows, 2, "the rows edit survived");
-            assert_eq!(accepted.pitch.x, 21.0, "the pitch edit applied on top of it");
+            assert_eq!(
+                accepted.pitch.x, 21.0,
+                "the pitch edit applied on top of it"
+            );
 
             fixture::undo(&runtime).await;
             let after_one = fixture::accepted_matrix(&runtime);
-            assert_eq!(after_one.pitch.x, original.pitch.x, "one Undo removes the pitch");
+            assert_eq!(
+                after_one.pitch.x, original.pitch.x,
+                "one Undo removes the pitch"
+            );
             assert_eq!(after_one.rows, 2, "the rows edit is still applied");
             fixture::undo(&runtime).await;
             assert_eq!(fixture::accepted_matrix(&runtime).rows, original.rows);

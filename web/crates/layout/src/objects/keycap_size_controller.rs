@@ -78,7 +78,7 @@ pub struct KeySizeMount {
 }
 
 #[derive(Clone)]
-struct PendingResize {
+struct KeycapSizeSubmission {
     request: KeySizeRequest,
     ticket: EditTicket,
 }
@@ -171,7 +171,7 @@ pub fn use_key_size(
     };
     let request_sequence = use_signal(|| 0u64);
     let last_request = use_signal(|| 0u64);
-    let pending = use_signal(|| None::<PendingResize>);
+    let pending = use_signal(|| None::<KeycapSizeSubmission>);
     let feedback = use_signal(|| None::<KeySizeFeedback>);
     let (projection, editable) = project(
         &runtime,
@@ -247,7 +247,7 @@ pub fn use_key_size(
                     request.axis,
                 ),
             );
-            pending.set(Some(PendingResize {
+            pending.set(Some(KeycapSizeSubmission {
                 request: request.clone(),
                 ticket,
             }));
@@ -561,7 +561,7 @@ fn overlap_references(
 fn settle(
     runtime: &Runtime,
     scope_generation: u64,
-    pending: &mut Signal<Option<PendingResize>>,
+    pending: &mut Signal<Option<KeycapSizeSubmission>>,
     feedback: &mut Signal<Option<KeySizeFeedback>>,
 ) {
     let Some(waiting) = pending.read().clone() else {

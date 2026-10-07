@@ -6,12 +6,12 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_core::model::{
     Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineConnection,
     OutlineContourEdit, OutlineControlPoint, OutlineFeature, OutlineGap, OutlineRepairSettings,
     OutlineSettings, Part, Side, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::cell::RefCell;
@@ -298,7 +298,7 @@ fn attach_connection_point(
 /// disable their controls while their ticket is pending; field edits (settings, a feature's
 /// values, a perimeter commit) queue freely and never read this.
 #[derive(Clone)]
-struct Pending {
+struct OutlineSubmission {
     scope: Scope,
     generation: u64,
     one_shot: bool,
@@ -307,7 +307,7 @@ struct Pending {
 
 #[derive(Clone, Copy)]
 struct ActionState {
-    pending: Signal<Vec<Pending>>,
+    pending: Signal<Vec<OutlineSubmission>>,
     feedback: Signal<Option<OutlineFeedback>>,
     selected_point: Signal<usize>,
     editing_points: Signal<bool>,
@@ -684,7 +684,7 @@ pub fn use_outline_lifecycle(
 ) {
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
-    let pending = use_signal(Vec::<Pending>::new);
+    let pending = use_signal(Vec::<OutlineSubmission>::new);
     let feedback = use_signal(|| None::<OutlineFeedback>);
     let selected_point = use_signal(|| 0usize);
     let editing_points = use_signal(|| false);
@@ -797,7 +797,10 @@ pub fn use_outline_lifecycle(
                     ),
                     Settlement::Retired => (
                         "source-changed",
-                        Some("The outline source changed before its result could be confirmed.".into()),
+                        Some(
+                            "The outline source changed before its result could be confirmed."
+                                .into(),
+                        ),
                     ),
                 };
                 changed = true;
@@ -1351,7 +1354,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         Some("outline".into()),
         action_resolver(action.clone(), seed, transaction_id),
     );
-    pending.write().push(Pending {
+    pending.write().push(OutlineSubmission {
         scope: action_scope.clone(),
         generation: captured_generation,
         one_shot,
@@ -1368,8 +1371,9 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
 
 /// Resolve one outline action against the accepted document at execution time.
 fn action_resolver(action: OutlineAction, seed: u64, transaction_id: String) -> EditResolver {
-    EditResolver::new("layout-outline", move |accepted: &AcceptedSnapshot| {
-        match plan_action(accepted, &action, seed) {
+    EditResolver::new(
+        "layout-outline",
+        move |accepted: &AcceptedSnapshot| match plan_action(accepted, &action, seed) {
             Ok((operation, target_ids)) => Resolution::Submit(EditCommand {
                 base_revision: 0,
                 transaction_id: transaction_id.clone(),
@@ -1379,8 +1383,8 @@ fn action_resolver(action: OutlineAction, seed: u64, transaction_id: String) -> 
             }),
             Err(Skip::Unchanged) => Resolution::Unchanged,
             Err(Skip::Retire(reason)) => Resolution::Retire(reason),
-        }
-    })
+        },
+    )
 }
 
 /// Why an action plans to no edit: its target is gone or no longer eligible, or the value
@@ -1746,13 +1750,9 @@ fn plan_action(
         }
         OutlineAction::FocusGap { .. } => retire("A gap focus is not an edit."),
         OutlineAction::Update { edit, .. } => {
-            let Some((operation, target_ids)) = apply_outline_edit(
-                document,
-                &snapshot.scene,
-                board_id,
-                edit,
-                OperationId(seed),
-            ) else {
+            let Some((operation, target_ids)) =
+                apply_outline_edit(document, &snapshot.scene, board_id, edit, OperationId(seed))
+            else {
                 if let OutlineEdit::RenameVersion { version_id, .. } = edit
                     && version_of(version_id).is_none()
                 {
@@ -1783,7 +1783,9 @@ fn plan_action(
                         return retire("The perimeter no longer exists.");
                     };
                     if active_version.is_some() {
-                        return retire("The outline version changed before the perimeter was edited.");
+                        return retire(
+                            "The outline version changed before the perimeter was edited.",
+                        );
                     }
                     if source_points == points {
                         return Err(Skip::Unchanged);
@@ -1809,7 +1811,9 @@ fn plan_action(
                     operation,
                 } => {
                     if active_version != Some(version_id.as_str()) {
-                        return retire("The outline version changed before the perimeter was edited.");
+                        return retire(
+                            "The outline version changed before the perimeter was edited.",
+                        );
                     }
                     let Some(OutlineFeature::Polygon {
                         id,
@@ -1827,7 +1831,9 @@ fn plan_action(
                         return retire("The outline feature no longer exists.");
                     };
                     if current_anchor != anchor_part_id || current_operation != operation {
-                        return retire("The outline feature changed before the perimeter was edited.");
+                        return retire(
+                            "The outline feature changed before the perimeter was edited.",
+                        );
                     }
                     if current == points {
                         return Err(Skip::Unchanged);

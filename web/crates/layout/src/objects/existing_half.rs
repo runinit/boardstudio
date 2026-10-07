@@ -55,7 +55,7 @@ pub struct ExistingHalfMount {
 }
 
 #[derive(Clone)]
-struct PendingExistingHalf {
+struct ExistingHalfSubmission {
     owner: ExistingHalfOwner,
     ticket: EditTicket,
 }
@@ -114,7 +114,7 @@ pub fn use_existing_half(
     let open = use_signal(|| None::<ExistingHalfOwner>);
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<PendingExistingHalf>);
+    let pending = use_signal(|| None::<ExistingHalfSubmission>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -311,7 +311,7 @@ pub fn use_existing_half(
                     id_pool,
                 ),
             );
-            pending.set(Some(PendingExistingHalf {
+            pending.set(Some(ExistingHalfSubmission {
                 owner: request.owner.clone(),
                 ticket,
             }));
@@ -642,7 +642,7 @@ fn settle_pending(
     runtime: &Rc<Runtime>,
     workspace: &'static str,
     scope_generation: u64,
-    pending: &mut Signal<Option<PendingExistingHalf>>,
+    pending: &mut Signal<Option<ExistingHalfSubmission>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
     status: &mut Signal<Option<String>>,

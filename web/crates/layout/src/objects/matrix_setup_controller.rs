@@ -8,8 +8,7 @@ use crate::{
     runtime::Runtime,
 };
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
-    SelectionMode,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SelectionMode,
 };
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Matrix, PartDefinition};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
@@ -18,7 +17,7 @@ use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
-struct PendingSetup {
+struct MatrixSetupSubmission {
     owner: MatrixSetupOwner,
     ticket: EditTicket,
     matrix_id: String,
@@ -90,7 +89,7 @@ pub fn use_matrix_setup(
     let preparing = use_signal(|| None::<MatrixSetupOwner>);
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<PendingSetup>);
+    let pending = use_signal(|| None::<MatrixSetupSubmission>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -361,7 +360,7 @@ pub fn use_matrix_setup(
                     Some("matrix".into()),
                     create_matrix_resolver(current_board.clone(), matrix, definitions),
                 );
-                pending.set(Some(PendingSetup {
+                pending.set(Some(MatrixSetupSubmission {
                     owner: owner.clone(),
                     ticket,
                     matrix_id,
@@ -466,7 +465,7 @@ fn setup_source<'a>(
 }
 
 struct SetupSettlement<'a> {
-    pending: &'a mut Signal<Option<PendingSetup>>,
+    pending: &'a mut Signal<Option<MatrixSetupSubmission>>,
     open: &'a mut Signal<Option<MatrixSetupOwner>>,
     error: &'a mut Signal<Option<String>>,
     status: &'a mut Signal<Option<String>>,
@@ -535,9 +534,9 @@ fn settle_pending(
 }
 
 fn finish_pending(
-    pending: &mut Signal<Option<PendingSetup>>,
+    pending: &mut Signal<Option<MatrixSetupSubmission>>,
     status: &mut Signal<Option<String>>,
-    waiting: &PendingSetup,
+    waiting: &MatrixSetupSubmission,
 ) {
     if pending
         .read()

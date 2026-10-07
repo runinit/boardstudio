@@ -10,9 +10,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Part, ProjectDoc, Vec2,
-};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Part, ProjectDoc, Vec2};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -20,7 +18,7 @@ use std::{collections::BTreeSet, rc::Rc};
 /// The in-flight Align: the edit ticket plus the identity its feedback is shown under.
 /// One-shot, so the Align controls disable while the ticket is pending.
 #[derive(Clone)]
-struct PendingAlign {
+struct AlignmentSubmission {
     ticket: EditTicket,
     workspace: &'static str,
     scope: Scope,
@@ -80,7 +78,7 @@ pub fn use_canvas_align(
     owner_workspace: &'static str,
 ) -> LayoutAlignMount {
     let mut selected_reference = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<PendingAlign>);
+    let pending = use_signal(|| None::<AlignmentSubmission>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -270,7 +268,7 @@ pub fn use_canvas_align(
                     request.command,
                 ),
             );
-            pending.set(Some(PendingAlign {
+            pending.set(Some(AlignmentSubmission {
                 ticket,
                 workspace: request.workspace,
                 scope: selected.scope.clone(),
@@ -307,17 +305,15 @@ pub fn use_canvas_align(
         selected
             .as_ref()
             .zip(projection.selected_reference.as_ref())
-            .map(
-                |(selected, reference_id)| AlignAction {
-                    workspace: owner_workspace,
-                    scope: selected.scope.clone(),
-                    scope_generation: current_scope_generation,
-                    context: selected.context.clone(),
-                    moving_ids: projection.moving_ids.clone(),
-                    reference_id: reference_id.clone(),
-                    command: AlignCommand::Left,
-                },
-            )
+            .map(|(selected, reference_id)| AlignAction {
+                workspace: owner_workspace,
+                scope: selected.scope.clone(),
+                scope_generation: current_scope_generation,
+                context: selected.context.clone(),
+                moving_ids: projection.moving_ids.clone(),
+                reference_id: reference_id.clone(),
+                command: AlignCommand::Left,
+            })
     } else {
         None
     };
@@ -740,8 +736,7 @@ fn align_resolver(
         if moving_parts.iter().any(|part| {
             part.locked == Some(true)
                 || document.constraints.iter().any(|constraint| {
-                    constraint.target() == part.id
-                        && board_part_ids.contains(constraint.source())
+                    constraint.target() == part.id && board_part_ids.contains(constraint.source())
                 })
         }) {
             return Resolution::Retire(
@@ -851,10 +846,7 @@ fn make_edit(
                     })
                 })
                 .collect::<Option<Vec<_>>>()?;
-            Some((
-                EditOperation::MoveParts { positions },
-                moving_ids.to_vec(),
-            ))
+            Some((EditOperation::MoveParts { positions }, moving_ids.to_vec()))
         }
         TreeContext::Board { .. }
         | TreeContext::LayoutGroup { .. }
@@ -871,7 +863,7 @@ fn settle_pending(
     workspace: &'static str,
     scope_generation: u64,
     identity: &AlignIdentity,
-    pending: &mut Signal<Option<PendingAlign>>,
+    pending: &mut Signal<Option<AlignmentSubmission>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
 ) {
     let Some(waiting) = pending.peek().clone() else {
@@ -1058,7 +1050,10 @@ mod resolver_tests {
             Some("alignment".into()),
             align_resolver(context(), vec!["a".into()], "b".into(), AlignCommand::Left),
         );
-        assert!(ticket.is_pending(), "a one-shot align stays pending until it settles");
+        assert!(
+            ticket.is_pending(),
+            "a one-shot align stays pending until it settles"
+        );
         support::drive_pending(&runtime);
         release.send(()).expect("release the held delete");
         for _ in 0..50 {

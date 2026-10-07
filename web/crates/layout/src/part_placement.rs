@@ -16,8 +16,8 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part,
-    PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
+    EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition,
+    PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -175,7 +175,7 @@ pub struct ActivePartPlacement {
 
 /// An in-flight apply-to-key edit. One-shot: the canvas stays busy while it is held.
 #[derive(Clone)]
-struct PendingKeyEdit {
+struct KeyEditOwner {
     scope: Scope,
     generation: u64,
     source_workspace: &'static str,
@@ -193,23 +193,21 @@ fn placement_resolver(
 ) -> EditResolver {
     EditResolver::new(
         "layout-component-placement",
-        move |accepted: &AcceptedSnapshot| {
-            match placement_operation(
-                &accepted.document,
-                &board_id,
-                &definition,
-                &part,
-                layout_id.as_deref(),
-            ) {
-                Ok(operation) => Resolution::Submit(boardstudio_core::model::EditCommand {
-                    base_revision: 0,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![part.id.clone()],
-                    operation,
-                }),
-                Err(message) => Resolution::Retire(message),
-            }
+        move |accepted: &AcceptedSnapshot| match placement_operation(
+            &accepted.document,
+            &board_id,
+            &definition,
+            &part,
+            layout_id.as_deref(),
+        ) {
+            Ok(operation) => Resolution::Submit(boardstudio_core::model::EditCommand {
+                base_revision: 0,
+                transaction_id: String::new(),
+                phase: EditPhase::Commit,
+                target_ids: vec![part.id.clone()],
+                operation,
+            }),
+            Err(message) => Resolution::Retire(message),
         },
     )
 }
@@ -313,8 +311,12 @@ pub trait PlacementRuntime {
     ) -> crate::operation_outcomes::OutcomeSlot;
     fn submit(&self, event: Event);
     /// Begin a pending edit through the shared edit ticket.
-    fn begin_edit(&self, label: &str, feature: Option<String>, resolver: EditResolver)
-    -> EditTicket;
+    fn begin_edit(
+        &self,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+    ) -> EditTicket;
 }
 
 impl<T: PlacementRuntime + ?Sized> PlacementRuntime for Rc<T> {
@@ -509,7 +511,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| None::<EditTicket>);
-    let mut key_edit = use_signal(|| None::<PendingKeyEdit>);
+    let mut key_edit = use_signal(|| None::<KeyEditOwner>);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -765,7 +767,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             Some("component".into()),
                             key_component_resolver(scope.clone(), selected.clone(), definition),
                         );
-                        let pending = PendingKeyEdit {
+                        let pending = KeyEditOwner {
                             scope: scope.clone(),
                             generation: accepted_generation,
                             source_workspace,
@@ -790,8 +792,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                                 && generation() == pending.generation
                                 && current_context() == Some(pending.selection.clone());
                             key_edit.set(None);
-                            if let Settlement::Failed { message } =
-                                ticket.settlement(still_current)
+                            if let Settlement::Failed { message } = ticket.settlement(still_current)
                             {
                                 error.set(Some(message));
                             }
@@ -1255,18 +1256,17 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                                 .iter()
                                 .any(|part| part.id == owner.part_id)
                         });
-                        let next_context = if owner.workflow == PlacementWorkflow::GeneralComponent
-                            && placed
-                        {
-                            objects::context_for_part(&model, &owner.part_id).map(|context| {
-                                ScopedTreeContext {
-                                    scope: owner.scope.clone(),
-                                    context,
-                                }
-                            })
-                        } else {
-                            None
-                        };
+                        let next_context =
+                            if owner.workflow == PlacementWorkflow::GeneralComponent && placed {
+                                objects::context_for_part(&model, &owner.part_id).map(|context| {
+                                    ScopedTreeContext {
+                                        scope: owner.scope.clone(),
+                                        context,
+                                    }
+                                })
+                            } else {
+                                None
+                            };
                         selected_context.set(next_context);
                         anchor_scope.set(None);
                         workspace.set(if owner.workflow.is_controller() {
@@ -1861,8 +1861,7 @@ mod tests {
 
     use super::*;
     use boardstudio_application::{
-        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken,
-        TerminalOutcome,
+        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken, TerminalOutcome,
     };
     use boardstudio_core::model::{Board, EditCommand, OutlineSettings};
     use std::{

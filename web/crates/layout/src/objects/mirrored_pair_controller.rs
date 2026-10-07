@@ -20,7 +20,7 @@ use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
-struct PendingPair {
+struct PairSubmission {
     owner: MirroredPairOwner,
     ticket: EditTicket,
     left_matrix_id: String,
@@ -116,7 +116,7 @@ pub fn use_mirrored_pair(
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
     let placement = use_signal(|| None::<ActivePair>);
-    let pending = use_signal(|| None::<PendingPair>);
+    let pending = use_signal(|| None::<PairSubmission>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -739,7 +739,7 @@ pub fn use_mirrored_pair(
                     definitions,
                 ),
             );
-            pending.set(Some(PendingPair {
+            pending.set(Some(PairSubmission {
                 owner: owner.clone(),
                 ticket,
                 left_matrix_id,
@@ -918,7 +918,7 @@ fn clear_preparing(
 }
 
 struct PairSettlement<'a> {
-    pending: &'a mut Signal<Option<PendingPair>>,
+    pending: &'a mut Signal<Option<PairSubmission>>,
     open: &'a mut Signal<Option<MirroredPairOwner>>,
     form_state: &'a mut Signal<PairFormState<MirroredPairFormValues>>,
     error: &'a mut Signal<Option<String>>,
@@ -1011,9 +1011,9 @@ fn settle_pending(
 }
 
 fn finish_pending(
-    pending: &mut Signal<Option<PendingPair>>,
+    pending: &mut Signal<Option<PairSubmission>>,
     status: &mut Signal<Option<String>>,
-    waiting: &PendingPair,
+    waiting: &PairSubmission,
 ) {
     if pending
         .read()
