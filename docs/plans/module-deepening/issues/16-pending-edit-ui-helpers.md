@@ -5,6 +5,13 @@ Type: build
 Blocked by: 15
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits and Matrix tracer gate](05-pending-edits-module.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
 
+## Owner reservation
+
+Reserved for the user's separate AI tool (user, 2026-10-07). Agents in this chat must
+not claim or implement this slice. Reservation is not an early implementation claim:
+after keyed settlement merges, the orchestrator claims this ticket and provides its
+final interface, base commit and dedicated worktree/branch for the external tool.
+
 ## What to build
 
 Implement the Signal-bound text-field and one-shot helpers over the published

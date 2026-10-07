@@ -50,7 +50,7 @@ finish       cleanup after the three panel migrations, export leases and workspa
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Tickets 04 and 12 are claimed; 04 is integrating the new Runtime test helpers, and 12 is completing its commit/check boundaries. The captured-Scope slice starts after the native Runtime and resolution constructors merge; the tracer gate now groups five smaller builds. Shared helpers and Matrix actions can run in parallel after the keyed collection merges. The TCE-02 spec and TCE-03 decision proposals await human approval.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Resolution constructors are resolved. Editor workspace state is implemented and completing its final integration rebase. The captured-Scope slice starts after the native Runtime and resolution constructors merge; the tracer gate now groups five smaller builds. Shared helpers and Matrix actions can run in parallel after the keyed collection merges. The TCE-02 spec and TCE-03 decision proposals await human approval.
 
 ## Decisions so far
 
@@ -72,6 +72,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [Resolvers state only their intent](issues/04-resolution-constructors.md#outcome):
+  Session-owned constructors replace resolver command bookkeeping, including Runtime
+  integration helpers.
 
 - 03 Native test Runtime drives real Session/Core and shared gates; fake drivers and
   manual settlement are removed: [Outcome](issues/03-native-test-runtime.md#outcome).
@@ -119,8 +123,9 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 
 Start the captured-Scope slice, then the keyed collection. Once its reviewed interface
 is merged, shared UI helpers and Matrix actions are independent work streams with
-separate files. A separate AI tool can own the shared-helper slice in an external
-worktree. Matrix fields follow both; the orchestrator closes the tracer gate only after
+separate files. The user has reserved the shared-helper slice for a separate AI tool in an
+external worktree; agents here must not claim it. The orchestrator prepares its
+interface/base/worktree handoff after the keyed collection merges. Matrix fields follow both; the orchestrator closes the tracer gate only after
 combined verification. The three wider panel migrations then run in parallel.
 
 ## Out of scope

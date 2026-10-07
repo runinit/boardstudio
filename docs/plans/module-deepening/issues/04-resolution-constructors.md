@@ -1,6 +1,6 @@
 # 04: Resolvers state only their intent
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06, [edit settlement 20](../../edit-settlement/issues/20-preview-only-direct-edit-event.md), [typed Core edits 01](../../typed-core-edits/issues/01-set-wiring-mode.md) (its resolver sweep touches their files)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [01 answer](01-decide-pending-edit-settlement.md#answer) (item 5)
@@ -29,14 +29,14 @@ changes Session's event types, so this follows it.
 
 ## Acceptance criteria
 
-- [ ] No resolver in `web/` writes `base_revision`, `phase` or an empty
+- [x] No resolver in `web/` writes `base_revision`, `phase` or an empty
   `transaction_id` (`rg -n "base_revision: 0|transaction_id: String::new\(\)" web`
   finds only previews and strict captured routes).
-- [ ] No resolver checks the session epoch (`rg -n "The project is no longer open" web`
+- [x] No resolver checks the session epoch (`rg -n "The project is no longer open" web`
   is empty, or each hit is justified in `## Outcome`).
-- [ ] An Application test shows a resolved edit queued across a session change settles
+- [x] An Application test shows a resolved edit queued across a session change settles
   `Rejected(DOCUMENT_SESSION_CHANGED)` without calling its resolver.
-- [ ] Existing tests pass; previews, gesture commits, export commits and the electrical
+- [x] Existing tests pass; previews, gesture commits, export commits and the electrical
   remap keep their routes.
 
 ## Verification
@@ -45,3 +45,24 @@ changes Session's event types, so this follows it.
 cargo test -p boardstudio-application --locked
 python3 scripts/check.py lint typecheck test browser
 ```
+
+## Outcome
+
+Merged `deepening/04-resolution-constructors` through `9bfefe8dd`, rebased onto
+`b3d44473`. The Application interface adds `Resolution::submit` and
+`submit_with_transaction_id`; Session retains phase/revision/transaction ownership.
+The web resolver sweep preserves explicit grouping IDs and target eligibility, removes
+redundant resolver epoch checks, and includes the new native Runtime test helpers.
+Remaining command-field literals belong to previews, strict captured routes or explicit
+test setup; result pattern matches are not resolver construction. The project-no-longer-
+open resolver message is gone. Application coverage proves stale queued resolvers are
+rejected before invocation.
+
+Final lint/typecheck passed. After the native Runtime integration, native Application
+30, Runtime 100, Layout 52 and Parts 37 tests passed, as did the PCB package tests.
+Targeted WASM Runtime 29, PCB 38 and Parts 50 passed. Earlier complete workspace and
+footprints checks and the affected downstream browser suites passed; the broad gate
+attempt recorded the known intermittent Keymap timeout and unchanged CAD fixture
+baseline (49 passed, 1 failed, 4 ignored). Keymap subsequently passed in the complete
+workspace-state browser gate. Final Standards and source-corrected Spec reviews found
+no actionable findings; the final docs-only rebase changed no implementation files.

@@ -61,7 +61,9 @@ panel migrations blocked on that gate.
 
 - The keyed collection's Outcome publishes the tested interface and examples before
   either consumer starts. Later Runtime interface changes coordinate with both owners.
-- Shared helpers are a suitable separate-AI-tool assignment. That tool owns only its
+- Shared helpers are reserved for the user's separate AI tool. Do not dispatch that
+  slice to agents here. After the keyed collection merges, the orchestrator claims it
+  and supplies the reviewed interface and dedicated base/worktree. That tool owns only its
   ticket paths in its own external worktree/branch, reads the same repo instructions,
   runs the same checks/reviews, and reports commits/evidence to the orchestrator.
 - Only the orchestrator changes `dev`, claims/resolves tickets and merges branches.
