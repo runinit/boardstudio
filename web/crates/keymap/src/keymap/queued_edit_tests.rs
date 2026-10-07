@@ -573,93 +573,173 @@ async fn failed_binding_restores_accepted_field_and_explains_failure() {
 }
 
 #[wasm_bindgen_test]
-async fn shifted_macro_step_retires_instead_of_editing_its_neighbor() {
+async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targets() {
     use boardstudio_core::model::{MacroChange, MacroStep};
-    let runtime = support::new_runtime();
-    let mut doc = document();
-    doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}},{"kind":"wait","ms":10},{"kind":"wait","ms":20}]}]})).unwrap());
-    support::open_document(&runtime, doc).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
-    let submit = |target, change| {
-        let borrowed = probe.macros.borrow();
-        let actions = borrowed.as_ref().unwrap();
-        let mut sequence = actions.request_sequence;
-        let request_id = sequence() + 1;
-        sequence.set(request_id);
-        let accepted = runtime.model().accepted.unwrap();
-        actions.on_change.call(MacroEditRequest {
-            scope: runtime.scope().unwrap(),
-            scope_generation: 0,
-            admission_token: accepted.token,
-            admission_revision: accepted.document.revision,
-            editor_instance_id: actions.editor_instance_id,
-            request_id,
-            macro_id: Some("macro".into()),
-            target,
-            step_sequence: Some(actions.sequences[0].steps.clone()),
-            change: MacroEditChange::Change(change),
-        });
-    };
-    let (entered, release) = support::gate_next_core_reply(&runtime);
-    submit(
-        MacroEditTarget::RemoveStep { index: 0 },
-        MacroChange::RemoveStep { index: 0 },
-    );
-    support::drive_pending(&runtime);
-    entered.await.unwrap();
-    rendered().await;
-    submit(
-        MacroEditTarget::StepDelay { index: 1 },
-        MacroChange::Step {
-            index: 1,
-            value: MacroStep::Wait { ms: 99 },
+    let tap = || MacroStep::Tap {
+        binding: KeyBinding::KeyPress {
+            keycode: "A".into(),
         },
-    );
-    release.send(()).unwrap();
-    settle(&runtime).await;
-    assert_eq!(
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .steps,
-        vec![MacroStep::Wait { ms: 10 }, MacroStep::Wait { ms: 20 }]
-    );
-    assert!(root.text_content().unwrap().contains("macro step"));
-    assert!(matches!(
-        &probe
-            .macros
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .feedback
-            .as_ref()
-            .unwrap()
-            .status,
-        super::macro_editor::MacroEditStatus::Failed(_)
-    ));
-    runtime.submit(Event::Undo {
-        operation_id: runtime.operation(),
-    });
-    settle(&runtime).await;
-    assert_eq!(
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .steps
-            .len(),
-        3
-    );
-    root.remove();
+    };
+    for removed in [None, Some(2), Some(0), Some(1)] {
+        let runtime = support::new_runtime();
+        let mut doc = document();
+        doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}},{"kind":"wait","ms":10},{"kind":"wait","ms":20}]}]})).unwrap());
+        support::open_document(&runtime, doc).await;
+        let (probe, root) = mount_runtime(runtime.clone()).await;
+        let submit = |target, change| {
+            let borrowed = probe.macros.borrow();
+            let actions = borrowed.as_ref().unwrap();
+            let mut sequence = actions.request_sequence;
+            let request_id = sequence() + 1;
+            sequence.set(request_id);
+            let accepted = runtime.model().accepted.unwrap();
+            actions.on_change.call(MacroEditRequest {
+                scope: runtime.scope().unwrap(),
+                scope_generation: 0,
+                admission_token: accepted.token,
+                admission_revision: accepted.document.revision,
+                editor_instance_id: actions.editor_instance_id,
+                request_id,
+                macro_id: Some("macro".into()),
+                target,
+                step_sequence: Some(actions.sequences[0].steps.clone()),
+                change: MacroEditChange::Change(change),
+            });
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        if let Some(index) = removed {
+            submit(
+                MacroEditTarget::RemoveStep { index },
+                MacroChange::RemoveStep { index },
+            );
+        } else {
+            submit(
+                MacroEditTarget::AddStep,
+                MacroChange::AddStep { value: tap() },
+            );
+        }
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        rendered().await;
+        // One sequence-changing action at a time; all step fields remain available.
+        assert!(
+            root.query_selector("fieldset.m1-keymap-macro > button")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        );
+        assert!(
+            root.query_selector("div.m1-keymap-macro-step > button")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        );
+        assert!(
+            !root
+                .query_selector("div.m1-keymap-macro-step select")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        );
+        // A stale callback cannot queue an add behind a pending removal and restore the old length.
+        if removed.is_some() {
+            submit(
+                MacroEditTarget::AddStep,
+                MacroChange::AddStep { value: tap() },
+            );
+        }
+        submit(
+            MacroEditTarget::StepDelay { index: 1 },
+            MacroChange::Step {
+                index: 1,
+                value: MacroStep::Wait { ms: 99 },
+            },
+        );
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        let expected = match removed {
+            None => vec![
+                tap(),
+                MacroStep::Wait { ms: 99 },
+                MacroStep::Wait { ms: 20 },
+                tap(),
+            ],
+            Some(2) => vec![tap(), MacroStep::Wait { ms: 99 }],
+            Some(0) => vec![MacroStep::Wait { ms: 10 }, MacroStep::Wait { ms: 20 }],
+            _ => vec![tap(), MacroStep::Wait { ms: 20 }],
+        };
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .steps,
+            expected
+        );
+        let eligible = removed.is_none_or(|index| index > 1);
+        assert_eq!(
+            matches!(
+                &probe
+                    .macros
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .feedback
+                    .as_ref()
+                    .unwrap()
+                    .status,
+                super::macro_editor::MacroEditStatus::Saved
+            ),
+            eligible
+        );
+        if !eligible {
+            assert!(root.text_content().unwrap().contains("macro step"));
+        }
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        settle(&runtime).await;
+        if eligible {
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .keymap
+                    .as_ref()
+                    .unwrap()
+                    .macros[0]
+                    .steps[1],
+                MacroStep::Wait { ms: 10 }
+            );
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            settle(&runtime).await;
+        }
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .steps,
+            vec![
+                tap(),
+                MacroStep::Wait { ms: 10 },
+                MacroStep::Wait { ms: 20 }
+            ]
+        );
+        root.remove();
+    }
 }

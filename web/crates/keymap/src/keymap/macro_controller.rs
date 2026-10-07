@@ -32,11 +32,29 @@ fn is_action(target: MacroEditTarget) -> bool {
     )
 }
 
+fn structural_action(target: MacroEditTarget) -> bool {
+    matches!(
+        target,
+        MacroEditTarget::AddStep | MacroEditTarget::RemoveStep { .. }
+    )
+}
+
+fn same_action(left: MacroEditTarget, right: MacroEditTarget) -> bool {
+    left == right || (structural_action(left) && structural_action(right))
+}
+
+#[derive(Clone, Copy)]
+enum PrecedingStructure {
+    Append,
+    Remove(usize),
+    Ambiguous,
+}
+
 pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) -> bool {
     try_consume_context::<MacroTickets>().is_some_and(|tickets| {
         tickets.0.read().iter().any(|entry| {
             entry.request.macro_id.as_deref() == macro_id
-                && entry.request.target == target
+                && same_action(entry.request.target, target)
                 && entry.ticket.is_pending()
         })
     })
@@ -288,7 +306,7 @@ pub fn use_macro_operations(
             if is_action(request.target)
                 && pending.peek().iter().any(|entry| {
                     entry.request.macro_id == request.macro_id
-                        && entry.request.target == request.target
+                        && same_action(entry.request.target, request.target)
                         && entry.ticket.is_pending()
                 })
             {
@@ -304,12 +322,37 @@ pub fn use_macro_operations(
                     return;
                 }
             }
+            // Structural one-shots share the macro sequence's control gate. At most
+            // one can precede a field, so its positional effect can be captured purely.
+            let preceding_structure = pending
+                .peek()
+                .iter()
+                .find(|entry| {
+                    entry.request.macro_id == request.macro_id
+                        && structural_action(entry.request.target)
+                        && entry.ticket.is_pending()
+                })
+                .and_then(|entry| {
+                    let before = entry.request.step_sequence.as_ref()?.len();
+                    let now = request.step_sequence.as_ref()?.len();
+                    match entry.request.target {
+                        MacroEditTarget::AddStep if now == before => {
+                            Some(PrecedingStructure::Append)
+                        }
+                        MacroEditTarget::AddStep if now == before + 1 => None,
+                        MacroEditTarget::RemoveStep { index } if now == before => {
+                            Some(PrecedingStructure::Remove(index))
+                        }
+                        MacroEditTarget::RemoveStep { .. } if now + 1 == before => None,
+                        _ => Some(PrecedingStructure::Ambiguous),
+                    }
+                });
             let seed = runtime.operation().0;
             let ticket = EditTicket::begin(
                 &runtime,
                 "keymap-macro",
                 Some("macro".into()),
-                macro_resolver(request.clone(), seed),
+                macro_resolver(request.clone(), seed, preceding_structure),
             );
             feedback.write().retain(|entry| {
                 !(entry.macro_id == request.macro_id && entry.target == request.target)
@@ -415,7 +458,11 @@ fn current_display_source(
         .then_some(snapshot)
 }
 
-fn macro_resolver(request: MacroEditRequest, seed: u64) -> EditResolver {
+fn macro_resolver(
+    request: MacroEditRequest,
+    seed: u64,
+    preceding_structure: Option<PrecedingStructure>,
+) -> EditResolver {
     EditResolver::new("keymap-macro", move |accepted: &AcceptedSnapshot| {
         if accepted.session_epoch != request.scope.session_epoch
             || accepted.document.id != request.scope.document_id
@@ -469,20 +516,32 @@ fn macro_resolver(request: MacroEditRequest, seed: u64) -> EditResolver {
                 else {
                     return Resolution::Retire("This macro no longer exists.".into());
                 };
-                // Steps have positional identities. A structural change invalidates a queued
-                // positional request; ordinary field edits leave the sequence length intact.
-                if matches!(
-                    request.target,
-                    MacroEditTarget::RemoveStep { .. }
-                        | MacroEditTarget::StepKind { .. }
-                        | MacroEditTarget::StepDelay { .. }
-                        | MacroEditTarget::StepKeycode { .. }
-                ) && request
-                    .step_sequence
-                    .as_ref()
-                    .is_none_or(|steps| steps.len() != item.steps.len())
+                // Appending, or removing a later step, keeps this positional target.
+                // A removed/shifted target is no longer eligible; a failed structural
+                // operation leaves the original position available.
+                if let MacroEditTarget::RemoveStep { index }
+                | MacroEditTarget::StepKind { index }
+                | MacroEditTarget::StepDelay { index }
+                | MacroEditTarget::StepKeycode { index } = request.target
                 {
-                    return Resolution::Retire("This macro step is no longer available because the steps changed. Select the step again.".into());
+                    let valid =
+                        request.step_sequence.as_ref().is_some_and(
+                            |steps| match preceding_structure {
+                                Some(PrecedingStructure::Append) => {
+                                    item.steps.len() == steps.len()
+                                        || item.steps.len() == steps.len() + 1
+                                }
+                                Some(PrecedingStructure::Remove(removed)) => {
+                                    item.steps.len() == steps.len()
+                                        || (item.steps.len() + 1 == steps.len() && index < removed)
+                                }
+                                Some(PrecedingStructure::Ambiguous) => false,
+                                None => item.steps.len() == steps.len(),
+                            },
+                        );
+                    if !valid {
+                        return Resolution::Retire("This macro step is no longer available because the steps changed. Select the step again.".into());
+                    }
                 }
                 match (&request.target, &request.change) {
                     (MacroEditTarget::RemoveMacro, MacroEditChange::Remove) => {
