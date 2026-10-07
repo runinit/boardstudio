@@ -1,6 +1,6 @@
 # 05: Layout Inspector mounted tests reach the real Session and Core
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 01
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
