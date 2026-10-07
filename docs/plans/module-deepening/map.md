@@ -51,7 +51,7 @@ finish       cleanup after the three panel migrations, export leases and workspa
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Resolution constructors are resolved. Editor workspace state is resolved. The captured-Scope slice is claimed and running; shared helpers remain reserved for the user's separate AI tool. The captured-Scope slice starts after the native Runtime and resolution constructors merge; the tracer gate now groups five smaller builds. Shared helpers and Matrix actions can run in parallel after the keyed collection merges. The TCE-02 spec and TCE-03 decision proposals await human approval.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Resolution constructors are resolved. Editor workspace state is resolved. Captured Scope and keyed settlement are resolved. Shared UI helpers are merged; Matrix actions await final mounted controller coverage, then Matrix fields complete the tracer. The captured-Scope slice starts after the native Runtime and resolution constructors merge; the tracer gate now groups five smaller builds. Shared helpers and Matrix actions can run in parallel after the keyed collection merges. The TCE-02 spec and TCE-03 decision proposals await human approval.
 
 ## Decisions so far
 
@@ -73,6 +73,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [Shared UI helpers present pending edits](issues/16-pending-edit-ui-helpers.md#outcome):
+  one shared collection binds field drafts/failures and action disabling; native 8
+  and browser 16+1 tests passed, final reviews clear.
 
 - [Parts and PCB native test preparation](issues/19-parts-pcb-native-test-preparation.md#outcome):
   remaining Parts pumps removed, queued domain regressions added; native 42/21 and

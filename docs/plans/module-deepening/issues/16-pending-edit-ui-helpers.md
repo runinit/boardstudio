@@ -1,6 +1,6 @@
 # 16: Shared UI helpers present pending edits
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 15
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits and Matrix tracer gate](05-pending-edits-module.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
@@ -37,13 +37,13 @@ It runs in parallel with [Matrix one-shot actions](17-matrix-one-shot-pending-ed
 
 ## Acceptance criteria
 
-- [ ] Tests first fail at the helper interface, using real Runtime gates.
-- [ ] Mounted tests cover draft retention, latest field value, accepted-value restore,
+- [x] Tests first fail at the helper interface, using real Runtime gates.
+- [x] Mounted tests cover draft retention, latest field value, accepted-value restore,
   inline failure, silent retirement and one-shot disable/re-enable.
-- [ ] Landed revision and failure placement remain available to consumers.
-- [ ] Native tests exercise plain helper logic where applicable; WASM tests prove
+- [x] Landed revision and failure placement remain available to consumers.
+- [x] Native tests exercise plain helper logic where applicable; WASM tests prove
   actual Signal lifecycle behavior. State which tests really execute under each cfg.
-- [ ] Outcome documents usage for the final Matrix integration and later panel waves.
+- [x] Outcome documents usage for the final Matrix integration and later panel waves.
 
 ## Verification
 
@@ -54,3 +54,56 @@ python3 scripts/check.py lint typecheck test browser
 
 Execute both UI-shared browser groups, including the new helper tests. Serialize all
 Chrome runs through the orchestrator's lease. Complete parallel Standards/Spec review.
+
+## Outcome
+
+Integrated the second-app commit `a2faaaef4cb704db9526c88e802d6fa008d970f8`.
+The clean branch changed only the new helper module and its lib export. Final pinned
+Standards and Spec re-reviews found no blocking findings. Spec confirmed that the
+Matrix migration can rehome its action collection under the helper without another
+collection or adapter; preserving an allocation across recompilation is not required.
+
+`PendingEditSignals<K: PartialEq + 'static>` clones share one keyed collection. Its
+interface binds fields (`bind_field(key, draft, failure)`) and actions
+(`bind_one_shot(key, disabled)`), submits through `begin_field`/`begin_one_shot`,
+answers `is_pending(&key)`, and drains `settle(owner_is_live, accepted_projection)`
+as the existing `PendingEditResult<K>` variants. Field submission additionally needs
+Clone keys and records the submitted text. The helper owns draft bookkeeping and
+Signal writes; accepted-value projection and exact selection remain caller-owned.
+Landed and Retired restore only an untouched submitted draft; newer drafts survive.
+Failure is inline and also returned for other placement; retirement is silent.
+There is no Saved state, retry, second terminal mapping or Scope policy.
+
+Consumer shape:
+
+```rust
+let helpers = use_hook(|| PendingEditSignals::<MatrixPendingKey>::new());
+helpers.bind_field(MatrixPendingKey::Rows, rows, rows_failure);
+helpers.bind_one_shot(MatrixPendingKey::Preset(None), preset_disabled);
+helpers.begin_field(&runtime, MatrixPendingKey::Rows, "matrix-rows",
+    Some("matrix".into()), resolver, &rows.peek().clone());
+for result in helpers.settle(owner_is_live, |key| accepted_text(key)) {
+    // Retain request-bearing action keys for exact Landed follow-ups.
+}
+```
+
+The external app reports red-before-green interface evidence, native UI-shared 8/8,
+lint/typecheck/fmt/Clippy passing, and browser groups 16/16 plus panels 1/1. Seven new
+mounted tests use real WASM Runtime gates and inputs/buttons, covering draft retention,
+latest replacement, accepted restoration, failure, newer drafts, Unchanged landing,
+Scope retirement with a live owner, departed-owner retirement and one-shot state.
+Native cfg executes the pure draft policy test; mounted behavior executes in Chrome.
+Root reused this final evidence and inspected the final committed source.
+
+The app's full browser step exposed native Runtime collection fixtures compiling for
+WASM; root independently reproduced that test-target failure and is fixing it at the
+Runtime owner. It does not invalidate the directly executed UI-shared browser groups.
+Its full native step stopped at 13 KiCad environment failures: a missing pcbnew library
+under ZCode's AppImage mount. An affected KiCad test passed from root's clean process
+on the same tree; these are reported separately from the CAD volume baseline, and
+are not evidence that the full test step passed.
+
+Bindings/draft records last for the helper lifetime. Use bounded logical panel keys;
+Matrix action keys compare by action kind even when carrying request metadata. Do not
+introduce unbounded per-operation keys. The next consumer removes its direct action
+collection and uses one helper-owned collection for field and action observations.
