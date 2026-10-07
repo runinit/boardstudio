@@ -1,6 +1,9 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
 pub(crate) use boardstudio_web_layout::board_inspector;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
+pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
+    CanvasNavigationState, use_canvas_navigation_state,
+};
 mod canvas_status_footer;
 pub(crate) use boardstudio_web_case::case_controller;
 pub(crate) use boardstudio_web_case::case_display;
@@ -27,6 +30,10 @@ mod layout_component_inspector_tests;
 #[cfg(test)]
 mod layout_remainder_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
+pub(crate) use boardstudio_web_layout::layout_findings_state::{
+    ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,
+    layout_finding_return_is_current, source_matches_layout_owner, use_layout_findings_state,
+};
 pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
@@ -48,7 +55,7 @@ pub(crate) use boardstudio_web_ui_model::state::{
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, pointer_location,
+    coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
@@ -118,13 +125,6 @@ use std::{
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, SvgElement};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct LayoutFindingReturnTarget {
-    owner: LayoutOwnerIdentity,
-    selection: objects::ScopedTreeContext,
-    destination: objects::TreeContext,
-}
-
 fn case_setup_context_is_current(
     identity: &pcb_physical_setup::OwnerIdentity,
     strict: bool,
@@ -192,13 +192,9 @@ struct WorkspaceCallbackSlots {
     toggle_footprints: EventHandler<()>,
     retry_save: EventHandler<()>,
     recover_saved: EventHandler<()>,
-    canvas_mount: EventHandler<MountedEvent>,
-    canvas_start_pan: EventHandler<PointerEvent>,
-    canvas_move_pointer: EventHandler<PointerEvent>,
     canvas_end_pointer: EventHandler<PointerEvent>,
     canvas_cancel_pointer: EventHandler<PointerEvent>,
     canvas_keyboard: EventHandler<KeyboardEvent>,
-    canvas_key_up: EventHandler<KeyboardEvent>,
     canvas_wheel: EventHandler<WheelEvent>,
     keymap_select: EventHandler<String>,
     keycaps_select: EventHandler<String>,
@@ -1011,463 +1007,6 @@ fn layout_finding_context(
         }),
         Target::Body { .. } | Target::MechanicalLayer { .. } => None,
     }
-}
-
-fn layout_finding_return_is_current(
-    model: &ReadModel,
-    owner: &LayoutOwnerIdentity,
-    current_selection: Option<&objects::ScopedTreeContext>,
-    target: &LayoutFindingReturnTarget,
-) -> bool {
-    if owner != &target.owner || owner.workspace != "Layout" {
-        return false;
-    }
-    let Some(scope) = owner.scope.as_ref() else {
-        return false;
-    };
-    let saved_selection_is_live =
-        selection::context_is_current(model, scope, &target.selection.context)
-            && match &target.selection.context {
-                objects::TreeContext::Component {
-                    part_id: Some(_), ..
-                } => selection::resolve_context(model, &target.selection.context)
-                    .is_some_and(|part_ids| !part_ids.is_empty()),
-                _ => true,
-            };
-    target.selection.scope == *scope
-        && saved_selection_is_live
-        && current_selection.is_some_and(|selected| {
-            selected.scope == *scope
-                && selected.context == target.destination
-                && selection::context_is_current(model, scope, &selected.context)
-        })
-}
-
-fn focus_layout_finding_return_destination() -> bool {
-    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-        return false;
-    };
-    for selector in [
-        "#m1-inspector-panel-content .m1-layout-component-tabs [role='tab'][aria-selected='true']",
-        "#m1-inspector-panel-content .m1-board-inspector :is(input, select, button):not(:disabled)",
-        "#m1-inspector-panel-content .m1-outline-inspector :is(input, select, button):not(:disabled)",
-    ] {
-        if let Some(element) = document
-            .query_selector(selector)
-            .ok()
-            .flatten()
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-        {
-            let _ = element.focus();
-            return true;
-        }
-    }
-    if let Some(element) = document
-        .query_selector(
-            "#m1-inspector-panel-content .m1-inspector-body, #m1-inspector-panel-content .m1-selected-context, #m1-inspector-panel-content .m1-board-inspector, #m1-inspector-panel-content .m1-outline-inspector",
-        )
-        .ok()
-        .flatten()
-        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-    {
-        let _ = element.set_attribute("tabindex", "-1");
-        let _ = element.focus();
-        return true;
-    }
-    false
-}
-
-#[cfg(test)]
-mod layout_finding_return_regression_tests {
-    use super::*;
-    use boardstudio_application::{AcceptedSnapshot, SessionEpoch};
-    use boardstudio_core::model::{
-        Board, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
-    };
-    use std::sync::Arc;
-    use wasm_bindgen::{JsCast, closure::Closure};
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    fn fixture() -> (ReadModel, Scope, objects::ScopedTreeContext) {
-        let scope = Scope {
-            session_epoch: SessionEpoch(5),
-            document_id: "finding-return-doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let mut document = ProjectDoc::empty("finding-return-doc", "Finding return fixture");
-        document.revision = 9;
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec!["left-U1".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.definitions.push(PartDefinition {
-            hardware_profile: None,
-            input_profile: None,
-            id: "controller".into(),
-            name: "Controller".into(),
-            kind: PartKind::Controller,
-            keycap: None,
-            envelope_source: None,
-            kicad_source: None,
-            terminals: Default::default(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            courtyard: vec![],
-            pads: vec![],
-            models: None,
-            generator: None,
-            mechanical_profile: None,
-        });
-        document.parts.push(Part {
-            keycap: None,
-            outline: None,
-            id: "left-U1".into(),
-            definition_id: "controller".into(),
-            reference: "U1".into(),
-            pose: Pose2 {
-                at: Vec2::default(),
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
-        let model = ReadModel {
-            accepted: Some(AcceptedSnapshot {
-                token: SnapshotToken(13),
-                session_epoch: scope.session_epoch,
-                document: Arc::new(document),
-                scene: Arc::new(SceneDelta {
-                    module_scenes: vec![],
-                    revision: 9,
-                    transaction_id: "accepted-fixture".into(),
-                    changed_ids: vec![],
-                    transforms: vec![],
-                    matrix_scenes: vec![],
-                    contours: vec![],
-                    board_contours: vec![],
-                    board_readiness: vec![],
-                    board_outline_scenes: vec![],
-                    finding_markers: vec![],
-                    findings: vec![],
-                    readiness: Readiness {
-                        layout: true,
-                        outline: true,
-                        pcb: true,
-                        case_ready: false,
-                    },
-                }),
-            }),
-            active_board_id: scope.board_id.clone(),
-            selected_part_ids: vec!["left-U1".into()],
-            ..ReadModel::default()
-        };
-        let selection = objects::ScopedTreeContext {
-            scope: scope.clone(),
-            context: objects::TreeContext::Component {
-                part_id: Some("left-U1".into()),
-                matrix_id: None,
-                row: None,
-                column: None,
-                assembly_id: None,
-            },
-        };
-        (model, scope, selection)
-    }
-
-    #[wasm_bindgen_test]
-    fn outline_return_requires_the_same_live_owner_and_saved_selection() {
-        let (model, scope, selection) = fixture();
-        let owner = LayoutOwnerIdentity {
-            scope: Some(scope.clone()),
-            token: Some(SnapshotToken(13)),
-            revision: Some(9),
-            generation: 2,
-            workspace: "Layout",
-        };
-        let destination = objects::TreeContext::Outline {
-            board_id: scope.board_id.clone(),
-        };
-        let target = LayoutFindingReturnTarget {
-            owner: owner.clone(),
-            selection: selection.clone(),
-            destination: destination.clone(),
-        };
-        let outline_selection = objects::ScopedTreeContext {
-            scope,
-            context: destination,
-        };
-
-        assert!(layout_finding_return_is_current(
-            &model,
-            &owner,
-            Some(&outline_selection),
-            &target,
-        ));
-
-        let empty_outline_selection = objects::ScopedTreeContext {
-            scope: outline_selection.scope.clone(),
-            context: outline_selection.context.clone(),
-        };
-        let empty_outline_target = LayoutFindingReturnTarget {
-            selection: empty_outline_selection.clone(),
-            ..target.clone()
-        };
-        assert!(layout_finding_return_is_current(
-            &model,
-            &owner,
-            Some(&empty_outline_selection),
-            &empty_outline_target,
-        ));
-
-        let component_target = LayoutFindingReturnTarget {
-            destination: selection.context.clone(),
-            ..target.clone()
-        };
-        assert!(layout_finding_return_is_current(
-            &model,
-            &owner,
-            Some(&selection),
-            &component_target,
-        ));
-
-        let mut changed_owner = owner.clone();
-        changed_owner.revision = Some(10);
-        assert!(!layout_finding_return_is_current(
-            &model,
-            &changed_owner,
-            Some(&outline_selection),
-            &target,
-        ));
-
-        let mut changed_scope_owner = owner.clone();
-        changed_scope_owner
-            .scope
-            .as_mut()
-            .expect("fixture scope")
-            .board_id = "other-board".into();
-        assert!(!layout_finding_return_is_current(
-            &model,
-            &changed_scope_owner,
-            Some(&outline_selection),
-            &target,
-        ));
-
-        let mut changed_model = model;
-        Arc::make_mut(
-            &mut changed_model
-                .accepted
-                .as_mut()
-                .expect("fixture snapshot")
-                .document,
-        )
-        .boards[0]
-            .part_ids
-            .clear();
-        assert!(!layout_finding_return_is_current(
-            &changed_model,
-            &owner,
-            Some(&outline_selection),
-            &target,
-        ));
-    }
-
-    #[wasm_bindgen_test]
-    fn mounted_back_enter_focuses_board_and_outline_inspectors_and_rejects_stale_scope() {
-        let (model, scope, selection) = fixture();
-        let owner = LayoutOwnerIdentity {
-            scope: Some(scope.clone()),
-            token: Some(SnapshotToken(13)),
-            revision: Some(9),
-            generation: 2,
-            workspace: "Layout",
-        };
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document
-            .create_element("div")
-            .unwrap()
-            .dyn_into::<HtmlElement>()
-            .unwrap();
-        root.set_id("m1-inspector-panel-content");
-        document.body().unwrap().append_child(&root).unwrap();
-
-        for (inspector, destination, expected_focus) in [
-            (
-                r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
-                objects::TreeContext::Board {
-                    board_id: scope.board_id.clone(),
-                },
-                "board-name",
-            ),
-            (
-                r#"<button id="back">Back to selection</button><section class="m1-outline-inspector"><select id="outline-version"><option>Generated</option></select></section>"#,
-                objects::TreeContext::Outline {
-                    board_id: scope.board_id.clone(),
-                },
-                "outline-version",
-            ),
-        ] {
-            root.set_inner_html(inspector);
-            let back = document
-                .get_element_by_id("back")
-                .unwrap()
-                .dyn_into::<HtmlElement>()
-                .unwrap();
-            let target = LayoutFindingReturnTarget {
-                owner: owner.clone(),
-                selection: selection.clone(),
-                destination: destination.clone(),
-            };
-            let current_selection = objects::ScopedTreeContext {
-                scope: scope.clone(),
-                context: destination,
-            };
-            let model = model.clone();
-            let owner = owner.clone();
-            let back_key = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                if event.key() == "Enter"
-                    && layout_finding_return_is_current(
-                        &model,
-                        &owner,
-                        Some(&current_selection),
-                        &target,
-                    )
-                {
-                    event.prevent_default();
-                    let _ = focus_layout_finding_return_destination();
-                }
-            }) as Box<dyn FnMut(_)>);
-            back.add_event_listener_with_callback("keydown", back_key.as_ref().unchecked_ref())
-                .unwrap();
-            back.focus().unwrap();
-            let init = web_sys::KeyboardEventInit::new();
-            init.set_key("Enter");
-            init.set_bubbles(true);
-            back.dispatch_event(
-                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-                    .unwrap(),
-            )
-            .unwrap();
-            assert_eq!(
-                document
-                    .active_element()
-                    .and_then(|element| element.get_attribute("id")),
-                Some(expected_focus.to_owned()),
-                "Enter returns focus into {expected_focus}"
-            );
-            back.remove_event_listener_with_callback("keydown", back_key.as_ref().unchecked_ref())
-                .unwrap();
-        }
-
-        root.set_inner_html(
-            r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
-        );
-        let back = document
-            .get_element_by_id("back")
-            .unwrap()
-            .dyn_into::<HtmlElement>()
-            .unwrap();
-        let target = LayoutFindingReturnTarget {
-            owner: owner.clone(),
-            selection,
-            destination: objects::TreeContext::Board {
-                board_id: scope.board_id.clone(),
-            },
-        };
-        let current_selection = objects::ScopedTreeContext {
-            scope,
-            context: target.destination.clone(),
-        };
-        let mut stale_owner = owner.clone();
-        stale_owner.scope.as_mut().expect("fixture scope").board_id = "other-board".into();
-        let model = model.clone();
-        let stale_key = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "Enter"
-                && layout_finding_return_is_current(
-                    &model,
-                    &stale_owner,
-                    Some(&current_selection),
-                    &target,
-                )
-            {
-                event.prevent_default();
-                let _ = focus_layout_finding_return_destination();
-            }
-        }) as Box<dyn FnMut(_)>);
-        back.add_event_listener_with_callback("keydown", stale_key.as_ref().unchecked_ref())
-            .unwrap();
-        back.focus().unwrap();
-        let init = web_sys::KeyboardEventInit::new();
-        init.set_key("Enter");
-        back.dispatch_event(
-            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            document
-                .active_element()
-                .and_then(|element| element.get_attribute("id")),
-            Some("back".to_owned()),
-            "a stale scope cannot move focus into another board's Inspector"
-        );
-        back.remove_event_listener_with_callback("keydown", stale_key.as_ref().unchecked_ref())
-            .unwrap();
-        document.body().unwrap().remove_child(&root).unwrap();
-    }
-}
-
-fn layout_finding_is_live(
-    model: &ReadModel,
-    request: &layout_findings::Request,
-    destination_board: &str,
-) -> bool {
-    let Some(snapshot) = model.accepted.as_ref() else {
-        return false;
-    };
-    if !keycaps_fit::presented_findings(&snapshot.scene.findings, &snapshot.document)
-        .iter()
-        .any(|finding| finding == &request.finding)
-        || keycaps_fit::finding_navigation_target(&request.finding, &snapshot.document).as_ref()
-            != Some(&request.target)
-        || keycaps_fit::target_board_id(&request.target) != destination_board
-    {
-        return false;
-    }
-    snapshot
-        .document
-        .boards
-        .iter()
-        .any(|board| board.id == destination_board)
-        && layout_finding_context(model, &request.target).is_some()
-}
-
-fn source_matches_layout_owner(
-    source: &layout_findings::Source,
-    owner: &LayoutOwnerIdentity,
-    allow_board_hop: bool,
-) -> bool {
-    owner.workspace
-        == if allow_board_hop {
-            "Layout"
-        } else {
-            source.workspace
-        }
-        && owner.token == Some(source.token)
-        && owner.revision == Some(source.revision)
-        && owner.scope.as_ref().is_some_and(|scope| {
-            scope.session_epoch == source.scope.session_epoch
-                && scope.document_id == source.scope.document_id
-                && (allow_board_hop || scope.board_id == source.scope.board_id)
-        })
-        && (allow_board_hop || owner.generation == source.generation)
 }
 
 fn findings_owner_is_current(
@@ -2995,13 +2534,9 @@ fn Editor() -> Element {
         toggle_footprints: EventHandler::new(|_: ()| {}),
         retry_save: EventHandler::new(|_: ()| {}),
         recover_saved: EventHandler::new(|_: ()| {}),
-        canvas_mount: EventHandler::new(|_: MountedEvent| {}),
-        canvas_start_pan: EventHandler::new(|_: PointerEvent| {}),
-        canvas_move_pointer: EventHandler::new(|_: PointerEvent| {}),
         canvas_end_pointer: EventHandler::new(|_: PointerEvent| {}),
         canvas_cancel_pointer: EventHandler::new(|_: PointerEvent| {}),
         canvas_keyboard: EventHandler::new(|_: KeyboardEvent| {}),
-        canvas_key_up: EventHandler::new(|_: KeyboardEvent| {}),
         canvas_wheel: EventHandler::new(|_: WheelEvent| {}),
         keymap_select: EventHandler::new(|_: String| {}),
         keycaps_select: EventHandler::new(|_: String| {}),
@@ -3129,10 +2664,6 @@ fn Editor() -> Element {
     let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
     let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
     let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
-    let layout_findings_open = use_signal(|| false);
-    let layout_finding_return_target = use_signal(|| None::<LayoutFindingReturnTarget>);
-    let layout_finding_return_focus = use_signal(|| false);
-    let pending_layout_finding = use_signal(|| None::<layout_findings::Request>);
     let pending_keycaps_navigation_fit =
         use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
     let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
@@ -3151,6 +2682,7 @@ fn Editor() -> Element {
     use_context_provider(|| case_selection);
     let case_tree_expanded = use_signal(BTreeSet::<String>::new);
     let workspace = use_context::<WorkspaceState>().0;
+    let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
     let requested_workspace_panel =
@@ -3434,40 +2966,12 @@ fn Editor() -> Element {
         generation: render_generation,
         workspace: active_workspace,
     };
-    use_effect(use_reactive(
-        (
-            &layout_finding_return_target(),
-            &layout_owner,
-            &(adapter.selected_context)(),
-        ),
-        {
-            let runtime = runtime.clone();
-            let mut return_target = layout_finding_return_target;
-            move |(target, owner, current_selection)| {
-                let Some(target) = target.as_ref() else {
-                    return;
-                };
-                if !layout_finding_return_is_current(
-                    &runtime.model(),
-                    &owner,
-                    current_selection.as_ref(),
-                    target,
-                ) {
-                    return_target.set(None);
-                }
-            }
-        },
-    ));
-    use_effect(use_reactive((&layout_finding_return_focus(),), {
-        let mut return_focus = layout_finding_return_focus;
-        move |(pending,)| {
-            if !pending {
-                return;
-            }
-            return_focus.set(false);
-            let _ = focus_layout_finding_return_destination();
-        }
-    }));
+    let mut layout_findings = use_layout_findings_state(
+        runtime.clone(),
+        workspace,
+        adapter.clone(),
+        layout_owner.clone(),
+    );
     use_effect(use_reactive((&active_workspace,), {
         let mut active_tool = layout_transform_tool;
         move |(active_workspace,)| {
@@ -4939,7 +4443,7 @@ fn Editor() -> Element {
             }
         };
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
-    let zoom_surface_size = use_signal(|| (1.0, 1.0));
+    let zoom_surface_size = canvas_navigation.surface_size();
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -5192,12 +4696,14 @@ fn Editor() -> Element {
             return;
         }
         let next_zoom = next_effective / zoom_ratio;
-        let center = zoom_center_at(zoom_bounds, location, next_zoom);
-        zoom_runtime.submit(Event::SetCamera {
-            operation_id: zoom_runtime.operation(),
-            center,
-            zoom: next_zoom,
-        });
+        let center = CanvasNavigationState::zoom_center_at(zoom_bounds, location, next_zoom);
+        CanvasNavigationState::apply_zoom_target(
+            &zoom_runtime,
+            boardstudio_web_ui_shared::canvas_navigation::ZoomTarget {
+                center,
+                zoom: next_zoom,
+            },
+        );
     };
     let zoom_out = zoom_keymap.clone();
     let on_zoom_keymap_out = move |_| zoom_out(-1.0);
@@ -5246,18 +4752,8 @@ fn Editor() -> Element {
             }
         }
     }));
-    let drag = use_hook(|| Rc::new(RefCell::new(None::<Drag>)));
-    let space_down = use_hook(|| Rc::new(Cell::new(false)));
-    let space_pan_window_listener = use_hook({
-        let workspace = workspace;
-        let space_down = space_down.clone();
-        move || {
-            let is_layout: Rc<dyn Fn() -> bool> = Rc::new(move || workspace() == "Layout");
-            canvas_interaction::LayoutSpacePanWindowListener::install(is_layout, space_down.clone())
-                .map(Rc::new)
-        }
-    });
-    use_drop(move || drop(space_pan_window_listener));
+    let drag = canvas_navigation.drag_interaction();
+    let space_down = canvas_navigation.space_key_state();
     let interaction_version = use_signal(|| 0_u64);
     let observed_interaction_version = interaction_version();
     let navigate_scoped = {
@@ -5497,7 +4993,7 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut findings_open = layout_findings_open;
+        let mut findings_open = layout_findings.open;
         let mut inspect_open = inspect_open;
         let mut objects_open = objects_open;
         let inspector_settings = inspector_panel_settings;
@@ -5515,7 +5011,7 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut findings_open = layout_findings_open;
+        let mut findings_open = layout_findings.open;
         let mut scripts_open = geometry_scripts_open;
         move |()| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
@@ -5538,9 +5034,9 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let mut selected_tab = layout_context_tab;
         let select_tree = workspace_callbacks.select_tree;
-        let mut findings_open = layout_findings_open;
-        let mut return_target = layout_finding_return_target;
-        let mut return_focus = layout_finding_return_focus;
+        let mut findings_open = layout_findings.open;
+        let mut return_target = layout_findings.return_target;
+        let mut return_focus = layout_findings.return_focus;
         move |()| {
             let Some(target) = return_target.peek().clone() else {
                 return;
@@ -5578,10 +5074,10 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let objects_open = objects_open;
         let inspect_open = inspect_open;
-        let findings_open = layout_findings_open;
+        let findings_open = layout_findings.open;
         let inspector_settings = inspector_panel_settings;
-        let mut pending = pending_layout_finding;
-        let mut return_target = layout_finding_return_target;
+        let mut pending = layout_findings.pending;
+        let mut return_target = layout_findings.return_target;
         let focused_finding = focused_keycaps_finding;
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
@@ -5663,80 +5159,44 @@ fn Editor() -> Element {
             );
         }
     });
-    use_effect(use_reactive(
-        (&pending_layout_finding(), &layout_owner, &active_workspace),
-        {
-            let runtime = runtime.clone();
-            let adapter = adapter.clone();
-            let objects_open = objects_open;
-            let inspect_open = inspect_open;
-            let findings_open = layout_findings_open;
-            let inspector_settings = inspector_panel_settings;
-            let mut pending = pending_layout_finding;
-            let focused_finding = focused_keycaps_finding;
-            let svg = svg.clone();
-            let alive = keycaps_navigation_alive.clone();
-            let body_selection = case_body_selection;
-            let select_tree = workspace_callbacks.select_tree;
-            move |(request, owner, active_workspace)| {
-                let Some(request) = request else {
-                    return;
-                };
-                if active_workspace != "Layout" {
-                    if active_workspace != request.source.workspace {
-                        pending.set(None);
-                    }
-                    return;
-                }
-                if !source_matches_layout_owner(&request.source, &owner, true) {
-                    pending.set(None);
-                    return;
-                }
-                let Some(scope) = owner.scope.as_ref() else {
-                    pending.set(None);
-                    return;
-                };
-                let target_board = keycaps_fit::target_board_id(&request.target);
-                if scope.board_id != target_board {
-                    if scope.board_id != request.source.scope.board_id {
-                        pending.set(None);
-                    }
-                    return;
-                }
-                if request.source.workspace == "Layout"
-                    && scope.board_id == request.source.scope.board_id
-                {
-                    return;
-                }
-                let model = runtime.model();
-                if !layout_finding_is_live(&model, &request, target_board) {
-                    pending.set(None);
-                    return;
-                }
-                pending.set(None);
-                perform_layout_finding_navigation(
-                    LayoutFindingNavigationContext {
-                        runtime: runtime.clone(),
-                        adapter: adapter.clone(),
-                        owner,
-                        workspace,
-                        objects_open,
-                        inspect_open,
-                        findings_open,
-                        inspector_settings,
-                        focused_finding,
-                        svg: svg.clone(),
-                        alive: alive.clone(),
-                        body_selection,
-                        case_selection,
-                        select_tree,
-                        resumed_after_board_navigation: true,
-                    },
-                    request,
-                );
-            }
-        },
-    ));
+    let resume_pending_layout_finding = use_callback({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let objects_open = objects_open;
+        let inspect_open = inspect_open;
+        let findings_open = layout_findings.open;
+        let inspector_settings = inspector_panel_settings;
+        let focused_finding = focused_keycaps_finding;
+        let svg = svg.clone();
+        let alive = keycaps_navigation_alive.clone();
+        let body_selection = case_body_selection;
+        let select_tree = workspace_callbacks.select_tree;
+        move |(request, owner): (layout_findings::Request, LayoutOwnerIdentity)| {
+            perform_layout_finding_navigation(
+                LayoutFindingNavigationContext {
+                    runtime: runtime.clone(),
+                    adapter: adapter.clone(),
+                    owner,
+                    workspace,
+                    objects_open,
+                    inspect_open,
+                    findings_open,
+                    inspector_settings,
+                    focused_finding,
+                    svg: svg.clone(),
+                    alive: alive.clone(),
+                    body_selection,
+                    case_selection,
+                    select_tree,
+                    resumed_after_board_navigation: true,
+                },
+                request,
+            );
+        }
+    });
+    layout_findings.resume.replace(Box::new(move |event| {
+        resume_pending_layout_finding.call(event);
+    }));
     let observed_navigation_selection = (adapter.selected_context)();
     let observed_navigation_generation = (adapter.generation)();
     keycaps_navigation::use_pending_layout_fit(
@@ -6043,29 +5503,12 @@ fn Editor() -> Element {
     let context_summary = selected_tree_context
         .as_ref()
         .and_then(|selected| context_summary::summarize(&model, &selected.context));
-    let mount = {
-        let runtime = runtime.clone();
-        let svg = svg.clone();
-        let mut zoom_surface_size = zoom_surface_size;
-        let focus_placement = part_placement.projection.is_some();
-        move |event: MountedEvent| {
-            if let Some(element) = event
-                .data()
-                .try_as_web_event()
-                .and_then(|e| e.dyn_into::<SvgElement>().ok())
-            {
-                runtime.surface(element.clone());
-                if focus_placement {
-                    let options = web_sys::FocusOptions::new();
-                    options.set_prevent_scroll(true);
-                    let _ = element.focus_with_options(&options);
-                }
-                let rect = element.get_bounding_client_rect();
-                zoom_surface_size.set((rect.width(), rect.height()));
-                *svg.borrow_mut() = Some(element);
-            }
-        }
-    };
+    let mount = EventHandler::new(CanvasNavigationState::mount_handler(
+        zoom_surface_size,
+        runtime.clone(),
+        svg.clone(),
+        part_placement.projection.is_some(),
+    ));
     let placement_active = part_placement.projection.is_some()
         || part_placement.busy
         || matrix_placement.placement.is_some()
@@ -6087,6 +5530,7 @@ fn Editor() -> Element {
         }
     }));
     let move_pointer = {
+        let navigation = canvas_navigation.clone();
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
@@ -6219,10 +5663,11 @@ fn Editor() -> Element {
                 drag.borrow_mut().take();
                 return;
             }
-            // A pan owns only the camera delta calculated on pointerup. It has no
-            // part targets and must never sample a lingering Session gesture that
-            // happens to reuse this DOM pointer ID.
-            if current.pan {
+            if navigation.consume_pan_pointer_move(
+                current.pointer,
+                &current.scope,
+                current.generation,
+            ) {
                 return;
             }
             let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
@@ -6305,6 +5750,7 @@ fn Editor() -> Element {
         }
     };
     let end_pointer = {
+        let navigation = canvas_navigation.clone();
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
@@ -6429,31 +5875,13 @@ fn Editor() -> Element {
                 return;
             }
             if current.pan {
-                if let Some(element) = svg.borrow().as_ref() {
-                    let rect = element.get_bounding_client_rect();
-                    if rect.width() > 0.0 && rect.height() > 0.0 {
-                        let scale = (rect.width() / width).min(rect.height() / height);
-                        if scale > 0.0 {
-                            let camera = runtime.model().camera;
-                            runtime.submit(Event::SetCamera {
-                                operation_id: runtime.operation(),
-                                center: Vec2 {
-                                    x: current.camera.x
-                                        - (f64::from(pointer.client_x()) - current.client_x)
-                                            / scale,
-                                    y: current.camera.y
-                                        + (f64::from(pointer.client_y()) - current.client_y)
-                                            / scale,
-                                },
-                                zoom: camera.zoom,
-                            });
-                        }
-                    }
-                }
-                drag.borrow_mut().take();
-                if let Some(element) = svg.borrow().as_ref() {
-                    let _ = element.release_pointer_capture(pointer.pointer_id());
-                }
+                navigation.finish_pan(
+                    &runtime,
+                    &svg,
+                    pointer.pointer_id(),
+                    (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
+                    (width, height),
+                );
                 return;
             }
             if current.active
@@ -6736,112 +6164,88 @@ fn Editor() -> Element {
         }
     };
     let key_up = {
-        let space_down = space_down.clone();
+        let navigation = canvas_navigation.clone();
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
-            if key == " " || code == "Space" {
-                space_down.set(false);
-            }
+            navigation.release_space_key(&key, &code);
         }
     };
-    let start_pan = {
-        let drag = drag.clone();
-        let runtime = runtime.clone();
-        let svg = svg.clone();
-        let space_down = space_down.clone();
-        let scope = render_scope.clone();
-        let adapter = adapter.clone();
-        let mirrored_pair = mirrored_pair.clone();
-        let canvas_interaction = canvas_interaction.clone();
-        let mut pending_splay_pick = pending_splay_origin_pick;
-        let transform_inspector = matrix_transform_inspector.clone();
-        let layout_owner_for_pick = layout_owner.clone();
-        move |event: PointerEvent| {
-            let Some(pointer) = event.data().try_as_web_event() else {
-                return;
-            };
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
-                pointer.prevent_default();
-                pointer.stop_propagation();
-                return;
-            }
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                && let Some(placement) = mirrored_pair.placement.as_ref()
-                && pointer.button() == 0
-            {
-                let owner = placement.owner.clone();
-                if workspace() != "Layout"
-                    || runtime.scope().as_ref() != Some(&owner.scope)
-                    || (adapter.generation)() != owner.scope_generation
-                {
-                    mirrored_pair.on_cancel.call(owner);
+    let start_pan = canvas_navigation.space_pan_handler(
+        render_scope.clone(),
+        render_generation,
+        runtime.clone(),
+        svg.clone(),
+        Rc::new({
+            let adapter = adapter.clone();
+            move || (adapter.generation)() == render_generation
+        }),
+        {
+            let runtime = runtime.clone();
+            let svg = svg.clone();
+            let adapter = adapter.clone();
+            let mirrored_pair = mirrored_pair.clone();
+            let canvas_interaction = canvas_interaction.clone();
+            let mut pending_splay_pick = pending_splay_origin_pick;
+            let transform_inspector = matrix_transform_inspector.clone();
+            let layout_owner_for_pick = layout_owner.clone();
+            move |event: PointerEvent| {
+                let Some(pointer) = event.data().try_as_web_event() else {
                     return;
-                }
-                if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                };
+                if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
                     pointer.prevent_default();
                     pointer.stop_propagation();
-                    mirrored_pair
-                        .on_commit
-                        .call(objects::MirroredPairMove { owner, center });
+                    return;
                 }
-                return;
+                if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                    && let Some(placement) = mirrored_pair.placement.as_ref()
+                    && pointer.button() == 0
+                {
+                    let owner = placement.owner.clone();
+                    if workspace() != "Layout"
+                        || runtime.scope().as_ref() != Some(&owner.scope)
+                        || (adapter.generation)() != owner.scope_generation
+                    {
+                        mirrored_pair.on_cancel.call(owner);
+                        return;
+                    }
+                    if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                    {
+                        pointer.prevent_default();
+                        pointer.stop_propagation();
+                        mirrored_pair
+                            .on_commit
+                            .call(objects::MirroredPairMove { owner, center });
+                    }
+                    return;
+                }
+                if canvas_interaction.current().is_some() {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    return;
+                }
+                if pointer.button() == 0
+                    && workspace() == "Layout"
+                    && pending_splay_pick.peek().is_some()
+                    && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    apply_pending_splay_origin_pick(
+                        &runtime,
+                        workspace,
+                        &adapter,
+                        &layout_owner_for_pick,
+                        &mut pending_splay_pick,
+                        &transform_inspector,
+                        point,
+                    );
+                    return;
+                }
             }
-            if canvas_interaction.current().is_some() {
-                pointer.prevent_default();
-                pointer.stop_propagation();
-                return;
-            }
-            if pointer.button() == 0
-                && workspace() == "Layout"
-                && pending_splay_pick.peek().is_some()
-                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
-            {
-                pointer.prevent_default();
-                pointer.stop_propagation();
-                apply_pending_splay_origin_pick(
-                    &runtime,
-                    workspace,
-                    &adapter,
-                    &layout_owner_for_pick,
-                    &mut pending_splay_pick,
-                    &transform_inspector,
-                    point,
-                );
-                return;
-            }
-            if !space_down.get()
-                || pointer.button() != 0
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != render_generation
-                || drag.borrow().is_some()
-                || runtime.model().gesture.is_some()
-            {
-                return;
-            }
-            pointer.prevent_default();
-            pointer.stop_propagation();
-            if let Some(surface) = svg.borrow().as_ref() {
-                let _ = surface.set_pointer_capture(pointer.pointer_id());
-                let options = web_sys::FocusOptions::new();
-                options.set_prevent_scroll(true);
-                let _ = surface.focus_with_options(&options);
-            }
-            *drag.borrow_mut() = Some(Drag {
-                pointer: i64::from(pointer.pointer_id()),
-                scope: scope.clone(),
-                generation: render_generation,
-                gesture_generation: None,
-                origin: Vec2::default(),
-                client_x: f64::from(pointer.client_x()),
-                client_y: f64::from(pointer.client_y()),
-                positions: vec![],
-                active: true,
-                pan: true,
-                camera: runtime.model().camera.center,
-            });
-        }
-    };
+        },
+    );
     let on_pcb_part_pointer_down = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -6852,6 +6256,7 @@ fn Editor() -> Element {
         let accepted_token = snapshot.token;
         let accepted_revision = snapshot.document.revision;
         let generation = render_generation;
+        let navigation = canvas_navigation.clone();
         let space_down = space_down.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let canvas_interaction = canvas_interaction.clone();
@@ -6885,19 +6290,15 @@ fn Editor() -> Element {
                     options.set_prevent_scroll(true);
                     let _ = surface.focus_with_options(&options);
                 }
-                *drag.borrow_mut() = Some(Drag {
-                    pointer: request.pointer_id,
-                    scope: scope.clone(),
-                    generation,
-                    gesture_generation: None,
-                    origin,
-                    client_x: f64::from(request.client_x),
-                    client_y: f64::from(request.client_y),
-                    positions: vec![],
-                    active: true,
-                    pan: true,
-                    camera: runtime.model().camera.center,
-                });
+                navigation.start_space_pan(
+                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
+                        pointer_id: request.pointer_id,
+                        scope: scope.clone(),
+                        generation,
+                        client: (f64::from(request.client_x), f64::from(request.client_y)),
+                        camera: runtime.model().camera.center,
+                    },
+                );
                 return;
             }
             let model = runtime.model();
@@ -7110,7 +6511,6 @@ fn Editor() -> Element {
             if rect.width() <= 0.0 || rect.height() <= 0.0 {
                 return;
             }
-            let old = runtime.model().camera;
             let Some(location) = pointer_location(
                 &rect,
                 wheel.client_x(),
@@ -7124,13 +6524,13 @@ fn Editor() -> Element {
             };
             // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap share the
             // reference 0.25..4 limits.
-            let zoom = layout_camera::wheel_zoom(old.zoom, keymap_scale_ratio, wheel.delta_y());
-            let center = zoom_center_at((min_x, max_x, min_y, max_y), location, zoom);
-            runtime.submit(Event::SetCamera {
-                operation_id: runtime.operation(),
-                center,
-                zoom,
-            });
+            CanvasNavigationState::apply_wheel_zoom(
+                &runtime,
+                (min_x, max_x, min_y, max_y),
+                location,
+                keymap_scale_ratio,
+                wheel.delta_y(),
+            );
         }
     };
     let undo = runtime.clone();
@@ -7232,15 +6632,7 @@ fn Editor() -> Element {
             .recover_saved
             .replace(Box::new(move |_| recover.recover_saved()));
     }
-    workspace_callbacks
-        .canvas_mount
-        .replace(Box::new(mount.clone()));
-    workspace_callbacks
-        .canvas_start_pan
-        .replace(Box::new(start_pan.clone()));
-    workspace_callbacks
-        .canvas_move_pointer
-        .replace(Box::new(move_pointer.clone()));
+
     workspace_callbacks
         .canvas_end_pointer
         .replace(Box::new(end_pointer.clone()));
@@ -7250,9 +6642,7 @@ fn Editor() -> Element {
     workspace_callbacks
         .canvas_keyboard
         .replace(Box::new(keyboard.clone()));
-    workspace_callbacks
-        .canvas_key_up
-        .replace(Box::new(key_up.clone()));
+
     workspace_callbacks
         .canvas_wheel
         .replace(Box::new(wheel.clone()));
@@ -7829,13 +7219,13 @@ fn Editor() -> Element {
         _ => workspace_composition::WorkspaceToolbarInput::Other,
     };
     let canvas_handlers = workspace_composition::CanvasEventHandlers {
-        mount: workspace_callbacks.canvas_mount,
-        start_pan: workspace_callbacks.canvas_start_pan,
-        move_pointer: workspace_callbacks.canvas_move_pointer,
+        mount,
+        start_pan: EventHandler::new(start_pan.clone()),
+        move_pointer: EventHandler::new(move_pointer.clone()),
         end_pointer: workspace_callbacks.canvas_end_pointer,
         cancel_pointer: workspace_callbacks.canvas_cancel_pointer,
         keyboard: workspace_callbacks.canvas_keyboard,
-        key_up: workspace_callbacks.canvas_key_up,
+        key_up: EventHandler::new(key_up.clone()),
         wheel: workspace_callbacks.canvas_wheel,
     };
     let canvas_input = match active_workspace {
@@ -8159,7 +7549,7 @@ fn Editor() -> Element {
                 ),
                 on_select_context: workspace_callbacks.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
-                findings_return_available: layout_finding_return_target().as_ref().is_some_and(
+                findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
                     |target| {
                         layout_finding_return_is_current(
                             &model,
@@ -8173,7 +7563,7 @@ fn Editor() -> Element {
                 board_inspector: board_inspector_projection,
                 on_board_rename: board_inspector.on_rename,
                 findings_page: Some(layout_findings::InspectorMount {
-                    open: layout_findings_open(),
+                    open: (layout_findings.open)(),
                     document: Rc::new(document.as_ref().clone()),
                     findings: snapshot.scene.findings.clone(),
                     source: layout_findings::Source {
@@ -8699,6 +8089,7 @@ fn Editor() -> Element {
                                 let id = part.id.clone();
                                 let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
                                 let canvas_interaction = canvas_interaction.clone();
+                                let navigation = canvas_navigation.clone();
                                 let adapter = adapter.clone(); let render_scope_for_hit = render_scope.clone();
                                 let mut selected_context = adapter.selected_context;
                                 let generation_for_hit = render_generation;
@@ -8726,7 +8117,7 @@ fn Editor() -> Element {
                                         }
                                         if space_down.get() {
                                             if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
-                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin: Vec2::default(), client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions: vec![], active: true, pan: true, camera: runtime.model().camera.center });
+                                            navigation.start_space_pan(boardstudio_web_ui_shared::canvas_navigation::PanStart { pointer_id: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, client: (f64::from(pointer.client_x()), f64::from(pointer.client_y())), camera: runtime.model().camera.center });
                                             return;
                                         }
                                         let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
@@ -8931,7 +8322,7 @@ fn Editor() -> Element {
                 }
                 if has_inspector {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        if active_workspace != "Layout" && layout_findings_open() {
+                        if active_workspace != "Layout" && (layout_findings.open)() {
                             layout_findings::LayoutFindingsInspector {
                                 open: true,
                                 document: Rc::new(document.as_ref().clone()),
@@ -9031,22 +8422,6 @@ fn polygon_points(points: &[Vec2]) -> String {
         .map(|p| format!("{},{}", p.x, p.y))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn zoom_center_at(
-    (min_x, max_x, min_y, max_y): (f64, f64, f64, f64),
-    location: PointerLocation,
-    zoom: f64,
-) -> Vec2 {
-    let base_width = (max_x - min_x).max(50.0);
-    let base_height = (max_y - min_y).max(50.0);
-    Vec2 {
-        x: location.world.x
-            - (min_x + max_x - base_width / zoom) * 0.5
-            - location.x_fraction * base_width / zoom,
-        y: location.world.y - (min_y + max_y + base_height / zoom) * 0.5
-            + location.y_fraction * base_height / zoom,
-    }
 }
 
 fn moved(drag: &Drag, point: Vec2) -> Vec<Position> {
