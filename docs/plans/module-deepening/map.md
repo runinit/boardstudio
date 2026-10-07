@@ -38,7 +38,8 @@ finish      13 cleanup (07, 08, 09, 10, 12)
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20 is resolved; 03, 06 and TCE-01 are unblocked. Ticket 10 is resolved; 11 and the wave-2 tickets are claimed and running.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20 is resolved; 03, 06 and TCE-01 are unblocked. Tickets 10 and 11 are resolved; wave-2 tickets are claimed and running, and 12 is
+unblocked.
 
 ## Decisions so far
 
@@ -66,6 +67,9 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20 is reso
 
 - 10 Export capture, currency and lifecycle use one lease registry; mechanical
   formatting has native tests: [Outcome](issues/10-export-leases.md#outcome).
+
+- 11 Editor composes private-state canvas navigation and Layout findings handles;
+  their owned behaviour has mounted interface coverage: [Outcome](issues/11-editor-state-tracer.md#outcome).
 
 ## Tickets
 
