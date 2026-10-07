@@ -4,19 +4,22 @@ use super::case_bodies::{
     CaseBodyRequest, CaseMismatch,
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{Durability, Event, Lifecycle, OperationId, TerminalOutcome};
+#[cfg(test)]
+use boardstudio_application::Event;
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
+#[cfg(test)]
+use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{
-    CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, ProjectDoc, Vec2,
+    CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
 #[derive(Clone)]
-struct PendingBodyEdit {
+struct BodyEditTicket {
     request: CaseBodyRequest,
-    operation_id: OperationId,
-    outcome: crate::operation_outcomes::OutcomeSlot,
-    expected_body: CaseBody,
+    ticket: EditTicket,
     created_body_id: Option<String>,
 }
 
@@ -34,8 +37,8 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     });
     let mut body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
     let request_sequence = use_signal(|| 0_u64);
-    let pending = use_signal(|| None::<PendingBodyEdit>);
-    let feedback = use_signal(|| None::<CaseBodyEditFeedback>);
+    let pending = use_signal(|| Vec::<BodyEditTicket>::new());
+    let feedback = use_signal(|| Vec::<CaseBodyEditFeedback>::new());
     let body_edit_dispatch = use_hook({
         let runtime = runtime.clone();
         move || {
@@ -135,86 +138,31 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                pending.set(None);
-                feedback.set(None);
-                return;
-            };
-            let live_scope = runtime.scope();
-            if waiting.request.editor_instance_id != editor_instance_id
-                || live_scope.as_ref() != Some(&waiting.request.scope)
-                || snapshot.session_epoch != waiting.request.scope.session_epoch
-                || snapshot.document.id != waiting.request.scope.document_id
-            {
-                pending.set(None);
-                feedback.set(None);
-                return;
+            let scope = runtime.scope();
+            let mut remaining = Vec::new();
+            let mut next_feedback = feedback.peek().clone();
+            for waiting in pending.peek().iter() {
+                match waiting
+                    .ticket
+                    .settlement(scope.as_ref() == Some(&waiting.request.scope))
+                {
+                    Settlement::Pending => remaining.push(waiting.clone()),
+                    Settlement::Landed { .. } => record_feedback(
+                        &mut next_feedback,
+                        feedback_for(waiting, CaseBodyEditState::Saved, None),
+                    ),
+                    Settlement::Failed { message } => record_feedback(
+                        &mut next_feedback,
+                        feedback_for(waiting, CaseBodyEditState::Failed, Some(message)),
+                    ),
+                    Settlement::Retired => {
+                        next_feedback.retain(|entry| entry.request_id != waiting.request.request_id)
+                    }
+                }
             }
-            let Some(outcome) = waiting.outcome.borrow().clone() else {
-                return;
-            };
-            let identity = feedback_for(&waiting, CaseBodyEditState::Pending, None);
-            match outcome {
-                TerminalOutcome::Completed => {
-                    let saved_current = model.lifecycle == Lifecycle::Ready
-                        && model.durability
-                            == (Durability::Saved {
-                                revision: snapshot.document.revision,
-                            });
-                    if !saved_current {
-                        return;
-                    }
-                    let body_saved = snapshot.token != waiting.request.snapshot_token
-                        && snapshot.document.case_bodies.iter().any(|body| {
-                            body.id == waiting.expected_body.id && body == &waiting.expected_body
-                        });
-                    pending.set(None);
-                    if saved_current && body_saved {
-                        feedback.set(Some(CaseBodyEditFeedback {
-                            state: CaseBodyEditState::Saved,
-                            message: None,
-                            ..identity
-                        }));
-                    } else {
-                        feedback.set(Some(CaseBodyEditFeedback {
-                            state: CaseBodyEditState::Failed,
-                            message: Some(
-                                "The accepted case body changed before this edit was acknowledged. Review its current values and retry.".into(),
-                            ),
-                            created_body_id: None,
-                            ..identity
-                        }));
-                    }
-                }
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::PersistenceFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message)
-                | TerminalOutcome::ExecutorFailed(message) => {
-                    pending.set(None);
-                    feedback.set(Some(CaseBodyEditFeedback {
-                        state: CaseBodyEditState::Failed,
-                        message: Some(message),
-                        created_body_id: None,
-                        ..identity
-                    }));
-                }
-                TerminalOutcome::Superseded
-                | TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed => {
-                    pending.set(None);
-                    feedback.set(Some(CaseBodyEditFeedback {
-                        state: CaseBodyEditState::Failed,
-                        message: Some(
-                            "The Case edit did not complete in the active session.".into(),
-                        ),
-                        created_body_id: None,
-                        ..identity
-                    }));
-                }
+            if remaining.len() != pending.peek().len() {
+                pending.set(remaining);
+                feedback.set(next_feedback);
             }
         }
     }));
@@ -291,15 +239,11 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         });
     let generated_stack =
         configured.is_some_and(|configuration| configuration.board_id == scope.board_id);
-    let saved_current = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            });
-    let editable = saved_current
-        && model.display_preview.is_none()
+    let editable = matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) && model.display_preview.is_none()
         && model.gesture.is_none()
-        && pending.read().is_none()
         && !generated_stack;
     if (body_edit_portal.editable)() != editable {
         body_edit_portal.editable.set(editable);
@@ -334,7 +278,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
 }
 
 fn feedback_for(
-    pending: &PendingBodyEdit,
+    pending: &BodyEditTicket,
     state: CaseBodyEditState,
     message: Option<String>,
 ) -> CaseBodyEditFeedback {
@@ -351,136 +295,142 @@ fn feedback_for(
     }
 }
 
+fn record_feedback(entries: &mut Vec<CaseBodyEditFeedback>, feedback: CaseBodyEditFeedback) {
+    if let Some(current) = entries
+        .iter_mut()
+        .find(|entry| entry.field_id == feedback.field_id)
+    {
+        if current.request_id <= feedback.request_id {
+            *current = feedback;
+        }
+    } else {
+        entries.push(feedback);
+    }
+}
+
 fn submit_body_edit(
     runtime: &Rc<Runtime>,
     instance_selection: super::InstanceSelection,
     editor_instance_id: u64,
-    pending: &mut Signal<Option<PendingBodyEdit>>,
-    feedback: &mut Signal<Option<CaseBodyEditFeedback>>,
+    pending: &mut Signal<Vec<BodyEditTicket>>,
+    feedback: &mut Signal<Vec<CaseBodyEditFeedback>>,
     request: CaseBodyRequest,
 ) {
-    if request.editor_instance_id != editor_instance_id {
-        return;
-    }
-    // The child suppresses submissions while its admitted request is pending.
-    // Retain that request/feedback if an event races through the disabled UI.
-    if pending.read().is_some() {
-        runtime
-            .report("Wait for the current Case edit to finish before submitting another change.");
-        return;
-    }
-    let mut failed = |message: String| {
-        feedback.set(Some(CaseBodyEditFeedback {
-            editor_instance_id,
-            scope: request.scope.clone(),
-            snapshot_token: request.snapshot_token,
-            revision: request.revision,
-            request_id: request.request_id,
-            field_id: request.field_id.clone(),
-            state: CaseBodyEditState::Failed,
-            message: Some(message.clone()),
-            created_body_id: None,
-        }));
-        runtime.report(message);
-    };
     let model = runtime.model();
-    let Some(live_scope) = runtime.scope() else {
-        failed("The active Case scope is unavailable.".into());
+    if request.editor_instance_id != editor_instance_id
+        || !instance_selection.is_current(&model)
+        || runtime.scope().as_ref() != Some(&request.scope)
+        || !matches!(
+            model.lifecycle,
+            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+        )
+        || model.display_preview.is_some()
+        || model.gesture.is_some()
+    {
         return;
-    };
+    }
     let Some(snapshot) = model.accepted.as_ref() else {
-        failed("The accepted Case document is unavailable.".into());
         return;
     };
-    let admitted = instance_selection.is_current(&model)
-        && live_scope == request.scope
-        && request.scope.board_id == model.active_board_id
-        && request.scope.document_id == snapshot.document.id
-        && snapshot.session_epoch == request.scope.session_epoch
-        && snapshot.token == request.snapshot_token
-        && snapshot.document.revision == request.revision
-        && model.lifecycle == Lifecycle::Ready
-        && model.display_preview.is_none()
-        && model.gesture.is_none()
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            });
-    if !admitted {
-        failed(
-            "Finish or cancel the active edit and wait for saving before changing case bodies."
-                .into(),
-        );
+    if snapshot.session_epoch != request.scope.session_epoch
+        || snapshot.document.id != request.scope.document_id
+    {
         return;
     }
-    let mut body = match &request.edit {
-        CaseBodyEdit::AddBody => {
-            match new_case_body(runtime, &snapshot.document, &request.scope.board_id) {
-                Ok(body) => body,
-                Err(error) => {
-                    failed(error);
-                    return;
-                }
-            }
+    let one_shot = matches!(
+        request.edit,
+        CaseBodyEdit::AddBody | CaseBodyEdit::AddMount { .. } | CaseBodyEdit::RemoveMount { .. }
+    );
+    if one_shot
+        && pending.peek().iter().any(|entry| {
+            std::mem::discriminant(&entry.request.edit) == std::mem::discriminant(&request.edit)
+                && entry.request.edit.body_id() == request.edit.body_id()
+        })
+    {
+        return;
+    }
+    let seed = runtime.operation().0;
+    let resolver = body_resolver(request.scope.clone(), request.edit.clone(), seed);
+    let created_body_id = if matches!(request.edit, CaseBodyEdit::AddBody) {
+        match resolver.resolve(snapshot) {
+            Resolution::Submit(EditCommand {
+                operation: EditOperation::SetCase { body },
+                ..
+            }) => Some(body.id),
+            _ => None,
         }
-        edit => {
-            let Some(body_id) = edit.body_id() else {
-                failed("The Case edit has no target body.".into());
-                return;
-            };
-            let Some(body) = snapshot
-                .document
-                .case_bodies
-                .iter()
-                .find(|body| body.id == body_id && body.board_id == request.scope.board_id)
-                .cloned()
-            else {
-                failed("The selected case body no longer belongs to this board.".into());
-                return;
-            };
-            body
-        }
+    } else {
+        None
     };
-    let created_body_id = matches!(&request.edit, CaseBodyEdit::AddBody).then(|| body.id.clone());
-    if let Err(error) = apply_body_edit(runtime, &snapshot.document, &mut body, &request.edit) {
-        failed(error);
-        return;
-    }
-    let target_id = body.id.clone();
-    let expected_body = body.clone();
-    let operation_id = runtime.operation();
-    let outcome = runtime.observe_operation(operation_id);
-    let in_flight = PendingBodyEdit {
-        request: request.clone(),
-        operation_id,
-        outcome,
-        expected_body,
+    let ticket = EditTicket::begin(runtime, "case-body", Some("case body".into()), resolver);
+    let waiting = BodyEditTicket {
+        request,
+        ticket,
         created_body_id,
     };
-    let transaction_id = format!(
-        "case-body-{}-{}-{}",
-        editor_instance_id, request.request_id, in_flight.operation_id.0
+    record_feedback(
+        &mut feedback.write(),
+        feedback_for(&waiting, CaseBodyEditState::Pending, None),
     );
-    pending.set(Some(in_flight.clone()));
-    feedback.set(Some(feedback_for(
-        &in_flight,
-        CaseBodyEditState::Pending,
-        None,
-    )));
-    runtime.submit(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: snapshot.document.revision,
-            transaction_id,
+    pending.write().push(waiting);
+}
+
+fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {
+    EditResolver::new("case-body", move |accepted: &AcceptedSnapshot| {
+        let document = &accepted.document;
+        let effective =
+            match boardstudio_web_host::cad_jobs::captured_case_document(accepted, &scope) {
+                Ok(value) => value,
+                Err(_) => return Resolution::Retire("The Case scope no longer exists.".into()),
+            };
+        if effective
+            .mechanical
+            .as_ref()
+            .is_some_and(|configuration| configuration.board_id == scope.board_id)
+        {
+            return Resolution::Retire(
+                "Disable the generated mechanical stack before editing authored case bodies."
+                    .into(),
+            );
+        }
+        let mut body = match &edit {
+            CaseBodyEdit::AddBody => match new_case_body(seed, document, &scope.board_id) {
+                Ok(body) => body,
+                Err(message) => return Resolution::Retire(message),
+            },
+            _ => match document.case_bodies.iter().find(|body| {
+                Some(body.id.as_str()) == edit.body_id() && body.board_id == scope.board_id
+            }) {
+                Some(body) => body.clone(),
+                None => {
+                    return Resolution::Retire(
+                        "The selected case body no longer belongs to this board.".into(),
+                    );
+                }
+            },
+        };
+        if let Err(message) = apply_body_edit(seed, document, &mut body, &edit) {
+            return Resolution::Retire(message);
+        }
+        if document
+            .case_bodies
+            .iter()
+            .any(|accepted| accepted == &body)
+        {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
             phase: EditPhase::Commit,
-            target_ids: vec![target_id],
+            target_ids: vec![body.id.clone()],
             operation: EditOperation::SetCase { body },
-        },
-    });
+        })
+    })
 }
 
 fn new_case_body(
-    runtime: &Runtime,
+    seed: u64,
     document: &boardstudio_core::model::ProjectDoc,
     board_id: &str,
 ) -> Result<CaseBody, String> {
@@ -494,9 +444,7 @@ fn new_case_body(
         .iter()
         .map(|body| body.id.as_str())
         .collect::<std::collections::BTreeSet<_>>();
-    let id = unique_id(runtime, "case-body", |candidate| {
-        existing.contains(candidate)
-    });
+    let id = unique_id(seed, "case-body", |candidate| existing.contains(candidate));
     let material_id = crate::case_generation_admission::default_case_material(document);
     Ok(CaseBody {
         features: None,
@@ -517,7 +465,7 @@ fn new_case_body(
 }
 
 fn apply_body_edit(
-    runtime: &Runtime,
+    seed: u64,
     document: &boardstudio_core::model::ProjectDoc,
     body: &mut CaseBody,
     edit: &CaseBodyEdit,
@@ -557,9 +505,7 @@ fn apply_body_edit(
                 .flat_map(|body| body.mounts.iter().flatten())
                 .map(|mount| mount.id.as_str())
                 .collect::<std::collections::BTreeSet<_>>();
-            let id = unique_id(runtime, "case-mount", |candidate| {
-                existing.contains(candidate)
-            });
+            let id = unique_id(seed, "case-mount", |candidate| existing.contains(candidate));
             body.mounts.get_or_insert_with(Vec::new).push(Mount {
                 id,
                 at: Vec2::default(),
@@ -656,17 +602,14 @@ fn find_mount_mut<'a>(body: &'a mut CaseBody, mount_id: &str) -> Result<&'a mut 
         .ok_or_else(|| "Mount is no longer available.".into())
 }
 
-fn unique_id(
-    runtime: &Runtime,
-    prefix: &str,
-    mut already_exists: impl FnMut(&str) -> bool,
-) -> String {
-    loop {
-        let candidate = format!("{prefix}-{}", runtime.operation().0);
+fn unique_id(seed: u64, prefix: &str, mut already_exists: impl FnMut(&str) -> bool) -> String {
+    for suffix in 0_u64.. {
+        let candidate = format!("{prefix}-{seed}-{suffix}");
         if !already_exists(&candidate) {
             return candidate;
         }
     }
+    unreachable!("identifier space exhausted")
 }
 
 fn require_finite(value: f64, label: &str) -> Result<(), String> {
@@ -710,5 +653,115 @@ impl CaseBodyEdit {
             | Edit::RemoveMount { body_id, .. }
             | Edit::SetGasket { body_id, .. } => Some(body_id),
         }
+    }
+}
+
+#[cfg(test)]
+mod queued_body_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as support;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    fn host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        crate::use_empty_test_instance_selection();
+        crate::test_contexts::use_case_viewer_test_contexts();
+        use_hook(move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }))
+        });
+        rsx! { CaseBodyInspector { on_show_configured_board: |_| {} } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_body_fields_queue_and_undo_independently() {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("queued-bodies", "Bodies");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .unwrap(),
+        );
+        document
+            .case_bodies
+            .push(new_case_body(1, &document, "board").unwrap());
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let commit = |index, value: &str| {
+            let input = root
+                .query_selector_all(".m1-case-measures input")
+                .unwrap()
+                .item(index)
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
+            input.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+                .unwrap();
+            let enter = web_sys::KeyboardEventInit::new();
+            enter.set_key("Enter");
+            enter.set_bubbles(true);
+            input
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        commit(0, "4");
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        commit(1, "0.8");
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.case_bodies[0].thickness, 4.0);
+        assert_eq!(accepted.document.case_bodies[0].clearance, 0.8);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.case_bodies[0].thickness,
+            4.0
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.case_bodies[0].clearance,
+            0.5
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.case_bodies[0].thickness,
+            3.0
+        );
+        runtime.unsubscribe();
+        root.remove();
     }
 }

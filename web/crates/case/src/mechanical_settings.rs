@@ -792,8 +792,23 @@ pub struct MechanicalSettingsProps {
     pub on_show_finding: EventHandler<String>,
 }
 
+#[derive(Clone, Copy)]
+struct MechanicalActionsPending(Memo<bool>);
+
+fn mechanical_action_pending() -> bool {
+    try_consume_context::<MechanicalActionsPending>().is_some_and(|pending| (pending.0)())
+}
+
 #[component]
 pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
+    let pending_feedback = props.feedback.clone();
+    let action_pending = use_memo(use_reactive((&pending_feedback,), |(feedback,)| {
+        feedback
+            .iter()
+            .any(|entry| entry.state == MechanicalSettingsFeedbackState::Pending)
+    }));
+    use_context_provider(|| MechanicalActionsPending(action_pending));
+
     let request_sequence = props.request_sequence;
     let identity = &props.identity;
     let configuration_matches = props
@@ -957,18 +972,16 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
-                    if feedback.state == MechanicalSettingsFeedbackState::Pending {
-                        p { role: "status", "Saving mechanical settings…" }
-                    } else if feedback.state == MechanicalSettingsFeedbackState::Saved {
+                    if feedback.state == MechanicalSettingsFeedbackState::Saved {
                         p { role: "status", "Mechanical settings saved." }
-                    } else if !is_dimension_field(&feedback.field_id)
+                    } else if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
                         && let Some(message) = feedback.message.as_deref()
                     {
                         p { role: "alert", "{message}" }
                         if feedback.field_id == "initialize-closures" {
                             button {
                                 r#type: "button",
-                                disabled: !props.editable,
+                                disabled: mechanical_action_pending() || !props.editable,
                                 onclick: {
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
@@ -1074,7 +1087,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         button {
                             r#type: "button",
                             class: "m1-mechanical-quiet",
-                            disabled: !props.editable,
+                            disabled: mechanical_action_pending() || !props.editable,
                             onclick: {
                                 let identity = props.identity.clone();
                                 let mut sequence = request_sequence;
@@ -1508,7 +1521,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     button {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable || mount_choices.is_empty(),
+                        disabled: mechanical_action_pending() || !props.editable || mount_choices.is_empty(),
                         onclick: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
@@ -1533,7 +1546,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             button {
                                 r#type: "button",
                                 class: "m1-mechanical-quiet",
-                                disabled: !props.editable,
+                                disabled: mechanical_action_pending() || !props.editable,
                                 onclick: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
@@ -1620,7 +1633,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     button {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable,
+                        disabled: mechanical_action_pending() || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
@@ -1638,7 +1651,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             button {
                                 r#type: "button",
                                 class: "m1-mechanical-quiet",
-                                disabled: !props.editable,
+                                disabled: mechanical_action_pending() || !props.editable,
                                 onclick: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
@@ -1899,7 +1912,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     button {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable,
+                        disabled: mechanical_action_pending() || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
                             let identity = props.identity.clone();
@@ -1919,7 +1932,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     button {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable,
+                        disabled: mechanical_action_pending() || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
                             let identity = props.identity.clone();
@@ -1932,7 +1945,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     button {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable,
+                        disabled: mechanical_action_pending() || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
                             let identity = props.identity.clone();
@@ -1996,7 +2009,7 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                 button {
                     r#type: "button",
                     class: "m1-mechanical-quiet",
-                    disabled: !props.editable,
+                    disabled: mechanical_action_pending() || !props.editable,
                     onclick: {
                         let mut sequence = props.request_sequence;
                         let identity = props.identity.clone();
@@ -2103,7 +2116,7 @@ fn MountRow(props: MountRowProps) -> Element {
             button {
                 r#type: "button",
                 class: "m1-mechanical-quiet",
-                disabled: !props.editable,
+                disabled: mechanical_action_pending() || !props.editable,
                 onclick: {
                     let mut sequence = props.request_sequence;
                     let identity = props.identity.clone();
@@ -2288,7 +2301,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                     button {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable,
+                        disabled: mechanical_action_pending() || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
@@ -2328,7 +2341,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                     button {
                                         r#type: "button",
                                         class: "m1-mechanical-quiet",
-                                        disabled: !props.editable,
+                                        disabled: mechanical_action_pending() || !props.editable,
                                         onclick: move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone())),
                                         "Remove"
                                     }
@@ -2371,7 +2384,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                             r#type: "button",
                                             class: "m1-mechanical-quiet",
                                             aria_label: "Remove access opening vertex {point_index + 1}",
-                                            disabled: !props.editable || opening.points.len() <= 3,
+                                            disabled: mechanical_action_pending() || !props.editable || opening.points.len() <= 3,
                                             onclick: {
                                                 let mut sequence = request_sequence;
                                                 let identity = identity.clone();
@@ -2386,7 +2399,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                 button {
                                     r#type: "button",
                                     class: "m1-mechanical-quiet",
-                                    disabled: !props.editable,
+                                    disabled: mechanical_action_pending() || !props.editable,
                                     onclick: {
                                         let mut sequence = request_sequence;
                                         let identity = identity.clone();
@@ -2692,7 +2705,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                             button {
                                 r#type: "button",
                                 class: "m1-mechanical-context-settings",
-                                disabled: !props.editable,
+                                disabled: mechanical_action_pending() || !props.editable,
                                 onclick: {
                                     let part_id = target.part_id.clone();
                                     let identity = props.identity.clone();
@@ -2770,7 +2783,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                             button {
                                 r#type: "button",
                                 class: "m1-mechanical-context-settings",
-                                disabled: !props.editable,
+                                disabled: mechanical_action_pending() || !props.editable,
                                 onclick: {
                                     let part_id = target.part_id.clone();
                                     let identity = props.identity.clone();
@@ -3032,7 +3045,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         r#type: "button",
                         aria_label: "Remove profile {profile.name}",
                         class: "m1-mechanical-quiet",
-                        disabled: !props.editable,
+                        disabled: mechanical_action_pending() || !props.editable,
                         onclick: {
                             let identity = props.identity.clone();
                             let definition_id = profile.definition_id.clone();
@@ -3307,7 +3320,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         button {
                             r#type: "button",
                             aria_label: "Apply selected geometry",
-                            disabled: !props.editable || busy() || selected().is_empty(),
+                            disabled: mechanical_action_pending() || !props.editable || busy() || selected().is_empty(),
                             onclick: {
                                 let definition_id = props.profile.definition_id.clone();
                                 let port = port.clone();
@@ -3839,6 +3852,8 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                         return;
                     }
                     MechanicalSettingsFeedbackState::Failed => {
+                        draft_for_ack.set(accepted.to_string());
+                        dirty_for_ack.set(false);
                         error_for_ack.set(Some(feedback.message.clone().unwrap_or_else(|| {
                             "This setting was not saved. Review the value and retry.".to_owned()
                         })));
@@ -3868,7 +3883,6 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         let critical_fit_target = props.critical_fit_target.clone();
         let hardware_target = props.hardware_target.clone();
         let process_target = props.process_target.clone();
-        let accepted = props.value;
         let sequence = props.request_sequence;
         let on_request = props.on_request;
         move || {
@@ -3876,8 +3890,6 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
             let mut error = error;
             let mut field_status = field_status;
             let mut submitted = submitted;
-            let mut dirty = dirty;
-            let mut draft = draft;
             let text = draft();
             let process_rule = process_target.as_deref().map(|target| {
                 if target.ends_with("foam") {
@@ -3899,13 +3911,6 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 return;
             }
             error.set(None);
-            if value == accepted {
-                draft.set(accepted.to_string());
-                dirty.set(false);
-                field_status.set(None);
-                submitted.set(None);
-                return;
-            }
             let patch = if let Some(target) = support_target.clone() {
                 MechanicalSettingsPatch::SetGasketSupportDimension {
                     support_id: target.support_id,
@@ -4110,6 +4115,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                     submitted_for_ack.set(None);
                 }
                 Some((MechanicalSettingsFeedbackState::Failed, message)) => {
+                    draft_for_ack.set(accepted);
                     error_for_ack.set(Some(message.clone().unwrap_or_else(|| {
                         "This setting was not saved. Review the value and retry.".to_owned()
                     })));
@@ -4140,11 +4146,6 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
             let draft = draft;
             let value = draft();
             if submitted().is_some() {
-                return;
-            }
-            if value == accepted {
-                error.set(None);
-                status.set(None);
                 return;
             }
             let patch = match intent.patch(value) {

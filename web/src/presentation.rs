@@ -2796,6 +2796,9 @@ fn Editor() -> Element {
     let created_request = created_request_signal();
     let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
     let mut guide_name_draft = use_signal(|| None::<(String, String)>);
+    let mut guide_name_tickets =
+        use_signal(Vec::<boardstudio_web_runtime::edit_ticket::EditTicket>::new);
+    let mut guide_name_failure = use_signal(|| None::<String>);
     let consumed_guide_requests = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
     let accepted_project_id = runtime
         .model()
@@ -2881,7 +2884,9 @@ fn Editor() -> Element {
                 &current,
             );
             *last_accepted_name.borrow_mut() = Some(current);
-            if let Some(value) = changed {
+            if let Some(value) = changed
+                && guide_name_tickets.peek().is_empty()
+            {
                 guide_name_draft.set(Some(value));
             }
         }
@@ -2890,6 +2895,31 @@ fn Editor() -> Element {
     let layout_component_inspector_lifetime =
         use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
     let version = use_context::<Signal<u64>>();
+    use_effect(use_reactive((&version(),), {
+        let runtime = runtime.clone();
+        move |_| {
+            use boardstudio_web_runtime::edit_ticket::Settlement;
+            let mut pending = guide_name_tickets.peek().clone();
+            let had_tickets = !pending.is_empty();
+            pending.retain(|ticket| match ticket.settlement(true) {
+                Settlement::Pending => true,
+                Settlement::Failed { message } => {
+                    guide_name_failure.set(Some(message));
+                    false
+                }
+                Settlement::Landed { .. } | Settlement::Retired => false,
+            });
+            if had_tickets && pending.is_empty() {
+                guide_name_draft.set(runtime.model().accepted.as_ref().map(|snapshot| {
+                    (snapshot.document.id.clone(), snapshot.document.name.clone())
+                }));
+            }
+            if pending.len() != guide_name_tickets.peek().len() {
+                guide_name_tickets.set(pending);
+            }
+        }
+    }));
+
     let observed_version = version();
     let instance_preference = use_signal(|| {
         runtime.scope().and_then(|scope| {
@@ -8125,53 +8155,58 @@ fn Editor() -> Element {
         .unwrap_or_else(|| document.name.clone());
     let name_project_id = document.id.clone();
     let on_name_change = move |name: String| {
+        guide_name_failure.set(None);
         guide_name_draft.set(Some((name_project_id.clone(), name)));
     };
     let name_runtime = runtime.clone();
     let mut name_draft = guide_name_draft;
-    let expected_document = document.clone();
-    let expected_token = snapshot.token;
+    let expected_document_id = document.id.clone();
+    let expected_epoch = snapshot.session_epoch;
     let on_name_commit = move |_| {
-        let current = name_runtime.model();
-        let Some(current_snapshot) = current.accepted.as_ref() else {
+        let Some(current) = name_runtime.model().accepted else {
             return;
         };
-        if current_snapshot.token != expected_token
-            || current_snapshot.document.id != expected_document.id
-            || current_snapshot.document.revision != expected_document.revision
-        {
-            name_draft.set(Some((
-                current_snapshot.document.id.clone(),
-                current_snapshot.document.name.clone(),
-            )));
+        if current.session_epoch != expected_epoch || current.document.id != expected_document_id {
             return;
         }
         let proposed = name_draft()
-            .filter(|(project_id, _)| project_id == &expected_document.id)
+            .filter(|(id, _)| id == &expected_document_id)
             .map(|(_, value)| value.trim().to_owned())
             .unwrap_or_default();
-        if proposed.is_empty() || proposed == expected_document.name {
+        if proposed.is_empty() {
             name_draft.set(Some((
-                expected_document.id.clone(),
-                expected_document.name.clone(),
+                current.document.id.clone(),
+                current.document.name.clone(),
             )));
             return;
         }
-        let mut replacement = expected_document.as_ref().clone();
-        replacement.name = proposed;
-        let operation_id = name_runtime.operation();
-        name_runtime.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: expected_document.revision,
-                transaction_id: format!("project-name-{}", operation_id.0),
-                phase: EditPhase::Commit,
-                target_ids: vec![expected_document.id.clone()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
+        let resolver = boardstudio_application::EditResolver::new(
+            "setup-project-name",
+            move |accepted: &boardstudio_application::AcceptedSnapshot| {
+                if accepted.document.name == proposed {
+                    return boardstudio_application::Resolution::Unchanged;
+                }
+                let mut document = accepted.document.as_ref().clone();
+                document.name = proposed.clone();
+                boardstudio_application::Resolution::Submit(EditCommand {
+                    base_revision: 0,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![document.id.clone()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(document),
+                    },
+                })
             },
-        });
+        );
+        guide_name_tickets
+            .write()
+            .push(boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+                &name_runtime,
+                "setup-project-name",
+                Some("project name".into()),
+                resolver,
+            ));
     };
     let guide_runtime = runtime.clone();
     let mut guide_adapter = adapter.clone();
@@ -8286,6 +8321,7 @@ fn Editor() -> Element {
             div { class: "m1-editor-body", style: "{panel_layout_style}",
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
                     if let Some(preferences) = guide {
+                        if let Some(message) = guide_name_failure() { p { role: "alert", "{message}" } }
                         setup_guide::ProjectSetupGuide {
                             stage: preferences.current_stage,
                             stage_readiness: guide_stage_readiness,

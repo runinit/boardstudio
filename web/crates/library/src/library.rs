@@ -1,7 +1,10 @@
 use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Event, SessionEpoch, SnapshotToken};
+#[cfg(test)]
+use boardstudio_application::Event;
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, PartKind, ProjectDoc};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, JsString, Object};
@@ -32,41 +35,21 @@ impl From<&AcceptedSnapshot> for ProjectNameOwner {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ProjectNameSubmission {
-    owner: ProjectNameOwner,
-    token: SnapshotToken,
-    revision: u64,
-}
-
-impl From<&AcceptedSnapshot> for ProjectNameSubmission {
-    fn from(snapshot: &AcceptedSnapshot) -> Self {
-        Self {
-            owner: ProjectNameOwner::from(snapshot),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-        }
-    }
-}
-
-impl ProjectNameSubmission {
-    fn matches(&self, snapshot: &AcceptedSnapshot) -> bool {
-        self.owner == ProjectNameOwner::from(snapshot)
-            && self.token == snapshot.token
-            && self.revision == snapshot.document.revision
-    }
-}
-
 #[derive(Clone)]
 struct ProjectNameCommitAction {
     runtime: Rc<Runtime>,
     owner: ProjectNameOwner,
     mounted: Rc<Cell<bool>>,
+    tickets: Signal<Vec<(ProjectNameOwner, EditTicket)>>,
 }
 
 impl ProjectNameCommitAction {
     fn commit(&self, value: &str) {
-        commit_project_name(&self.runtime, &self.owner, &self.mounted, value);
+        if let Some(ticket) = commit_project_name(&self.runtime, &self.owner, &self.mounted, value)
+        {
+            let mut tickets = self.tickets;
+            tickets.write().push((self.owner.clone(), ticket));
+        }
     }
 }
 
@@ -520,9 +503,35 @@ pub fn Library(
         .map(|document| document.name.clone())
         .unwrap_or_default();
     let mut project_name = use_signal(|| current_name.clone());
-    use_effect(use_reactive!(|name_owner, current_name| {
-        let _ = name_owner;
-        project_name.set(current_name.clone());
+    let name_tickets = use_signal(Vec::<(ProjectNameOwner, EditTicket)>::new);
+    let mut name_failure = use_signal(|| None::<String>);
+    let name_version = version();
+    let observed_name = use_hook(|| Rc::new(std::cell::RefCell::new(None)));
+    use_effect(use_reactive((&name_owner, &current_name, &name_version), {
+        let mut name_tickets = name_tickets;
+        move |(owner, current_name, _)| {
+            let observed = (owner.clone(), current_name.clone());
+            let changed = observed_name.borrow().as_ref() != Some(&observed);
+            *observed_name.borrow_mut() = Some(observed);
+            let mut pending = name_tickets.peek().clone();
+            let had_tickets = !pending.is_empty();
+            pending.retain(|(ticket_owner, ticket)| {
+                match ticket.settlement(owner.as_ref() == Some(ticket_owner)) {
+                    Settlement::Pending => true,
+                    Settlement::Failed { message } => {
+                        name_failure.set(Some(message));
+                        false
+                    }
+                    Settlement::Landed { .. } | Settlement::Retired => false,
+                }
+            });
+            if pending.is_empty() && (changed || had_tickets) {
+                project_name.set(current_name);
+            }
+            if pending.len() != name_tickets.peek().len() {
+                name_tickets.set(pending);
+            }
+        }
     }));
     let current_project_id = current.as_ref().map(|document| document.id.clone());
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
@@ -561,6 +570,7 @@ pub fn Library(
         runtime: runtime.clone(),
         owner,
         mounted: mounted.clone(),
+        tickets: name_tickets,
     });
     #[cfg(all(test, target_arch = "wasm32"))]
     PROJECT_NAME_ACTION_PROBE.with(|probe| *probe.borrow_mut() = name_action.clone());
@@ -715,7 +725,7 @@ pub fn Library(
                             "aria-label": "Project name",
                             title: "Rename project",
                             value: "{project_name}",
-                            oninput: move |event: FormEvent| project_name.set(event.value()),
+                            oninput: move |event: FormEvent| { name_failure.set(None); project_name.set(event.value()); },
                             onkeydown: {
                                 let accepted_name = current_name.clone();
                                 move |event: KeyboardEvent| {
@@ -738,7 +748,7 @@ pub fn Library(
                             },
                             onblur: move |_| {
                                 let draft = project_name();
-                                if draft.trim().is_empty() || draft.trim() == current_name_for_blur {
+                                if draft.trim().is_empty() {
                                     project_name.set(current_name_for_blur.clone());
                                 } else if let Some(action) = rename_action_for_blur.clone() {
                                     action.commit(&draft);
@@ -746,6 +756,7 @@ pub fn Library(
                             },
                             }
                         }
+                    if let Some(message) = name_failure() { p { role: "alert", "{message}" } }
                     span { class: "m1-project-current-status", "Revision {current_revision} · {current_durability}" }
                     }
                 }
@@ -963,42 +974,39 @@ fn commit_project_name(
     owner: &ProjectNameOwner,
     mounted: &Rc<Cell<bool>>,
     value: &str,
-) {
+) -> Option<EditTicket> {
     if !mounted.get() {
-        return;
+        return None;
     }
-    let Some(snapshot) = runtime.model().accepted else {
-        return;
-    };
+    let snapshot = runtime.model().accepted?;
     if *owner != ProjectNameOwner::from(&snapshot) {
         runtime.report("Project changed while renaming; the project name was not changed.");
-        return;
+        return None;
     }
-    let Some(document) = renamed_document(&snapshot.document, value) else {
-        return;
-    };
-    let submission = ProjectNameSubmission::from(&snapshot);
-    let Some(current) = runtime.model().accepted else {
-        return;
-    };
-    if !mounted.get() || !submission.matches(&current) || *owner != ProjectNameOwner::from(&current)
-    {
-        runtime.report("Project changed while renaming; the project name was not changed.");
-        return;
+    let name = value.trim().to_owned();
+    if name.is_empty() {
+        return None;
     }
-    let operation_id = runtime.operation();
-    runtime.submit(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: submission.revision,
-            transaction_id: format!("m1-project-name-{}", operation_id.0),
+    let resolver = EditResolver::new("project-name", move |accepted: &AcceptedSnapshot| {
+        let Some(document) = renamed_document(&accepted.document, &name) else {
+            return Resolution::Unchanged;
+        };
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
             phase: EditPhase::Commit,
             target_ids: vec![document.id.clone()],
             operation: EditOperation::ReplaceDocument {
                 document: Box::new(document),
             },
-        },
+        })
     });
+    Some(EditTicket::begin(
+        runtime,
+        "project-name",
+        Some("project name".into()),
+        resolver,
+    ))
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -2400,5 +2408,66 @@ mod mounted_tests {
             .body()
             .unwrap()
             .remove_child(&root);
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod queued_rename_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as support;
+    use wasm_bindgen_test::*;
+
+    #[wasm_bindgen_test]
+    async fn library_rename_queued_after_parts_edit_preserves_both_and_undo_order() {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("queued-rename", "Original");
+        document.definitions.push(serde_json::from_value(serde_json::json!({
+            "id": "switch", "name": "Original switch", "kind": "switch", "courtyard": [], "pads": []
+        })).unwrap());
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let owner = ProjectNameOwner::from(&accepted);
+        let mut replacement = accepted.document.as_ref().clone();
+        replacement.definitions[0].name = "Updated switch".into();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        runtime.submit(Event::Edit {
+            operation_id: runtime.operation(),
+            command: EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: "parts-name".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["switch".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+            },
+        });
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        commit_project_name(&runtime, &owner, &Rc::new(Cell::new(true)), "Renamed");
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let result = runtime.model().accepted.unwrap();
+        assert_eq!(result.document.name, "Renamed");
+        assert_eq!(result.document.definitions[0].name, "Updated switch");
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let result = runtime.model().accepted.unwrap();
+        assert_eq!(result.document.name, "Original");
+        assert_eq!(result.document.definitions[0].name, "Updated switch");
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].name,
+            "Original switch"
+        );
     }
 }

@@ -1,54 +1,35 @@
 //! Private owner for the Case mechanical-settings field requests.
 //!
-//! This module is deliberately unmounted. The page supplies the current accepted snapshot,
-//! the existing asynchronous Core resolver, the already-normalized bundled mounting-hole
-//! definition, the page's exact Runtime operation observer/submission seam, and the existing
-//! pure closure-clearance projector. It does not create a second document/session authority.
+//! Catalogue resources are loaded before dispatch, in commit order. Each edit ticket
+//! then plans from the accepted snapshot with Core's pure mechanical functions and the
+//! deterministic closure-clearance projection; settlement never compares document content.
 use super::mechanical_settings::{
     MechanicalDimension, MechanicalMountCollection, MechanicalSettingsFeedback,
     MechanicalSettingsFeedbackState, MechanicalSettingsIdentity, MechanicalSettingsPatch,
     MechanicalSettingsRequest,
 };
-use crate::operation_outcomes::OutcomeSlot;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    CaseOpening, GasketConstructionVersion, GasketPlacement, HardwareTransport, InsertInstallation,
-    InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly, MechanicalBattery,
-    MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalConfiguration,
-    MechanicalCriticalFit, MechanicalGasketLayout, MechanicalHardwareSpecification,
-    MechanicalMount, MechanicalPartProcess, MechanicalPartProfile, MechanicalSwitchFamily, Mount,
-    MountKind, Part, PartDefinition, PartGenerator, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
-    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    CaseOpening, EditCommand, EditOperation, EditPhase, GasketConstructionVersion, GasketPlacement,
+    HardwareTransport, InsertInstallation, InternalClosureHardware, InternalGasketConfiguration,
+    MechanicalAssembly, MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile,
+    MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
+    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
+    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartKind, PlateMethod,
+    ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use std::{
     cell::{Cell, RefCell},
     future::Future,
     pin::Pin,
-    rc::{Rc, Weak},
+    rc::Rc,
 };
 use wasm_bindgen_futures::spawn_local;
 
 type LocalFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
-pub type ResolveMechanicalPort = Rc<
-    dyn Fn(
-        AcceptedSnapshot,
-        Scope,
-        ProjectDoc,
-    ) -> LocalFuture<Result<MechanicalResolution, String>>,
->;
-pub type ProjectClosureClearancePort =
-    Rc<dyn Fn(ProjectDoc, &PartDefinition) -> Result<ProjectDoc, String>>;
-pub type LoadSwitchProfilePort = Rc<
-    dyn Fn(
-        String,
-        MechanicalBuiltinProfile,
-        Option<MechanicalSwitchFamily>,
-        f64,
-    ) -> LocalFuture<Result<MechanicalPartProfile, String>>,
->;
-
 #[derive(Clone, Copy)]
 enum ProfileTargetKind {
     Switch,
@@ -81,622 +62,199 @@ pub struct MechanicalResolution {
     pub effective_configuration: MechanicalConfiguration,
 }
 
-/// Narrow page ports. `submit_replace` must register the supplied fresh operation with the
-/// existing `Runtime::observe_operation` before submitting one `ReplaceDocument` event.
-/// Returning its exact weak-observed slot is required; a page-wide last-error/status string is
-/// not an operation result.
+/// Runtime supplies admission, catalogue loading and the edit-ticket port. Only the
+/// normalized catalogue definition is prepared asynchronously; document planning runs
+/// against the accepted snapshot when Session executes the intent.
 #[derive(Clone)]
 pub struct MechanicalSettingsPorts {
     pub current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
-    pub resolve: ResolveMechanicalPort,
     pub load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
-    pub load_switch_profile: LoadSwitchProfilePort,
-    pub next_operation: Rc<dyn Fn() -> OperationId>,
-    pub submit_replace: Rc<dyn Fn(OperationId, u64, ProjectDoc) -> Result<OutcomeSlot, String>>,
-    pub project_closure_clearance: ProjectClosureClearancePort,
+    pub begin_edit: Rc<dyn Fn(EditResolver) -> EditTicket>,
     pub publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
 }
 
-/// A bounded page-local coordinator. The parent should create this once per Case editor lifetime
-/// and call `settle` from its existing Runtime-version effect. The field subtree remains the
-/// owner of its drafts; this controller owns only one in-flight request and its exact outcome.
 pub struct MechanicalSettingsController {
     ports: MechanicalSettingsPorts,
-    pending: RefCell<Option<PendingRequest>>,
+    requests: RefCell<Vec<SettingsEdit>>,
     last_request_id: Cell<u64>,
 }
 
 #[derive(Clone)]
-enum PendingPhase {
-    Resolving,
-    Submitted {
-        outcome: OutcomeSlot,
-        accepted_token: SnapshotToken,
-        base_revision: u64,
-        expected: Rc<ExpectedCommit>,
-    },
+struct SettingsEdit {
+    request: MechanicalSettingsRequest,
+    phase: SettingsPhase,
 }
 
 #[derive(Clone)]
-struct PendingRequest {
-    request: MechanicalSettingsRequest,
-    phase: PendingPhase,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum ExpectedSettings {
-    Canonical(Option<MechanicalConfiguration>),
-    Instance {
-        instance_id: String,
-        shared: Option<MechanicalConfiguration>,
-        instances: Vec<(String, bool, Option<MechanicalConfiguration>)>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct ExpectedCommit {
-    settings: ExpectedSettings,
-    closure: ClosureEvidence,
-}
-
-/// This proof intentionally retains only generated closure rows and their membership, never a
-/// second predicted ProjectDoc or a copy of unrelated KiCad definitions.
-#[derive(Clone, Debug, PartialEq)]
-struct ClosureEvidence {
-    parts: Vec<Part>,
-    definitions: Vec<ClosureDefinitionEvidence>,
-    boards: Vec<(String, Vec<String>)>,
-    layouts: Vec<(String, Vec<String>)>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct ClosureDefinitionEvidence {
-    id: String,
-    kind: PartKind,
-    generator: Option<PartGenerator>,
+enum SettingsPhase {
+    Preparing,
+    Prepared(EditResolver),
+    Submitted(EditTicket),
 }
 
 impl MechanicalSettingsController {
     pub fn new(ports: MechanicalSettingsPorts) -> Rc<Self> {
         Rc::new(Self {
             ports,
-            pending: RefCell::new(None),
+            requests: RefCell::new(Vec::new()),
             last_request_id: Cell::new(0),
         })
     }
 
     pub fn is_busy(&self) -> bool {
-        self.pending.borrow().is_some()
+        !self.requests.borrow().is_empty()
     }
 
-    /// Admission rejection reports against this request without displacing the operation already
-    /// admitted for another field. Every child submission gets its own terminal response.
     pub fn submit(self: &Rc<Self>, request: MechanicalSettingsRequest) -> bool {
         if request.request_id <= self.last_request_id.get() {
-            self.emit(
-                &request,
-                MechanicalSettingsFeedbackState::Failed,
-                Some(
-                    "This mechanical settings request was already handled. Retry the field.".into(),
-                ),
-            );
             return false;
         }
         self.last_request_id.set(request.request_id);
-        if self.pending.borrow().is_some() {
-            self.emit(
-                &request,
-                MechanicalSettingsFeedbackState::Failed,
-                Some("Wait for the current mechanical settings change to finish.".into()),
-            );
-            return false;
-        }
-        if request.field_id != patch_field_id(&request.patch) {
-            self.emit(
-                &request,
-                MechanicalSettingsFeedbackState::Failed,
-                Some("The mechanical settings request did not match its field.".into()),
-            );
-            return false;
-        }
         let Some(current) = (self.ports.current)() else {
-            self.emit(
-                &request,
-                MechanicalSettingsFeedbackState::Failed,
-                Some("The accepted mechanical settings are unavailable.".into()),
-            );
             return false;
         };
-        if !admitted(&current, &request.identity) {
-            self.emit(
-                &request,
-                MechanicalSettingsFeedbackState::Failed,
-                Some("Finish the active edit and wait for saving before changing mechanical settings.".into()),
-            );
-            return false;
-        }
-        if matches!(&request.patch, MechanicalSettingsPatch::InitializeClosures)
-            && !can_initialize_closures(&current, &request.identity)
+        if !admitted(&current, &request.identity)
+            || request.field_id != patch_field_id(&request.patch)
         {
-            self.emit(
-                &request,
-                MechanicalSettingsFeedbackState::Failed,
-                Some(
-                    "Mounting defaults are no longer available for this configuration. Retry after the current stack is ready.".into(),
-                ),
-            );
             return false;
         }
-
-        *self.pending.borrow_mut() = Some(PendingRequest {
+        if is_one_shot(&request.patch)
+            && self
+                .requests
+                .borrow()
+                .iter()
+                .any(|pending| pending.request.field_id == request.field_id)
+        {
+            return false;
+        }
+        self.requests.borrow_mut().push(SettingsEdit {
             request: request.clone(),
-            phase: PendingPhase::Resolving,
+            phase: SettingsPhase::Preparing,
         });
         self.emit(&request, MechanicalSettingsFeedbackState::Pending, None);
-        let controller = Rc::downgrade(self);
-        let ports = self.ports.clone();
+        let owner = Rc::downgrade(self);
+        let loader = self.ports.load_mounting_hole.clone();
         spawn_local(async move {
-            MechanicalSettingsController::prepare_and_submit(controller, ports, request, current)
-                .await;
+            let result = loader().await;
+            let Some(owner) = owner.upgrade() else {
+                return;
+            };
+            if !(owner.ports.current)()
+                .is_some_and(|current| same_owner(&current.identity, &request.identity))
+            {
+                owner
+                    .requests
+                    .borrow_mut()
+                    .retain(|pending| pending.request.request_id != request.request_id);
+                owner.flush_prepared();
+                return;
+            }
+            match result {
+                Ok(template) => {
+                    let intent = request.clone();
+                    let resolver = EditResolver::new(
+                        "mechanical-settings",
+                        move |accepted: &AcceptedSnapshot| match prepare_document(
+                            accepted, &intent, &template,
+                        ) {
+                            Ok(document) if document == *accepted.document => Resolution::Unchanged,
+                            Ok(document) => Resolution::Submit(EditCommand {
+                                base_revision: 0,
+                                transaction_id: String::new(),
+                                phase: EditPhase::Commit,
+                                target_ids: vec![intent.identity.active_board_id.clone()],
+                                operation: EditOperation::ReplaceDocument {
+                                    document: Box::new(document),
+                                },
+                            }),
+                            Err(message) => Resolution::Retire(message),
+                        },
+                    );
+                    if let Some(pending) = owner
+                        .requests
+                        .borrow_mut()
+                        .iter_mut()
+                        .find(|pending| pending.request.request_id == request.request_id)
+                    {
+                        pending.phase = SettingsPhase::Prepared(resolver);
+                    }
+                }
+                Err(message) => {
+                    owner
+                        .requests
+                        .borrow_mut()
+                        .retain(|pending| pending.request.request_id != request.request_id);
+                    owner.emit(
+                        &request,
+                        MechanicalSettingsFeedbackState::Failed,
+                        Some(message),
+                    );
+                }
+            }
+            owner.flush_prepared();
         });
         true
     }
 
-    /// Called by the page's existing version signal effect. It observes only the exact slot
-    /// registered for this request and never infers success from unrelated Runtime status.
+    // Preserve commit order even if catalogue loads complete in a different order.
+    fn flush_prepared(&self) {
+        let prepared = {
+            let requests = self.requests.borrow();
+            requests
+                .iter()
+                .take_while(|pending| !matches!(pending.phase, SettingsPhase::Preparing))
+                .filter_map(|pending| match &pending.phase {
+                    SettingsPhase::Prepared(resolver) => {
+                        Some((pending.request.request_id, resolver.clone()))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        for (id, resolver) in prepared {
+            let ticket = (self.ports.begin_edit)(resolver);
+            if let Some(pending) = self
+                .requests
+                .borrow_mut()
+                .iter_mut()
+                .find(|pending| pending.request.request_id == id)
+            {
+                pending.phase = SettingsPhase::Submitted(ticket);
+            }
+        }
+    }
+
     pub fn settle(&self) {
-        let Some(waiting) = self.pending.borrow().clone() else {
-            return;
-        };
-        let Some(current) = (self.ports.current)() else {
-            self.fail_pending(
-                &waiting.request,
-                "The mechanical settings operation lost its active editor.".into(),
-            );
-            return;
-        };
-        let same_owner = match &waiting.phase {
-            PendingPhase::Resolving => same_owner(&current.identity, &waiting.request.identity),
-            PendingPhase::Submitted { .. } => {
-                same_submitted_owner(&current.identity, &waiting.request.identity)
-            }
-        };
-        if !same_owner {
-            self.fail_pending(
-                &waiting.request,
-                "The mechanical settings operation belongs to an earlier editor scope.".into(),
-            );
-            return;
-        }
-        if matches!(&waiting.phase, PendingPhase::Resolving) {
-            if !admitted(&current, &waiting.request.identity) {
-                self.fail_pending(
-                    &waiting.request,
-                    "The accepted document changed while the mechanical settings were being prepared. Review the current values and retry.".into(),
-                );
-            }
-            return;
-        }
-        let PendingPhase::Submitted {
-            outcome,
-            accepted_token,
-            base_revision,
-            expected,
-        } = waiting.phase
-        else {
-            return;
-        };
-        let Some(terminal) = outcome.borrow().clone() else {
-            return;
-        };
-        match terminal {
-            TerminalOutcome::Completed => {
-                let snapshot = &current.accepted;
-                let saved = current.lifecycle == Lifecycle::Ready
-                    && current.durability
-                        == (Durability::Saved {
-                            revision: snapshot.document.revision,
-                        });
-                if !saved
-                    || snapshot.token == accepted_token
-                    || snapshot.document.revision <= base_revision
-                {
-                    if matches!(&current.durability, Durability::Failed { .. })
-                        || matches!(
-                            &current.lifecycle,
-                            Lifecycle::RecoveryRequired | Lifecycle::Closed
-                        )
-                    {
-                        self.fail_pending(
-                            &waiting.request,
-                            "The mechanical settings operation completed but its document was not durably saved. Retry after recovery.".into(),
-                        );
-                    }
-                    // Completed is the operation's result, but Session acceptance and durable
-                    // save may publish on a later Runtime notification.
-                    return;
-                }
-                if expected_matches(&snapshot.document, &expected) {
-                    self.finish(
-                        &waiting.request,
-                        MechanicalSettingsFeedbackState::Saved,
-                        None,
-                    );
-                } else {
-                    self.fail_pending(
-                        &waiting.request,
-                        "The saved document does not contain the requested mechanical settings and closure clearances. Review the current stack and retry.".into(),
-                    );
-                }
-            }
-            TerminalOutcome::Rejected(message)
-            | TerminalOutcome::PersistenceFailed(message)
-            | TerminalOutcome::BlockedByRecovery(message)
-            | TerminalOutcome::ExecutorFailed(message) => {
-                self.fail_pending(&waiting.request, message);
-            }
-            TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
-                self.fail_pending(
-                    &waiting.request,
-                    "The mechanical settings operation did not complete in the active session."
-                        .into(),
-                );
-            }
-        }
-    }
-
-    async fn prepare_and_submit(
-        controller: Weak<Self>,
-        ports: MechanicalSettingsPorts,
-        request: MechanicalSettingsRequest,
-        admitted_current: MechanicalSettingsCurrent,
-    ) {
-        let operation = Self::prepare(
-            ports.clone(),
-            controller.clone(),
-            &request,
-            &admitted_current,
-        )
-        .await;
-        let (document, expected) = match operation {
-            Ok(value) => value,
-            Err(message) => {
-                if let Some(controller) = controller.upgrade() {
-                    controller.fail_pending(&request, message);
-                }
-                return;
-            }
-        };
-        let Some(owner) = controller.upgrade() else {
-            return;
-        };
-        if !owner.owns_resolving(&request) {
-            return;
-        }
-        let Some(current) = owner.current_for_request(&request.identity) else {
-            owner.fail_pending(
-                &request,
-                "The mechanical settings scope changed before it could be saved.".into(),
-            );
-            return;
-        };
-        if current.accepted.token != request.identity.snapshot_token
-            || current.accepted.document.revision != request.identity.revision
-        {
-            owner.fail_pending(
-                &request,
-                "The accepted document changed while the mechanical settings were being prepared. Review the current values and retry.".into(),
-            );
-            return;
-        }
-        let operation_id = (ports.next_operation)();
-        // The root callback observes this ID before submitting; the resolving slot stays reserved
-        // until the synchronous callback returns, so a reentrant field event cannot displace it.
-        let outcome =
-            match (ports.submit_replace)(operation_id, request.identity.revision, document) {
-                Ok(outcome) => outcome,
-                Err(message) => {
-                    owner.fail_pending(&request, message);
-                    return;
-                }
+        let current = (self.ports.current)();
+        let requests = self.requests.borrow().clone();
+        for pending in requests {
+            let live = current.as_ref().is_some_and(|current| {
+                same_submitted_owner(&current.identity, &pending.request.identity)
+            });
+            let settlement = match &pending.phase {
+                SettingsPhase::Submitted(ticket) => ticket.settlement(live),
+                _ if live => continue,
+                _ => Settlement::Retired,
             };
-        if !owner.owns_resolving(&request) {
-            return;
+            match settlement {
+                Settlement::Pending => continue,
+                Settlement::Landed { .. } => self.emit(
+                    &pending.request,
+                    MechanicalSettingsFeedbackState::Saved,
+                    None,
+                ),
+                Settlement::Failed { message } => self.emit(
+                    &pending.request,
+                    MechanicalSettingsFeedbackState::Failed,
+                    Some(message),
+                ),
+                Settlement::Retired => {}
+            }
+            self.requests
+                .borrow_mut()
+                .retain(|entry| entry.request.request_id != pending.request.request_id);
         }
-        *owner.pending.borrow_mut() = Some(PendingRequest {
-            request: request.clone(),
-            phase: PendingPhase::Submitted {
-                outcome,
-                accepted_token: current.accepted.token,
-                base_revision: current.accepted.document.revision,
-                expected: Rc::new(expected),
-            },
-        });
-    }
-
-    async fn prepare(
-        ports: MechanicalSettingsPorts,
-        controller: Weak<Self>,
-        request: &MechanicalSettingsRequest,
-        current: &MechanicalSettingsCurrent,
-    ) -> Result<(ProjectDoc, ExpectedCommit), String> {
-        let accepted = &current.accepted;
-        let base_document = &accepted.document;
-        let instance_id = request.identity.scope.instance_id.as_deref();
-        let next_configuration = match &request.patch {
-            MechanicalSettingsPatch::Enable => {
-                if current.configuration.is_some() {
-                    return Err("Mechanical settings are already configured for this board.".into());
-                }
-                // Physical Configure follows React's effectiveCaseDocument: it starts from fresh
-                // target-board defaults after Disable, even when canonical mechanical settings
-                // remain stored for the project-level case.
-                let physical_defaults;
-                let defaults_document = if instance_id.is_some() {
-                    physical_defaults = {
-                        let mut document = base_document.as_ref().clone();
-                        document.mechanical = None;
-                        document
-                    };
-                    &physical_defaults
-                } else {
-                    base_document
-                };
-                Some(boardstudio_web_host::case_settings::initial_settings(
-                    defaults_document,
-                    &request.identity.active_board_id,
-                )?)
-            }
-            MechanicalSettingsPatch::Disable => {
-                if !current.configuration.as_ref().is_some_and(|config| {
-                    config.board_id == request.identity.configuration_board_id
-                        && config.board_id == request.identity.active_board_id
-                }) {
-                    return Err("There is no mechanical configuration to disable.".into());
-                }
-                None
-            }
-            MechanicalSettingsPatch::InitializeClosures => {
-                let configuration = current
-                    .configuration
-                    .as_ref()
-                    .filter(|_| can_initialize_closures(current, &request.identity))
-                    .ok_or_else(|| {
-                        "The current stack no longer needs mounting-location initialization."
-                            .to_owned()
-                    })?;
-                Some(configuration.as_ref().clone())
-            }
-            _ => {
-                let mut configuration = current
-                    .configuration
-                    .as_ref()
-                    .filter(|config| {
-                        config.board_id == request.identity.configuration_board_id
-                            && config.board_id == request.identity.active_board_id
-                    })
-                    .map(|configuration| configuration.as_ref().clone())
-                    .ok_or_else(|| {
-                        "The active board has no matching mechanical configuration.".to_owned()
-                    })?;
-                match &request.patch {
-                    MechanicalSettingsPatch::AssignSwitchProfile {
-                        definition_id,
-                        family,
-                    } => {
-                        validate_profile_target(
-                            base_document,
-                            &request.identity.active_board_id,
-                            &configuration,
-                            definition_id,
-                            ProfileTargetKind::Switch,
-                        )?;
-                        let existing_family = profile_family(&configuration).or_else(|| {
-                            initial_switch_family(base_document, &configuration.board_id)
-                        });
-                        let family_changed = family_assignment_changes(existing_family, *family);
-                        let plate_thickness = if family_changed {
-                            default_plate_thickness(*family)
-                        } else {
-                            configuration.plate_thickness
-                        };
-                        let plate_to_pcb = mounting_datum(*family) - plate_thickness;
-                        let source = match family {
-                            MechanicalSwitchFamily::Mx => MechanicalBuiltinProfile::MxSwitch,
-                            MechanicalSwitchFamily::ChocV1 => {
-                                MechanicalBuiltinProfile::ChocV1Switch
-                            }
-                            MechanicalSwitchFamily::ChocV2 => {
-                                MechanicalBuiltinProfile::ChocV2Switch
-                            }
-                        };
-                        let mut profile = (ports.load_switch_profile)(
-                            definition_id.clone(),
-                            source,
-                            Some(*family),
-                            plate_to_pcb,
-                        )
-                        .await?;
-                        if !Self::still_current(&ports, &controller, request) {
-                            return Err("The mechanical settings scope changed while loading the switch profile.".into());
-                        }
-                        if profile.definition_id != *definition_id {
-                            return Err(
-                                "Core returned a switch profile for another part type.".into()
-                            );
-                        }
-                        profile.switch_family = Some(*family);
-                        profile.plate_to_pcb = plate_to_pcb;
-                        if family_changed {
-                            configuration.plate_thickness = plate_thickness;
-                            configuration.plate_to_pcb = plate_to_pcb;
-                            configuration.plate_foam_thickness =
-                                default_plate_foam_thickness(plate_to_pcb);
-                        }
-                        configuration.profiles.push(profile);
-                    }
-                    MechanicalSettingsPatch::AssignStabilizerProfile {
-                        definition_id,
-                        source,
-                    } => {
-                        if !matches!(
-                            source,
-                            MechanicalBuiltinProfile::MxStab2u
-                                | MechanicalBuiltinProfile::MxStab625u
-                        ) {
-                            return Err("The selected stabilizer profile is not supported.".into());
-                        }
-                        validate_profile_target(
-                            base_document,
-                            &request.identity.active_board_id,
-                            &configuration,
-                            definition_id,
-                            ProfileTargetKind::Stabilizer,
-                        )?;
-                        let mut profile = (ports.load_switch_profile)(
-                            definition_id.clone(),
-                            source.clone(),
-                            None,
-                            configuration.plate_to_pcb,
-                        )
-                        .await?;
-                        if !Self::still_current(&ports, &controller, request) {
-                            return Err("The mechanical settings scope changed while loading the stabilizer profile.".into());
-                        }
-                        if profile.definition_id != *definition_id
-                            || profile.switch_family.is_some()
-                        {
-                            return Err("Core returned a different stabilizer profile.".into());
-                        }
-                        profile.plate_to_pcb = configuration.plate_to_pcb;
-                        configuration.profiles.push(profile);
-                    }
-                    MechanicalSettingsPatch::AssignImportedGeometryProfile { definition_id } => {
-                        validate_profile_target(
-                            base_document,
-                            &request.identity.active_board_id,
-                            &configuration,
-                            definition_id,
-                            ProfileTargetKind::ImportedGeometry,
-                        )?;
-                        let definition = base_document
-                            .definitions
-                            .iter()
-                            .find(|definition| definition.id == *definition_id)
-                            .ok_or_else(|| {
-                                "The imported part definition is no longer available.".to_owned()
-                            })?;
-                        let family = base_document
-                            .parts
-                            .iter()
-                            .find(|part| {
-                                part.definition_id == *definition_id
-                                    && base_document.boards.iter().any(|board| {
-                                        board.id == request.identity.active_board_id
-                                            && board.part_ids.contains(&part.id)
-                                    })
-                            })
-                            .and_then(|part| definition_family(definition, part));
-                        configuration.profiles.push(MechanicalPartProfile {
-                            source_geometry: None,
-                            pcb_holes: None,
-                            clearance_volumes: None,
-                            openings: None,
-                            clearances: None,
-                            supported_thickness: None,
-                            switch_family: family,
-                            definition_id: definition.id.clone(),
-                            source: format!("KiCad {}", definition.name),
-                            cutouts: Vec::new(),
-                            plate_to_pcb: family.map_or(configuration.plate_to_pcb, |family| {
-                                mounting_datum(family) - configuration.plate_thickness
-                            }),
-                        });
-                    }
-                    _ => apply_patch(
-                        &mut configuration,
-                        &request.patch,
-                        base_document,
-                        &request.identity.active_board_id,
-                    )?,
-                }
-                Some(configuration)
-            }
-        };
-
-        // React initializes closure mounts only when the setting is absent; explicit [] is a
-        // deliberate accepted value. Resolution uses the proposed document and a fresh scene in
-        // the root port, never a cached preview's contours.
-        let mut configuration = next_configuration;
-        if let Some(config) = configuration.as_mut()
-            && config.closure_mounts.is_none()
-            && config.mount != MechanicalMount::Gasket
-        {
-            let proposed_height = (
-                config.plate_to_pcb,
-                config.pcb_thickness,
-                config.bottom_foam_thickness,
-            );
-            let proposed = persist_configuration(base_document, instance_id, Some(config.clone()))?;
-            let assembly =
-                (ports.resolve)(accepted.clone(), request.identity.scope.clone(), proposed).await?;
-            if !Self::still_current(&ports, &controller, request) {
-                return Err(
-                    "The mechanical settings scope changed during mounting-location resolution."
-                        .into(),
-                );
-            }
-            *config = assembly.effective_configuration;
-            if config.board_id != request.identity.configuration_board_id {
-                return Err(
-                    "Mechanical resolution returned settings for a different board.".into(),
-                );
-            }
-            config.closure_mounts = Some(closure_mounts(
-                proposed_height,
-                config.battery_height,
-                assembly.assembly,
-            ));
-        }
-
-        // The bundled definition is loaded for each commit because the generator module is lazy.
-        // It has already passed the application's normalizeDefinition path before this port returns.
-        let mounting_hole = (ports.load_mounting_hole)().await?;
-        if !Self::still_current(&ports, &controller, request) {
-            return Err(
-                "The mechanical settings scope changed while loading the mounting-hole definition."
-                    .into(),
-            );
-        }
-        let candidate = persist_configuration(base_document, instance_id, configuration)?;
-        let candidate = (ports.project_closure_clearance)(candidate, &mounting_hole)?;
-        let settings = expected_settings(&candidate, instance_id)?;
-        let closure = closure_evidence(&candidate);
-        Ok((candidate, ExpectedCommit { settings, closure }))
-    }
-
-    fn still_current(
-        ports: &MechanicalSettingsPorts,
-        controller: &Weak<Self>,
-        request: &MechanicalSettingsRequest,
-    ) -> bool {
-        controller
-            .upgrade()
-            .is_some_and(|owner| owner.owns_resolving(request))
-            && (ports.current)().is_some_and(|current| admitted(&current, &request.identity))
-    }
-
-    fn owns_resolving(&self, request: &MechanicalSettingsRequest) -> bool {
-        self.pending.borrow().as_ref().is_some_and(|pending| {
-            pending.request == *request && matches!(&pending.phase, PendingPhase::Resolving)
-        })
-    }
-
-    fn current_for_request(
-        &self,
-        identity: &MechanicalSettingsIdentity,
-    ) -> Option<MechanicalSettingsCurrent> {
-        (self.ports.current)().filter(|current| admitted(current, identity))
+        self.flush_prepared();
     }
 
     fn emit(
@@ -713,34 +271,274 @@ impl MechanicalSettingsController {
             message,
         });
     }
+}
 
-    fn finish(
-        &self,
-        request: &MechanicalSettingsRequest,
-        state: MechanicalSettingsFeedbackState,
-        message: Option<String>,
-    ) {
-        self.clear_if_current(request);
-        self.emit(request, state, message);
-    }
+fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
+    matches!(
+        patch,
+        MechanicalSettingsPatch::InitializeClosures
+            | MechanicalSettingsPatch::ResetGasketPlacement
+            | MechanicalSettingsPatch::AddHardware { .. }
+            | MechanicalSettingsPatch::RemoveHardware { .. }
+            | MechanicalSettingsPatch::RemoveMount { .. }
+            | MechanicalSettingsPatch::RemoveProfile { .. }
+            | MechanicalSettingsPatch::AddProcessOverride { .. }
+            | MechanicalSettingsPatch::RemoveProcessOverride { .. }
+            | MechanicalSettingsPatch::AddCriticalFit { .. }
+            | MechanicalSettingsPatch::RemoveCriticalFit { .. }
+            | MechanicalSettingsPatch::AssignSwitchProfile { .. }
+            | MechanicalSettingsPatch::AssignStabilizerProfile { .. }
+            | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. }
+    )
+}
 
-    fn fail_pending(&self, request: &MechanicalSettingsRequest, message: String) {
-        self.finish(
-            request,
-            MechanicalSettingsFeedbackState::Failed,
-            Some(message),
-        );
-    }
-
-    fn clear_if_current(&self, request: &MechanicalSettingsRequest) {
-        let mut pending = self.pending.borrow_mut();
-        if pending
-            .as_ref()
-            .is_some_and(|current| current.request == *request)
-        {
-            pending.take();
+fn prepare_document(
+    accepted: &AcceptedSnapshot,
+    request: &MechanicalSettingsRequest,
+    mounting_hole: &PartDefinition,
+) -> Result<ProjectDoc, String> {
+    let base_document = &accepted.document;
+    let instance_id = request.identity.scope.instance_id.as_deref();
+    let effective =
+        boardstudio_web_host::cad_jobs::captured_case_document(accepted, &request.identity.scope)
+            .map_err(|error| format!("The mechanical settings scope is unavailable: {error:?}"))?;
+    let configuration = effective.mechanical.map(Rc::new);
+    let next_configuration = match &request.patch {
+        MechanicalSettingsPatch::Enable => {
+            if configuration.is_some() {
+                return Ok(base_document.as_ref().clone());
+            }
+            // Physical Configure follows React's effectiveCaseDocument: it starts from fresh
+            // target-board defaults after Disable, even when canonical mechanical settings
+            // remain stored for the project-level case.
+            let physical_defaults;
+            let defaults_document = if instance_id.is_some() {
+                physical_defaults = {
+                    let mut document = base_document.as_ref().clone();
+                    document.mechanical = None;
+                    document
+                };
+                &physical_defaults
+            } else {
+                base_document
+            };
+            Some(boardstudio_web_host::case_settings::initial_settings(
+                defaults_document,
+                &request.identity.active_board_id,
+            )?)
         }
+        MechanicalSettingsPatch::Disable => {
+            if !configuration.as_ref().is_some_and(|config| {
+                config.board_id == request.identity.configuration_board_id
+                    && config.board_id == request.identity.active_board_id
+            }) {
+                return Ok(base_document.as_ref().clone());
+            }
+            None
+        }
+        MechanicalSettingsPatch::InitializeClosures => {
+            let configuration = configuration
+                .as_ref()
+                .filter(|configuration| {
+                    configuration.closure_mounts.is_none()
+                        && configuration.mount != MechanicalMount::Gasket
+                })
+                .ok_or_else(|| {
+                    "The current stack no longer needs mounting-location initialization.".to_owned()
+                })?;
+            Some(configuration.as_ref().clone())
+        }
+        _ => {
+            let mut configuration = configuration
+                .as_ref()
+                .filter(|config| {
+                    config.board_id == request.identity.configuration_board_id
+                        && config.board_id == request.identity.active_board_id
+                })
+                .map(|configuration| configuration.as_ref().clone())
+                .ok_or_else(|| {
+                    "The active board has no matching mechanical configuration.".to_owned()
+                })?;
+            match &request.patch {
+                MechanicalSettingsPatch::AssignSwitchProfile {
+                    definition_id,
+                    family,
+                } => {
+                    validate_profile_target(
+                        base_document,
+                        &request.identity.active_board_id,
+                        &configuration,
+                        definition_id,
+                        ProfileTargetKind::Switch,
+                    )?;
+                    let existing_family = profile_family(&configuration)
+                        .or_else(|| initial_switch_family(base_document, &configuration.board_id));
+                    let family_changed = family_assignment_changes(existing_family, *family);
+                    let plate_thickness = if family_changed {
+                        default_plate_thickness(*family)
+                    } else {
+                        configuration.plate_thickness
+                    };
+                    let plate_to_pcb = mounting_datum(*family) - plate_thickness;
+                    let source = match family {
+                        MechanicalSwitchFamily::Mx => MechanicalBuiltinProfile::MxSwitch,
+                        MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
+                        MechanicalSwitchFamily::ChocV2 => MechanicalBuiltinProfile::ChocV2Switch,
+                    };
+                    let mut profile = boardstudio_core::mechanical::builtin_profile(
+                        definition_id.clone(),
+                        source,
+                        plate_to_pcb,
+                    )?;
+                    if profile.definition_id != *definition_id {
+                        return Err("Core returned a switch profile for another part type.".into());
+                    }
+                    profile.switch_family = Some(*family);
+                    profile.plate_to_pcb = plate_to_pcb;
+                    if family_changed {
+                        configuration.plate_thickness = plate_thickness;
+                        configuration.plate_to_pcb = plate_to_pcb;
+                        configuration.plate_foam_thickness =
+                            default_plate_foam_thickness(plate_to_pcb);
+                    }
+                    configuration.profiles.push(profile);
+                }
+                MechanicalSettingsPatch::AssignStabilizerProfile {
+                    definition_id,
+                    source,
+                } => {
+                    if !matches!(
+                        source,
+                        MechanicalBuiltinProfile::MxStab2u | MechanicalBuiltinProfile::MxStab625u
+                    ) {
+                        return Err("The selected stabilizer profile is not supported.".into());
+                    }
+                    validate_profile_target(
+                        base_document,
+                        &request.identity.active_board_id,
+                        &configuration,
+                        definition_id,
+                        ProfileTargetKind::Stabilizer,
+                    )?;
+                    let mut profile = boardstudio_core::mechanical::builtin_profile(
+                        definition_id.clone(),
+                        source.clone(),
+                        configuration.plate_to_pcb,
+                    )?;
+                    if profile.definition_id != *definition_id || profile.switch_family.is_some() {
+                        return Err("Core returned a different stabilizer profile.".into());
+                    }
+                    profile.plate_to_pcb = configuration.plate_to_pcb;
+                    configuration.profiles.push(profile);
+                }
+                MechanicalSettingsPatch::AssignImportedGeometryProfile { definition_id } => {
+                    validate_profile_target(
+                        base_document,
+                        &request.identity.active_board_id,
+                        &configuration,
+                        definition_id,
+                        ProfileTargetKind::ImportedGeometry,
+                    )?;
+                    let definition = base_document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == *definition_id)
+                        .ok_or_else(|| {
+                            "The imported part definition is no longer available.".to_owned()
+                        })?;
+                    let family = base_document
+                        .parts
+                        .iter()
+                        .find(|part| {
+                            part.definition_id == *definition_id
+                                && base_document.boards.iter().any(|board| {
+                                    board.id == request.identity.active_board_id
+                                        && board.part_ids.contains(&part.id)
+                                })
+                        })
+                        .and_then(|part| definition_family(definition, part));
+                    configuration.profiles.push(MechanicalPartProfile {
+                        source_geometry: None,
+                        pcb_holes: None,
+                        clearance_volumes: None,
+                        openings: None,
+                        clearances: None,
+                        supported_thickness: None,
+                        switch_family: family,
+                        definition_id: definition.id.clone(),
+                        source: format!("KiCad {}", definition.name),
+                        cutouts: Vec::new(),
+                        plate_to_pcb: family.map_or(configuration.plate_to_pcb, |family| {
+                            mounting_datum(family) - configuration.plate_thickness
+                        }),
+                    });
+                }
+                _ => apply_patch(
+                    &mut configuration,
+                    &request.patch,
+                    base_document,
+                    &request.identity.active_board_id,
+                )?,
+            }
+            Some(configuration)
+        }
+    };
+
+    // React initializes closure mounts only when the setting is absent; explicit [] is a
+    // deliberate accepted value. Resolution uses the proposed document and a fresh scene in
+    // the root port, never a cached preview's contours.
+    let mut configuration = next_configuration;
+    if let Some(config) = configuration.as_mut()
+        && config.closure_mounts.is_none()
+        && config.mount != MechanicalMount::Gasket
+    {
+        let proposed_height = (
+            config.plate_to_pcb,
+            config.pcb_thickness,
+            config.bottom_foam_thickness,
+        );
+        let proposed = persist_configuration(base_document, instance_id, Some(config.clone()))?;
+        let assembly = resolve_proposed(accepted, &request.identity.scope, proposed)?;
+        *config = assembly.effective_configuration;
+        if config.board_id != request.identity.configuration_board_id {
+            return Err("Mechanical resolution returned settings for a different board.".into());
+        }
+        config.closure_mounts = Some(closure_mounts(
+            proposed_height,
+            config.battery_height,
+            assembly.assembly,
+        ));
     }
+
+    let candidate = persist_configuration(base_document, instance_id, configuration)?;
+    crate::closure_clearance::project_owned_closure_clearance(candidate, mounting_hole)
+}
+
+fn resolve_proposed(
+    accepted: &AcceptedSnapshot,
+    scope: &Scope,
+    proposed: ProjectDoc,
+) -> Result<MechanicalResolution, String> {
+    let projected = AcceptedSnapshot {
+        document: std::sync::Arc::new(proposed),
+        ..accepted.clone()
+    };
+    let effective = boardstudio_web_host::cad_jobs::captured_case_document(&projected, scope)
+        .map_err(|error| format!("Could not project proposed mechanical settings: {error:?}"))?;
+    let effective_configuration = effective
+        .mechanical
+        .clone()
+        .ok_or("The mechanical configuration no longer exists.")?;
+    let contours = boardstudio_web_host::cad_jobs::captured_case_scene(accepted, scope)
+        .map_err(|error| format!("Could not project accepted case contours: {error:?}"))?
+        .board_contours
+        .into_iter()
+        .find(|board| board.board_id == scope.board_id)
+        .map_or_else(Vec::new, |board| board.contours);
+    Ok(MechanicalResolution {
+        assembly: boardstudio_core::mechanical::resolve(&effective, &contours),
+        effective_configuration,
+    })
 }
 
 fn validate_profile_target(
@@ -793,24 +591,10 @@ fn validate_profile_target(
 
 fn admitted(current: &MechanicalSettingsCurrent, identity: &MechanicalSettingsIdentity) -> bool {
     current.editable
-        && current.identity == *identity
-        && current.accepted.token == identity.snapshot_token
-        && current.accepted.document.revision == identity.revision
+        && same_owner(&current.identity, identity)
         && current.accepted.session_epoch == identity.scope.session_epoch
         && current.accepted.document.id == identity.scope.document_id
         && identity.scope.board_id == identity.active_board_id
-}
-
-fn can_initialize_closures(
-    current: &MechanicalSettingsCurrent,
-    identity: &MechanicalSettingsIdentity,
-) -> bool {
-    current.configuration.as_ref().is_some_and(|configuration| {
-        configuration.board_id == identity.configuration_board_id
-            && configuration.board_id == identity.active_board_id
-            && configuration.closure_mounts.is_none()
-            && configuration.mount != MechanicalMount::Gasket
-    })
 }
 
 fn same_owner(current: &MechanicalSettingsIdentity, request: &MechanicalSettingsIdentity) -> bool {
@@ -851,125 +635,6 @@ fn persist_configuration(
         let mut next = document.clone();
         next.mechanical = configuration;
         Ok(next)
-    }
-}
-
-fn expected_settings(
-    document: &ProjectDoc,
-    instance_id: Option<&str>,
-) -> Result<ExpectedSettings, String> {
-    let Some(instance_id) = instance_id else {
-        return Ok(ExpectedSettings::Canonical(document.mechanical.clone()));
-    };
-    let hardware = document.hardware.as_ref().ok_or_else(|| {
-        "Physical instances are unavailable after the mechanical update.".to_owned()
-    })?;
-    if !hardware
-        .instances
-        .iter()
-        .any(|instance| instance.id == instance_id)
-    {
-        return Err(
-            "The selected physical instance is unavailable after the mechanical update.".to_owned(),
-        );
-    }
-    Ok(ExpectedSettings::Instance {
-        instance_id: instance_id.to_owned(),
-        shared: hardware.shared_construction.clone(),
-        instances: hardware
-            .instances
-            .iter()
-            .map(|instance| {
-                (
-                    instance.id.clone(),
-                    instance.construction_linked,
-                    instance.mechanical.clone(),
-                )
-            })
-            .collect(),
-    })
-}
-
-fn expected_matches(document: &ProjectDoc, expected: &ExpectedCommit) -> bool {
-    let settings_match = match &expected.settings {
-        ExpectedSettings::Canonical(configuration) => document.mechanical == *configuration,
-        ExpectedSettings::Instance {
-            instance_id,
-            shared,
-            instances,
-        } => document.hardware.as_ref().is_some_and(|hardware| {
-            hardware.shared_construction == *shared
-                && hardware
-                    .instances
-                    .iter()
-                    .any(|instance| instance.id == *instance_id)
-                && hardware.instances.len() == instances.len()
-                && hardware
-                    .instances
-                    .iter()
-                    .zip(instances)
-                    .all(|(actual, expected)| {
-                        actual.id == expected.0
-                            && actual.construction_linked == expected.1
-                            && actual.mechanical == expected.2
-                    })
-        }),
-    };
-    settings_match && closure_evidence(document) == expected.closure
-}
-
-fn closure_evidence(document: &ProjectDoc) -> ClosureEvidence {
-    let parts = document
-        .parts
-        .iter()
-        .filter(|part| part.id.starts_with("case-closure/"))
-        .cloned()
-        .collect();
-    let definitions = document
-        .definitions
-        .iter()
-        .filter(|definition| definition.id.starts_with("assembly-closure/definition/"))
-        .map(|definition| ClosureDefinitionEvidence {
-            id: definition.id.clone(),
-            kind: definition.kind.clone(),
-            generator: definition.generator.clone(),
-        })
-        .collect();
-    let boards = document
-        .boards
-        .iter()
-        .map(|board| {
-            (
-                board.id.clone(),
-                board
-                    .part_ids
-                    .iter()
-                    .filter(|id| id.starts_with("case-closure/"))
-                    .cloned()
-                    .collect(),
-            )
-        })
-        .collect();
-    let layouts = document
-        .layouts
-        .iter()
-        .map(|layout| {
-            (
-                layout.id.clone(),
-                layout
-                    .part_ids
-                    .iter()
-                    .filter(|id| id.starts_with("case-closure/"))
-                    .cloned()
-                    .collect(),
-            )
-        })
-        .collect();
-    ClosureEvidence {
-        parts,
-        definitions,
-        boards,
-        layouts,
     }
 }
 
@@ -2611,6 +2276,122 @@ mod battery_patch_tests {
             clearance: 0.3,
             profiles: vec![],
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mechanical_fields_queue_without_losing_settings_or_undo_steps() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_application::Event;
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("mechanical-queue", "Mechanical");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        let mut config = configuration();
+        config.closure_mounts = Some(vec![]);
+        document.mechanical = Some(config);
+        support::open_document(&runtime, document).await;
+        let current_runtime = runtime.clone();
+        let current = Rc::new(move || {
+            let model = current_runtime.model();
+            let accepted = model.accepted?;
+            let scope = current_runtime.scope()?;
+            Some(MechanicalSettingsCurrent {
+                identity: MechanicalSettingsIdentity {
+                    editor_instance_id: 1,
+                    scope_generation: 1,
+                    presentation_generation: 1,
+                    scope,
+                    snapshot_token: accepted.token,
+                    revision: accepted.document.revision,
+                    active_board_id: "board".into(),
+                    configuration_board_id: "board".into(),
+                },
+                configuration: accepted.document.mechanical.clone().map(Rc::new),
+                accepted,
+                editable: true,
+                lifecycle: model.lifecycle,
+                durability: model.durability,
+            })
+        });
+        let template = Rc::new(
+            serde_json::from_value::<PartDefinition>(serde_json::json!({
+                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let submit_runtime = runtime.clone();
+        let controller = MechanicalSettingsController::new(MechanicalSettingsPorts {
+            current: current.clone(),
+            load_mounting_hole: Rc::new(move || {
+                let template = template.clone();
+                Box::pin(async move { Ok(template) })
+            }),
+            begin_edit: Rc::new(move |resolver| {
+                EditTicket::begin(
+                    &submit_runtime,
+                    "mechanical-settings",
+                    Some("mechanical settings".into()),
+                    resolver,
+                )
+            }),
+            publish: Rc::new(|_| {}),
+        });
+        let request = |request_id, field, value| {
+            let patch = MechanicalSettingsPatch::SetDimension { field, value };
+            MechanicalSettingsRequest {
+                identity: current().unwrap().identity,
+                request_id,
+                field_id: patch_field_id(&patch),
+                patch,
+            }
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        assert!(controller.submit(request(1, MechanicalDimension::WallThickness, 3.0)));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let second_admitted = controller.submit(request(2, MechanicalDimension::Clearance, 0.8));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            controller.settle();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            second_admitted,
+            "field edits must queue while a prior field is pending"
+        );
+        let accepted = runtime.model().accepted.unwrap();
+        let mechanical = accepted.document.mechanical.as_ref().unwrap();
+        assert_eq!(mechanical.wall_thickness, 3.0);
+        assert_eq!(mechanical.clearance, 0.8);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let mechanical = accepted.document.mechanical.as_ref().unwrap();
+        assert_eq!(mechanical.wall_thickness, 3.0);
+        assert_eq!(mechanical.clearance, 0.3);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            2.0
+        );
     }
 
     #[wasm_bindgen_test]

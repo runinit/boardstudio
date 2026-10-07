@@ -12,21 +12,19 @@ use super::mechanical_settings::{
     MechanicalSettingsValues, MechanicalStabilizerFit,
 };
 use super::mechanical_settings_controller::{
-    LoadSwitchProfilePort, MechanicalResolution, MechanicalSettingsController,
-    MechanicalSettingsCurrent, MechanicalSettingsPorts,
+    MechanicalResolution, MechanicalSettingsController, MechanicalSettingsCurrent,
+    MechanicalSettingsPorts,
 };
 use super::{InstanceSelection, parts};
 use crate::mechanical_feedback::{
     FeedbackRecord, field_feedback, relevant_summary, same_feedback_owner,
 };
 use crate::runtime::{CadScene, Runtime};
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken,
-};
+use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, Scope, SnapshotToken};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, HardwareTransport, MechanicalAssembly,
-    MechanicalBottomStyle, MechanicalConfiguration, MechanicalMount, MechanicalStabilizerKind,
-    MechanicalStabilizerOverride, Mount, Part, PartKind, ProjectDoc,
+    HardwareTransport, MechanicalAssembly, MechanicalBottomStyle, MechanicalConfiguration,
+    MechanicalMount, MechanicalStabilizerKind, MechanicalStabilizerOverride, Mount, Part, PartKind,
+    ProjectDoc,
 };
 use dioxus::prelude::*;
 use std::{
@@ -38,13 +36,6 @@ use std::{
 use wasm_bindgen_futures::spawn_local;
 
 type LocalFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
-type MechanicalResolver = Rc<
-    dyn Fn(
-        AcceptedSnapshot,
-        Scope,
-        ProjectDoc,
-    ) -> LocalFuture<Result<MechanicalResolution, String>>,
->;
 type MountingHoleLoader =
     Rc<dyn Fn() -> LocalFuture<Result<Rc<boardstudio_core::model::PartDefinition>, String>>>;
 type PresentationKey = (&'static str, u64, Option<Scope>);
@@ -124,79 +115,21 @@ pub fn use_mechanical_settings_mount(
     };
 
     let controller = use_hook({
-        let runtime_for_resolve = runtime.clone();
         let runtime_for_operation = runtime.clone();
         let alive = alive.clone();
         let current = current.clone();
         move || {
-            let resolve: MechanicalResolver = Rc::new(
-                move |accepted: AcceptedSnapshot, scope: Scope, proposed: ProjectDoc| {
-                    let runtime = runtime_for_resolve.clone();
-                    Box::pin(async move {
-                        let (assembly, effective_configuration) = runtime
-                            .resolve_mechanical_settings(accepted, scope, proposed)
-                            .await?;
-                        Ok(MechanicalResolution {
-                            assembly,
-                            effective_configuration,
-                        })
-                    })
-                },
-            );
             let load_mounting_hole: MountingHoleLoader =
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
-            let profile_runtime = runtime_for_operation.clone();
-            let load_switch_profile: LoadSwitchProfilePort =
-                Rc::new(move |definition_id, source, family, plate_to_pcb| {
-                    let operation_id = profile_runtime.operation();
-                    let runtime = profile_runtime.clone();
-                    Box::pin(async move {
-                        runtime
-                            .standard_builtin_profile(
-                                operation_id,
-                                definition_id,
-                                source,
-                                family,
-                                plate_to_pcb,
-                            )
-                            .await
-                    })
-                });
-            let submit_current = current.clone();
             let submit_runtime = runtime_for_operation.clone();
-            let submit_alive = alive.clone();
-            let submit_replace = Rc::new(
-                move |operation_id: OperationId, base_revision: u64, document: ProjectDoc| {
-                    if !submit_alive.get()
-                        || submit_current().is_none_or(|current| {
-                            !current.editable
-                                || current.accepted.document.revision != base_revision
-                                || current.accepted.document.id != document.id
-                        })
-                    {
-                        return Err("The accepted Case document changed before the mechanical edit could be submitted.".into());
-                    }
-                    let outcome = submit_runtime.observe_operation(operation_id);
-                    submit_runtime.submit(Event::Edit {
-                        operation_id,
-                        command: EditCommand {
-                            base_revision,
-                            transaction_id: format!(
-                                "mechanical-settings-{}-{base_revision}",
-                                operation_id.0
-                            ),
-                            phase: EditPhase::Commit,
-                            target_ids: Vec::new(),
-                            operation: EditOperation::ReplaceDocument {
-                                document: Box::new(document),
-                            },
-                        },
-                    });
-                    Ok(outcome)
-                },
-            );
-            let project_closure_clearance =
-                Rc::new(crate::closure_clearance::project_owned_closure_clearance);
+            let begin_edit = Rc::new(move |resolver| {
+                boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+                    &submit_runtime,
+                    "mechanical-settings",
+                    Some("mechanical settings".into()),
+                    resolver,
+                )
+            });
             let publish_alive = alive.clone();
             let publish_current = current.clone();
             let publish = Rc::new(move |entry: MechanicalSettingsFeedback| {
@@ -222,36 +155,27 @@ pub fn use_mechanical_settings_mount(
                     entries.push(record);
                 }
                 entries.sort_by_key(|record| record.feedback.request_id);
-                if entries.len() > 12 {
-                    let active_pending = entries
-                        .iter()
-                        .rposition(|feedback| {
-                            feedback.feedback.state == MechanicalSettingsFeedbackState::Pending
-                        })
-                        .map(|index| entries.remove(index));
-                    if let Some(active_pending) = active_pending {
-                        if entries.len() > 11 {
-                            entries.drain(..entries.len() - 11);
-                        }
-                        entries.push(active_pending);
-                        entries.sort_by_key(|record| record.feedback.request_id);
-                    } else {
-                        entries.drain(..entries.len() - 12);
+                // Keep every pending request; bound only terminal feedback history.
+                while entries
+                    .iter()
+                    .filter(|entry| {
+                        entry.feedback.state != MechanicalSettingsFeedbackState::Pending
+                    })
+                    .count()
+                    > 12
+                {
+                    if let Some(index) = entries.iter().position(|entry| {
+                        entry.feedback.state != MechanicalSettingsFeedbackState::Pending
+                    }) {
+                        entries.remove(index);
                     }
                 }
                 feedback.set(Rc::from(entries));
             });
             MechanicalSettingsController::new(MechanicalSettingsPorts {
                 current: current.clone(),
-                resolve,
                 load_mounting_hole,
-                load_switch_profile,
-                next_operation: {
-                    let runtime = runtime_for_operation.clone();
-                    Rc::new(move || runtime.operation())
-                },
-                submit_replace,
-                project_closure_clearance,
+                begin_edit,
                 publish,
             })
         }
@@ -813,11 +737,13 @@ fn current_settings(owner: &CurrentSettingsOwner) -> Option<MechanicalSettingsCu
         || scope.board_id.clone(),
         |configuration| configuration.board_id.clone(),
     );
-    let saved = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: accepted.document.revision,
-            });
+    let saved = matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) && matches!(
+        model.durability,
+        Durability::Saved { .. } | Durability::Saving { .. }
+    );
     let editable = workspace() == "Case"
         && instance_selection.is_current(&model)
         && saved
@@ -1565,7 +1491,7 @@ fn disabled_reason(
     workspace: Signal<&'static str>,
     instance_selection: InstanceSelection,
     current: &MechanicalSettingsCurrent,
-    busy: bool,
+    _busy: bool,
 ) -> Option<String> {
     if workspace() != "Case" {
         return Some("Mechanical settings are available in the Case workspace.".into());
@@ -1578,24 +1504,20 @@ fn disabled_reason(
     if current.identity.configuration_board_id != current.identity.active_board_id {
         return Some("Show the configured board before changing its mechanical settings.".into());
     }
-    if busy {
-        return Some("Wait for the current mechanical settings change to finish.".into());
-    }
-    if current.lifecycle != Lifecycle::Ready {
+    if !matches!(
+        current.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) {
         return Some(
             "Wait for the accepted document to finish opening before editing mechanical settings."
                 .into(),
         );
     }
-    let saved_revision = match &current.durability {
-        Durability::Saved { revision } => Some(*revision),
-        _ => None,
-    };
-    if saved_revision != Some(current.accepted.document.revision) {
-        return Some(
-            "Wait for the accepted document to finish saving before editing mechanical settings."
-                .into(),
-        );
+    if !matches!(
+        current.durability,
+        Durability::Saved { .. } | Durability::Saving { .. }
+    ) {
+        return Some("Recover the document before changing mechanical settings.".into());
     }
     let model = runtime.model();
     if model.display_preview.is_some() || model.gesture.is_some() {
