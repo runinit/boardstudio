@@ -1,6 +1,6 @@
 # 16: Shared UI helpers present pending edits
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 15
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits and Matrix tracer gate](05-pending-edits-module.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
