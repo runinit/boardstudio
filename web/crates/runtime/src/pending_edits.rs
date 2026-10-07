@@ -5,7 +5,7 @@
 //!
 //! ```ignore
 //! let mut edits = PendingEdits::default();
-//! edits.begin(runtime.as_ref(), field_key, "matrix-field", Some("matrix".into()), resolver);
+//! edits.begin(&runtime, field_key, "matrix-field", Some("matrix".into()), resolver);
 //! if edits.is_pending(&field_key) {
 //!     // Keep the draft value visible, or disable a one-shot action.
 //! }
