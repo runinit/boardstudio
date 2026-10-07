@@ -1,6 +1,6 @@
 # 01: `SetWiringMode` replaces the PCB wiring-mode replacement
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [edit settlement 20](../../edit-settlement/issues/20-preview-only-direct-edit-event.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0006](../../../adr/0006-replace-document-for-import-and-recovery.md)

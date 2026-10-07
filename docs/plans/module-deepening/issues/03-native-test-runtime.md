@@ -1,6 +1,6 @@
 # 03: Native tests run the real Session and Core
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 02, [edit settlement 20](../../edit-settlement/issues/20-preview-only-direct-edit-event.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [02 answer](02-decide-native-test-runtime.md#answer)

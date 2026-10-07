@@ -1,6 +1,6 @@
 # 06: Separate outline version planning from its Inspector and overlays
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [edit settlement 20](../../edit-settlement/issues/20-preview-only-direct-edit-event.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Review: [candidate 06](../../../investigations/architecture-review-2026-10-07.html#c6)
