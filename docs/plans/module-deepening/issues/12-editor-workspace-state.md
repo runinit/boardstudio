@@ -1,6 +1,6 @@
 # 12: Editor composes per-workspace state
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 11
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
