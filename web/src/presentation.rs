@@ -2751,7 +2751,8 @@ fn Editor() -> Element {
     let parts_selection: PartsSelection = parts_state.selected();
     let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
-    let mut keymap_layer_id = use_signal(|| "base".to_owned());
+    let keymap_state = keymap_workspace::use_keymap_workspace_state();
+    let keymap_layer_id = keymap_state.active_layer_id();
     let has_inspector = matches!(
         active_workspace,
         "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
@@ -3006,31 +3007,13 @@ fn Editor() -> Element {
         },
     );
     let keymap_layer_value = keymap_layer_id();
-    let keymap_projection = use_memo(use_reactive(
-        (
-            &accepted_token,
-            &current_scope,
-            &active_board_id,
-            &keymap_layer_value,
-        ),
-        {
-            let runtime = runtime.clone();
-            move |(token, scope, board_id, layer_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keymap::project(
-                    snapshot,
-                    scope.as_ref(),
-                    board_id.as_ref(),
-                    layer_id.as_ref(),
-                )?;
-                Some((view, accepted_board_contours(snapshot, &board_id)))
-            }
-        },
-    ));
+    let keymap_projection = keymap_workspace::use_projection(
+        runtime.clone(),
+        accepted_token,
+        current_scope.clone(),
+        active_board_id.clone(),
+        keymap_layer_value,
+    );
     let keycaps_projection = use_memo(use_reactive(
         (&accepted_token, &current_scope, &active_board_id),
         {
@@ -3055,7 +3038,7 @@ fn Editor() -> Element {
         runtime.clone(),
         keymap::BindingProjectionSources {
             source: layer_source.clone(),
-            view: keymap_projection().as_ref().map(|(view, _)| view.clone()),
+            view: keymap_projection.as_ref().map(|(view, _)| view.clone()),
             encoder_projection: encoder_input_actions.projection,
             current_encoder_projection: encoder_input_actions.current,
         },
@@ -3067,7 +3050,6 @@ fn Editor() -> Element {
             Rc::new(move || instance_selection.is_current(&runtime.model()))
         },
     );
-    let keymap_projection = keymap_projection.read().clone();
     let keymap_view = keymap_projection.as_ref().map(|(view, _)| view.clone());
     let keymap_contours = keymap_projection.map(|(_, contours)| contours);
     let keycaps_projection = keycaps_projection.read().clone();
@@ -4084,7 +4066,7 @@ fn Editor() -> Element {
                     map.layers.iter().any(|layer| layer.id == layer_id)
                 });
             if exists {
-                keymap_layer_id.set(layer_id);
+                keymap_state.select_layer(layer_id);
             }
         }
     };
