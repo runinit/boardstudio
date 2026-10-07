@@ -454,12 +454,7 @@ pub fn LayoutTransformToolOverlay(
         if let Some(operation) = operation
             && active.pending.as_ref() != Some(&operation)
         {
-            submit_transform_edit(
-                &runtime_for_move,
-                &active,
-                operation.clone(),
-                EditPhase::Preview,
-            );
+            submit_transform_edit(&runtime_for_move, &active, operation.clone());
             active.preview_submitted = true;
             active.pending = Some(operation);
             *drag_for_move.borrow_mut() = Some(active);
@@ -533,12 +528,7 @@ pub fn LayoutTransformToolOverlay(
             .or_else(|| active.pending.clone());
         if let Some(operation) = operation {
             if active.pending.as_ref() != Some(&operation) {
-                submit_transform_edit(
-                    &runtime_for_end,
-                    &active,
-                    operation.clone(),
-                    EditPhase::Preview,
-                );
+                submit_transform_edit(&runtime_for_end, &active, operation.clone());
                 active.preview_submitted = true;
             }
             if !same_transform_as_start(&active, &operation) {
@@ -1374,24 +1364,12 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
     }
 }
 
-fn submit_transform_edit(
-    runtime: &Rc<Runtime>,
-    drag: &TransformDrag,
-    operation: EditOperation,
-    phase: EditPhase,
-) {
-    let Some(revision) = drag.owner.revision else {
-        return;
-    };
-    runtime.submit(Event::Edit {
+fn submit_transform_edit(runtime: &Rc<Runtime>, drag: &TransformDrag, operation: EditOperation) {
+    runtime.submit(Event::PreviewEdit {
         operation_id: runtime.operation(),
-        command: EditCommand {
-            base_revision: revision,
-            transaction_id: drag.transaction_id.clone(),
-            phase,
-            target_ids: vec![drag.matrix.id.clone()],
-            operation,
-        },
+        transaction_id: drag.transaction_id.clone(),
+        target_ids: vec![drag.matrix.id.clone()],
+        operation,
     });
 }
 

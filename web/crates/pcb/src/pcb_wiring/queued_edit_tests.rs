@@ -413,9 +413,9 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     let (probe, root) = mounted_with_document(fixture).await;
     let runtime = &probe.runtime;
     let (entered, release) = support::gate_next_core_reply(runtime);
-    runtime.submit(Event::Edit {
-        operation_id: runtime.operation(),
-        command: EditCommand {
+    support::submit_fixed_command(
+        runtime,
+        EditCommand {
             base_revision: runtime.model().accepted.unwrap().document.revision,
             transaction_id: "delete-controller".into(),
             phase: EditPhase::Commit,
@@ -424,7 +424,7 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
                 ids: vec!["mcu-left".into()],
             },
         },
-    });
+    );
     support::drive_pending(runtime);
     entered.await.unwrap();
     rendered().await;

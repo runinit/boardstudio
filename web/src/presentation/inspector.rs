@@ -1,6 +1,6 @@
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Position, Vec2};
+use boardstudio_core::model::{EditOperation, Position, Vec2};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -18,7 +18,6 @@ pub(super) use layout_component_inspector::{
 #[derive(Clone)]
 struct NumericEdit {
     id: String,
-    revision: u64,
     transaction_id: String,
     start: Vec2,
     part_ids: Vec<String>,
@@ -54,7 +53,7 @@ pub(super) fn Inspector() -> Element {
             let pending = numeric_edit.borrow_mut().take();
             if let Some(edit) = pending {
                 let start = edit.start;
-                submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
+                submit_position(&runtime, &numeric_edit, edit, start);
             }
         }
     });
@@ -96,13 +95,7 @@ pub(super) fn Inspector() -> Element {
                 .is_some_and(|edit| key.as_ref().is_none_or(|(id, _, _)| id != &edit.id));
             if changed_target && let Some(edit) = numeric_edit.borrow_mut().take() {
                 let start = edit.start;
-                submit_position(
-                    &runtime,
-                    &Rc::new(RefCell::new(None)),
-                    edit,
-                    start,
-                    EditPhase::Preview,
-                );
+                submit_position(&runtime, &Rc::new(RefCell::new(None)), edit, start);
             }
         }
     }));
@@ -128,7 +121,7 @@ pub(super) fn Inspector() -> Element {
                 let edit = numeric_edit.borrow_mut().take();
                 if let Some(edit) = edit {
                     let start = edit.start;
-                    submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
+                    submit_position(&runtime, &numeric_edit, edit, start);
                 }
                 if let Some(part) = runtime.model().accepted.and_then(|s| {
                     s.document
@@ -175,9 +168,9 @@ pub(super) fn Inspector() -> Element {
                 if !px.is_finite() || !py.is_finite() { return; }
                 let Some(snapshot) = runtime.model().accepted else { return; };
                 let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.first() == Some(&p.id)) else { return; };
-                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
+                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
                 edit.x_changed = true;
-                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
+                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
             }} } }
             label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
                 y.set(event.value());
@@ -185,9 +178,9 @@ pub(super) fn Inspector() -> Element {
                 if !px.is_finite() || !py.is_finite() { return; }
                 let Some(snapshot) = runtime.model().accepted else { return; };
                 let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.first() == Some(&p.id)) else { return; };
-                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
+                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
                 edit.y_changed = true;
-                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
+                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
             }} } }
             button { onclick: submit, "Apply position" }
             if let Some(message) = failure() { p { role: "alert", "{message}" } }
@@ -201,24 +194,19 @@ fn submit_position(
     current: &Rc<RefCell<Option<NumericEdit>>>,
     edit: NumericEdit,
     at: Vec2,
-    phase: EditPhase,
 ) {
-    runtime.submit(Event::Edit {
+    runtime.submit(Event::PreviewEdit {
         operation_id: runtime.operation(),
-        command: EditCommand {
-            base_revision: edit.revision,
-            transaction_id: edit.transaction_id.clone(),
-            phase,
-            target_ids: vec![edit.id.clone()],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: edit.id.clone(),
-                    at,
-                }],
-            },
+        transaction_id: edit.transaction_id.clone(),
+        target_ids: vec![edit.id.clone()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: edit.id.clone(),
+                at,
+            }],
         },
     });
-    if phase == EditPhase::Preview && at != edit.start {
+    if at != edit.start {
         *current.borrow_mut() = Some(edit);
     } else {
         current.borrow_mut().take();
@@ -255,7 +243,6 @@ fn commit_numeric(
     let start = part.pose.at;
     let edit = current.borrow_mut().take().unwrap_or_else(|| NumericEdit {
         id: part.id.clone(),
-        revision: snapshot.document.revision,
         transaction_id: format!("position-{}", runtime.operation().0),
         start,
         part_ids: model.selected_part_ids.clone(),

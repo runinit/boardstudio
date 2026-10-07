@@ -29,8 +29,18 @@ impl Probe {
             .events
             .borrow()
             .iter()
-            .filter(|event| matches!(event, Event::Edit { .. }))
+            .filter(|event| matches!(event, Event::ResolveEdit { .. }))
             .count()
+    }
+    fn command(&self, event: &Event) -> Option<boardstudio_core::model::EditCommand> {
+        let Event::ResolveEdit { resolver, .. } = event else {
+            return None;
+        };
+        let accepted = self.runtime.model.borrow().accepted.clone()?;
+        match resolver.resolve(&accepted) {
+            boardstudio_application::Resolution::Submit(command) => Some(command),
+            _ => None,
+        }
     }
     fn copy(&self) {
         let projection = self.projection();
@@ -43,7 +53,7 @@ impl Probe {
             .borrow()
             .iter()
             .find_map(|event| match event {
-                Event::Edit { operation_id, .. } => Some(*operation_id),
+                Event::ResolveEdit { operation_id, .. } => Some(*operation_id),
                 _ => None,
             })
             .unwrap();
@@ -202,10 +212,12 @@ fn hidden_inspector_retains_exact_success_until_same_owner_returns() {
         .borrow()
         .iter()
         .find_map(|event| match event {
-            Event::Edit { command, .. } => match &command.operation {
-                EditOperation::CopyOutline { version_id, .. } => Some(version_id.clone()),
-                _ => None,
-            },
+            event => probe
+                .command(event)
+                .and_then(|command| match command.operation {
+                    EditOperation::CopyOutline { version_id, .. } => Some(version_id),
+                    _ => None,
+                }),
             _ => None,
         })
         .unwrap();
@@ -236,7 +248,7 @@ fn exact_rejection_allows_fresh_operation_retry() {
         .borrow()
         .iter()
         .filter_map(|event| match event {
-            Event::Edit { operation_id, .. } => Some(*operation_id),
+            Event::ResolveEdit { operation_id, .. } => Some(*operation_id),
             _ => None,
         })
         .collect();
@@ -373,8 +385,10 @@ fn activation_settles_exact_generated_target_while_hidden() {
         1,
         "one observed pending activation at a time"
     );
+    let events = probe.runtime.events.borrow();
+    let command = probe.command(&events[0]).unwrap();
     assert!(
-        matches!(&probe.runtime.events.borrow()[0], Event::Edit { command, .. } if matches!(&command.operation, EditOperation::SelectOutline { board_id, version_id: None } if board_id == "board"))
+        matches!(command.operation, EditOperation::SelectOutline { board_id, version_id: None } if board_id == "board")
     );
     probe.workspace.set("Case");
     flush(&probe, &mut dom);

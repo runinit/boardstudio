@@ -7312,6 +7312,7 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 pub mod project_name_test_support {
     use super::*;
     use crate::runtime::in_process_support::InProcessAdapters;
+    use boardstudio_application::{EditResolver, Resolution};
 
     pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
@@ -7361,9 +7362,9 @@ pub mod project_name_test_support {
             .expect("an accepted document is open")
             .document
             .revision;
-        runtime.submit(Event::Edit {
-            operation_id: runtime.operation(),
-            command: boardstudio_core::model::EditCommand {
+        submit_fixed_command(
+            runtime,
+            boardstudio_core::model::EditCommand {
                 base_revision,
                 transaction_id: transaction_id.to_owned(),
                 phase: boardstudio_core::model::EditPhase::Commit,
@@ -7372,12 +7373,35 @@ pub mod project_name_test_support {
                     document: Box::new(document),
                 },
             },
-        });
+        );
         run_pending(runtime).await;
         runtime
             .model()
             .accepted
             .expect("the edited document stays accepted")
+    }
+
+    /// Submit a fixed command through the same resolver route as a production commit.
+    pub fn submit_fixed_command(
+        runtime: &Rc<Runtime>,
+        command: boardstudio_core::model::EditCommand,
+    ) {
+        runtime.submit(fixed_command_event(runtime.operation(), command));
+    }
+
+    /// Build a resolver event for tests that need to submit through their own observer.
+    pub fn fixed_command_event(
+        operation_id: OperationId,
+        command: boardstudio_core::model::EditCommand,
+    ) -> Event {
+        let resolver_command = command;
+        Event::ResolveEdit {
+            operation_id,
+            label: "test fixed command".into(),
+            resolver: EditResolver::new("test fixed command", move |_| {
+                Resolution::Submit(resolver_command.clone())
+            }),
+        }
     }
 
     /// Make `board_id` the active board through the real Session.
@@ -8215,10 +8239,7 @@ mod in_process_adapter_tests {
         name: &str,
     ) -> crate::operation_outcomes::OutcomeSlot {
         let slot = test_support::observe_next(runtime);
-        runtime.submit(Event::Edit {
-            operation_id: runtime.operation(),
-            command: rename_edit(accepted, name),
-        });
+        test_support::submit_fixed_command(runtime, rename_edit(accepted, name));
         slot
     }
 

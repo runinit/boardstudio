@@ -399,9 +399,9 @@ mod queued_script_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut renamed = accepted.document.as_ref().clone();
         renamed.boards[0].name = "Renamed".into();
-        runtime.submit(boardstudio_application::Event::Edit {
-            operation_id: runtime.operation(),
-            command: EditCommand {
+        crate::runtime::project_name_test_support::submit_fixed_command(
+            &runtime,
+            EditCommand {
                 base_revision: accepted.document.revision,
                 transaction_id: "rename-board".into(),
                 phase: EditPhase::Commit,
@@ -410,7 +410,7 @@ mod queued_script_tests {
                     document: Box::new(renamed),
                 },
             },
-        });
+        );
         support::drive_pending(&runtime);
         entered.await.expect("the rename reached Core");
         let apply = EditTicket::begin(

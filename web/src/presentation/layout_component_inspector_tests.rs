@@ -429,9 +429,9 @@ impl MountedProbe {
             .pose
             .at
             .y += 1.0;
-        self.runtime.submit(boardstudio_application::Event::Edit {
-            operation_id: self.runtime.operation(),
-            command: boardstudio_core::model::EditCommand {
+        crate::runtime::project_name_test_support::submit_fixed_command(
+            &self.runtime,
+            boardstudio_core::model::EditCommand {
                 base_revision: accepted.document.revision,
                 transaction_id: "unrelated-inspector-edit".into(),
                 phase: boardstudio_core::model::EditPhase::Commit,
@@ -440,7 +440,7 @@ impl MountedProbe {
                     document: Box::new(document),
                 },
             },
-        });
+        );
         crate::runtime::project_name_test_support::run_pending(&self.runtime).await;
         self.refresh();
         self.runtime
@@ -1664,9 +1664,9 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
         .find(|part| part.id == "selected-part")
         .unwrap()
         .locked = Some(true);
-    probe.runtime.submit(boardstudio_application::Event::Edit {
-        operation_id: probe.runtime.operation(),
-        command: boardstudio_core::model::EditCommand {
+    crate::runtime::project_name_test_support::submit_fixed_command(
+        &probe.runtime,
+        boardstudio_core::model::EditCommand {
             base_revision: accepted.document.revision,
             transaction_id: "lock-before-position".into(),
             phase: boardstudio_core::model::EditPhase::Commit,
@@ -1675,7 +1675,7 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
                 document: Box::new(replacement),
             },
         },
-    });
+    );
     crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
     entered
         .await

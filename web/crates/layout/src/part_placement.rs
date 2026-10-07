@@ -1976,6 +1976,7 @@ mod tests {
         model_reads: Cell<u64>,
         outcomes: crate::operation_outcomes::OperationOutcomes,
         events: RefCell<Vec<SessionEvent>>,
+        resolved_edits: RefCell<Vec<(OperationId, EditCommand)>>,
         next_operation: Cell<u64>,
         settle_edit_on_submit: Cell<bool>,
         registered_before_submit: Cell<Option<bool>>,
@@ -2012,12 +2013,6 @@ mod tests {
         }
 
         fn submit(&self, event: SessionEvent) {
-            if let SessionEvent::Edit { operation_id, .. } = &event
-                && self.settle_edit_on_submit.get()
-            {
-                self.registered_before_submit
-                    .set(Some(self.settle(*operation_id, TerminalOutcome::Completed)));
-            }
             self.events.borrow_mut().push(event);
         }
 
@@ -2090,10 +2085,15 @@ mod tests {
                 Resolution::Submit(mut command) => {
                     command.base_revision = accepted.document.revision;
                     command.transaction_id = format!("test-edit-{}", operation_id.0);
-                    self.0.submit(SessionEvent::Edit {
-                        operation_id,
-                        command,
-                    });
+                    self.0
+                        .resolved_edits
+                        .borrow_mut()
+                        .push((operation_id, command));
+                    if self.0.settle_edit_on_submit.get() {
+                        self.0.registered_before_submit.set(Some(
+                            self.0.settle(operation_id, TerminalOutcome::Completed),
+                        ));
+                    }
                 }
                 Resolution::Unchanged => {
                     self.0.settle(operation_id, TerminalOutcome::Completed);
@@ -2484,13 +2484,10 @@ mod tests {
 
         let edit = probe
             .runtime
-            .events
+            .resolved_edits
             .borrow()
-            .iter()
-            .find_map(|event| match event {
-                SessionEvent::Edit { command, .. } => Some(command.clone()),
-                _ => None,
-            })
+            .first()
+            .map(|(_, command)| command.clone())
             .expect("selected-key action submits a real edit");
         let EditOperation::SetMatrix {
             matrix,
@@ -2725,14 +2722,7 @@ mod tests {
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
 
-        assert!(
-            probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .all(|event| { !matches!(event, SessionEvent::Edit { .. }) })
-        );
+        assert!(probe.runtime.resolved_edits.borrow().is_empty());
         assert_eq!(workspace(&probe), "Parts");
         assert!(
             !probe
@@ -2795,13 +2785,10 @@ mod tests {
         flush_hook(&mut dom);
         let operation_id = probe
             .runtime
-            .events
+            .resolved_edits
             .borrow()
-            .iter()
-            .find_map(|event| match event {
-                SessionEvent::Edit { operation_id, .. } => Some(*operation_id),
-                _ => None,
-            })
+            .first()
+            .map(|(operation_id, _)| *operation_id)
             .expect("selected-key action observes its production edit");
         assert!(probe.runtime.settle(
             operation_id,
@@ -2826,16 +2813,10 @@ mod tests {
     fn submitted_edit(probe: &HookProbe) -> (OperationId, EditOperation) {
         probe
             .runtime
-            .events
+            .resolved_edits
             .borrow()
-            .iter()
-            .find_map(|event| match event {
-                SessionEvent::Edit {
-                    operation_id,
-                    command,
-                } => Some((*operation_id, command.operation.clone())),
-                _ => None,
-            })
+            .first()
+            .map(|(operation_id, command)| (*operation_id, command.operation.clone()))
             .expect("placement submits an Edit")
     }
 
@@ -2873,14 +2854,7 @@ mod tests {
             Some(CanvasInteractionOwner::PartPlacement)
         );
         assert!(preparing.projection.is_none());
-        assert!(
-            !probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .any(|event| matches!(event, SessionEvent::Edit { .. }))
-        );
+        assert!(probe.runtime.resolved_edits.borrow().is_empty());
 
         resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
         let_hook_tasks_run().await;
@@ -2946,14 +2920,7 @@ mod tests {
         assert!(!settled.busy);
         assert!(settled.projection.is_none());
         assert_eq!(probe.runtime.events.borrow().len(), cancellation_events);
-        assert!(
-            !probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .any(|event| matches!(event, SessionEvent::Edit { .. }))
-        );
+        assert!(probe.runtime.resolved_edits.borrow().is_empty());
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -2982,14 +2949,7 @@ mod tests {
             probe.canvas_interaction.current(),
             Some(CanvasInteractionOwner::MirroredPair)
         );
-        assert!(
-            !probe
-                .runtime
-                .events
-                .borrow()
-                .iter()
-                .any(|event| matches!(event, SessionEvent::Edit { .. }))
-        );
+        assert!(probe.runtime.resolved_edits.borrow().is_empty());
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -3023,13 +2983,10 @@ mod tests {
         active.on_commit.call(Vec2 { x: 4.0, y: -3.0 });
         let operation = probe
             .runtime
-            .events
+            .resolved_edits
             .borrow()
-            .iter()
-            .find_map(|event| match event {
-                SessionEvent::Edit { operation_id, .. } => Some(*operation_id),
-                _ => None,
-            })
+            .first()
+            .map(|(operation_id, _)| *operation_id)
             .expect("placement submits an Edit");
         probe.latest.borrow_mut().take();
         drop(dom);

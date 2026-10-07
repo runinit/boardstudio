@@ -243,9 +243,12 @@ pub enum Event {
         operation_id: OperationId,
         document: ProjectDoc,
     },
-    Edit {
+    /// Display a transient edit preview. Commits are submitted as [`Event::ResolveEdit`].
+    PreviewEdit {
         operation_id: OperationId,
-        command: EditCommand,
+        transaction_id: String,
+        target_ids: Vec<String>,
+        operation: EditOperation,
     },
     /// Submit a pending edit as intent rather than as a ready-made command. See
     /// [`EditResolver`] for when the resolver runs and what it may read.
@@ -713,10 +716,30 @@ impl Session {
                     self.queue_open(operation_id, document, &mut effects);
                 }
             }
-            Event::Edit {
+            Event::PreviewEdit {
                 operation_id,
-                command,
-            } => self.enqueue(operation_id, IntentKind::Edit(command), false, &mut effects),
+                transaction_id,
+                target_ids,
+                operation,
+            } => {
+                let base_revision = self
+                    .model
+                    .accepted
+                    .as_ref()
+                    .map_or(0, |snapshot| snapshot.document.revision);
+                self.enqueue(
+                    operation_id,
+                    IntentKind::Edit(EditCommand {
+                        base_revision,
+                        transaction_id,
+                        phase: EditPhase::Preview,
+                        target_ids,
+                        operation,
+                    }),
+                    false,
+                    &mut effects,
+                )
+            }
             Event::ResolveEdit {
                 operation_id,
                 label,
@@ -2473,7 +2496,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         Event::Open { operation_id, .. }
         | Event::GestureBegin { operation_id, .. }
         | Event::RecoverWithDocument { operation_id, .. }
-        | Event::Edit { operation_id, .. }
+        | Event::PreviewEdit { operation_id, .. }
         | Event::ClearPreview { operation_id, .. }
         | Event::ReviewElectricalRemap { operation_id, .. }
         | Event::Undo { operation_id }

@@ -158,10 +158,21 @@ impl<K: Clone + PartialEq> SelectionRetention<K> {
 mod selection_retention_tests {
     use super::*;
     use boardstudio_application::{
-        Completion, Event, OperationId, SaveResult, Scope, SelectionMode, Session,
+        Completion, EditResolver, Event, OperationId, Resolution, SaveResult, Scope, SelectionMode,
+        Session,
     };
     use boardstudio_core::{CoreEngine, model::*};
     use std::collections::BTreeMap;
+
+    fn fixed_commit(operation_id: OperationId, command: EditCommand) -> Event {
+        Event::ResolveEdit {
+            operation_id,
+            label: "test fixed command".into(),
+            resolver: EditResolver::new("test fixed command", move |_| {
+                Resolution::Submit(command.clone())
+            }),
+        }
+    }
 
     fn advance(
         session: &mut Session,
@@ -395,9 +406,9 @@ mod selection_retention_tests {
             column_origins: vec![],
             cells: vec![],
         };
-        let effects = session.submit(Event::Edit {
-            operation_id: OperationId(2),
-            command: EditCommand {
+        let effects = session.submit(fixed_commit(
+            OperationId(2),
+            EditCommand {
                 base_revision: 0,
                 transaction_id: "create-matrix".into(),
                 phase: EditPhase::Commit,
@@ -407,7 +418,7 @@ mod selection_retention_tests {
                     definitions: None,
                 },
             },
-        });
+        ));
         advance(&mut session, &mut core, effects);
         let key_id = "matrix/matrix-main/r0c0";
         let accepted = session.read_model().accepted.as_ref().unwrap();
@@ -454,9 +465,9 @@ mod selection_retention_tests {
             assemblies_local: None,
         });
         let revision = before.accepted.as_ref().unwrap().document.revision;
-        let effects = session.submit(Event::Edit {
-            operation_id: OperationId(4),
-            command: EditCommand {
+        let effects = session.submit(fixed_commit(
+            OperationId(4),
+            EditCommand {
                 base_revision: revision,
                 transaction_id: "disable-key".into(),
                 phase: EditPhase::Commit,
@@ -466,7 +477,7 @@ mod selection_retention_tests {
                     definitions: None,
                 },
             },
-        });
+        ));
         advance(&mut session, &mut core, effects);
         let after_disable = session.read_model();
         assert!(

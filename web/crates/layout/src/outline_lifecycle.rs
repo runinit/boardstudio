@@ -1204,7 +1204,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if !action.is_current(runtime, captured_generation) {
         return;
     }
-    let (action_scope, _, expected_revision, _, board_id) = action.envelope();
+    let (action_scope, _, _, _, board_id) = action.envelope();
     let model = runtime.model();
     let Some(snapshot) = model.accepted.as_ref() else {
         return;
@@ -1313,15 +1313,11 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         let Ok((operation, target_ids)) = plan_action(snapshot, &action, seed) else {
             return;
         };
-        runtime.submit(Event::Edit {
+        runtime.submit(Event::PreviewEdit {
             operation_id: runtime.operation(),
-            command: EditCommand {
-                base_revision: expected_revision,
-                transaction_id: transaction_id.clone(),
-                phase: EditPhase::Preview,
-                target_ids,
-                operation,
-            },
+            transaction_id: transaction_id.clone(),
+            target_ids,
+            operation,
         });
         return;
     }

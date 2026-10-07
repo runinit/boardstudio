@@ -116,5 +116,7 @@ _Avoid_: command, button edit
 **Edit preview**:
 A transient display of what a drag or typed value would change, shown before the
 user commits. It never becomes part of the accepted document or Undo history;
-committing submits a pending edit instead.
+the direct Session preview event carries only the operation, targets and transaction
+identity. It has no commit phase. Committing submits a pending edit intent through
+`ResolveEdit`, which resolves against the accepted document when it runs.
 _Avoid_: live edit, uncommitted edit

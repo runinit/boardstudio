@@ -1757,17 +1757,19 @@ mod mounted_tests {
         let initial = runtime.model().accepted.unwrap();
         let mut renamed = (*initial.document).clone();
         renamed.name = "Current board edited".into();
-        let edit = submit(&runtime, |operation_id| Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: initial.document.revision,
-                transaction_id: "delete-noncurrent-history-edit".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![renamed.id.clone()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(renamed),
+        let edit = submit(&runtime, |operation_id| {
+            crate::runtime::project_name_test_support::fixed_command_event(
+                operation_id,
+                EditCommand {
+                    base_revision: initial.document.revision,
+                    transaction_id: "delete-noncurrent-history-edit".into(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![renamed.id.clone()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(renamed),
+                    },
                 },
-            },
+            )
         });
         assert_eq!(
             wait_outcome(&runtime, &edit).await,
@@ -2045,17 +2047,19 @@ mod mounted_tests {
         unrelated
             .parameters
             .insert("independent".into(), serde_json::json!(42));
-        let unrelated_slot = submit(&runtime, |operation_id| Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: snapshot.document.revision,
-                transaction_id: "project-name-unrelated-edit".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["independent".into()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(unrelated),
+        let unrelated_slot = submit(&runtime, |operation_id| {
+            crate::runtime::project_name_test_support::fixed_command_event(
+                operation_id,
+                EditCommand {
+                    base_revision: snapshot.document.revision,
+                    transaction_id: "project-name-unrelated-edit".into(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec!["independent".into()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(unrelated),
+                    },
                 },
-            },
+            )
         });
         assert_eq!(
             wait_outcome(&runtime, &unrelated_slot).await,
@@ -2541,9 +2545,9 @@ mod queued_rename_tests {
         let mut replacement = accepted.document.as_ref().clone();
         replacement.definitions[0].name = "Updated switch".into();
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        runtime.submit(Event::Edit {
-            operation_id: runtime.operation(),
-            command: EditCommand {
+        support::submit_fixed_command(
+            &runtime,
+            EditCommand {
                 base_revision: accepted.document.revision,
                 transaction_id: "parts-name".into(),
                 phase: EditPhase::Commit,
@@ -2552,7 +2556,7 @@ mod queued_rename_tests {
                     document: Box::new(replacement),
                 },
             },
-        });
+        );
         support::drive_pending(&runtime);
         entered.await.unwrap();
         commit_project_name(&runtime, &owner, &Rc::new(Cell::new(true)), "Renamed");
