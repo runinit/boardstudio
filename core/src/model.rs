@@ -990,6 +990,13 @@ pub enum EditOperation {
         part_id: String,
         mode: PressScanMode,
     },
+    /// Set a board's electrical mode. This changes no component placement or
+    /// outline input, so Core can retain its current resolved outline geometry.
+    SetWiringMode {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        mode: crate::electrical::ElectricalMode,
+    },
     EditKeymap {
         change: KeymapChange,
     },

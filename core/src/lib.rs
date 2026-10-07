@@ -1052,6 +1052,42 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
         EditOperation::SetInputScanMode { part_id, mode } => {
             inputs::set_scan_mode(doc, part_id, *mode)
         }
+        EditOperation::SetWiringMode { board_id, mode } => {
+            if !doc.boards.iter().any(|board| board.id == *board_id) {
+                return Err(format!("Unknown board {board_id}"));
+            }
+            if doc
+                .hardware
+                .as_ref()
+                .and_then(|hardware| {
+                    hardware
+                        .boards
+                        .iter()
+                        .find(|configuration| configuration.board_id == *board_id)
+                })
+                .map_or(electrical::ElectricalMode::Matrix, |configuration| {
+                    configuration.mode
+                })
+                == *mode
+            {
+                return Ok(Vec::new());
+            }
+            let hardware = doc.hardware.get_or_insert_with(Default::default);
+            if let Some(configuration) = hardware
+                .boards
+                .iter_mut()
+                .find(|configuration| configuration.board_id == *board_id)
+            {
+                configuration.mode = *mode;
+            } else {
+                hardware.boards.push(ElectricalBoardConfiguration {
+                    board_id: board_id.clone(),
+                    mode: *mode,
+                    ..Default::default()
+                });
+            }
+            Ok(vec![board_id.clone()])
+        }
         EditOperation::EditKeymap { change } => keymap::apply_edit(doc, change),
         EditOperation::SetKeyBinding { .. }
         | EditOperation::SetKeycapBoard { .. }
@@ -1475,5 +1511,94 @@ mod matrix_protocol_tests {
         assert_eq!(engine.document.revision, 0);
         assert!(engine.undo.is_empty());
         assert!(engine.redo.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod set_wiring_mode_tests {
+    use super::*;
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("project", "Test");
+        document.boards.push(Board {
+            id: "left".into(),
+            name: "Left".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document
+    }
+
+    fn set_mode(mode: electrical::ElectricalMode) -> EditOperation {
+        EditOperation::SetWiringMode {
+            board_id: "left".into(),
+            mode,
+        }
+    }
+
+    #[test]
+    fn setting_direct_creates_board_configuration_and_reports_only_the_board() {
+        let mut document = document();
+
+        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Direct)).unwrap();
+
+        assert_eq!(changed, ["left"]);
+        let configuration = document.hardware.unwrap().boards.pop().unwrap();
+        assert_eq!(
+            configuration,
+            ElectricalBoardConfiguration {
+                board_id: "left".into(),
+                mode: electrical::ElectricalMode::Direct,
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn setting_the_current_mode_is_a_no_op() {
+        let mut document = document();
+        let operation = set_mode(electrical::ElectricalMode::Direct);
+        apply(&mut document, &operation).unwrap();
+        let before = document.clone();
+
+        let changed = apply(&mut document, &operation).unwrap();
+
+        assert!(changed.is_empty());
+        assert_eq!(document, before);
+    }
+
+    #[test]
+    fn setting_the_default_mode_is_a_no_op() {
+        let mut document = document();
+
+        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Matrix)).unwrap();
+
+        assert!(changed.is_empty());
+        assert!(document.hardware.is_none());
+    }
+
+    #[test]
+    fn setting_mode_for_an_unknown_board_is_an_edit_error() {
+        let mut document = document();
+        let operation = EditOperation::SetWiringMode {
+            board_id: "missing".into(),
+            mode: electrical::ElectricalMode::Direct,
+        };
+
+        assert_eq!(
+            apply(&mut document, &operation),
+            Err("Unknown board missing".into())
+        );
+    }
+
+    #[test]
+    fn setting_wiring_mode_does_not_recompute_outlines() {
+        assert!(!affects_outline(&set_mode(
+            electrical::ElectricalMode::Direct
+        )));
     }
 }
