@@ -1,15 +1,20 @@
-//! Parts-private admission and command construction for one definition-name commit.
-use boardstudio_application::{
-    AcceptedSnapshot, Event, OperationId, Scope, SessionEpoch, SnapshotToken,
+//! Parts-private admission and resolver construction for one definition-name commit.
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
+use boardstudio_core::model::{EditOperation, PartDefinition};
+
+use crate::parts_custom_definition::{
+    DefinitionPanelCapture, DEFINITION_GONE, GENERATOR_LOCKED, replacement_commit,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, PartDefinition};
 
 #[cfg(target_arch = "wasm32")]
 mod ui {
-    use super::{DefinitionNameCapture, prepare_definition_name_edit};
+    use super::definition_name_resolver;
+    use crate::parts_custom_definition::ui::{apply_text_settlement, settle_ticket};
+    use crate::parts_custom_definition::DefinitionPanelCapture;
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use std::rc::Rc;
@@ -26,10 +31,13 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let mut draft = use_signal(|| definition.name.clone());
+        let mut error = use_signal(String::new);
+        let mut pending = use_signal(|| None::<EditTicket>);
         let pad_count = definition.pads.len();
         let mut section_open = use_signal(|| pad_count == 0);
         let mut section_chosen = use_signal(|| false);
         let section_owner = (scope.clone(), definition.id.clone());
+        let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
         // A fresh accepted snapshot is required at commit time, but it is not
         // a reason to discard a dirty field draft. React DraftInput keys its
         // reset to the accepted field value; keep this target identity
@@ -40,31 +48,10 @@ mod ui {
             definition.id.clone(),
             definition.name.clone(),
         );
-        let capture_identity = (
-            draft_identity.clone(),
-            snapshot.token,
-            snapshot.session_epoch,
-            snapshot.document.id.clone(),
-            snapshot.document.revision,
-        );
-        let mut capture =
-            use_signal(|| DefinitionNameCapture::new(&snapshot, scope.clone(), &definition));
         use_effect(use_reactive((&draft_identity,), {
             let definition = definition.clone();
             move |(_identity,)| {
                 draft.set(definition.name.clone());
-            }
-        }));
-        use_effect(use_reactive((&capture_identity,), {
-            let snapshot = snapshot.clone();
-            let scope = scope.clone();
-            let definition = definition.clone();
-            move |(_identity,)| {
-                capture.set(DefinitionNameCapture::new(
-                    &snapshot,
-                    scope.clone(),
-                    &definition,
-                ));
             }
         }));
         use_effect(use_reactive((&pad_count,), move |(pad_count,)| {
@@ -82,30 +69,59 @@ mod ui {
             }
         }));
 
+        // Settle the pending name edit before rendering: pending keeps the draft, a
+        // failure restores the accepted value with the message inline, and a landed or
+        // retired ticket drops so the field follows the accepted document again. The
+        // editor outlives selection changes, so owner liveness is a real answer.
+        {
+            let model = runtime.model();
+            let owner_live = model.accepted.as_ref().is_some_and(|current| {
+                capture.owner_is_live(current, runtime.scope(), selection())
+            });
+            let mut edits = pending.peek().clone();
+            if let Some(settlement) = settle_ticket(&mut edits, owner_live) {
+                pending.set(edits);
+                apply_text_settlement(
+                    settlement,
+                    definition.name.as_str(),
+                    &mut draft,
+                    &mut error,
+                );
+            }
+        }
+
+        let accepted_name = definition.name.clone();
         let on_blur = {
             let runtime = runtime.clone();
+            let capture = capture.clone();
             let selection = selection;
+            let accepted_name = accepted_name.clone();
             move |_| {
                 let model = runtime.model();
                 let Some(current) = model.accepted else {
                     return;
                 };
-                let Ok(Some(event)) = prepare_definition_name_edit(
-                    &current,
-                    runtime.scope(),
-                    selection(),
-                    &capture(),
-                    &draft(),
-                    runtime.operation(),
-                ) else {
+                if !capture.owner_is_live(current, runtime.scope(), selection()) {
                     return;
-                };
-                runtime.submit(event);
+                }
+                let name = draft();
+                if name == accepted_name {
+                    return;
+                }
+                let resolver = definition_name_resolver(capture.definition_id.clone(), name);
+                let ticket = EditTicket::begin(
+                    &runtime,
+                    "parts-definition-name",
+                    Some("part definition".into()),
+                    resolver,
+                );
+                pending.set(Some(ticket));
+                error.set(String::new());
             }
         };
         let on_keydown = {
             let mut keydown_draft = draft;
-            let value = definition.name.clone();
+            let value = accepted_name;
             move |event: KeyboardEvent| {
                 if event.key() == Key::Escape {
                     event.prevent_default();
@@ -147,6 +163,9 @@ mod ui {
                                 onkeydown: on_keydown,
                             }
                         }
+                        if !error().is_empty() {
+                            p { class: "m1-definition-error", role: "alert", "{error()}" }
+                        }
                     }
                     {children}
                 }
@@ -158,89 +177,53 @@ mod ui {
 #[cfg(target_arch = "wasm32")]
 pub use ui::DefinitionNameEditor;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DefinitionNameCapture {
-    scope: Option<Scope>,
-    definition_id: String,
-    session_epoch: SessionEpoch,
-    document_id: String,
-    snapshot_token: SnapshotToken,
-    revision: u64,
-}
-
-impl DefinitionNameCapture {
-    pub fn new(
-        snapshot: &AcceptedSnapshot,
-        scope: Option<Scope>,
-        definition: &PartDefinition,
-    ) -> Self {
-        Self {
-            scope,
-            definition_id: definition.id.clone(),
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            snapshot_token: snapshot.token,
-            revision: snapshot.document.revision,
-        }
-    }
-}
-
-pub fn prepare_definition_name_edit(
-    current: &AcceptedSnapshot,
-    current_scope: Option<Scope>,
-    current_selection: Option<(Option<Scope>, String)>,
-    capture: &DefinitionNameCapture,
-    name: &str,
-    operation_id: OperationId,
-) -> Result<Option<Event>, String> {
-    // The edit is admitted only while the accepted document, selection, and
-    // scope still belong to the draft that produced it. In particular, a
-    // same-named definition in a newly accepted document must not receive an
-    // old draft when the Inspector remains mounted.
-    if capture.scope.is_none()
-        || current_scope != capture.scope
-        || current.token != capture.snapshot_token
-        || current.session_epoch != capture.session_epoch
-        || current.document.id != capture.document_id
-        || current.document.revision != capture.revision
-        || current_selection != Some((capture.scope.clone(), capture.definition_id.clone()))
-    {
-        return Ok(None);
-    }
-
-    let mut replacement = current.document.as_ref().clone();
-    let Some(definition) = replacement
-        .definitions
-        .iter_mut()
-        .find(|definition| definition.id == capture.definition_id)
-    else {
-        return Ok(None);
-    };
-    // Generator definitions are edited through their own parameter workflow;
-    // their names are not exposed by this first project-definition slice.
-    if definition.generator.is_some() || definition.name == name {
-        return Ok(None);
-    }
-    definition.name = name.to_owned();
-
-    Ok(Some(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: capture.revision,
-            transaction_id: format!("parts-definition-name-{}", operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids: vec![capture.definition_id.clone()],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(replacement),
-            },
+/// Resolve a definition-name commit against the accepted document at execution: retire
+/// when the definition has gone or is generated, resolve `Unchanged` when the accepted
+/// name already equals the committed one, and otherwise submit a replacement built from
+/// the accepted document, so a rename queued behind another edit never reverts it.
+pub fn definition_name_resolver(definition_id: String, name: String) -> EditResolver {
+    EditResolver::new(
+        "parts-definition-name",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Some(existing) = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == definition_id)
+            else {
+                return Resolution::Retire(DEFINITION_GONE.into());
+            };
+            if existing.generator.is_some() {
+                return Resolution::Retire(GENERATOR_LOCKED.into());
+            }
+            if existing.name == name {
+                return Resolution::Unchanged;
+            }
+            let mut replacement = document.as_ref().clone();
+            let Some(definition) = replacement
+                .definitions
+                .iter_mut()
+                .find(|definition| definition.id == definition_id)
+            else {
+                return Resolution::Retire(DEFINITION_GONE.into());
+            };
+            definition.name = name.clone();
+            replacement_commit(
+                EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+                vec![definition_id.clone()],
+            )
         },
-    }))
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{Completion, Effect, SaveResult, Session};
+    use boardstudio_application::{
+        Completion, Durability, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
+    };
     use boardstudio_core::{
         CoreEngine,
         model::ProjectDoc,
@@ -351,50 +334,85 @@ mod tests {
         assert_eq!(actual, *expected);
     }
 
+    /// Drive effects to completion, collecting every settlement Session reported.
+    fn advance_collecting(
+        session: &mut Session,
+        core: &mut CoreEngine,
+        initial: Vec<Effect>,
+    ) -> Vec<TerminalOutcome> {
+        let mut pending = initial;
+        let mut settlements = Vec::new();
+        while let Some(effect) = pending.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => {
+                    let reply = core.handle(*request);
+                    pending.extend(session.complete(Completion::Core {
+                        request_id,
+                        executor_epoch,
+                        reply: Box::new(reply),
+                    }));
+                }
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    pending.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                Effect::Settled { outcome, .. } => settlements.push(outcome),
+                _ => {}
+            }
+        }
+        settlements
+    }
+
+    fn submit_name_edit(
+        session: &mut Session,
+        core: &mut CoreEngine,
+        operation: u64,
+        definition_id: &str,
+        name: &str,
+    ) -> Vec<TerminalOutcome> {
+        let effects = session.submit(Event::ResolveEdit {
+            operation_id: OperationId(operation),
+            label: "parts-definition-name".into(),
+            resolver: definition_name_resolver(definition_id.into(), name.into()),
+        });
+        advance_collecting(session, core, effects)
+    }
+
+    fn selected_name(document: &ProjectDoc) -> &str {
+        document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == "selected")
+            .unwrap()
+            .name
+            .as_str()
+    }
+
     #[test]
     fn production_name_edit_commits_one_field_and_round_trips_through_session_history() {
         let original = document();
         let (mut session, mut core) = open_document(original.clone());
-        let snapshot = session.read_model().accepted.clone().unwrap();
-        let scope = session.scope();
-        let capture =
-            DefinitionNameCapture::new(&snapshot, scope.clone(), &snapshot.document.definitions[0]);
-        let selected = Some((scope.clone(), "selected".into()));
-
-        let event = prepare_definition_name_edit(
-            &snapshot,
-            scope,
-            selected,
-            &capture,
-            "Renamed device",
-            OperationId(2),
-        )
-        .unwrap()
-        .expect("a changed name produces one accepted edit event");
-
-        let Event::Edit { command, .. } = &event else {
-            panic!("name edit must use normal Session edit");
-        };
-        assert_eq!(command.base_revision, snapshot.document.revision);
-        assert_eq!(command.phase, EditPhase::Commit);
-        assert_eq!(command.target_ids, vec!["selected"]);
-        let EditOperation::ReplaceDocument {
-            document: replacement,
-        } = &command.operation
-        else {
-            panic!("the private Parts adapter must reuse the supported ReplaceDocument path");
-        };
+        assert_eq!(
+            submit_name_edit(&mut session, &mut core, 2, "selected", "Renamed device"),
+            vec![TerminalOutcome::Completed],
+            "a changed name lands as one accepted edit"
+        );
+        let accepted = session.read_model().accepted.as_ref().unwrap();
         let mut expected_renamed = original.clone();
         expected_renamed.definitions[0].name = "Renamed device".into();
-        assert_same_content_ignoring_revision(replacement, &expected_renamed);
-
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        let accepted = session.read_model().accepted.as_ref().unwrap();
         assert_same_content_ignoring_revision(&accepted.document, &expected_renamed);
         assert_eq!(
             session.read_model().durability,
-            boardstudio_application::Durability::Saved {
+            Durability::Saved {
                 revision: accepted.document.revision
             }
         );
@@ -442,75 +460,26 @@ mod tests {
     }
 
     #[test]
-    fn stale_selection_document_and_generator_captures_are_rejected() {
+    fn admission_keeps_departed_owners_out_but_newer_revisions_queue_freely() {
         let (session, _core) = open_document(document());
         let snapshot = session.read_model().accepted.clone().unwrap();
         let scope = session.scope();
         let selected = Some((scope.clone(), "selected".into()));
         let capture =
-            DefinitionNameCapture::new(&snapshot, scope.clone(), &snapshot.document.definitions[0]);
+            DefinitionPanelCapture::new(&snapshot, scope.clone(), &snapshot.document.definitions[0]);
 
-        assert!(
-            prepare_definition_name_edit(
-                &snapshot,
-                scope.clone(),
-                Some((scope.clone(), "other".into())),
-                &capture,
-                "stale selection",
-                OperationId(10),
-            )
-            .unwrap()
-            .is_none()
-        );
-        assert!(
-            prepare_definition_name_edit(
-                &snapshot,
-                scope.clone(),
-                selected.clone(),
-                &capture,
-                "Original name",
-                OperationId(14),
-            )
-            .unwrap()
-            .is_none()
-        );
-
+        assert!(capture.owner_is_live(&snapshot, scope.clone(), selected.clone()));
+        assert!(!capture.owner_is_live(
+            &snapshot,
+            scope.clone(),
+            Some((scope.clone(), "other".into()))
+        ));
         let other_scope = scope.as_ref().map(|scope| {
             let mut changed = scope.clone();
             changed.instance_id = Some("other-instance".into());
             changed
         });
-        assert!(
-            prepare_definition_name_edit(
-                &snapshot,
-                other_scope,
-                selected.clone(),
-                &capture,
-                "stale scope",
-                OperationId(11),
-            )
-            .unwrap()
-            .is_none()
-        );
-
-        let mut changed_doc = snapshot.document.as_ref().clone();
-        changed_doc.revision += 1;
-        let changed_snapshot = AcceptedSnapshot {
-            document: std::sync::Arc::new(changed_doc),
-            ..snapshot.clone()
-        };
-        assert!(
-            prepare_definition_name_edit(
-                &changed_snapshot,
-                scope.clone(),
-                selected.clone(),
-                &capture,
-                "stale revision",
-                OperationId(12),
-            )
-            .unwrap()
-            .is_none()
-        );
+        assert!(!capture.owner_is_live(&snapshot, other_scope, selected.clone()));
 
         let mut changed_identity_doc = snapshot.document.as_ref().clone();
         changed_identity_doc.id = "another-project".into();
@@ -518,55 +487,71 @@ mod tests {
             document: std::sync::Arc::new(changed_identity_doc),
             ..snapshot.clone()
         };
-        assert!(
-            prepare_definition_name_edit(
-                &changed_identity_snapshot,
-                scope.clone(),
-                selected.clone(),
-                &capture,
-                "stale document identity",
-                OperationId(15),
-            )
-            .unwrap()
-            .is_none()
-        );
+        assert!(!capture.owner_is_live(
+            &changed_identity_snapshot,
+            scope.clone(),
+            selected
+        ));
 
-        let mut generator_doc = snapshot.document.as_ref().clone();
+        // A newer accepted revision is not a departed owner: field edits queue freely
+        // and resolve against the document accepted when they run (ADR-0005).
+        let mut newer_doc = snapshot.document.as_ref().clone();
+        newer_doc.revision += 1;
+        let newer = AcceptedSnapshot {
+            token: boardstudio_application::SnapshotToken(snapshot.token.0 + 1),
+            document: std::sync::Arc::new(newer_doc),
+            ..snapshot.clone()
+        };
+        assert!(capture.owner_is_live(
+            &newer,
+            session.scope(),
+            Some((session.scope().clone(), "selected".into()))
+        ));
+    }
+
+    #[test]
+    fn generator_definitions_and_vanished_targets_retire_a_name_commit() {
+        let mut generator_doc = document();
         generator_doc.definitions[0].generator = Some(boardstudio_core::model::PartGenerator {
             source: "generator/source".into(),
             version: "1".into(),
             parameters: Default::default(),
         });
-        let generator_snapshot = AcceptedSnapshot {
-            document: std::sync::Arc::new(generator_doc),
-            ..snapshot.clone()
-        };
-        let generator_capture = DefinitionNameCapture::new(
-            &generator_snapshot,
-            scope.clone(),
-            &generator_snapshot.document.definitions[0],
+        let (mut session, mut core) = open_document(generator_doc);
+        assert_eq!(
+            submit_name_edit(&mut session, &mut core, 5, "selected", "Generator name"),
+            vec![TerminalOutcome::Rejected(GENERATOR_LOCKED.into())]
         );
-        assert!(
-            prepare_definition_name_edit(
-                &generator_snapshot,
-                scope,
-                selected,
-                &generator_capture,
-                "generator name",
-                OperationId(13),
-            )
-            .unwrap()
-            .is_none()
+        assert_eq!(
+            selected_name(&session.read_model().accepted.clone().unwrap().document),
+            "Original name"
+        );
+
+        let (mut session, mut core) = open_document(document());
+        assert_eq!(
+            submit_name_edit(&mut session, &mut core, 6, "vanished", "No target"),
+            vec![TerminalOutcome::Rejected(DEFINITION_GONE.into())]
         );
     }
 
     #[test]
-    fn refreshed_capture_commits_dirty_name_against_the_latest_accepted_document() {
+    fn an_unchanged_name_commit_lands_without_moving_the_revision() {
+        let (mut session, mut core) = open_document(document());
+        let before = session.read_model().accepted.clone().unwrap();
+        assert_eq!(
+            submit_name_edit(&mut session, &mut core, 7, "selected", "Original name"),
+            vec![TerminalOutcome::Completed]
+        );
+        let after = session.read_model().accepted.clone().unwrap();
+        assert_eq!(after.document.revision, before.document.revision);
+        assert_eq!(after.token, before.token);
+    }
+
+    #[test]
+    fn a_name_commit_resolves_against_the_latest_accepted_document() {
         let original = document();
         let (mut session, mut core) = open_document(original);
         let initial = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
-        let selection = Some((scope.clone(), "selected".into()));
 
         let mut unrelated_document = initial.document.as_ref().clone();
         unrelated_document
@@ -574,10 +559,10 @@ mod tests {
             .insert("unrelated-edit".into(), serde_json::json!(true));
         let unrelated = Event::Edit {
             operation_id: OperationId(20),
-            command: EditCommand {
+            command: boardstudio_core::model::EditCommand {
                 base_revision: initial.document.revision,
                 transaction_id: "parts-name-unrelated-edit".into(),
-                phase: EditPhase::Commit,
+                phase: boardstudio_core::model::EditPhase::Commit,
                 target_ids: vec!["unrelated".into()],
                 operation: EditOperation::ReplaceDocument {
                     document: Box::new(unrelated_document),
@@ -586,43 +571,18 @@ mod tests {
         };
         let effects = session.submit(unrelated);
         advance(&mut session, &mut core, effects);
-        let latest = session.read_model().accepted.as_ref().unwrap().clone();
-        let current_definition = latest
-            .document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == "selected")
-            .unwrap();
-        let refreshed = DefinitionNameCapture::new(&latest, scope.clone(), current_definition);
-        let name_edit = prepare_definition_name_edit(
-            &latest,
-            scope,
-            selection,
-            &refreshed,
-            "Dirty name draft",
-            OperationId(21),
-        )
-        .unwrap()
-        .expect("the dirty field remains admissible with a refreshed accepted capture");
-        let effects = session.submit(name_edit);
-        advance(&mut session, &mut core, effects);
 
+        assert_eq!(
+            submit_name_edit(&mut session, &mut core, 21, "selected", "Dirty name draft"),
+            vec![TerminalOutcome::Completed]
+        );
         let accepted = session.read_model().accepted.as_ref().unwrap();
         assert_eq!(
             accepted.document.parameters.get("unrelated-edit"),
             Some(&serde_json::json!(true)),
             "the name commit must retain the edit accepted while its local draft was dirty"
         );
-        assert_eq!(
-            accepted
-                .document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == "selected")
-                .unwrap()
-                .name,
-            "Dirty name draft"
-        );
+        assert_eq!(selected_name(&accepted.document), "Dirty name draft");
     }
 }
 
@@ -1339,6 +1299,312 @@ mod mounted_tests {
         let event = DomEvent::new("input").unwrap();
         event.init_event_with_bubbles_and_cancelable("input", true, true);
         input.dispatch_event(&event).unwrap();
+    }
+
+    fn enter_keydown(input: &HtmlInputElement) {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Enter");
+        init.set_bubbles(true);
+        input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict(
+            "keydown",
+            &init,
+        ))
+        .unwrap();
+    }
+
+    /// Mount the definition panel over `document` and return the live host controls.
+    /// The root keeps the shared regression id so the input selectors below find it.
+    async fn mount_panel(
+        document: ProjectDoc,
+        open_section: bool,
+    ) -> (
+        Rc<Runtime>,
+        AcceptedSnapshot,
+        Option<Scope>,
+        Rc<RefCell<Option<State>>>,
+        web_sys::Element,
+    ) {
+        let (runtime, snapshot, scope) = opened(document).await;
+        let state = Rc::new(RefCell::new(None));
+        let seed = Rc::new(Seed {
+            snapshot: snapshot.clone(),
+            scope: scope.clone(),
+            selection: Some((scope.clone(), "selected".into())),
+            definition: snapshot.document.definitions[0].clone(),
+            state: state.clone(),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("parts-name-mounted-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        if open_section {
+            root.query_selector("details summary")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click();
+            settle().await;
+        }
+        (runtime, snapshot, scope, state, root)
+    }
+
+    /// Drive pending effects, then push the accepted snapshot and definition back into
+    /// the mounted host so the panel settles its tickets against them.
+    async fn accept_edits(runtime: &Rc<Runtime>, controls: &State) {
+        support::run_pending(runtime).await;
+        refresh_host(runtime, controls).await;
+    }
+
+    async fn refresh_host(runtime: &Rc<Runtime>, controls: &State) {
+        let accepted = runtime.model().accepted.clone().unwrap();
+        controls.snapshot.set(accepted.clone());
+        if let Some(definition) = accepted
+            .document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == "selected")
+            .cloned()
+        {
+            controls.definition.set(definition);
+        }
+        settle().await;
+    }
+
+    fn definition_bounds(document: &ProjectDoc) -> (f64, f64) {
+        let (width, height, _) =
+            crate::parts_custom_definition::courtyard_bounds(&document.definitions[0].courtyard);
+        (width, height)
+    }
+
+    fn courtyard_document(name: &str) -> ProjectDoc {
+        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
+        let mut selected = definition("selected", name);
+        selected.courtyard = vec![
+            boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
+            boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
+            boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
+            boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
+        ];
+        document.definitions = vec![selected];
+        document
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_rapid_width_height_keeps_both_and_undo_reverts_only_height() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Courtyard"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let width = courtyard_width_input();
+        let height = courtyard_height_input();
+
+        // Hold the width edit's Core reply so the height edit queues behind it, exactly
+        // as rapid Tab-entry does when the engine is busy.
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&width, "12");
+        let _ = height.focus();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the width edit reached the in-process Core");
+
+        type_value(&height, "8");
+        enter_keydown(&height);
+        settle().await;
+
+        release.send(()).expect("release the held width reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.revision,
+            snapshot.document.revision + 2,
+            "both queued courtyard edits land"
+        );
+        assert_eq!(
+            definition_bounds(&accepted.document),
+            (12.0, 8.0),
+            "width, Tab, height keeps both values"
+        );
+        assert_eq!(courtyard_width_input().value(), "12");
+        assert_eq!(courtyard_height_input().value(), "8");
+
+        runtime.submit(AppEvent::Undo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        let undone = runtime.model().accepted.unwrap();
+        assert_eq!(
+            definition_bounds(&undone.document),
+            (12.0, 6.0),
+            "one Undo reverts only the height change"
+        );
+        assert_eq!(courtyard_height_input().value(), "6");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_rename_then_field_edit_queued_behind_it_both_survive() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Original name"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&input(), "Renamed");
+        let _ = courtyard_width_input().focus();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the rename reached the in-process Core");
+
+        type_value(&courtyard_width_input(), "12");
+        let _ = courtyard_width_input().blur();
+        settle().await;
+
+        release.send(()).expect("release the held rename reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.revision,
+            snapshot.document.revision + 2,
+            "the rename and the queued width edit both land"
+        );
+        assert_eq!(accepted.document.definitions[0].name, "Renamed");
+        assert_eq!(definition_bounds(&accepted.document), (12.0, 6.0));
+
+        runtime.submit(AppEvent::Undo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        let undone = runtime.model().accepted.unwrap();
+        assert_eq!(
+            undone.document.definitions[0].name,
+            "Renamed",
+            "one Undo reverts only the width change; the rename survives"
+        );
+        assert_eq!(definition_bounds(&undone.document), (10.0, 6.0));
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_failed_save_returns_the_field_to_the_accepted_value_with_a_message() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Courtyard"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        support::fail_next_persist(&runtime, "injected durable write failure");
+
+        type_value(&courtyard_width_input(), "12");
+        let _ = courtyard_width_input().blur();
+        settle().await;
+        support::run_pending(&runtime).await;
+        refresh_host(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.revision,
+            snapshot.document.revision,
+            "a failed save does not move the accepted document"
+        );
+        assert_eq!(
+            courtyard_width_input().value(),
+            "10",
+            "the failed field shows the accepted value again"
+        );
+        let alert = root
+            .query_selector("[role='alert']")
+            .unwrap()
+            .expect("the failure is explained inline")
+            .text_content()
+            .unwrap();
+        assert!(
+            alert.contains("did not save") && alert.contains("injected durable write failure"),
+            "the inline message names the failure: {alert}"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_definition_deletion_retires_the_queued_field_edit_with_a_reason() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Courtyard"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+
+        // Hold a definition deletion's Core reply so the width edit queues behind it.
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let mut deleted = snapshot.document.as_ref().clone();
+        deleted.definitions.clear();
+        runtime.submit(AppEvent::Edit {
+            operation_id: runtime.operation(),
+            command: boardstudio_core::model::EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: "delete-definition-before-queued-edit".into(),
+                phase: boardstudio_core::model::EditPhase::Commit,
+                target_ids: vec!["selected".into()],
+                operation: boardstudio_core::model::EditOperation::ReplaceDocument {
+                    document: Box::new(deleted),
+                },
+            },
+        });
+        support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the deletion reached the in-process Core");
+
+        type_value(&courtyard_width_input(), "12");
+        let _ = courtyard_width_input().blur();
+        settle().await;
+
+        release.send(()).expect("release the held deletion reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.revision,
+            snapshot.document.revision + 1,
+            "only the deletion lands; the retired edit moves nothing"
+        );
+        assert!(
+            accepted.document.definitions.is_empty(),
+            "the deletion is accepted"
+        );
+        assert_eq!(
+            courtyard_width_input().value(),
+            "10",
+            "the retired field shows the accepted value again"
+        );
+        let alert = root
+            .query_selector("[role='alert']")
+            .unwrap()
+            .expect("the retirement is explained inline")
+            .text_content()
+            .unwrap();
+        assert!(
+            alert.contains("no longer exists"),
+            "the inline message explains why the edit retired: {alert}"
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]
