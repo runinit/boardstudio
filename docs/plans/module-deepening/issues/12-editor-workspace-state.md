@@ -1,6 +1,6 @@
 # 12: Editor composes per-workspace state
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 11
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -28,15 +28,43 @@ One commit per workspace, each passing the checks below.
 
 ## Acceptance criteria
 
-- [ ] `Editor` composes state handles and lays out workspaces; it owns only
+- [x] `Editor` composes state handles and lays out workspaces; it owns only
   cross-workspace state (active workspace, selection routing).
-- [ ] `WorkspaceCallbackSlots` holds only handlers that cross workspaces, or is gone.
-- [ ] Every extracted module has tests at its handle's interface.
-- [ ] Mounted page tests pass unchanged.
-- [ ] The backlog's "Feature ownership" entry is updated or removed.
+- [x] `WorkspaceCallbackSlots` holds only handlers that cross workspaces, or is gone.
+- [x] Every extracted module has tests at its handle's interface.
+- [x] Mounted page tests pass unchanged.
+- [x] The backlog's "Feature ownership" entry is updated or removed.
 
 ## Verification
 
 ```sh
 python3 scripts/check.py lint typecheck test browser
 ```
+
+## Outcome
+
+Merged `deepening/12-workspace-state` through `784dcb079`, rebased onto `1b1534e70`.
+Each workspace extraction includes its Editor wiring: Case `719ccbb56`, Layout
+`9946a3c1d`, Parts `54198e862`, Setup `7bbe745e1`, Keymap `fc4ab9163`, Keycaps
+`4bc3c7521`; the final commit composes the common routing. The final source preserves
+the native Runtime's direct placement consumer and the constructor sweep.
+
+Use a per-workspace hook returning a private-state handle. Cohesive state, effects,
+projections and actions live there; narrow methods/accessors support cross-workspace
+arbitration. Editor composes handles and retains only the select_tree/navigate routing
+slots. Every handle has mounted interface coverage; the Feature ownership backlog
+entry is updated.
+
+Intermediate workspace WASM checks and the corrected Layout lint/check passed;
+final lint/typecheck and native workspace/footprints tests passed. The complete browser
+gate passed, including Keymap 21 and page 43. After constructor integration, lint,
+typecheck and page 43 passed again; unchanged module browser evidence was reused.
+The native test gate retains the unchanged CAD baseline (49 passed, 1 failed,
+4 ignored; rotated-concave/bottom volume expected 80481.2399, actual
+80579.55733514718, tolerance 0.1). The earlier full-Keymap timeout is intermittent,
+not a permanently blocked gate.
+
+Final parallel Standards/Spec reviews and the constructor conflict-delta reviews found
+no actionable issues. Duplicated mounted-test setup and a repeated pending-pick reset
+were recorded as nonblocking judgment calls. The final claim-doc rebase changed no
+implementation files.
