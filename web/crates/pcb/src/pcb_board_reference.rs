@@ -1092,7 +1092,7 @@ mod test_support {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_async_tests {
     use super::*;
-    use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
+    use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
     use js_sys::{Array, Uint8Array};
@@ -1133,7 +1133,7 @@ mod mounted_async_tests {
             license: None,
             source: None,
         };
-        let mut document = firmware_export_test_support::board_document();
+        let mut document = in_process_support::board_document();
         // A second board for the owner-change test to navigate to.
         document.boards.push(Board {
             id: "changed-routed-board-target".into(),

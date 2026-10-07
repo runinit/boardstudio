@@ -568,8 +568,7 @@ mod orchestration_tests {
     }
 
     fn session_fixture() -> (SharedSession, SharedEngine, AcceptedSnapshot, Scope) {
-        let (session, accepted, scope) =
-            crate::runtime::firmware_export_test_support::opened_session();
+        let (session, accepted, scope) = crate::runtime::in_process_support::opened_session();
         let mut engine = CoreEngine::new();
         let _ = engine.handle(CoreRequest::Open {
             id: "seed-session-core".into(),

@@ -37,6 +37,10 @@ pub struct InProcessCore {
     engine: RefCell<boardstudio_core::CoreEngine>,
     closed: Cell<bool>,
     behavior: RefCell<Option<OneShotBehavior>>,
+    request_filter: Cell<Option<fn(&CoreRequest) -> bool>>,
+    scripted_reply: Cell<Option<fn(&CoreRequest) -> Option<CoreReply>>>,
+    archive_behavior: RefCell<Option<OneShotBehavior>>,
+    archive_reply: RefCell<Option<ArchiveResult>>,
 }
 
 impl InProcessCore {
@@ -45,10 +49,15 @@ impl InProcessCore {
             engine: RefCell::new(engine),
             closed: Cell::new(false),
             behavior: RefCell::new(None),
+            request_filter: Cell::new(None),
+            scripted_reply: Cell::new(None),
+            archive_behavior: RefCell::new(None),
+            archive_reply: RefCell::new(None),
         }
     }
 
     pub fn fail_next_reply(&self, reason: impl Into<String>) {
+        self.request_filter.set(None);
         *self.behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
     }
 
@@ -57,6 +66,7 @@ impl InProcessCore {
     }
 
     pub fn gate_next_reply(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        self.request_filter.set(None);
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
         *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate {
@@ -64,6 +74,48 @@ impl InProcessCore {
             release: release_rx,
         });
         (entered_rx, release)
+    }
+
+    /// Filter a one-shot behavior so unrelated Session requests still reach Core.
+    pub fn fail_matching_reply(
+        &self,
+        matches: fn(&CoreRequest) -> bool,
+        reason: impl Into<String>,
+    ) {
+        self.fail_next_reply(reason);
+        self.request_filter.set(Some(matches));
+    }
+
+    pub fn gate_matching_reply(
+        &self,
+        matches: fn(&CoreRequest) -> bool,
+    ) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let gate = self.gate_next_reply();
+        self.request_filter.set(Some(matches));
+        gate
+    }
+
+    /// Script only the external-provider reply a fixture needs; return None for real Core.
+    pub fn script_replies(&self, reply: fn(&CoreRequest) -> Option<CoreReply>) {
+        self.scripted_reply.set(Some(reply));
+    }
+
+    pub fn fail_next_archive(&self, reason: impl Into<String>) {
+        *self.archive_behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
+    }
+
+    pub fn gate_next_archive(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let (entered, entered_rx) = oneshot::channel();
+        let (release, release_rx) = oneshot::channel();
+        *self.archive_behavior.borrow_mut() = Some(OneShotBehavior::Gate {
+            entered,
+            release: release_rx,
+        });
+        (entered_rx, release)
+    }
+
+    pub fn reply_to_next_archive(&self, reply: ArchiveResult) {
+        *self.archive_reply.borrow_mut() = Some(reply);
     }
 
     fn take_behavior(&self) -> Option<OneShotBehavior> {
@@ -82,7 +134,16 @@ impl CoreExecutor for InProcessCore {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            if let Some(behavior) = self.take_behavior() {
+            let behavior = if self
+                .request_filter
+                .get()
+                .is_none_or(|matches| matches(request))
+            {
+                self.take_behavior()
+            } else {
+                None
+            };
+            if let Some(behavior) = behavior {
                 match behavior {
                     OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
                     OneShotBehavior::Gate { entered, release } => {
@@ -94,7 +155,11 @@ impl CoreExecutor for InProcessCore {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            let reply = self.engine.borrow_mut().handle(request.clone());
+            let reply = self
+                .scripted_reply
+                .get()
+                .and_then(|reply| reply(request))
+                .unwrap_or_else(|| self.engine.borrow_mut().handle(request.clone()));
             let value = serde_json::to_value(&reply)
                 .map_err(|error| HostError(format!("invalid core reply: {error}")))?;
             if value.get("id").and_then(serde_json::Value::as_str) != Some(request_id) {
@@ -114,6 +179,23 @@ impl CoreExecutor for InProcessCore {
         Box::pin(async move {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
+            }
+            let behavior = self.archive_behavior.borrow_mut().take();
+            let scripted = self.archive_reply.borrow_mut().take();
+            if let Some(behavior) = behavior {
+                match behavior {
+                    OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
+                    OneShotBehavior::Gate { entered, release } => {
+                        let _ = entered.send(());
+                        let _ = release.await;
+                    }
+                }
+            }
+            if self.closed.get() {
+                return Err(HostError("core worker is closed".into()));
+            }
+            if let Some(reply) = scripted {
+                return Ok(reply);
             }
             let inputs = buffers
                 .iter()
@@ -180,6 +262,8 @@ impl CoreExecutor for InProcessCore {
     fn close(&self) {
         self.closed.set(true);
         self.take_behavior();
+        self.archive_behavior.borrow_mut().take();
+        self.archive_reply.borrow_mut().take();
     }
 }
 
@@ -282,12 +366,28 @@ impl DocumentPersistence for TestPersistence {
     }
 }
 
+/// A final artifact delivered through the installed test adapter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeliveredArtifact {
+    pub bytes: Vec<u8>,
+    pub filename: String,
+    pub media_type: Option<String>,
+}
+
+struct StoreReadGate {
+    entered: oneshot::Sender<()>,
+    release: oneshot::Receiver<()>,
+}
+
 /// The installed in-process adapters: the current in-process Core (replaced whenever the
 /// runtime restarts its executor) and the gated persistence port. Tests reach the gates and
 /// the saved copies through this handle.
 pub struct InProcessAdapters {
     core: RefCell<Rc<InProcessCore>>,
     persistence: Rc<TestPersistence>,
+    deliveries: RefCell<Vec<DeliveredArtifact>>,
+    store_read_gate: RefCell<Option<StoreReadGate>>,
+    open_observer: RefCell<Option<oneshot::Sender<()>>>,
 }
 
 impl InProcessAdapters {
@@ -295,6 +395,9 @@ impl InProcessAdapters {
         Self {
             core: RefCell::new(Rc::new(InProcessCore::new(engine))),
             persistence: Rc::new(TestPersistence::through_store(store)),
+            deliveries: RefCell::new(Vec::new()),
+            store_read_gate: RefCell::new(None),
+            open_observer: RefCell::new(None),
         }
     }
 
@@ -308,6 +411,47 @@ impl InProcessAdapters {
             adapters.restart_core();
             Ok(adapters.current_core() as Rc<dyn CoreExecutor>)
         });
+    }
+
+    pub fn gate_next_store_read(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let (entered, entered_rx) = oneshot::channel();
+        let (release, release_rx) = oneshot::channel();
+        *self.store_read_gate.borrow_mut() = Some(StoreReadGate {
+            entered,
+            release: release_rx,
+        });
+        (entered_rx, release)
+    }
+
+    /// Pause observation of a real store result without replacing it.
+    pub(super) async fn store_read_completed(&self) {
+        let gate = self.store_read_gate.borrow_mut().take();
+        if let Some(gate) = gate {
+            let _ = gate.entered.send(());
+            let _ = gate.release.await;
+        }
+    }
+
+    pub fn observe_next_open(&self) -> oneshot::Receiver<()> {
+        let (done, observer) = oneshot::channel();
+        *self.open_observer.borrow_mut() = Some(done);
+        observer
+    }
+
+    pub(super) fn take_open_observer(&self) -> Option<oneshot::Sender<()>> {
+        self.open_observer.borrow_mut().take()
+    }
+
+    pub(super) fn deliver(&self, artifact: &Artifact) {
+        self.deliveries.borrow_mut().push(DeliveredArtifact {
+            bytes: artifact.bytes.clone(),
+            filename: artifact.filename.clone(),
+            media_type: artifact.media_type.clone(),
+        });
+    }
+
+    pub fn take_deliveries(&self) -> Vec<DeliveredArtifact> {
+        std::mem::take(&mut *self.deliveries.borrow_mut())
     }
 
     pub fn current_core(&self) -> Rc<InProcessCore> {
@@ -325,4 +469,57 @@ impl InProcessAdapters {
     pub fn persistence(&self) -> Rc<TestPersistence> {
         self.persistence.clone()
     }
+}
+
+/// The one-board document `opened_session` opens. Browser tests that need a real accepted
+/// board project start from it, add what they exercise, and open it through the in-process
+/// adapter (`project_name_test_support::open_document`).
+pub fn board_document() -> ProjectDoc {
+    let mut document = ProjectDoc::empty("zmk-export-test", "ZMK export test");
+    document.boards.push(Board {
+        id: "main-board".into(),
+        name: "Main board".into(),
+        outline_ids: Vec::new(),
+        part_ids: Vec::new(),
+        net_ids: Vec::new(),
+        thickness: 1.6,
+        traces: Vec::new(),
+        vias: Vec::new(),
+    });
+    document
+}
+
+pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
+    let mut session = Session::new();
+    let mut core = boardstudio_core::CoreEngine::new();
+    let mut effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: board_document(),
+    });
+    while let Some(effect) = effects.pop() {
+        match effect {
+            Effect::Core {
+                request_id,
+                executor_epoch,
+                request,
+                ..
+            } => effects.extend(session.complete(Completion::Core {
+                request_id,
+                executor_epoch,
+                reply: Box::new(core.handle(*request)),
+            })),
+            Effect::Persist {
+                save_attempt_id, ..
+            } => {
+                effects.extend(session.complete(Completion::Persist {
+                    save_attempt_id,
+                    result: SaveResult::Committed,
+                }));
+            }
+            _ => {}
+        }
+    }
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let scope = session.scope().unwrap();
+    (session, accepted, scope)
 }

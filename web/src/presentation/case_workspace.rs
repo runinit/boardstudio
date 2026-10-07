@@ -1217,7 +1217,7 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_live_scene_tests {
     use super::*;
-    use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
+    use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::AcceptedSnapshot;
     use boardstudio_core::model::{
         Board, Finding, MechanicalAssembly, Scope as FindingScope, Severity,
@@ -1229,7 +1229,7 @@ mod mounted_live_scene_tests {
 
     async fn accepted_fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
         let runtime = support::new_runtime();
-        let mut document = firmware_export_test_support::board_document();
+        let mut document = in_process_support::board_document();
         document.mechanical = Some(
             boardstudio_web_host::case_settings::initial_settings(&document, "main-board")
                 .expect("test board has initial mechanical settings"),

@@ -265,7 +265,7 @@ pub fn CasePanel(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
+    use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{
         Completion, Effect, Event as AppEvent, GenerationStatus, JobId, Scope,
     };
@@ -825,7 +825,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn mounted_case_panel_starts_once_pauses_and_resumes_for_current_context() {
         let runtime = support::new_runtime();
-        support::open_document(&runtime, firmware_export_test_support::board_document()).await;
+        support::open_document(&runtime, in_process_support::board_document()).await;
         let root = web_sys::window()
             .unwrap()
             .document()

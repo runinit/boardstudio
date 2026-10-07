@@ -307,25 +307,14 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn mounted_export_panel_dispatches_failure_alert_and_successful_retry_from_same_row() {
-        let runtime = runtime_test::new_runtime();
-        let (session, accepted, scope) = runtime_test::opened_session();
-        let failing = runtime_test::ControlledExecutor::failing(runtime_test::Stage::Generation);
-        let failing: Rc<dyn crate::runtime::CoreExecutor> = failing;
-        runtime_test::configure_runtime(
-            &runtime,
-            session,
-            accepted.clone(),
-            scope.clone(),
-            failing,
-            boardstudio_application::ExecutorEpoch(11),
-            100,
-        );
+        let (runtime, accepted, scope) = runtime_test::fixture().await;
+        runtime_test::fail(&runtime, runtime_test::Stage::Generation);
         let before = runtime_test::session_model(&runtime);
         let root = mount_production_export_panel(production_probe(
             runtime.clone(),
             &accepted,
             &scope,
-            11,
+            runtime.electrical_preview_executor_epoch(),
             true,
         ));
         browser_tick().await;
@@ -372,11 +361,6 @@ mod tests {
         button.click();
         browser_tick().await;
 
-        assert!(matches!(
-            runtime_test::take_events(&runtime).as_slice(),
-            [boardstudio_application::Event::StartExport { scope: event_scope, .. }]
-                if event_scope == &scope
-        ));
         let effects = runtime_test::take_effects(&runtime);
         assert_eq!(
             effects
@@ -409,27 +393,15 @@ mod tests {
         assert_eq!(runtime_test::session_model(&runtime), before);
         assert!(!runtime_test::has_artifacts(&runtime));
         assert!(runtime_test::take_deliveries(&runtime).is_empty());
-        assert_eq!(runtime_test::take_events(&runtime).len(), 0);
         let row_after_failure = root.query_selector(".m1-export-row").unwrap().unwrap();
         assert!(
             row.is_same_node(row_after_failure.dyn_ref::<web_sys::Node>()),
             "failure keeps the same row mounted for retry"
         );
 
-        runtime_test::replace_executor(
-            &runtime,
-            runtime_test::ControlledExecutor::succeeding(),
-            boardstudio_application::ExecutorEpoch(11),
-        );
         button.click();
         browser_tick().await;
         assert!(root.query_selector("[role='alert']").unwrap().is_none());
-        let retry_events = runtime_test::take_events(&runtime);
-        assert_eq!(retry_events.len(), 1);
-        assert!(matches!(
-            retry_events.as_slice(),
-            [boardstudio_application::Event::StartExport { .. }]
-        ));
         let retry_effects = runtime_test::take_effects(&runtime);
         runtime_test::run_effects(&runtime, retry_effects).await;
         browser_tick().await;
@@ -441,30 +413,17 @@ mod tests {
         assert_eq!(deliveries[0].filename, "ZMK export test-zmk.zip");
         assert_eq!(deliveries[0].media_type.as_deref(), Some("application/zip"));
         assert_eq!(runtime_test::session_model(&runtime), before);
-        assert!(runtime_test::take_events(&runtime).is_empty());
         root.remove();
     }
 
     #[wasm_bindgen_test]
     async fn mounted_unavailable_export_row_is_disabled_and_never_dispatches() {
-        let runtime = runtime_test::new_runtime();
-        let (session, accepted, scope) = runtime_test::opened_session();
-        let executor = runtime_test::ControlledExecutor::succeeding();
-        let executor: Rc<dyn crate::runtime::CoreExecutor> = executor;
-        runtime_test::configure_runtime(
-            &runtime,
-            session,
-            accepted.clone(),
-            scope.clone(),
-            executor,
-            boardstudio_application::ExecutorEpoch(11),
-            200,
-        );
+        let (runtime, accepted, scope) = runtime_test::fixture().await;
         let root = mount_production_export_panel(production_probe(
             runtime.clone(),
             &accepted,
             &scope,
-            11,
+            runtime.electrical_preview_executor_epoch(),
             false,
         ));
         browser_tick().await;
@@ -486,7 +445,6 @@ mod tests {
         );
         button.click();
         browser_tick().await;
-        assert!(runtime_test::take_events(&runtime).is_empty());
         assert!(runtime_test::take_effects(&runtime).is_empty());
         assert!(!runtime_test::has_artifacts(&runtime));
         root.remove();
