@@ -2113,7 +2113,11 @@ impl Runtime {
                 let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
                 if let Some(artifact) = artifact
                     && token == artifact.token
-                    && self.export_current(artifact.operation_id, token, &artifact.scope)
+                    && self.export_delivery_is_current(
+                        artifact.operation_id,
+                        token,
+                        &artifact.scope,
+                    )
                 {
                     match self.deliver_artifact(&artifact) {
                         Ok(()) if artifact.board_outline => {
@@ -5041,11 +5045,29 @@ impl Runtime {
     fn export_source_is_current(&self, lease: &ExportLease) -> bool {
         let model = self.model();
         let core = self.core.borrow().clone();
+        let session = self.session.borrow();
         lease.source_is_current(
+            session.scope().as_ref(),
             model.accepted.as_ref(),
-            self.session.borrow().core_executor_epoch(),
+            session.core_executor_epoch(),
             core_executor_identity(&core),
         )
+    }
+    fn export_delivery_is_current(
+        &self,
+        operation_id: OperationId,
+        token: SnapshotToken,
+        scope: &Scope,
+    ) -> bool {
+        self.export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .is_some_and(|lease| {
+                lease.token() == token
+                    && lease.scope() == scope
+                    && self.export_source_is_current(&lease)
+            })
     }
     fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.scope().as_ref() == Some(scope)

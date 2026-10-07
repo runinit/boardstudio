@@ -66,11 +66,13 @@ impl ExportLease {
 
     pub(crate) fn source_is_current(
         &self,
+        current_scope: Option<&Scope>,
         current_snapshot: Option<&AcceptedSnapshot>,
         executor_epoch: ExecutorEpoch,
         worker_identity: usize,
     ) -> bool {
-        current_snapshot.is_some_and(|current| self.accepted_snapshot_matches(current))
+        current_scope == Some(&self.scope)
+            && current_snapshot.is_some_and(|current| self.accepted_snapshot_matches(current))
             && executor_epoch == self.executor_epoch
             && worker_identity == self.worker_identity
     }
@@ -98,7 +100,12 @@ impl ExportLease {
         worker_identity: usize,
     ) -> Result<(), String> {
         if session_owns_export
-            && self.source_is_current(current_snapshot, executor_epoch, worker_identity)
+            && self.source_is_current(
+                Some(&self.scope),
+                current_snapshot,
+                executor_epoch,
+                worker_identity,
+            )
         {
             Ok(())
         } else {
@@ -195,6 +202,20 @@ mod tests {
             ExportKind::BoardOutline { dxf: true },
         ] {
             let lease = captured(kind);
+            assert!(lease.source_is_current(
+                Some(lease.scope()),
+                Some(lease.snapshot()),
+                ExecutorEpoch(11),
+                123,
+            ));
+            let mut changed_scope = lease.scope().clone();
+            changed_scope.board_id = "board-b".into();
+            assert!(!lease.source_is_current(
+                Some(&changed_scope),
+                Some(lease.snapshot()),
+                ExecutorEpoch(11),
+                123,
+            ));
             assert!(
                 lease
                     .require_current(true, Some(lease.snapshot()), ExecutorEpoch(11), 123)
