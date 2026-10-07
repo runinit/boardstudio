@@ -375,27 +375,54 @@ pub fn nudge_resolver(part_ids: Vec<String>, board_id: String, delta: Vec2) -> E
     })
 }
 
-/// Resolve the old position Inspector's commit: the part moves to the typed point. The
-/// commit keeps the preview's transaction so the preview is replaced rather than stacked.
-pub fn commit_position_resolver(part_id: String, at: Vec2, transaction_id: String) -> EditResolver {
+/// Resolve only the coordinates edited in the old Inspector, translating the selection
+/// from its first part. Keep the preview transaction when replacing the preview.
+pub fn commit_position_resolver(
+    part_ids: Vec<String>,
+    board_id: String,
+    x: Option<f64>,
+    y: Option<f64>,
+    transaction_id: String,
+) -> EditResolver {
     EditResolver::new("layout-old-position", move |accepted: &AcceptedSnapshot| {
-        let Some(part) = part_of(&accepted.document, &part_id) else {
+        let document = &accepted.document;
+        let Some(anchor) = part_ids.first().and_then(|id| part_of(document, id)) else {
             return Resolution::Retire("The selected part no longer exists.".into());
         };
-        if part.pose.at == at {
+        let Some(board) = board_of(document, &board_id) else {
+            return Resolution::Retire("The board no longer exists.".into());
+        };
+        let delta = Vec2 {
+            x: x.map_or(0.0, |value| value - anchor.pose.at.x),
+            y: y.map_or(0.0, |value| value - anchor.pose.at.y),
+        };
+        let mut positions = Vec::with_capacity(part_ids.len());
+        for id in &part_ids {
+            let Some(part) = part_of(document, id).filter(|_| board.part_ids.contains(id)) else {
+                return Resolution::Retire(
+                    "A selected part no longer belongs to this board.".into(),
+                );
+            };
+            if let Some(reason) = position_ineligible_reason(document, &board_id, id) {
+                return Resolution::Retire(reason.into());
+            }
+            positions.push(Position {
+                id: id.clone(),
+                at: Vec2 {
+                    x: part.pose.at.x + delta.x,
+                    y: part.pose.at.y + delta.y,
+                },
+            });
+        }
+        if delta == Vec2::default() {
             return Resolution::Unchanged;
         }
         Resolution::Submit(EditCommand {
             base_revision: 0,
             transaction_id: transaction_id.clone(),
             phase: EditPhase::Commit,
-            target_ids: vec![part_id.clone()],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: part_id.clone(),
-                    at,
-                }],
-            },
+            target_ids: part_ids.clone(),
+            operation: EditOperation::MoveParts { positions },
         })
     })
 }

@@ -1,7 +1,7 @@
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
-use boardstudio_web_runtime::edit_ticket::EditTicket;
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Position, Vec2};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
@@ -21,12 +21,16 @@ struct NumericEdit {
     revision: u64,
     transaction_id: String,
     start: Vec2,
+    part_ids: Vec<String>,
+    board_id: String,
+    x_changed: bool,
+    y_changed: bool,
 }
 type KeyboardHandler = Rc<RefCell<Box<dyn FnMut(KeyboardEvent)>>>;
 #[component]
 pub(super) fn Inspector() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
-    let _ = use_context::<Signal<u64>>()();
+    let version = use_context::<Signal<u64>>()();
     let model = runtime.model();
     let selected = model
         .accepted
@@ -35,12 +39,14 @@ pub(super) fn Inspector() -> Element {
             s.document
                 .parts
                 .iter()
-                .find(|p| model.selected_part_ids.contains(&p.id))
+                .find(|p| model.selected_part_ids.first() == Some(&p.id))
         })
         .cloned();
     let mut x = use_signal(String::new);
     let mut y = use_signal(String::new);
     let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
+    let tickets = use_hook(|| Rc::new(RefCell::new(Vec::<(NumericEdit, EditTicket)>::new())));
+    let mut failure = use_signal(|| None::<String>);
     use_drop({
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
@@ -55,13 +61,34 @@ pub(super) fn Inspector() -> Element {
     let key = selected
         .as_ref()
         .map(|p| (p.id.clone(), p.pose.at.x, p.pose.at.y));
-    use_effect(use_reactive((&key,), {
+    use_effect(use_reactive((&key, &version), {
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
-        move |(key,)| {
-            if let Some((_, px, py)) = key {
-                x.set(px.to_string());
-                y.set(py.to_string());
+        let tickets = tickets.clone();
+        move |(key, _)| {
+            let selected_ids = runtime.model().selected_part_ids;
+            tickets.borrow_mut().retain(|(edit, ticket)| {
+                match ticket.settlement(edit.part_ids == selected_ids) {
+                    Settlement::Pending => true,
+                    Settlement::Failed { message } => {
+                        failure.set(Some(message));
+                        false
+                    }
+                    Settlement::Landed { .. } | Settlement::Retired => false,
+                }
+            });
+            if let Some((_, px, py)) = key.as_ref() {
+                let draft = numeric_edit.borrow();
+                if !draft.as_ref().is_some_and(|edit| edit.x_changed)
+                    && !tickets.borrow().iter().any(|(edit, _)| edit.x_changed)
+                {
+                    x.set(px.to_string());
+                }
+                if !draft.as_ref().is_some_and(|edit| edit.y_changed)
+                    && !tickets.borrow().iter().any(|(edit, _)| edit.y_changed)
+                {
+                    y.set(py.to_string());
+                }
             }
             let changed_target = numeric_edit
                 .borrow()
@@ -80,13 +107,16 @@ pub(super) fn Inspector() -> Element {
         }
     }));
     let submit = {
+        let tickets = tickets.clone();
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
         move |_| {
-            commit_numeric(&runtime, &numeric_edit, &x(), &y());
+            failure.set(None);
+            commit_numeric(&runtime, &numeric_edit, &tickets, &x(), &y());
         }
     };
     let cancel_numeric: KeyboardHandler = {
+        let tickets = tickets.clone();
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
         let mut x = x;
@@ -104,7 +134,7 @@ pub(super) fn Inspector() -> Element {
                     s.document
                         .parts
                         .iter()
-                        .find(|p| runtime.model().selected_part_ids.contains(&p.id))
+                        .find(|p| runtime.model().selected_part_ids.first() == Some(&p.id))
                         .cloned()
                 }) {
                     let restored_x = part.pose.at.x.to_string();
@@ -129,7 +159,8 @@ pub(super) fn Inspector() -> Element {
                 runtime.report("Position preview canceled.");
             } else if key == "Enter" {
                 event.prevent_default();
-                commit_numeric(&runtime, &numeric_edit, &x(), &y());
+                failure.set(None);
+                commit_numeric(&runtime, &numeric_edit, &tickets, &x(), &y());
             }
         })))
     };
@@ -143,8 +174,9 @@ pub(super) fn Inspector() -> Element {
                 let (Ok(px), Ok(py)) = (event.value().parse::<f64>(), y().parse::<f64>()) else { return; };
                 if !px.is_finite() || !py.is_finite() { return; }
                 let Some(snapshot) = runtime.model().accepted else { return; };
-                let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.contains(&p.id)) else { return; };
-                let edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at });
+                let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.first() == Some(&p.id)) else { return; };
+                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
+                edit.x_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
             }} } }
             label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
@@ -152,11 +184,13 @@ pub(super) fn Inspector() -> Element {
                 let (Ok(px), Ok(py)) = (x().parse::<f64>(), event.value().parse::<f64>()) else { return; };
                 if !px.is_finite() || !py.is_finite() { return; }
                 let Some(snapshot) = runtime.model().accepted else { return; };
-                let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.contains(&p.id)) else { return; };
-                let edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at });
+                let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.first() == Some(&p.id)) else { return; };
+                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
+                edit.y_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
             }} } }
             button { onclick: submit, "Apply position" }
+            if let Some(message) = failure() { p { role: "alert", "{message}" } }
             if numeric_edit.borrow().is_some() { p { role: "status", "Preview only. Press Enter or Apply position to save, or Escape to cancel." } }
         } else { p { "Select a component to edit its position." } }
     }}
@@ -169,21 +203,6 @@ fn submit_position(
     at: Vec2,
     phase: EditPhase,
 ) {
-    if phase == EditPhase::Commit {
-        // A commit is intent: it resolves against the accepted position when it runs.
-        let _ = EditTicket::begin(
-            runtime,
-            "layout-old-position",
-            Some("position".into()),
-            super::layout_component_edits::commit_position_resolver(
-                edit.id.clone(),
-                at,
-                edit.transaction_id.clone(),
-            ),
-        );
-        current.borrow_mut().take();
-        return;
-    }
     runtime.submit(Event::Edit {
         operation_id: runtime.operation(),
         command: EditCommand {
@@ -209,6 +228,7 @@ fn submit_position(
 fn commit_numeric(
     runtime: &Rc<Runtime>,
     current: &Rc<RefCell<Option<NumericEdit>>>,
+    tickets: &Rc<RefCell<Vec<(NumericEdit, EditTicket)>>>,
     x: &str,
     y: &str,
 ) {
@@ -228,7 +248,7 @@ fn commit_numeric(
         .document
         .parts
         .iter()
-        .find(|part| model.selected_part_ids.contains(&part.id))
+        .find(|part| model.selected_part_ids.first() == Some(&part.id))
     else {
         return;
     };
@@ -238,6 +258,25 @@ fn commit_numeric(
         revision: snapshot.document.revision,
         transaction_id: format!("position-{}", runtime.operation().0),
         start,
+        part_ids: model.selected_part_ids.clone(),
+        board_id: model.active_board_id.clone(),
+        x_changed: true,
+        y_changed: true,
     });
-    submit_position(runtime, current, edit, Vec2 { x, y }, EditPhase::Commit);
+    if edit.part_ids != model.selected_part_ids || edit.board_id != model.active_board_id {
+        return;
+    }
+    let ticket = EditTicket::begin(
+        runtime,
+        "layout-old-position",
+        Some("position".into()),
+        super::layout_component_edits::commit_position_resolver(
+            edit.part_ids.clone(),
+            edit.board_id.clone(),
+            edit.x_changed.then_some(x),
+            edit.y_changed.then_some(y),
+            edit.transaction_id.clone(),
+        ),
+    );
+    tickets.borrow_mut().push((edit, ticket));
 }

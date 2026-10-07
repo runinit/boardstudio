@@ -180,7 +180,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                         let mut source = source;
                         let mut enabled = enabled;
                         move |_| {
-                            if !current_session_is_ready(&runtime, &snapshot) {
+                            if !current_session_can_accept_edits(&runtime, &snapshot) {
                                 return;
                             }
                             let Ok(script_identity) = crate::runtime::new_project_id() else {
@@ -272,7 +272,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                         let script_id = script.id.clone();
                         let mut script_ticket = script_ticket;
                         move |_| {
-                            if !current_session_is_ready(&runtime, &snapshot) {
+                            if !current_session_can_accept_edits(&runtime, &snapshot) {
                                 return;
                             }
                             script_ticket.set(Some(EditTicket::begin(
@@ -324,7 +324,7 @@ fn ScriptFindings(findings: Vec<Finding>) -> Element {
 
 /// The panel's snapshot must still belong to the open project session; the edit itself
 /// resolves against whatever is accepted when it runs.
-fn current_session_is_ready(runtime: &Runtime, snapshot: &AcceptedSnapshot) -> bool {
+fn current_session_can_accept_edits(runtime: &Runtime, snapshot: &AcceptedSnapshot) -> bool {
     let model = runtime.model();
     matches!(
         model.lifecycle,

@@ -1,10 +1,10 @@
 //! The Layout actions outside the Component Inspector land through resolution: keyboard
 //! nudges, the old position Inspector's commit, and constraint set/remove. Every test runs
 //! against the real Session and Core with the first Core reply gated, so edits queue.
+use super::inspector::LayoutConstraintValues;
 use super::layout_component_edits::{
     commit_position_resolver, constraint_resolver, nudge_resolver, remove_constraint_resolver,
 };
-use super::inspector::LayoutConstraintValues;
 use crate::edit_ticket::{EditTicket, Settlement};
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side, Vec2};
@@ -166,7 +166,13 @@ async fn old_position_inspector_commits_queue_and_the_latest_value_wins() {
         &runtime,
         "layout-old-position",
         Some("position".into()),
-        commit_position_resolver("a".into(), Vec2 { x: 5.0, y: 0.0 }, "position-1".into()),
+        commit_position_resolver(
+            vec!["a".into()],
+            "board".into(),
+            Some(5.0),
+            None,
+            "position-1".into(),
+        ),
     );
     support::drive_pending(&runtime);
     entered.await.expect("the X commit reached Core");
@@ -174,7 +180,13 @@ async fn old_position_inspector_commits_queue_and_the_latest_value_wins() {
         &runtime,
         "layout-old-position",
         Some("position".into()),
-        commit_position_resolver("a".into(), Vec2 { x: 5.0, y: 7.0 }, "position-2".into()),
+        commit_position_resolver(
+            vec!["a".into()],
+            "board".into(),
+            None,
+            Some(7.0),
+            "position-2".into(),
+        ),
     );
     support::drive_pending(&runtime);
     release.send(()).expect("release the held reply");
@@ -265,4 +277,86 @@ async fn removing_a_constraint_whose_part_was_deleted_retires_with_a_reason() {
         ticket.settlement(true),
         Settlement::Failed { ref message } if message.contains("no longer exists")
     ));
+}
+
+fn old_inspector_host() -> dioxus::prelude::Element {
+    use dioxus::prelude::*;
+    let runtime = use_context::<Rc<Runtime>>();
+    let version = use_signal(|| 0_u64);
+    use_context_provider(|| version);
+    use_hook(move || {
+        runtime.subscribe(Rc::new(move || {
+            let mut version = version;
+            version += 1;
+        }))
+    });
+    rsx! { super::inspector::Inspector {} }
+}
+
+#[wasm_bindgen_test]
+async fn mounted_old_position_axes_queue_and_translate_from_first_selected_part() {
+    use wasm_bindgen::JsCast;
+    let runtime = open().await;
+    runtime.submit(boardstudio_application::Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["b".into(), "a".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    let dom_document = web_sys::window().unwrap().document().unwrap();
+    let root = dom_document.create_element("div").unwrap();
+    dom_document.body().unwrap().append_child(&root).unwrap();
+    let dom = dioxus::prelude::VirtualDom::new(old_inspector_host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    gloo_timers::future::TimeoutFuture::new(50).await;
+    let input = |id: &str| {
+        root.query_selector(id)
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    };
+    let commit = |id: &str, value: &str| {
+        let field = input(id);
+        field.set_value(value);
+        let bubbling = web_sys::EventInit::new();
+        bubbling.set_bubbles(true);
+        field
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+            .unwrap();
+        let enter = web_sys::KeyboardEventInit::new();
+        enter.set_key("Enter");
+        enter.set_bubbles(true);
+        field
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                    .unwrap(),
+            )
+            .unwrap();
+    };
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    commit("#m1-position-x", "45");
+    support::drive_pending(&runtime);
+    entered.await.expect("X commit reaches Core");
+    commit("#m1-position-y", "7");
+    support::drive_pending(&runtime);
+    release.send(()).unwrap();
+    for _ in 0..20 {
+        support::run_pending(&runtime).await;
+        gloo_timers::future::TimeoutFuture::new(10).await;
+    }
+    assert_eq!(position(&runtime, "b"), Some(Vec2 { x: 45.0, y: 7.0 }));
+    assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 5.0, y: 7.0 }));
+    assert_eq!(input("#m1-position-x").value(), "45");
+    assert_eq!(input("#m1-position-y").value(), "7");
+    undo(&runtime).await;
+    assert_eq!(position(&runtime, "b"), Some(Vec2 { x: 45.0, y: 0.0 }));
+    undo(&runtime).await;
+    assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 0.0, y: 0.0 }));
+    runtime.unsubscribe();
+    root.remove();
 }

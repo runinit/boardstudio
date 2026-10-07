@@ -140,3 +140,26 @@ locally (never committed); see the handoff.
 
 Follow-ups: the project-name submit in `presentation.rs` still sends `Event::Edit` directly
 (ticket 16); a failed script ticket's message stays visible until the next script action.
+
+
+### Continuation review correction
+
+The two-axis review found a spec gap in the old position Inspector: it captured a
+whole point and moved only one part, and the initial test bypassed the mounted
+Inspector. The correction commits only the edited axes against the accepted
+position, translates the captured selection from its first part, and keeps edit
+tickets so pending drafts and failure feedback follow settlement. A mounted,
+gated X/Y test with reversed document/selection order failed first (the selected
+anchor remained at `(40, 0)` instead of `(45, 7)`), then passed with group positions,
+field text and two Undo steps verified. The direct resolver test now supplies only
+its committed axis. Geometry-script admission was renamed for clarity.
+
+Review: Standards — no documented breaches; optional duplication of symmetric
+input handlers. Spec — the axis/group/mounted-test finding is corrected; no
+remaining findings on re-review.
+
+Checks: application tests 29 passed; runtime tests 103 passed; `check.py repo`
+and `typecheck` passed; `check-wasm-tests.py` passed; Layout remainder browser
+suite 6 passed; Component Inspector browser suite 20 passed; `git diff --check`
+passed. Typecheck/browser checks still require the uncommitted pre-WIP Parts-file
+workaround: unmodified `origin/dev` fails with nine errors in agent A's Parts WIP.
