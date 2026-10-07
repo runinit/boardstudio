@@ -1989,11 +1989,12 @@ async fn duplicate_design_variant(
     });
     let reversible = is_reversible(&accepted.document);
     let result = async {
-        let Some(accepted) =
-            current_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)
-        else {
-            return Ok(VariantEditWait::Retired);
-        };
+        let accepted =
+            match current_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?
+            {
+                Some(accepted) => accepted,
+                None => return Ok(VariantEditWait::Retired),
+            };
         let Some(matrix) = accepted
             .document
             .matrices
@@ -2017,10 +2018,9 @@ async fn duplicate_design_variant(
         }
         // Preparing the catalogue can take long enough for the user to open another project.
         // Confirm the clone is still the active project before submitting any intent.
-        if current_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)
-            .is_none()
-        {
-            return Ok(VariantEditWait::Retired);
+        match current_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)? {
+            Some(_) => {}
+            None => return Ok(VariantEditWait::Retired),
         }
         wait_for_variant_edit(
             &runtime,
@@ -2106,8 +2106,32 @@ fn current_variant_snapshot(
     expected: &boardstudio_application::AcceptedSnapshot,
     variant_id: &str,
     source_scope: &Scope,
-) -> Option<boardstudio_application::AcceptedSnapshot> {
-    exact_variant_snapshot(runtime, expected, variant_id, source_scope).ok()
+) -> Result<Option<boardstudio_application::AcceptedSnapshot>, String> {
+    let model = runtime.model();
+    let current_scope = runtime.scope();
+    if !current_scope.is_some_and(|scope| {
+        scope.session_epoch == expected.session_epoch
+            && scope.document_id == variant_id
+            && scope.board_id == source_scope.board_id
+            && scope.instance_id == source_scope.instance_id
+    }) {
+        return Ok(None);
+    }
+    let Some(current) = model.accepted else {
+        return Err("The duplicated project is no longer active.".into());
+    };
+    if model.lifecycle != Lifecycle::Ready {
+        return Err("The duplicated project changed before its matrix preset was ready.".into());
+    }
+    if !variant_session_matches(
+        expected.session_epoch,
+        variant_id,
+        current.session_epoch,
+        &current.document.id,
+    ) {
+        return Ok(None);
+    }
+    Ok(Some(current))
 }
 
 async fn wait_for_variant_edit(
@@ -2750,7 +2774,10 @@ mod tests {
 
             support::navigate(&runtime, "board-other").await;
 
-            assert!(current_variant_snapshot(&runtime, &accepted, &variant_id, &scope).is_none());
+            assert!(matches!(
+                current_variant_snapshot(&runtime, &accepted, &variant_id, &scope),
+                Ok(None)
+            ));
             // The production preparation path maps this missing snapshot to `Retired`, which
             // bypasses the generic error branch that invokes source-project recovery.
         }
