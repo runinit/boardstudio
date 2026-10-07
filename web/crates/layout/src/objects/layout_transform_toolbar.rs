@@ -10,11 +10,11 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution,
 };
-use boardstudio_web_runtime::edit_ticket::EditTicket;
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Matrix, MatrixScene, MatrixSplayAffect,
     MatrixSplayChange, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::EditTicket;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
@@ -752,8 +752,13 @@ pub fn LayoutTransformToolOverlay(
 /// applies it to the matrix accepted when the edit runs.
 #[derive(Clone, Debug, PartialEq)]
 enum TransformNudge {
-    Stagger { row_axis: bool, index: u32 },
-    SplayOrigin { column: u32 },
+    Stagger {
+        row_axis: bool,
+        index: u32,
+    },
+    SplayOrigin {
+        column: u32,
+    },
     SplayAngle {
         column: u32,
         degrees: f64,
@@ -797,7 +802,11 @@ fn stagger_by(matrix: &Matrix, row_axis: bool, index: u32, delta: Vec2) -> Matri
     next
 }
 
-fn transform_commit(transaction_id: String, matrix_id: &str, operation: EditOperation) -> Resolution {
+fn transform_commit(
+    transaction_id: String,
+    matrix_id: &str,
+    operation: EditOperation,
+) -> Resolution {
     Resolution::Submit(EditCommand {
         base_revision: 0,
         transaction_id,
@@ -879,7 +888,10 @@ enum TransformDragResult {
     },
 }
 
-fn transform_drag_result(drag: &TransformDrag, operation: &EditOperation) -> Option<TransformDragResult> {
+fn transform_drag_result(
+    drag: &TransformDrag,
+    operation: &EditOperation,
+) -> Option<TransformDragResult> {
     match (&drag.gesture, operation) {
         (
             TransformGesture::Stagger { row_axis, index },
@@ -1022,8 +1034,9 @@ fn transform_nudge_admitted(
         && owner.scope.as_ref().is_some_and(|scope| {
             model.active_board_id == scope.board_id
                 && model.active_instance_id == scope.instance_id
-                && selected_context()
-                    .is_some_and(|selected| selected.scope == *scope && selected.context == *context)
+                && selected_context().is_some_and(|selected| {
+                    selected.scope == *scope && selected.context == *context
+                })
         })
 }
 
@@ -1649,9 +1662,9 @@ mod shortcut_tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod nudge_tests {
     use super::*;
-    use boardstudio_web_runtime::edit_ticket::Settlement;
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_runtime::edit_ticket::Settlement;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

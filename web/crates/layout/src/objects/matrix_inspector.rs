@@ -356,7 +356,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::Name,
                     label: projection.name_label, value: projection.name_value.clone(),
                     baseline: projection.name_baseline.clone(), kind: MatrixFieldKind::Name,
-                    request_sequence: props.request_sequence, editable: props.editable, 
+                    request_sequence: props.request_sequence, editable: props.editable,
                     feedback: name_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -367,7 +367,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::Rows,
                     label: "Rows", value: projection.rows.to_string(),
                     baseline: MatrixEditValue::Rows(projection.rows), kind: MatrixFieldKind::PositiveInteger,
-                    request_sequence: props.request_sequence, editable: props.editable, 
+                    request_sequence: props.request_sequence, editable: props.editable,
                     feedback: rows_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -378,7 +378,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::Columns,
                     label: "Columns", value: projection.columns.to_string(),
                     baseline: MatrixEditValue::Columns(projection.columns), kind: MatrixFieldKind::PositiveInteger,
-                    request_sequence: props.request_sequence, editable: props.editable, 
+                    request_sequence: props.request_sequence, editable: props.editable,
                     feedback: columns_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -389,7 +389,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::PitchX,
                     label: "Pitch X", value: projection.pitch_x.to_string(),
                     baseline: MatrixEditValue::PitchX(projection.pitch_x), kind: MatrixFieldKind::PositiveNumber,
-                    request_sequence: props.request_sequence, editable: props.editable, 
+                    request_sequence: props.request_sequence, editable: props.editable,
                     feedback: pitch_x_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -400,7 +400,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::PitchY,
                     label: "Pitch Y", value: projection.pitch_y.to_string(),
                     baseline: MatrixEditValue::PitchY(projection.pitch_y), kind: MatrixFieldKind::PositiveNumber,
-                    request_sequence: props.request_sequence, editable: props.editable, 
+                    request_sequence: props.request_sequence, editable: props.editable,
                     feedback: pitch_y_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -477,7 +477,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Switch footprint", value: projection.definition_id.clone(),
                         baseline: MatrixEditValue::SwitchDefinition(projection.definition_id.clone()), kind: MatrixFieldKind::Choice,
                         choices: projection.switch_choices.clone(),
-                        request_sequence: props.request_sequence, editable: props.editable, 
+                        request_sequence: props.request_sequence, editable: props.editable,
                         feedback: switch_feedback, on_edit: props.on_edit,
                     }
                 }}
@@ -488,7 +488,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Diode direction", value: diode_direction_value(projection.diode_direction),
                         baseline: MatrixEditValue::DiodeDirection(projection.diode_direction), kind: MatrixFieldKind::Choice,
                         choices: vec![("row2col".to_owned(), "Rows to columns".to_owned()), ("col2row".to_owned(), "Columns to rows".to_owned())],
-                        request_sequence: props.request_sequence, editable: props.editable, 
+                        request_sequence: props.request_sequence, editable: props.editable,
                         feedback: diode_feedback, on_edit: props.on_edit,
                     }
                 }}

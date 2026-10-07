@@ -1,8 +1,6 @@
 //! Scoped edits for the authored geometry fields of a project part definition.
 
-use boardstudio_application::{
-    AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Pad, PadShape, PartDefinition, PartKind, ProjectDoc,
     Vec2,
@@ -12,8 +10,7 @@ pub(crate) const DEFINITION_GONE: &str = "This part definition no longer exists.
 pub(crate) const GENERATOR_LOCKED: &str =
     "Generated definitions are edited through their generator settings.";
 const PAD_GONE: &str = "This pad no longer exists on the definition.";
-const IMPORTED_PADS: &str =
-    "Imported pad geometry stays linked to its original KiCad source.";
+const IMPORTED_PADS: &str = "Imported pad geometry stays linked to its original KiCad source.";
 const PAD_IDS_REQUIRED: &str =
     "Pad IDs and numbers are required. Positions must be finite, sizes and drill must be positive.";
 const PAD_IDS_UNIQUE: &str = "Pad IDs must be unique within the component.";
@@ -165,7 +162,10 @@ pub(crate) mod ui {
 
     /// Read a field's settlement; a terminal settlement drops the ticket so the field
     /// shows the accepted document again. Returns the settlement to render.
-    pub fn settle_ticket(ticket: &mut Option<EditTicket>, owner_is_live: bool) -> Option<Settlement> {
+    pub fn settle_ticket(
+        ticket: &mut Option<EditTicket>,
+        owner_is_live: bool,
+    ) -> Option<Settlement> {
         let pending = ticket.as_ref()?;
         let settlement = pending.settlement(owner_is_live);
         if settlement != Settlement::Pending {
@@ -485,9 +485,7 @@ pub(crate) mod ui {
                 shape,
                 remove,
             } = self;
-            [
-                id, number, x, y, size_x, size_y, drill, shape, remove,
-            ]
+            [id, number, x, y, size_x, size_y, drill, shape, remove]
         }
 
         fn park(&mut self, field: PadField, ticket: EditTicket) {
@@ -646,9 +644,7 @@ pub(crate) mod ui {
                 changed = true;
                 apply_text_settlement(
                     settlement,
-                    &pad.drill
-                        .map(|value| value.to_string())
-                        .unwrap_or_default(),
+                    &pad.drill.map(|value| value.to_string()).unwrap_or_default(),
                     &mut drill,
                     &mut error,
                 );
@@ -1092,10 +1088,7 @@ pub fn validate_definition_edit(edit: &DefinitionEdit) -> Result<(), String> {
 
 /// One resolved edit: Session fills the base revision and transaction identity when
 /// the edit runs (ticket 03), so the resolver submits only the operation and targets.
-pub(crate) fn replacement_commit(
-    operation: EditOperation,
-    target_ids: Vec<String>,
-) -> Resolution {
+pub(crate) fn replacement_commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
     Resolution::Submit(EditCommand {
         base_revision: 0,
         transaction_id: String::new(),
@@ -1764,9 +1757,10 @@ mod tests {
         assert_eq!(next_pad_number(&ordinary), "3");
 
         let mut document = ProjectDoc::empty("project", "Fixture");
-        document
-            .definitions
-            .push(definition(serde_json::json!([pad("a", "1"), pad("b", "3")])));
+        document.definitions.push(definition(serde_json::json!([
+            pad("a", "1"),
+            pad("b", "3")
+        ])));
         let mut driver = Driver::open(document);
         assert_eq!(
             driver.resolve_at(9, DefinitionEdit::AddPad),
@@ -1801,9 +1795,10 @@ mod tests {
     #[test]
     fn field_edits_retire_vanished_or_ineligible_targets_with_reasons() {
         let mut document = ProjectDoc::empty("project", "Fixture");
-        document
-            .definitions
-            .push(definition(serde_json::json!([pad("a", "1"), pad("b", "2")])));
+        document.definitions.push(definition(serde_json::json!([
+            pad("a", "1"),
+            pad("b", "2")
+        ])));
         let mut driver = Driver::open(document);
         assert_eq!(
             driver.resolve(DefinitionEdit::PadCoordinate {
@@ -1878,8 +1873,11 @@ mod tests {
     fn field_admission_ignores_departed_owners_but_not_newer_revisions() {
         let current = snapshot(definition(serde_json::json!([pad("a", "1")])));
         let owner_scope = scope();
-        let capture =
-            DefinitionPanelCapture::new(&current, Some(owner_scope.clone()), &current.document.definitions[0]);
+        let capture = DefinitionPanelCapture::new(
+            &current,
+            Some(owner_scope.clone()),
+            &current.document.definitions[0],
+        );
         let selected = Some((Some(owner_scope.clone()), "custom".into()));
         assert!(capture.owner_is_live(&current, Some(owner_scope.clone()), selected.clone()));
         assert!(

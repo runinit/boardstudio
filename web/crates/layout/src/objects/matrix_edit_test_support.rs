@@ -11,7 +11,11 @@ pub const MATRIX_ID: &str = "matrix";
 pub const BOARD_ID: &str = "board-main";
 
 pub fn matrix_document() -> ProjectDoc {
-    let key_ids = ["matrix/matrix/r0c0", "matrix/matrix/r0c1", "matrix/matrix/r0c2"];
+    let key_ids = [
+        "matrix/matrix/r0c0",
+        "matrix/matrix/r0c1",
+        "matrix/matrix/r0c2",
+    ];
     let mut document = ProjectDoc::empty("project", "Matrix edits");
     document.outline.push(OutlineFeature::PartEnvelope {
         connections: vec![],

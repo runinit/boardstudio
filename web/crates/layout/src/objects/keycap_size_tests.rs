@@ -814,19 +814,34 @@ async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
 
 #[wasm_bindgen_test]
 async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
+    use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
-    use crate::runtime::project_name_test_support as support;
 
     let runtime = support::new_runtime();
     support::open_document(&runtime, key_fixture()).await;
     let accepted = runtime.model().accepted.expect("the fixture opens");
     assert!(
-        !placements(&accepted.document, &accepted.scene.matrix_scenes, "board-main").is_empty(),
+        !placements(
+            &accepted.document,
+            &accepted.scene.matrix_scenes,
+            "board-main"
+        )
+        .is_empty(),
         "Core projects the fixture key into the matrix scene: scenes={:?} parts={:?} matrices={:?}",
         accepted.scene.matrix_scenes,
-        accepted.document.parts.iter().map(|p| &p.id).collect::<Vec<_>>(),
-        accepted.document.matrices.iter().map(|m| (&m.id, &m.part_ids, &m.board_id)).collect::<Vec<_>>(),
+        accepted
+            .document
+            .parts
+            .iter()
+            .map(|p| &p.id)
+            .collect::<Vec<_>>(),
+        accepted
+            .document
+            .matrices
+            .iter()
+            .map(|m| (&m.id, &m.part_ids, &m.board_id))
+            .collect::<Vec<_>>(),
     );
     let original_width = key_width(&runtime);
 
@@ -875,12 +890,28 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
 
     assert!(matches!(resize.settlement(true), Settlement::Landed { .. }));
     assert!(matches!(rename.settlement(true), Settlement::Landed { .. }));
-    assert_ne!(key_width(&runtime), original_width, "the key-size edit landed");
+    assert_ne!(
+        key_width(&runtime),
+        original_width,
+        "the key-size edit landed"
+    );
     assert_eq!(board_name(&runtime), "Renamed", "the queued edit survived");
 
     undo(&runtime).await;
-    assert_eq!(board_name(&runtime), "Main", "one Undo removes the later edit");
-    assert_ne!(key_width(&runtime), original_width, "the key size is still applied");
+    assert_eq!(
+        board_name(&runtime),
+        "Main",
+        "one Undo removes the later edit"
+    );
+    assert_ne!(
+        key_width(&runtime),
+        original_width,
+        "the key size is still applied"
+    );
     undo(&runtime).await;
-    assert_eq!(key_width(&runtime), original_width, "the second Undo removes the key size");
+    assert_eq!(
+        key_width(&runtime),
+        original_width,
+        "the second Undo removes the key size"
+    );
 }

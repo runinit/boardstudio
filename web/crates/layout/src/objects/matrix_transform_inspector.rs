@@ -111,7 +111,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 MirrorTransformField {
                     owner: owner.clone(), snapshot_token, revision, value: *mirror,
                     mirror_y_locked: *mirror_y_locked, request_sequence,
-                    editable: props.mount.editable, 
+                    editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
             },
@@ -138,7 +138,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     field: MatrixTransformField::RowOffsetReset,
                     baseline: MatrixTransformValue::Offset(*offset),
                     value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
-                    request_sequence, editable: props.mount.editable, 
+                    request_sequence, editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                 }
                 span { class: "m1-matrix-field-context", "Row {row}" }
@@ -165,7 +165,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     OriginModeTransformField {
                         owner: owner.clone(), snapshot_token, revision,
                         custom: *custom_origin, request_sequence,
-                        editable: props.mount.editable, 
+                        editable: props.mount.editable,
                         feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                     }
                     div { class: "m1-matrix-inspector-fields",
@@ -230,7 +230,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         field: MatrixTransformField::ColumnOffsetReset,
                         baseline: MatrixTransformValue::Offset(*offset),
                         value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
-                        request_sequence, editable: props.mount.editable, 
+                        request_sequence, editable: props.mount.editable,
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                     }
                     span { class: "m1-matrix-field-context", "Column {column}" }
@@ -254,7 +254,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             rsx! {
                 EnabledTransformField {
                     owner: owner.clone(), snapshot_token, revision, value: *enabled,
-                    request_sequence, editable: props.mount.editable, 
+                    request_sequence, editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
                 div { class: "m1-matrix-inspector-fields",
@@ -282,7 +282,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     field: MatrixTransformField::KeyTransformReset,
                     baseline: MatrixTransformValue::CellTransform { offset: *offset, rotation: *rotation },
                     value: MatrixTransformValue::CellTransform { offset: Vec2 { x: 0.0, y: 0.0 }, rotation: 0.0 },
-                    request_sequence, editable: props.mount.editable, 
+                    request_sequence, editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                 }
                 KeyAssemblyField {
@@ -294,7 +294,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     owner: owner.clone(), snapshot_token, revision, value: assemblies.clone(),
                     choices: component_choices.clone(), mirror_target: *mirror_target,
                     assemblies_local: *assemblies_local, request_sequence,
-                    editable: props.mount.editable, 
+                    editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
                 span { class: "m1-matrix-field-context", "Key {row}, {column}" }

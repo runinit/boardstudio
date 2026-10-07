@@ -3,14 +3,14 @@ use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{EditOperation, PartDefinition};
 
 use crate::parts_custom_definition::{
-    DefinitionPanelCapture, DEFINITION_GONE, GENERATOR_LOCKED, replacement_commit,
+    DEFINITION_GONE, DefinitionPanelCapture, GENERATOR_LOCKED, replacement_commit,
 };
 
 #[cfg(target_arch = "wasm32")]
 mod ui {
     use super::definition_name_resolver;
-    use crate::parts_custom_definition::ui::{apply_text_settlement, settle_ticket};
     use crate::parts_custom_definition::DefinitionPanelCapture;
+    use crate::parts_custom_definition::ui::{apply_text_settlement, settle_ticket};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
@@ -86,12 +86,7 @@ mod ui {
             let mut edits = pending.peek().clone();
             if let Some(settlement) = settle_ticket(&mut edits, owner_live) {
                 pending.set(edits);
-                apply_text_settlement(
-                    settlement,
-                    definition.name.as_str(),
-                    &mut draft,
-                    &mut error,
-                );
+                apply_text_settlement(settlement, definition.name.as_str(), &mut draft, &mut error);
             }
         }
 
@@ -470,8 +465,11 @@ mod tests {
         let snapshot = session.read_model().accepted.clone().unwrap();
         let scope = session.scope();
         let selected = Some((scope.clone(), "selected".into()));
-        let capture =
-            DefinitionPanelCapture::new(&snapshot, scope.clone(), &snapshot.document.definitions[0]);
+        let capture = DefinitionPanelCapture::new(
+            &snapshot,
+            scope.clone(),
+            &snapshot.document.definitions[0],
+        );
 
         assert!(capture.owner_is_live(&snapshot, scope.clone(), selected.clone()));
         assert!(!capture.owner_is_live(
@@ -492,11 +490,7 @@ mod tests {
             document: std::sync::Arc::new(changed_identity_doc),
             ..snapshot.clone()
         };
-        assert!(!capture.owner_is_live(
-            &changed_identity_snapshot,
-            scope.clone(),
-            selected
-        ));
+        assert!(!capture.owner_is_live(&changed_identity_snapshot, scope.clone(), selected));
 
         // A newer accepted revision is not a departed owner: field edits queue freely
         // and resolve against the document accepted when they run (ADR-0005).
@@ -1532,8 +1526,7 @@ mod mounted_tests {
         accept_edits(&runtime, &controls).await;
         let undone = runtime.model().accepted.unwrap();
         assert_eq!(
-            undone.document.definitions[0].name,
-            "Renamed",
+            undone.document.definitions[0].name, "Renamed",
             "one Undo reverts only the width change; the rename survives"
         );
         assert_eq!(definition_bounds(&undone.document), (10.0, 6.0));
@@ -1555,8 +1548,7 @@ mod mounted_tests {
 
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
-            accepted.document.revision,
-            snapshot.document.revision,
+            accepted.document.revision, snapshot.document.revision,
             "a failed save does not move the accepted document"
         );
         assert_eq!(

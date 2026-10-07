@@ -3,9 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Finding, Script, Severity,
-};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Finding, Script, Severity};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -91,13 +89,14 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
         .read()
         .as_ref()
         .is_some_and(EditTicket::is_pending);
-    let ticket_error = script_ticket
-        .read()
-        .as_ref()
-        .and_then(|ticket| match ticket.settlement(true) {
-            Settlement::Failed { message } => Some(message),
-            _ => None,
-        });
+    let ticket_error =
+        script_ticket
+            .read()
+            .as_ref()
+            .and_then(|ticket| match ticket.settlement(true) {
+                Settlement::Failed { message } => Some(message),
+                _ => None,
+            });
     let active_script = scripts.iter().find(|script| script.id == active());
     let active_identity = active_script.map(|script| {
         (
@@ -420,14 +419,20 @@ mod queued_script_tests {
             Some("script".into()),
             apply_script_resolver("script-1".into(), "Frame".into(), "// frame".into(), true),
         );
-        assert!(apply.is_pending(), "the one-shot control stays disabled while pending");
+        assert!(
+            apply.is_pending(),
+            "the one-shot control stays disabled while pending"
+        );
         support::drive_pending(&runtime);
         release.send(()).expect("release the held reply");
         settle(&runtime, &apply).await;
 
         assert!(matches!(apply.settlement(true), Settlement::Landed { .. }));
         let document = runtime.model().accepted.unwrap().document;
-        assert_eq!(document.boards[0].name, "Renamed", "the unrelated edit survived");
+        assert_eq!(
+            document.boards[0].name, "Renamed",
+            "the unrelated edit survived"
+        );
         assert_eq!(document.scripts[0].name, "Frame");
         assert_eq!(document.scripts[0].source, "// frame");
         assert!(document.scripts[0].enabled);

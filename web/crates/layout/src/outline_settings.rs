@@ -129,7 +129,6 @@ pub fn apply_outline_edit(
             EditOperation::ReplaceDocument {
                 document: Box::new(replacement),
             },
-
             vec![board_id.to_owned(), feature_id],
         ));
     }
@@ -296,7 +295,6 @@ pub fn apply_outline_edit(
             EditOperation::SetOutline {
                 feature: next.clone(),
             },
-
             vec![board_id.to_owned(), id.clone()],
         ))
     }
@@ -531,10 +529,6 @@ mod tests {
         let protected = &settings.repair.as_ref().unwrap().keep_gaps[0];
         assert_eq!(protected.id, gap.id);
         assert_eq!(protected.points, gap.points);
-        let accepted = ProjectDoc {
-            outline: vec![feature],
-            ..document.clone()
-        };
         assert!(
             apply_outline_edit(
                 &document,

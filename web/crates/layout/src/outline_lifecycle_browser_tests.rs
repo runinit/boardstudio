@@ -1,9 +1,8 @@
 use super::*;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature,
-    OutlineProvenance, OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2,
-    ProjectDoc, Side, Vec2,
+    Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance,
+    OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
@@ -368,7 +367,7 @@ async fn mounted_outline_inspector_with_version(
     let board_id = "outline-board".to_string();
     let mut document = ProjectDoc::empty("outline-inspector-doc", "Outline fixture");
     document.revision = 9;
-        document.boards.push(Board {
+    document.boards.push(Board {
         id: board_id.clone(),
         name: "Board".into(),
         outline_ids: vec![],
@@ -390,7 +389,9 @@ async fn mounted_outline_inspector_with_version(
     }
     let runtime = crate::runtime::project_name_test_support::new_runtime();
     crate::runtime::project_name_test_support::open_document(&runtime, document).await;
-    let scope = runtime.scope().expect("the opened outline fixture has a scope");
+    let scope = runtime
+        .scope()
+        .expect("the opened outline fixture has a scope");
     let probe = InspectorProbe {
         runtime,
         scope,
@@ -804,7 +805,7 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
     let board_id = "outline-points-board".to_string();
     let mut document = ProjectDoc::empty("outline-points-doc", "Outline points fixture");
     document.revision = 11;
-        let has_envelope_part = !connections.is_empty() || !fixed;
+    let has_envelope_part = !connections.is_empty() || !fixed;
     if has_envelope_part {
         document.definitions.push(PartDefinition {
             hardware_profile: None,
@@ -903,7 +904,9 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
     }
     let runtime = crate::runtime::project_name_test_support::new_runtime();
     crate::runtime::project_name_test_support::open_document(&runtime, document).await;
-    let scope = runtime.scope().expect("the opened outline fixture has a scope");
+    let scope = runtime
+        .scope()
+        .expect("the opened outline fixture has a scope");
     let probe = InspectorProbe {
         runtime,
         scope,
@@ -939,14 +942,21 @@ async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_vali
             },
         ],
     };
-    let (probe, root) = mounted_polygon_outline_inspector_with_connections(false, vec![existing]).await;
+    let (probe, root) =
+        mounted_polygon_outline_inspector_with_connections(false, vec![existing]).await;
     settle_dimension().await;
     probe.add_connection(vec![Vec2 { x: -6.0, y: 0.0 }, Vec2 { x: -16.0, y: 0.0 }]);
     settle_dimension().await;
 
     accept(&probe).await;
     let document = accepted_document(&probe);
-    let scene = probe.runtime.model().accepted.expect("accepted").scene.clone();
+    let scene = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("accepted")
+        .scene
+        .clone();
     let feature = document
         .outline
         .iter()
@@ -1113,7 +1123,8 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
             bridges: vec![],
             protected_gaps: vec![],
         },
-    })).await;
+    }))
+    .await;
     settle_dimension().await;
     let select = root
         .query_selector("select[aria-label='Active outline']")
@@ -1162,7 +1173,10 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
             board.outline_ids.iter().any(|id| {
                 document.outline.iter().any(|feature| {
                     feature.id() == id
-                        && matches!(feature, boardstudio_core::model::OutlineFeature::PartEnvelope { .. })
+                        && matches!(
+                            feature,
+                            boardstudio_core::model::OutlineFeature::PartEnvelope { .. }
+                        )
                 })
             })
         });
@@ -1205,7 +1219,12 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
             scenes
                 .iter()
                 .find(|scene| scene.board_id == probe.scope.board_id)
-                .and_then(|scene| scene.source_contours.first().map(|contour| contour.points.len()))
+                .and_then(|scene| {
+                    scene
+                        .source_contours
+                        .first()
+                        .map(|contour| contour.points.len())
+                })
         });
     let document = accepted_document(&probe);
     let outline = document
@@ -1301,8 +1320,14 @@ mod queued_actions {
             anchor_part_id: None,
             points: vec![
                 Vec2 { x, y: 0.0 },
-                Vec2 { x: x + 10.0, y: 0.0 },
-                Vec2 { x: x + 10.0, y: 10.0 },
+                Vec2 {
+                    x: x + 10.0,
+                    y: 0.0,
+                },
+                Vec2 {
+                    x: x + 10.0,
+                    y: 10.0,
+                },
                 Vec2 { x, y: 10.0 },
             ],
             operation: Operation::Add,
@@ -1352,7 +1377,13 @@ mod queued_actions {
     }
 
     fn envelope(scope: &Scope) -> (Scope, SnapshotToken, u64, u64, String) {
-        (scope.clone(), SnapshotToken(0), 0, 1, scope.board_id.clone())
+        (
+            scope.clone(),
+            SnapshotToken(0),
+            0,
+            1,
+            scope.board_id.clone(),
+        )
     }
 
     fn set_feature(scope: &Scope, before: OutlineFeature, after: OutlineFeature) -> OutlineAction {
@@ -1389,7 +1420,11 @@ mod queued_actions {
         }
     }
 
-    fn begin(runtime: &Rc<crate::runtime::Runtime>, action: OutlineAction, seed: u64) -> EditTicket {
+    fn begin(
+        runtime: &Rc<crate::runtime::Runtime>,
+        action: OutlineAction,
+        seed: u64,
+    ) -> EditTicket {
         EditTicket::begin(
             runtime,
             "layout-outline",
@@ -1420,10 +1455,18 @@ mod queued_actions {
      {
         let (runtime, scope) = open().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let first = begin(&runtime, set_feature(&scope, polygon("base", 0.0), polygon("base", 5.0)), 1);
+        let first = begin(
+            &runtime,
+            set_feature(&scope, polygon("base", 0.0), polygon("base", 5.0)),
+            1,
+        );
         support::drive_pending(&runtime);
         entered.await.expect("the first edit reached Core");
-        let second = begin(&runtime, set_feature(&scope, polygon("second", 30.0), polygon("second", 35.0)), 2);
+        let second = begin(
+            &runtime,
+            set_feature(&scope, polygon("second", 30.0), polygon("second", 35.0)),
+            2,
+        );
         support::drive_pending(&runtime);
         release.send(()).expect("release the held reply");
         settle(&runtime, &second).await;
@@ -1432,12 +1475,20 @@ mod queued_actions {
         assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
         let accepted = features(&runtime);
         assert_eq!(accepted[0], polygon("base", 5.0), "the first edit survived");
-        assert_eq!(accepted[1], polygon("second", 35.0), "the second edit applied on top");
+        assert_eq!(
+            accepted[1],
+            polygon("second", 35.0),
+            "the second edit applied on top"
+        );
 
         super::undo(&runtime).await;
         let after_one = features(&runtime);
         assert_eq!(after_one[0], polygon("base", 5.0));
-        assert_eq!(after_one[1], polygon("second", 30.0), "one Undo removes the later edit");
+        assert_eq!(
+            after_one[1],
+            polygon("second", 30.0),
+            "one Undo removes the later edit"
+        );
         super::undo(&runtime).await;
         assert_eq!(features(&runtime)[0], polygon("base", 0.0));
     }
@@ -1447,10 +1498,18 @@ mod queued_actions {
         let (runtime, scope) = open().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         // Both adds were minted with the same identity at the same revision.
-        let first = begin(&runtime, add_feature(&scope, polygon("outline-manual", 60.0)), 1);
+        let first = begin(
+            &runtime,
+            add_feature(&scope, polygon("outline-manual", 60.0)),
+            1,
+        );
         support::drive_pending(&runtime);
         entered.await.expect("the first add reached Core");
-        let second = begin(&runtime, add_feature(&scope, polygon("outline-manual", 80.0)), 2);
+        let second = begin(
+            &runtime,
+            add_feature(&scope, polygon("outline-manual", 80.0)),
+            2,
+        );
         support::drive_pending(&runtime);
         release.send(()).expect("release the held reply");
         settle(&runtime, &second).await;
@@ -1458,7 +1517,10 @@ mod queued_actions {
         assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
         assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
         let accepted = features(&runtime);
-        let ids = accepted.iter().map(|feature| feature.id().to_owned()).collect::<Vec<_>>();
+        let ids = accepted
+            .iter()
+            .map(|feature| feature.id().to_owned())
+            .collect::<Vec<_>>();
         assert_eq!(accepted.len(), 4, "both added features exist: {ids:?}");
         let distinct = ids.iter().collect::<std::collections::BTreeSet<_>>();
         assert_eq!(distinct.len(), 4, "identities are distinct: {ids:?}");
@@ -1490,7 +1552,11 @@ mod queued_actions {
         };
         support::drive_pending(&runtime);
         entered.await.expect("the removal reached Core");
-        let edit = begin(&runtime, set_feature(&scope, polygon("second", 30.0), polygon("second", 40.0)), 2);
+        let edit = begin(
+            &runtime,
+            set_feature(&scope, polygon("second", 30.0), polygon("second", 40.0)),
+            2,
+        );
         support::drive_pending(&runtime);
         release.send(()).expect("release the held reply");
         settle(&runtime, &edit).await;
@@ -1512,7 +1578,10 @@ mod queued_actions {
         let add = begin(&runtime, add_feature(&scope, polygon("another", 100.0)), 1);
         support::drive_pending(&runtime);
         entered.await.expect("the add reached Core");
-        assert!(add.is_pending(), "the add control stays disabled while pending");
+        assert!(
+            add.is_pending(),
+            "the add control stays disabled while pending"
+        );
         release.send(()).expect("release the held reply");
         settle(&runtime, &add).await;
         assert!(!add.is_pending());

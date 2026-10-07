@@ -2385,7 +2385,11 @@ mod mounted_tests {
             runtime.model().accepted.unwrap().document.name,
             "Still typing"
         );
-        runtime.store.delete_project("menu-name-typing".into()).await.unwrap();
+        runtime
+            .store
+            .delete_project("menu-name-typing".into())
+            .await
+            .unwrap();
         root.remove();
     }
 
