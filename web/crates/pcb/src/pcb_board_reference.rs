@@ -1044,11 +1044,12 @@ mod test_support {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_async_tests {
     use super::*;
-    use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, ReadModel, Scope};
+    use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
+    use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
     use dioxus::prelude::*;
     use js_sys::{Array, Uint8Array};
-    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{File, HtmlElement};
@@ -1074,9 +1075,8 @@ mod mounted_async_tests {
         }
     }
 
-    fn fixture() -> Fixture {
-        let runtime = Runtime::new().expect("browser Runtime initializes");
-        let (_, opened, scope) = crate::runtime::firmware_export_test_support::opened_session();
+    async fn fixture() -> Fixture {
+        let runtime = support::new_runtime();
         let missing_sha = sha256_bytes(b"absent routed board browser-store fixture");
         let asset = Asset {
             id: "routed-board-asset".into(),
@@ -1086,9 +1086,21 @@ mod mounted_async_tests {
             license: None,
             source: None,
         };
+        let mut document = firmware_export_test_support::board_document();
+        // A second board for the owner-change test to navigate to.
+        document.boards.push(Board {
+            id: "changed-routed-board-target".into(),
+            name: "Changed target board".into(),
+            outline_ids: Vec::new(),
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
         let reference = BoardReference {
             id: "routed-board-reference".into(),
-            board_id: scope.board_id.clone(),
+            board_id: document.boards[0].id.clone(),
             asset_id: asset.id.clone(),
             enabled: true,
             pose: Pose2 {
@@ -1098,18 +1110,16 @@ mod mounted_async_tests {
             elevation: 0.0,
             model_assets: Default::default(),
         };
-        let mut document = (*opened.document).clone();
         document.assets.push(asset.clone());
         document.board_references.push(reference.clone());
-        let mut scene = (*opened.scene).clone();
-        scene.revision = document.revision;
-        let accepted = AcceptedSnapshot {
-            token: opened.token,
-            session_epoch: opened.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        };
-        install_current_runtime_model(&runtime, accepted.clone(), scope.clone());
+        support::open_document(&runtime, document).await;
+        let accepted = runtime
+            .model()
+            .accepted
+            .expect("the routed-board project is accepted");
+        let scope = runtime
+            .scope()
+            .expect("the accepted routed-board project has a scope");
         Fixture {
             runtime,
             accepted,
@@ -1117,19 +1127,6 @@ mod mounted_async_tests {
             reference,
             asset,
         }
-    }
-
-    fn install_current_runtime_model(runtime: &Runtime, accepted: AcceptedSnapshot, scope: Scope) {
-        let revision = accepted.document.revision;
-        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
-        runtime.set_definition_name_test_model(ReadModel {
-            lifecycle: Lifecycle::Ready,
-            durability: Durability::Saved { revision },
-            active_board_id: scope.board_id.clone(),
-            active_instance_id: scope.instance_id.clone(),
-            accepted: Some(accepted),
-            ..ReadModel::default()
-        });
     }
 
     #[component]
@@ -1157,7 +1154,7 @@ mod mounted_async_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_missing_stored_board_blob_reports_retry_and_keeps_reference() {
-        let fixture = fixture();
+        let fixture = fixture().await;
         assert!(
             fixture
                 .runtime
@@ -1228,7 +1225,7 @@ mod mounted_async_tests {
                 .unwrap()
                 .contains("Saved routed-board file is missing from browser storage")
         );
-        assert!(fixture.runtime.take_definition_name_test_event().is_none());
+        assert!(support::take_held_effects(&fixture.runtime).is_empty());
         assert!(
             fixture
                 .runtime
@@ -1310,38 +1307,33 @@ mod mounted_async_tests {
         Revision,
     }
 
-    fn changed_owner(fixture: &Fixture, change: OwnerChange) {
-        let mut document = (*fixture.accepted.document).clone();
-        let mut scope = fixture.scope.clone();
+    /// Change the accepted owner through the real Session: open another project, navigate to
+    /// another board, or land another revision of the same board.
+    async fn changed_owner(fixture: &Fixture, change: OwnerChange) {
+        let runtime = &fixture.runtime;
         match change {
             OwnerChange::Project => {
-                document.id = "changed-routed-board-project".into();
-                scope.document_id = document.id.clone();
-            }
-            OwnerChange::Board => {
-                document.boards.push(Board {
-                    id: "changed-routed-board-target".into(),
-                    name: "Changed target board".into(),
-                    outline_ids: Vec::new(),
-                    part_ids: Vec::new(),
-                    net_ids: Vec::new(),
-                    thickness: 1.6,
-                    traces: Vec::new(),
-                    vias: Vec::new(),
+                let mut replacement = (*fixture.accepted.document).clone();
+                replacement.id = "changed-routed-board-project".into();
+                runtime.submit(Event::Open {
+                    operation_id: runtime.operation(),
+                    document: replacement,
                 });
-                scope.board_id = "changed-routed-board-target".into();
+                support::run_pending(runtime).await;
             }
-            OwnerChange::Revision => document.revision += 1,
+            OwnerChange::Board => support::navigate(runtime, "changed-routed-board-target").await,
+            OwnerChange::Revision => {
+                let mut document = (*fixture.accepted.document).clone();
+                document.name.push_str(" revised");
+                support::replace_document(
+                    runtime,
+                    "routed-board-revision-change",
+                    &fixture.scope.board_id,
+                    document,
+                )
+                .await;
+            }
         }
-        let mut scene = (*fixture.accepted.scene).clone();
-        scene.revision = document.revision;
-        let accepted = AcceptedSnapshot {
-            token: fixture.accepted.token,
-            session_epoch: fixture.accepted.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        };
-        install_current_runtime_model(&fixture.runtime, accepted, scope);
     }
 
     fn replacement_file(salt: usize) -> (File, String) {
@@ -1369,7 +1361,7 @@ mod mounted_async_tests {
         .into_iter()
         .enumerate()
         {
-            let fixture = fixture();
+            let fixture = fixture().await;
             let (file, file_sha) = replacement_file(index + 1);
             let probe = ReplaceHostProbe {
                 fixture: fixture.clone(),
@@ -1411,7 +1403,7 @@ mod mounted_async_tests {
             entered
                 .await
                 .expect("real File.array_buffer read reaches gate");
-            changed_owner(&fixture, change);
+            changed_owner(&fixture, change).await;
             release.send(()).expect("release file-read admission gate");
 
             let busy = probe.busy.borrow().expect("mounted busy signal");
@@ -1442,7 +1434,7 @@ mod mounted_async_tests {
                 "replacement action remains usable for retry"
             );
             assert!(
-                fixture.runtime.take_definition_name_test_event().is_none(),
+                support::take_held_effects(&fixture.runtime).is_empty(),
                 "no project edit may be submitted after the stale file read"
             );
             let stored = fixture
