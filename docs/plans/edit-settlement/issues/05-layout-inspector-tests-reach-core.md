@@ -81,3 +81,28 @@ python3 scripts/check-wasm-tests.py
 
 - Fixing the overwrite (ticket 06).
 - Definition-name interception ([ticket 07](07-definition-name-tests-reach-core.md)).
+
+## Comments
+
+**2026-10-06, mid-ticket:** The Inspector suite itself is ported (commit e75c49eeb): all
+previously covered behaviours now run against the real Session and CoreEngine through the
+in-process adapter and assert accepted results, and the rapid queued X/Y + Undo test exists
+and is registered as a known failure for the expected reason (the Y edit restores the old
+X: `Vec2 { x: 66.675, y: -40.0 }` vs the expected `(60.0, -40.0)`).
+
+The last step — deleting the interception mode — is blocked by users the ticket's grep
+(`web/src` only, taken before the web crate split) did not know about:
+
+- `web/crates/layout/src/objects/matrix_transform_inspector_tests.rs` (9 call sites),
+- `web/crates/layout/src/outline_lifecycle_browser_tests.rs` (12 call sites).
+
+Both mount inspector hosts over hand-built `ReadModel` fixtures and assert captured
+events; through the real Session those assertions must become accepted-document
+assertions over Core-generated matrix state, which is the migration work tickets 11
+(matrix-and-transform) and 12 (outline) already own. Deleting the interception now would
+break their suites (verified: 13 failures). The interception is left in place and these
+tests keep passing.
+
+Needs a decision: (a) port those two files onto the adapter inside this ticket, or
+(b) move the interception deletion to the cluster tickets (11/12) or cleanup (17) and
+adjust this ticket's third acceptance criterion accordingly.
