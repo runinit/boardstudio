@@ -111,8 +111,8 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditOperation, Matrix, MatrixSplayAffect, Part, PartDefinition, PartKind, PartOutline,
-    Position, Vec2,
+    Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part, PartDefinition,
+    PartKind, PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1563,33 +1563,6 @@ fn layout_relationship_summary(
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 
-fn layout_selection_kind_for_tree_context(
-    context: &objects::TreeContext,
-) -> Option<objects::LayoutSelectionKind> {
-    match context {
-        objects::TreeContext::Matrix { .. } => Some(objects::LayoutSelectionKind::Matrix),
-        objects::TreeContext::Row { .. } => Some(objects::LayoutSelectionKind::Row),
-        objects::TreeContext::Column { .. } => Some(objects::LayoutSelectionKind::Column),
-        objects::TreeContext::Key { .. } => Some(objects::LayoutSelectionKind::Key),
-        objects::TreeContext::Component { .. } => Some(objects::LayoutSelectionKind::Part),
-        objects::TreeContext::Outline { .. }
-        | objects::TreeContext::OutlineVersion { .. }
-        | objects::TreeContext::Bridge { .. }
-        | objects::TreeContext::MountedModule { .. }
-        | objects::TreeContext::Board { .. }
-        | objects::TreeContext::LayoutGroup { .. } => None,
-    }
-}
-
-fn update_layout_selection_kind_for_tree_context(
-    mut selection_kind: Signal<objects::LayoutSelectionKind>,
-    context: &objects::TreeContext,
-) {
-    if let Some(kind) = layout_selection_kind_for_tree_context(context) {
-        selection_kind.set(kind);
-    }
-}
-
 fn layout_component_inspector_owner_key(
     model: &ReadModel,
     workspace: &'static str,
@@ -1836,33 +1809,6 @@ fn dispatch_layout_component_inspector_action(
             workspace.set("PCB");
             inspect_open.set(true);
         }
-    }
-}
-
-fn pending_splay_origin_pick_after_view_change<T>(
-    from_3d: bool,
-    to_3d: bool,
-    pending: Option<T>,
-) -> Option<T> {
-    if !from_3d && to_3d { None } else { pending }
-}
-
-#[cfg(test)]
-mod layout_splay_pick_view_change_tests {
-    use super::pending_splay_origin_pick_after_view_change;
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn entering_layout_3d_cancels_pending_splay_origin_pick() {
-        assert_eq!(
-            pending_splay_origin_pick_after_view_change(false, true, Some("origin")),
-            None
-        );
-        assert_eq!(
-            pending_splay_origin_pick_after_view_change(true, false, Some("origin")),
-            Some("origin"),
-            "leaving 3D does not rewrite the pending pick state"
-        );
     }
 }
 
@@ -2657,24 +2603,20 @@ fn Editor() -> Element {
     let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
     let case_tree_expanded = case_workspace_state.tree_expanded();
     let workspace = use_context::<WorkspaceState>().0;
+    let layout_state =
+        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
     let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
-    let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
-    let mut layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
-    layout_workspace::use_contextual_inspector_tab_reset(
-        adapter.selected_context,
-        layout_context_tab,
-    );
-    let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
-    let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
-    let layout_transform_tool_owner =
-        use_signal(|| None::<(Option<Scope>, u64, Option<String>, &'static str, bool)>);
-    let mut layout_assembly_3d = use_signal(|| false);
+    let layout_selection_kind = layout_state.selection_kind();
+    let layout_snap_settings = layout_state.snap_settings();
+    let mut layout_context_tab = layout_state.inspector_tab();
+    let layout_command_menu = layout_state.command_menu();
+    let mut layout_transform_tool = layout_state.transform_tool();
+    let layout_assembly_3d = layout_state.assembly_3d();
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
@@ -2696,7 +2638,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let matrix_splay_affect = use_signal(|| MatrixSplayAffect::Following);
+    let matrix_splay_affect = layout_state.splay_affect();
     let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         version,
@@ -2706,7 +2648,7 @@ fn Editor() -> Element {
         matrix_splay_affect,
         "Layout",
     );
-    let pending_splay_origin_pick = use_signal(|| None::<objects::MatrixTransformInspectorOwner>);
+    let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -2774,7 +2716,7 @@ fn Editor() -> Element {
             });
         })
     };
-    let pair_created_selection = use_signal(|| None::<objects::MirroredPairCreated>);
+    let pair_created_selection = layout_state.pair_created_selection();
     let on_mirrored_pair_created = use_callback({
         let runtime = runtime.clone();
         let mut adapter = adapter.clone();
@@ -2947,14 +2889,6 @@ fn Editor() -> Element {
         adapter.clone(),
         layout_owner.clone(),
     );
-    use_effect(use_reactive((&active_workspace,), {
-        let mut active_tool = layout_transform_tool;
-        move |(active_workspace,)| {
-            if active_workspace != "Layout" {
-                active_tool.set(None);
-            }
-        }
-    }));
     use_effect(use_reactive((&layout_owner,), {
         let tree_cell_anchor = tree_cell_anchor.clone();
         move |(owner,)| {
@@ -3425,7 +3359,6 @@ fn Editor() -> Element {
         let tree_cell_anchor = tree_cell_anchor.clone();
         let generation = render_generation;
         let mut workspace = workspace;
-        let selection_kind = layout_selection_kind;
         let inspector_settings = inspector_panel_settings;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -3469,7 +3402,7 @@ fn Editor() -> Element {
             };
             let activation = request.outline_action.clone();
             let scope = request.scope.clone();
-            update_layout_selection_kind_for_tree_context(selection_kind, &request.context);
+            layout_state.set_selection_kind_from_context(&request.context);
             update_tree_cell_anchor(
                 &tree_cell_anchor,
                 &owner,
@@ -5413,20 +5346,7 @@ fn Editor() -> Element {
         active_workspace,
         layout_assembly_3d(),
     );
-    use_effect(use_reactive((&transform_tool_owner,), {
-        let mut owner_state = layout_transform_tool_owner;
-        let mut active_tool = layout_transform_tool;
-        move |(transform_tool_owner,)| {
-            if owner_state
-                .peek()
-                .as_ref()
-                .is_some_and(|previous| previous != &transform_tool_owner)
-            {
-                active_tool.set(None);
-            }
-            owner_state.set(Some(transform_tool_owner.clone()));
-        }
-    }));
+    layout_state.observe_transform_tool_owner(transform_tool_owner);
     let component_inspector_key = layout_component_inspector_owner_key(
         &model,
         active_workspace,
@@ -6871,10 +6791,9 @@ fn Editor() -> Element {
         },
         layout_assembly_3d,
         {
-            let mut active_tool = layout_transform_tool;
+            let layout_state = layout_state;
             move |assembly_3d| {
-                active_tool.set(None);
-                layout_assembly_3d.set(assembly_3d);
+                layout_state.set_assembly_3d(assembly_3d);
             }
         },
         LayoutPlacementCancellation {
@@ -6897,14 +6816,7 @@ fn Editor() -> Element {
             let mirrored_pair = mirrored_pair.clone();
             let matrix_setup = matrix_setup.clone();
             let matrix_placement = matrix_placement.clone();
-            let mut pending_splay_origin_pick = pending_splay_origin_pick;
-            let layout_assembly_3d = layout_assembly_3d;
             move || {
-                pending_splay_origin_pick.set(pending_splay_origin_pick_after_view_change(
-                    layout_assembly_3d(),
-                    true,
-                    pending_splay_origin_pick(),
-                ));
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
@@ -7251,8 +7163,7 @@ fn Editor() -> Element {
             },
         )),
     };
-    let component_inspector_pending_edits =
-        use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    let component_inspector_pending_edits = layout_state.component_inspector_edits();
     let on_component_inspector_action = EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
