@@ -1,5 +1,6 @@
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
+use boardstudio_web_runtime::edit_ticket::EditTicket;
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Position, Vec2};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -168,6 +169,21 @@ fn submit_position(
     at: Vec2,
     phase: EditPhase,
 ) {
+    if phase == EditPhase::Commit {
+        // A commit is intent: it resolves against the accepted position when it runs.
+        let _ = EditTicket::begin(
+            runtime,
+            "layout-old-position",
+            Some("position".into()),
+            super::layout_component_edits::commit_position_resolver(
+                edit.id.clone(),
+                at,
+                edit.transaction_id.clone(),
+            ),
+        );
+        current.borrow_mut().take();
+        return;
+    }
     runtime.submit(Event::Edit {
         operation_id: runtime.operation(),
         command: EditCommand {

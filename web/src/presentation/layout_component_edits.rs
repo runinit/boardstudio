@@ -349,6 +349,57 @@ pub fn remove_constraint_resolver(part_id: String, constraint_id: String) -> Edi
     )
 }
 
+/// Resolve a keyboard nudge: a delta intent. Each part's accepted position moves by the
+/// step when the edit runs, so repeated presses queued behind each other compose. A part
+/// that is gone, locked or relationship-driven by then retires the nudge.
+pub fn nudge_resolver(part_ids: Vec<String>, board_id: String, delta: Vec2) -> EditResolver {
+    EditResolver::new("layout-nudge", move |accepted: &AcceptedSnapshot| {
+        let document = &accepted.document;
+        let mut positions = Vec::with_capacity(part_ids.len());
+        for part_id in &part_ids {
+            let Some(part) = part_of(document, part_id) else {
+                return Resolution::Retire("The selected part no longer exists.".into());
+            };
+            if let Some(reason) = position_ineligible_reason(document, &board_id, part_id) {
+                return Resolution::Retire(reason.into());
+            }
+            positions.push(Position {
+                id: part.id.clone(),
+                at: Vec2 {
+                    x: part.pose.at.x + delta.x,
+                    y: part.pose.at.y + delta.y,
+                },
+            });
+        }
+        commit(EditOperation::MoveParts { positions }, part_ids.clone())
+    })
+}
+
+/// Resolve the old position Inspector's commit: the part moves to the typed point. The
+/// commit keeps the preview's transaction so the preview is replaced rather than stacked.
+pub fn commit_position_resolver(part_id: String, at: Vec2, transaction_id: String) -> EditResolver {
+    EditResolver::new("layout-old-position", move |accepted: &AcceptedSnapshot| {
+        let Some(part) = part_of(&accepted.document, &part_id) else {
+            return Resolution::Retire("The selected part no longer exists.".into());
+        };
+        if part.pose.at == at {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: transaction_id.clone(),
+            phase: EditPhase::Commit,
+            target_ids: vec![part_id.clone()],
+            operation: EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: part_id.clone(),
+                    at,
+                }],
+            },
+        })
+    })
+}
+
 /// Read a field's settlement; a terminal settlement drops the ticket so the field shows
 /// the accepted document again. Returns the settlement for the caller to render.
 pub fn settle_field(ticket: &mut Option<EditTicket>, owner_is_live: bool) -> Option<Settlement> {

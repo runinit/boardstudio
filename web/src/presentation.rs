@@ -24,6 +24,8 @@ pub(crate) use boardstudio_web_ui_shared::layout_camera;
 mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
+#[cfg(test)]
+mod layout_remainder_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
@@ -4657,16 +4659,6 @@ fn Editor() -> Element {
                     return;
                 }
                 let step = if request.large_step { 1.0 } else { 0.1 };
-                let positions: Vec<_> = moving
-                    .iter()
-                    .map(|part| Position {
-                        id: part.id.clone(),
-                        at: Vec2 {
-                            x: part.pose.at.x + f64::from(request.dx) * step,
-                            y: part.pose.at.y + f64::from(request.dy) * step,
-                        },
-                    })
-                    .collect();
                 let moving_ids: Vec<_> = moving.iter().map(|part| part.id.clone()).collect();
                 let mut selected_context = adapter.selected_context;
                 selected_context.set(Some(objects::ScopedTreeContext {
@@ -4693,17 +4685,21 @@ fn Editor() -> Element {
                     anchor_scope.set(Some(request.scope));
                 }
                 inspect_open.set(true);
-                let operation_id = runtime.operation();
-                runtime.submit(Event::Edit {
-                    operation_id,
-                    command: EditCommand {
-                        base_revision: snapshot.document.revision,
-                        transaction_id: format!("tree-nudge-{}", operation_id.0),
-                        phase: EditPhase::Commit,
-                        target_ids: moving_ids,
-                        operation: EditOperation::MoveParts { positions },
-                    },
-                });
+                // Each press is a delta intent: it moves each part by one step from the
+                // position accepted when it runs, so held-key repeats all land.
+                let _ = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+                    &runtime,
+                    "layout-nudge",
+                    Some("move".into()),
+                    layout_component_edits::nudge_resolver(
+                        moving_ids,
+                        model.active_board_id.clone(),
+                        Vec2 {
+                            x: f64::from(request.dx) * step,
+                            y: f64::from(request.dy) * step,
+                        },
+                    ),
+                );
                 let direction = match (request.dx, request.dy) {
                     (-1, 0) => "left",
                     (1, 0) => "right",
