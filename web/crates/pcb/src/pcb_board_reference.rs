@@ -1404,6 +1404,7 @@ mod mounted_async_tests {
                 .await
                 .expect("real File.array_buffer read reaches gate");
             changed_owner(&fixture, change).await;
+            let accepted_after_change = fixture.runtime.model().accepted.expect("project stays accepted");
             release.send(()).expect("release file-read admission gate");
 
             let busy = probe.busy.borrow().expect("mounted busy signal");
@@ -1436,6 +1437,13 @@ mod mounted_async_tests {
             assert!(
                 support::take_held_effects(&fixture.runtime).is_empty(),
                 "no project edit may be submitted after the stale file read"
+            );
+            let accepted_after_read = fixture.runtime.model().accepted.expect("project stays accepted");
+            assert_eq!(accepted_after_read.token, accepted_after_change.token);
+            assert_eq!(
+                accepted_after_read.document.revision,
+                accepted_after_change.document.revision,
+                "the stale file read changed no accepted document"
             );
             let stored = fixture
                 .runtime

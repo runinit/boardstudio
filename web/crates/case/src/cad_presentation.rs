@@ -356,7 +356,7 @@ mod mounted_tests {
     /// completion the worker would have.
     fn finish_generation(runtime: &Rc<Runtime>, scope: &Scope, exact: bool) {
         let job_id = start_generation(runtime, scope);
-        support::complete(
+        support::deliver_completion(
             runtime,
             Completion::GenerationFinished {
                 job_id,
@@ -371,7 +371,7 @@ mod mounted_tests {
     /// failure the worker would have.
     fn fail_generation(runtime: &Rc<Runtime>, scope: &Scope, reason: &str) {
         let job_id = start_generation(runtime, scope);
-        support::complete(
+        support::deliver_completion(
             runtime,
             Completion::GenerationFailed {
                 job_id,

@@ -7702,7 +7702,7 @@ pub mod project_name_test_support {
     /// Deliver a completion to Session as the executor that ran the effect would have. Tests
     /// use it for the generation jobs the adapter does not run; the effects it produces are
     /// held like those of a submitted event.
-    pub fn complete(runtime: &Rc<Runtime>, completion: Completion) {
+    pub fn deliver_completion(runtime: &Rc<Runtime>, completion: Completion) {
         installed(runtime);
         let effects = runtime.complete(completion);
         runtime.held_effects.borrow_mut().extend(effects);
