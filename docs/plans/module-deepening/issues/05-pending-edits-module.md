@@ -1,58 +1,56 @@
-# 05: `PendingEdits`, with the Matrix Inspector as tracer bullet
+# 05: PendingEdits and Matrix tracer integration gate
 
 Status: ready-for-agent
-Type: build
-Blocked by: 01, 03, 04
-Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [01 answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
+Type: task
+Blocked by: 14, 15, 16, 17, 18
+Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
 
-## What to build
+## What to verify
 
-The `PendingEdits` module, the edit ticket's lineage liveness, the `ui-shared` helpers,
-and the Matrix Inspector (`web/crates/layout/src/objects/matrix_inspector_controller.rs`)
-moved onto them. The Matrix Inspector is the tracer because it has every case: queued
-field edits, one-shot preset and delete actions, an unlink with no owner beyond its
-ticket, post-landing selection on delete, and the live-owner retired message that the
-amendment removes. Line numbers at `915d305c0`, orientation only.
+The user requested smaller implementation slices on 2026-10-07. This ticket retains
+its original role as the prerequisite for the three wider panel migration tickets;
+it is now an orchestrator-owned integration gate, with no separate coding worktree.
+The approved settlement decisions and overall scope are unchanged.
 
-## Interface
+| Implementation slice | Waits for | Owns |
+| --- | --- | --- |
+| [Edit tickets own captured Scope liveness](14-edit-ticket-scope-lineage.md) | Native Runtime and resolution constructors | Ticket scope port and native tests |
+| [PendingEdits owns keyed settlement](15-keyed-pending-edits.md) | Captured Scope liveness | Dioxus-free collection and interface tests |
+| [Shared UI helpers present pending edits](16-pending-edit-ui-helpers.md) | Keyed settlement | Signal helpers and mounted helper tests |
+| [Matrix one-shot actions use PendingEdits](17-matrix-one-shot-pending-edits.md) | Keyed settlement | Preset/delete/unlink and variant observations |
+| [Matrix fields complete the PendingEdits tracer](18-matrix-field-pending-edits.md) | UI helpers and Matrix actions | Fields, helper binding and complete mounted tracer |
 
-A sketch from the decisions; exact names are the implementer's, checked with the
-`codebase-design` skill.
-
-- **Edit ticket** (`web/crates/runtime/src/edit_ticket.rs`): `begin` captures the
-  current `Scope` (the port gains a scope accessor). The ticket retires itself once the
-  current scope differs; the caller's `owner_is_live` now means only the panel's own
-  owner (selection generation, mounted target).
-- **`PendingEdits<K>`** (`web/crates/runtime/src/pending_edits.rs`, no Dioxus):
-  - `begin(port, key, label, feature, resolver)`: starts a ticket; a newer ticket for the
-    same key replaces the observed one (latest per key wins; the older still runs in
-    Session);
-  - `is_pending(&key)`: one-shot controls disable while true;
-  - `settle(owner_is_live: impl Fn(&K) -> bool) -> Vec<(K, Settled)>`: drops terminal
-    tickets and reports, per key, `Landed { revision }`, `Failed { message }` or
-    `Retired`. There is no `Saved` state; `Landed` exists for one-shot follow-ups such
-    as post-landing selection.
-- **`ui-shared` helpers** (Signal-bound): a text-field helper that keeps the draft
-  while pending, and on settle restores the accepted value, showing a failure inline
-  and a retirement silently; a one-shot helper that disables while pending and returns
-  the failure message for the panel to place.
+Shared helpers and Matrix actions run concurrently after the keyed interface merges.
+Matrix fields follow both, so agents never edit the Matrix controller concurrently or
+work against unfinished helper code. The exact collection contract lives in its
+slice and Outcome; the Signal contract lives in the shared-helper slice and Outcome.
 
 ## Acceptance criteria
 
-- [ ] Native tests at `PendingEdits`' interface cover: latest ticket per key; one-shot
-  pending until settled; failure message; silent retirement on scope change, on a
-  departed owner and on `Superseded`/`Cancelled`/`Closed`; `Landed` revision.
-- [ ] Edit ticket tests cover scope-captured retirement.
-- [ ] `MatrixSubmission`, `MatrixPresetSubmission`, `MatrixDeletionSubmission`,
-  `MatrixEditState::Saved` and the four `settle_pending*` functions (~1338-1480) are
-  gone; "did not complete in the active session" is gone from the Matrix Inspector.
-- [ ] Matrix Inspector mounted tests pass, with any asserting the removed message or
-  "Saved" status updated; native panel tests that only restated settlement are deleted.
+- [ ] Every implementation slice is merged, reviewed and resolved.
+- [ ] Native collection tests cover latest ticket per key, one-shot pending until
+  settled, failure message, silent retirement on Scope/owner departure and on
+  Superseded/Cancelled/Closed, and Landed revision.
+- [ ] Edit ticket tests cover captured-scope retirement using the real Runtime.
+- [ ] MatrixSubmission, MatrixPresetSubmission, MatrixDeletionSubmission,
+  MatrixEditState::Saved and all four original settle_pending functions are gone;
+  the Matrix active-session retirement message is gone.
+- [ ] Matrix mounted tests and the shared-helper interface tests pass; shallow
+  settlement tests have been replaced rather than retained as another policy layer.
+- [ ] Contracts and examples are recorded for the downstream panel implementers;
+  known baseline failures and unexecuted tests are reported accurately.
 
 ## Verification
 
+The orchestrator reuses sufficient fresh evidence from the implementation slices and
+checks their combined tree. Run additional affected checks only for integration
+changes or unresolved risks; do not claim known baseline gates are green.
+
 ```sh
 cargo test -p boardstudio-web-runtime -p boardstudio-web-ui-shared -p boardstudio-web-layout --locked
-python3 scripts/check.py lint typecheck test
-wasm-pack test --headless --chrome web/crates/layout --locked --lib
+python3 scripts/check.py lint typecheck test browser
 ```
+
+Resolve this gate only when the complete tracer is demonstrated. Layout, Parts/PCB
+and Case/Keymap/Keycaps/Library migrations still wait for this gate, rather than an
+unfinished Runtime interface or helper-only checkpoint.

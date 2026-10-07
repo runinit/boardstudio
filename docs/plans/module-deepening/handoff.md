@@ -28,7 +28,12 @@ run in parallel; the "touches" column is what keeps them apart.
 | 2 | [TCE-01](../typed-core-edits/issues/01-set-wiring-mode.md) `SetWiringMode` | `core/`, `web/crates/pcb/src/pcb_wiring/mode.rs` | ES-20 |
 | 2 | [12](issues/12-editor-workspace-state.md) Editor workspace state | `web/src/presentation.rs` | 11 |
 | 3 | [04](issues/04-resolution-constructors.md) resolution constructors | `session.rs`, then a sweep of every resolver in `web/` | 06, TCE-01 |
-| 4 | [05](issues/05-pending-edits-module.md) `PendingEdits` + Matrix tracer | `runtime/src/{edit_ticket.rs, pending_edits.rs}`, `ui-shared`, `matrix_inspector_controller.rs` | 03, 04 |
+| 4a | [Edit tickets own captured Scope liveness](issues/14-edit-ticket-scope-lineage.md) | Runtime ticket/port and native tests | Native Runtime, resolution constructors |
+| 4b | [PendingEdits owns keyed settlement](issues/15-keyed-pending-edits.md) | `runtime/src/{pending_edits.rs, lib.rs}` | Captured Scope liveness |
+| 4c | [Shared UI helpers present pending edits](issues/16-pending-edit-ui-helpers.md) | New `ui-shared` helper module, export and tests | Keyed settlement |
+| 4c | [Matrix one-shot actions use PendingEdits](issues/17-matrix-one-shot-pending-edits.md) | Matrix controller/Inspector action regions and tests | Keyed settlement |
+| 4d | [Matrix fields complete the PendingEdits tracer](issues/18-matrix-field-pending-edits.md) | Matrix controller/Inspector fields and helper binding | Shared helpers, Matrix actions |
+| 4e | [PendingEdits and Matrix tracer integration gate](issues/05-pending-edits-module.md) | Tracker/evidence only; orchestrator-owned | All five implementation slices |
 | 5 | [07](issues/07-layout-panels-onto-pending-edits.md) Layout panels | `web/crates/layout`, `ui-shared/geometry_scripts.rs`, `web/src/presentation/` | 05, 06, 12 |
 | 5 | [08](issues/08-parts-and-pcb-onto-pending-edits.md) Parts and PCB | `web/crates/parts`, `web/crates/pcb` | 05 |
 | 5 | [09](issues/09-case-keymap-keycaps-library-onto-pending-edits.md) Case, Keymap, Keycaps, Library | those four crates | 05 |
@@ -44,6 +49,31 @@ reason (`web/src/presentation.rs`). TCE-02 and 09 both touch
 
 Wave 1 and wave 2 tickets 10, 11 and 12 never block the critical path
 (ES-20 → 03/04 → 05 → 07/08/09); give the critical path agents first.
+
+## Splitting the PendingEdits tracer across tools
+
+The scope and approved policy of the original tracer ticket are unchanged. Its five
+implementation slices each have a coherent interface test surface and compile before
+the next slice starts. Shared helpers and Matrix actions run in parallel after the
+keyed collection merges; Matrix fields wait for both. The parent tracer ticket is an
+integration gate, not a second implementation assignment. Keep the existing wider
+panel migrations blocked on that gate.
+
+- The keyed collection's Outcome publishes the tested interface and examples before
+  either consumer starts. Later Runtime interface changes coordinate with both owners.
+- Shared helpers are a suitable separate-AI-tool assignment. That tool owns only its
+  ticket paths in its own external worktree/branch, reads the same repo instructions,
+  runs the same checks/reviews, and reports commits/evidence to the orchestrator.
+- Only the orchestrator changes `dev`, claims/resolves tickets and merges branches.
+  Do not dispatch the same ticket to two tools. Matrix actions and Matrix fields
+  merge sequentially because they share controller and Inspector files.
+- Chrome/headless browser runs use one explicit orchestrator lease across all tools.
+  Other workers continue native checks or source work while waiting; release the lease
+  as soon as the runner exits. Never stop unrelated browser processes.
+- Reviews pin the actual worktree, base and HEAD. Every shell read/review command uses
+  that absolute workdir; start by confirming `git rev-parse HEAD` and the diff range.
+  The shared canonical GitNexus index is advisory for worktree edits: confirm stale,
+  empty or UNKNOWN results against the current source and never reindex an agent tree.
 
 ## Claiming and resolving
 

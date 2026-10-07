@@ -18,6 +18,9 @@ mechanical settings and outline version rules in Core.
 - Skills: `codebase-design` for interface and seam questions, `grilling` +
   `domain-modeling` for decision tickets, `tdd` for build tickets, `code-review`
   before resolving a build ticket.
+- This map carries build execution under [the handoff](handoff.md), as well as
+  decision planning. The current split preserves the already approved settlement
+  policy; human approval is still required for the separate typed Core proposals.
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
 - Line numbers in tickets are at `915d305c0`, orientation only.
 - Text search: `rg` (skips the stale `.claude/worktrees/` copies).
@@ -25,20 +28,29 @@ mechanical settings and outline version rules in Core.
 ## Order
 
 ```text
-ES-20 ──┬── 03 native Runtime ─────────────────┐
-        ├── 06 outline split ──┬───────────────┤
-        └── TCE-01 ────────────┴── 04 resolution ── 05 PendingEdits + Matrix tracer
-                                                     ├── 07 Layout panels (also 06, 12)
-                                                     ├── 08 Parts + PCB
-                                                     └── 09 Case, Keymap, Keycaps, Library
-independent 10 export leases
-            11 Editor tracer ── 12 Editor workspace state
-cross-effort TCE-01 ── TCE-02 mechanical patch;  TCE-01 + 06 ── TCE-03 outline intents (human)
-finish      13 cleanup (07, 08, 09, 10, 12)
+ES-20 ──┬── native Runtime ───────────────────────────────────────────┐
+        ├── outline split ──┬───────────────────────────────────────┤
+        └── typed wiring ───┴── resolution constructors ── ticket Scope
+                                                            │
+                                                       keyed PendingEdits
+                                                            ├── shared UI helpers ─┐
+                                                            └── Matrix actions ────┤
+                                                                                  │
+                                                                          Matrix fields
+                                                                                  │
+                                                                        tracer gate (05)
+                                                                                  ├── Layout panels (also outline split, workspace state)
+                                                                                  ├── Parts + PCB
+                                                                                  └── Case, Keymap, Keycaps, Library
+independent export leases
+            Editor tracer ── Editor workspace state
+cross-effort typed wiring ── mechanical patch (approved spec required)
+             typed wiring + outline split ── outline intents (human)
+finish       cleanup after the three panel migrations, export leases and workspace state
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Tickets 04 and 12 are claimed; 04 is integrating the new Runtime test helpers, and 12 is completing its commit/check boundaries. Ticket 05 starts after both 03 and 04 merge. The TCE-02 spec and TCE-03 decision proposals await human approval.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Tickets 04 and 12 are claimed; 04 is integrating the new Runtime test helpers, and 12 is completing its commit/check boundaries. The captured-Scope slice starts after the native Runtime and resolution constructors merge; the tracer gate now groups five smaller builds. Shared helpers and Matrix actions can run in parallel after the keyed collection merges. The TCE-02 spec and TCE-03 decision proposals await human approval.
 
 ## Decisions so far
 
@@ -85,7 +97,13 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 - [02 Decide the native test Runtime's shape](issues/02-decide-native-test-runtime.md) (resolved)
 - [03 Native tests run the real Session and Core](issues/03-native-test-runtime.md)
 - [04 Resolvers state only their intent](issues/04-resolution-constructors.md)
-- [05 `PendingEdits`, with the Matrix Inspector as tracer bullet](issues/05-pending-edits-module.md)
+- [PendingEdits and Matrix tracer integration gate](issues/05-pending-edits-module.md)
+  (orchestrator gate; retains downstream dependencies)
+- [Edit tickets own captured Scope liveness](issues/14-edit-ticket-scope-lineage.md)
+- [PendingEdits owns keyed settlement](issues/15-keyed-pending-edits.md)
+- [Shared UI helpers present pending edits](issues/16-pending-edit-ui-helpers.md)
+- [Matrix one-shot actions use PendingEdits](issues/17-matrix-one-shot-pending-edits.md)
+- [Matrix fields complete the PendingEdits tracer](issues/18-matrix-field-pending-edits.md)
 - [06 Separate outline version planning from its Inspector and overlays](issues/06-split-outline-lifecycle.md)
 - [07 Layout panels settle through `PendingEdits`](issues/07-layout-panels-onto-pending-edits.md)
 - [08 Parts and PCB panels settle through `PendingEdits`](issues/08-parts-and-pcb-onto-pending-edits.md)
@@ -96,6 +114,14 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 - [13 Cleanup and record](issues/13-cleanup.md)
 - Cross-effort: [TCE-02 mechanical settings patch](../typed-core-edits/issues/02-mechanical-settings-patch.md),
   [TCE-03 decide outline version intents](../typed-core-edits/issues/03-decide-outline-version-intents.md)
+
+## Parallel frontier after the constructor integration
+
+Start the captured-Scope slice, then the keyed collection. Once its reviewed interface
+is merged, shared UI helpers and Matrix actions are independent work streams with
+separate files. A separate AI tool can own the shared-helper slice in an external
+worktree. Matrix fields follow both; the orchestrator closes the tracer gate only after
+combined verification. The three wider panel migrations then run in parallel.
 
 ## Out of scope
 
