@@ -1572,6 +1572,29 @@ mod set_wiring_mode_tests {
     }
 
     #[test]
+    fn changing_mode_preserves_the_board_configuration() {
+        let mut document = document();
+        let mut configuration = ElectricalBoardConfiguration {
+            board_id: "left".into(),
+            controller_part_id: Some("controller".into()),
+            mode: electrical::ElectricalMode::Matrix,
+            ..Default::default()
+        };
+        configuration.locks.insert("row".into(), "P1".into());
+        document
+            .hardware
+            .get_or_insert_with(Default::default)
+            .boards
+            .push(configuration.clone());
+
+        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Direct)).unwrap();
+
+        assert_eq!(changed, ["left"]);
+        configuration.mode = electrical::ElectricalMode::Direct;
+        assert_eq!(document.hardware.unwrap().boards, [configuration]);
+    }
+
+    #[test]
     fn setting_the_default_mode_is_a_no_op() {
         let mut document = document();
 
