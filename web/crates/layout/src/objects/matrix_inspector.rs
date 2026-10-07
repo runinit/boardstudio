@@ -212,20 +212,24 @@ pub struct MatrixDuplicateRequest {
     pub orientation: SwitchOrientation,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MatrixEditState {
-    Pending,
-    Saved,
-    Failed,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatrixEditFeedback {
     pub owner: MatrixInspectorOwner,
     pub request_id: u64,
     pub field: MatrixEditField,
-    pub state: MatrixEditState,
-    pub message: Option<String>,
+    pub message: String,
+}
+
+#[derive(Clone, Copy)]
+pub struct MatrixFieldView {
+    pub draft: Signal<String>,
+    pub failure: Signal<Option<String>>,
+}
+
+impl PartialEq for MatrixFieldView {
+    fn eq(&self, other: &Self) -> bool {
+        self.draft == other.draft && self.failure == other.failure
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -234,6 +238,9 @@ pub struct MatrixInspectorProps {
     pub request_sequence: Signal<u64>,
     pub editable: bool,
     pub busy: bool,
+    pub inspector_mounted: Signal<bool>,
+    pub fields: Vec<(MatrixEditField, MatrixFieldView)>,
+    pub pending_fields: Vec<MatrixEditField>,
     pub feedback: Vec<MatrixEditFeedback>,
     pub on_edit: EventHandler<MatrixEditRequest>,
     pub on_apply_preset: EventHandler<MatrixPresetRequest>,
@@ -244,6 +251,20 @@ pub struct MatrixInspectorProps {
 
 #[component]
 pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
+    let mut inspector_mounted = props.inspector_mounted;
+    use_hook({
+        let mut inspector_mounted = inspector_mounted;
+        move || {
+            if !*inspector_mounted.peek() {
+                inspector_mounted.set(true);
+            }
+        }
+    });
+    use_drop(move || {
+        if *inspector_mounted.peek() {
+            inspector_mounted.set(false);
+        }
+    });
     let projection = &props.projection;
     let definition_label = projection
         .switch_choices
@@ -322,15 +343,15 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
             && feedback.field == MatrixEditField::ApplyPreset
             && preset_request_id() == Some(feedback.request_id)
     });
-    let name_feedback = props.feedback.clone();
-    let rows_feedback = props.feedback.clone();
-    let columns_feedback = props.feedback.clone();
-    let pitch_x_feedback = props.feedback.clone();
-    let pitch_y_feedback = props.feedback.clone();
-    let switch_feedback = props.feedback.clone();
-    let diode_feedback = props.feedback.clone();
-    let edge_gap_x_feedback = props.feedback.clone();
-    let edge_gap_y_feedback = props.feedback.clone();
+    let field_view = |field| {
+        props
+            .fields
+            .iter()
+            .find(|(candidate, _)| *candidate == field)
+            .map(|(_, view)| *view)
+            .expect("Matrix Inspector fields are wired by the controller")
+    };
+    let field_pending = |field| props.pending_fields.contains(&field);
     let name_key = owner_key(&projection.owner, MatrixEditField::Name);
     let rows_key = owner_key(&projection.owner, MatrixEditField::Rows);
     let columns_key = owner_key(&projection.owner, MatrixEditField::Columns);
@@ -357,7 +378,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     label: projection.name_label, value: projection.name_value.clone(),
                     baseline: projection.name_baseline.clone(), kind: MatrixFieldKind::Name,
                     request_sequence: props.request_sequence, editable: props.editable,
-                    feedback: name_feedback, on_edit: props.on_edit,
+                    feedback: props.feedback.clone(), view: field_view(MatrixEditField::Name),
+                    pending: field_pending(MatrixEditField::Name), on_edit: props.on_edit,
                 }
                 }}
                 {rsx! {
@@ -368,7 +390,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     label: "Rows", value: projection.rows.to_string(),
                     baseline: MatrixEditValue::Rows(projection.rows), kind: MatrixFieldKind::PositiveInteger,
                     request_sequence: props.request_sequence, editable: props.editable,
-                    feedback: rows_feedback, on_edit: props.on_edit,
+                    feedback: props.feedback.clone(), view: field_view(MatrixEditField::Rows),
+                    pending: field_pending(MatrixEditField::Rows), on_edit: props.on_edit,
                 }
                 }}
                 {rsx! {
@@ -379,7 +402,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     label: "Columns", value: projection.columns.to_string(),
                     baseline: MatrixEditValue::Columns(projection.columns), kind: MatrixFieldKind::PositiveInteger,
                     request_sequence: props.request_sequence, editable: props.editable,
-                    feedback: columns_feedback, on_edit: props.on_edit,
+                    feedback: props.feedback.clone(), view: field_view(MatrixEditField::Columns),
+                    pending: field_pending(MatrixEditField::Columns), on_edit: props.on_edit,
                 }
                 }}
                 {rsx! {
@@ -390,7 +414,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     label: "Pitch X", value: projection.pitch_x.to_string(),
                     baseline: MatrixEditValue::PitchX(projection.pitch_x), kind: MatrixFieldKind::PositiveNumber,
                     request_sequence: props.request_sequence, editable: props.editable,
-                    feedback: pitch_x_feedback, on_edit: props.on_edit,
+                    feedback: props.feedback.clone(), view: field_view(MatrixEditField::PitchX),
+                    pending: field_pending(MatrixEditField::PitchX), on_edit: props.on_edit,
                 }
                 }}
                 {rsx! {
@@ -401,7 +426,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     label: "Pitch Y", value: projection.pitch_y.to_string(),
                     baseline: MatrixEditValue::PitchY(projection.pitch_y), kind: MatrixFieldKind::PositiveNumber,
                     request_sequence: props.request_sequence, editable: props.editable,
-                    feedback: pitch_y_feedback, on_edit: props.on_edit,
+                    feedback: props.feedback.clone(), view: field_view(MatrixEditField::PitchY),
+                    pending: field_pending(MatrixEditField::PitchY), on_edit: props.on_edit,
                 }
                 }}
             }
@@ -478,7 +504,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         baseline: MatrixEditValue::SwitchDefinition(projection.definition_id.clone()), kind: MatrixFieldKind::Choice,
                         choices: projection.switch_choices.clone(),
                         request_sequence: props.request_sequence, editable: props.editable,
-                        feedback: switch_feedback, on_edit: props.on_edit,
+                        feedback: props.feedback.clone(), view: field_view(MatrixEditField::SwitchDefinition),
+                        pending: field_pending(MatrixEditField::SwitchDefinition), on_edit: props.on_edit,
                     }
                 }}
                 {rsx! {
@@ -489,13 +516,12 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         baseline: MatrixEditValue::DiodeDirection(projection.diode_direction), kind: MatrixFieldKind::Choice,
                         choices: vec![("row2col".to_owned(), "Rows to columns".to_owned()), ("col2row".to_owned(), "Columns to rows".to_owned())],
                         request_sequence: props.request_sequence, editable: props.editable,
-                        feedback: diode_feedback, on_edit: props.on_edit,
+                        feedback: props.feedback.clone(), view: field_view(MatrixEditField::DiodeDirection),
+                        pending: field_pending(MatrixEditField::DiodeDirection), on_edit: props.on_edit,
                     }
                 }}
                 if let Some(feedback) = preset_feedback {
-                    if feedback.state == MatrixEditState::Failed {
-                        p { role: "alert", "{feedback.message.as_deref().unwrap_or(\"The matrix preset was not saved.\")}" }
-                    }
+                    p { role: "alert", "{feedback.message}" }
                 }
                 }
             }
@@ -509,7 +535,9 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Edge gap X", value: projection.edge_gap_x.to_string(),
                         baseline: MatrixEditValue::EdgeGapX(projection.edge_gap_x), kind: MatrixFieldKind::NonnegativeNumber,
                         choices: Vec::new(), request_sequence: props.request_sequence,
-                        editable: props.editable,  feedback: edge_gap_x_feedback, on_edit: props.on_edit,
+                        editable: props.editable, feedback: props.feedback.clone(),
+                        view: field_view(MatrixEditField::EdgeGapX),
+                        pending: field_pending(MatrixEditField::EdgeGapX), on_edit: props.on_edit,
                     }
                 }}
                 {rsx! {
@@ -519,7 +547,9 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Edge gap Y", value: projection.edge_gap_y.to_string(),
                         baseline: MatrixEditValue::EdgeGapY(projection.edge_gap_y), kind: MatrixFieldKind::NonnegativeNumber,
                         choices: Vec::new(), request_sequence: props.request_sequence,
-                        editable: props.editable,  feedback: edge_gap_y_feedback, on_edit: props.on_edit,
+                        editable: props.editable, feedback: props.feedback.clone(),
+                        view: field_view(MatrixEditField::EdgeGapY),
+                        pending: field_pending(MatrixEditField::EdgeGapY), on_edit: props.on_edit,
                     }
                 }}
             }
@@ -565,19 +595,36 @@ struct MatrixFieldEditorProps {
     request_sequence: Signal<u64>,
     editable: bool,
     feedback: Vec<MatrixEditFeedback>,
+    view: MatrixFieldView,
+    pending: bool,
     on_edit: EventHandler<MatrixEditRequest>,
 }
 
 #[component]
 fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
-    let mut draft = use_signal(|| props.value.clone());
+    use_hook({
+        let mut draft = props.view.draft;
+        let mut failure = props.view.failure;
+        let value = props.value.clone();
+        let pending = props.pending;
+        move || {
+            if !pending && draft.peek().as_str() != value.as_str() {
+                draft.set(value);
+            }
+            if failure.peek().is_some() {
+                failure.set(None);
+            }
+        }
+    });
+    let mut draft = props.view.draft;
     let mut draft_baseline = use_signal(|| props.baseline.clone());
     let mut dirty = use_signal(|| false);
-    let mut error = use_signal(|| None::<String>);
+    let mut error = props.view.failure;
     let mut submitted_request_id = use_signal(|| None::<u64>);
     let mut status = use_signal(|| None::<String>);
     let accepted_value = props.value.clone();
     let accepted_baseline = props.baseline.clone();
+    let pending = props.pending;
     let owner = props.owner.clone();
     let field = props.field;
     let feedback = props.feedback.clone();
@@ -595,36 +642,56 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
             && submitted_id == Some(feedback.request_id)
     });
     use_effect(use_reactive(
-        (&accepted_value, &accepted_baseline, &matching_feedback),
-        move |(value, baseline, feedback)| {
-            match feedback.as_ref().map(|feedback| feedback.state) {
-                Some(MatrixEditState::Pending) => {
+        (
+            &accepted_value,
+            &accepted_baseline,
+            &matching_feedback,
+            &pending,
+        ),
+        move |(value, baseline, feedback, pending)| {
+            if pending {
+                if status_for_effect.peek().as_deref() != Some("Saving…") {
                     status_for_effect.set(Some("Saving…".to_owned()));
-                    return;
                 }
-                Some(MatrixEditState::Saved) => {
-                    draft_for_effect.set(value.clone());
-                    baseline_for_effect.set(baseline.clone());
-                    dirty_for_effect.set(false);
-                    error_for_effect.set(None);
-                    submitted_for_effect.set(None);
-                    status_for_effect.set(Some("Saved".to_owned()));
-                    return;
-                }
-                Some(MatrixEditState::Failed) => {
-                    submitted_for_effect.set(None);
+                return;
+            }
+
+            if status_for_effect.peek().as_deref() == Some("Saving…") {
+                status_for_effect.set(None);
+            }
+
+            if submitted_for_effect().is_some() {
+                submitted_for_effect.set(None);
+                if status_for_effect.peek().is_some() {
                     status_for_effect.set(None);
-                    error_for_effect.set(Some(
-                        feedback
-                            .as_ref()
-                            .and_then(|item| item.message.clone())
-                            .unwrap_or_else(|| {
-                                "This matrix change was not saved. Review the value and retry."
-                                    .to_owned()
-                            }),
-                    ));
                 }
-                None => {}
+            }
+
+            if let Some(feedback) = feedback.as_ref() {
+                if submitted_for_effect.peek().is_some() {
+                    submitted_for_effect.set(None);
+                }
+                if status_for_effect.peek().is_some() {
+                    status_for_effect.set(None);
+                }
+                if error_for_effect.peek().as_deref() != Some(feedback.message.as_str()) {
+                    error_for_effect.set(Some(feedback.message.clone()));
+                }
+            }
+
+            if draft_for_effect() == value {
+                if *baseline_for_effect.peek() != baseline {
+                    baseline_for_effect.set(baseline.clone());
+                }
+                if *dirty_for_effect.peek() {
+                    dirty_for_effect.set(false);
+                }
+                if submitted_for_effect.peek().is_some() {
+                    submitted_for_effect.set(None);
+                }
+                if status_for_effect.peek().is_some() {
+                    status_for_effect.set(None);
+                }
             }
 
             // A dirty draft keeps the user's value: the latest committed value wins.
@@ -632,8 +699,12 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 draft_for_effect.set(value.clone());
                 baseline_for_effect.set(baseline.clone());
                 error_for_effect.set(None);
-                status_for_effect.set(None);
-                submitted_for_effect.set(None);
+                if status_for_effect.peek().is_some() {
+                    status_for_effect.set(None);
+                }
+                if submitted_for_effect.peek().is_some() {
+                    submitted_for_effect.set(None);
+                }
             }
         },
     ));
@@ -776,10 +847,9 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
             feedback.owner == props.owner
                 && feedback.field == props.field
                 && submitted_request_id() == Some(feedback.request_id)
-                && feedback.state == MatrixEditState::Failed
         })
-        .and_then(|feedback| feedback.message.clone());
-    let error_text = error().or(feedback_error);
+        .map(|feedback| feedback.message.clone());
+    let error_text = error.read().clone().or(feedback_error);
     let current_status = status();
     let input_value = draft();
     let current_baseline = props.baseline.clone();
