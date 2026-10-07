@@ -163,8 +163,7 @@ fn settlement_of(
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-mod wasm_port {
+mod runtime_port {
     use super::*;
     use crate::runtime::Runtime;
 
@@ -174,7 +173,14 @@ mod wasm_port {
         }
 
         fn observe(&self, operation: OperationId) -> (OutcomeSlot, LandingSlot) {
-            self.observe_operation_with_landing(operation)
+            #[cfg(target_arch = "wasm32")]
+            {
+                self.observe_operation_with_landing(operation)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.outcomes.observe_with_landing(operation)
+            }
         }
 
         fn submit(&self, event: Event) {
@@ -443,6 +449,37 @@ mod tests {
                 })
             },
         )
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_runtime_owner_observes_the_real_sessions_landing() {
+        let driver = NativeEditDriver::new();
+        driver.open_fixture("ticket-test", "Ticket test");
+        let runtime = crate::runtime::Runtime::new(
+            driver.read_model(),
+            driver.session.borrow().scope().unwrap(),
+        );
+        runtime.operation(); // The driver's Open used operation 1.
+        let ticket = EditTicket::begin(
+            &runtime,
+            "native-owner",
+            Some("field".into()),
+            rename_resolver("Renamed"),
+        );
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        let (outcome, landing) = driver.observe(ticket.operation());
+        driver.submit(runtime.events.borrow_mut().remove(0));
+        runtime.outcomes.settle_with_landing(
+            ticket.operation(),
+            outcome.borrow().clone().unwrap(),
+            *landing.borrow(),
+        );
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        assert_eq!(
+            driver.read_model().accepted.unwrap().document.name,
+            "Renamed"
+        );
     }
 
     #[test]
