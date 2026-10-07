@@ -1,6 +1,6 @@
 # 14: PCB wiring, modules and physical setup land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -65,7 +65,7 @@ line numbers at `3368825`, orientation only):
 
 | # | Action | Submit | Kind | Settlement to delete |
 |---|---|---|---|---|
-| 40 | Board reference actions | `board_reference_owner.rs:128` (asset stored first in `pcb_board_reference.rs:~278`) | one-shot, `ReplaceDocument` | result observed and discarded; `wait_for_reference_edit` |
+| 40 | Board reference actions | `board_reference_owner.rs:128` (asset stored first in `pcb_board_reference.rs:~278`) | fields: coordinates/settings; one-shot: import/attach/remove, `ReplaceDocument` | result observed and discarded; `wait_for_reference_edit` |
 | 41 | Wiring mode | `pcb_wiring/mode.rs:187` | field edit, `ReplaceDocument` | `PendingModeEdit`, whole-document equality |
 | 42 | Pin lock | `pcb_wiring/pins.rs:204` | field edit, `ReplaceDocument` | `PendingPinEdit`, whole-document equality |
 | 43 | Apply wiring plan | `pcb_wiring/apply.rs:174` | one-shot, `ReplaceDocument` | `PendingApply`, whole-document equality |
@@ -98,12 +98,12 @@ line numbers at `3368825`, orientation only):
 
 ## Acceptance criteria
 
-- [ ] Rapid test: wiring mode then pin lock committed back-to-back both survive; Undo removes them in order.
-- [ ] Rapid test: part net assign queued behind an unrelated Layout edit keeps that edit.
-- [ ] Applying a plan whose parts were deleted before execution retires with a reason.
-- [ ] All listed `Pending*` structs, `SubmittedSetup`, whole-document equality checks and `settle_edit` are gone.
-- [ ] Electrical remap review behaves exactly as before (its existing tests unchanged and green).
-- [ ] One-shot controls are disabled while pending; field edits are not.
+- [x] Rapid test: wiring mode then pin lock committed back-to-back both survive; Undo removes them in order.
+- [x] Rapid test: part net assign queued behind an unrelated Layout edit keeps that edit.
+- [x] Applying a plan whose parts were deleted before execution retires with a reason.
+- [x] All listed `Pending*` structs, `SubmittedSetup`, whole-document equality checks and `settle_edit` are gone.
+- [x] Electrical remap review behaves exactly as before (its existing tests unchanged and green).
+- [x] One-shot controls are disabled while pending; field edits are not.
 
 ## Verification
 
@@ -119,3 +119,45 @@ wasm-pack test --headless --chrome web/crates/pcb --locked --lib
 - Electrical remap review and PCB handoff/export commits (strict paths).
 - Cleaning up unreferenced asset bytes.
 - Typed wiring edits such as `SetWiringMode` (decision ticket 19).
+
+## Outcome
+
+Implemented in `9917dbf66`, `7546098dd` and `0b8900a92`, with the native Runtime
+edit-ticket port in the separately pushed `9f88c444b`. All listed PCB actions now
+submit pure accepted-snapshot resolvers through `EditTicket`. Wiring mode, pin
+locks, firmware bindings, part nets, scan modes, generator parameters, module
+placement and routed-board settings queue during Applying/Saving and retain their
+pending field values. Only each one-shot action's control is gated. Resolver
+mutations preserve unrelated accepted changes and allocate new IDs against the
+accepted document; missing or ineligible targets retire with a reason.
+
+The listed pending settlement owners, whole-document landing comparisons and
+firmware `settle_edit` are removed. Electrical remap and its three existing tests
+are unchanged. Physical setup re-applies its intent against accepted state and
+retires feedback with its owner; only an exact landed Case reassignment admits its
+existing follow-up navigation. Async part/schema preparation keeps commit order
+and checks each request's generation. Upload bytes still remain unreferenced if
+their edit fails or retires, as documented in the resolver comment.
+
+Real Session/Core gated regressions first reproduced dropped mode/pin and net
+edits, refused queued plans, and disabled board-reference fields. Green regressions
+assert the accepted document, visible pending drafts, independent controls, stable
+failure feedback, deleted-part retirement, and ordered Undo. Two module placement
+commits and two reference coordinate commits also survive a held Core reply and
+Undo in order.
+
+Review: Standards — no documented violations; exhaustive physical-setup dispatch
+addresses the future-variant concern. Spec — the board-reference field disabling
+and missing draft projection finding was fixed; rereview found no remaining
+concrete gaps. Board-reference coordinates/settings are fields under CONTEXT;
+import, attach and remove are one-shot actions (clarified in the call-site table).
+
+Verification: PCB browser 37, Runtime browser 33 and page browser 41 passed. Native
+Application 29, Runtime 102, PCB 16 and Catalogue 7 passed. `check.py repo` and
+`check.py typecheck`,
+`check-wasm-tests.py`, documentation links (56 files) and `git diff --check` passed.
+`check.py test` passed the workspace and footprint Rust suites, then stopped at the
+existing missing `cad/step-oracle/Cargo.toml` fixture. No dependency changes.
+
+Follow-up: ticket 15 is owned by the user's parallel worktree; ticket 17 remains
+outside this ticket. Asset cleanup remains out of scope.

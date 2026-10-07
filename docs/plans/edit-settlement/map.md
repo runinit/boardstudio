@@ -82,6 +82,11 @@ which remaining whole-document replacements become typed Core edits.
   and settle through edit tickets; rapid edits, field display and Undo are covered:
   [issues/13-keymap-and-keycaps.md](issues/13-keymap-and-keycaps.md).
 
+- 14 PCB wiring, module placement, physical setup and routed-board settings resolve
+  against accepted state and settle through edit tickets; pending fields and ordered
+  Undo are covered, while electrical remap stays strict:
+  [issues/14-pcb-wiring-modules-physical-setup.md](issues/14-pcb-wiring-modules-physical-setup.md).
+
 ## Not yet specified
 
 Nothing. The cluster migrations are now tickets, sliced from the
