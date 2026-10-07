@@ -7690,9 +7690,12 @@ pub mod project_name_test_support {
     }
 
     /// The effects Session asked Runtime to run that no test has driven yet. Generation and
-    /// export jobs are outside the adapter, so tests read these to see what Session started.
-    /// Taking them also keeps a later `run_pending` from starting the job.
+    /// export jobs are outside the adapter, so tests read these to see what Session started
+    /// (an empty list means nothing was submitted). Taking them also keeps a later
+    /// `run_pending` from starting the job. Effects are only held once the adapter is
+    /// installed, so a runtime without it is a test mistake, not an empty answer.
     pub fn take_held_effects(runtime: &Runtime) -> Vec<Effect> {
+        installed(runtime);
         std::mem::take(&mut *runtime.held_effects.borrow_mut())
     }
 
@@ -7700,6 +7703,7 @@ pub mod project_name_test_support {
     /// use it for the generation jobs the adapter does not run; the effects it produces are
     /// held like those of a submitted event.
     pub fn complete(runtime: &Rc<Runtime>, completion: Completion) {
+        installed(runtime);
         let effects = runtime.complete(completion);
         runtime.held_effects.borrow_mut().extend(effects);
     }
