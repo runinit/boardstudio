@@ -20,20 +20,20 @@ will bind the shared helpers and remove the remaining field feedback layer.
 
 ## Acceptance criteria
 
-- [ ] MatrixPresetSubmission and MatrixDeletionSubmission are removed; unlink's
+- [x] MatrixPresetSubmission and MatrixDeletionSubmission are removed; unlink's
   standalone ticket is tracked through PendingEdits with no fabricated panel owner.
-- [ ] The preset/delete/unlink settle_pending functions are removed and actions
+- [x] The preset/delete/unlink settle_pending functions are removed and actions
   disable while pending. Landed produces the same precise selection follow-up.
-- [ ] Action failures use the existing panel/report placement; retired actions are
+- [x] Action failures use the existing panel/report placement; retired actions are
   silent, including owner departure and Scope changes during preparation or saving.
-- [ ] Audit the duplicate-design-variant preset waiter as another one-shot observation:
+- [x] Audit the duplicate-design-variant preset waiter as another one-shot observation:
   use the collection where applicable and document any workflow-specific waiter.
   Retired ends observation silently; it must not become an error that triggers
   failure recovery or a user-visible report. Dropping observation does not cancel
   authoritative Session work. Genuine catalogue/Core/save/duplication failures keep
   their existing guarded recovery/reporting. Any lifecycle cleanup must still prove
   ownership of the clone; never redirect or restore over another project or owner.
-- [ ] Existing field behavior remains usable until the final field integration;
+- [x] Existing field behavior remains usable until the final field integration;
   the remaining MatrixSubmission/field feedback is explicitly deferred to that slice.
 - [ ] Mounted action tests use the real WASM Runtime; migrate hand-resolved domain
   tests to the registered native Runtime seam where feasible and remove only shallow
@@ -49,3 +49,29 @@ python3 scripts/check.py lint typecheck test browser
 Run the Matrix action/variant tests and affected Layout mounted suites. Serialize
 Chrome through the orchestrator. Review the branch on both axes before merging; the
 field integration starts only after this action branch is merged.
+
+## Outcome
+
+Matrix preset, delete and unlink observations now live in `PendingEdits<MatrixActionKey>`.
+The keys preserve preset request feedback and exact deletion selection follow-up; unlink
+uses a plain action key and its ticket's captured Scope. The preset/delete/unlink
+submission-holder structs and their separate settlement functions are removed.
+
+Landed clears one-shot pending state. Preset failures stay in the existing inline
+feedback area; delete and unlink failures keep their existing Runtime report placement.
+Retired results are silent. Scope/owner changes during preset preparation clear the
+pending feedback, and the duplicate-variant preset waiter now treats retirement as a
+silent result instead of invoking recovery/reporting. Genuine catalogue, Core, save,
+and duplication failures retain their guarded recovery/reporting. A landed delete clears
+selection only if the same captured matrix remains selected. The preset no longer emits
+a `Saved` status.
+
+The browser-gated one-shot test now uses `PendingEdits` with a real Runtime/Core gate;
+the existing edit field submission/feedback layer is left for ticket 18.
+
+Verification so far: `cargo test -p boardstudio-web-layout --locked` passed 51 tests
+with one ignored; `python3 scripts/check.py lint typecheck` passed. The workspace test
+step passed before the CAD step reproduced the known baseline failure: 49 passed, 1
+failed, 4 ignored in `core_internal_gasket_fixtures_export_connected_positive_regions`
+(rotated-concave/bottom expected 80481.2399, actual 80579.55733514718). Browser tests
+and pinned Standards/Spec reviews are pending.
