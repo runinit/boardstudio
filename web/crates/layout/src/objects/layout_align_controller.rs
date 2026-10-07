@@ -930,3 +930,151 @@ fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> Stri
         .map(|part| part.reference.clone())
         .unwrap_or_else(|| id.to_owned())
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod resolver_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::{Board, OutlineFeature, OutlineSettings, Pose2, Side};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn part(id: &str, x: f64) -> Part {
+        Part {
+            keycap: None,
+            outline: None,
+            id: id.into(),
+            definition_id: "switch:base".into(),
+            reference: id.to_uppercase(),
+            pose: Pose2 {
+                at: Vec2 { x, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        }
+    }
+
+    fn fixture() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("project", "Keyboard");
+        document.outline.push(OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: OutlineSettings::default(),
+            id: "envelope-main".into(),
+            part_ids: vec![],
+            margin: 4.0,
+            operation: boardstudio_core::model::Operation::Add,
+        });
+        document.boards.push(Board {
+            id: "board-main".into(),
+            name: "Main".into(),
+            outline_ids: vec!["envelope-main".into()],
+            part_ids: vec!["a".into(), "b".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "switch:base",
+                "name": "MX switch",
+                "kind": "switch",
+                "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}, {"x": -3.0, "y": 3.0}],
+                "pads": []
+            }))
+            .unwrap(),
+        );
+        document.parts.push(part("a", 0.0));
+        document.parts.push(part("b", 20.0));
+        document
+    }
+
+    fn context() -> TreeContext {
+        TreeContext::Key {
+            matrix_id: "matrix-main".into(),
+            row: 0,
+            column: 0,
+        }
+    }
+
+    fn pose_x(runtime: &Rc<Runtime>, id: &str) -> Option<f64> {
+        runtime
+            .model()
+            .accepted
+            .as_ref()?
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == id)
+            .map(|part| part.pose.at.x)
+    }
+
+    #[wasm_bindgen_test]
+    async fn align_moves_the_selection_against_the_accepted_reference() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, fixture()).await;
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-align",
+            Some("alignment".into()),
+            align_resolver(context(), vec!["a".into()], "b".into(), AlignCommand::Left),
+        );
+        support::run_pending(&runtime).await;
+        assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        assert_eq!(pose_x(&runtime, "a"), Some(20.0));
+    }
+
+    #[wasm_bindgen_test]
+    async fn align_of_a_part_deleted_before_execution_retires_with_a_reason() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, fixture()).await;
+        let accepted = runtime.model().accepted.expect("the fixture opens");
+        // Hold the delete's Core reply so the align queues behind it.
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let mut without_a = accepted.document.as_ref().clone();
+        without_a.parts.retain(|part| part.id != "a");
+        without_a.boards[0].part_ids.retain(|id| id != "a");
+        runtime.submit(boardstudio_application::Event::Edit {
+            operation_id: runtime.operation(),
+            command: EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: "delete-a".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["a".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(without_a),
+                },
+            },
+        });
+        support::drive_pending(&runtime);
+        entered.await.expect("the delete reached Core");
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-align",
+            Some("alignment".into()),
+            align_resolver(context(), vec!["a".into()], "b".into(), AlignCommand::Left),
+        );
+        assert!(ticket.is_pending(), "a one-shot align stays pending until it settles");
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held delete");
+        for _ in 0..50 {
+            support::run_pending(&runtime).await;
+            if !ticket.is_pending() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        match ticket.settlement(true) {
+            Settlement::Failed { message } => assert!(
+                message.contains("no longer exists"),
+                "the reason is explained: {message}"
+            ),
+            other => panic!("expected a retirement with a reason, got {other:?}"),
+        }
+        assert_eq!(pose_x(&runtime, "a"), None);
+    }
+}

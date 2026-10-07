@@ -1,6 +1,4 @@
 //! Native-testable state transitions shared by the mounted mirrored-pair owner.
-use boardstudio_application::{Durability, SnapshotToken};
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PairFormStage {
     Setup,
@@ -36,31 +34,6 @@ pub fn pair_cancel_is_allowed(active_owner: bool, save_pending: bool) -> bool {
     active_owner && !save_pending
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PairResultGuard {
-    pub transaction_id: String,
-    pub base_token: SnapshotToken,
-    pub base_revision: u64,
-}
-
-pub fn accepted_saved_result_is_current(
-    pending: &PairResultGuard,
-    accepted_transaction_id: &str,
-    accepted_token: SnapshotToken,
-    accepted_revision: u64,
-    ready: bool,
-    durability: &Durability,
-) -> bool {
-    pending.transaction_id == accepted_transaction_id
-        && accepted_token != pending.base_token
-        && accepted_revision > pending.base_revision
-        && ready
-        && *durability
-            == (Durability::Saved {
-                revision: accepted_revision,
-            })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,63 +56,5 @@ mod tests {
         state.stage = PairFormStage::Placement;
         assert!(!state.setup_is_visible());
         assert!(!state.setup_is_editable());
-    }
-
-    #[test]
-    fn pair_settlement_requires_the_exact_accepted_operation_transaction() {
-        let pending = PairResultGuard {
-            transaction_id: "mirrored-pair-7-2-41".into(),
-            base_token: SnapshotToken(4),
-            base_revision: 11,
-        };
-        let saved = Durability::Saved { revision: 12 };
-        assert!(accepted_saved_result_is_current(
-            &pending,
-            "mirrored-pair-7-2-41",
-            SnapshotToken(5),
-            12,
-            true,
-            &saved,
-        ));
-        assert!(!accepted_saved_result_is_current(
-            &pending,
-            "later-unrelated-edit",
-            SnapshotToken(6),
-            13,
-            true,
-            &Durability::Saved { revision: 13 },
-        ));
-        assert!(!accepted_saved_result_is_current(
-            &pending,
-            "mirrored-pair-7-2-41",
-            SnapshotToken(4),
-            12,
-            true,
-            &Durability::Saved { revision: 12 },
-        ));
-        assert!(!accepted_saved_result_is_current(
-            &pending,
-            "mirrored-pair-7-2-41",
-            SnapshotToken(5),
-            11,
-            true,
-            &Durability::Saved { revision: 11 },
-        ));
-        assert!(!accepted_saved_result_is_current(
-            &pending,
-            "mirrored-pair-7-2-41",
-            SnapshotToken(5),
-            12,
-            false,
-            &Durability::Saved { revision: 12 },
-        ));
-        assert!(!accepted_saved_result_is_current(
-            &pending,
-            "mirrored-pair-7-2-41",
-            SnapshotToken(5),
-            12,
-            true,
-            &Durability::Saving { revision: 12 },
-        ));
     }
 }

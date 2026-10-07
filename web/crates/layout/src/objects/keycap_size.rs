@@ -180,7 +180,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 "Width"
                 input {
                     r#type: "range", aria_label: "Key width", min: "1", max: "7", step: "0.25",
-                    value: "{width_value}", aria_valuetext: "{width_value}u", disabled: !props.mount.editable || props.mount.busy,
+                    value: "{width_value}", aria_valuetext: "{width_value}u", disabled: !props.mount.editable,
                     oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft.write().x = value; },
                     onpointerup: {
                         let owner = event_owner.clone();
@@ -209,7 +209,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 "Height"
                 input {
                     r#type: "range", aria_label: "Key height", min: "1", max: "7", step: "0.25",
-                    value: "{height_value}", aria_valuetext: "{height_value}u", disabled: !props.mount.editable || props.mount.busy,
+                    value: "{height_value}", aria_valuetext: "{height_value}u", disabled: !props.mount.editable,
                     oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft.write().y = value; },
                     onpointerup: {
                         let owner = event_owner.clone();
@@ -235,7 +235,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 span { "{height_value}u" }
             }
             div { class: "m1-key-size-orientation", role: "group", aria_label: "Key orientation",
-                button { disabled: !props.mount.editable || props.mount.busy, aria_pressed: !mixed && draft().x >= draft().y,
+                button { disabled: !props.mount.editable, aria_pressed: !mixed && draft().x >= draft().y,
                 onclick: {
                     let owner = event_owner.clone();
                     let generation = timer_generation.clone();
@@ -249,7 +249,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                         submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
                     }
                 }, "Wide" }
-                button { disabled: !props.mount.editable || props.mount.busy, aria_pressed: !mixed && draft().y > draft().x,
+                button { disabled: !props.mount.editable, aria_pressed: !mixed && draft().y > draft().x,
                 onclick: {
                     let owner = event_owner.clone();
                     let generation = timer_generation.clone();

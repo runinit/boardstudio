@@ -3,11 +3,12 @@ use super::{
     ScopedTreeContext, TreeContext,
     keycap_resize::{self, KeycapPlacement, KeycapResizeInput, ResizeAxis},
 };
-use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
-    Durability, Event, Lifecycle, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc, Vec2};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
@@ -72,7 +73,6 @@ pub struct KeySizeMount {
     pub projection: Option<KeySizeProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
-    pub busy: bool,
     pub feedback: Option<KeySizeFeedback>,
     pub on_resize: EventHandler<KeySizeRequest>,
 }
@@ -80,10 +80,51 @@ pub struct KeySizeMount {
 #[derive(Clone)]
 struct PendingResize {
     request: KeySizeRequest,
-    outcome: OutcomeSlot,
-    base_token: SnapshotToken,
-    base_revision: u64,
-    expected: ProjectDoc,
+    ticket: EditTicket,
+}
+
+/// Resolve a key-size change against the accepted document at execution time. The plan is
+/// built from the accepted placements, so a resize queued behind other edits applies on
+/// top of them; a selection that no longer exists retires, and a plan with nothing to
+/// change resolves `Unchanged`.
+fn resize_resolver(
+    board_id: String,
+    selected_ids: Vec<String>,
+    units: Vec2,
+    axis: Option<ResizeAxis>,
+) -> EditResolver {
+    EditResolver::new("layout-key-size", move |accepted: &AcceptedSnapshot| {
+        let document = &accepted.document;
+        let placements = placements(document, &accepted.scene.matrix_scenes, &board_id);
+        if selected_ids
+            .iter()
+            .any(|id| !placements.iter().any(|placement| placement.id == *id))
+        {
+            return Resolution::Retire("A selected key no longer exists.".into());
+        }
+        let selected = selected_ids.iter().cloned().collect::<BTreeSet<_>>();
+        let Some(plan) = keycap_resize::plan_resize(KeycapResizeInput {
+            document,
+            matrices: &document.matrices,
+            scenes: &accepted.scene.matrix_scenes,
+            layouts: &document.layouts,
+            placements: &placements,
+            selected_ids: &selected,
+            units,
+            axis,
+        }) else {
+            return Resolution::Unchanged;
+        };
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: plan.target_ids,
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(plan.document),
+            },
+        })
+    })
 }
 
 #[derive(Default)]
@@ -168,17 +209,6 @@ pub fn use_key_size(
                 return;
             }
             last_request.set(request.request_id);
-            if pending.read().is_some() {
-                feedback.set(Some(KeySizeFeedback {
-                    owner: request.owner.clone(),
-                    request_id: request.request_id,
-                    state: KeySizeState::Failed,
-                    message: Some(
-                        "Wait for the current key-size change to finish, then retry.".into(),
-                    ),
-                }));
-                return;
-            }
             let Some(current_selected) = selected_context.read().clone() else {
                 return;
             };
@@ -198,10 +228,7 @@ pub fn use_key_size(
             ) else {
                 return;
             };
-            if current.owner != request.owner
-                || current.snapshot_token != request.snapshot_token
-                || current.revision != request.revision
-            {
+            if current.owner != request.owner {
                 return;
             }
             if !editable {
@@ -209,59 +236,20 @@ pub fn use_key_size(
                     message: Some("The accepted layout is not ready to edit. Wait for it to save, then retry.".into()) }));
                 return;
             }
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let placements = placements(
-                &snapshot.document,
-                &snapshot.scene.matrix_scenes,
-                &current_selected.scope.board_id,
-            );
-            let selected_ids = current
-                .owner
-                .selected_ids
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<_>>();
-            let Some(plan) = keycap_resize::plan_resize(KeycapResizeInput {
-                document: &snapshot.document,
-                matrices: &snapshot.document.matrices,
-                scenes: &snapshot.scene.matrix_scenes,
-                layouts: &snapshot.document.layouts,
-                placements: &placements,
-                selected_ids: &selected_ids,
-                units: request.units,
-                axis: request.axis,
-            }) else {
-                feedback.set(Some(KeySizeFeedback {
-                    owner: request.owner.clone(),
-                    request_id: request.request_id,
-                    state: KeySizeState::Saved,
-                    message: None,
-                }));
-                return;
-            };
-            let expected = plan.document;
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let command = EditCommand {
-                base_revision: snapshot.document.revision,
-                transaction_id: format!(
-                    "key-size-{}-{}-{}",
-                    editor_instance_id, request.request_id, operation_id.0
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-key-size",
+                Some("key size".into()),
+                resize_resolver(
+                    current_selected.scope.board_id.clone(),
+                    current.owner.selected_ids.clone(),
+                    request.units,
+                    request.axis,
                 ),
-                phase: EditPhase::Commit,
-                target_ids: plan.target_ids,
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(expected.clone()),
-                },
-            };
+            );
             pending.set(Some(PendingResize {
                 request: request.clone(),
-                outcome,
-                base_token: snapshot.token,
-                base_revision: snapshot.document.revision,
-                expected,
+                ticket,
             }));
             feedback.set(Some(KeySizeFeedback {
                 owner: request.owner.clone(),
@@ -269,10 +257,6 @@ pub fn use_key_size(
                 state: KeySizeState::Pending,
                 message: None,
             }));
-            runtime.submit(Event::Edit {
-                operation_id,
-                command,
-            });
         }
     });
 
@@ -280,7 +264,6 @@ pub fn use_key_size(
         projection,
         request_sequence,
         editable,
-        busy: pending.read().is_some(),
         feedback: feedback.read().clone(),
         on_resize,
     }
@@ -581,66 +564,23 @@ fn settle(
     let Some(waiting) = pending.read().clone() else {
         return;
     };
-    if runtime.scope().as_ref() != Some(&waiting.request.owner.scope)
-        || scope_generation != waiting.request.owner.scope_generation
-    {
-        pending.set(None);
-        feedback.set(None);
-        return;
-    }
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
+    let owner_is_live = runtime.scope().as_ref() == Some(&waiting.request.owner.scope)
+        && scope_generation == waiting.request.owner.scope_generation;
+    let (state, message) = match waiting.ticket.settlement(owner_is_live) {
+        Settlement::Pending => return,
+        Settlement::Landed { .. } => (KeySizeState::Saved, None),
+        Settlement::Failed { message } => (KeySizeState::Failed, Some(message)),
+        Settlement::Retired => {
+            pending.set(None);
+            feedback.set(None);
+            return;
+        }
     };
-    match outcome {
-        TerminalOutcome::Completed => {
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-                || snapshot.token == waiting.base_token
-                || snapshot.document.revision <= waiting.base_revision
-            {
-                return;
-            }
-            let matches = waiting
-                .expected
-                .parts
-                .iter()
-                .filter(|part| waiting.request.owner.selected_ids.contains(&part.id))
-                .all(|part| {
-                    snapshot
-                        .document
-                        .parts
-                        .iter()
-                        .find(|current| current.id == part.id)
-                        .is_some_and(|current| current.keycap == part.keycap)
-                });
-            pending.set(None);
-            feedback.set(Some(KeySizeFeedback { owner: waiting.request.owner.clone(), request_id: waiting.request.request_id,
-                state: if matches { KeySizeState::Saved } else { KeySizeState::Failed },
-                message: (!matches).then(|| "The saved key-size change differs from the requested result. Review the current layout and retry.".into()) }));
-        }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => {
-            pending.set(None);
-            feedback.set(Some(KeySizeFeedback {
-                owner: waiting.request.owner.clone(),
-                request_id: waiting.request.request_id,
-                state: KeySizeState::Failed,
-                message: Some(message),
-            }));
-        }
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
-            pending.set(None);
-            feedback.set(Some(KeySizeFeedback { owner: waiting.request.owner.clone(), request_id: waiting.request.request_id, state: KeySizeState::Failed,
-                message: Some("The key-size change did not complete in the active session. Review the current layout and retry.".into()) }));
-        }
-    }
+    pending.set(None);
+    feedback.set(Some(KeySizeFeedback {
+        owner: waiting.request.owner.clone(),
+        request_id: waiting.request.request_id,
+        state,
+        message,
+    }));
 }

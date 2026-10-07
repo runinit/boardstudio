@@ -1,11 +1,12 @@
 //! Owner-checked Layout action for linking copies of existing unpaired matrices.
-use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -56,9 +57,47 @@ pub struct ExistingHalfMount {
 #[derive(Clone)]
 struct PendingExistingHalf {
     owner: ExistingHalfOwner,
-    outcome: OutcomeSlot,
-    target_matrix_ids: Vec<String>,
-    target_layout_ids: Vec<String>,
+    ticket: EditTicket,
+}
+
+/// Resolve mirroring existing halves against the accepted document at execution time. The
+/// replacement document is built from the snapshot the resolver is handed; the identities
+/// it needs were allocated when the user submitted, so the resolver stays pure.
+fn mirror_existing_half_resolver(
+    board_id: String,
+    matrix_ids: Vec<String>,
+    axis_x: f64,
+    id_pool: Vec<String>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-mirror-existing-half",
+        move |accepted: &AcceptedSnapshot| {
+            let mut pool = id_pool.iter();
+            let mut id_factory = || {
+                pool.next()
+                    .cloned()
+                    .ok_or_else(|| "Could not allocate a unique layout identity.".to_owned())
+            };
+            match prepare_existing_half(
+                &accepted.document,
+                &board_id,
+                &matrix_ids,
+                axis_x,
+                &mut id_factory,
+            ) {
+                Ok(prepared) => Resolution::Submit(EditCommand {
+                    base_revision: 0,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: matrix_ids.clone(),
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(prepared.document),
+                    },
+                }),
+                Err(message) => Resolution::Retire(message),
+            }
+        },
+    )
 }
 
 pub fn use_existing_half(
@@ -230,43 +269,54 @@ pub fn use_existing_half(
             } else {
                 request.matrix_ids.clone()
             };
-            let mut id_factory = crate::runtime::new_project_id;
-            let prepared = match prepare_existing_half(
+            // Validate against the accepted document now so a bad request is explained
+            // inline; the resolver repeats the check against whatever is accepted when the
+            // edit runs.
+            let mut id_pool = Vec::with_capacity(selected.len() * 3);
+            for _ in 0..selected.len() * 3 {
+                match crate::runtime::new_project_id() {
+                    Ok(id) => id_pool.push(id),
+                    Err(message) => {
+                        error.set(Some(message));
+                        status.set(None);
+                        return;
+                    }
+                }
+            }
+            let mut pool = id_pool.iter();
+            let mut id_factory = || {
+                pool.next()
+                    .cloned()
+                    .ok_or_else(|| "Could not allocate a unique layout identity.".to_owned())
+            };
+            if let Err(message) = prepare_existing_half(
                 &snapshot.document,
                 &scope.board_id,
                 &selected,
                 request.axis_x,
                 &mut id_factory,
             ) {
-                Ok(prepared) => prepared,
-                Err(message) => {
-                    error.set(Some(message));
-                    status.set(None);
-                    return;
-                }
-            };
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
+                error.set(Some(message));
+                status.set(None);
+                return;
+            }
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-mirror-existing-half",
+                Some("mirror".into()),
+                mirror_existing_half_resolver(
+                    scope.board_id.clone(),
+                    selected,
+                    request.axis_x,
+                    id_pool,
+                ),
+            );
             pending.set(Some(PendingExistingHalf {
                 owner: request.owner.clone(),
-                outcome,
-                target_matrix_ids: prepared.target_matrix_ids.clone(),
-                target_layout_ids: prepared.target_layout_ids.clone(),
+                ticket,
             }));
             error.set(None);
             status.set(Some("Creating linked half…".into()));
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id: format!("mirror-existing-half-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: selected,
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(prepared.document),
-                    },
-                },
-            });
         }
     });
 
@@ -300,8 +350,6 @@ pub fn use_existing_half(
 #[derive(Clone)]
 struct PreparedExistingHalf {
     document: ProjectDoc,
-    target_matrix_ids: Vec<String>,
-    target_layout_ids: Vec<String>,
 }
 
 fn prepare_existing_half(
@@ -315,8 +363,6 @@ fn prepare_existing_half(
         return Err("Select a layout and a finite mirror axis.".into());
     }
     let mut next = document.clone();
-    let mut target_matrix_ids = Vec::with_capacity(matrix_ids.len());
-    let mut target_layout_ids = Vec::with_capacity(matrix_ids.len());
     let mut used_ids = document
         .boards
         .iter()
@@ -412,15 +458,9 @@ fn prepare_existing_half(
                 axis_x,
             }),
         });
-        target_matrix_ids.push(target_matrix_id);
-        target_layout_ids.push(target_layout_id);
     }
 
-    Ok(PreparedExistingHalf {
-        document: next,
-        target_matrix_ids,
-        target_layout_ids,
-    })
+    Ok(PreparedExistingHalf { document: next })
 }
 
 fn fresh_id(
@@ -610,15 +650,16 @@ fn settle_pending(
     let Some(waiting) = pending.read().clone() else {
         return;
     };
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
     let model = runtime.model();
     let same_lineage = runtime.scope().as_ref() == Some(&waiting.owner.scope)
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot.session_epoch == waiting.owner.scope.session_epoch
                 && snapshot.document.id == waiting.owner.scope.document_id
         });
+    let settlement = waiting.ticket.settlement(same_lineage);
+    if settlement == Settlement::Pending {
+        return;
+    }
     if !same_lineage {
         pending.set(None);
         open.set(None);
@@ -626,72 +667,33 @@ fn settle_pending(
         status.set(None);
         return;
     }
-    match outcome {
-        TerminalOutcome::Completed => {
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let saved = model.durability
-                == (Durability::Saved {
-                    revision: snapshot.document.revision,
-                });
-            let created = waiting.target_matrix_ids.iter().all(|id| {
-                snapshot
-                    .document
-                    .matrices
-                    .iter()
-                    .any(|matrix| matrix.id == *id)
-            }) && waiting.target_layout_ids.iter().all(|id| {
-                snapshot
-                    .document
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.id == *id)
-            });
+    match settlement {
+        Settlement::Pending => {}
+        Settlement::Landed { .. } => {
             let current_owner = workspace == "Layout"
                 && scope_generation == waiting.owner.scope_generation
-                && runtime.scope().as_ref() == Some(&waiting.owner.scope)
                 && model.active_board_id == waiting.owner.scope.board_id
-                && model.active_instance_id == waiting.owner.scope.instance_id
-                && model.lifecycle == Lifecycle::Ready
-                && model.display_preview.is_none()
-                && model.gesture.is_none();
-            if saved
-                && created
-                && snapshot.token != waiting.owner.snapshot_token
-                && snapshot.document.revision == waiting.owner.revision.saturating_add(1)
-                && current_owner
-            {
-                pending.set(None);
-                open.set(None);
-                error.set(None);
-                status.set(None);
+                && model.active_instance_id == waiting.owner.scope.instance_id;
+            pending.set(None);
+            open.set(None);
+            error.set(None);
+            status.set(None);
+            if current_owner {
                 runtime.submit(Event::SetCamera {
                     operation_id: runtime.operation(),
                     center: Vec2::default(),
                     zoom: 1.0,
                 });
-            } else if snapshot.document.revision > waiting.owner.revision.saturating_add(1)
-                || workspace != "Layout"
-                || scope_generation != waiting.owner.scope_generation
-            {
-                pending.set(None);
-                open.set(None);
-                error.set(None);
-                status.set(None);
             }
         }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => {
+        Settlement::Failed { message } => {
             pending.set(None);
             if open.read().as_ref() == Some(&waiting.owner) {
                 error.set(Some(message));
                 status.set(None);
             }
         }
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
+        Settlement::Retired => {
             pending.set(None);
             if open.read().as_ref() == Some(&waiting.owner) {
                 error.set(Some(

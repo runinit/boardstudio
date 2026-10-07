@@ -1,11 +1,12 @@
 //! Editor-owned new-board action through the existing Session edit and navigation path.
-use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+use crate::runtime::Runtime;
 use boardstudio_application::{
-    Durability, Event, Lifecycle, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
     Board, EditCommand, EditOperation, EditPhase, Operation, OutlineFeature,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -28,7 +29,52 @@ pub struct BoardSetupMount {
 struct PendingBoard {
     owner: BoardCreateOwner,
     board_id: String,
-    outcome: OutcomeSlot,
+    ticket: EditTicket,
+}
+
+/// Resolve adding a board against the accepted document at execution time. The board and
+/// outline identities were chosen when the user clicked; the replacement document is cloned
+/// from the snapshot the resolver is handed.
+fn add_board_resolver(board_id: String, outline_id: String) -> EditResolver {
+    EditResolver::new("layout-add-board", move |accepted: &AcceptedSnapshot| {
+        let document = &accepted.document;
+        if document.boards.iter().any(|board| board.id == board_id)
+            || document
+                .outline
+                .iter()
+                .any(|feature| feature.id() == outline_id)
+        {
+            return Resolution::Retire("The new board identity is already in use.".into());
+        }
+        let mut replacement = document.as_ref().clone();
+        replacement.boards.push(Board {
+            id: board_id.clone(),
+            name: format!("Board {}", replacement.boards.len() + 1),
+            outline_ids: vec![outline_id.clone()],
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
+        replacement.outline.push(OutlineFeature::PartEnvelope {
+            id: outline_id.clone(),
+            settings: crate::outline_settings::reference_outline_settings(),
+            connections: Vec::new(),
+            part_ids: Vec::new(),
+            margin: 4.0,
+            operation: Operation::Add,
+        });
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![board_id.clone(), outline_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(replacement),
+            },
+        })
+    })
 }
 
 pub fn use_board_setup(
@@ -45,62 +91,42 @@ pub fn use_board_setup(
             let Some(waiting) = pending.read().clone() else {
                 return;
             };
-            let terminal = waiting.outcome.borrow().clone();
-            let Some(terminal) = terminal else { return };
-            if terminal != TerminalOutcome::Completed {
-                pending.set(None);
-                return;
-            }
-            let model = runtime.model();
-            if runtime.scope().as_ref() != Some(&waiting.owner.scope)
-                || current_workspace != waiting.owner.workspace
-                || current_generation != waiting.owner.generation
-                || matches!(
-                    model.lifecycle,
-                    Lifecycle::RecoveryRequired | Lifecycle::Closed
-                )
-                || matches!(model.durability, Durability::Failed { .. })
-            {
-                pending.set(None);
-                return;
-            }
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if snapshot.session_epoch != waiting.owner.scope.session_epoch
-                || snapshot.document.id != waiting.owner.scope.document_id
-                || snapshot.document.revision > waiting.owner.revision.saturating_add(1)
-            {
-                pending.set(None);
-                return;
-            }
-            if model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-                || snapshot.token == waiting.owner.token
-                || snapshot.document.revision != waiting.owner.revision.saturating_add(1)
-            {
-                return;
-            }
-            let exists = snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == waiting.board_id);
-            pending.set(None);
-            if exists {
-                on_navigate.call((waiting.owner.scope, waiting.board_id, None));
+            let owner_is_live = runtime.scope().as_ref() == Some(&waiting.owner.scope)
+                && current_workspace == waiting.owner.workspace
+                && current_generation == waiting.owner.generation;
+            match waiting.ticket.settlement(owner_is_live) {
+                Settlement::Pending => {}
+                Settlement::Landed { .. } => {
+                    let exists = runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+                        snapshot
+                            .document
+                            .boards
+                            .iter()
+                            .any(|board| board.id == waiting.board_id)
+                    });
+                    pending.set(None);
+                    if exists {
+                        on_navigate.call((waiting.owner.scope, waiting.board_id, None));
+                    }
+                }
+                Settlement::Failed { .. } | Settlement::Retired => pending.set(None),
             }
         }
     }));
     let owner =
-        board_source(&runtime, workspace(), generation()).filter(|_| pending.read().is_none());
+        board_source(&runtime, workspace(), generation()).filter(|_| {
+            !pending
+                .read()
+                .as_ref()
+                .is_some_and(|waiting| waiting.ticket.is_pending())
+        });
     let on_add = use_callback({
         let runtime = runtime.clone();
         move |owner: BoardCreateOwner| {
-            if pending.read().is_some()
+            if pending
+                .read()
+                .as_ref()
+                .is_some_and(|waiting| waiting.ticket.is_pending())
                 || board_source(&runtime, workspace(), generation()).as_ref() != Some(&owner)
             {
                 return;
@@ -132,42 +158,17 @@ pub fn use_board_setup(
                 };
                 suffix = next;
             };
-            let mut document = (*snapshot.document).clone();
-            document.boards.push(Board {
-                id: board_id.clone(),
-                name: format!("Board {}", document.boards.len() + 1),
-                outline_ids: vec![outline_id.clone()],
-                part_ids: Vec::new(),
-                net_ids: Vec::new(),
-                thickness: 1.6,
-                traces: Vec::new(),
-                vias: Vec::new(),
-            });
-            document.outline.push(OutlineFeature::PartEnvelope {
-                id: outline_id.clone(),
-                settings: crate::outline_settings::reference_outline_settings(),
-                connections: Vec::new(),
-                part_ids: Vec::new(),
-                margin: 4.0,
-                operation: Operation::Add,
-            });
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-add-board",
+                Some("board".into()),
+                add_board_resolver(board_id.clone(), outline_id),
+            );
             pending.set(Some(PendingBoard {
                 owner: owner.clone(),
-                board_id: board_id.clone(),
-                outcome: runtime.observe_operation(operation),
+                board_id,
+                ticket,
             }));
-            runtime.submit(Event::Edit {
-                operation_id: operation,
-                command: EditCommand {
-                    base_revision: owner.revision,
-                    transaction_id: format!("new-board-{}", operation.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![board_id, outline_id],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(document),
-                    },
-                },
-            });
         }
     });
     BoardSetupMount { owner, on_add }

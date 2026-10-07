@@ -6,15 +6,15 @@ use super::mirrored_pair::{
 use crate::{
     matrix_setup_operation::{MatrixSetupRequest, next_matrix_id, prepare_matrix},
     mirrored_pair_geometry::{MirroredPairGeometryInput, MirroredPairIds, project_mirrored_pair},
-    mirrored_pair_lifecycle::{PairFormStage, PairFormState, PairResultGuard},
-    operation_outcomes::OutcomeSlot,
+    mirrored_pair_lifecycle::{PairFormStage, PairFormState},
     presentation::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner},
     runtime::Runtime,
 };
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Layout};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -22,13 +22,62 @@ use wasm_bindgen_futures::spawn_local;
 #[derive(Clone)]
 struct PendingPair {
     owner: MirroredPairOwner,
-    operation_id: OperationId,
-    outcome: OutcomeSlot,
+    ticket: EditTicket,
     left_matrix_id: String,
     right_matrix_id: String,
-    left_layout: Layout,
-    right_layout: Layout,
-    transaction_id: String,
+    left_layout_id: String,
+    right_layout_id: String,
+}
+
+/// Resolve creating a mirrored pair against the accepted document at execution time. The
+/// pair was prepared from values captured at submit; here the board must still exist and
+/// none of the new matrices or layouts may already be in use.
+fn mirrored_pair_resolver(
+    board_id: String,
+    left: Layout,
+    right: Layout,
+    matrix: boardstudio_core::model::Matrix,
+    right_matrix_id: String,
+    definitions: Vec<boardstudio_core::model::PartDefinition>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-mirrored-pair",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            if !document.boards.iter().any(|board| board.id == board_id) {
+                return Resolution::Retire("The board no longer exists.".into());
+            }
+            let in_use = |id: &str| {
+                document.matrices.iter().any(|matrix| matrix.id == id)
+                    || document.layouts.iter().any(|layout| layout.id == id)
+            };
+            if [&matrix.id, &right_matrix_id, &left.id, &right.id]
+                .into_iter()
+                .any(|id| in_use(id))
+            {
+                return Resolution::Retire(
+                    "The mirrored pair's identity is already in use.".into(),
+                );
+            }
+            Resolution::Submit(EditCommand {
+                base_revision: 0,
+                transaction_id: String::new(),
+                phase: EditPhase::Commit,
+                target_ids: vec![
+                    matrix.id.clone(),
+                    right_matrix_id.clone(),
+                    left.id.clone(),
+                    right.id.clone(),
+                ],
+                operation: EditOperation::CreateMirroredPair {
+                    left: left.clone(),
+                    right: right.clone(),
+                    matrix: Box::new(matrix.clone()),
+                    definitions: Some(definitions.clone()),
+                },
+            })
+        },
+    )
 }
 
 #[derive(Clone)]
@@ -655,10 +704,6 @@ pub fn use_mirrored_pair(
             else {
                 return;
             };
-            let current = runtime.model();
-            let Some(snapshot) = current.accepted.as_ref() else {
-                return;
-            };
             let (layout_left, layout_right, matrix, definitions) = match project_mirrored_pair(
                 active.matrix.clone(),
                 &active.ids,
@@ -680,54 +725,32 @@ pub fn use_mirrored_pair(
                     return;
                 }
             };
-            let operation_id = runtime.operation();
-            let transaction_id = format!(
-                "mirrored-pair-{}-{}-{}",
-                editor_instance_id, owner.open_id, operation_id.0
+            let left_matrix_id = matrix.id.clone();
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-mirrored-pair",
+                Some("mirrored pair".into()),
+                mirrored_pair_resolver(
+                    owner.board_id.clone(),
+                    layout_left.clone(),
+                    layout_right.clone(),
+                    matrix,
+                    active.ids.right_matrix_id.clone(),
+                    definitions,
+                ),
             );
-            let outcome = runtime.observe_operation(operation_id);
-            let pending_pair = PendingPair {
+            pending.set(Some(PendingPair {
                 owner: owner.clone(),
-                operation_id,
-                outcome: outcome.clone(),
-                left_matrix_id: matrix.id.clone(),
+                ticket,
+                left_matrix_id,
                 right_matrix_id: active.ids.right_matrix_id.clone(),
-                left_layout: layout_left.clone(),
-                right_layout: layout_right.clone(),
-                transaction_id: transaction_id.clone(),
-            };
-            pending.set(Some(pending_pair));
+                left_layout_id: layout_left.id.clone(),
+                right_layout_id: layout_right.id.clone(),
+            }));
             placement.set(None);
             form_state.write().stage = PairFormStage::Pending;
             status.set(Some("Creating mirrored pair…".into()));
             error.set(None);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id,
-                    phase: EditPhase::Commit,
-                    target_ids: vec![
-                        matrix.id.clone(),
-                        active.ids.right_matrix_id.clone(),
-                        layout_left.id.clone(),
-                        layout_right.id.clone(),
-                    ],
-                    operation: EditOperation::CreateMirroredPair {
-                        left: layout_left,
-                        right: layout_right,
-                        matrix: Box::new(matrix),
-                        definitions: Some(definitions),
-                    },
-                },
-            });
-            // The observer is the sole value captured across waits; this task never touches Editor
-            // signals after an await. The Editor-owned effect performs the visible settlement.
-            spawn_local(async move {
-                while outcome.borrow().is_none() {
-                    gloo_timers::future::TimeoutFuture::new(16).await;
-                }
-            });
         }
     });
 
@@ -913,15 +936,16 @@ fn settle_pending(
     let Some(waiting) = signals.pending.read().clone() else {
         return;
     };
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
     let model = runtime.model();
     let same_lineage = runtime.scope().as_ref() == Some(&waiting.owner.scope)
         && model.accepted.as_ref().is_some_and(|snapshot| {
             snapshot.session_epoch == waiting.owner.scope.session_epoch
                 && snapshot.document.id == waiting.owner.scope.document_id
         });
+    let settlement = waiting.ticket.settlement(same_lineage);
+    if settlement == Settlement::Pending {
+        return;
+    }
     if !same_lineage {
         finish_pending(signals.pending, signals.status, &waiting);
         signals.open.set(None);
@@ -932,101 +956,22 @@ fn settle_pending(
         signals.error.set(None);
         return;
     }
-    match outcome {
-        TerminalOutcome::Completed => {
-            let Some(snapshot) = model.accepted.as_ref() else {
-                finish_pending(signals.pending, signals.status, &waiting);
+    let owner_is_visible = workspace == "Layout"
+        && scope_generation == waiting.owner.scope_generation
+        && signals.open.read().as_ref() == Some(&waiting.owner);
+    match settlement {
+        Settlement::Pending => {}
+        Settlement::Landed { revision } => {
+            let token = model.accepted.as_ref().map(|snapshot| snapshot.token);
+            finish_pending(signals.pending, signals.status, &waiting);
+            signals.placement.set(None);
+            let (Some(token), true) = (
+                token,
+                owner_is_visible && model.active_board_id == waiting.owner.board_id,
+            ) else {
                 signals.open.set(None);
-                signals
-                    .form_state
-                    .set(PairFormState::new(MirroredPairFormValues::default()));
                 return;
             };
-            if matches!(model.durability, Durability::Failed { .. })
-                || matches!(
-                    model.lifecycle,
-                    Lifecycle::RecoveryRequired | Lifecycle::Closed
-                )
-            {
-                finish_pending(signals.pending, signals.status, &waiting);
-                signals.form_state.write().stage = PairFormStage::Setup;
-                if workspace == "Layout"
-                    && scope_generation == waiting.owner.scope_generation
-                    && signals.open.read().as_ref() == Some(&waiting.owner)
-                {
-                    signals.placement.set(None);
-                    signals.error.set(Some("The pair operation completed, but its document was not saved. Correct the setup and retry after recovery.".into()));
-                }
-                return;
-            }
-            let exact_result = crate::mirrored_pair_lifecycle::accepted_saved_result_is_current(
-                &PairResultGuard {
-                    transaction_id: waiting.transaction_id.clone(),
-                    base_token: waiting.owner.snapshot_token,
-                    base_revision: waiting.owner.revision,
-                },
-                &snapshot.scene.transaction_id,
-                snapshot.token,
-                snapshot.document.revision,
-                model.lifecycle == Lifecycle::Ready,
-                &model.durability,
-            );
-            if !exact_result {
-                finish_pending(signals.pending, signals.status, &waiting);
-                signals.placement.set(None);
-                signals.form_state.write().stage = PairFormStage::Setup;
-                if workspace == "Layout"
-                    && scope_generation == waiting.owner.scope_generation
-                    && signals.open.read().as_ref() == Some(&waiting.owner)
-                {
-                    signals.error.set(Some(
-                        "The board advanced after saving this pair, so it was not selected. Review the saved layout before continuing.".into(),
-                    ));
-                }
-                return;
-            }
-            let created = snapshot
-                .document
-                .matrices
-                .iter()
-                .any(|matrix| matrix.id == waiting.left_matrix_id)
-                && snapshot
-                    .document
-                    .matrices
-                    .iter()
-                    .any(|matrix| matrix.id == waiting.right_matrix_id)
-                && snapshot
-                    .document
-                    .layouts
-                    .iter()
-                    .any(|layout| layout == &waiting.left_layout)
-                && snapshot
-                    .document
-                    .layouts
-                    .iter()
-                    .any(|layout| layout == &waiting.right_layout);
-            finish_pending(signals.pending, signals.status, &waiting);
-            if !created {
-                signals.form_state.write().stage = PairFormStage::Setup;
-                if workspace == "Layout"
-                    && scope_generation == waiting.owner.scope_generation
-                    && signals.open.read().as_ref() == Some(&waiting.owner)
-                {
-                    signals.placement.set(None);
-                    signals.error.set(Some("The saved document does not contain the mirrored pair. Review the board and retry.".into()));
-                }
-                return;
-            }
-            signals.placement.set(None);
-            if workspace != "Layout"
-                || scope_generation != waiting.owner.scope_generation
-                || runtime.scope().as_ref() != Some(&waiting.owner.scope)
-                || signals.open.read().as_ref() != Some(&waiting.owner)
-                || model.active_board_id != waiting.owner.board_id
-            {
-                signals.open.set(None);
-                return;
-            }
             signals.open.set(None);
             signals
                 .form_state
@@ -1034,37 +979,27 @@ fn settle_pending(
             signals.error.set(None);
             signals.on_created.call(MirroredPairCreated {
                 owner: waiting.owner.clone(),
-                result_token: snapshot.token,
-                result_revision: snapshot.document.revision,
+                result_token: token,
+                result_revision: revision,
                 scope: waiting.owner.scope.clone(),
-                left_layout_id: waiting.left_layout.id.clone(),
-                right_layout_id: waiting.right_layout.id.clone(),
+                left_layout_id: waiting.left_layout_id.clone(),
+                right_layout_id: waiting.right_layout_id.clone(),
                 left_matrix_id: waiting.left_matrix_id,
                 right_matrix_id: waiting.right_matrix_id,
             });
         }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => {
+        Settlement::Failed { message } => {
             finish_pending(signals.pending, signals.status, &waiting);
             signals.form_state.write().stage = PairFormStage::Setup;
-            if workspace == "Layout"
-                && scope_generation == waiting.owner.scope_generation
-                && runtime.scope().as_ref() == Some(&waiting.owner.scope)
-                && signals.open.read().as_ref() == Some(&waiting.owner)
-            {
+            if owner_is_visible {
                 signals.open.set(Some(waiting.owner));
                 signals.error.set(Some(message));
             }
         }
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
+        Settlement::Retired => {
             finish_pending(signals.pending, signals.status, &waiting);
             signals.form_state.write().stage = PairFormStage::Setup;
-            if workspace == "Layout"
-                && scope_generation == waiting.owner.scope_generation
-                && signals.open.read().as_ref() == Some(&waiting.owner)
-            {
+            if owner_is_visible {
                 signals.open.set(Some(waiting.owner));
                 signals.error.set(Some(
                     "Mirrored-pair creation did not complete. Review the setup and try again."
@@ -1083,7 +1018,7 @@ fn finish_pending(
     if pending
         .read()
         .as_ref()
-        .is_some_and(|current| current.operation_id == waiting.operation_id)
+        .is_some_and(|current| current.ticket.operation() == waiting.ticket.operation())
     {
         pending.set(None);
         status.set(None);

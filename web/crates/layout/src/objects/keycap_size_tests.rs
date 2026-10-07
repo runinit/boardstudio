@@ -44,7 +44,6 @@ fn host() -> Element {
         projection: Some(probe.projection.borrow().clone()),
         request_sequence,
         editable: true,
-        busy: false,
         feedback: probe.feedback.borrow().clone(),
         on_resize,
     };
@@ -717,4 +716,171 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
         )
     );
     root.remove();
+}
+
+const KEY_ID: &str = "matrix/matrix-main/r0c0";
+
+fn key_fixture() -> boardstudio_core::model::ProjectDoc {
+    use boardstudio_core::model::{Board, OutlineFeature, OutlineSettings};
+    let mut document = boardstudio_core::model::ProjectDoc::empty("project", "Keyboard");
+    document.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
+        settings: OutlineSettings::default(),
+        id: "envelope-main".into(),
+        part_ids: vec![],
+        margin: 4.0,
+        operation: boardstudio_core::model::Operation::Add,
+    });
+    document.boards.push(Board {
+        id: "board-main".into(),
+        name: "Main".into(),
+        outline_ids: vec!["envelope-main".into()],
+        part_ids: vec![KEY_ID.into()],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.definitions.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "switch:base",
+            "name": "MX switch",
+            "kind": "switch",
+            "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+            "pads": []
+        }))
+        .unwrap(),
+    );
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: KEY_ID.into(),
+        definition_id: "switch:base".into(),
+        reference: "SW1".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "matrix-main",
+            "rows": 1,
+            "columns": 1,
+            "pitch": {"x": 19.05, "y": 19.05},
+            "origin": {"x": 0.0, "y": 0.0},
+            "definitionId": "switch:base",
+            "partIds": [KEY_ID],
+            "boardId": "board-main",
+            "cells": [{
+                "row": 0, "column": 0, "enabled": true,
+                "definitionId": "switch:base",
+                "assemblies": []
+            }]
+        }))
+        .unwrap(),
+    );
+    document
+}
+
+fn key_width(runtime: &Rc<crate::runtime::Runtime>) -> Option<Vec2> {
+    runtime
+        .model()
+        .accepted
+        .as_ref()?
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == KEY_ID)?
+        .keycap
+}
+
+fn board_name(runtime: &Rc<crate::runtime::Runtime>) -> String {
+    runtime.model().accepted.as_ref().unwrap().document.boards[0]
+        .name
+        .clone()
+}
+
+async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
+    runtime.submit(SessionEvent::Undo {
+        operation_id: runtime.operation(),
+    });
+    crate::runtime::project_name_test_support::run_pending(runtime).await;
+}
+
+#[wasm_bindgen_test]
+async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use crate::runtime::project_name_test_support as support;
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, key_fixture()).await;
+    let accepted = runtime.model().accepted.expect("the fixture opens");
+    assert!(
+        !placements(&accepted.document, &accepted.scene.matrix_scenes, "board-main").is_empty(),
+        "Core projects the fixture key into the matrix scene: scenes={:?} parts={:?} matrices={:?}",
+        accepted.scene.matrix_scenes,
+        accepted.document.parts.iter().map(|p| &p.id).collect::<Vec<_>>(),
+        accepted.document.matrices.iter().map(|m| (&m.id, &m.part_ids, &m.board_id)).collect::<Vec<_>>(),
+    );
+    let original_width = key_width(&runtime);
+
+    // Hold the first Core reply so the second edit queues behind the key-size edit.
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let resize = EditTicket::begin(
+        &runtime,
+        "layout-key-size",
+        Some("key size".into()),
+        resize_resolver(
+            "board-main".into(),
+            vec![KEY_ID.into()],
+            Vec2 { x: 2.0, y: 1.0 },
+            Some(ResizeAxis::X),
+        ),
+    );
+    support::drive_pending(&runtime);
+    entered.await.expect("the key-size edit reached Core");
+    assert!(resize.is_pending(), "the held edit has not settled");
+
+    let rename = EditTicket::begin(
+        &runtime,
+        "board-rename",
+        Some("board".into()),
+        boardstudio_application::EditResolver::new(
+            "board-rename",
+            |accepted: &boardstudio_application::AcceptedSnapshot| {
+                let mut replacement = accepted.document.as_ref().clone();
+                replacement.boards[0].name = "Renamed".into();
+                boardstudio_application::Resolution::Submit(EditCommand {
+                    base_revision: 0,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec!["board-main".into()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(replacement),
+                    },
+                })
+            },
+        ),
+    );
+    support::drive_pending(&runtime);
+    release.send(()).expect("release the held key-size reply");
+    support::run_pending(&runtime).await;
+    rendered(20).await;
+
+    assert!(matches!(resize.settlement(true), Settlement::Landed { .. }));
+    assert!(matches!(rename.settlement(true), Settlement::Landed { .. }));
+    assert_ne!(key_width(&runtime), original_width, "the key-size edit landed");
+    assert_eq!(board_name(&runtime), "Renamed", "the queued edit survived");
+
+    undo(&runtime).await;
+    assert_eq!(board_name(&runtime), "Main", "one Undo removes the later edit");
+    assert_ne!(key_width(&runtime), original_width, "the key size is still applied");
+    undo(&runtime).await;
+    assert_eq!(key_width(&runtime), original_width, "the second Undo removes the key size");
 }
