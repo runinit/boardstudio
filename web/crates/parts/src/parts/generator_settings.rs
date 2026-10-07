@@ -68,6 +68,7 @@ struct GeneratorSubmission {
     ticket: EditTicket,
     draft_sequence: u64,
     apply: bool,
+    uploaded_parameter: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -467,7 +468,11 @@ fn remap_terminal_nets(
 /// the candidate is rebased onto it, terminal nets are remapped, and the replacement is
 /// cloned from the accepted document, so an Apply queued behind another edit never
 /// reverts it. Vanished or ineligible targets retire with a reason.
-pub fn generator_apply_resolver(owner: GeneratorOwner, candidate: PartDefinition) -> EditResolver {
+pub fn generator_apply_resolver(
+    owner: GeneratorOwner,
+    candidate: PartDefinition,
+    changed_parameters: BTreeSet<String>,
+) -> EditResolver {
     EditResolver::new(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
@@ -484,7 +489,7 @@ pub fn generator_apply_resolver(owner: GeneratorOwner, candidate: PartDefinition
                         .into(),
                 );
             }
-            match generator_replacement(document, &owner, &candidate) {
+            match generator_replacement(document, &owner, &candidate, &changed_parameters) {
                 Ok(replacement) => replacement,
                 Err(reason) => Resolution::Retire(reason),
             }
@@ -531,7 +536,12 @@ pub fn generator_model_upload_resolver(
                 parameter.clone(),
                 Value::String(format!("boardstudio-asset:{asset_id}")),
             );
-            let mut target_ids = match generator_replacement(document, &owner, &bound) {
+            let mut target_ids = match generator_replacement(
+                document,
+                &owner,
+                &bound,
+                &BTreeSet::from([parameter.clone()]),
+            ) {
                 Ok(replacement) => replacement,
                 Err(reason) => return Resolution::Retire(reason),
             };
@@ -566,6 +576,7 @@ fn generator_replacement(
     document: &boardstudio_core::model::ProjectDoc,
     owner: &GeneratorOwner,
     candidate: &PartDefinition,
+    changed_parameters: &BTreeSet<String>,
 ) -> Result<Resolution, String> {
     let accepted_definition = document
         .definitions
@@ -584,7 +595,13 @@ fn generator_replacement(
             "The selected generator definition changed while these settings were open.".into(),
         );
     }
-    let rebased = rebase_generator_candidate(&owner.base_definition, &original, candidate)?;
+    let rebased = rebase_generator_candidate(
+        &owner.base_definition,
+        &original,
+        candidate,
+        changed_parameters,
+    )?;
+    let rebased = boardstudio_core::generators::normalize_definition(rebased)?;
     let nets = remap_terminal_nets(document, &original, &rebased)?;
     let mut replacement = document.clone();
     if let Some(existing) = replacement
@@ -643,6 +660,7 @@ fn rebase_generator_candidate(
     base: &PartDefinition,
     latest: &PartDefinition,
     candidate: &PartDefinition,
+    changed_parameters: &BTreeSet<String>,
 ) -> Result<PartDefinition, String> {
     if base.id != latest.id || candidate.id != latest.id {
         return Err("The selected generator definition changed identity.".into());
@@ -693,7 +711,7 @@ fn rebase_generator_candidate(
     );
     merge_generator_field(&base.pads, &candidate.pads, &mut rebased.pads);
     merge_generator_field(&base.models, &candidate.models, &mut rebased.models);
-    if let (Some(base), Some(latest), Some(candidate), Some(target)) = (
+    if let (Some(_base), Some(latest), Some(candidate), Some(target)) = (
         &base.generator,
         &latest.generator,
         &candidate.generator,
@@ -704,16 +722,9 @@ fn rebase_generator_candidate(
         target.version = candidate.version.clone();
         target.parameters = latest.parameters.clone();
         for (key, value) in &candidate.parameters {
-            if base.parameters.get(key) != Some(value) {
+            if changed_parameters.contains(key) || !latest.parameters.contains_key(key) {
                 target.parameters.insert(key.clone(), value.clone());
             }
-        }
-        for key in base
-            .parameters
-            .keys()
-            .filter(|key| !candidate.parameters.contains_key(*key))
-        {
-            target.parameters.remove(key);
         }
     }
     merge_generator_field(
@@ -767,10 +778,13 @@ pub fn GeneratorSettingsEditor(
     }));
     let schema_result = schema.read().clone();
     let edits = use_signal(BTreeMap::<String, Value>::new);
+    let mut changed_parameters = use_signal(BTreeSet::<String>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
     let pending_apply = use_signal(|| None::<GeneratorSubmission>);
     let pending_upload = use_signal(|| None::<GeneratorSubmission>);
+    let mut uploaded_preview_generation = use_signal(|| 0_u64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
+    let draft_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     let model_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let mut model_uploading = use_signal(|| false);
@@ -797,6 +811,7 @@ pub fn GeneratorSettingsEditor(
         let mut store = store;
         move |_| {
             edits.set(BTreeMap::new());
+            changed_parameters.set(BTreeSet::new());
             store.set(None);
         }
     }));
@@ -804,6 +819,7 @@ pub fn GeneratorSettingsEditor(
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.clone();
         let sequence = sequence.clone();
+        let draft_generation = draft_generation.clone();
         let mut feedback = feedback;
         let mut store = store;
         let mut edits = edits;
@@ -829,17 +845,30 @@ pub fn GeneratorSettingsEditor(
                     // accepted document for the requested values.
                     Settlement::Landed { .. } => {
                         pending_action.set(None);
-                        if pending.apply && sequence.get() == pending.draft_sequence {
+                        if pending.apply && draft_generation.get() == pending.draft_sequence {
+                            sequence.set(sequence.get().wrapping_add(1));
                             store.set(None);
                             edits.set(BTreeMap::new());
+                            changed_parameters.set(BTreeSet::new());
+                        }
+                        if let Some(parameter) = &pending.uploaded_parameter {
+                            // Upload owns this disabled file control until settlement;
+                            // reveal its accepted value without erasing other draft fields.
+                            edits.write().remove(parameter);
+                            changed_parameters.write().remove(parameter);
+                            sequence.set(sequence.get().wrapping_add(1));
+                            store.set(None);
+                            uploaded_preview_generation += 1;
                         }
                         feedback.set(None);
                     }
                     Settlement::Failed { message } => {
                         pending_action.set(None);
-                        if pending.apply && sequence.get() == pending.draft_sequence {
+                        if pending.apply && draft_generation.get() == pending.draft_sequence {
+                            sequence.set(sequence.get().wrapping_add(1));
                             store.set(None);
                             edits.set(BTreeMap::new());
+                            changed_parameters.set(BTreeSet::new());
                         }
                         feedback.set(Some(ScopedFeedback {
                             owner: pending.owner.clone(),
@@ -946,8 +975,11 @@ pub fn GeneratorSettingsEditor(
             }));
         });
     });
+    let user_draft_generation = draft_generation.clone();
     let change_parameter = use_callback(move |(key, value): (String, Value)| {
+        user_draft_generation.set(user_draft_generation.get().wrapping_add(1));
         let mut next = edits();
+        changed_parameters.write().insert(key.clone());
         next.insert(key, value);
         request_preview.call(next);
     });
@@ -956,13 +988,21 @@ pub fn GeneratorSettingsEditor(
     use_effect(use_reactive((&owner, &schema), move |_| {
         request_preview.call(initial_parameters.clone());
     }));
+    use_effect(use_reactive(
+        (&uploaded_preview_generation(),),
+        move |(generation,)| {
+            if generation > 0 {
+                let remaining = edits.peek().clone();
+                request_preview.call(remaining);
+            }
+        },
+    ));
     let active_draft = store().filter(|draft| draft.owner == owner);
     let preview_ready = active_draft.as_ref().is_some_and(|draft| {
         draft.status == GeneratorPreviewStatus::Ready && draft.definition.is_some()
     });
     let model_import_runtime = runtime.clone();
     let model_import_owner = owner.clone();
-    let import_sequence = sequence.clone();
     let import_generator_model = use_callback(move |(parameter, file): (String, web_sys::File)| {
         let runtime = model_import_runtime.clone();
         let owner = model_import_owner.clone();
@@ -996,7 +1036,7 @@ pub fn GeneratorSettingsEditor(
         let mut feedback = feedback;
         let mut model_uploading = model_uploading;
         let mut pending_upload = pending_upload;
-        let draft_sequence = import_sequence.get();
+        let draft_sequence = 0;
         spawn_local(async move {
             let imported = read_model_file(file).await;
             if !alive.get() || model_sequence.get() != ticket {
@@ -1138,7 +1178,7 @@ pub fn GeneratorSettingsEditor(
                 generator_model_upload_resolver(
                     owner.clone(),
                     latest_definition,
-                    parameter,
+                    parameter.clone(),
                     asset,
                     asset_seed,
                 ),
@@ -1148,6 +1188,7 @@ pub fn GeneratorSettingsEditor(
                 ticket,
                 draft_sequence,
                 apply: false,
+                uploaded_parameter: Some(parameter),
             }));
             feedback.set(None);
         });
@@ -1189,13 +1230,14 @@ pub fn GeneratorSettingsEditor(
                 &runtime,
                 "parts-generator-settings",
                 Some("generator settings".into()),
-                generator_apply_resolver(current_owner.clone(), candidate),
+                generator_apply_resolver(current_owner.clone(), candidate, changed_parameters()),
             );
             pending_apply.set(Some(GeneratorSubmission {
                 owner: current_owner.clone(),
                 ticket,
-                draft_sequence: sequence.get(),
+                draft_sequence: draft_generation.get(),
                 apply: true,
+                uploaded_parameter: None,
             }));
             feedback.set(None);
         }
@@ -1698,7 +1740,7 @@ mod tests {
             }],
             "generator": {
                 "source": "ceoloide/switch_mx", "version": "bundled-1",
-                "parameters": {"keycap_width": 18, "keycap_height": 18}
+                "parameters": {"keycap_width": 18.0, "keycap_height": 18}
             }
         }))
         .expect("generator definition")
@@ -1755,9 +1797,7 @@ mod tests {
         generator
             .parameters
             .insert("keycap_width".into(), Value::from(20));
-        candidate.pads[0].size.x = 3.0;
-        candidate.courtyard[0].x = -8.0;
-        candidate
+        boardstudio_core::generators::normalize_definition(candidate).unwrap()
     }
 
     #[wasm_bindgen_test]
@@ -1814,7 +1854,11 @@ mod tests {
             &runtime,
             "generator-test",
             None,
-            generator_apply_resolver(owner.clone(), candidate.clone()),
+            generator_apply_resolver(
+                owner.clone(),
+                candidate.clone(),
+                BTreeSet::from(["keycap_width".into()]),
+            ),
         );
         support::run_pending(&runtime).await;
         assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
@@ -1834,7 +1878,7 @@ mod tests {
             &runtime,
             "generator-test",
             None,
-            generator_apply_resolver(owner, candidate),
+            generator_apply_resolver(owner, candidate, BTreeSet::from(["keycap_width".into()])),
         );
         support::run_pending(&runtime).await;
         assert!(
@@ -1947,6 +1991,166 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    async fn uploaded_model_projects_accepted_filename_without_erasing_dirty_width() {
+        uploaded_model_projection(false).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn upload_preview_refresh_does_not_keep_a_later_failed_apply_draft() {
+        uploaded_model_projection(true).await;
+    }
+
+    async fn uploaded_model_projection(fail_queued_apply: bool) {
+        let (root, fixture, handles) = mount_generator_editor().await;
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded".into())).await;
+        dispatch_width(&root, "21");
+        let request = take_request(&fixture.requests, 21.0).await;
+        let prepared = candidate(&request);
+        finish_request(request, Ok(prepared)).await;
+        let field = root
+            .query_selector("input[aria-label='switch_3dmodel_filename']")
+            .unwrap()
+            .unwrap()
+            .parent_element()
+            .unwrap()
+            .parent_element()
+            .unwrap();
+        let input = field
+            .query_selector("input[type=file]")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let file = web_sys::File::new_with_str_sequence(
+            &js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(
+                "solid test\nendsolid test\n",
+            )),
+            "test.stl",
+        )
+        .unwrap();
+        let descriptor = js_sys::Object::new();
+        js_sys::Reflect::set(&descriptor, &"value".into(), &js_sys::Array::of1(&file)).unwrap();
+        js_sys::Object::define_property(
+            input.unchecked_ref::<js_sys::Object>(),
+            &"files".into(),
+            &descriptor,
+        );
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+            .unwrap();
+        let mut effects = VecDeque::new();
+        let mut apply_queued = false;
+        for _ in 0..100 {
+            gloo_timers::future::TimeoutFuture::new(20).await;
+            effects.extend(support::take_held_effects(&fixture.runtime));
+            if fail_queued_apply && !apply_queued && !effects.is_empty() {
+                root.query_selector(".m1-generator-settings > button.m1-generator-apply")
+                    .unwrap()
+                    .unwrap()
+                    .dyn_into::<web_sys::HtmlElement>()
+                    .unwrap()
+                    .click();
+                apply_queued = true;
+            }
+            if let Some(effect) = effects.pop_front() {
+                effects.extend(support::run_effect(&fixture.runtime, effect).await);
+            }
+            if fixture
+                .runtime
+                .model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .assets
+                .iter()
+                .any(|asset| asset.name == "test.stl")
+            {
+                break;
+            }
+        }
+        let mut deferred_core = VecDeque::new();
+        while let Some(effect) = effects.pop_front() {
+            if matches!(effect, boardstudio_application::Effect::Core { .. }) {
+                deferred_core.push_back(effect);
+            } else {
+                effects.extend(support::run_effect(&fixture.runtime, effect).await);
+            }
+        }
+        effects = deferred_core;
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        let filename = accepted.document.definitions[0]
+            .generator
+            .as_ref()
+            .unwrap()
+            .parameters["switch_3dmodel_filename"]
+            .as_str()
+            .unwrap();
+        assert!(filename.starts_with("boardstudio-asset:"));
+        let displayed = field
+            .query_selector("input[type=text]")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        assert_eq!(displayed.value(), filename);
+        assert!(field.text_content().unwrap().contains("Remove model"));
+        assert_eq!(
+            root.query_selector("input[aria-label='Keycap Width']")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap()
+                .value(),
+            "21"
+        );
+        let refreshed = take_request(&fixture.requests, 21.0).await;
+        let prepared = candidate(&refreshed);
+        assert!(
+            boardstudio_core::generators::model_bindings(&prepared, None)
+                .unwrap()
+                .iter()
+                .any(|model| filename == format!("boardstudio-asset:{}", model.asset_id))
+        );
+        if fail_queued_apply {
+            assert!(apply_queued);
+            support::fail_next_core_reply(&fixture.runtime, "Apply after upload failed");
+        }
+        effects.extend(support::take_held_effects(&fixture.runtime));
+        while let Some(effect) = effects.pop_front() {
+            effects.extend(support::run_effect(&fixture.runtime, effect).await);
+        }
+        if fail_queued_apply {
+            wait_for_text(&root, "[role='alert']", "Apply after upload failed").await;
+            assert_eq!(
+                root.query_selector("input[aria-label='Keycap Width']")
+                    .unwrap()
+                    .unwrap()
+                    .dyn_into::<web_sys::HtmlInputElement>()
+                    .unwrap()
+                    .value(),
+                "18.0"
+            );
+        }
+        finish_request(refreshed, Ok(prepared)).await;
+        let store = handles.borrow().as_ref().unwrap().store;
+        if fail_queued_apply {
+            assert!(
+                store.read().is_none(),
+                "late preview cannot restore the rejected draft"
+            );
+        } else {
+            assert!(store.read().as_ref().unwrap().definition.is_some());
+        }
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn queued_apply_preserves_a_preceding_generator_model_upload() {
         let runtime = support::new_runtime();
         let base = definition();
@@ -1978,11 +2182,17 @@ mod tests {
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
+        let prepared = apply_input(
+            &base,
+            &boardstudio_core::generators::parameter_schema(&owner.source).unwrap(),
+            &BTreeMap::from([("keycap_width".into(), Value::from(20))]),
+        )
+        .unwrap();
         let apply = EditTicket::begin(
             &runtime,
             "apply-test",
             None,
-            generator_apply_resolver(owner, changed_candidate(&base)),
+            generator_apply_resolver(owner, prepared, BTreeSet::from(["keycap_width".into()])),
         );
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
@@ -2001,6 +2211,91 @@ mod tests {
                 "boardstudio-asset:generator-model-71".into()
             ))
         );
+        assert!(
+            boardstudio_core::generators::model_bindings(&accepted.document.definitions[0], None)
+                .unwrap()
+                .iter()
+                .any(|model| model.asset_id == "generator-model-71")
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_new_apply_can_return_a_parameter_to_its_original_value() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded".into())).await;
+        dispatch_width(&root, "20");
+        let request = take_request(&fixture.requests, 20.0).await;
+        let ready = candidate(&request);
+        finish_request(request, Ok(ready)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        let button = root
+            .query_selector(".m1-generator-settings > button.m1-generator-apply")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
+        button.click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::drive_pending(&fixture.runtime);
+        entered.await.unwrap();
+        dispatch_width(&root, "18");
+        let request = take_request(&fixture.requests, 18.0).await;
+        let ready = candidate(&request);
+        finish_request(request, Ok(ready)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&fixture.runtime).await;
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        assert_eq!(
+            fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"],
+            Value::from(20.0)
+        );
+        button.click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&fixture.runtime).await;
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"],
+            Value::from(18.0)
+        );
+        let normalized = boardstudio_core::generators::normalize_definition(
+            accepted.document.definitions[0].clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            accepted.document.definitions[0].courtyard,
+            normalized.courtyard
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -2034,7 +2329,7 @@ mod tests {
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
-        assert_eq!(input.value(), "18");
+        assert_eq!(input.value(), "18.0");
         fixture.runtime.unsubscribe();
         root.remove();
     }
@@ -2077,7 +2372,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .parameters["keycap_width"],
-            18
+            18.0
         );
         root.remove();
     }
