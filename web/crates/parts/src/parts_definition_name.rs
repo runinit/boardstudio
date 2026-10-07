@@ -1,10 +1,8 @@
 //! Parts-private admission and resolver construction for one definition-name commit.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_core::model::{EditOperation, PartDefinition};
+use boardstudio_core::model::EditOperation;
 
-use crate::parts_custom_definition::{
-    DEFINITION_GONE, DefinitionPanelCapture, GENERATOR_LOCKED, replacement_commit,
-};
+use crate::parts_custom_definition::{DEFINITION_GONE, GENERATOR_LOCKED, replacement_commit};
 
 #[cfg(target_arch = "wasm32")]
 mod ui {
@@ -221,9 +219,11 @@ pub fn definition_name_resolver(definition_id: String, name: String) -> EditReso
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parts_custom_definition::DefinitionPanelCapture;
     use boardstudio_application::{
         Completion, Durability, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
     };
+    use boardstudio_core::model::PartDefinition;
     use boardstudio_core::{
         CoreEngine,
         model::ProjectDoc,

@@ -28,34 +28,6 @@ enum EntrySource {
     Project,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ModuleGroup {
-    pub row: String,
-    pub name: String,
-    pub entries: Vec<ModuleEntry>,
-}
-
-impl ModuleGroup {
-    pub fn matches(&self, query: &str) -> bool {
-        query.is_empty()
-            || format!(
-                "{} {} VIK {}",
-                self.name,
-                self.row,
-                self.entries
-                    .iter()
-                    .map(|entry| format!(
-                        "{} {}",
-                        entry.definition.family, entry.definition.variant
-                    ))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            )
-            .to_lowercase()
-            .contains(query)
-    }
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModulePackage {
@@ -323,24 +295,6 @@ fn merge_project_overrides(
         }
     }
     entries
-}
-
-pub fn group_choices(entries: &[ModuleEntry]) -> Vec<ModuleGroup> {
-    let mut groups = Vec::<ModuleGroup>::new();
-    let mut positions = HashMap::<String, usize>::new();
-    for entry in entries {
-        if let Some(index) = positions.get(&entry.row).copied() {
-            groups[index].entries.push(entry.clone());
-        } else {
-            positions.insert(entry.row.clone(), groups.len());
-            groups.push(ModuleGroup {
-                row: entry.row.clone(),
-                name: entry.definition.name.clone(),
-                entries: vec![entry.clone()],
-            });
-        }
-    }
-    groups
 }
 
 pub fn variants(entries: &[ModuleEntry], row: &str) -> Vec<ModuleEntry> {

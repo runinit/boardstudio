@@ -17,7 +17,6 @@ use dioxus_web::WebEventExt;
 use std::rc::Rc;
 use std::{future::Future, pin::Pin};
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 
 /// Narrow accepted values used by this control group; it is not an editable
@@ -3205,11 +3204,11 @@ struct ProfileGeometryEditorProps {
 
 #[component]
 fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
-    let mut geometry_state = use_signal(|| None::<MechanicalGeometry>);
-    let mut selected = use_signal(|| Vec::<String>::new());
-    let mut purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
-    let mut busy = use_signal(|| false);
-    let mut error = use_signal(String::new);
+    let geometry_state = use_signal(|| None::<MechanicalGeometry>);
+    let selected = use_signal(|| Vec::<String>::new());
+    let purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+    let busy = use_signal(|| false);
+    let error = use_signal(String::new);
     let extraction_port = props.extract_profile.clone();
     rsx! {
         section { class: "m1-mechanical-profile-editor", aria_label: "Profile geometry",
@@ -3313,7 +3312,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                 let selected = selected;
                                 let profile = props.profile.clone();
                                 let identity = props.identity.clone();
-                                let mut sequence = props.request_sequence;
+                                let sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let mut busy = busy;
                                 let mut error = error;
