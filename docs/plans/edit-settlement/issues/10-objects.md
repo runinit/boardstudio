@@ -1,6 +1,6 @@
 # 10: Objects: align, placement, mirrored halves, boards and keycap size
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -99,3 +99,44 @@ wasm-pack test --headless --chrome web/crates/layout --locked --lib
 ## Out of scope
 
 - Matrix setup, placement, Inspector and transform (ticket 11).
+
+## Outcome
+
+Commits: claim; "Make EditTicket cloneable so panels can hold it in signals" (shared
+`edit_ticket.rs`, already pushed — ticket 06 had left the impl uncommitted); "Expose
+EditResolver::resolve for fake-runtime presentation tests" (shared `application/`);
+"Land canvas Align through resolution"; "Land component placement and apply-to-key
+through resolution"; "Land board, mirrored-pair, existing-half and key-size edits through
+resolution".
+
+- All seven actions submit through `EditTicket` with a resolver; `PendingAlign`'s outcome
+  and `ExpectedEdit`, `PendingCommit`/`PendingKeyEdit` heuristics, `completion_is_accepted`,
+  `PendingSettlementGate`/`pending_settlement_gate`/`should_wait_for_alignment_advance`,
+  `PairResultGuard`/`accepted_saved_result_is_current` and the content checks in the
+  board, pair and existing-half settlers are gone. Landed means landed; failure wording
+  comes from the ticket with a feature noun.
+- Resolvers: `align_resolver` (retires on a vanished or ineligible part/reference, resolves
+  Unchanged on a zero delta), `placement_resolver` and `key_component_resolver`,
+  `mirrored_pair_resolver`, `mirror_existing_half_resolver` (identities pre-allocated at
+  submit so the resolver stays pure), `add_board_resolver`, `resize_resolver`.
+- One-shot controls (align, placement, pair, existing half, board) disable while their
+  ticket is pending. Key size is a field edit: the `busy` gate and the "wait for the current
+  change" refusal are removed, and `editable` no longer drops while an earlier edit is
+  applying or saving (found in review).
+- Placement selects the placed part from the accepted document at the landing and selects
+  nothing when it is gone. Apply-to-key never changed the selection and still does not.
+- Tests: `rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order`
+  (real Session and Core, gated reply, Undo in order); align retire-with-reason and align
+  applies against the accepted reference (real Core); the placement hook tests run through
+  a fake `PlacementRuntime` whose edit-ticket port resolves the resolver against the
+  accepted snapshot, and the heuristic-only tests were deleted.
+
+Checks: `cargo test -p boardstudio-application --locked` and `-p boardstudio-web-runtime`
+pass; `cargo test -p boardstudio-web-layout --locked` 55 passed; `python3 scripts/check.py
+typecheck`; `python3 scripts/check-wasm-tests.py`; `python3 scripts/check-doc-links.py`;
+`wasm-pack test --headless --chrome web/crates/layout --locked --lib` — 81 passed.
+`check.py test` fails only on `step-oracle/Cargo.toml` missing from this worktree.
+
+Follow-ups: new-board failures have no UI surface (they were silent before too); the
+placement tests still use a fake runtime for the controller flows (landing is asserted
+through the fake port, the rapid-entry test is on the real runtime).

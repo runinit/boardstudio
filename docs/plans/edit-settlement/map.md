@@ -56,6 +56,9 @@ which remaining whole-document replacements become typed Core edits.
   [issues/06-layout-inspector-tracer-bullet.md](issues/06-layout-inspector-tracer-bullet.md).
 - 07 Definition-name and generator tests reach the real Session and Core; the definition-name
   interception is gone from Runtime: [issues/07-definition-name-tests-reach-core.md](issues/07-definition-name-tests-reach-core.md).
+- 10 Layout objects (align, placement, apply-to-key, mirrored pair, existing half, board,
+  keycap size) submit intent through the edit ticket; one-shot controls disable while
+  pending; their `Pending*` heuristics are deleted: [issues/10-objects.md](issues/10-objects.md).
 
 ## Not yet specified
 

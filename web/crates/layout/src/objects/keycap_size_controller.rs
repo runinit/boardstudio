@@ -411,12 +411,15 @@ fn project_for_scope(
         context: selected.context.clone(),
         selected_ids: items.iter().map(|item| item.id.clone()).collect(),
     };
-    let editable = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-        && model.display_preview.is_none()
+    // A key-size change is a field edit: it queues freely while an earlier edit is applying
+    // or saving, so only an unrecoverable or unopened session makes the control unavailable.
+    let editable = matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) && matches!(
+        model.durability,
+        Durability::Saved { .. } | Durability::Saving { .. }
+    ) && model.display_preview.is_none()
         && model.gesture.is_none();
     Some((
         KeySizeProjection {
