@@ -209,7 +209,9 @@ impl EditResolver {
         }
     }
 
-    fn resolve(&self, accepted: &AcceptedSnapshot) -> Resolution {
+    /// Run the resolver against an accepted snapshot. Session calls this at execution;
+    /// presentation tests with a fake runtime call it to stand in for Session.
+    pub fn resolve(&self, accepted: &AcceptedSnapshot) -> Resolution {
         (self.resolve)(accepted)
     }
 }
