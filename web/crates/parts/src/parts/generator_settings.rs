@@ -1,10 +1,10 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
+use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
-use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Scope, TerminalOutcome};
-use boardstudio_core::model::{
-    Asset, EditCommand, EditOperation, EditPhase, Net, PartDefinition, Pin,
-};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
+use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use serde_json::Value;
@@ -27,7 +27,6 @@ pub struct GeneratorOwner {
     pub base_definition: PartDefinition,
     pub source: String,
     pub generator_version: String,
-    pub base_parameters: BTreeMap<String, Value>,
     pub project_owned_at_start: bool,
     pub scope_generation: u64,
     pub selection_generation: u64,
@@ -42,7 +41,6 @@ impl PartialEq for GeneratorOwner {
             && self.definition_id == other.definition_id
             && self.source == other.source
             && self.generator_version == other.generator_version
-            && self.base_parameters == other.base_parameters
             && self.scope_generation == other.scope_generation
             && self.selection_generation == other.selection_generation
     }
@@ -65,10 +63,10 @@ struct GeneratorParameter {
 }
 
 #[derive(Clone)]
-struct PendingApply {
+struct GeneratorSubmission {
     owner: GeneratorOwner,
-    candidate: PartDefinition,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+    ticket: EditTicket,
+    draft_sequence: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -105,9 +103,7 @@ pub fn owner_is_current(
         .find(|definition| definition.id == owner.definition_id)
     {
         Some(definition) => definition.generator.as_ref().is_some_and(|generator| {
-            generator.source == owner.source
-                && generator.version == owner.generator_version
-                && generator.parameters == owner.base_parameters
+            generator.source == owner.source && generator.version == owner.generator_version
         }),
         None => !owner.project_owned_at_start,
     }
@@ -162,7 +158,6 @@ fn make_owner(
         base_definition: definition.clone(),
         source: generator.source.clone(),
         generator_version: generator.version.clone(),
-        base_parameters: generator.parameters.clone(),
         project_owned_at_start: snapshot
             .document
             .definitions
@@ -366,12 +361,11 @@ pub async fn prepare_generator_candidate(
 }
 
 fn remap_terminal_nets(
-    snapshot: &AcceptedSnapshot,
+    document: &boardstudio_core::model::ProjectDoc,
     original: &PartDefinition,
     candidate: &PartDefinition,
 ) -> Result<Vec<Net>, String> {
-    let instances = snapshot
-        .document
+    let instances = document
         .parts
         .iter()
         .filter(|part| part.definition_id == candidate.id)
@@ -379,8 +373,7 @@ fn remap_terminal_nets(
     let mut assignments = Vec::<(String, Vec<String>, Vec<String>, String)>::new();
     for part in instances {
         for (terminal, old_pads) in &original.terminals {
-            let net_ids = snapshot
-                .document
+            let net_ids = document
                 .nets
                 .iter()
                 .filter(|net| {
@@ -420,7 +413,7 @@ fn remap_terminal_nets(
             .is_some_and(|pads| pads.contains(&pin.pad_id))
     };
     let mut destination_nets = BTreeMap::<(String, String), BTreeSet<String>>::new();
-    for net in &snapshot.document.nets {
+    for net in &document.nets {
         for pin in net.pins.iter().filter(|pin| retained(pin)) {
             destination_nets
                 .entry((pin.part_id.clone(), pin.pad_id.clone()))
@@ -442,7 +435,7 @@ fn remap_terminal_nets(
             destination_nets.insert(key, BTreeSet::from([net_id.clone()]));
         }
     }
-    let mut nets = snapshot.document.nets.clone();
+    let mut nets = document.nets.clone();
     for net in &mut nets {
         net.pins.retain(&retained);
     }
@@ -468,124 +461,181 @@ fn remap_terminal_nets(
     Ok(nets)
 }
 
-fn prepare_generator_edit(
-    current: &AcceptedSnapshot,
-    owner: &GeneratorOwner,
-    view: &GeneratorView,
+/// Resolve one generator Apply against the accepted document at execution: the accepted
+/// definition is found (or materialized from the draft's base for a bundled definition),
+/// the candidate is rebased onto it, terminal nets are remapped, and the replacement is
+/// cloned from the accepted document, so an Apply queued behind another edit never
+/// reverts it. Vanished or ineligible targets retire with a reason.
+pub fn generator_apply_resolver(owner: GeneratorOwner, candidate: PartDefinition) -> EditResolver {
+    EditResolver::new(
+        "parts-generator-settings",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            if accepted.session_epoch != owner.session_epoch
+                || accepted.document.id != owner.document_id
+                || candidate.id != owner.definition_id
+                || candidate.generator.as_ref().is_none_or(|generator| {
+                    generator.source != owner.source || generator.version != owner.generator_version
+                })
+            {
+                return Resolution::Retire(
+                    "The selected generator definition changed while these settings were open."
+                        .into(),
+                );
+            }
+            match generator_replacement(document, &owner, &candidate) {
+                Ok(replacement) => replacement,
+                Err(reason) => Resolution::Retire(reason),
+            }
+        },
+    )
+}
+
+/// Resolve one generator model upload against the accepted document at execution. The
+/// bytes were stored by hash before the edit was submitted; this resolver only adds the
+/// `Asset` metadata, choosing an identity that is unique against the accepted assets at
+/// execution, and binds it into the generator parameters.
+pub fn generator_model_upload_resolver(
+    owner: GeneratorOwner,
     candidate: PartDefinition,
-    operation_id: OperationId,
-) -> Result<Event, String> {
-    if view.workspace != "Parts"
-        || view.scope != owner.scope
-        || view.selection != owner.selection
-        || view.scope_generation != owner.scope_generation
-        || view.selection_generation != owner.selection_generation
-        || current.session_epoch != owner.session_epoch
-        || current.document.id != owner.document_id
-        || candidate.id != owner.definition_id
-        || candidate.generator.as_ref().is_none_or(|generator| {
-            generator.source != owner.source || generator.version != owner.generator_version
-        })
-    {
-        return Err("The Parts project, generator selection, or view changed before Apply.".into());
-    }
-    let accepted_definition = current
-        .document
+    parameter: String,
+    asset: Asset,
+    asset_seed: u64,
+) -> EditResolver {
+    EditResolver::new(
+        "parts-generator-settings",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            if accepted.session_epoch != owner.session_epoch
+                || accepted.document.id != owner.document_id
+                || candidate.id != owner.definition_id
+                || candidate.generator.is_none()
+            {
+                return Resolution::Retire(
+                    "The selected generator definition changed while the model was being saved."
+                        .into(),
+                );
+            }
+            let asset_id = unique_generator_model_id(document, asset_seed);
+            let mut bound = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == owner.definition_id)
+                .cloned()
+                .unwrap_or_else(|| candidate.clone());
+            let Some(generator) = bound.generator.as_mut() else {
+                return Resolution::Retire("The part is no longer generator-backed.".into());
+            };
+            generator.parameters.insert(
+                parameter.clone(),
+                Value::String(format!("boardstudio-asset:{asset_id}")),
+            );
+            let mut target_ids = match generator_replacement(document, &owner, &bound) {
+                Ok(replacement) => replacement,
+                Err(reason) => return Resolution::Retire(reason),
+            };
+            let Resolution::Submit(command) = &mut target_ids else {
+                return target_ids;
+            };
+            let EditOperation::ReplaceDocument { document } = &mut command.operation else {
+                return Resolution::Retire(
+                    "The model attachment did not produce a document replacement.".into(),
+                );
+            };
+            if document
+                .assets
+                .iter()
+                .any(|existing| existing.id == asset_id)
+            {
+                return Resolution::Retire("The model asset identity is already in use.".into());
+            }
+            let mut asset = asset.clone();
+            asset.id = asset_id.clone();
+            document.assets.push(asset);
+            command.target_ids.push(asset_id);
+            target_ids
+        },
+    )
+}
+
+/// The replacement document for one generator candidate, or the retire reason. The
+/// candidate is rebased onto the accepted definition so unrelated accepted metadata
+/// survives, and equality with the accepted document resolves `Unchanged`.
+fn generator_replacement(
+    document: &boardstudio_core::model::ProjectDoc,
+    owner: &GeneratorOwner,
+    candidate: &PartDefinition,
+) -> Result<Resolution, String> {
+    let accepted_definition = document
         .definitions
         .iter()
-        .find(|definition| definition.id == owner.definition_id)
-        .cloned();
+        .find(|definition| definition.id == owner.definition_id);
     if accepted_definition.is_none() && owner.project_owned_at_start {
         return Err("The selected project generator definition was removed.".into());
     }
-    let original = accepted_definition.unwrap_or_else(|| owner.base_definition.clone());
+    let original = accepted_definition
+        .cloned()
+        .unwrap_or_else(|| owner.base_definition.clone());
     if original.generator.as_ref().is_none_or(|generator| {
-        generator.source != owner.source
-            || generator.version != owner.generator_version
-            || generator.parameters != owner.base_parameters
+        generator.source != owner.source || generator.version != owner.generator_version
     }) {
         return Err(
             "The selected generator definition changed while these settings were open.".into(),
         );
     }
-    let candidate = rebase_generator_candidate(&owner.base_definition, &original, &candidate)?;
-    let nets = remap_terminal_nets(current, &original, &candidate)?;
-    let mut document = current.document.as_ref().clone();
-    if let Some(existing) = document
+    let rebased = rebase_generator_candidate(&owner.base_definition, &original, candidate)?;
+    let nets = remap_terminal_nets(document, &original, &rebased)?;
+    let mut replacement = document.clone();
+    if let Some(existing) = replacement
         .definitions
         .iter_mut()
-        .find(|definition| definition.id == candidate.id)
+        .find(|definition| definition.id == rebased.id)
     {
-        *existing = candidate.clone();
+        *existing = rebased.clone();
     } else {
-        document.definitions.push(candidate.clone());
+        replacement.definitions.push(rebased.clone());
     }
-    document.nets = nets;
-    let mut target_ids = vec![candidate.id.clone()];
+    replacement.nets = nets;
+    let mut target_ids = vec![rebased.id.clone()];
     target_ids.extend(
-        document
+        replacement
             .parts
             .iter()
-            .filter(|part| part.definition_id == candidate.id)
+            .filter(|part| part.definition_id == rebased.id)
             .map(|part| part.id.clone()),
     );
-    Ok(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: current.document.revision,
-            transaction_id: format!("parts-generator-settings-{}", operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids,
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(document),
-            },
-        },
-    })
-}
-
-fn prepare_generator_asset_edit(
-    current: &AcceptedSnapshot,
-    owner: &GeneratorOwner,
-    view: &GeneratorView,
-    candidate: PartDefinition,
-    asset: Asset,
-    operation_id: OperationId,
-) -> Result<Event, String> {
-    let mut event = prepare_generator_edit(current, owner, view, candidate, operation_id)?;
-    let Event::Edit { command, .. } = &mut event else {
-        return Err("The model attachment did not produce a document edit.".into());
-    };
-    let EditOperation::ReplaceDocument { document } = &mut command.operation else {
-        return Err("The model attachment did not produce a document replacement.".into());
-    };
-    if document
-        .assets
-        .iter()
-        .any(|existing| existing.id == asset.id)
-    {
-        return Err("The model asset identity is already in use.".into());
+    // The replacement is built from the accepted document, so equality means this
+    // candidate already holds: resolve Unchanged, not a landing heuristic (ADR-0005).
+    if replacement == *document {
+        return Ok(Resolution::Unchanged);
     }
-    document.assets.push(asset.clone());
-    command.target_ids.push(asset.id);
-    Ok(event)
+    Ok(replacement_commit(
+        EditOperation::ReplaceDocument {
+            document: Box::new(replacement),
+        },
+        target_ids,
+    ))
 }
 
-fn merge_generator_field<T: Clone + PartialEq>(
-    base: &T,
-    latest: &T,
-    candidate: &T,
-    rebased: &mut T,
-    label: &str,
-) -> Result<(), String> {
-    if candidate != base {
-        if latest != base && latest != candidate {
-            return Err(format!(
-                "The selected generator definition's {label} changed while this draft was open."
-            ));
+fn unique_generator_model_id(document: &boardstudio_core::model::ProjectDoc, seed: u64) -> String {
+    let root = format!("generator-model-{seed}");
+    if !document.assets.iter().any(|asset| asset.id == root) {
+        return root;
+    }
+    let mut suffix = 2;
+    loop {
+        let candidate = format!("{root}-{suffix}");
+        if !document.assets.iter().any(|asset| asset.id == candidate) {
+            return candidate;
         }
+        suffix += 1;
+    }
+}
+
+fn merge_generator_field<T: Clone + PartialEq>(base: &T, candidate: &T, rebased: &mut T) {
+    if candidate != base {
         *rebased = candidate.clone();
     }
-    Ok(())
 }
 
 fn rebase_generator_candidate(
@@ -599,119 +649,60 @@ fn rebase_generator_candidate(
     let mut rebased = latest.clone();
     merge_generator_field(
         &base.hardware_profile,
-        &latest.hardware_profile,
         &candidate.hardware_profile,
         &mut rebased.hardware_profile,
-        "hardware profile",
-    )?;
+    );
     merge_generator_field(
         &base.input_profile,
-        &latest.input_profile,
         &candidate.input_profile,
         &mut rebased.input_profile,
-        "input profile",
-    )?;
-    merge_generator_field(
-        &base.name,
-        &latest.name,
-        &candidate.name,
-        &mut rebased.name,
-        "name",
-    )?;
-    merge_generator_field(
-        &base.kind,
-        &latest.kind,
-        &candidate.kind,
-        &mut rebased.kind,
-        "kind",
-    )?;
-    merge_generator_field(
-        &base.keycap,
-        &latest.keycap,
-        &candidate.keycap,
-        &mut rebased.keycap,
-        "keycap",
-    )?;
+    );
+    merge_generator_field(&base.name, &candidate.name, &mut rebased.name);
+    merge_generator_field(&base.kind, &candidate.kind, &mut rebased.kind);
+    merge_generator_field(&base.keycap, &candidate.keycap, &mut rebased.keycap);
     merge_generator_field(
         &base.envelope_source,
-        &latest.envelope_source,
         &candidate.envelope_source,
         &mut rebased.envelope_source,
-        "envelope source",
-    )?;
+    );
     merge_generator_field(
         &base.kicad_source,
-        &latest.kicad_source,
         &candidate.kicad_source,
         &mut rebased.kicad_source,
-        "kicad source",
-    )?;
+    );
     merge_generator_field(
         &base.terminals,
-        &latest.terminals,
         &candidate.terminals,
         &mut rebased.terminals,
-        "terminals",
-    )?;
+    );
     merge_generator_field(
         &base.matrix_terminals,
-        &latest.matrix_terminals,
         &candidate.matrix_terminals,
         &mut rebased.matrix_terminals,
-        "matrix terminals",
-    )?;
+    );
     merge_generator_field(
         &base.envelope_notice,
-        &latest.envelope_notice,
         &candidate.envelope_notice,
         &mut rebased.envelope_notice,
-        "envelope notice",
-    )?;
+    );
     merge_generator_field(
         &base.courtyard,
-        &latest.courtyard,
         &candidate.courtyard,
         &mut rebased.courtyard,
-        "courtyard",
-    )?;
-    merge_generator_field(
-        &base.pads,
-        &latest.pads,
-        &candidate.pads,
-        &mut rebased.pads,
-        "pads",
-    )?;
-    merge_generator_field(
-        &base.models,
-        &latest.models,
-        &candidate.models,
-        &mut rebased.models,
-        "models",
-    )?;
+    );
+    merge_generator_field(&base.pads, &candidate.pads, &mut rebased.pads);
+    merge_generator_field(&base.models, &candidate.models, &mut rebased.models);
     merge_generator_field(
         &base.generator,
-        &latest.generator,
         &candidate.generator,
         &mut rebased.generator,
-        "generator",
-    )?;
+    );
     merge_generator_field(
         &base.mechanical_profile,
-        &latest.mechanical_profile,
         &candidate.mechanical_profile,
         &mut rebased.mechanical_profile,
-        "mechanical profile",
-    )?;
+    );
     Ok(rebased)
-}
-
-#[derive(Clone)]
-struct GeneratorView {
-    scope: Option<Scope>,
-    selection: Option<(Option<Scope>, String)>,
-    scope_generation: u64,
-    selection_generation: u64,
-    workspace: &'static str,
 }
 
 #[cfg(test)]
@@ -758,7 +749,8 @@ pub fn GeneratorSettingsEditor(
     let schema_result = schema.read().clone();
     let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let pending_apply = use_signal(|| None::<PendingApply>);
+    let pending_apply = use_signal(|| None::<GeneratorSubmission>);
+    let pending_upload = use_signal(|| None::<GeneratorSubmission>);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let model_sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
@@ -792,53 +784,49 @@ pub fn GeneratorSettingsEditor(
 
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.clone();
-        let mut pending_apply = pending_apply;
+        let sequence = sequence.clone();
         let mut feedback = feedback;
         let mut store = store;
+        let mut edits = edits;
         move |_| {
-            let Some(pending) = pending_apply.read().clone() else {
-                return;
-            };
-            let Some(outcome) = pending.outcome.borrow().clone() else {
-                return;
-            };
-            pending_apply.set(None);
-            if !owner_context_is_current(
-                &pending.owner,
-                &runtime,
-                selected,
-                scope_generation(),
-                selection_generation(),
-                workspace(),
-            ) {
-                return;
-            }
-            match outcome {
-                TerminalOutcome::Completed => {
-                    let current = runtime.model().accepted;
-                    let accepted = current.as_ref().and_then(|snapshot| {
-                        snapshot.document.definitions.iter().find(|definition| {
-                            definition.id == pending.candidate.id
-                                && definition.generator == pending.candidate.generator
-                        })
-                    });
-                    if accepted.is_some() {
-                        store.set(None);
+            for mut pending_action in [pending_apply, pending_upload] {
+                let Some(pending) = pending_action.peek().clone() else {
+                    continue;
+                };
+                // The editor outlives selection changes, so owner liveness is the context
+                // owner (workspace, scope, selection, generations), not the accepted
+                // generator parameters the ticket itself is about to change.
+                let owner_is_live = owner_context_is_current(
+                    &pending.owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                );
+                match pending.ticket.settlement(owner_is_live) {
+                    Settlement::Pending => {}
+                    // Landed means landed: drop the draft store without re-checking the
+                    // accepted document for the requested values.
+                    Settlement::Landed { .. } => {
+                        pending_action.set(None);
+                        if sequence.get() == pending.draft_sequence {
+                            store.set(None);
+                            edits.set(BTreeMap::new());
+                        }
                         feedback.set(None);
                     }
+                    Settlement::Failed { message } => {
+                        pending_action.set(None);
+                        feedback.set(Some(ScopedFeedback {
+                            owner: pending.owner.clone(),
+                            message,
+                        }));
+                    }
+                    Settlement::Retired => {
+                        pending_action.set(None);
+                    }
                 }
-                TerminalOutcome::Rejected(reason)
-                | TerminalOutcome::PersistenceFailed(reason)
-                | TerminalOutcome::BlockedByRecovery(reason)
-                | TerminalOutcome::ExecutorFailed(reason) => feedback.set(Some(ScopedFeedback {
-                    owner: pending.owner.clone(),
-                    message: reason,
-                })),
-                TerminalOutcome::Cancelled => feedback.set(Some(ScopedFeedback {
-                    owner: pending.owner.clone(),
-                    message: "Generator settings were cancelled.".into(),
-                })),
-                TerminalOutcome::Closed | TerminalOutcome::Superseded => {}
             }
         }
     }));
@@ -874,6 +862,7 @@ pub fn GeneratorSettingsEditor(
     let preview_alive = alive.clone();
     #[cfg(test)]
     let candidate_provider = try_consume_context::<GeneratorCandidateTestProvider>();
+    let preview_sequence = sequence.clone();
     let request_preview = use_callback(move |next: BTreeMap<String, Value>| {
         changed.set(next.clone());
         feedback.set(None);
@@ -892,7 +881,7 @@ pub fn GeneratorSettingsEditor(
         let workspace = workspace;
         let runtime = callback_runtime.clone();
         let mut store = store;
-        let task = sequence.clone();
+        let task = preview_sequence.clone();
         let alive = preview_alive.clone();
         let ticket = task.get().wrapping_add(1);
         task.set(ticket);
@@ -950,11 +939,14 @@ pub fn GeneratorSettingsEditor(
     });
     let model_import_runtime = runtime.clone();
     let model_import_owner = owner.clone();
+    let import_sequence = sequence.clone();
     let import_generator_model = use_callback(move |(parameter, file): (String, web_sys::File)| {
         let runtime = model_import_runtime.clone();
         let owner = model_import_owner.clone();
         if model_uploading()
-            || pending_apply().is_some()
+            || pending_upload()
+                .as_ref()
+                .is_some_and(|action| action.ticket.is_pending())
             || !parameter.ends_with("3dmodel_filename")
         {
             return;
@@ -980,7 +972,8 @@ pub fn GeneratorSettingsEditor(
         let error_prefix = parameter_label(&parameter).to_ascii_lowercase();
         let mut feedback = feedback;
         let mut model_uploading = model_uploading;
-        let mut pending_apply = pending_apply;
+        let mut pending_upload = pending_upload;
+        let draft_sequence = import_sequence.get();
         spawn_local(async move {
             let imported = read_model_file(file).await;
             if !alive.get() || model_sequence.get() != ticket {
@@ -1093,9 +1086,7 @@ pub fn GeneratorSettingsEditor(
                 .generator
                 .as_ref()
                 .is_none_or(|generator| {
-                    generator.source != owner.source
-                        || generator.version != owner.generator_version
-                        || generator.parameters != owner.base_parameters
+                    generator.source != owner.source || generator.version != owner.generator_version
                 })
             {
                 model_uploading.set(false);
@@ -1105,79 +1096,36 @@ pub fn GeneratorSettingsEditor(
                 }));
                 return;
             }
-            let asset_id = loop {
-                let candidate = format!("generator-model-{}", runtime.operation().0);
-                if !current
-                    .document
-                    .assets
-                    .iter()
-                    .any(|asset| asset.id == candidate)
-                {
-                    break candidate;
-                }
-            };
+            // The bytes are already stored by hash; the resolver chooses the asset
+            // identity against the accepted assets and adds only the Asset metadata.
             let asset = Asset {
-                id: asset_id.clone(),
+                id: String::new(),
                 name: imported.filename.clone(),
                 media_type: imported.media_type.clone(),
                 sha256: imported.sha256.clone(),
                 license: None,
                 source: Some("local file".into()),
             };
-            let mut candidate = latest_definition;
-            candidate
-                .generator
-                .as_mut()
-                .expect("validated generator")
-                .parameters
-                .insert(
-                    parameter,
-                    Value::String(format!("boardstudio-asset:{asset_id}")),
-                );
-            let view = GeneratorView {
-                scope: runtime.scope(),
-                selection: selected(),
-                scope_generation: scope_generation(),
-                selection_generation: selection_generation(),
-                workspace: workspace(),
-            };
-            let operation_id = runtime.operation();
-            let event = match prepare_generator_asset_edit(
-                &current,
-                &owner,
-                &view,
-                candidate.clone(),
-                asset,
-                operation_id,
-            ) {
-                Ok(event) => event,
-                Err(message) => {
-                    model_uploading.set(false);
-                    if owner_context_is_current(
-                        &owner,
-                        &runtime,
-                        selected,
-                        scope_generation(),
-                        selection_generation(),
-                        workspace(),
-                    ) {
-                        feedback.set(Some(ScopedFeedback {
-                            owner,
-                            message: format!("{error_prefix}: {message}"),
-                        }));
-                    }
-                    return;
-                }
-            };
             model_uploading.set(false);
-            let outcome = runtime.observe_operation(operation_id);
-            pending_apply.set(Some(PendingApply {
+            let asset_seed = runtime.operation().0;
+            let ticket = EditTicket::begin(
+                &runtime,
+                "parts-generator-settings",
+                Some("generator".into()),
+                generator_model_upload_resolver(
+                    owner.clone(),
+                    latest_definition,
+                    parameter,
+                    asset,
+                    asset_seed,
+                ),
+            );
+            pending_upload.set(Some(GeneratorSubmission {
                 owner,
-                candidate,
-                outcome,
+                ticket,
+                draft_sequence,
             }));
             feedback.set(None);
-            runtime.submit(event);
         });
     });
     let on_apply = {
@@ -1198,47 +1146,33 @@ pub fn GeneratorSettingsEditor(
             else {
                 return;
             };
-            let model = runtime.model();
-            let Some(current) = model.accepted.as_ref() else {
-                feedback.set(Some(ScopedFeedback {
-                    owner: current_owner.clone(),
-                    message: "The accepted project is unavailable.".into(),
-                }));
+            if pending_apply
+                .peek()
+                .as_ref()
+                .is_some_and(|action| action.ticket.is_pending())
+                || !owner_context_is_current(
+                    &current_owner,
+                    &runtime,
+                    selected,
+                    scope_generation(),
+                    selection_generation(),
+                    workspace(),
+                )
+            {
                 return;
-            };
-            let view = GeneratorView {
-                scope: runtime.scope(),
-                selection: selected(),
-                scope_generation: scope_generation(),
-                selection_generation: selection_generation(),
-                workspace: workspace(),
-            };
-            match prepare_generator_edit(
-                current,
-                &current_owner,
-                &view,
-                candidate.clone(),
-                runtime.operation(),
-            ) {
-                Ok(event) => {
-                    let operation_id = match &event {
-                        Event::Edit { operation_id, .. } => *operation_id,
-                        _ => unreachable!("generator edit helper returns Edit"),
-                    };
-                    let outcome = runtime.observe_operation(operation_id);
-                    pending_apply.set(Some(PendingApply {
-                        owner: current_owner.clone(),
-                        candidate,
-                        outcome,
-                    }));
-                    feedback.set(None);
-                    runtime.submit(event);
-                }
-                Err(error) => feedback.set(Some(ScopedFeedback {
-                    owner: current_owner.clone(),
-                    message: error,
-                })),
             }
+            let ticket = EditTicket::begin(
+                &runtime,
+                "parts-generator-settings",
+                Some("generator settings".into()),
+                generator_apply_resolver(current_owner.clone(), candidate),
+            );
+            pending_apply.set(Some(GeneratorSubmission {
+                owner: current_owner.clone(),
+                ticket,
+                draft_sequence: sequence.get(),
+            }));
+            feedback.set(None);
         }
     };
 
@@ -1260,14 +1194,13 @@ pub fn GeneratorSettingsEditor(
                         fieldset {
                             class: "m1-generator-fields",
                             "aria-label": "{group}",
-                            disabled: pending_apply().is_some() || model_uploading(),
                             for entry in group_entries {
                                 GeneratorParameterField {
                                     entry: entry.clone(),
                                     value: edits().get(&entry.key).cloned().unwrap_or(entry.value.clone()),
                                     on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
                                     on_import: import_generator_model,
-                                    busy: model_uploading(),
+                                    busy: model_uploading() || pending_upload().as_ref().is_some_and(|action| action.ticket.is_pending()),
                                     feedback: feedback()
                                         .filter(|message| owner_context_is_current(
                                             &message.owner,
@@ -1515,7 +1448,26 @@ mod tests {
         use_context_provider(|| super::super::PartsSelectionGeneration(selection_generation));
         use_context_provider(|| super::super::GeneratorDraftStore(store));
         use_context_provider(|| super::super::super::WorkspaceState(workspace));
-        use_context_provider(|| Signal::new(0_u64));
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let _ = version();
+        use_hook({
+            let runtime = fixture.runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let current = fixture.runtime.model().accepted.unwrap();
+        let accepted_definition = current
+            .document
+            .definitions
+            .iter()
+            .find(|item| item.id == definition().id)
+            .cloned()
+            .unwrap_or_else(|| definition());
         *handles.borrow_mut() = Some(GeneratorMountedSignals {
             definition,
             selected,
@@ -1524,10 +1476,10 @@ mod tests {
         });
         rsx! {
             GeneratorSettingsEditor {
-                snapshot: fixture.snapshot.clone(),
+                snapshot: current,
                 scope: Some(fixture.scope.clone()),
                 selected,
-                definition: definition(),
+                definition: accepted_definition,
             }
         }
     }
@@ -1756,16 +1708,6 @@ mod tests {
         }
     }
 
-    fn view(scope: &Scope) -> GeneratorView {
-        GeneratorView {
-            scope: Some(scope.clone()),
-            selection: Some((Some(scope.clone()), DEFINITION_ID.into())),
-            scope_generation: 11,
-            selection_generation: 7,
-            workspace: "Parts",
-        }
-    }
-
     fn mechanical_profile() -> MechanicalPartProfile {
         MechanicalPartProfile {
             source_geometry: None,
@@ -1794,7 +1736,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn retained_generator_apply_merges_latest_metadata_and_rejects_deleted_owner() {
+    async fn retained_generator_apply_merges_latest_metadata_and_rejects_deleted_owner() {
         let base = definition();
         let base_snapshot = snapshot(vec![base.clone()], 4);
         let scope = scope();
@@ -1838,43 +1780,145 @@ mod tests {
         );
 
         let candidate = changed_candidate(&base);
-        let event = prepare_generator_edit(
-            &latest_snapshot,
-            &owner,
-            &view(&scope),
-            candidate.clone(),
-            OperationId(701),
-        )
-        .expect("candidate rebases onto the latest accepted document");
-        let Event::Edit { command, .. } = event else {
-            panic!("Apply should submit one ordinary edit");
-        };
-        assert_eq!(command.base_revision, 5);
-        let EditOperation::ReplaceDocument { document } = command.operation else {
-            panic!("Apply should replace the current document");
-        };
-        let applied = document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == DEFINITION_ID)
-            .expect("applied definition");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, latest_snapshot.document.as_ref().clone()).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let mut owner = owner;
+        owner.session_epoch = accepted.session_epoch;
+        let ticket = EditTicket::begin(
+            &runtime,
+            "generator-test",
+            None,
+            generator_apply_resolver(owner.clone(), candidate.clone()),
+        );
+        support::run_pending(&runtime).await;
+        assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        let accepted = runtime.model().accepted.unwrap();
+        let applied = &accepted.document.definitions[0];
         assert_eq!(applied.name, "Latest accepted name");
         assert_eq!(applied.mechanical_profile, latest.mechanical_profile);
         assert_eq!(applied.generator, candidate.generator);
         assert_eq!(applied.pads, candidate.pads);
         assert_eq!(applied.courtyard, candidate.courtyard);
 
-        let deleted_snapshot = snapshot(Vec::new(), 6);
-        assert!(
-            prepare_generator_edit(
-                &deleted_snapshot,
-                &owner,
-                &view(&scope),
-                candidate,
-                OperationId(702),
-            )
-            .is_err()
+        let mut deleted = accepted.document.as_ref().clone();
+        deleted.definitions.clear();
+        support::open_document(&runtime, deleted).await;
+        owner.session_epoch = runtime.model().accepted.unwrap().session_epoch;
+        let ticket = EditTicket::begin(
+            &runtime,
+            "generator-test",
+            None,
+            generator_apply_resolver(owner, candidate),
         );
+        support::run_pending(&runtime).await;
+        assert!(
+            matches!(ticket.settlement(true), Settlement::Failed { message } if message.contains("removed"))
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_apply_queued_behind_rename_preserves_both_and_undo() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by test edit".into())).await;
+        dispatch_width(&root, "20");
+        let request = take_request(&fixture.requests, 20.0).await;
+        let prepared = candidate(&request);
+        finish_request(request, Ok(prepared)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
+        let _rename = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+            &fixture.runtime,
+            "definition-name",
+            Some("name".into()),
+            boardstudio_application::EditResolver::new(
+                "test-definition-rename",
+                |accepted: &AcceptedSnapshot| {
+                    let mut document = accepted.document.as_ref().clone();
+                    document.definitions[0].name = "Queued name".into();
+                    crate::parts_custom_definition::replacement_commit(
+                        EditOperation::ReplaceDocument {
+                            document: Box::new(document),
+                        },
+                        vec![DEFINITION_ID.into()],
+                    )
+                },
+            ),
+        );
+        support::drive_pending(&fixture.runtime);
+        entered.await.unwrap();
+        let apply = root
+            .query_selector(".m1-generator-settings > button.m1-generator-apply")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        apply.click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::drive_pending(&fixture.runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&fixture.runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        let definition = accepted
+            .document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == DEFINITION_ID)
+            .unwrap();
+        assert_eq!(
+            definition.name, "Queued name",
+            "queued Apply preserves the preceding rename"
+        );
+        assert_eq!(
+            definition.generator.as_ref().unwrap().parameters["keycap_width"].as_f64(),
+            Some(20.0)
+        );
+        fixture
+            .runtime
+            .submit(boardstudio_application::Event::Undo {
+                operation_id: fixture.runtime.operation(),
+            });
+        support::run_pending(&fixture.runtime).await;
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        let definition = accepted
+            .document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == DEFINITION_ID)
+            .unwrap();
+        assert_eq!(definition.name, "Queued name");
+        assert_eq!(
+            definition.generator.as_ref().unwrap().parameters["keycap_width"].as_f64(),
+            Some(18.0)
+        );
+        fixture
+            .runtime
+            .submit(boardstudio_application::Event::Undo {
+                operation_id: fixture.runtime.operation(),
+            });
+        support::run_pending(&fixture.runtime).await;
+        assert_eq!(
+            fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .definitions[0]
+                .name,
+            fixture.first.name
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1946,7 +1990,10 @@ mod tests {
         );
         let pad_one = candidate.pads.iter().find(|pad| pad.number == "1").unwrap();
         let pad_two = candidate.pads.iter().find(|pad| pad.number == "2").unwrap();
-        assert!(pad_one.at.x > 0.0, "Front preview places pad 1 on the right");
+        assert!(
+            pad_one.at.x > 0.0,
+            "Front preview places pad 1 on the right"
+        );
         assert!(pad_two.at.x < 0.0, "Front preview places pad 2 on the left");
         finish_request(request, Ok(candidate.clone())).await;
         wait_for_text(

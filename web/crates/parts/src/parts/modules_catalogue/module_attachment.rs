@@ -1,10 +1,12 @@
 use super::{ModuleEntry, load_horizontal_host_connector_definition};
+use crate::parts_custom_definition::replacement_commit;
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Event, Lifecycle, Scope, SnapshotToken};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, ModuleAttachment as AttachmentKind, ModuleConnection,
-    MountedModule, Side, Vec2, VikRole,
+    EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
+    MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, collections::BTreeMap, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -60,8 +62,6 @@ pub fn ModuleAttachment(
     let definition_id = definition.id.clone();
     let expected_selection = (scope.clone(), format!("module:{definition_id}"));
     let owner_scope = scope.clone();
-    let initial_token = snapshot.token;
-    let initial_revision = snapshot.document.revision;
     let initial_generation = selection_generation();
     let can_attach = scope.as_ref().is_some_and(|scope| {
         snapshot
@@ -103,8 +103,6 @@ pub fn ModuleAttachment(
             selection_generation,
             &expected_selection,
             initial_generation,
-            initial_token,
-            initial_revision,
             workspace,
         ) else {
             feedback.set("The selected module, PCB, or accepted project changed. Reselect the module before attaching it.".into());
@@ -221,15 +219,13 @@ pub fn ModuleAttachment(
                 pending.set(false);
                 return;
             }
-            let Some(current) = attachment_owner_current(
+            let Some(_current) = attachment_owner_current(
                 &runtime,
                 &scope,
                 selected,
                 selection_generation,
                 &expected_selection,
                 initial_generation,
-                initial_token,
-                initial_revision,
                 workspace,
             ) else {
                 feedback.set("The accepted project changed while the connector was loading. Reselect the module before attaching it.".into());
@@ -247,25 +243,19 @@ pub fn ModuleAttachment(
                 }
                 None => None,
             };
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let expected_instance = instance.clone();
-            let expected_revision = current.document.revision.saturating_add(1);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: current.document.revision,
-                    transaction_id: format!("attach-mounted-module-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![module_id.clone(), scope.board_id.clone()],
-                    operation: EditOperation::SetMountedModule {
-                        instance: Box::new(instance),
-                        definition: Some(Box::new(definition.clone())),
-                        host_connector_definition: connector_definition.map(Box::new),
-                    },
-                },
-            });
-            while outcome.borrow().is_none() {
+            let ticket = EditTicket::begin(
+                &runtime,
+                "attach-mounted-module",
+                Some("module attachment".into()),
+                attachment_resolver(
+                    scope.clone(),
+                    instance,
+                    definition.clone(),
+                    connector_definition,
+                ),
+            );
+            feedback.set(String::new());
+            while ticket.is_pending() {
                 gloo_timers::future::TimeoutFuture::new(16).await;
                 if !alive.get() {
                     return;
@@ -286,42 +276,20 @@ pub fn ModuleAttachment(
                 pending.set(false);
                 return;
             }
-            let Some(result) = outcome.borrow().clone() else {
-                pending.set(false);
-                return;
-            };
-            match result {
-                boardstudio_application::TerminalOutcome::Completed => {
-                    if !attachment_selection_current(
-                        &runtime,
-                        &scope,
-                        selected,
-                        selection_generation,
-                        &expected_selection,
-                        initial_generation,
-                        workspace,
-                    ) {
+            match ticket.settlement(true) {
+                Settlement::Landed { .. } => {
+                    let model = runtime.model();
+                    let Some(accepted) = model.accepted.as_ref() else {
                         pending.set(false);
                         return;
-                    }
-                    let model = runtime.model();
-                    let Some(accepted) = model.accepted.as_ref().filter(|accepted| {
-                        model.lifecycle == Lifecycle::Ready
-                            && accepted.document.id == scope.document_id
-                            && accepted.session_epoch == scope.session_epoch
-                            && accepted.document.revision == expected_revision
-                            && accepted
-                                .document
-                                .modules
-                                .iter()
-                                .any(|mounted| mounted == &expected_instance)
-                            && accepted
-                                .document
-                                .module_definitions
-                                .iter()
-                                .any(|saved| saved == &definition)
+                    };
+                    let Some(mounted) = accepted.document.modules.iter().rev().find(|mounted| {
+                        mounted.id == module_id
+                            || mounted
+                                .id
+                                .strip_prefix(&format!("{module_id}-"))
+                                .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
                     }) else {
-                        feedback.set("The attach edit completed, but the accepted module placement could not be verified.".into());
                         pending.set(false);
                         return;
                     };
@@ -329,7 +297,7 @@ pub fn ModuleAttachment(
                         scope: scope.clone(),
                         snapshot_token: accepted.token,
                         revision: accepted.document.revision,
-                        module_id: module_id.clone(),
+                        module_id: mounted.id.clone(),
                         definition_id: definition.id.clone(),
                         selection_generation: initial_generation,
                     };
@@ -338,17 +306,8 @@ pub fn ModuleAttachment(
                     on_attached.call(navigation);
                     return;
                 }
-                boardstudio_application::TerminalOutcome::Rejected(error)
-                | boardstudio_application::TerminalOutcome::PersistenceFailed(error)
-                | boardstudio_application::TerminalOutcome::BlockedByRecovery(error)
-                | boardstudio_application::TerminalOutcome::ExecutorFailed(error) => {
-                    feedback.set(error);
-                }
-                boardstudio_application::TerminalOutcome::Superseded
-                | boardstudio_application::TerminalOutcome::Cancelled
-                | boardstudio_application::TerminalOutcome::Closed => {
-                    feedback.set("Module attachment was interrupted before it completed.".into());
-                }
+                Settlement::Failed { message } => feedback.set(message),
+                Settlement::Retired | Settlement::Pending => {}
             }
             pending.set(false);
         });
@@ -426,8 +385,6 @@ fn attachment_owner_current(
     selection_generation: Signal<u64>,
     expected_selection: &(Option<Scope>, String),
     expected_generation: u64,
-    token: SnapshotToken,
-    revision: u64,
     workspace: Signal<&'static str>,
 ) -> Option<AcceptedSnapshot> {
     if !attachment_selection_current(
@@ -442,15 +399,87 @@ fn attachment_owner_current(
         return None;
     }
     let model = runtime.model();
-    if model.lifecycle != Lifecycle::Ready {
-        return None;
-    }
     let accepted = model.accepted?;
-    (accepted.token == token
-        && accepted.document.revision == revision
-        && accepted.document.id == scope.document_id
-        && accepted.session_epoch == scope.session_epoch)
+    (accepted.document.id == scope.document_id && accepted.session_epoch == scope.session_epoch)
         .then_some(accepted)
+}
+
+fn attachment_resolver(
+    scope: Scope,
+    instance: MountedModule,
+    definition: ModuleDefinition,
+    connector: Option<PartDefinition>,
+) -> EditResolver {
+    EditResolver::new(
+        "attach-mounted-module",
+        move |accepted: &AcceptedSnapshot| {
+            if accepted.session_epoch != scope.session_epoch
+                || accepted.document.id != scope.document_id
+                || !accepted
+                    .document
+                    .boards
+                    .iter()
+                    .any(|board| board.id == scope.board_id)
+            {
+                return Resolution::Retire("The selected PCB is no longer available.".into());
+            }
+            if connector.is_none()
+                && instance.connection.as_ref().is_some_and(|connection| {
+                    !eligible_host_connectors(accepted, &scope.board_id)
+                        .iter()
+                        .any(|(id, _)| id == &connection.host_connector_part_id)
+                })
+            {
+                return Resolution::Retire(
+                    "The selected VIK host connector is no longer available on this PCB.".into(),
+                );
+            }
+            let latest = accepted
+                .document
+                .module_definitions
+                .iter()
+                .find(|latest| latest.id == definition.id)
+                .unwrap_or(&definition);
+            if latest.source != definition.source
+                || latest.circuit != definition.circuit
+                || latest.interfaces != definition.interfaces
+            {
+                return Resolution::Retire(
+                    "The module source or connector mapping changed.".into(),
+                );
+            }
+            let mut mounted = instance.clone();
+            let mut suffix = 0_u64;
+            while accepted
+                .document
+                .modules
+                .iter()
+                .any(|item| item.id == mounted.id)
+                || accepted.document.parts.iter().any(|part| {
+                    part.id == mounted.id || part.id == format!("{}/vik-host-connector", mounted.id)
+                })
+            {
+                suffix += 1;
+                mounted.id = format!("{}-{suffix}", instance.id);
+            }
+            if let Some(connection) = mounted.connection.as_mut() {
+                connection.bus_id = format!("vik/{}", mounted.id);
+                if connector.is_some() {
+                    connection.host_connector_part_id =
+                        format!("{}/vik-host-connector", mounted.id);
+                }
+            }
+            let ids = vec![mounted.id.clone(), scope.board_id.clone()];
+            replacement_commit(
+                EditOperation::SetMountedModule {
+                    instance: Box::new(mounted),
+                    definition: Some(Box::new(latest.clone())),
+                    host_connector_definition: connector.clone().map(Box::new),
+                },
+                ids,
+            )
+        },
+    )
 }
 
 fn eligible_host_connectors(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<(String, String)> {

@@ -1,10 +1,16 @@
 //! Center-workspace manual mechanical profile draft and accepted edit.
 
-use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Scope, SessionEpoch};
-use boardstudio_core::model::{
-    CoreReply, EditCommand, EditOperation, EditPhase, MechanicalBuiltinProfile,
-    MechanicalPartProfile, MechanicalSwitchFamily, PartDefinition,
+use boardstudio_application::{
+    AcceptedSnapshot, EditResolver, OperationId, Resolution, Scope, SessionEpoch,
 };
+use boardstudio_core::model::{
+    CoreReply, EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile,
+    MechanicalSwitchFamily, PartDefinition,
+};
+
+use crate::parts_custom_definition::replacement_commit;
+
+pub(crate) const PROFILE_GONE: &str = "This part definition no longer exists.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProfileDefinitionSource {
@@ -40,12 +46,6 @@ impl ProfileEditOwner {
             source,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ProfileEditCapture {
-    owner: ProfileEditOwner,
-    definition: PartDefinition,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -203,107 +203,64 @@ pub fn merge_standard_profile(
     draft.plate_to_pcb = plate_to_pcb;
 }
 
-#[derive(Clone)]
-pub struct PendingProfileEdit {
-    owner: ProfileEditOwner,
-    outcome: crate::operation_outcomes::OutcomeSlot,
-}
-
-impl PendingProfileEdit {
-    pub fn new(
-        owner: ProfileEditOwner,
-        outcome: crate::operation_outcomes::OutcomeSlot,
-    ) -> Self {
-        Self { owner, outcome }
-    }
-
-    /// Retire this exact operation observation once it settles or its Parts view
-    /// owner changes. No terminal branch publishes feedback in the editor.
-    pub fn should_retire(
-        &self,
-        current_owner: &ProfileEditOwner,
-        current_scope: &Option<Scope>,
-    ) -> bool {
-        self.owner != *current_owner
-            || self.owner.scope != *current_scope
-            || self.outcome.borrow().is_some()
-    }
-}
-
-pub struct ProfileEditContext<'a> {
-    pub snapshot: &'a AcceptedSnapshot,
-    pub owner: &'a ProfileEditOwner,
-    pub runtime_scope: Option<Scope>,
-    pub selection: Option<(Option<Scope>, String)>,
-    pub definition: &'a PartDefinition,
-}
-
-impl ProfileEditCapture {
-    pub fn new(owner: ProfileEditOwner, definition: PartDefinition) -> Self {
-        Self { owner, definition }
-    }
-}
-
-/// Resolve the local draft's commit against the latest accepted document. The
-/// selected source definition is immutable; unrelated accepted edits rebase,
-/// while a changed target or owner is silently rejected.
-pub fn prepare_profile_edit(
-    current: ProfileEditContext<'_>,
-    capture: &ProfileEditCapture,
+/// Resolve one manual profile save against the accepted document at execution: a
+/// project-owned definition must still exist, a catalogue definition materializes as a
+/// project override (or updates one that appeared meanwhile), and the replacement is
+/// cloned from the accepted document, so a save queued behind another edit never
+/// reverts it.
+pub fn mechanical_profile_resolver(
+    source: ProfileDefinitionSource,
+    definition_id: String,
+    definition: PartDefinition,
     profile: MechanicalPartProfile,
-    operation_id: OperationId,
-) -> Option<Event> {
-    let definition_id = &capture.definition.id;
-    if capture.owner.scope.is_none()
-        || current.owner != &capture.owner
-        || current.runtime_scope != capture.owner.scope
-        || current.snapshot.session_epoch != capture.owner.session_epoch
-        || current.snapshot.document.id != capture.owner.document_id
-        || current.selection != Some((capture.owner.scope.clone(), definition_id.clone()))
-        || current.definition != &capture.definition
-        || profile.definition_id != *definition_id
-    {
-        return None;
-    }
-
-    let mut replacement = current.snapshot.document.as_ref().clone();
-    match capture.owner.source {
-        ProfileDefinitionSource::Project => {
-            let definition = replacement
-                .definitions
-                .iter_mut()
-                .find(|definition| definition.id == *definition_id)?;
-            if *definition != capture.definition {
-                return None;
+) -> EditResolver {
+    EditResolver::new(
+        "parts-mechanical-profile",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let mut replacement = document.as_ref().clone();
+            match source {
+                ProfileDefinitionSource::Project => {
+                    let Some(target) = replacement
+                        .definitions
+                        .iter_mut()
+                        .find(|item| item.id == definition_id)
+                    else {
+                        return Resolution::Retire(PROFILE_GONE.into());
+                    };
+                    target.mechanical_profile = Some(profile.clone());
+                }
+                ProfileDefinitionSource::Generator | ProfileDefinitionSource::Imported => {
+                    // The captured catalogue definition is only the seed: if the project
+                    // gained this definition while the editor was open, the accepted one
+                    // wins and only the profile is set on it.
+                    if let Some(target) = replacement
+                        .definitions
+                        .iter_mut()
+                        .find(|item| item.id == definition_id)
+                    {
+                        target.mechanical_profile = Some(profile.clone());
+                    } else {
+                        let mut materialized = definition.clone();
+                        materialized.mechanical_profile = Some(profile.clone());
+                        replacement.definitions.push(materialized);
+                    }
+                }
             }
-            definition.mechanical_profile = Some(profile);
-        }
-        ProfileDefinitionSource::Generator | ProfileDefinitionSource::Imported => {
-            if replacement
-                .definitions
-                .iter()
-                .any(|definition| definition.id == *definition_id)
-            {
-                return None;
+            // The clone is built from the accepted document, so equality means this
+            // profile already holds: resolve Unchanged, not a landing heuristic
+            // (ADR-0005).
+            if replacement == **document {
+                return Resolution::Unchanged;
             }
-            let mut definition = capture.definition.clone();
-            definition.mechanical_profile = Some(profile);
-            replacement.definitions.push(definition);
-        }
-    }
-
-    Some(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: current.snapshot.document.revision,
-            transaction_id: format!("parts-mechanical-profile-{}", operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids: vec![definition_id.clone()],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(replacement),
-            },
+            replacement_commit(
+                EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+                vec![definition_id.clone()],
+            )
         },
-    })
+    )
 }
 
 pub fn initial_profile(
@@ -482,85 +439,109 @@ mod tests {
         ProfileEditOwner::new(OperationId(view_id), snapshot, scope, source, definition)
     }
 
+    /// Submit one profile save as intent and drive its effects to completion.
+    fn resolve_profile(
+        session: &mut Session,
+        core: &mut CoreEngine,
+        operation: u64,
+        source: ProfileDefinitionSource,
+        definition: &PartDefinition,
+        profile: MechanicalPartProfile,
+    ) -> Vec<TerminalOutcome> {
+        let effects = session.submit(Event::ResolveEdit {
+            operation_id: OperationId(operation),
+            label: "parts-mechanical-profile".into(),
+            resolver: mechanical_profile_resolver(
+                source,
+                definition.id.clone(),
+                definition.clone(),
+                profile,
+            ),
+        });
+        let mut settlements = Vec::new();
+        let mut pending = effects;
+        while let Some(effect) = pending.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => {
+                    let reply = core.handle(*request);
+                    pending.extend(session.complete(Completion::Core {
+                        request_id,
+                        executor_epoch,
+                        reply: Box::new(reply),
+                    }));
+                }
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    pending.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                Effect::Settled { outcome, .. } => settlements.push(outcome),
+                _ => {}
+            }
+        }
+        settlements
+    }
+
     #[test]
-    fn manual_profile_edit_rebases_latest_project_document_and_round_trips_history() {
+    fn profile_save_lands_against_the_latest_accepted_document_and_round_trips_history() {
         let mut target = definition("switch", "Switch");
         let existing_profile = profile("switch", "Original source");
         target.mechanical_profile = Some(existing_profile.clone());
         let original = document(vec![target.clone(), definition("other", "Other")]);
         let (mut session, mut core) = open(original.clone());
-        let initial = accepted(&session);
-        let scope = session.scope();
-        let owner = edit_owner(
-            &initial,
-            scope.clone(),
-            ProfileDefinitionSource::Project,
-            &target,
-            100,
-        );
-        let capture = ProfileEditCapture::new(owner.clone(), target.clone());
 
-        let mut unrelated = initial.document.as_ref().clone();
+        // An unrelated accepted edit lands while the profile editor is open.
+        let mut unrelated = session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref()
+            .clone();
         unrelated.name = "Renamed project during draft".into();
-        let unrelated_event = Event::Edit {
+        let effects = session.submit(Event::Edit {
             operation_id: OperationId(2),
             command: boardstudio_core::model::EditCommand {
-                base_revision: initial.document.revision,
+                base_revision: 0,
                 transaction_id: "unrelated-project-rename".into(),
                 phase: EditPhase::Commit,
-                target_ids: vec![initial.document.id.clone()],
+                target_ids: vec![unrelated.id.clone()],
                 operation: EditOperation::ReplaceDocument {
-                    document: Box::new(unrelated.clone()),
+                    document: Box::new(unrelated),
                 },
             },
-        };
-        let effects = session.submit(unrelated_event);
+        });
         advance(&mut session, &mut core, effects);
 
-        let latest = accepted(&session);
-        let current_target = latest
-            .document
-            .definitions
-            .iter()
-            .find(|entry| entry.id == "switch")
-            .unwrap()
-            .clone();
         let edited_profile = profile("switch", "Parts library");
-        let event = prepare_profile_edit(
-            ProfileEditContext {
-                snapshot: &latest,
-                owner: &owner,
-                runtime_scope: session.scope(),
-                selection: Some((session.scope(), current_target.id.clone())),
-                definition: &current_target,
-            },
-            &capture,
-            edited_profile.clone(),
-            OperationId(3),
-        )
-        .expect("the still-selected definition can save against the latest document");
-        let Event::Edit { command, .. } = &event else {
-            panic!("profile save uses normal Session edit");
-        };
-        assert_eq!(command.base_revision, latest.document.revision);
-        assert_eq!(command.phase, EditPhase::Commit);
-        assert_eq!(command.target_ids, vec!["switch"]);
-        let EditOperation::ReplaceDocument { document: proposed } = &command.operation else {
-            panic!("profile save uses the existing replace-document edit");
-        };
-        assert_eq!(proposed.name, "Renamed project during draft");
         assert_eq!(
-            proposed.definitions[0].mechanical_profile,
+            resolve_profile(
+                &mut session,
+                &mut core,
+                3,
+                ProfileDefinitionSource::Project,
+                &target,
+                edited_profile.clone(),
+            ),
+            vec![TerminalOutcome::Completed],
+            "the profile save lands against the renamed document"
+        );
+        let document = accepted(&session).document;
+        assert_eq!(document.name, "Renamed project during draft");
+        assert_eq!(
+            document.definitions[0].mechanical_profile,
             Some(edited_profile.clone())
         );
-        assert_eq!(proposed.definitions[1], original.definitions[1]);
-
-        let effects = session.submit(event);
-        advance(&mut session, &mut core, effects);
-        assert_eq!(
-            accepted(&session).document.definitions[0].mechanical_profile,
-            Some(edited_profile.clone())
-        );
+        assert_eq!(document.definitions[1], original.definitions[1]);
 
         let effects = session.submit(Event::Undo {
             operation_id: OperationId(4),
@@ -583,67 +564,286 @@ mod tests {
     #[test]
     fn saving_a_selected_catalogue_definition_materializes_only_that_definition() {
         let original = document(vec![definition("other", "Other")]);
-        let (session, _core) = open(original.clone());
-        let snapshot = accepted(&session);
-        let scope = session.scope();
+        let (mut session, mut core) = open(original.clone());
         let selected_definition = definition("bundled-switch", "Bundled switch");
-        let owner = edit_owner(
-            &snapshot,
-            scope.clone(),
-            ProfileDefinitionSource::Generator,
-            &selected_definition,
-            200,
-        );
-        let capture = ProfileEditCapture::new(owner.clone(), selected_definition.clone());
-        let wrong_source_owner = edit_owner(
-            &snapshot,
-            scope.clone(),
-            ProfileDefinitionSource::Imported,
-            &selected_definition,
-            200,
-        );
         let draft = profile("bundled-switch", "Parts library");
 
-        assert!(
-            prepare_profile_edit(
-                ProfileEditContext {
-                    snapshot: &snapshot,
-                    owner: &wrong_source_owner,
-                    runtime_scope: scope.clone(),
-                    selection: Some((scope.clone(), "bundled-switch".into())),
-                    definition: &selected_definition,
-                },
-                &capture,
+        assert_eq!(
+            resolve_profile(
+                &mut session,
+                &mut core,
+                2,
+                ProfileDefinitionSource::Generator,
+                &selected_definition,
                 draft.clone(),
-                OperationId(3),
-            )
-            .is_none()
+            ),
+            vec![TerminalOutcome::Completed],
+            "a bundled entry saves as a project override"
         );
-
-        let event = prepare_profile_edit(
-            ProfileEditContext {
-                snapshot: &snapshot,
-                owner: &owner,
-                runtime_scope: scope.clone(),
-                selection: Some((scope, "bundled-switch".into())),
-                definition: &selected_definition,
-            },
-            &capture,
-            draft.clone(),
-            OperationId(2),
-        )
-        .expect("a current bundled entry can be saved as a project override");
-        let Event::Edit { command, .. } = event else {
-            panic!("profile save uses normal Session edit");
-        };
-        let EditOperation::ReplaceDocument { document: proposed } = command.operation else {
-            panic!("profile save uses replace-document");
-        };
+        let proposed = accepted(&session).document;
         assert_eq!(proposed.definitions.len(), 2);
         assert_eq!(proposed.definitions[0], original.definitions[0]);
         assert_eq!(proposed.definitions[1].id, "bundled-switch");
         assert_eq!(proposed.definitions[1].mechanical_profile, Some(draft));
         assert_eq!(proposed.name, original.name);
+    }
+
+    #[test]
+    fn profile_save_retires_a_removed_project_definition_and_skips_unchanged_profiles() {
+        let target = definition("switch", "Switch");
+        let (mut session, mut core) = open(document(vec![target.clone()]));
+        assert_eq!(
+            resolve_profile(
+                &mut session,
+                &mut core,
+                2,
+                ProfileDefinitionSource::Project,
+                &target,
+                profile("switch", "Parts library"),
+            ),
+            vec![TerminalOutcome::Completed],
+            "the first save lands"
+        );
+        // Saving the identical profile again resolves Unchanged without a revision.
+        assert_eq!(
+            resolve_profile(
+                &mut session,
+                &mut core,
+                3,
+                ProfileDefinitionSource::Project,
+                &target,
+                profile("switch", "Parts library"),
+            ),
+            vec![TerminalOutcome::Completed],
+            "an unchanged save completes quietly"
+        );
+        assert_eq!(accepted(&session).document.revision, 1);
+
+        // Remove the definition, then queue another save of it.
+        let mut without = accepted(&session).document.as_ref().clone();
+        without.definitions.clear();
+        let effects = session.submit(Event::Edit {
+            operation_id: OperationId(4),
+            command: boardstudio_core::model::EditCommand {
+                base_revision: 1,
+                transaction_id: "remove-definition".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["switch".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(without),
+                },
+            },
+        });
+        advance(&mut session, &mut core, effects);
+        assert_eq!(
+            resolve_profile(
+                &mut session,
+                &mut core,
+                5,
+                ProfileDefinitionSource::Project,
+                &target,
+                profile("switch", "Parts library"),
+            ),
+            vec![TerminalOutcome::Rejected(PROFILE_GONE.into())],
+            "a save on a deleted definition retires with the reason"
+        );
+    }
+
+    #[test]
+    fn profile_save_updates_a_definition_materialized_while_the_editor_was_open() {
+        let selected = definition("bundled-switch", "Bundled switch");
+        let (mut session, mut core) = open(document(vec![definition("other", "Other")]));
+        // Another edit materializes the same catalogue definition first.
+        let mut materialized = accepted(&session).document.as_ref().clone();
+        materialized.definitions.push(selected.clone());
+        let effects = session.submit(Event::Edit {
+            operation_id: OperationId(2),
+            command: boardstudio_core::model::EditCommand {
+                base_revision: 0,
+                transaction_id: "materialize".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["bundled-switch".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(materialized),
+                },
+            },
+        });
+        advance(&mut session, &mut core, effects);
+        let mut latest = accepted(&session).document.as_ref().clone();
+        latest.definitions[1].name = "Edited meanwhile".into();
+        let effects = session.submit(Event::Edit {
+            operation_id: OperationId(3),
+            command: boardstudio_core::model::EditCommand {
+                base_revision: 1,
+                transaction_id: "rename".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["bundled-switch".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(latest),
+                },
+            },
+        });
+        advance(&mut session, &mut core, effects);
+
+        assert_eq!(
+            resolve_profile(
+                &mut session,
+                &mut core,
+                4,
+                ProfileDefinitionSource::Generator,
+                &selected,
+                profile("bundled-switch", "Parts library"),
+            ),
+            vec![TerminalOutcome::Completed]
+        );
+        let document = accepted(&session).document;
+        assert_eq!(
+            document.definitions.len(),
+            2,
+            "no duplicate materialization"
+        );
+        assert_eq!(document.definitions[1].name, "Edited meanwhile");
+        assert_eq!(
+            document.definitions[1].mechanical_profile,
+            Some(profile("bundled-switch", "Parts library"))
+        );
+    }
+
+    #[test]
+    fn profile_save_queued_behind_a_custom_definition_field_edit_keeps_the_field_edit() {
+        use crate::parts_custom_definition::{DefinitionEdit, definition_field_resolver};
+
+        let mut target = definition("switch", "Switch");
+        target.courtyard = vec![
+            Vec2 { x: -5.0, y: -3.0 },
+            Vec2 { x: 5.0, y: -3.0 },
+            Vec2 { x: 5.0, y: 3.0 },
+            Vec2 { x: -5.0, y: 3.0 },
+        ];
+        let (mut session, mut core) = open(document(vec![target.clone()]));
+        let mut parked = None;
+        let mut settlements = Vec::new();
+
+        // The custom-definition field edit runs first; its Core reply is held so the
+        // profile save queues behind it.
+        let effects = session.submit(Event::ResolveEdit {
+            operation_id: OperationId(2),
+            label: "parts-definition-field".into(),
+            resolver: definition_field_resolver(
+                "switch".into(),
+                DefinitionEdit::CourtyardWidth("12.5".into()),
+                0,
+            ),
+        });
+        let mut pending = effects;
+        while let Some(effect) = pending.pop() {
+            if let Effect::Core {
+                request_id,
+                executor_epoch,
+                request,
+                ..
+            } = effect
+            {
+                parked = Some((request_id, executor_epoch, request));
+            }
+        }
+        assert!(parked.is_some(), "the field edit reached Core and is held");
+
+        // The profile save queues freely behind the pending field edit.
+        let effects = session.submit(Event::ResolveEdit {
+            operation_id: OperationId(3),
+            label: "parts-mechanical-profile".into(),
+            resolver: mechanical_profile_resolver(
+                ProfileDefinitionSource::Project,
+                "switch".into(),
+                target.clone(),
+                profile("switch", "Parts library"),
+            ),
+        });
+        assert!(
+            effects.is_empty(),
+            "the profile save waits for the head of the queue"
+        );
+
+        // Releasing the held reply resolves the queued save against the document the
+        // field edit produced, keeping the field edit's value.
+        let (request_id, executor_epoch, request) = parked.unwrap();
+        let reply = core.handle(*request);
+        let mut pending = session.complete(Completion::Core {
+            request_id,
+            executor_epoch,
+            reply: Box::new(reply),
+        });
+        while let Some(effect) = pending.pop() {
+            match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => {
+                    let reply = core.handle(*request);
+                    pending.extend(session.complete(Completion::Core {
+                        request_id,
+                        executor_epoch,
+                        reply: Box::new(reply),
+                    }));
+                }
+                Effect::Persist {
+                    save_attempt_id, ..
+                } => {
+                    pending.extend(session.complete(Completion::Persist {
+                        save_attempt_id,
+                        result: SaveResult::Committed,
+                    }));
+                }
+                Effect::Settled { outcome, .. } => settlements.push(outcome),
+                _ => {}
+            }
+        }
+        assert_eq!(
+            settlements,
+            vec![TerminalOutcome::Completed, TerminalOutcome::Completed]
+        );
+        let document = accepted(&session).document;
+        assert_eq!(
+            crate::parts_custom_definition::courtyard_bounds(&document.definitions[0].courtyard).0,
+            12.5,
+            "the queued field edit survives the whole-document profile save"
+        );
+        assert_eq!(
+            document.definitions[0].mechanical_profile,
+            Some(profile("switch", "Parts library"))
+        );
+
+        // Undo removes the profile save first, then the field edit.
+        let effects = session.submit(Event::Undo {
+            operation_id: OperationId(4),
+        });
+        advance(&mut session, &mut core, effects);
+        assert_eq!(
+            accepted(&session).document.definitions[0].mechanical_profile,
+            None
+        );
+        assert_eq!(
+            crate::parts_custom_definition::courtyard_bounds(
+                &accepted(&session).document.definitions[0].courtyard
+            )
+            .0,
+            12.5
+        );
+        let effects = session.submit(Event::Undo {
+            operation_id: OperationId(5),
+        });
+        advance(&mut session, &mut core, effects);
+        assert_eq!(
+            crate::parts_custom_definition::courtyard_bounds(
+                &accepted(&session).document.definitions[0].courtyard
+            )
+            .0,
+            10.0,
+            "the second Undo removes the field edit"
+        );
     }
 
     #[test]
@@ -672,142 +872,6 @@ mod tests {
         saved.switch_family = Some(MechanicalSwitchFamily::Mx);
         saved.plate_to_pcb = 0.8;
         assert_eq!(displayed_mounting_gap(&saved).as_deref(), Some("0.80"));
-    }
-
-    #[test]
-    fn profile_save_rejects_a_changed_selection_or_changed_target() {
-        let target = definition("switch", "Switch");
-        let original = document(vec![target.clone(), definition("other", "Other")]);
-        let (session, _core) = open(original);
-        let current = accepted(&session);
-        let scope = session.scope();
-        let owner = edit_owner(
-            &current,
-            scope.clone(),
-            ProfileDefinitionSource::Project,
-            &target,
-            300,
-        );
-        let capture = ProfileEditCapture::new(owner.clone(), target.clone());
-        let proposed_profile = profile("switch", "Parts library");
-
-        assert!(
-            prepare_profile_edit(
-                ProfileEditContext {
-                    snapshot: &current,
-                    owner: &owner,
-                    runtime_scope: scope.clone(),
-                    selection: Some((scope.clone(), "other".into())),
-                    definition: &target,
-                },
-                &capture,
-                proposed_profile.clone(),
-                OperationId(2),
-            )
-            .is_none()
-        );
-
-        let mut changed_scope = scope.clone();
-        changed_scope
-            .as_mut()
-            .expect("an open Parts view has a scope")
-            .board_id = "another-board".into();
-        assert!(
-            prepare_profile_edit(
-                ProfileEditContext {
-                    snapshot: &current,
-                    owner: &owner,
-                    runtime_scope: changed_scope,
-                    selection: Some((scope.clone(), "switch".into())),
-                    definition: &target,
-                },
-                &capture,
-                proposed_profile.clone(),
-                OperationId(4),
-            )
-            .is_none()
-        );
-
-        let mut changed_target = target;
-        changed_target.name = "Changed after editor opened".into();
-        assert!(
-            prepare_profile_edit(
-                ProfileEditContext {
-                    snapshot: &current,
-                    owner: &owner,
-                    runtime_scope: scope.clone(),
-                    selection: Some((scope, "switch".into())),
-                    definition: &changed_target,
-                },
-                &capture,
-                proposed_profile,
-                OperationId(3),
-            )
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn profile_terminal_observation_is_bound_to_its_operation_and_parts_view_owner() {
-        use crate::operation_outcomes::OperationOutcomes;
-
-        let (session, _core) = open(document(vec![definition("switch", "Switch")]));
-        let snapshot = accepted(&session);
-        let scope = session.scope();
-        let target = snapshot.document.definitions[0].clone();
-        let owner = edit_owner(
-            &snapshot,
-            scope.clone(),
-            ProfileDefinitionSource::Project,
-            &target,
-            400,
-        );
-
-        for terminal in [
-            TerminalOutcome::Completed,
-            TerminalOutcome::Rejected("late rejection".into()),
-        ] {
-            let operations = OperationOutcomes::default();
-            let operation_id = OperationId(401);
-            let pending = PendingProfileEdit::new(owner.clone(), operations.observe(operation_id));
-            assert!(!pending.should_retire(&owner, &scope));
-            assert!(!operations.settle(OperationId(402), TerminalOutcome::Completed,));
-
-            let mut changed_runtime_scope = scope.clone();
-            changed_runtime_scope
-                .as_mut()
-                .expect("an open Parts view has a scope")
-                .board_id = "runtime-moved-board".into();
-            assert!(pending.should_retire(&owner, &changed_runtime_scope));
-
-            let mut changed_scope_owner = owner.clone();
-            changed_scope_owner
-                .scope
-                .as_mut()
-                .expect("an open Parts view has a scope")
-                .board_id = "another-board".into();
-            assert!(pending.should_retire(&changed_scope_owner, &scope));
-            drop(pending);
-            assert!(
-                !operations.settle(operation_id, terminal),
-                "retiring the old Parts owner drops only its observation; Session still owns the edit"
-            );
-        }
-
-        let operations = OperationOutcomes::default();
-        let operation_id = OperationId(403);
-        let pending = PendingProfileEdit::new(owner.clone(), operations.observe(operation_id));
-        let mut new_view = owner.clone();
-        new_view.view_id = OperationId(404);
-        assert!(pending.should_retire(&new_view, &scope));
-        drop(pending);
-        assert!(!operations.settle(operation_id, TerminalOutcome::Completed));
-
-        let operations = OperationOutcomes::default();
-        let operation_id = OperationId(405);
-        let pending = PendingProfileEdit::new(owner.clone(), operations.observe(operation_id));
-        assert!(operations.settle(operation_id, TerminalOutcome::Completed));
-        assert!(pending.should_retire(&owner, &scope));
     }
 
     #[test]

@@ -8,15 +8,24 @@ use super::{
     StandardProfileFuture, StandardProfileRequester,
 };
 use crate::parts_mechanical_profile::{
-    PendingProfileEdit, ProfileDefinitionSource, ProfileEditCapture, ProfileEditContext,
-    ProfileEditOwner, prepare_profile_edit,
+    ProfileDefinitionSource, ProfileEditOwner, mechanical_profile_resolver,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{MechanicalPartProfile, PartDefinition};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
+
+#[derive(Clone)]
+struct ProfileSave {
+    owner: ProfileEditOwner,
+    scope_generation: u64,
+    selection_generation: u64,
+    ticket: EditTicket,
+    profile: MechanicalPartProfile,
+}
 
 #[component]
 pub fn PartsMechanicalProfileWorkspace(
@@ -45,93 +54,111 @@ pub fn PartsMechanicalProfileWorkspace(
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
     let editing = use_signal(|| false);
-    let capture = use_signal(|| None::<ProfileEditCapture>);
-    let pending = use_signal(|| None::<PendingProfileEdit>);
-    let capture_owner = owner.clone();
-    use_effect(use_reactive((&owner,), {
-        let mut capture = capture;
-        let definition = definition.clone();
-        move |(_owner,)| {
-            if editing() {
-                capture.set(Some(ProfileEditCapture::new(
-                    capture_owner.clone(),
-                    definition.clone(),
-                )));
+    let mut pending = use_signal(Vec::<ProfileSave>::new);
+    let scope_generation_at_render = (selection_adapter.generation)();
+    let selection_generation_at_render = selection_generation();
+    let mut error = use_signal(String::new);
+    use_effect(use_reactive((&owner,), move |_| error.set(String::new())));
+    // Each committed save has its own observation and captured owner lifetime.
+    {
+        let saves = pending.peek().clone();
+        let mut retained = Vec::new();
+        for save in &saves {
+            let live = workspace() == "Parts"
+                && selection()
+                    == Some((save.owner.scope.clone(), save.owner.definition_id.clone()))
+                && (selection_adapter.generation)() == save.scope_generation
+                && selection_generation() == save.selection_generation
+                && runtime.scope() == save.owner.scope
+                && runtime.model().accepted.as_ref().is_some_and(|current| {
+                    current.session_epoch == save.owner.session_epoch
+                        && current.document.id == save.owner.document_id
+                });
+            match save.ticket.settlement(live) {
+                Settlement::Pending => retained.push(save.clone()),
+                Settlement::Failed { message } => error.set(message),
+                Settlement::Landed { .. } | Settlement::Retired => {}
             }
         }
-    }));
-    use_effect(use_reactive((&owner, &runtime_version()), {
-        let runtime = runtime.clone();
-        let mut pending = pending;
-        move |(owner, _)| {
-            if pending
-                .read()
-                .as_ref()
-                .is_some_and(|operation| operation.should_retire(&owner, &runtime.scope()))
-            {
-                pending.set(None);
-            }
+        if retained.len() != saves.len() {
+            pending.set(retained);
         }
-    }));
+    }
     let start_editing = {
         let mut editing = editing;
-        let mut capture = capture;
-        let owner = owner.clone();
+        let mut error = error;
         let scope = scope.clone();
         let definition = definition.clone();
         move |_| {
             selection.set(Some((scope.clone(), definition.id.clone())));
-            capture.set(Some(ProfileEditCapture::new(
-                owner.clone(),
-                definition.clone(),
-            )));
             editing.set(true);
+            error.set(String::new());
         }
     };
     let close_editor = {
         let mut editing = editing;
-        let mut capture = capture;
         move |_| {
             editing.set(false);
-            capture.set(None);
         }
     };
     let save_profile = {
         let runtime = runtime.clone();
-        let selection = selection;
-        let mut pending = pending;
         let owner = owner.clone();
         let definition = definition.clone();
+        let mut pending = pending;
+        let mut error = error;
         move |profile: MechanicalPartProfile| {
-            let Some(capture) = capture() else {
+            // Admission: this view's owner is still the current Parts project and the
+            // profile belongs to the definition being edited. Every document-dependent
+            // check runs in the resolver at execution.
+            if workspace() != "Parts"
+                || selection() != Some((owner.scope.clone(), owner.definition_id.clone()))
+                || selection_generation() != selection_generation_at_render
+                || (selection_adapter.generation)() != scope_generation_at_render
+                || runtime.scope() != owner.scope
+                || !runtime.model().accepted.as_ref().is_some_and(|current| {
+                    current.session_epoch == owner.session_epoch
+                        && current.document.id == owner.document_id
+                })
+                || profile.definition_id != definition.id
+            {
                 return;
-            };
-            let model = runtime.model();
-            let Some(current) = model.accepted else {
-                return;
-            };
-            let operation_id = runtime.operation();
-            let Some(event) = prepare_profile_edit(
-                ProfileEditContext {
-                    snapshot: &current,
-                    owner: &owner,
-                    runtime_scope: runtime.scope(),
-                    selection: selection(),
-                    definition: &definition,
-                },
-                &capture,
+            }
+            let resolver = mechanical_profile_resolver(
+                source,
+                definition.id.clone(),
+                definition.clone(),
+                profile.clone(),
+            );
+            let ticket = EditTicket::begin(
+                &runtime,
+                "parts-mechanical-profile",
+                Some("mechanical profile".into()),
+                resolver,
+            );
+            pending.write().push(ProfileSave {
+                owner: owner.clone(),
+                scope_generation: scope_generation_at_render,
+                selection_generation: selection_generation_at_render,
+                ticket,
                 profile,
-                operation_id,
-            ) else {
-                return;
-            };
-            let outcome = runtime.observe_operation(operation_id);
-            pending.set(Some(PendingProfileEdit::new(owner.clone(), outcome)));
-            runtime.submit(event);
+            });
+            error.set(String::new());
         }
     };
 
     if editing() {
+        let initial = pending
+            .peek()
+            .iter()
+            .rev()
+            .find(|save| {
+                save.owner == owner
+                    && save.scope_generation == scope_generation_at_render
+                    && save.selection_generation == selection_generation_at_render
+            })
+            .map(|save| save.profile.clone())
+            .or_else(|| definition.mechanical_profile.clone());
         let editor_key = format!("{owner:?}");
         let request_runtime = runtime.clone();
         let request_standard_profile: StandardProfileRequester =
@@ -180,7 +207,7 @@ pub fn PartsMechanicalProfileWorkspace(
             ManualProfileEditor {
                 key: "{editor_key}",
                 definition: definition.clone(),
-                initial: definition.mechanical_profile.clone(),
+                initial,
                 owner: owner.clone(),
                 snapshot: snapshot.clone(),
                 selection,
@@ -195,21 +222,25 @@ pub fn PartsMechanicalProfileWorkspace(
     }
     let profile_defined = definition.mechanical_profile.is_some();
     rsx! {
-        section { class: "m1-parts-mechanical-fit", "aria-label": "Mechanical fit profile",
-            div {
-                h3 { "Mechanical fit" }
-                p {
-                    if profile_defined { "Defined with this part and inherited by layouts and cases." }
-                    else { "Define this part’s fit once so every layout and case uses the same profile." }
+            section { class: "m1-parts-mechanical-fit", "aria-label": "Mechanical fit profile",
+                div {
+                    h3 { "Mechanical fit" }
+                    p {
+                        if profile_defined { "Defined with this part and inherited by layouts and cases." }
+                        else { "Define this part’s fit once so every layout and case uses the same profile." }
+                    }
+                }
+                button {
+                    class: "m1-secondary",
+                    r#type: "button",
+                    onclick: start_editing,
+                    if profile_defined { "Edit profile" } else { "Define profile" }
+                }
+                if !pending.peek().is_empty() { p { class: "m1-parts-loading", role: "status", "Saving fit profile…" } }
+                if !error().is_empty() {
+                    p { class: "m1-parts-load-error", role: "alert", "{error()}" }
                 }
             }
-            button {
-                class: "m1-secondary",
-                r#type: "button",
-                onclick: start_editing,
-                if profile_defined { "Edit profile" } else { "Define profile" }
-            }
-        }
         PartsPreviewPanel {
             definition: Some(Rc::new(preview_definition.unwrap_or_else(|| definition.clone()))),
             recipe,

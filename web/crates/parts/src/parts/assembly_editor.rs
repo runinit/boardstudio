@@ -1,11 +1,13 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
+use crate::parts_custom_definition::replacement_commit;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    AssemblyDefinition, AssemblyMember, Asset, EditCommand, EditOperation, EditPhase, Part,
-    PartDefinition, PartKind, PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
+    AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartKind,
+    PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
@@ -25,22 +27,208 @@ struct AssemblyDraft {
 }
 
 #[derive(Clone)]
-struct PendingSave {
-    target: PendingTarget,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+struct AssemblySubmission {
+    target: AssemblyAction,
+    ticket: EditTicket,
+    scope: Option<Scope>,
+    document_id: String,
+    session_epoch: boardstudio_application::SessionEpoch,
 }
 
 #[derive(Clone)]
-enum PendingTarget {
+enum AssemblyAction {
     Assembly(String),
     Matrix(String),
     BoardAssembly {
         scope: Scope,
         board_id: String,
-        base_revision: u64,
         assembly_id: String,
-        part_ids: Vec<String>,
+        placement_seed: String,
     },
+}
+
+fn assembly_save_resolver(draft: AssemblyDraft, definitions: Vec<PartDefinition>) -> EditResolver {
+    EditResolver::new(
+        "parts-assembly-editor",
+        move |accepted: &AcceptedSnapshot| {
+            if accepted.document.id != draft.document_id
+                || accepted.session_epoch != draft.session_epoch
+            {
+                return Resolution::Retire("The assembly's project changed.".into());
+            }
+            let mut draft = draft.clone();
+            if draft.base.is_none() {
+                let root = draft.value.id.clone();
+                let mut suffix = 0_u64;
+                while accepted
+                    .document
+                    .assemblies
+                    .iter()
+                    .any(|assembly| assembly.id == draft.value.id)
+                {
+                    suffix += 1;
+                    draft.value.id = format!("{root}-{suffix}");
+                }
+            }
+            match saved_document(&accepted.document, &draft, &definitions) {
+                Ok(document) if document == *accepted.document => Resolution::Unchanged,
+                Ok(document) => replacement_commit(
+                    EditOperation::ReplaceDocument {
+                        document: Box::new(document),
+                    },
+                    vec![draft.value.id],
+                ),
+                Err(reason) => Resolution::Retire(reason),
+            }
+        },
+    )
+}
+
+fn assembly_place_resolver(
+    scope: Scope,
+    proposal: ProjectDoc,
+    assets: Vec<Asset>,
+    seed: String,
+    part_ids: Vec<String>,
+) -> EditResolver {
+    EditResolver::new(
+        "parts-assembly-place",
+        move |accepted: &AcceptedSnapshot| {
+            if accepted.document.id != scope.document_id
+                || accepted.session_epoch != scope.session_epoch
+            {
+                return Resolution::Retire("The assembly's project changed.".into());
+            }
+            let mut placement = seed.clone();
+            let mut suffix = 0_u64;
+            while accepted
+                .document
+                .parts
+                .iter()
+                .any(|part| part.id.starts_with(&format!("{placement}/")))
+                || accepted.document.definitions.iter().any(|definition| {
+                    definition
+                        .id
+                        .starts_with(&format!("{placement}/definition/"))
+                })
+            {
+                suffix += 1;
+                placement = format!("{seed}-{suffix}");
+            }
+            let prefix = format!("{seed}/");
+            let remap = |id: &str| {
+                id.strip_prefix(&prefix)
+                    .map(|tail| format!("{placement}/{tail}"))
+                    .unwrap_or_else(|| id.to_owned())
+            };
+            let mut prepared = proposal.clone();
+            for definition in prepared
+                .definitions
+                .iter_mut()
+                .filter(|definition| definition.id.starts_with(&format!("{seed}/definition/")))
+            {
+                definition.id = remap(&definition.id);
+            }
+            for part in prepared
+                .parts
+                .iter_mut()
+                .filter(|part| part_ids.contains(&part.id))
+            {
+                part.id = remap(&part.id);
+                part.definition_id = remap(&part.definition_id);
+                if let Some(properties) = part.properties.as_mut() {
+                    properties.insert(
+                        "assemblyId".into(),
+                        serde_json::Value::String(placement.clone()),
+                    );
+                }
+            }
+            let ids = part_ids.iter().map(|id| remap(id)).collect::<Vec<_>>();
+            match super::assembly_presets::rebase_assembly_placement(
+                &accepted.document,
+                &prepared,
+                &assets,
+                &scope.board_id,
+                &placement,
+                &ids,
+            ) {
+                Ok(document) => {
+                    let mut targets = ids;
+                    targets.push(scope.board_id.clone());
+                    replacement_commit(
+                        EditOperation::ReplaceDocument {
+                            document: Box::new(document),
+                        },
+                        targets,
+                    )
+                }
+                Err(reason) => Resolution::Retire(reason),
+            }
+        },
+    )
+}
+
+fn assembly_matrix_resolver(
+    scope: Scope,
+    matrix_id: String,
+    assembly: AssemblyDefinition,
+    prepared: Vec<PartDefinition>,
+    seed: String,
+) -> EditResolver {
+    EditResolver::new(
+        "parts-assembly-matrix-apply",
+        move |accepted: &AcceptedSnapshot| {
+            if accepted.document.id != scope.document_id
+                || accepted.session_epoch != scope.session_epoch
+            {
+                return Resolution::Retire("The assembly's project changed.".into());
+            }
+            let Some(matrix) = accepted.document.matrices.iter().find(|matrix| {
+                matrix.id == matrix_id && matrix.board_id.as_deref() == Some(&scope.board_id)
+            }) else {
+                return Resolution::Retire("The selected matrix is no longer on this PCB.".into());
+            };
+            let mut nonce = seed.clone();
+            let mut suffix = 0_u64;
+            while accepted.document.definitions.iter().any(|definition| {
+                definition
+                    .id
+                    .starts_with(&format!("{matrix_id}/assembly-{nonce}/definition/"))
+            }) {
+                suffix += 1;
+                nonce = format!("{seed}-{suffix}");
+            }
+            // The prepared definitions are immutable recipe snapshots. Rebind each member
+            // to its template, while letting the helper derive cells from the latest matrix.
+            let mut recipe = assembly.clone();
+            for (member, definition) in recipe.members.iter_mut().zip(&prepared) {
+                member.definition_id = Some(definition.id.clone());
+            }
+            match super::assembly_presets::matrix_with_assembly(
+                matrix,
+                &recipe,
+                &prepared,
+                &accepted.document,
+                &nonce,
+            ) {
+                Ok((matrix, mut definitions)) => {
+                    for (definition, template) in definitions.iter_mut().zip(&prepared) {
+                        let id = definition.id.clone();
+                        *definition = template.clone();
+                        definition.id = id;
+                    }
+                    replacement_commit(
+                        EditOperation::SetMatrix {
+                            matrix,
+                            definitions: Some(definitions),
+                        },
+                        vec![matrix_id.clone()],
+                    )
+                }
+                Err(reason) => Resolution::Retire(reason),
+            }
+        },
+    )
 }
 
 /// Saved reusable assemblies are project data; editor fields stay local until one
@@ -63,8 +251,9 @@ pub fn SavedAssembliesEditor(
     let assembly_orientation = use_context::<super::PartsAssemblyOrientation>().0;
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
-    let mut pending = use_signal(|| None::<PendingSave>);
+    let mut pending = use_signal(Vec::<AssemblySubmission>::new);
     let preparing_apply = use_signal(|| false);
+    let preparing_place = use_signal(|| false);
     let mut feedback = use_signal(|| None::<String>);
 
     use_effect({
@@ -73,159 +262,62 @@ pub fn SavedAssembliesEditor(
         let mut selected_context = selected_context;
         move || {
             let _ = runtime_version();
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow().clone() else {
-                return;
-            };
-            match outcome {
-                TerminalOutcome::Completed => {
-                    if let PendingTarget::BoardAssembly {
-                        scope,
-                        board_id,
-                        base_revision,
-                        assembly_id,
-                        part_ids,
-                    } = &waiting.target
-                    {
-                        let model = runtime.model();
-                        let Some(snapshot) = model.accepted.as_ref() else {
-                            return;
+            let submissions = pending.peek().clone();
+            let mut retained = Vec::new();
+            for waiting in &submissions {
+                let model = runtime.model();
+                let live = workspace() == "Parts"
+                    && runtime.scope() == waiting.scope
+                    && model.accepted.as_ref().is_some_and(|accepted| {
+                        accepted.document.id == waiting.document_id
+                            && accepted.session_epoch == waiting.session_epoch
+                    });
+                match waiting.ticket.settlement(live) {
+                    Settlement::Pending => retained.push(waiting.clone()),
+                    Settlement::Retired => {}
+                    Settlement::Failed { message } => feedback.set(Some(message)),
+                    Settlement::Landed { .. } => {
+                        let Some(accepted) = model.accepted.as_ref() else {
+                            continue;
                         };
-                        if model.lifecycle != Lifecycle::Ready
-                            || model.durability
-                                != (Durability::Saved {
-                                    revision: snapshot.document.revision,
-                                })
-                            || snapshot.document.revision <= *base_revision
-                            || runtime.scope().as_ref() != Some(scope)
-                            || snapshot.document.id != scope.document_id
-                            || snapshot.session_epoch != scope.session_epoch
-                        {
-                            return;
-                        }
-                        let board_contains_parts = snapshot
-                            .document
-                            .boards
-                            .iter()
-                            .find(|board| board.id == *board_id)
-                            .is_some_and(|board| {
-                                part_ids.iter().all(|part_id| {
-                                    board.part_ids.contains(part_id)
-                                        && snapshot
-                                            .document
-                                            .parts
-                                            .iter()
-                                            .any(|part| part.id == *part_id)
-                                })
-                            });
-                        pending.set(None);
-                        if board_contains_parts && !part_ids.is_empty() {
-                            let first_context =
-                                super::super::objects::context_for_part(&model, &part_ids[0]);
-                            selected_context.set(first_context.map(|context| {
-                                super::super::objects::ScopedTreeContext {
-                                    scope: scope.clone(),
-                                    context,
+                        match &waiting.target {
+                            AssemblyAction::Assembly(id) => {
+                                if let Some(saved) = accepted.document.assemblies.iter().rev().find(|assembly| assembly.id == *id || assembly.id.starts_with(&format!("{id}-"))) {
+                                    editing.with_mut(|draft| {
+                                        if let Some(draft) = draft.as_mut().filter(|draft| draft.value.id == *id) {
+                                            draft.base = Some(saved.clone());
+                                            draft.value.id = saved.id.clone();
+                                            draft.assets.retain(|asset| !accepted.document.assets.contains(asset));
+                                        }
+                                    });
                                 }
-                            }));
-                            editing.set(None);
-                            on_board_placed.call(());
-                            workspace.set("Layout");
-                            runtime.submit(Event::SelectParts {
-                                operation_id: runtime.operation(),
-                                part_ids: part_ids.clone(),
-                                range_part_ids: Vec::new(),
-                                mode: boardstudio_application::SelectionMode::Replace,
-                            });
-                            feedback.set(Some(format!(
-                                "Assembly '{assembly_id}' placed on the selected board."
-                            )));
-                        } else {
-                            feedback.set(Some(
-                                "The assembly edit completed, but its placed components were not accepted on the selected board.".into(),
-                            ));
-                        }
-                    } else {
-                        pending.set(None);
-                        let accepted = runtime.model().accepted;
-                        if let Some(snapshot) = accepted {
-                            match &waiting.target {
-                                PendingTarget::Assembly(assembly_id) => {
-                                    if let Some(saved) = snapshot
-                                        .document
-                                        .assemblies
-                                        .iter()
-                                        .find(|assembly| assembly.id == *assembly_id)
-                                        .cloned()
-                                    {
-                                        editing.with_mut(|draft| {
-                                            if let Some(draft) = draft.as_mut() {
-                                                if draft.value.id == saved.id {
-                                                    draft.base = Some(saved.clone());
-                                                    draft.value = saved;
-                                                    draft.assets.clear();
-                                                }
-                                            }
-                                        });
-                                        feedback.set(Some(
-                                            "Assembly saved. Existing placements are unchanged."
-                                                .into(),
-                                        ));
-                                    }
+                            }
+                            AssemblyAction::Matrix(id) => {
+                                if selected_context.peek().as_ref().is_some_and(|selected| matches!(&selected.context, super::super::objects::TreeContext::Matrix { matrix_id } if matrix_id == id)) {
+                                    feedback.set(Some("Assembly applied to the selected matrix.".into()));
                                 }
-                                PendingTarget::Matrix(matrix_id) => {
-                                    if snapshot
-                                        .document
-                                        .matrices
-                                        .iter()
-                                        .any(|matrix| matrix.id == *matrix_id)
-                                    {
-                                        feedback.set(Some("Assembly applied to the selected matrix. Other placed matrices are unchanged.".into()));
-                                    } else {
-                                        feedback.set(Some("The matrix edit completed, but the selected matrix is no longer available.".into()));
-                                    }
+                            }
+                            AssemblyAction::BoardAssembly { scope, board_id, assembly_id, placement_seed } => {
+                                if !editing.peek().as_ref().is_some_and(|draft| draft.value.id == *assembly_id) { continue; }
+                                let Some(board) = accepted.document.boards.iter().find(|board| board.id == *board_id) else { continue; };
+                                let part_ids = accepted.document.parts.iter().filter(|part| board.part_ids.contains(&part.id)
+                                    && part.properties.as_ref().and_then(|properties| properties.get("assemblyId")).and_then(serde_json::Value::as_str)
+                                        .is_some_and(|id| id == placement_seed || id.starts_with(&format!("{placement_seed}-"))))
+                                    .map(|part| part.id.clone()).collect::<Vec<_>>();
+                                if let Some(first) = part_ids.first() {
+                                    selected_context.set(super::super::objects::context_for_part(&model, first).map(|context| super::super::objects::ScopedTreeContext { scope: scope.clone(), context }));
+                                    editing.set(None);
+                                    on_board_placed.call(());
+                                    workspace.set("Layout");
+                                    runtime.submit(Event::SelectParts { operation_id: runtime.operation(), part_ids, range_part_ids: Vec::new(), mode: boardstudio_application::SelectionMode::Replace });
                                 }
-                                PendingTarget::BoardAssembly { .. } => unreachable!(),
                             }
                         }
                     }
                 }
-                TerminalOutcome::Rejected(reason) => {
-                    pending.set(None);
-                    feedback.set(Some(reason));
-                }
-                TerminalOutcome::PersistenceFailed(reason) => {
-                    pending.set(None);
-                    feedback.set(Some(format!(
-                        "Assembly edit was accepted, but saving failed: {reason}"
-                    )));
-                }
-                TerminalOutcome::Superseded => {
-                    pending.set(None);
-                    feedback.set(Some(
-                        "The assembly edit was superseded by a newer project operation.".into(),
-                    ));
-                }
-                TerminalOutcome::Cancelled => {
-                    pending.set(None);
-                    feedback.set(Some("The assembly edit was cancelled.".into()))
-                }
-                TerminalOutcome::BlockedByRecovery(reason) => {
-                    pending.set(None);
-                    feedback.set(Some(reason));
-                }
-                TerminalOutcome::ExecutorFailed(reason) => {
-                    pending.set(None);
-                    feedback.set(Some(reason));
-                }
-                TerminalOutcome::Closed => {
-                    pending.set(None);
-                    feedback.set(Some(
-                        "The project session closed before the assembly edit completed.".into(),
-                    ));
-                }
+            }
+            if retained.len() != submissions.len() {
+                pending.set(retained);
             }
         }
     });
@@ -273,7 +365,10 @@ pub fn SavedAssembliesEditor(
         let snapshot = snapshot.clone();
         let scope = scope.clone();
         move |_| {
-            if pending.read().is_some() || preparing_apply() || workspace() != "Parts" {
+            if pending.read().iter().any(|edit| {
+                matches!(edit.target, AssemblyAction::Assembly(_)) && edit.ticket.is_pending()
+            }) || workspace() != "Parts"
+            {
                 return;
             }
             let Some(preset) = assembly_selection.peek().as_ref().copied() else {
@@ -393,7 +488,7 @@ pub fn SavedAssembliesEditor(
         let scope = scope.clone();
         let snapshot = snapshot.clone();
         let definitions = definitions.clone();
-        let preparing = preparing_apply;
+        let preparing = preparing_place;
         let pending = pending;
         let feedback = feedback;
         move |(draft, origin_x, origin_y): (AssemblyDraft, String, String)| {
@@ -418,7 +513,10 @@ pub fn SavedAssembliesEditor(
         let scope = scope.clone();
         let definitions = definitions.clone();
         move |_| {
-            if pending.read().is_some() || preparing_apply() || workspace() != "Parts" {
+            if pending.read().iter().any(|edit| {
+                matches!(edit.target, AssemblyAction::Assembly(_)) && edit.ticket.is_pending()
+            }) || workspace() != "Parts"
+            {
                 return;
             }
             let Some(draft) = editing.read().clone() else {
@@ -437,33 +535,20 @@ pub fn SavedAssembliesEditor(
                 feedback.set(Some("The project or Parts scope changed while this assembly draft was open. Reopen it before saving.".into()));
                 return;
             }
-            let candidate = match saved_document(&current.document, &draft, &definitions) {
-                Ok(document) => document,
-                Err(error) => {
-                    feedback.set(Some(error));
-                    return;
-                }
-            };
-            let operation_id = runtime.operation();
-            let event = Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: current.document.revision,
-                    transaction_id: format!("parts-assembly-editor-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![draft.value.id.clone()],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(candidate),
-                    },
-                },
-            };
-            let outcome = runtime.observe_operation(operation_id);
-            pending.set(Some(PendingSave {
-                target: PendingTarget::Assembly(draft.value.id),
-                outcome,
-            }));
+            let ticket = EditTicket::begin(
+                &runtime,
+                "parts-assembly-editor",
+                Some("assembly".into()),
+                assembly_save_resolver(draft.clone(), definitions.clone()),
+            );
+            pending.write().push(AssemblySubmission {
+                target: AssemblyAction::Assembly(draft.value.id.clone()),
+                ticket,
+                scope: draft.scope.clone(),
+                document_id: draft.document_id.clone(),
+                session_epoch: draft.session_epoch,
+            });
             feedback.set(None);
-            runtime.submit(event);
         }
     };
 
@@ -476,12 +561,12 @@ pub fn SavedAssembliesEditor(
     rsx! {
         section { class: "m1-parts-assemblies", "aria-label": "Saved assemblies",
             h2 { "Assemblies" }
-            button { class: "m1-parts-create-component", r#type: "button", disabled: pending.read().is_some() || preparing_apply(), onclick: new_assembly, "New assembly" }
+            button { class: "m1-parts-create-component", r#type: "button", onclick: new_assembly, "New assembly" }
             if assembly_selection().is_some() {
                 button {
                     class: "m1-parts-customize-preset",
                     r#type: "button",
-                    disabled: pending.read().is_some() || preparing_apply() || !has_preset_definitions,
+                    disabled: !has_preset_definitions,
                     onclick: customize_preset,
                     "Customize 3D assembly"
                 }
@@ -495,8 +580,8 @@ pub fn SavedAssembliesEditor(
                           let existing_assembly = assembly.clone(); let duplicate_assembly = assembly.clone();
                           rsx! {
                             div { class: "m1-parts-assembly-saved-row", key: "{assembly.id}",
-                                button { r#type: "button", disabled: pending.read().is_some() || preparing_apply(), onclick: move |_| open_existing(existing_assembly.clone()), "{assembly.name}" }
-                                button { r#type: "button", disabled: pending.read().is_some() || preparing_apply(), aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(duplicate_assembly.clone()), "Duplicate" }
+                                button { r#type: "button", onclick: move |_| open_existing(existing_assembly.clone()), "{assembly.name}" }
+                                button { r#type: "button", aria_label: "Duplicate {assembly.name}", onclick: move |_| duplicate(duplicate_assembly.clone()), "Duplicate" }
                             }
                           }
                         }
@@ -512,7 +597,9 @@ pub fn SavedAssembliesEditor(
                     snapshot: snapshot.clone(),
                     draft,
                     definitions: definitions.clone(),
-                    pending: pending.read().is_some() || preparing_apply(),
+                    save_pending: pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Assembly(_)) && edit.ticket.is_pending()),
+                    place_pending: preparing_place() || pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::BoardAssembly { .. }) && edit.ticket.is_pending()),
+                    matrix_pending: preparing_apply() || pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Matrix(_)) && edit.ticket.is_pending()),
                     selected_context,
                     on_place: on_place.clone(),
                     on_place_board: place_on_board,
@@ -537,10 +624,15 @@ fn begin_place_assembly_on_board(
     origin_x: String,
     origin_y: String,
     mut preparing: Signal<bool>,
-    mut pending: Signal<Option<PendingSave>>,
+    mut pending: Signal<Vec<AssemblySubmission>>,
     mut feedback: Signal<Option<String>>,
 ) {
-    if preparing() || pending.read().is_some() || workspace() != "Parts" {
+    if preparing()
+        || pending.read().iter().any(|edit| {
+            matches!(edit.target, AssemblyAction::BoardAssembly { .. }) && edit.ticket.is_pending()
+        })
+        || workspace() != "Parts"
+    {
         return;
     }
     let Some(scope) = scope else {
@@ -573,15 +665,9 @@ fn begin_place_assembly_on_board(
         feedback.set(Some("The accepted project is unavailable.".into()));
         return;
     };
-    if model.lifecycle != Lifecycle::Ready
-        || model.durability
-            != (Durability::Saved {
-                revision: accepted.document.revision,
-            })
-        || runtime.scope().as_ref() != Some(&scope)
-        || accepted.token != source.token
+    if runtime.scope().as_ref() != Some(&scope)
         || accepted.document.id != source.document.id
-        || accepted.document.revision != source.document.revision
+        || accepted.session_epoch != source.session_epoch
     {
         feedback.set(Some(
             "The project changed while this assembly draft was open. Reopen it before placing."
@@ -607,12 +693,8 @@ fn begin_place_assembly_on_board(
             return;
         }
     };
-    let base_revision = accepted.document.revision;
-    let base_token = accepted.token;
     let project_id = accepted.document.id.clone();
     let session_epoch = accepted.session_epoch;
-    let base_document = accepted.document.clone();
-    let source_definitions = definitions;
     let definition_prefix = format!("{placement_id}/definition/");
     preparing.set(true);
     feedback.set(None);
@@ -648,78 +730,37 @@ fn begin_place_assembly_on_board(
         };
         if workspace() != "Parts"
             || runtime.scope().as_ref() != Some(&scope)
-            || current.lifecycle != Lifecycle::Ready
-            || current.durability
-                != (Durability::Saved {
-                    revision: latest.document.revision,
-                })
             || latest.document.id != project_id
             || latest.session_epoch != session_epoch
-            || latest.document.revision < base_revision
-            || latest.token != base_token && latest.document.revision == base_revision
-            || draft.value.members.iter().any(|member| {
-                member
-                    .definition_id
-                    .as_deref()
-                    .is_some_and(|definition_id| {
-                        let source_definition = base_document
-                            .definitions
-                            .iter()
-                            .chain(&source_definitions)
-                            .find(|definition| definition.id == definition_id);
-                        latest
-                            .document
-                            .definitions
-                            .iter()
-                            .find(|definition| definition.id == definition_id)
-                            .zip(source_definition)
-                            .is_some_and(|(latest, source)| latest != source)
-                    })
-            })
         {
             feedback.set(Some(
                 "The project, a component definition, or board scope changed while the assembly was being prepared. Reopen the editor and try again.".into(),
             ));
             return;
         }
-        let candidate = match super::assembly_presets::rebase_assembly_placement(
-            &latest.document,
-            &proposal,
-            &draft.assets,
-            &scope.board_id,
-            &placement_id,
-            &part_ids,
-        ) {
-            Ok(candidate) => candidate,
-            Err(error) => {
-                feedback.set(Some(error));
-                return;
-            }
-        };
-        let base_revision = latest.document.revision;
-        let mut target_ids = part_ids.clone();
-        target_ids.push(scope.board_id.clone());
-        pending.set(Some(PendingSave {
-            target: PendingTarget::BoardAssembly {
+        let ticket = EditTicket::begin(
+            &runtime,
+            "parts-assembly-place",
+            Some("assembly placement".into()),
+            assembly_place_resolver(
+                scope.clone(),
+                proposal,
+                draft.assets.clone(),
+                placement_id.clone(),
+                part_ids,
+            ),
+        );
+        pending.write().push(AssemblySubmission {
+            target: AssemblyAction::BoardAssembly {
                 scope: scope.clone(),
                 board_id: scope.board_id.clone(),
-                base_revision,
                 assembly_id: draft.value.id,
-                part_ids,
+                placement_seed: placement_id,
             },
-            outcome: runtime.observe_operation(operation_id),
-        }));
-        runtime.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision,
-                transaction_id: format!("parts-assembly-place-{}", operation_id.0),
-                phase: EditPhase::Commit,
-                target_ids,
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(candidate),
-                },
-            },
+            ticket,
+            scope: Some(scope),
+            document_id: project_id,
+            session_epoch,
         });
     });
 }
@@ -734,10 +775,15 @@ fn begin_apply_assembly_to_matrix(
     catalogue_definitions: Vec<PartDefinition>,
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
-    mut pending: Signal<Option<PendingSave>>,
+    mut pending: Signal<Vec<AssemblySubmission>>,
     mut feedback: Signal<Option<String>>,
 ) {
-    if preparing() || pending.read().is_some() || workspace() != "Parts" {
+    if preparing()
+        || pending.read().iter().any(|edit| {
+            matches!(edit.target, AssemblyAction::Matrix(_)) && edit.ticket.is_pending()
+        })
+        || workspace() != "Parts"
+    {
         return;
     }
     let Some(scope) = scope else {
@@ -764,15 +810,9 @@ fn begin_apply_assembly_to_matrix(
         feedback.set(Some("The accepted project is unavailable.".into()));
         return;
     };
-    if model.lifecycle != Lifecycle::Ready
-        || model.durability
-            != (Durability::Saved {
-                revision: accepted.document.revision,
-            })
-        || runtime.scope().as_ref() != Some(&scope)
-        || accepted.token != source.token
+    if runtime.scope().as_ref() != Some(&scope)
         || accepted.document.id != source.document.id
-        || accepted.document.revision != source.document.revision
+        || accepted.session_epoch != source.session_epoch
     {
         feedback.set(Some(
             "The project changed while this assembly draft was open. Reopen it before applying."
@@ -797,8 +837,6 @@ fn begin_apply_assembly_to_matrix(
     let accepted = accepted.clone();
     let session_epoch = scope.session_epoch;
     let document_id = scope.document_id.clone();
-    let snapshot_token = accepted.token;
-    let base_revision = accepted.document.revision;
     let operation_id = runtime.operation();
     preparing.set(true);
     feedback.set(None);
@@ -818,7 +856,7 @@ fn begin_apply_assembly_to_matrix(
         }
         .await;
         preparing.set(false);
-        let (matrix, definitions) = match prepared {
+        let (_matrix, definitions) = match prepared {
             Ok(prepared) => prepared,
             Err(error) => {
                 feedback.set(Some(error));
@@ -830,41 +868,31 @@ fn begin_apply_assembly_to_matrix(
         if workspace() != "Parts"
             || runtime.scope().as_ref() != Some(&scope)
             || !still_selected
-            || current_model.lifecycle != Lifecycle::Ready
-            || current_model.durability
-                != (Durability::Saved {
-                    revision: base_revision,
-                })
             || !current_model.accepted.as_ref().is_some_and(|current| {
-                current.token == snapshot_token
-                    && current.session_epoch == session_epoch
-                    && current.document.id == document_id
-                    && current.document.revision == base_revision
+                current.session_epoch == session_epoch && current.document.id == document_id
             })
         {
             feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
             return;
         }
-        let outcome = runtime.observe_operation(operation_id);
-        pending.set(Some(PendingSave {
-            target: PendingTarget::Matrix(matrix_id.clone()),
-            outcome,
-        }));
-        runtime.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision,
-                transaction_id: format!(
-                    "parts-assembly-matrix-apply-{}-{}",
-                    matrix_id, operation_id.0
-                ),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix_id],
-                operation: EditOperation::SetMatrix {
-                    matrix,
-                    definitions: Some(definitions),
-                },
-            },
+        let ticket = EditTicket::begin(
+            &runtime,
+            "parts-assembly-matrix-apply",
+            Some("matrix assembly".into()),
+            assembly_matrix_resolver(
+                scope.clone(),
+                matrix_id.clone(),
+                assembly,
+                definitions,
+                operation_id.0.to_string(),
+            ),
+        );
+        pending.write().push(AssemblySubmission {
+            target: AssemblyAction::Matrix(matrix_id),
+            ticket,
+            scope: Some(scope),
+            document_id,
+            session_epoch,
         });
     });
 }
@@ -874,7 +902,9 @@ fn AssemblyDraftFields(
     snapshot: AcceptedSnapshot,
     draft: AssemblyDraft,
     definitions: Vec<PartDefinition>,
-    pending: bool,
+    save_pending: bool,
+    place_pending: bool,
+    matrix_pending: bool,
     selected_context: Signal<Option<super::super::objects::ScopedTreeContext>>,
     on_place: EventHandler<super::super::objects::MatrixPlacementSource>,
     on_place_board: EventHandler<(AssemblyDraft, String, String)>,
@@ -903,7 +933,7 @@ fn AssemblyDraftFields(
         .first()
         .map(|member| Rc::new(member.definition.clone()));
     let preview_identity = serde_json::to_string(&render_value).unwrap_or_default();
-    let controls_disabled = pending || import_pending();
+    let controls_disabled = import_pending();
     let unsaved_assets = assets().iter().any(|asset| {
         !snapshot
             .document
@@ -965,7 +995,7 @@ fn AssemblyDraftFields(
               }, "Add component" } }
             }
             div { class: "m1-parts-assembly-actions",
-                button { r#type: "button", disabled: controls_disabled, onclick: on_save, "Save assembly" }
+                button { r#type: "button", disabled: controls_disabled || save_pending, onclick: on_save, "Save assembly" }
                 button { r#type: "button", disabled: controls_disabled, onclick: on_close, "Close editor" }
             }
             div { class: "m1-parts-assembly-actions",
@@ -981,7 +1011,7 @@ fn AssemblyDraftFields(
                 if matrix_selected {
                     button {
                         r#type: "button",
-                        disabled: controls_disabled || unsaved_assets,
+                        disabled: controls_disabled || matrix_pending || unsaved_assets,
                         onclick: move |_| on_apply.call(apply_value.clone()),
                         "Apply to selected matrix"
                     }
@@ -1011,7 +1041,7 @@ fn AssemblyDraftFields(
                 }
                 button {
                     r#type: "button",
-                    disabled: controls_disabled || draft.scope.is_none() || render_value.members.is_empty(),
+                    disabled: controls_disabled || place_pending || draft.scope.is_none() || render_value.members.is_empty(),
                     onclick: move |_| on_place_board.call((
                         AssemblyDraft {
                             value: render_value.clone(),
@@ -1930,7 +1960,7 @@ fn saved_document(
         .iter()
         .find(|assembly| assembly.id == draft.value.id);
     match (&draft.base, current) {
-        (Some(base), Some(current)) if current == base => {}
+        (Some(_), Some(_)) => {}
         (None, None) => {}
         (Some(_), _) => {
             return Err(
@@ -1960,9 +1990,6 @@ fn saved_document(
             document.assets.push(asset.clone());
         }
     }
-    document
-        .assemblies
-        .retain(|assembly| assembly.id != draft.value.id);
     let assembly = draft.value.clone();
     for member in &assembly.members {
         let Some(definition_id) = member.definition_id.as_deref() else {
@@ -1982,7 +2009,15 @@ fn saved_document(
             document.definitions.push(definition.clone());
         }
     }
-    document.assemblies.push(assembly);
+    if let Some(existing) = document
+        .assemblies
+        .iter_mut()
+        .find(|existing| existing.id == assembly.id)
+    {
+        *existing = assembly;
+    } else {
+        document.assemblies.push(assembly);
+    }
     Ok(document)
 }
 
@@ -2176,5 +2211,168 @@ mod assembly_selector_tests {
             "bundled-model:kiswitch/SW_Cherry_MX_PCB.stp"
         );
         root.remove();
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod resolution_tests {
+    use super::*;
+    use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use wasm_bindgen_test::*;
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("assembly-resolution", "Assembly resolution");
+        document.definitions.push(serde_json::from_value(serde_json::json!({"id":"part", "name":"Part", "kind":"custom", "courtyard":[], "pads":[]})).unwrap());
+        document.boards.push(serde_json::from_value(serde_json::json!({"id":"board", "name":"Board", "outlineIds":[], "partIds":[], "netIds":[], "thickness":1.6, "traces":[], "vias":[]})).unwrap());
+        document.matrices.push(serde_json::from_value(serde_json::json!({"id":"matrix", "name":"Keys", "rows":1, "columns":1, "pitch":{"x":19,"y":19}, "origin":{"x":0,"y":0}, "definitionId":"part", "partIds":[], "boardId":"board", "cells":[]})).unwrap());
+        document
+    }
+    fn assembly() -> AssemblyDefinition {
+        serde_json::from_value(serde_json::json!({"id":"assembly", "name":"Assembly", "members":[{"id":"primary", "definitionId":"part", "pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front", "models":[]}]})).unwrap()
+    }
+    async fn release(
+        runtime: &Rc<crate::runtime::Runtime>,
+        release: futures_channel::oneshot::Sender<()>,
+    ) {
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(runtime).await;
+    }
+    #[wasm_bindgen_test]
+    async fn matrix_recipe_keeps_queued_geometry_and_undo_order() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let scope = runtime.scope().unwrap();
+        let (_, prepared) = super::super::assembly_presets::matrix_with_assembly(
+            &accepted.document.matrices[0],
+            &assembly(),
+            &[],
+            &accepted.document,
+            "prepared",
+        )
+        .unwrap();
+        let (entered, gate) = support::gate_next_core_reply(&runtime);
+        let first = EditTicket::begin(
+            &runtime,
+            "matrix-position-test",
+            None,
+            EditResolver::new("matrix-position-test", |accepted: &AcceptedSnapshot| {
+                let mut matrix = accepted.document.matrices[0].clone();
+                matrix.origin.x = 42.0;
+                replacement_commit(
+                    EditOperation::SetMatrix {
+                        matrix,
+                        definitions: None,
+                    },
+                    vec!["matrix".into()],
+                )
+            }),
+        );
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let second = EditTicket::begin(
+            &runtime,
+            "matrix-recipe-test",
+            None,
+            assembly_matrix_resolver(
+                scope,
+                "matrix".into(),
+                assembly(),
+                prepared,
+                "recipe".into(),
+            ),
+        );
+        release(&runtime, gate).await;
+        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.matrices[0].origin.x, 42.0);
+        assert!(
+            accepted.document.matrices[0]
+                .definition_id
+                .contains("assembly-recipe")
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.matrices[0].origin.x, 42.0);
+        assert_eq!(accepted.document.matrices[0].definition_id, "part");
+    }
+    #[wasm_bindgen_test]
+    async fn assembly_save_and_place_compose_with_queued_rename() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let scope = runtime.scope().unwrap();
+        let draft = AssemblyDraft {
+            base: None,
+            value: assembly(),
+            assets: Vec::new(),
+            document_id: accepted.document.id.clone(),
+            session_epoch: accepted.session_epoch,
+            scope: Some(scope.clone()),
+        };
+        let (proposal, ids) = super::super::assembly_presets::document_with_assembly(
+            &accepted.document,
+            &draft.value,
+            &[],
+            &[],
+            "board",
+            Vec2 { x: 3.0, y: 5.0 },
+            "placement",
+        )
+        .unwrap();
+        let (entered, gate) = support::gate_next_core_reply(&runtime);
+        let rename = EditTicket::begin(
+            &runtime,
+            "rename-test",
+            None,
+            crate::parts_definition_name::definition_name_resolver("part".into(), "Renamed".into()),
+        );
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let save = EditTicket::begin(
+            &runtime,
+            "assembly-save-test",
+            None,
+            assembly_save_resolver(draft, Vec::new()),
+        );
+        let place = EditTicket::begin(
+            &runtime,
+            "assembly-place-test",
+            None,
+            assembly_place_resolver(scope, proposal, Vec::new(), "placement".into(), ids.clone()),
+        );
+        assert!(matches!(place.settlement(true), Settlement::Pending));
+        release(&runtime, gate).await;
+        for ticket in [rename, save, place] {
+            assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        }
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.definitions[0].name, "Renamed");
+        assert_eq!(accepted.document.assemblies.len(), 1);
+        assert!(accepted.document.boards[0].part_ids.contains(&ids[0]));
+        assert_eq!(
+            accepted
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == ids[0])
+                .unwrap()
+                .pose
+                .at,
+            Vec2 { x: 3.0, y: 5.0 }
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert!(!accepted.document.parts.iter().any(|part| part.id == ids[0]));
+        assert_eq!(accepted.document.assemblies.len(), 1);
+        assert_eq!(accepted.document.definitions[0].name, "Renamed");
     }
 }

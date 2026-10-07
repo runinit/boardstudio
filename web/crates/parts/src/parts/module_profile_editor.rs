@@ -1,11 +1,13 @@
 //! Definition-level module profile draft and accepted edit path.
 use super::{PartsSelection, PartsSelectionGeneration};
+use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::WorkspaceState, runtime::Runtime};
-use boardstudio_application::{AcceptedSnapshot, Event, Scope, SessionEpoch, TerminalOutcome};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    CaseOpening, EditCommand, EditOperation, EditPhase, EncoderDriver, HardwareOutput,
-    ModuleDefinition, ModuleVolume, PartModel, RotaryProfile, Vec2, Vec3,
+    CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
+    PartModel, RotaryProfile, Vec2, Vec3,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -102,9 +104,11 @@ impl ModuleRotaryDraft {
 }
 
 #[derive(Clone)]
-struct PendingModuleProfile {
+struct ModuleProfileSave {
     owner: ModuleProfileOwner,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+    ticket: EditTicket,
+    profile: Option<ModuleProfileDraft>,
+    rotary: Option<ModuleRotaryDraft>,
 }
 
 #[derive(Clone)]
@@ -153,123 +157,118 @@ fn module_profile_owner_is_current(
         .then_some(snapshot)
 }
 
-fn merge_module_profile_field<T: Clone + PartialEq>(
-    label: &str,
-    original: &T,
-    draft: &T,
-    latest: &T,
-) -> Result<T, String> {
+fn merge_module_profile_field<T: Clone + PartialEq>(original: &T, draft: &T, latest: &T) -> T {
     if draft == original {
-        Ok(latest.clone())
-    } else if latest == original || latest == draft {
-        Ok(draft.clone())
+        latest.clone()
     } else {
-        Err(format!(
-            "The module {label} changed while its profile editor was open. Reopen the profile before saving."
-        ))
+        draft.clone()
     }
 }
 
-fn prepare_module_profile_edit(
-    runtime: &Runtime,
-    owner: &ModuleProfileOwner,
-    original: &ModuleDefinition,
-    draft: &ModuleProfileDraft,
+fn module_profile_resolver(
+    owner: ModuleProfileOwner,
+    original: ModuleDefinition,
+    draft: ModuleProfileDraft,
     rotary: Option<Option<RotaryProfile>>,
     reviewed: bool,
-    selected: &PartsSelection,
-    selection_generation: u64,
-    workspace: &Signal<&'static str>,
-) -> Result<Event, String> {
-    let snapshot =
-        module_profile_owner_is_current(runtime, owner, selected, selection_generation, workspace)
-            .ok_or_else(|| "The selected module changed. Re-select it before saving.".to_owned())?;
-    let latest_project = snapshot
-        .document
-        .module_definitions
-        .iter()
-        .find(|definition| definition.id == owner.definition_id);
-    if owner.project_owned_at_start && latest_project.is_none() {
-        return Err(
+) -> EditResolver {
+    EditResolver::new(
+        "parts-module-profile",
+        move |snapshot: &AcceptedSnapshot| {
+            if snapshot.session_epoch != owner.session_epoch
+                || snapshot.document.id != owner.document_id
+            {
+                return Resolution::Retire("The selected module's project changed.".into());
+            }
+            let resolve = || -> Result<ModuleDefinition, String> {
+                let latest_project = snapshot
+                    .document
+                    .module_definitions
+                    .iter()
+                    .find(|definition| definition.id == owner.definition_id);
+                if owner.project_owned_at_start && latest_project.is_none() {
+                    return Err(
             "This project-owned module definition was removed. Re-select it before saving.".into(),
         );
-    }
-    let mut latest = latest_project.cloned().unwrap_or_else(|| original.clone());
-    if latest.source != original.source
-        || latest.circuit != original.circuit
-        || latest.interfaces != original.interfaces
-    {
-        return Err("The module source, circuit, or connector mapping changed. Re-select it before editing its profile.".into());
-    }
-    latest.volumes = merge_module_profile_field(
-        "measured volumes",
-        &original.volumes,
-        &draft.volumes,
-        &latest.volumes,
-    )?;
-    latest.openings = merge_module_profile_field(
-        "openings",
-        &original.openings,
-        &draft.openings,
-        &latest.openings,
-    )?;
-    latest.models = merge_module_profile_field(
-        "model bindings",
-        &original.models,
-        &draft.models,
-        &latest.models,
-    )?;
-    if let Some(rotary) = rotary {
-        latest.electrical.rotary_profile = merge_module_profile_field(
-            "rotary profile",
-            &original.electrical.rotary_profile,
-            &rotary,
-            &latest.electrical.rotary_profile,
-        )?;
-    }
-    if reviewed
-        && !latest.volumes.is_empty()
-        && latest
-            .volumes
-            .iter()
-            .chain(&latest.openings)
-            .all(|volume| volume.qualified)
-    {
-        latest.gates.retain(|gate| {
-            !(gate.output == HardwareOutput::Mechanical && gate.code == "assembled-envelope")
-        });
-    }
-    if latest.models.iter().any(|model| {
-        [
-            model.offset.x,
-            model.offset.y,
-            model.offset.z,
-            model.rotation.x,
-            model.rotation.y,
-            model.rotation.z,
-            model.scale.x,
-            model.scale.y,
-            model.scale.z,
-        ]
-        .iter()
-        .any(|value| !value.is_finite())
-            || [model.scale.x, model.scale.y, model.scale.z]
-                .iter()
-                .any(|value| *value <= 0.0)
-    }) {
-        return Err("Model transforms need finite coordinates and positive scale.".into());
-    }
-    let operation_id = runtime.operation();
-    Ok(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: snapshot.document.revision,
-            transaction_id: format!("parts-module-profile-{}", operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids: vec![owner.definition_id.clone()],
-            operation: EditOperation::SetModuleDefinition { definition: latest },
+                }
+                let mut latest = latest_project.cloned().unwrap_or_else(|| original.clone());
+                if latest.source != original.source
+                    || latest.circuit != original.circuit
+                    || latest.interfaces != original.interfaces
+                {
+                    return Err("The module source, circuit, or connector mapping changed. Re-select it before editing its profile.".into());
+                }
+                latest.volumes =
+                    merge_module_profile_field(&original.volumes, &draft.volumes, &latest.volumes);
+                latest.openings = merge_module_profile_field(
+                    &original.openings,
+                    &draft.openings,
+                    &latest.openings,
+                );
+                latest.models =
+                    merge_module_profile_field(&original.models, &draft.models, &latest.models);
+                if let Some(rotary) = &rotary {
+                    latest.electrical.rotary_profile = merge_module_profile_field(
+                        &original.electrical.rotary_profile,
+                        rotary,
+                        &latest.electrical.rotary_profile,
+                    );
+                }
+                if reviewed
+                    && !latest.volumes.is_empty()
+                    && latest
+                        .volumes
+                        .iter()
+                        .chain(&latest.openings)
+                        .all(|volume| volume.qualified)
+                {
+                    latest.gates.retain(|gate| {
+                        !(gate.output == HardwareOutput::Mechanical
+                            && gate.code == "assembled-envelope")
+                    });
+                }
+                if latest.models.iter().any(|model| {
+                    [
+                        model.offset.x,
+                        model.offset.y,
+                        model.offset.z,
+                        model.rotation.x,
+                        model.rotation.y,
+                        model.rotation.z,
+                        model.scale.x,
+                        model.scale.y,
+                        model.scale.z,
+                    ]
+                    .iter()
+                    .any(|value| !value.is_finite())
+                        || [model.scale.x, model.scale.y, model.scale.z]
+                            .iter()
+                            .any(|value| *value <= 0.0)
+                }) {
+                    return Err(
+                        "Model transforms need finite coordinates and positive scale.".into(),
+                    );
+                }
+                Ok(latest)
+            };
+            match resolve() {
+                Ok(latest)
+                    if snapshot
+                        .document
+                        .module_definitions
+                        .iter()
+                        .any(|definition| definition == &latest) =>
+                {
+                    Resolution::Unchanged
+                }
+                Ok(latest) => replacement_commit(
+                    EditOperation::SetModuleDefinition { definition: latest },
+                    vec![owner.definition_id.clone()],
+                ),
+                Err(reason) => Resolution::Retire(reason),
+            }
         },
-    })
+    )
 }
 
 fn rotary_profile_from_draft(draft: &ModuleRotaryDraft) -> Result<RotaryProfile, String> {
@@ -328,8 +327,24 @@ pub fn ModuleProfileEditor(
     let synced = use_signal(|| (baseline.clone(), baseline_rotary.clone()));
     let mut shape = use_signal(ModuleVolumeDraft::default);
     let mut reviewed = use_signal(|| false);
-    let pending = use_signal(|| None::<PendingModuleProfile>);
+    let pending = use_signal(Vec::<ModuleProfileSave>::new);
     let mut error = use_signal(|| None::<ModuleProfileError>);
+    let draft_owner = (
+        owner.session_epoch,
+        owner.document_id.clone(),
+        owner.scope.clone(),
+        owner.definition_id.clone(),
+        owner.selection_generation,
+    );
+    use_effect(use_reactive((&draft_owner,), {
+        let baseline = baseline.clone();
+        let baseline_rotary = baseline_rotary.clone();
+        move |_| {
+            draft.set(baseline.clone());
+            rotary.set(baseline_rotary.clone());
+            error.set(None);
+        }
+    }));
     use_effect(use_reactive((&baseline, &baseline_rotary), {
         let mut draft = draft;
         let mut rotary = rotary;
@@ -338,8 +353,13 @@ pub fn ModuleProfileEditor(
         move |(next_profile, next_rotary)| {
             let next = (next_profile.clone(), next_rotary.clone());
             if synced() != next {
-                draft.set(next_profile);
-                rotary.set(next_rotary);
+                let previous = synced();
+                if draft() == previous.0 {
+                    draft.set(next_profile);
+                }
+                if rotary() == previous.1 {
+                    rotary.set(next_rotary);
+                }
                 synced.set(next);
                 reviewed.set(false);
             }
@@ -348,57 +368,70 @@ pub fn ModuleProfileEditor(
     use_effect(use_reactive((&owner, &version()), {
         let runtime = runtime.clone();
         let mut pending = pending;
-        let mut error = error;
-        let selected = selected;
-        let selection_generation = selection_generation;
-        let workspace = workspace;
-        move |(owner, _)| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow().clone() else {
-                if module_profile_owner_is_current(
+        move |_| {
+            let saves = pending.peek().clone();
+            let mut retained = Vec::new();
+            for save in &saves {
+                let live = module_profile_owner_is_current(
                     &runtime,
-                    &waiting.owner,
+                    &save.owner,
                     &selected,
                     selection_generation(),
                     &workspace,
                 )
-                .is_none()
-                {
-                    pending.set(None);
-                    error.set(None);
+                .is_some();
+                let settlement = save.ticket.settlement(live);
+                if matches!(
+                    settlement,
+                    Settlement::Landed { .. } | Settlement::Failed { .. }
+                ) {
+                    if let Some(accepted) = runtime.model().accepted.as_ref().and_then(|snapshot| {
+                        snapshot
+                            .document
+                            .module_definitions
+                            .iter()
+                            .find(|definition| definition.id == save.owner.definition_id)
+                            .cloned()
+                    }) {
+                        let newer_profile = saves.iter().any(|other| {
+                            other.ticket.operation().0 > save.ticket.operation().0
+                                && other.profile.is_some()
+                        });
+                        let newer_rotary = saves.iter().any(|other| {
+                            other.ticket.operation().0 > save.ticket.operation().0
+                                && other.rotary.is_some()
+                        });
+                        if !newer_profile
+                            && save
+                                .profile
+                                .as_ref()
+                                .is_some_and(|submitted| *submitted == draft())
+                        {
+                            draft.set(ModuleProfileDraft::from_definition(&accepted));
+                        }
+                        if !newer_rotary
+                            && save
+                                .rotary
+                                .as_ref()
+                                .is_some_and(|submitted| *submitted == rotary())
+                        {
+                            rotary.set(ModuleRotaryDraft::from_profile(
+                                accepted.electrical.rotary_profile.as_ref(),
+                            ));
+                        }
+                    }
                 }
-                return;
-            };
-            pending.set(None);
-            if module_profile_owner_is_current(
-                &runtime,
-                &waiting.owner,
-                &selected,
-                selection_generation(),
-                &workspace,
-            )
-            .is_none()
-                || waiting.owner.definition_id != owner.definition_id
-            {
-                error.set(None);
-                return;
-            }
-            match outcome {
-                TerminalOutcome::Completed => error.set(None),
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::PersistenceFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message)
-                | TerminalOutcome::ExecutorFailed(message) => {
-                    error.set(Some(ModuleProfileError {
-                        owner: waiting.owner,
+                match settlement {
+                    Settlement::Pending => retained.push(save.clone()),
+                    Settlement::Failed { message } => error.set(Some(ModuleProfileError {
+                        owner: save.owner.clone(),
                         message,
-                    }));
+                    })),
+                    Settlement::Landed { .. } | Settlement::Retired => {}
                 }
-                TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed
-                | TerminalOutcome::Superseded => error.set(None),
+            }
+            if retained.len() != saves.len() {
+                pending.set(retained);
             }
         }
     }));
@@ -420,7 +453,7 @@ pub fn ModuleProfileEditor(
                 && current_owner.is_some()
         })
         .map(|feedback| feedback.message);
-    let busy = pending().is_some();
+    let busy = !pending().is_empty();
     let runtime_for_add = runtime.clone();
     let add_volume = {
         let mut draft = draft;
@@ -541,7 +574,15 @@ pub fn ModuleProfileEditor(
         let selection_generation = selection_generation;
         let workspace = workspace;
         move |rotary_override: Option<Option<RotaryProfile>>| {
-            if busy {
+            if module_profile_owner_is_current(
+                &runtime,
+                &owner,
+                &selected,
+                selection_generation(),
+                &workspace,
+            )
+            .is_none()
+            {
                 return;
             }
             let rotary_override = match rotary_override {
@@ -562,35 +603,28 @@ pub fn ModuleProfileEditor(
             } else {
                 (draft(), reviewed())
             };
-            let event = match prepare_module_profile_edit(
-                &runtime,
-                &owner,
-                &original,
-                &profile_draft,
+            let submitted_rotary = rotary_override.as_ref().map(|_| rotary());
+            let submitted_profile = rotary_override.is_none().then(|| profile_draft.clone());
+            let resolver = module_profile_resolver(
+                owner.clone(),
+                original.clone(),
+                profile_draft,
                 rotary_override,
                 reviewed,
-                &selected,
-                selection_generation(),
-                &workspace,
-            ) {
-                Ok(event) => event,
-                Err(message) => {
-                    error.set(Some(ModuleProfileError {
-                        owner: owner.clone(),
-                        message,
-                    }));
-                    return;
-                }
-            };
-            let Event::Edit { operation_id, .. } = &event else {
-                return;
-            };
+            );
+            let ticket = EditTicket::begin(
+                &runtime,
+                "parts-module-profile",
+                Some("module profile".into()),
+                resolver,
+            );
             error.set(None);
-            pending.set(Some(PendingModuleProfile {
+            pending.write().push(ModuleProfileSave {
                 owner: owner.clone(),
-                outcome: runtime.observe_operation(*operation_id),
-            }));
-            runtime.submit(event);
+                ticket,
+                profile: submitted_profile,
+                rotary: submitted_rotary,
+            });
         }
     });
 
@@ -614,13 +648,13 @@ pub fn ModuleProfileEditor(
                         label { class: "m1-generator-field", "Pulses per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary pulses per rotation", value: "{rotary().steps}", oninput: move |event| rotary.with_mut(|draft| draft.steps = event.value()) } }
                         label { class: "m1-generator-field", "Actions per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary actions per rotation", value: "{rotary().triggers_per_rotation}", oninput: move |event| rotary.with_mut(|draft| draft.triggers_per_rotation = event.value()) } }
                     }
-                    button { r#type: "button", disabled: busy, onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
+                    button { r#type: "button", onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
                 }
             }
             for (index, volume) in current_draft.volumes.iter().enumerate() {
                 div { class: "m1-module-profile-volume", key: "volume-{volume.id}",
                     span { "{volume.purpose} · {volume.geometry.height} mm · " if volume.qualified { "Reviewed" } else { "Unreviewed" } " · {volume.source}" }
-                    button { r#type: "button", disabled: busy, aria_label: "Remove measured volume {index + 1}", onclick: move |_| {
+                    button { r#type: "button", aria_label: "Remove measured volume {index + 1}", onclick: move |_| {
                         draft.with_mut(|draft| if index < draft.volumes.len() { draft.volumes.remove(index); });
                         error.set(None);
                     }, "Remove" }
@@ -629,7 +663,7 @@ pub fn ModuleProfileEditor(
             for (index, opening) in current_draft.openings.iter().enumerate() {
                 div { class: "m1-module-profile-volume", key: "opening-{opening.id}",
                     span { "Opening · {opening.geometry.height} mm · " if opening.qualified { "Reviewed" } else { "Unreviewed" } " · {opening.source}" }
-                    button { r#type: "button", disabled: busy, aria_label: "Remove functional opening {index + 1}", onclick: move |_| {
+                    button { r#type: "button", aria_label: "Remove functional opening {index + 1}", onclick: move |_| {
                         draft.with_mut(|draft| if index < draft.openings.len() { draft.openings.remove(index); });
                         error.set(None);
                     }, "Remove" }
@@ -651,9 +685,9 @@ pub fn ModuleProfileEditor(
             }
             label { class: "m1-generator-field", "Dimension evidence", input { aria_label: "Module volume evidence", value: "{shape().source}", oninput: move |event| shape.with_mut(|shape| shape.source = event.value()) } }
             label { class: "m1-module-profile-check", input { r#type: "checkbox", checked: shape().qualified, aria_label: "Dimensions and datum reviewed", onchange: move |event| shape.with_mut(|shape| shape.qualified = event.checked()) } "Dimensions and datum reviewed" }
-            button { r#type: "button", disabled: busy, onclick: add_volume, "Add measured volume" }
+            button { r#type: "button", onclick: add_volume, "Add measured volume" }
             if !candidate_models.is_empty() {
-                label { class: "m1-generator-field", "Attach candidate model", select { aria_label: "Module candidate model", value: "", disabled: busy, onchange: move |event| {
+                label { class: "m1-generator-field", "Attach candidate model", select { aria_label: "Module candidate model", value: "", onchange: move |event| {
                     let asset_id = event.value();
                     if candidate_models_for_select.iter().any(|candidate| candidate.asset_id == asset_id) {
                         draft.with_mut(|draft| if !draft.models.iter().any(|model| model.asset_id == asset_id) {
@@ -688,7 +722,7 @@ pub fn ModuleProfileEditor(
                             }
                         }
                     }
-                    button { r#type: "button", disabled: busy, aria_label: "Remove module model {model_index + 1}", onclick: move |_| {
+                    button { r#type: "button", aria_label: "Remove module model {model_index + 1}", onclick: move |_| {
                         draft.with_mut(|draft| if model_index < draft.models.len() { draft.models.remove(model_index); });
                         error.set(None);
                     }, "Remove model" }
@@ -696,7 +730,7 @@ pub fn ModuleProfileEditor(
             }
             label { class: "m1-module-profile-check", input { r#type: "checkbox", checked: reviewed(), aria_label: "Complete assembly, mounts, functional openings and cable clearance reviewed", onchange: move |event| reviewed.set(event.checked()) } "Complete assembly, mounts, functional openings and cable clearance reviewed" }
             p { class: "m1-parts-empty", "Saving a candidate model retains its alignment review. Electrical repairs, driver support and other missing evidence keep their own blockers." }
-            button { class: "m1-generator-apply", r#type: "button", disabled: busy || current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
+            button { class: "m1-generator-apply", r#type: "button", disabled: current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
             if busy { p { class: "m1-parts-loading", role: "status", "Saving module profile…" } }
             if let Some(message) = visible_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
         }
