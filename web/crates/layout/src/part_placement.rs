@@ -12,13 +12,14 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, SelectionMode, SnapshotToken,
-    TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SelectionMode,
+    SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part,
+    EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -172,45 +173,85 @@ pub struct ActivePartPlacement {
     pub snap_document: Rc<ProjectDoc>,
 }
 
-#[derive(Clone)]
-struct PendingCommit {
-    owner: PlacementOwner,
-    operation_id: boardstudio_application::OperationId,
-    outcome: crate::operation_outcomes::OutcomeSlot,
-}
-
+/// An in-flight apply-to-key edit. One-shot: the canvas stays busy while it is held.
 #[derive(Clone)]
 struct PendingKeyEdit {
-    operation_id: boardstudio_application::OperationId,
-    outcome: crate::operation_outcomes::OutcomeSlot,
     scope: Scope,
     generation: u64,
     source_workspace: &'static str,
     selection: ScopedTreeContext,
 }
 
-fn pending_key_edit_matches(current: Option<&PendingKeyEdit>, expected: &PendingKeyEdit) -> bool {
-    current.is_some_and(|current| {
-        current.operation_id == expected.operation_id
-            && current.scope == expected.scope
-            && current.generation == expected.generation
-            && current.source_workspace == expected.source_workspace
-            && current.selection == expected.selection
-            && Rc::ptr_eq(&current.outcome, &expected.outcome)
-    })
+/// Resolve a placement commit against the accepted document at execution time: the
+/// operation is built from the document the resolver is handed, so a placement queued
+/// behind other edits lands on top of them.
+fn placement_resolver(
+    board_id: String,
+    definition: PartDefinition,
+    part: Part,
+    layout_id: Option<String>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-component-placement",
+        move |accepted: &AcceptedSnapshot| {
+            match placement_operation(
+                &accepted.document,
+                &board_id,
+                &definition,
+                &part,
+                layout_id.as_deref(),
+            ) {
+                Ok(operation) => Resolution::Submit(boardstudio_core::model::EditCommand {
+                    base_revision: 0,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![part.id.clone()],
+                    operation,
+                }),
+                Err(message) => Resolution::Retire(message),
+            }
+        },
+    )
 }
 
-fn pending_commit_matches(
-    pending: Option<&PendingCommit>,
-    operation_id: boardstudio_application::OperationId,
-    owner: &PlacementOwner,
-    observed: &crate::operation_outcomes::OutcomeSlot,
-) -> bool {
-    pending.is_some_and(|pending| {
-        pending.operation_id == operation_id
-            && pending.owner == *owner
-            && Rc::ptr_eq(&pending.outcome, observed)
-    })
+/// Resolve applying a loaded component definition to the selected key.
+fn key_component_resolver(
+    scope: Scope,
+    selection: ScopedTreeContext,
+    definition: PartDefinition,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-key-component",
+        move |accepted: &AcceptedSnapshot| {
+            let operation = match selected_key_component_operation(
+                &accepted.document,
+                &scope,
+                &selection,
+                &definition,
+            ) {
+                Ok(operation) => operation,
+                Err(message) => return Resolution::Retire(message),
+            };
+            let EditOperation::SetMatrix {
+                matrix,
+                definitions,
+            } = &operation
+            else {
+                return Resolution::Retire("The selected key can no longer be edited.".into());
+            };
+            let mut target_ids = vec![matrix.id.clone()];
+            if definitions.is_some() {
+                target_ids.push(definition.id.clone());
+            }
+            Resolution::Submit(boardstudio_core::model::EditCommand {
+                base_revision: 0,
+                transaction_id: String::new(),
+                phase: EditPhase::Commit,
+                target_ids,
+                operation,
+            })
+        },
+    )
 }
 
 #[derive(Clone)]
@@ -271,6 +312,9 @@ pub trait PlacementRuntime {
         operation: boardstudio_application::OperationId,
     ) -> crate::operation_outcomes::OutcomeSlot;
     fn submit(&self, event: Event);
+    /// Begin a pending edit through the shared edit ticket.
+    fn begin_edit(&self, label: &str, feature: Option<String>, resolver: EditResolver)
+    -> EditTicket;
 }
 
 impl<T: PlacementRuntime + ?Sized> PlacementRuntime for Rc<T> {
@@ -295,6 +339,15 @@ impl<T: PlacementRuntime + ?Sized> PlacementRuntime for Rc<T> {
 
     fn submit(&self, event: Event) {
         self.as_ref().submit(event);
+    }
+
+    fn begin_edit(
+        &self,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+    ) -> EditTicket {
+        self.as_ref().begin_edit(label, feature, resolver)
     }
 }
 
@@ -322,6 +375,15 @@ impl PlacementRuntime for RuntimePlacementAdapter {
 
     fn submit(&self, event: Event) {
         self.0.submit(event);
+    }
+
+    fn begin_edit(
+        &self,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+    ) -> EditTicket {
+        EditTicket::begin(&self.0, label, feature, resolver)
     }
 }
 
@@ -446,7 +508,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let chooser = use_signal(|| None::<ControllerChooserOwner>);
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
-    let committing = use_signal(|| None::<PendingCommit>);
+    let committing = use_signal(|| None::<EditTicket>);
     let mut key_edit = use_signal(|| None::<PendingKeyEdit>);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
@@ -690,19 +752,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             }
                             return;
                         }
-                        let model = runtime.model();
-                        let Some(current) = model.accepted.as_ref() else {
-                            return;
-                        };
-                        if current.token != accepted.token
-                            || current.session_epoch != accepted.session_epoch
-                            || current.document.id != accepted.document.id
-                            || current.document.revision != accepted.document.revision
-                            || model.lifecycle != Lifecycle::Ready
-                            || model.durability
-                                != (Durability::Saved {
-                                    revision: accepted.document.revision,
-                                })
+                        if !alive.get()
                             || runtime.scope().as_ref() != Some(&scope)
                             || current_context() != Some(selected.clone())
                             || workspace() != source_workspace
@@ -710,34 +760,12 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         {
                             return;
                         }
-                        let operation = match selected_key_component_operation(
-                            &current.document,
-                            &scope,
-                            &selected,
-                            &definition,
-                        ) {
-                            Ok(operation) => operation,
-                            Err(message) => {
-                                error.set(Some(message));
-                                return;
-                            }
-                        };
-                        let EditOperation::SetMatrix {
-                            matrix,
-                            definitions,
-                        } = &operation
-                        else {
-                            return;
-                        };
-                        let mut target_ids = vec![matrix.id.clone()];
-                        if definitions.is_some() {
-                            target_ids.push(definition.id.clone());
-                        }
-                        let operation_id = runtime.operation();
-                        let outcome = runtime.observe_operation(operation_id);
+                        let ticket = runtime.begin_edit(
+                            "layout-key-component",
+                            Some("component".into()),
+                            key_component_resolver(scope.clone(), selected.clone(), definition),
+                        );
                         let pending = PendingKeyEdit {
-                            operation_id,
-                            outcome: outcome.clone(),
                             scope: scope.clone(),
                             generation: accepted_generation,
                             source_workspace,
@@ -745,29 +773,16 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         };
                         key_edit.set(Some(pending.clone()));
                         error.set(None);
-                        runtime.submit(Event::Edit {
-                            operation_id,
-                            command: EditCommand {
-                                base_revision: current.document.revision,
-                                transaction_id: format!("component-key-apply-{}", operation_id.0),
-                                phase: EditPhase::Commit,
-                                target_ids,
-                                operation,
-                            },
-                        });
                         let runtime = runtime.clone();
                         let mut key_edit = key_edit;
                         let mut error = error;
                         let current_context = current_context;
                         let alive = alive.clone();
                         spawn_local(async move {
-                            while outcome.borrow().is_none() {
+                            while ticket.is_pending() {
                                 gloo_timers::future::TimeoutFuture::new(16).await;
                             }
                             if !alive.get() {
-                                return;
-                            }
-                            if !pending_key_edit_matches(key_edit.read().as_ref(), &pending) {
                                 return;
                             }
                             let still_current = runtime.scope().as_ref() == Some(&pending.scope)
@@ -775,11 +790,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                                 && generation() == pending.generation
                                 && current_context() == Some(pending.selection.clone());
                             key_edit.set(None);
-                            if !still_current {
-                                return;
-                            }
-                            if let Some(message) =
-                                selected_key_edit_failure_message(outcome.borrow().as_ref())
+                            if let Settlement::Failed { message } =
+                                ticket.settlement(still_current)
                             {
                                 error.set(Some(message));
                             }
@@ -1168,9 +1180,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 .owner
                 .record_committed_position(placement.pending.at);
             let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
+            if model.accepted.is_none() {
                 return;
-            };
+            }
             if !owner_is_live(
                 &placement.owner,
                 &runtime,
@@ -1190,40 +1202,21 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             {
                 return;
             }
-            let operation = match placement_operation(
-                &snapshot.document,
-                &placement.owner.board_id,
-                &placement.pending.definition,
-                &placement.pending.part,
-                placement.owner.layout_id.as_deref(),
-            ) {
-                Ok(operation) => operation,
-                Err(message) => {
-                    error.set(Some(message));
-                    return;
-                }
-            };
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
             let owner = placement.owner.clone();
-            let observed = outcome.clone();
-            committing.set(Some(PendingCommit {
-                owner: owner.clone(),
-                operation_id,
-                outcome,
-            }));
+            let ticket = runtime.begin_edit(
+                "layout-component-placement",
+                Some("placement".into()),
+                placement_resolver(
+                    owner.board_id.clone(),
+                    placement.pending.definition.clone(),
+                    placement.pending.part.clone(),
+                    owner.layout_id.clone(),
+                ),
+            );
+            // One-shot: the canvas stays busy while the placement ticket is held.
+            committing.set(Some(ticket.clone()));
             active.set(None);
             error.set(None);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id: format!("controller-place-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![owner.part_id.clone()],
-                    operation,
-                },
-            });
             let runtime = runtime.clone();
             let mut committing = committing;
             let mut error = error;
@@ -1234,69 +1227,13 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             let canvas_interaction = canvas_interaction.clone();
             let alive = alive.clone();
             spawn_local(async move {
-                while observed.borrow().is_none() {
+                while ticket.is_pending() {
                     gloo_timers::future::TimeoutFuture::new(16).await;
-                }
-                let terminal = observed.borrow().clone();
-                if !alive.get() {
-                    return;
-                }
-                let operation_matches = pending_commit_matches(
-                    committing.read().as_ref(),
-                    operation_id,
-                    &owner,
-                    &observed,
-                );
-                if terminal == Some(TerminalOutcome::Completed) {
-                    for _ in 0..500 {
-                        if !alive.get() {
-                            break;
-                        }
-                        let model = runtime.model();
-                        if !placement_route_is_current(
-                            &runtime,
-                            &model,
-                            &owner,
-                            generation(),
-                            workspace(),
-                            guide_preferences(),
-                        ) {
-                            break;
-                        }
-                        if let Some(accepted) = model.accepted.as_ref()
-                            && completion_is_accepted(
-                                operation_matches,
-                                terminal.as_ref(),
-                                &model.lifecycle,
-                                &model.durability,
-                                Some(accepted),
-                                &owner,
-                                &owner.part_id,
-                            )
-                        {
-                            break;
-                        }
-                        if !alive.get() {
-                            break;
-                        }
-                        gloo_timers::future::TimeoutFuture::new(16).await;
-                    }
                 }
                 if !alive.get() {
                     return;
                 }
                 let model = runtime.model();
-                let success = model.accepted.as_ref().is_some_and(|accepted| {
-                    completion_is_accepted(
-                        operation_matches,
-                        terminal.as_ref(),
-                        &model.lifecycle,
-                        &model.durability,
-                        Some(accepted),
-                        &owner,
-                        &owner.part_id,
-                    )
-                });
                 let route_live = placement_route_is_current(
                     &runtime,
                     &model,
@@ -1305,51 +1242,63 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     workspace(),
                     guide_preferences(),
                 );
+                let settlement = ticket.settlement(route_live);
                 committing.set(None);
-                if success && route_live {
-                    let next_context = if owner.workflow == PlacementWorkflow::GeneralComponent {
-                        objects::context_for_part(&model, &owner.part_id).map(|context| {
-                            ScopedTreeContext {
-                                scope: owner.scope.clone(),
-                                context,
-                            }
-                        })
-                    } else {
-                        None
-                    };
-                    selected_context.set(next_context);
-                    anchor_scope.set(None);
-                    workspace.set(if owner.workflow.is_controller() {
-                        "PCB"
-                    } else {
-                        "Layout"
-                    });
-                    if owner.workflow == PlacementWorkflow::GeneralComponent {
-                        layout_selection_kind.set(objects::LayoutSelectionKind::Part);
-                    }
-                    runtime.submit(Event::SelectParts {
-                        operation_id: runtime.operation(),
-                        part_ids: if owner.workflow == PlacementWorkflow::GeneralComponent {
-                            vec![owner.part_id.clone()]
+                match settlement {
+                    Settlement::Landed { .. } => {
+                        // Select from the accepted document at the landing; nothing when the
+                        // placed part is no longer there.
+                        let placed = model.accepted.as_ref().is_some_and(|accepted| {
+                            accepted
+                                .document
+                                .parts
+                                .iter()
+                                .any(|part| part.id == owner.part_id)
+                        });
+                        let next_context = if owner.workflow == PlacementWorkflow::GeneralComponent
+                            && placed
+                        {
+                            objects::context_for_part(&model, &owner.part_id).map(|context| {
+                                ScopedTreeContext {
+                                    scope: owner.scope.clone(),
+                                    context,
+                                }
+                            })
                         } else {
-                            Vec::new()
-                        },
-                        range_part_ids: Vec::new(),
-                        mode: SelectionMode::Replace,
-                    });
-                } else if route_live
-                    && model
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|accepted| owner_snapshot_is_current(accepted, &owner))
-                    && let Some(message) = placement_failure_message(terminal.as_ref())
-                {
-                    workspace.set(if owner.workflow.is_controller() {
-                        "Parts"
-                    } else {
-                        "Layout"
-                    });
-                    error.set(Some(message));
+                            None
+                        };
+                        selected_context.set(next_context);
+                        anchor_scope.set(None);
+                        workspace.set(if owner.workflow.is_controller() {
+                            "PCB"
+                        } else {
+                            "Layout"
+                        });
+                        if owner.workflow == PlacementWorkflow::GeneralComponent {
+                            layout_selection_kind.set(objects::LayoutSelectionKind::Part);
+                        }
+                        runtime.submit(Event::SelectParts {
+                            operation_id: runtime.operation(),
+                            part_ids: if owner.workflow == PlacementWorkflow::GeneralComponent
+                                && placed
+                            {
+                                vec![owner.part_id.clone()]
+                            } else {
+                                Vec::new()
+                            },
+                            range_part_ids: Vec::new(),
+                            mode: SelectionMode::Replace,
+                        });
+                    }
+                    Settlement::Failed { message } => {
+                        workspace.set(if owner.workflow.is_controller() {
+                            "Parts"
+                        } else {
+                            "Layout"
+                        });
+                        error.set(Some(message));
+                    }
+                    Settlement::Retired | Settlement::Pending => {}
                 }
                 canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
             });
@@ -1906,110 +1855,6 @@ pub fn next_component_reference(document: &ProjectDoc, kind: &PartKind) -> Strin
     format!("{prefix}{next}")
 }
 
-pub fn completion_is_accepted(
-    operation_matches: bool,
-    outcome: Option<&TerminalOutcome>,
-    model_lifecycle: &Lifecycle,
-    durability: &Durability,
-    accepted: Option<&AcceptedSnapshot>,
-    owner: &PlacementOwner,
-    part_id: &str,
-) -> bool {
-    if !operation_matches || outcome != Some(&TerminalOutcome::Completed) {
-        return false;
-    }
-    let Some(snapshot) = accepted else {
-        return false;
-    };
-    let Some(board) = snapshot
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == owner.board_id)
-    else {
-        return false;
-    };
-    let envelope_membership_matches = snapshot.document.outline.iter().all(|outline| {
-        let OutlineFeature::PartEnvelope { id, part_ids, .. } = outline else {
-            return true;
-        };
-        !board.outline_ids.contains(id) || part_ids.iter().any(|id| id == part_id)
-    });
-    let layout_membership_matches = owner.layout_id.as_ref().is_none_or(|layout_id| {
-        snapshot.document.layouts.iter().any(|layout| {
-            layout.id == *layout_id
-                && layout.board_id == owner.board_id
-                && layout.part_ids.iter().any(|id| id == part_id)
-        })
-    });
-    *model_lifecycle == Lifecycle::Ready
-        && *durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            })
-        && snapshot.document.id == owner.project_id
-        && snapshot.session_epoch == owner.session_epoch
-        && owner.revision.checked_add(1) == Some(snapshot.document.revision)
-        && snapshot.token != owner.token
-        && snapshot
-            .document
-            .definitions
-            .iter()
-            .any(|definition| definition.id == owner.definition_id)
-        && board.part_ids.iter().any(|id| id == part_id)
-        && envelope_membership_matches
-        && layout_membership_matches
-        && snapshot.document.parts.iter().any(|part| {
-            part.id == part_id
-                && part.definition_id == owner.definition_id
-                && part.reference == owner.reference
-                && part.pose.at == owner.at
-                && part.pose.rotation == 0.0
-                && part.side == Side::Front
-        })
-}
-
-fn owner_snapshot_is_current(snapshot: &AcceptedSnapshot, owner: &PlacementOwner) -> bool {
-    snapshot.token == owner.token
-        && snapshot.session_epoch == owner.session_epoch
-        && snapshot.document.id == owner.project_id
-        && snapshot.document.revision == owner.revision
-}
-
-fn placement_failure_message(outcome: Option<&TerminalOutcome>) -> Option<String> {
-    match outcome {
-        Some(
-            TerminalOutcome::Rejected(message)
-            | TerminalOutcome::PersistenceFailed(message)
-            | TerminalOutcome::ExecutorFailed(message)
-            | TerminalOutcome::BlockedByRecovery(message),
-        ) => Some(message.clone()),
-        Some(TerminalOutcome::Completed) => {
-            Some("The controller was not accepted and saved in the active project.".into())
-        }
-        Some(
-            TerminalOutcome::Cancelled | TerminalOutcome::Superseded | TerminalOutcome::Closed,
-        )
-        | None => None,
-    }
-}
-
-fn selected_key_edit_failure_message(outcome: Option<&TerminalOutcome>) -> Option<String> {
-    match outcome {
-        Some(
-            TerminalOutcome::Rejected(message)
-            | TerminalOutcome::PersistenceFailed(message)
-            | TerminalOutcome::ExecutorFailed(message)
-            | TerminalOutcome::BlockedByRecovery(message),
-        ) => Some(message.clone()),
-        Some(TerminalOutcome::Completed) => None,
-        Some(
-            TerminalOutcome::Cancelled | TerminalOutcome::Superseded | TerminalOutcome::Closed,
-        )
-        | None => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -2017,8 +1862,9 @@ mod tests {
     use super::*;
     use boardstudio_application::{
         Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken,
+        TerminalOutcome,
     };
-    use boardstudio_core::model::{Board, OutlineSettings};
+    use boardstudio_core::model::{Board, EditCommand, OutlineSettings};
     use std::{
         cell::{Cell, RefCell},
         sync::Arc,
@@ -2170,12 +2016,94 @@ mod tests {
             if let SessionEvent::Edit { operation_id, .. } = &event
                 && self.settle_edit_on_submit.get()
             {
-                self.registered_before_submit.set(Some(
-                    self.outcomes
-                        .settle(*operation_id, TerminalOutcome::Completed),
-                ));
+                self.registered_before_submit
+                    .set(Some(self.settle(*operation_id, TerminalOutcome::Completed)));
             }
             self.events.borrow_mut().push(event);
+        }
+
+        fn begin_edit(
+            &self,
+            label: &str,
+            feature: Option<String>,
+            resolver: boardstudio_application::EditResolver,
+        ) -> EditTicket {
+            EditTicket::begin(&HookPort(self), label, feature, resolver)
+        }
+    }
+
+    impl HookRuntime {
+        /// Settle an operation the way the Session does: a completed edit lands at the
+        /// accepted revision.
+        fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
+            let landing = (outcome == TerminalOutcome::Completed)
+                .then(|| {
+                    self.model.borrow().accepted.as_ref().map(|accepted| {
+                        boardstudio_application::Landing {
+                            revision: accepted.document.revision,
+                            token: accepted.token,
+                        }
+                    })
+                })
+                .flatten();
+            self.outcomes
+                .settle_with_landing(operation, outcome, landing)
+        }
+    }
+
+    /// The edit-ticket port over the fake: a submitted resolver runs against the model's
+    /// accepted snapshot straight away, recording the edit it resolves to.
+    struct HookPort<'a>(&'a HookRuntime);
+
+    impl boardstudio_web_runtime::edit_ticket::EditTicketPort for HookPort<'_> {
+        fn allocate_operation(&self) -> OperationId {
+            self.0.operation()
+        }
+
+        fn observe(
+            &self,
+            operation: OperationId,
+        ) -> (
+            crate::operation_outcomes::OutcomeSlot,
+            crate::operation_outcomes::LandingSlot,
+        ) {
+            self.0.outcomes.observe_with_landing(operation)
+        }
+
+        fn submit(&self, event: SessionEvent) {
+            let SessionEvent::ResolveEdit {
+                operation_id,
+                resolver,
+                ..
+            } = event
+            else {
+                self.0.submit(event);
+                return;
+            };
+            let accepted = self
+                .0
+                .model
+                .borrow()
+                .accepted
+                .clone()
+                .expect("a resolver runs against an accepted snapshot");
+            match resolver.resolve(&accepted) {
+                Resolution::Submit(mut command) => {
+                    command.base_revision = accepted.document.revision;
+                    command.transaction_id = format!("test-edit-{}", operation_id.0);
+                    self.0.submit(SessionEvent::Edit {
+                        operation_id,
+                        command,
+                    });
+                }
+                Resolution::Unchanged => {
+                    self.0.settle(operation_id, TerminalOutcome::Completed);
+                }
+                Resolution::Retire(reason) => {
+                    self.0
+                        .settle(operation_id, TerminalOutcome::Rejected(reason));
+                }
+            }
         }
     }
 
@@ -2470,7 +2398,6 @@ mod tests {
         assert!(
             probe
                 .runtime
-                .outcomes
                 .settle(operation_id, TerminalOutcome::Completed)
         );
         let_hook_tasks_run().await;
@@ -2877,7 +2804,7 @@ mod tests {
                 _ => None,
             })
             .expect("selected-key action observes its production edit");
-        assert!(probe.runtime.outcomes.settle(
+        assert!(probe.runtime.settle(
             operation_id,
             TerminalOutcome::Rejected("The matrix input is no longer valid.".into()),
         ));
@@ -2886,9 +2813,13 @@ mod tests {
 
         let mount = probe.latest.borrow().as_ref().unwrap().clone();
         assert!(!mount.busy);
-        assert_eq!(
-            mount.error.as_deref(),
-            Some("The matrix input is no longer valid.")
+        assert!(
+            mount
+                .error
+                .as_deref()
+                .is_some_and(|message| message.contains("The matrix input is no longer valid.")),
+            "the standard failure wording carries the reason: {:?}",
+            mount.error
         );
         assert_eq!(workspace(&probe), "Parts");
     }
@@ -3187,7 +3118,6 @@ mod tests {
         assert!(
             probe
                 .runtime
-                .outcomes
                 .settle(operation_id, TerminalOutcome::Completed)
         );
         let_hook_tasks_run().await;
@@ -3220,14 +3150,19 @@ mod tests {
             let active = start_hook_placement(&probe, &mut dom).await;
             active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
             let (operation_id, _) = submitted_edit(&probe);
-            assert!(probe.runtime.outcomes.settle(operation_id, outcome));
+            assert!(probe.runtime.settle(operation_id, outcome));
             let_hook_tasks_run().await;
             flush_hook(&mut dom);
             assert_eq!(workspace(&probe), expected_workspace);
+            let error = probe.latest.borrow().as_ref().unwrap().error.clone();
             assert_eq!(
-                probe.latest.borrow().as_ref().unwrap().error.as_deref(),
-                expected_error
+                error.is_some(),
+                expected_error.is_some(),
+                "failure message presence: {error:?}"
             );
+            if let (Some(error), Some(expected)) = (error, expected_error) {
+                assert!(error.contains(expected), "{error} should carry {expected}");
+            }
         }
     }
 
@@ -3323,7 +3258,6 @@ mod tests {
         assert!(
             probe
                 .runtime
-                .outcomes
                 .settle(operation_id, TerminalOutcome::Completed)
         );
         // Let the production observer see Completed and enter its Ready/Saved wait.
@@ -3343,59 +3277,6 @@ mod tests {
             model_reads_after_unmount,
             "completed placement observer read runtime state after unmount"
         );
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn production_hook_waits_through_saving_before_returning_to_wiring() {
-        let (probe, mut dom) = hook_mounted();
-        let active = start_hook_placement(&probe, &mut dom).await;
-        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-        let (operation_id, edit) = submitted_edit(&probe);
-        let original = probe
-            .runtime
-            .model
-            .borrow()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .clone();
-        *probe.runtime.model.borrow_mut() = ReadModel {
-            lifecycle: Lifecycle::Saving,
-            durability: Durability::Saving { revision: 0 },
-            accepted: Some(original.clone()),
-            active_board_id: "board-main".into(),
-            ..ReadModel::default()
-        };
-        assert!(
-            probe
-                .runtime
-                .outcomes
-                .settle(operation_id, TerminalOutcome::Completed)
-        );
-        let_hook_tasks_run().await;
-        flush_hook(&mut dom);
-        assert_eq!(workspace(&probe), "Layout");
-        assert!(probe.latest.borrow().as_ref().unwrap().busy);
-
-        let mut document = replacement(edit);
-        document.revision = 1;
-        let mut scene = (*original.scene).clone();
-        scene.revision = 1;
-        *probe.runtime.model.borrow_mut() = ReadModel {
-            lifecycle: Lifecycle::Ready,
-            durability: Durability::Saved { revision: 1 },
-            accepted: Some(AcceptedSnapshot {
-                token: SnapshotToken(12),
-                session_epoch: original.session_epoch,
-                document: Arc::new(document),
-                scene: Arc::new(scene),
-            }),
-            active_board_id: "board-main".into(),
-            ..ReadModel::default()
-        };
-        let_hook_tasks_run().await;
-        flush_hook(&mut dom);
-        assert_eq!(workspace(&probe), "PCB");
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -3430,7 +3311,7 @@ mod tests {
                     accepted.token = SnapshotToken(12);
                 }
             }
-            assert!(probe.runtime.outcomes.settle(operation_id, outcome));
+            assert!(probe.runtime.settle(operation_id, outcome));
             let_hook_tasks_run().await;
             flush_hook(&mut dom);
             assert_eq!(workspace(&probe), "Layout");
@@ -4127,202 +4008,6 @@ mod tests {
         assert!(!owner.is_current(&initial, Some(&scope), 4, false, Some("project"), true));
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("other"), true));
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("project"), false));
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn only_the_exact_completed_operation_with_matching_ready_saved_document_can_return_to_wiring()
-    {
-        let initial = accepted(fixture(), 11);
-        let scope = Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "project".into(),
-            board_id: "board-main".into(),
-            instance_id: None,
-        };
-        let definition = controller_definition("catalog:controller");
-        let mut placed = part(&definition.id, "part-controller", "U1");
-        let mut owner = PlacementOwner::capture(
-            &initial,
-            PlacementCapture {
-                scope,
-                generation: 4,
-                part_id: placed.id.clone(),
-                definition_id: definition.id.clone(),
-                kind: PartKind::Controller,
-                workflow: PlacementWorkflow::WiringController,
-                source_workspace: "Parts",
-                layout_id: None,
-                at: Vec2::default(),
-            },
-        )
-        .unwrap();
-        assert!(owner_snapshot_is_current(&initial, &owner));
-        placed.pose.at = Vec2 { x: 14.0, y: -3.0 };
-        owner.record_committed_position(placed.pose.at);
-        let mut proposed = replacement(
-            placement_operation(&initial.document, "board-main", &definition, &placed, None)
-                .unwrap(),
-        );
-        proposed.revision += 1;
-        let saved = accepted(proposed, 12);
-        assert!(!owner_snapshot_is_current(&saved, &owner));
-
-        assert!(completion_is_accepted(
-            true,
-            Some(&TerminalOutcome::Completed),
-            &Lifecycle::Ready,
-            &Durability::Saved { revision: 1 },
-            Some(&saved),
-            &owner,
-            "part-controller",
-        ));
-        let mut wrong_position_document = (*saved.document).clone();
-        wrong_position_document
-            .parts
-            .iter_mut()
-            .find(|part| part.id == "part-controller")
-            .unwrap()
-            .pose
-            .at
-            .x += 1.0;
-        let wrong_position = accepted(wrong_position_document, 12);
-        assert!(!completion_is_accepted(
-            true,
-            Some(&TerminalOutcome::Completed),
-            &Lifecycle::Ready,
-            &Durability::Saved { revision: 1 },
-            Some(&wrong_position),
-            &owner,
-            "part-controller",
-        ));
-        let mut later_document = (*saved.document).clone();
-        later_document.revision += 1;
-        let later_snapshot = accepted(later_document, 13);
-        assert!(!owner_snapshot_is_current(&later_snapshot, &owner));
-        assert!(!completion_is_accepted(
-            true,
-            Some(&TerminalOutcome::Completed),
-            &Lifecycle::Ready,
-            &Durability::Saved { revision: 2 },
-            Some(&later_snapshot),
-            &owner,
-            "part-controller",
-        ));
-        let same_token = accepted((*saved.document).clone(), 11);
-        assert!(!completion_is_accepted(
-            true,
-            Some(&TerminalOutcome::Completed),
-            &Lifecycle::Ready,
-            &Durability::Saved { revision: 1 },
-            Some(&same_token),
-            &owner,
-            "part-controller",
-        ));
-        assert!(!completion_is_accepted(
-            false,
-            Some(&TerminalOutcome::Completed),
-            &Lifecycle::Ready,
-            &Durability::Saved { revision: 1 },
-            Some(&saved),
-            &owner,
-            "part-controller",
-        ));
-        assert!(!completion_is_accepted(
-            true,
-            Some(&TerminalOutcome::Rejected("stale".into())),
-            &Lifecycle::Ready,
-            &Durability::Saved { revision: 1 },
-            Some(&saved),
-            &owner,
-            "part-controller",
-        ));
-        assert!(!completion_is_accepted(
-            true,
-            Some(&TerminalOutcome::Completed),
-            &Lifecycle::Saving,
-            &Durability::Saving { revision: 1 },
-            Some(&saved),
-            &owner,
-            "part-controller",
-        ));
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn commit_observer_matches_exact_operation_slot_and_retains_terminal_after_owner_drop() {
-        let initial = accepted(fixture(), 11);
-        let scope = Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "project".into(),
-            board_id: "board-main".into(),
-            instance_id: None,
-        };
-        let owner = PlacementOwner::capture(
-            &initial,
-            PlacementCapture {
-                scope,
-                generation: 4,
-                part_id: "part-controller".into(),
-                definition_id: "catalog:controller".into(),
-                kind: PartKind::Controller,
-                workflow: PlacementWorkflow::WiringController,
-                source_workspace: "Parts",
-                layout_id: None,
-                at: Vec2::default(),
-            },
-        )
-        .unwrap();
-        let operation_id = boardstudio_application::OperationId(41);
-        let outcomes = crate::operation_outcomes::OperationOutcomes::default();
-        let outcome = outcomes.observe(operation_id);
-        let pending = PendingCommit {
-            owner: owner.clone(),
-            operation_id,
-            outcome: outcome.clone(),
-        };
-        assert!(pending_commit_matches(
-            Some(&pending),
-            operation_id,
-            &owner,
-            &outcome
-        ));
-        assert!(!pending_commit_matches(
-            Some(&pending),
-            boardstudio_application::OperationId(42),
-            &owner,
-            &outcome
-        ));
-        let other_slot = Rc::new(std::cell::RefCell::new(None));
-        assert!(!pending_commit_matches(
-            Some(&pending),
-            operation_id,
-            &owner,
-            &other_slot
-        ));
-
-        let retained_observer = outcome.clone();
-        drop(pending);
-        assert!(outcomes.settle(operation_id, TerminalOutcome::Completed));
-        assert_eq!(
-            *retained_observer.borrow(),
-            Some(TerminalOutcome::Completed)
-        );
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn terminal_cancellation_does_not_redirect_but_rejection_can_return_to_source_panel() {
-        assert_eq!(
-            placement_failure_message(Some(&TerminalOutcome::Rejected("stale".into()))),
-            Some("stale".into())
-        );
-        assert_eq!(
-            placement_failure_message(Some(&TerminalOutcome::Cancelled)),
-            None
-        );
-        assert_eq!(
-            placement_failure_message(Some(&TerminalOutcome::Superseded)),
-            None
-        );
-        assert_eq!(placement_failure_message(None), None);
     }
 }
 
