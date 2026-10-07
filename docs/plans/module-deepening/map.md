@@ -74,6 +74,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 
 <!-- one line per resolved build ticket -->
 
+- [PendingEdits owns keyed settlement](issues/15-keyed-pending-edits.md#outcome):
+  a Dioxus-free collection owns latest-key observations and once-only terminal results;
+  reviewed API published, Runtime 110 tests passed.
+
 - [Edit tickets own captured Scope liveness](issues/14-edit-ticket-scope-lineage.md#outcome):
   retained Scope readers and shared retirement latches cover real navigation/Open/Close;
   native Runtime 105 and browser Runtime 29 tests passed.
