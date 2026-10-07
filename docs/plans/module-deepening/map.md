@@ -54,8 +54,8 @@ ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-e
 TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. Preview-only events,
 the native Runtime, resolution constructors, outline split, typed wiring, export leases
 and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers,
-Matrix actions and Matrix fields are merged and resolved. The complete tracer is
-verified; wider panel migrations still wait for the orchestrator's tracer gate.
+Matrix actions and Matrix fields are merged and resolved. The complete tracer gate
+is resolved; Layout, Parts/PCB and the remaining panel migrations are unblocked.
 Mechanical patch and outline intent proposals await human approval.
 
 ## Decisions so far
@@ -78,6 +78,10 @@ Mechanical patch and outline intent proposals await human approval.
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [PendingEdits and Matrix tracer integration gate](issues/05-pending-edits-module.md#outcome):
+  the reviewed complete tracer passes combined verification and opens the three
+  independent panel migration streams.
 
 - [Matrix fields complete the PendingEdits tracer](issues/18-matrix-field-pending-edits.md#outcome):
   one helper owns field/action observation; native 110/8/51 and the complete browser
@@ -154,14 +158,13 @@ Mechanical patch and outline intent proposals await human approval.
 - Cross-effort: [TCE-02 mechanical settings patch](../typed-core-edits/issues/02-mechanical-settings-patch.md),
   [TCE-03 decide outline version intents](../typed-core-edits/issues/03-decide-outline-version-intents.md)
 
-## Parallel frontier after the constructor integration
+## Parallel frontier after the Matrix tracer
 
-Start the captured-Scope slice, then the keyed collection. Once its reviewed interface
-is merged, shared UI helpers and Matrix actions are independent work streams with
-separate files. The user has reserved the shared-helper slice for a separate AI tool in an
-external worktree; agents here must not claim it. The orchestrator prepares its
-interface/base/worktree handoff after the keyed collection merges. Matrix fields follow both; the orchestrator closes the tracer gate only after
-combined verification. The three wider panel migrations then run in parallel.
+The complete tracer opens three independent migrations: Layout panels here,
+Case/Keymap/Keycaps/Library in the second app, and Parts/PCB in the third app. Each
+receives an isolated worktree from the integrated tracer, owns its ticket paths,
+uses the published contracts, and runs pinned reviews. Root owns dev/tracker/index
+and serializes Chrome leases. Cleanup follows all three merged migrations.
 
 ## Three-app allocation
 
