@@ -216,19 +216,18 @@ pub fn definition_name_resolver(definition_id: String, name: String) -> EditReso
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
     use crate::parts_custom_definition::DefinitionPanelCapture;
-    use boardstudio_application::{
-        Completion, Durability, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
-    };
+    use boardstudio_application::{Durability, Event, OperationId, TerminalOutcome};
     use boardstudio_core::model::PartDefinition;
     use boardstudio_core::{
-        CoreEngine,
         model::ProjectDoc,
         model::{AssemblyDefinition, Asset, Net, Part, Pin, Pose2, Side, Vec2},
     };
+    use boardstudio_web_runtime::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+    use std::rc::Rc;
 
     fn fixed_commit(
         operation_id: OperationId,
@@ -313,105 +312,45 @@ mod tests {
         document
     }
 
-    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
-        let mut pending = initial;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn open_document(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(Event::Open {
-            operation_id: OperationId(1),
+    fn open_document(document: ProjectDoc) -> Rc<Runtime> {
+        let runtime = Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
             document,
         });
-        advance(&mut session, &mut core, effects);
-        assert!(session.read_model().accepted.is_some());
-        (session, core)
+        assert!(runtime.model().accepted.is_some());
+        runtime
+    }
+
+    /// Submit the event built for a fresh operation. The slot holds its settlement once
+    /// settled; a gated Runtime leaves it empty until the gate is released.
+    fn submit(runtime: &Runtime, event: impl FnOnce(OperationId) -> Event) -> OutcomeSlot {
+        let operation = runtime.operation();
+        let slot = runtime.observe_operation(operation);
+        runtime.submit(event(operation));
+        slot
+    }
+
+    fn settled(slot: &OutcomeSlot) -> Option<TerminalOutcome> {
+        slot.borrow().clone()
+    }
+
+    fn accepted_snapshot(runtime: &Runtime) -> AcceptedSnapshot {
+        runtime.model().accepted.expect("accepted document")
+    }
+
+    fn submit_name_edit(runtime: &Runtime, definition_id: &str, name: &str) -> OutcomeSlot {
+        submit(runtime, |operation_id| Event::ResolveEdit {
+            operation_id,
+            label: "parts-definition-name".into(),
+            resolver: definition_name_resolver(definition_id.into(), name.into()),
+        })
     }
 
     fn assert_same_content_ignoring_revision(actual: &ProjectDoc, expected: &ProjectDoc) {
         let mut actual = actual.clone();
         actual.revision = expected.revision;
         assert_eq!(actual, *expected);
-    }
-
-    /// Drive effects to completion, collecting every settlement Session reported.
-    fn advance_collecting(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        initial: Vec<Effect>,
-    ) -> Vec<TerminalOutcome> {
-        let mut pending = initial;
-        let mut settlements = Vec::new();
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                Effect::Settled { outcome, .. } => settlements.push(outcome),
-                _ => {}
-            }
-        }
-        settlements
-    }
-
-    fn submit_name_edit(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        operation: u64,
-        definition_id: &str,
-        name: &str,
-    ) -> Vec<TerminalOutcome> {
-        let effects = session.submit(Event::ResolveEdit {
-            operation_id: OperationId(operation),
-            label: "parts-definition-name".into(),
-            resolver: definition_name_resolver(definition_id.into(), name.into()),
-        });
-        advance_collecting(session, core, effects)
     }
 
     fn selected_name(document: &ProjectDoc) -> &str {
@@ -427,52 +366,33 @@ mod tests {
     #[test]
     fn production_name_edit_commits_one_field_and_round_trips_through_session_history() {
         let original = document();
-        let (mut session, mut core) = open_document(original.clone());
+        let runtime = open_document(original.clone());
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 2, "selected", "Renamed device"),
-            vec![TerminalOutcome::Completed],
+            settled(&submit_name_edit(&runtime, "selected", "Renamed device")),
+            Some(TerminalOutcome::Completed),
             "a changed name lands as one accepted edit"
         );
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        let accepted = accepted_snapshot(&runtime);
         let mut expected_renamed = original.clone();
         expected_renamed.definitions[0].name = "Renamed device".into();
         assert_same_content_ignoring_revision(&accepted.document, &expected_renamed);
         assert_eq!(
-            session.read_model().durability,
+            runtime.model().durability,
             Durability::Saved {
                 revision: accepted.document.revision
             }
         );
 
-        let undo_effects = session.submit(Event::Undo {
-            operation_id: OperationId(3),
-        });
-        advance(&mut session, &mut core, undo_effects);
-        let undone = session.read_model().accepted.as_ref().unwrap();
-        assert_same_content_ignoring_revision(&undone.document, &original);
-        let redo_effects = session.submit(Event::Redo {
-            operation_id: OperationId(4),
-        });
-        advance(&mut session, &mut core, redo_effects);
-        let redone = session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .clone();
+        submit(&runtime, |operation_id| Event::Undo { operation_id });
+        assert_same_content_ignoring_revision(&accepted_snapshot(&runtime).document, &original);
+        submit(&runtime, |operation_id| Event::Redo { operation_id });
+        let redone = accepted_snapshot(&runtime).document;
         assert_same_content_ignoring_revision(&redone, &expected_renamed);
 
         let persisted_round_trip: ProjectDoc =
             serde_json::from_str(&serde_json::to_string(&*redone).unwrap()).unwrap();
-        let (mut reopened, mut reopen_core) = open_document(persisted_round_trip);
-        let reopened_document = reopened
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .clone();
+        let reopened = open_document(persisted_round_trip);
+        let reopened_document = accepted_snapshot(&reopened).document;
         assert_same_content_ignoring_revision(&reopened_document, &expected_renamed);
         assert_eq!(
             reopened_document
@@ -483,14 +403,13 @@ mod tests {
                 .name,
             "Unaffected"
         );
-        let _ = (&mut reopened, &mut reopen_core);
     }
 
     #[test]
     fn admission_keeps_departed_owners_out_but_newer_revisions_queue_freely() {
-        let (session, _core) = open_document(document());
-        let snapshot = session.read_model().accepted.clone().unwrap();
-        let scope = session.scope();
+        let runtime = open_document(document());
+        let snapshot = accepted_snapshot(&runtime);
+        let scope = runtime.scope();
         let selected = Some((scope.clone(), "selected".into()));
         let capture = DefinitionPanelCapture::new(
             &snapshot,
@@ -530,8 +449,8 @@ mod tests {
         };
         assert!(capture.owner_is_live(
             &newer,
-            session.scope(),
-            Some((session.scope().clone(), "selected".into()))
+            runtime.scope(),
+            Some((runtime.scope().clone(), "selected".into()))
         ));
     }
 
@@ -543,72 +462,144 @@ mod tests {
             version: "1".into(),
             parameters: Default::default(),
         });
-        let (mut session, mut core) = open_document(generator_doc);
+        let runtime = open_document(generator_doc);
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 5, "selected", "Generator name"),
-            vec![TerminalOutcome::Rejected(GENERATOR_LOCKED.into())]
+            settled(&submit_name_edit(&runtime, "selected", "Generator name")),
+            Some(TerminalOutcome::Rejected(GENERATOR_LOCKED.into()))
         );
         assert_eq!(
-            selected_name(&session.read_model().accepted.clone().unwrap().document),
+            selected_name(&accepted_snapshot(&runtime).document),
             "Original name"
         );
 
-        let (mut session, mut core) = open_document(document());
+        let runtime = open_document(document());
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 6, "vanished", "No target"),
-            vec![TerminalOutcome::Rejected(DEFINITION_GONE.into())]
+            settled(&submit_name_edit(&runtime, "vanished", "No target")),
+            Some(TerminalOutcome::Rejected(DEFINITION_GONE.into()))
         );
     }
 
     #[test]
     fn an_unchanged_name_commit_lands_without_moving_the_revision() {
-        let (mut session, mut core) = open_document(document());
-        let before = session.read_model().accepted.clone().unwrap();
+        let runtime = open_document(document());
+        let before = accepted_snapshot(&runtime);
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 7, "selected", "Original name"),
-            vec![TerminalOutcome::Completed]
+            settled(&submit_name_edit(&runtime, "selected", "Original name")),
+            Some(TerminalOutcome::Completed)
         );
-        let after = session.read_model().accepted.clone().unwrap();
+        let after = accepted_snapshot(&runtime);
         assert_eq!(after.document.revision, before.document.revision);
         assert_eq!(after.token, before.token);
     }
 
     #[test]
     fn a_name_commit_resolves_against_the_latest_accepted_document() {
-        let original = document();
-        let (mut session, mut core) = open_document(original);
-        let initial = session.read_model().accepted.as_ref().unwrap().clone();
+        let runtime = open_document(document());
+        let initial = accepted_snapshot(&runtime);
 
         let mut unrelated_document = initial.document.as_ref().clone();
         unrelated_document
             .parameters
             .insert("unrelated-edit".into(), serde_json::json!(true));
-        let unrelated = fixed_commit(
-            OperationId(20),
-            boardstudio_core::model::EditCommand {
-                base_revision: initial.document.revision,
-                transaction_id: "parts-name-unrelated-edit".into(),
-                phase: boardstudio_core::model::EditPhase::Commit,
-                target_ids: vec!["unrelated".into()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(unrelated_document),
+        submit(&runtime, |operation_id| {
+            fixed_commit(
+                operation_id,
+                boardstudio_core::model::EditCommand {
+                    base_revision: initial.document.revision,
+                    transaction_id: "parts-name-unrelated-edit".into(),
+                    phase: boardstudio_core::model::EditPhase::Commit,
+                    target_ids: vec!["unrelated".into()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(unrelated_document),
+                    },
                 },
-            },
-        );
-        let effects = session.submit(unrelated);
-        advance(&mut session, &mut core, effects);
+            )
+        });
 
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 21, "selected", "Dirty name draft"),
-            vec![TerminalOutcome::Completed]
+            settled(&submit_name_edit(&runtime, "selected", "Dirty name draft")),
+            Some(TerminalOutcome::Completed)
         );
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        let accepted = accepted_snapshot(&runtime);
         assert_eq!(
             accepted.document.parameters.get("unrelated-edit"),
             Some(&serde_json::json!(true)),
             "the name commit must retain the edit accepted while its local draft was dirty"
         );
         assert_eq!(selected_name(&accepted.document), "Dirty name draft");
+    }
+
+    #[test]
+    fn queued_name_edits_keep_the_prior_accepted_change_while_core_is_held() {
+        let runtime = open_document(document());
+        runtime.hold_next_core();
+        let first = submit_name_edit(&runtime, "selected", "First name");
+        assert!(runtime.core_entered(), "the first edit reaches Core");
+        let second = submit_name_edit(&runtime, "other", "Second name");
+        assert_eq!(settled(&first), None);
+        assert_eq!(settled(&second), None);
+
+        runtime.release_core();
+        assert_eq!(settled(&first), Some(TerminalOutcome::Completed));
+        assert_eq!(settled(&second), Some(TerminalOutcome::Completed));
+        let accepted = accepted_snapshot(&runtime);
+        assert_eq!(selected_name(&accepted.document), "First name");
+        assert_eq!(
+            accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == "other")
+                .unwrap()
+                .name,
+            "Second name",
+            "the queued edit resolves against the document the first edit accepted"
+        );
+    }
+
+    #[test]
+    fn a_queued_name_edit_retires_when_its_target_departs_first() {
+        let runtime = open_document(document());
+        let initial = accepted_snapshot(&runtime);
+        let mut without_target = initial.document.as_ref().clone();
+        without_target
+            .definitions
+            .retain(|definition| definition.id != "selected");
+        without_target.parts.clear();
+        without_target.nets.clear();
+
+        runtime.hold_next_core();
+        let departure = submit(&runtime, |operation_id| {
+            fixed_commit(
+                operation_id,
+                boardstudio_core::model::EditCommand {
+                    base_revision: initial.document.revision,
+                    transaction_id: "parts-name-target-departure".into(),
+                    phase: boardstudio_core::model::EditPhase::Commit,
+                    target_ids: vec!["selected".into()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(without_target),
+                    },
+                },
+            )
+        });
+        assert!(runtime.core_entered(), "the departure reaches Core");
+        let queued = submit_name_edit(&runtime, "selected", "Too late");
+        assert_eq!(settled(&queued), None, "the queued edit waits for Core");
+
+        runtime.release_core();
+        assert_eq!(settled(&departure), Some(TerminalOutcome::Completed));
+        assert_eq!(
+            settled(&queued),
+            Some(TerminalOutcome::Rejected(DEFINITION_GONE.into()))
+        );
+        assert!(
+            accepted_snapshot(&runtime)
+                .document
+                .definitions
+                .iter()
+                .all(|definition| definition.id != "selected")
+        );
     }
 }
 
