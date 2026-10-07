@@ -6,9 +6,7 @@ use super::macro_editor::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, KeymapChange, KeymapMacro, MacroChange, MacroStep,
-};
+use boardstudio_core::model::{EditOperation, KeymapChange, KeymapMacro, MacroChange, MacroStep};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};

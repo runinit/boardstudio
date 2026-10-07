@@ -4,7 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, KeymapChange};
+use boardstudio_core::model::{EditCommand, EditOperation, KeymapChange};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;

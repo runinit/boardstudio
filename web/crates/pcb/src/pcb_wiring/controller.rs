@@ -13,7 +13,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
+use boardstudio_core::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{

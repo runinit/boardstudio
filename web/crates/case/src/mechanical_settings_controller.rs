@@ -12,13 +12,13 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    CaseOpening, EditCommand, EditOperation, EditPhase, GasketConstructionVersion, GasketPlacement,
-    HardwareTransport, InsertInstallation, InternalClosureHardware, InternalGasketConfiguration,
-    MechanicalAssembly, MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile,
-    MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
-    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartKind, PlateMethod,
-    ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    CaseOpening, EditOperation, GasketConstructionVersion, GasketPlacement, HardwareTransport,
+    InsertInstallation, InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly,
+    MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalConfiguration,
+    MechanicalCriticalFit, MechanicalGasketLayout, MechanicalHardwareSpecification,
+    MechanicalMount, MechanicalPartProcess, MechanicalPartProfile, MechanicalSwitchFamily, Mount,
+    MountKind, Part, PartDefinition, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
+    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use std::{

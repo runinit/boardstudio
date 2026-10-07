@@ -8,7 +8,7 @@ use crate::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
-    model::{EditCommand, EditOperation, EditPhase, ProjectDoc},
+    model::{EditOperation, ProjectDoc},
 };
 use dioxus::prelude::*;
 use std::rc::Rc;

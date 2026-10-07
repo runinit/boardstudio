@@ -111,8 +111,8 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
-    PartDefinition, PartKind, PartOutline, Position, Vec2,
+    Contour, EditOperation, Matrix, MatrixSplayAffect, Part, PartDefinition, PartKind, PartOutline,
+    Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;

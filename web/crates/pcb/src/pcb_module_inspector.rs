@@ -5,8 +5,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleConnection, ModuleSupport,
-    PartDefinition, Side, VikRole, VikSignal,
+    EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, PartDefinition, Side,
+    VikRole, VikSignal,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;

@@ -7,10 +7,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::{
-    electrical::ElectricalMode,
-    model::{EditCommand, EditOperation, EditPhase},
-};
+use boardstudio_core::{electrical::ElectricalMode, model::EditOperation};
 use dioxus::prelude::*;
 use std::rc::Rc;
 

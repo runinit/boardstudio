@@ -10,7 +10,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    Contour, EditCommand, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
+    Contour, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};

@@ -9,9 +9,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, EncoderDirection, KeyBinding, KeymapChange,
-};
+use boardstudio_core::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;

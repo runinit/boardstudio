@@ -13,8 +13,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc,
-    Vec2,
+    EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;

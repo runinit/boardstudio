@@ -4,7 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
+    EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;

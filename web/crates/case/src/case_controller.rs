@@ -10,7 +10,7 @@ use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolut
 #[cfg(test)]
 use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{
-    CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, Vec2,
+    CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;

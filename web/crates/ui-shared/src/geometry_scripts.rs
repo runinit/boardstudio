@@ -3,7 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Finding, Script, Severity};
+use boardstudio_core::model::{EditOperation, Finding, Script, Severity};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;

@@ -9,8 +9,7 @@
 use crate::edit_ticket::{EditTicket, Settlement};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, EditCommand, EditOperation, EditPhase, Part, PartOutline, Position, ProjectDoc,
-    Vec2,
+    Constraint, EditOperation, Part, PartOutline, Position, ProjectDoc, Vec2,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
 use std::rc::Rc;

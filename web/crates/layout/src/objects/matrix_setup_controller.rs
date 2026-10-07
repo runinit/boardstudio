@@ -10,7 +10,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SelectionMode,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Matrix, PartDefinition};
+use boardstudio_core::model::{EditOperation, Matrix, PartDefinition};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};

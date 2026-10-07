@@ -3,9 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{
-    Board, EditCommand, EditOperation, EditPhase, Operation, OutlineFeature,
-};
+use boardstudio_core::model::{Board, EditOperation, Operation, OutlineFeature};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;

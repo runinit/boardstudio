@@ -6,7 +6,7 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::EditOperation;
 use boardstudio_web_runtime::edit_ticket::EditTicket;
 use dioxus::prelude::*;
 use std::rc::Rc;

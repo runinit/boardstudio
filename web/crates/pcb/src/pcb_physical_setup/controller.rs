@@ -3,9 +3,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
     SnapshotToken,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, HardwareTopology, HardwareTransport, ProjectDoc,
-};
+use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};

@@ -12,8 +12,8 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    DiodeDirection, EditCommand, EditOperation, EditPhase, Matrix, MatrixAssembly, MatrixCell,
-    PartDefinition, ProjectDoc, Side, Vec2,
+    DiodeDirection, EditOperation, Matrix, MatrixAssembly, MatrixCell, PartDefinition, ProjectDoc,
+    Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;

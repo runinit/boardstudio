@@ -5,7 +5,7 @@ use boardstudio_application::Event;
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::EditOperation;
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};

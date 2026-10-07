@@ -3,7 +3,7 @@ use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, PartKind, ProjectDoc};
+use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;

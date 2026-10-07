@@ -16,8 +16,8 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition,
-    PartKind, Pose2, ProjectDoc, Side, Vec2,
+    EditOperation, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition, PartKind,
+    Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;

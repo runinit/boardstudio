@@ -2,8 +2,7 @@
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Pad, PadShape, PartDefinition, PartKind, ProjectDoc,
-    Vec2,
+    EditOperation, Pad, PadShape, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
 
 pub(crate) const DEFINITION_GONE: &str = "This part definition no longer exists.";

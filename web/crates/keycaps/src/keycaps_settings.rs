@@ -6,9 +6,8 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange,
-    KeycapKeySettings, KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile,
-    ProjectDoc, Vec2,
+    EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
+    KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
