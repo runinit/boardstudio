@@ -1,6 +1,6 @@
 # 05: PendingEdits and Matrix tracer integration gate
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 14, 15, 16, 17, 18
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
