@@ -495,8 +495,6 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 if let Some(feedback) = preset_feedback {
                     if feedback.state == MatrixEditState::Failed {
                         p { role: "alert", "{feedback.message.as_deref().unwrap_or(\"The matrix preset was not saved.\")}" }
-                    } else if feedback.state == MatrixEditState::Saved {
-                        p { role: "status", "Preset updated" }
                     }
                 }
                 }
