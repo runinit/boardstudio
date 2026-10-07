@@ -351,7 +351,7 @@ fn severity_label(severity: &Severity) -> &'static str {
 mod queued_script_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_core::model::{Board, EditCommand, EditPhase, ProjectDoc};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
