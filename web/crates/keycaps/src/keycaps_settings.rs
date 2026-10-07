@@ -179,21 +179,38 @@ struct KeycapsTicket {
 #[derive(Clone, Copy)]
 struct KeycapsTickets(Signal<Vec<KeycapsTicket>>);
 
+// These values belong only to outstanding field tickets. They are presentation drafts,
+// never used to construct a replacement document or as the accepted baseline.
+fn pending_changes(
+    actions: &KeycapsSettingsActions,
+    target: &KeycapsEditTarget,
+) -> Vec<KeycapEditChange> {
+    let Some(tickets) = try_consume_context::<KeycapsTickets>() else {
+        return vec![];
+    };
+    tickets
+        .0
+        .read()
+        .iter()
+        .filter(|entry| {
+            entry.request.scope == actions.scope
+                && entry.request.scope_generation == actions.scope_generation
+                && entry.request.selection_generation == actions.selection_generation
+                && entry.request.target == *target
+                && entry.ticket.is_pending()
+        })
+        .map(|entry| entry.request.change.clone())
+        .collect()
+}
+
 fn field_pending(
     actions: &KeycapsSettingsActions,
     target: &KeycapsEditTarget,
     field: KeycapEditField,
 ) -> bool {
-    try_consume_context::<KeycapsTickets>().is_some_and(|tickets| {
-        tickets.0.read().iter().any(|entry| {
-            entry.request.scope == actions.scope
-                && entry.request.scope_generation == actions.scope_generation
-                && entry.request.selection_generation == actions.selection_generation
-                && entry.request.target == *target
-                && entry.request.change.field() == field
-                && entry.ticket.is_pending()
-        })
-    })
+    pending_changes(actions, target)
+        .iter()
+        .any(|change| change.field() == field)
 }
 
 #[derive(Clone)]
@@ -1194,10 +1211,18 @@ pub struct KeycapsBoardSettingsEditorProps {
 
 #[component]
 pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Element {
-    let settings = props.settings;
+    let mut settings = props.settings;
     let actions = props.actions;
     let target = KeycapsEditTarget::Board;
     let baseline = KeycapsEditBaseline::Board(settings.clone());
+    for change in pending_changes(&actions, &target) {
+        match change {
+            KeycapEditChange::BoardColor(value) => settings.color = value,
+            KeycapEditChange::BoardLegendColor(value) => settings.legend_color = value,
+            KeycapEditChange::BoardClearance(value) => settings.clearance = value,
+            _ => {}
+        }
+    }
     let feedback = actions.feedback.as_ref().filter(|f| f.target == target);
     let retries = actions
         .retry_drafts
@@ -1247,9 +1272,18 @@ pub struct KeycapsMatrixSettingsEditorProps {
 #[component]
 pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> Element {
     let target = KeycapsEditTarget::Matrix(props.matrix_id);
-    let settings = props.settings;
+    let mut settings = props.settings;
     let actions = props.actions;
     let baseline = KeycapsEditBaseline::Matrix(settings.clone());
+    for change in pending_changes(&actions, &target) {
+        match change {
+            KeycapEditChange::MatrixProfile(value) => settings.profile = value,
+            KeycapEditChange::MatrixMount(value) => settings.mount = value,
+            KeycapEditChange::MatrixFirstRow(value) => settings.first_row = value,
+            KeycapEditChange::MatrixWallThickness(value) => settings.wall_thickness = value,
+            _ => {}
+        }
+    }
     let feedback = actions.feedback.as_ref().filter(|f| f.target == target);
     let retries = actions
         .retry_drafts
@@ -1343,8 +1377,24 @@ pub struct KeycapsSettingsEditorProps {
 pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let selected = props.selected;
     let actions = props.actions;
-    let settings = selected.settings;
+    let mut settings = selected.settings;
     let key = selected.key;
+    for change in pending_changes(&actions, &KeycapsEditTarget::Key(key.id.to_string())) {
+        match change {
+            KeycapEditChange::Color(value) => settings.color = value,
+            KeycapEditChange::Profile(value) => settings.profile = value,
+            KeycapEditChange::Mount(value) => settings.mount = value,
+            KeycapEditChange::Row(value) => settings.row = value,
+            KeycapEditChange::UnitsWidth(value) => {
+                settings.units.get_or_insert(Vec2 { x: 1.0, y: 1.0 }).x = value
+            }
+            KeycapEditChange::UnitsDepth(value) => {
+                settings.units.get_or_insert(Vec2 { x: 1.0, y: 1.0 }).y = value
+            }
+            KeycapEditChange::ClearUnits(_) => settings.units = None,
+            _ => {}
+        }
+    }
     let accepted_legend = settings.legend.clone();
     let accepted_color = settings.color.clone();
     let accepted_profile = settings.profile;
@@ -2116,10 +2166,23 @@ mod queued_settings_tests {
             });
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        submit(KeycapEditChange::UnitsWidth(2.0));
+        use wasm_bindgen::JsCast;
+        let width = root
+            .query_selector("input[aria-label='Keycap width for SW1']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        width.set_value("2");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        width
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
         support::drive_pending(&runtime);
         entered.await.unwrap();
         gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(width.value(), "2");
         submit(KeycapEditChange::UnitsDepth(1.5));
         release.send(()).unwrap();
         for _ in 0..20 {
@@ -2148,7 +2211,6 @@ mod queued_settings_tests {
         );
         gloo_timers::future::TimeoutFuture::new(50).await;
         // A return to the old accepted legend is still a newer committed intent.
-        use wasm_bindgen::JsCast;
         let input = root
             .query_selector("input[aria-label='Legend for SW1']")
             .unwrap()
@@ -2190,6 +2252,34 @@ mod queued_settings_tests {
                 .legend
                 .as_deref(),
             Some("B")
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let width = root
+            .query_selector("input[aria-label='Keycap width for SW1']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        support::fail_next_core_reply(&runtime, "keycap executor failed");
+        width.set_value("3");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        width
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            settings_for_key(&runtime.model().accepted.unwrap().document, "key").units,
+            None
+        );
+        assert_eq!(width.value(), "");
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("keycap executor failed")
         );
         root.remove();
     }

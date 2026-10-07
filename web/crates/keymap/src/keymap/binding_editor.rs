@@ -461,7 +461,12 @@ const KEYCODE_CHOICES: &[(&str, &str)] = &[
 pub fn BindingEditor(props: BindingEditorProps) -> Element {
     let request_sequence = props.request_sequence;
     let context = EditContext::from(&props);
-    let value = props.value.clone();
+    let value = super::binding_controller::draft_binding(
+        &props.scope,
+        &props.active_layer_id,
+        &props.target,
+        &props.value,
+    );
     let behavior = Behavior::from_binding(&value);
     let target_key = props.target.stable_key();
     let datalist_id = format!(

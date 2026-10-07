@@ -42,6 +42,32 @@ pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) ->
     })
 }
 
+pub(super) fn draft_step(
+    scope: &boardstudio_application::Scope,
+    macro_id: &str,
+    index: usize,
+    accepted: &MacroStep,
+) -> MacroStep {
+    let mut value = accepted.clone();
+    if let Some(tickets) = try_consume_context::<MacroTickets>() {
+        for entry in tickets.0.read().iter().filter(|entry| {
+            entry.request.scope == *scope
+                && entry.request.macro_id.as_deref() == Some(macro_id)
+                && entry.ticket.is_pending()
+        }) {
+            if let MacroEditChange::Change(MacroChange::Step {
+                index: changed,
+                value: draft,
+            }) = &entry.request.change
+                && *changed == index
+            {
+                value = draft.clone();
+            }
+        }
+    }
+    value
+}
+
 #[derive(Clone, Copy)]
 struct MacroFeedbacks(Signal<Vec<MacroEditFeedback>>);
 
@@ -443,6 +469,21 @@ fn macro_resolver(request: MacroEditRequest, seed: u64) -> EditResolver {
                 else {
                     return Resolution::Retire("This macro no longer exists.".into());
                 };
+                // Steps have positional identities. A structural change invalidates a queued
+                // positional request; ordinary field edits leave the sequence length intact.
+                if matches!(
+                    request.target,
+                    MacroEditTarget::RemoveStep { .. }
+                        | MacroEditTarget::StepKind { .. }
+                        | MacroEditTarget::StepDelay { .. }
+                        | MacroEditTarget::StepKeycode { .. }
+                ) && request
+                    .step_sequence
+                    .as_ref()
+                    .is_none_or(|steps| steps.len() != item.steps.len())
+                {
+                    return Resolution::Retire("This macro step is no longer available because the steps changed. Select the step again.".into());
+                }
                 match (&request.target, &request.change) {
                     (MacroEditTarget::RemoveMacro, MacroEditChange::Remove) => {
                         KeymapChange::RemoveMacro {

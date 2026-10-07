@@ -82,6 +82,34 @@ struct BindingTicket {
     ticket: EditTicket,
 }
 
+#[derive(Clone, Copy)]
+struct BindingTickets(Signal<Vec<BindingTicket>>);
+
+/// Pending field values belong to the editor, not the accepted document projection.
+pub(super) fn draft_binding(
+    scope: &Scope,
+    layer: &str,
+    target: &BindingTarget,
+    accepted: &KeyBinding,
+) -> KeyBinding {
+    let mut value = accepted.clone();
+    if let Some(tickets) = try_consume_context::<BindingTickets>() {
+        for entry in tickets.0.read().iter().filter(|entry| {
+            entry.request.scope == *scope
+                && entry.request.active_layer_id == layer
+                && entry.request.target == *target
+                && entry.ticket.is_pending()
+        }) {
+            if let Some(next) =
+                apply_requested_field(&value, &entry.request.binding, entry.request.field)
+            {
+                value = next;
+            }
+        }
+    }
+    value
+}
+
 #[derive(Clone)]
 struct BindingFeedbackState {
     request: BindingEditRequest,
@@ -493,6 +521,7 @@ pub fn use_binding_operations(
     let mut last_admitted_request_id = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
     let pending = use_signal(Vec::<BindingTicket>::new);
+    use_context_provider(|| BindingTickets(pending));
     let feedback = use_signal(Vec::<BindingFeedbackState>::new);
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
@@ -703,7 +732,7 @@ pub fn use_binding_operations(
                 return;
             }
             let live_layer_id = active_layer();
-            let Some(current) = current_binding_for_request(
+            let Some(_) = current_binding_for_request(
                 &request,
                 BindingReadContext {
                     snapshot: &snapshot,
@@ -716,7 +745,7 @@ pub fn use_binding_operations(
             ) else {
                 return;
             };
-            if apply_requested_field(&current.binding, &request.binding, request.field).is_none() {
+            if apply_requested_field(&request.binding, &request.binding, request.field).is_none() {
                 return;
             }
             let ticket = EditTicket::begin(

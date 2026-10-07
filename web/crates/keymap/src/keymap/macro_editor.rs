@@ -427,6 +427,8 @@ fn StepEditor(props: StepEditorProps) -> Element {
     let Some(accepted) = props.sequence.get(index) else {
         return rsx! {};
     };
+    let displayed = super::macro_controller::draft_step(&props.scope, &macro_id, index, accepted);
+    let accepted = &displayed;
     let accepted_step = accepted.clone();
     let kind = step_kind(accepted);
     let value = match accepted {
