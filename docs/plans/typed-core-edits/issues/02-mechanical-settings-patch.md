@@ -49,3 +49,43 @@ cargo test -p boardstudio-web-case --locked
 python3 scripts/check.py lint typecheck test
 wasm-pack test --headless --chrome web/crates/case --locked --lib
 ```
+
+## Proposed spec for human approval
+
+This proposal preserves current Case behavior, including generated PCB clearance
+parts; it is not approved for implementation yet.
+
+- Add one `ApplyMechanicalPatch` Core operation with an explicit board ID, optional
+  physical-instance ID, the typed patch, and a normalized mounting-hole catalogue
+  definition supplied by the existing adapter. Core validates that template's source
+  identity before using it. The template is input data, not a prepared document.
+- Move the patch vocabulary, dependent field enums, defaults, normalization and
+  profile-target validation into Core. Include the relevant effective-configuration
+  rules currently in host Case settings and CAD input projection: shared construction,
+  instance settings, board thickness, wireless battery defaults and flipped instances.
+  Preserve existing constants, family inference, explicit empty mount collections,
+  errors and installation behavior.
+- At execution, Core uses its accepted document and outline cache to initialize absent
+  closure mounts through the existing mechanical resolver. Mirror physical-instance
+  contours consistently with the current host projection. Core also owns the existing
+  closure-clearance projection, including generated definitions, parts, references and
+  board/layout memberships. The whole patch and projection form one Undo step.
+- Return the board owner and only durable entity IDs whose values or memberships
+  actually changed: affected physical instances, generated parts and definitions,
+  and relevant membership owners. Preserve unrelated settings and parts. Pure settings
+  changes do not rebuild board outlines; projection changes are classified according
+  to their effect on outline inputs, with regression coverage and a code comment.
+- Equal results remain Unchanged with no history/revision step. Reuse Core evaluation
+  for resolver no-op detection rather than duplicating patch rules. Vanished or
+  ineligible targets retire; invalid submitted values become Core edit errors.
+- Preserve controller ports and `flush_prepared` ordering. Move domain-rule tests to
+  Core, retain controller lifecycle/queue coverage, and add atomic projection, flipped
+  instance, unrelated-edit queueing, no-op and Undo regression tests.
+
+The scope therefore also includes the relevant host Case defaults/projection helpers
+and `case/closure_clearance.rs`, beyond the original controller-only file list.
+Implementation waits for approval and for module-deepening 09 to merge.
+
+The alternative is a smaller settings-only operation with a separate projection
+follow-up. That would leave the current whole-document clearance mutation in web and
+requires an explicit scope exception to this ticket's Core-ownership goal.

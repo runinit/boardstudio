@@ -32,3 +32,35 @@ strongest outline-rule duplication, with broader semantics than a scalar edit.
 
 `## Answer` records each decision and the build tickets that follow are sliced into
 this effort.
+
+## Proposed answer for human approval
+
+This proposal covers the current generated and fixed-version lifecycle. It does not
+claim that ADR-0002 linked refinements already exist in the model.
+
+1. Use typed user-command intents for feature add/update/remove, atomic copy-and-edit,
+   active-version selection, version deletion, outline-settings patches and connection
+   creation. Generated perimeter editing copies, edits and activates in one operation;
+   adding a feature without a fixed active version creates and selects that version
+   atomically. Preserve one Undo step per current action. Focus remains presentation.
+2. Core allocates new version, feature and connection IDs against the accepted document,
+   using a captured operation seed in the intent. Core owns collision checks across
+   the relevant persisted namespaces; web does not pre-plan IDs or documents.
+3. Vanished or changed action targets retire. Malformed polygon/path input (too few
+   points or nonfinite coordinates) is a Core edit error. Self-intersection and other
+   geometry findings remain visible/editable and block affected exports according to
+   ADR-0001; do not introduce a blanket simple-polygon admission rule. Preserve
+   ADR-0002 recovery policy separately from queued-target retirement.
+4. Report the touched board plus changed durable version, feature, connection or
+   protected-gap IDs. Recompute outlines when active geometry or generated inputs
+   change, including activation/deletion/copy, protection/settings and connections.
+   Metadata-only naming does not recompute. Verify scene and findings cache currency.
+5. Clarify domain terms without changing ADR-0001/0002: Generated is an active choice
+   with no fixed version ID; an authored outline connection differs from its resolved
+   material bridge; an authored protected gap differs from a derived gap candidate.
+   Record linked-refinement representation as a separate follow-up rather than imply
+   it is implemented.
+
+After approval, slice builds into feature/settings/connection intents and atomic
+version lifecycle intents, with shared Core ID allocation and Session/Core Undo tests.
+These builds remain separate from the module-deepening waves in the handoff.
