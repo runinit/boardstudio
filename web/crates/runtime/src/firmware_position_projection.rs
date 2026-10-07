@@ -386,7 +386,9 @@ mod tests {
 
     #[test]
     fn admission_and_exact_session_core_outcome_follow_the_accepted_board() {
-        use boardstudio_application::{Completion, Effect, Event, OperationId, SaveResult};
+        use boardstudio_application::{
+            Completion, EditResolver, Effect, Event, OperationId, Resolution, SaveResult,
+        };
         use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 
         let (mut session, mut engine) = open_ready_session();
@@ -466,19 +468,23 @@ mod tests {
         let outcomes = crate::operation_outcomes::OperationOutcomes::default();
         let operation_id = OperationId(2);
         let outcome = outcomes.observe(operation_id);
-        let effects = session.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: snapshot.document.revision,
-                transaction_id: "firmware-position-test".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![runtime_scope.board_id.clone(), key_id.clone()],
-                operation: EditOperation::SetKeyBinding {
-                    board_id: runtime_scope.board_id.clone(),
-                    key_id: key_id.clone(),
-                    binding: "&kp Q".into(),
-                },
+        let command = EditCommand {
+            base_revision: snapshot.document.revision,
+            transaction_id: "firmware-position-test".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![runtime_scope.board_id.clone(), key_id.clone()],
+            operation: EditOperation::SetKeyBinding {
+                board_id: runtime_scope.board_id.clone(),
+                key_id: key_id.clone(),
+                binding: "&kp Q".into(),
             },
+        };
+        let effects = session.submit(Event::ResolveEdit {
+            operation_id,
+            label: "firmware position test".into(),
+            resolver: EditResolver::new("firmware position test", move |_| {
+                Resolution::Submit(command.clone())
+            }),
         });
         let (request_id, executor_epoch, request) = core_effect(&effects);
         let reply = engine.handle(request);

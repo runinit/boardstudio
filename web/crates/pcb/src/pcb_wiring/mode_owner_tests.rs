@@ -10,7 +10,7 @@ use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_
 use super::*;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, Lifecycle, OperationId, ReadModel,
-    SaveResult, Scope, Session, SessionEpoch, SnapshotToken, TerminalOutcome,
+    Resolution, SaveResult, Scope, Session, SessionEpoch, SnapshotToken, TerminalOutcome,
 };
 use boardstudio_core::{
     electrical::{ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
@@ -462,13 +462,18 @@ fn pin_request(probe: &Probe, assignment_id: &str, pin: Option<String>) -> PcbWi
 fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
     let events = probe.runtime.events.borrow();
     let [
-        Event::Edit {
+        Event::ResolveEdit {
             operation_id,
-            command,
+            resolver,
+            ..
         },
     ] = events.as_slice()
     else {
-        panic!("one accepted mode choice must submit one Edit")
+        panic!("one accepted mode choice must submit one resolved edit")
+    };
+    let accepted = probe.runtime.model.borrow().accepted.clone().unwrap();
+    let Resolution::Submit(command) = resolver.resolve(&accepted) else {
+        panic!("mode choice must resolve to a command")
     };
     let EditOperation::ReplaceDocument { document } = &command.operation else {
         panic!("mode choice must use the existing ReplaceDocument edit")

@@ -328,8 +328,8 @@ fn infer_switch_family(definition: &PartDefinition) -> Option<MechanicalSwitchFa
 mod tests {
     use super::*;
     use boardstudio_application::{
-        AcceptedSnapshot, Completion, Effect, Event, OperationId, SaveResult, Session,
-        TerminalOutcome,
+        AcceptedSnapshot, Completion, EditResolver, Effect, Event, OperationId, Resolution,
+        SaveResult, Session, TerminalOutcome,
     };
     use boardstudio_core::model::{
         EditOperation, EditPhase, MechanicalPartProfile, MechanicalProfileSource, PartDefinition,
@@ -338,6 +338,19 @@ mod tests {
         CoreEngine,
         model::{ProjectDoc, Vec2},
     };
+
+    fn fixed_commit(
+        operation_id: OperationId,
+        command: boardstudio_core::model::EditCommand,
+    ) -> Event {
+        Event::ResolveEdit {
+            operation_id,
+            label: "test fixed command".into(),
+            resolver: EditResolver::new("test fixed command", move |_| {
+                Resolution::Submit(command.clone())
+            }),
+        }
+    }
 
     fn definition(id: &str, name: &str) -> PartDefinition {
         serde_json::from_value(serde_json::json!({
@@ -508,9 +521,9 @@ mod tests {
             .as_ref()
             .clone();
         unrelated.name = "Renamed project during draft".into();
-        let effects = session.submit(Event::Edit {
-            operation_id: OperationId(2),
-            command: boardstudio_core::model::EditCommand {
+        let effects = session.submit(fixed_commit(
+            OperationId(2),
+            boardstudio_core::model::EditCommand {
                 base_revision: 0,
                 transaction_id: "unrelated-project-rename".into(),
                 phase: EditPhase::Commit,
@@ -519,7 +532,7 @@ mod tests {
                     document: Box::new(unrelated),
                 },
             },
-        });
+        ));
         advance(&mut session, &mut core, effects);
 
         let edited_profile = profile("switch", "Parts library");
@@ -622,9 +635,9 @@ mod tests {
         // Remove the definition, then queue another save of it.
         let mut without = accepted(&session).document.as_ref().clone();
         without.definitions.clear();
-        let effects = session.submit(Event::Edit {
-            operation_id: OperationId(4),
-            command: boardstudio_core::model::EditCommand {
+        let effects = session.submit(fixed_commit(
+            OperationId(4),
+            boardstudio_core::model::EditCommand {
                 base_revision: 1,
                 transaction_id: "remove-definition".into(),
                 phase: EditPhase::Commit,
@@ -633,7 +646,7 @@ mod tests {
                     document: Box::new(without),
                 },
             },
-        });
+        ));
         advance(&mut session, &mut core, effects);
         assert_eq!(
             resolve_profile(
@@ -656,9 +669,9 @@ mod tests {
         // Another edit materializes the same catalogue definition first.
         let mut materialized = accepted(&session).document.as_ref().clone();
         materialized.definitions.push(selected.clone());
-        let effects = session.submit(Event::Edit {
-            operation_id: OperationId(2),
-            command: boardstudio_core::model::EditCommand {
+        let effects = session.submit(fixed_commit(
+            OperationId(2),
+            boardstudio_core::model::EditCommand {
                 base_revision: 0,
                 transaction_id: "materialize".into(),
                 phase: EditPhase::Commit,
@@ -667,13 +680,13 @@ mod tests {
                     document: Box::new(materialized),
                 },
             },
-        });
+        ));
         advance(&mut session, &mut core, effects);
         let mut latest = accepted(&session).document.as_ref().clone();
         latest.definitions[1].name = "Edited meanwhile".into();
-        let effects = session.submit(Event::Edit {
-            operation_id: OperationId(3),
-            command: boardstudio_core::model::EditCommand {
+        let effects = session.submit(fixed_commit(
+            OperationId(3),
+            boardstudio_core::model::EditCommand {
                 base_revision: 1,
                 transaction_id: "rename".into(),
                 phase: EditPhase::Commit,
@@ -682,7 +695,7 @@ mod tests {
                     document: Box::new(latest),
                 },
             },
-        });
+        ));
         advance(&mut session, &mut core, effects);
 
         assert_eq!(

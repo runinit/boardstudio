@@ -7381,7 +7381,10 @@ pub mod project_name_test_support {
     }
 
     /// Submit a fixed command through the same resolver route as a production commit.
-    pub fn submit_fixed_command(runtime: &Rc<Runtime>, command: boardstudio_core::model::EditCommand) {
+    pub fn submit_fixed_command(
+        runtime: &Rc<Runtime>,
+        command: boardstudio_core::model::EditCommand,
+    ) {
         runtime.submit(fixed_command_event(runtime.operation(), command));
     }
 

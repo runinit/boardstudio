@@ -1030,9 +1030,9 @@ mod resolver_tests {
         let mut without_a = accepted.document.as_ref().clone();
         without_a.parts.retain(|part| part.id != "a");
         without_a.boards[0].part_ids.retain(|id| id != "a");
-        runtime.submit(boardstudio_application::Event::Edit {
-            operation_id: runtime.operation(),
-            command: EditCommand {
+        support::submit_fixed_command(
+            &runtime,
+            EditCommand {
                 base_revision: accepted.document.revision,
                 transaction_id: "delete-a".into(),
                 phase: EditPhase::Commit,
@@ -1041,7 +1041,7 @@ mod resolver_tests {
                     document: Box::new(without_a),
                 },
             },
-        });
+        );
         support::drive_pending(&runtime);
         entered.await.expect("the delete reached Core");
         let ticket = EditTicket::begin(

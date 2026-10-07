@@ -73,7 +73,7 @@ mod tests {
                 .events
                 .borrow()
                 .iter()
-                .filter(|event| matches!(event, Event::Edit { .. }))
+                .filter(|event| matches!(event, Event::ResolveEdit { .. }))
                 .count()
         }
         fn create(&self) {
@@ -94,7 +94,7 @@ mod tests {
                 .borrow()
                 .iter()
                 .find_map(|event| match event {
-                    Event::Edit { operation_id, .. } => Some(*operation_id),
+                    Event::ResolveEdit { operation_id, .. } => Some(*operation_id),
                     _ => None,
                 })
                 .unwrap();
@@ -232,10 +232,15 @@ mod tests {
             .borrow()
             .iter()
             .find_map(|event| match event {
-                Event::Edit { command, .. } => match &command.operation {
+                Event::ResolveEdit { resolver, .. } => match resolver.resolve(
+                    probe.runtime.model.borrow().accepted.as_ref().unwrap(),
+                ) {
+                    boardstudio_application::Resolution::Submit(command) => match &command.operation {
                     boardstudio_core::model::EditOperation::SetMatrix { matrix, .. } => {
                         Some(matrix.clone())
                     }
+                    _ => None,
+                    },
                     _ => None,
                 },
                 _ => None,

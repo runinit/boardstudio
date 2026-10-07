@@ -742,16 +742,12 @@ mod mounted_tests {
         // A transient Core preview of an edit becomes the Session's display preview.
         let mut previewed = accepted.document.as_ref().clone();
         previewed.name.push_str(" preview");
-        runtime.submit(AppEvent::Edit {
+        runtime.submit(AppEvent::PreviewEdit {
             operation_id: runtime.operation(),
-            command: EditCommand {
-                base_revision: accepted.document.revision,
-                transaction_id: "case-export-draft-preview".into(),
-                phase: EditPhase::Preview,
-                target_ids: vec![scope.board_id.clone()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(previewed),
-                },
+            transaction_id: "case-export-draft-preview".into(),
+            target_ids: vec![scope.board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(previewed),
             },
         });
         support::run_pending(&runtime).await;

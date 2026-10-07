@@ -134,9 +134,9 @@ async fn a_nudge_retires_when_its_part_was_deleted_before_it_ran() {
     let mut without_a = accepted.document.as_ref().clone();
     without_a.parts.retain(|part| part.id != "a");
     without_a.boards[0].part_ids.retain(|id| id != "a");
-    runtime.submit(boardstudio_application::Event::Edit {
-        operation_id: runtime.operation(),
-        command: boardstudio_core::model::EditCommand {
+    support::submit_fixed_command(
+        &runtime,
+        boardstudio_core::model::EditCommand {
             base_revision: accepted.document.revision,
             transaction_id: "delete-a".into(),
             phase: boardstudio_core::model::EditPhase::Commit,
@@ -145,7 +145,7 @@ async fn a_nudge_retires_when_its_part_was_deleted_before_it_ran() {
                 document: Box::new(without_a),
             },
         },
-    });
+    );
     support::drive_pending(&runtime);
     entered.await.expect("the delete reached Core");
     let ticket = nudge(&runtime, Vec2 { x: 0.1, y: 0.0 });
@@ -250,9 +250,9 @@ async fn removing_a_constraint_whose_part_was_deleted_retires_with_a_reason() {
     let mut without_b = accepted.document.as_ref().clone();
     without_b.parts.retain(|part| part.id != "b");
     without_b.boards[0].part_ids.retain(|id| id != "b");
-    runtime.submit(boardstudio_application::Event::Edit {
-        operation_id: runtime.operation(),
-        command: boardstudio_core::model::EditCommand {
+    support::submit_fixed_command(
+        &runtime,
+        boardstudio_core::model::EditCommand {
             base_revision: accepted.document.revision,
             transaction_id: "delete-b".into(),
             phase: boardstudio_core::model::EditPhase::Commit,
@@ -261,7 +261,7 @@ async fn removing_a_constraint_whose_part_was_deleted_retires_with_a_reason() {
                 document: Box::new(without_b),
             },
         },
-    });
+    );
     support::drive_pending(&runtime);
     entered.await.expect("the delete reached Core");
     let ticket = EditTicket::begin(

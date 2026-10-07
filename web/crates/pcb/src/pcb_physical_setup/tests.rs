@@ -34,7 +34,7 @@ impl Probe {
             .events
             .borrow()
             .iter()
-            .filter(|event| matches!(event, Event::Edit { .. }))
+            .filter(|event| matches!(event, Event::ResolveEdit { .. }))
             .count()
     }
     fn changed_proposal(&self) -> boardstudio_core::model::ProjectDoc {
@@ -50,7 +50,7 @@ impl Probe {
             .borrow()
             .iter()
             .find_map(|event| match event {
-                Event::Edit { operation_id, .. } => Some(*operation_id),
+                Event::ResolveEdit { operation_id, .. } => Some(*operation_id),
                 _ => None,
             })
             .unwrap();

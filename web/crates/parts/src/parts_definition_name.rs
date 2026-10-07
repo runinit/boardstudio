@@ -230,6 +230,19 @@ mod tests {
         model::{AssemblyDefinition, Asset, Net, Part, Pin, Pose2, Side, Vec2},
     };
 
+    fn fixed_commit(
+        operation_id: OperationId,
+        command: boardstudio_core::model::EditCommand,
+    ) -> Event {
+        Event::ResolveEdit {
+            operation_id,
+            label: "test fixed command".into(),
+            resolver: EditResolver::new("test fixed command", move |_| {
+                Resolution::Submit(command.clone())
+            }),
+        }
+    }
+
     fn definition(id: &str, name: &str) -> PartDefinition {
         serde_json::from_value(serde_json::json!({
             "id": id,
@@ -556,9 +569,9 @@ mod tests {
         unrelated_document
             .parameters
             .insert("unrelated-edit".into(), serde_json::json!(true));
-        let unrelated = Event::Edit {
-            operation_id: OperationId(20),
-            command: boardstudio_core::model::EditCommand {
+        let unrelated = fixed_commit(
+            OperationId(20),
+            boardstudio_core::model::EditCommand {
                 base_revision: initial.document.revision,
                 transaction_id: "parts-name-unrelated-edit".into(),
                 phase: boardstudio_core::model::EditPhase::Commit,
@@ -567,7 +580,7 @@ mod tests {
                     document: Box::new(unrelated_document),
                 },
             },
-        };
+        );
         let effects = session.submit(unrelated);
         advance(&mut session, &mut core, effects);
 
@@ -1579,9 +1592,9 @@ mod mounted_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut deleted = snapshot.document.as_ref().clone();
         deleted.definitions.clear();
-        runtime.submit(AppEvent::Edit {
-            operation_id: runtime.operation(),
-            command: boardstudio_core::model::EditCommand {
+        support::submit_fixed_command(
+            &runtime,
+            boardstudio_core::model::EditCommand {
                 base_revision: snapshot.document.revision,
                 transaction_id: "delete-definition-before-queued-edit".into(),
                 phase: boardstudio_core::model::EditPhase::Commit,
@@ -1590,7 +1603,7 @@ mod mounted_tests {
                     document: Box::new(deleted),
                 },
             },
-        });
+        );
         support::drive_pending(&runtime);
         entered
             .await
