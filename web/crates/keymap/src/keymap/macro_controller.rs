@@ -5,52 +5,63 @@ use super::macro_editor::{
     MacroReadSource, MacroStepSequence,
 };
 use crate::runtime::Runtime;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, SnapshotToken, TerminalOutcome,
-};
+use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, KeyBinding, KeymapChange, KeymapMacro, MacroChange,
-    MacroStep,
+    EditCommand, EditOperation, EditPhase, KeymapChange, KeymapMacro, MacroChange, MacroStep,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Clone)]
-struct MacroIntent {
-    macro_id: Option<String>,
+struct MacroTicket {
+    request: MacroEditRequest,
+    ticket: EditTicket,
+}
+
+#[derive(Clone, Copy)]
+struct MacroTickets(Signal<Vec<MacroTicket>>);
+
+fn is_action(target: MacroEditTarget) -> bool {
+    matches!(
+        target,
+        MacroEditTarget::AddMacro
+            | MacroEditTarget::RemoveMacro
+            | MacroEditTarget::AddStep
+            | MacroEditTarget::RemoveStep { .. }
+    )
+}
+
+pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) -> bool {
+    try_consume_context::<MacroTickets>().is_some_and(|tickets| {
+        tickets.0.read().iter().any(|entry| {
+            entry.request.macro_id.as_deref() == macro_id
+                && entry.request.target == target
+                && entry.ticket.is_pending()
+        })
+    })
+}
+
+#[derive(Clone, Copy)]
+struct MacroFeedbacks(Signal<Vec<MacroEditFeedback>>);
+
+pub(super) fn field_feedback(
+    scope: &boardstudio_application::Scope,
+    macro_id: &str,
     target: MacroEditTarget,
-    change: MacroEditChange,
-    original_field: OriginalField,
-    expected_steps: Option<Rc<[MacroStep]>>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum OriginalField {
-    Absent,
-    Present,
-    Name(String),
-    TapMs(u32),
-    WaitMs(u32),
-    Steps(Rc<[MacroStep]>),
-}
-
-type PreparedMacroChange = (OriginalField, MacroChange, Option<Rc<[MacroStep]>>);
-
-#[derive(Clone)]
-struct PendingMacroEdit {
-    request: MacroEditRequest,
-    operation_id: OperationId,
-    outcome: crate::operation_outcomes::OutcomeSlot,
-    intent: MacroIntent,
-}
-
-#[derive(Clone)]
-struct MacroFeedbackState {
-    request: MacroEditRequest,
-    operation_id: OperationId,
-    intent: MacroIntent,
-    status: MacroEditStatus,
-    failure_snapshot_token: Option<SnapshotToken>,
+) -> Option<MacroEditFeedback> {
+    let feedback = try_consume_context::<MacroFeedbacks>()?;
+    feedback
+        .0
+        .read()
+        .iter()
+        .rev()
+        .find(|entry| {
+            entry.scope == *scope
+                && entry.macro_id.as_deref() == Some(macro_id)
+                && entry.target == target
+        })
+        .cloned()
 }
 
 pub struct MacroActions {
@@ -84,8 +95,10 @@ pub fn use_macro_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let pending = use_signal(|| None::<PendingMacroEdit>);
-    let feedback = use_signal(|| None::<MacroFeedbackState>);
+    let pending = use_signal(Vec::<MacroTicket>::new);
+    use_context_provider(|| MacroTickets(pending));
+    let feedback = use_signal(Vec::<MacroEditFeedback>::new);
+    use_context_provider(|| MacroFeedbacks(feedback));
     let cache = use_hook(|| {
         Rc::new(SequenceCache {
             by_macro: RefCell::new(HashMap::new()),
@@ -97,77 +110,34 @@ pub fn use_macro_operations(
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow().clone() else {
-                return;
-            };
-            if waiting.request.editor_instance_id != editor_instance_id
-                || runtime.scope().as_ref() != Some(&waiting.request.scope)
-                || waiting.request.scope_generation != captured_generation
-                || scope_generation() != waiting.request.scope_generation
-            {
-                pending.set(None);
-                feedback.set(None);
-                return;
-            }
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            match outcome {
-                TerminalOutcome::Completed => {
-                    let saved_current = model.lifecycle == Lifecycle::Ready
-                        && model.durability
-                            == (Durability::Saved {
-                                revision: snapshot.document.revision,
-                            });
-                    if !saved_current
-                        || snapshot.token == waiting.request.admission_token
-                        || snapshot.document.revision <= waiting.request.admission_revision
+            let mut tickets = pending.peek().clone();
+            let before = tickets.len();
+            tickets.retain(|entry| {
+                let live = runtime.scope().as_ref() == Some(&entry.request.scope)
+                    && scope_generation() == entry.request.scope_generation;
+                let status = match entry.ticket.settlement(live) {
+                    Settlement::Pending => return true,
+                    Settlement::Landed { .. } => Some(MacroEditStatus::Saved),
+                    Settlement::Failed { message } => Some(MacroEditStatus::Failed(message)),
+                    Settlement::Retired => None,
+                };
+                if let Some(status) = status {
+                    if let Some(feedback) = feedback
+                        .write()
+                        .iter_mut()
+                        .find(|feedback| feedback.request_id == entry.request.request_id)
                     {
-                        return;
+                        feedback.status = status;
                     }
-                    let acknowledged = intent_applied(&waiting.intent, snapshot);
-                    pending.set(None);
-                    feedback.set(Some(MacroFeedbackState {
-                        request: waiting.request,
-                        operation_id: waiting.operation_id,
-                        intent: waiting.intent,
-                        status: if acknowledged { MacroEditStatus::Saved } else {
-                            MacroEditStatus::Failed("The saved macro no longer matches this edit. Review the accepted macro and retry.".into())
-                        },
-                        failure_snapshot_token: (!acknowledged).then_some(snapshot.token),
-                    }));
+                } else {
+                    feedback
+                        .write()
+                        .retain(|feedback| feedback.request_id != entry.request.request_id);
                 }
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::PersistenceFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message)
-                | TerminalOutcome::ExecutorFailed(message) => {
-                    pending.set(None);
-                    feedback.set(Some(MacroFeedbackState {
-                        request: waiting.request,
-                        operation_id: waiting.operation_id,
-                        intent: waiting.intent,
-                        status: MacroEditStatus::Failed(message),
-                        failure_snapshot_token: None,
-                    }));
-                }
-                TerminalOutcome::Superseded
-                | TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed => {
-                    pending.set(None);
-                    feedback.set(Some(MacroFeedbackState {
-                        request: waiting.request,
-                        operation_id: waiting.operation_id,
-                        intent: waiting.intent,
-                        status: MacroEditStatus::Failed(
-                            "The macro edit did not complete in the active session.".into(),
-                        ),
-                        failure_snapshot_token: None,
-                    }));
-                }
+                false
+            });
+            if before != tickets.len() {
+                pending.set(tickets);
             }
         }
     }));
@@ -233,7 +203,7 @@ pub fn use_macro_operations(
     let projected = display_snapshot
         .as_ref()
         .and_then(|_| projected.read().clone());
-    let admission_snapshot = current_saved_source(
+    let admission_snapshot = current_edit_source(
         &runtime,
         source.as_ref(),
         captured_generation,
@@ -241,38 +211,17 @@ pub fn use_macro_operations(
         workspace(),
         admission_current.as_ref(),
     );
-    let enabled = pending.read().is_none() && admission_snapshot.is_some() && projected.is_some();
+    let enabled = admission_snapshot.is_some() && projected.is_some();
 
-    let visible_feedback = feedback.read().as_ref().and_then(|state| {
-        let display = display_snapshot.as_ref()?;
-        if state.request.editor_instance_id != editor_instance_id
-            || source.as_ref().map(|item| &item.scope) != Some(&state.request.scope)
-            || state.request.scope_generation != captured_generation
-            || scope_generation() != state.request.scope_generation
-        {
-            return None;
-        }
-        let pending_match = pending.read().as_ref().is_some_and(|waiting| {
-            waiting.operation_id == state.operation_id
-                && waiting.request.request_id == state.request.request_id
-        });
-        match &state.status {
-            MacroEditStatus::Pending => {
-                pending_match.then(|| public_feedback(state, MacroEditStatus::Pending))
-            }
-            MacroEditStatus::Saved => intent_applied(&state.intent, display)
-                .then(|| public_feedback(state, MacroEditStatus::Saved)),
-            MacroEditStatus::Failed(message) => {
-                let relevant = if state.failure_snapshot_token.is_some() {
-                    state.failure_snapshot_token == Some(display.token)
-                        && !intent_applied(&state.intent, display)
-                } else {
-                    failure_still_relevant(&state.intent, display, &cache)
-                };
-                relevant.then(|| public_feedback(state, MacroEditStatus::Failed(message.clone())))
-            }
-        }
-    });
+    let visible_feedback = feedback
+        .read()
+        .iter()
+        .rev()
+        .find(|entry| {
+            runtime.scope().as_ref() == Some(&entry.scope)
+                && scope_generation() == entry.scope_generation
+        })
+        .cloned();
 
     let on_change = EventHandler::new({
         let runtime = runtime.clone();
@@ -281,10 +230,10 @@ pub fn use_macro_operations(
         let source = source.clone();
         let sequence_cache = cache.clone();
         move |request: MacroEditRequest| {
-            if pending.read().is_some() || request.request_id <= last_admitted_request() {
+            if request.request_id <= last_admitted_request() {
                 return;
             }
-            let Some(snapshot) = current_saved_source(
+            let Some(snapshot) = current_edit_source(
                 &runtime,
                 source.as_ref(),
                 captured_generation,
@@ -310,47 +259,43 @@ pub fn use_macro_operations(
             if map.is_some_and(|map| map.layers.is_empty()) {
                 return;
             }
-            let Some(intent) =
-                admit_request(&request, &snapshot, editor_instance_id, &sequence_cache)
-            else {
-                return;
-            };
-            if is_noop(&intent, &snapshot) {
+            if is_action(request.target)
+                && pending.peek().iter().any(|entry| {
+                    entry.request.macro_id == request.macro_id
+                        && entry.request.target == request.target
+                        && entry.ticket.is_pending()
+                })
+            {
                 return;
             }
-
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let waiting = PendingMacroEdit {
-                request: request.clone(),
-                operation_id,
-                outcome,
-                intent: intent.clone(),
-            };
-            let change = core_change(&intent);
-            let transaction_id = format!(
-                "keymap-macro-{editor_instance_id}-{}-{}",
-                request.request_id, operation_id.0
+            if let Some(sequence) = request.step_sequence.as_ref() {
+                if !request
+                    .macro_id
+                    .as_ref()
+                    .and_then(|id| sequence_cache.by_macro.borrow().get(id).cloned())
+                    .is_some_and(|current| Rc::ptr_eq(sequence, &current))
+                {
+                    return;
+                }
+            }
+            let seed = runtime.operation().0;
+            let ticket = EditTicket::begin(
+                &runtime,
+                "keymap-macro",
+                Some("macro".into()),
+                macro_resolver(request.clone(), seed),
             );
-            pending.set(Some(waiting.clone()));
-            feedback.set(Some(MacroFeedbackState {
-                request: request.clone(),
-                operation_id,
-                intent,
-                status: MacroEditStatus::Pending,
-                failure_snapshot_token: None,
-            }));
-            last_admitted_request.set(request.request_id);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id,
-                    phase: EditPhase::Commit,
-                    target_ids: vec![scope.board_id],
-                    operation: EditOperation::EditKeymap { change },
-                },
+            feedback.write().retain(|entry| {
+                !(entry.macro_id == request.macro_id && entry.target == request.target)
             });
+            feedback
+                .write()
+                .push(public_feedback(&request, MacroEditStatus::Pending));
+            pending.write().push(MacroTicket {
+                request: request.clone(),
+                ticket,
+            });
+            last_admitted_request.set(request.request_id);
         }
     });
 
@@ -369,21 +314,21 @@ pub fn use_macro_operations(
     }
 }
 
-fn public_feedback(state: &MacroFeedbackState, status: MacroEditStatus) -> MacroEditFeedback {
+fn public_feedback(request: &MacroEditRequest, status: MacroEditStatus) -> MacroEditFeedback {
     MacroEditFeedback {
-        scope: state.request.scope.clone(),
-        scope_generation: state.request.scope_generation,
-        admission_token: state.request.admission_token,
-        admission_revision: state.request.admission_revision,
-        editor_instance_id: state.request.editor_instance_id,
-        request_id: state.request.request_id,
-        macro_id: state.intent.macro_id.clone(),
-        target: state.intent.target,
+        scope: request.scope.clone(),
+        scope_generation: request.scope_generation,
+        admission_token: request.admission_token,
+        admission_revision: request.admission_revision,
+        editor_instance_id: request.editor_instance_id,
+        request_id: request.request_id,
+        macro_id: request.macro_id.clone(),
+        target: request.target,
         status,
     }
 }
 
-fn current_saved_source(
+fn current_edit_source(
     runtime: &Runtime,
     expected_source: Option<&LayerSource>,
     expected_generation: u64,
@@ -410,8 +355,14 @@ fn current_saved_source(
             .keymap
             .as_ref()
             .is_none_or(|map| !map.layers.is_empty())
-        && model.lifecycle == Lifecycle::Ready
-        && model.durability == (Durability::Saved { revision })
+        && matches!(
+            model.lifecycle,
+            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+        )
+        && matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
         && model.display_preview.is_none()
         && model.gesture.is_none()
         && generation() == expected_generation)
@@ -438,409 +389,155 @@ fn current_display_source(
         .then_some(snapshot)
 }
 
-fn admit_request(
-    request: &MacroEditRequest,
-    snapshot: &AcceptedSnapshot,
-    editor_id: u64,
-    cache: &SequenceCache,
-) -> Option<MacroIntent> {
-    if request.editor_instance_id != editor_id {
-        return None;
-    }
-    let macros = snapshot
-        .document
-        .keymap
-        .as_ref()
-        .map_or(&[][..], |map| map.macros.as_slice());
-    let requested = request.macro_id.as_deref();
-    match (&request.target, &request.change) {
-        (
-            MacroEditTarget::AddMacro,
-            MacroEditChange::Add {
-                name,
-                tap_ms,
-                wait_ms,
-                steps,
-            },
-        ) if requested.is_none()
-            && request.step_sequence.is_none()
-            && macros.len() < 128
-            && *tap_ms == 30
-            && *wait_ms == 0
-            && name == &format!("Macro {}", macros.len() + 1)
-            && steps.as_slice() == [tap_a()] =>
-        {
-            let nonce = editor_id ^ request.request_id.rotate_left(17) ^ snapshot.token.0;
-            let mut id = format!("keymap-macro-{editor_id}-{nonce}");
-            let mut suffix = 0u32;
-            while macros.iter().any(|item| item.id == id) {
-                suffix = suffix.checked_add(1)?;
-                id = format!("keymap-macro-{editor_id}-{nonce}-{suffix}");
-            }
-            Some(MacroIntent {
-                macro_id: Some(id.clone()),
-                target: request.target,
-                change: MacroEditChange::Add {
-                    name: format!("Macro {}", macros.len() + 1),
-                    tap_ms: *tap_ms,
-                    wait_ms: *wait_ms,
-                    steps: steps.clone(),
-                },
-                original_field: OriginalField::Absent,
-                expected_steps: Some(Rc::from(steps.clone())),
-            })
-        }
-        (MacroEditTarget::RemoveMacro, MacroEditChange::Remove)
-            if request.step_sequence.is_none() =>
-        {
-            let id = requested?;
-            (macros.iter().filter(|item| item.id == id).count() == 1).then(|| MacroIntent {
-                macro_id: Some(id.to_owned()),
-                target: request.target,
-                change: request.change.clone(),
-                original_field: OriginalField::Present,
-                expected_steps: None,
-            })
-        }
-        (target, MacroEditChange::Change(change)) => {
-            let id = requested?;
-            let item = macros.iter().find(|item| item.id == id)?;
-            if macros.iter().filter(|item| item.id == id).count() != 1 {
-                return None;
-            }
-            let (original_field, normalized_change, expected_steps) =
-                normalize_change(target, change, item, request, cache)?;
-            Some(MacroIntent {
-                macro_id: Some(id.to_owned()),
-                target: *target,
-                change: MacroEditChange::Change(normalized_change),
-                original_field,
-                expected_steps,
-            })
-        }
-        _ => None,
-    }
-}
-
-fn normalize_change(
-    target: &MacroEditTarget,
-    change: &MacroChange,
-    item: &KeymapMacro,
-    request: &MacroEditRequest,
-    cache: &SequenceCache,
-) -> Option<PreparedMacroChange> {
-    match (target, change) {
-        (MacroEditTarget::Name, MacroChange::Name { value }) if request.step_sequence.is_none() => {
-            Some((
-                OriginalField::Name(item.name.clone()),
-                MacroChange::Name {
-                    value: value.clone(),
-                },
-                None,
-            ))
-        }
-        (MacroEditTarget::TapMs, MacroChange::TapMs { value })
-            if request.step_sequence.is_none() =>
-        {
-            Some((
-                OriginalField::TapMs(item.tap_ms),
-                MacroChange::TapMs { value: *value },
-                None,
-            ))
-        }
-        (MacroEditTarget::WaitMs, MacroChange::WaitMs { value })
-            if request.step_sequence.is_none() =>
-        {
-            Some((
-                OriginalField::WaitMs(item.wait_ms),
-                MacroChange::WaitMs { value: *value },
-                None,
-            ))
-        }
-        (MacroEditTarget::AddStep, MacroChange::AddStep { value }) => {
-            let current = verified_steps(item, request, cache)?;
-            if current.len() >= 128 || value != &tap_a() {
-                return None;
-            }
-            let mut next = current.to_vec();
-            next.push(value.clone());
-            Some((
-                OriginalField::Steps(current),
-                MacroChange::AddStep {
-                    value: value.clone(),
-                },
-                Some(Rc::from(next)),
-            ))
-        }
-        (
-            MacroEditTarget::RemoveStep { index },
-            MacroChange::RemoveStep {
-                index: change_index,
-            },
-        ) if index == change_index => {
-            let current = verified_steps(item, request, cache)?;
-            if current.len() <= 1 || *index >= current.len() {
-                return None;
-            }
-            let mut next = current.to_vec();
-            next.remove(*index);
-            Some((
-                OriginalField::Steps(current),
-                MacroChange::RemoveStep { index: *index },
-                Some(Rc::from(next)),
-            ))
-        }
-        (
-            MacroEditTarget::StepKind { index },
-            MacroChange::Step {
-                index: change_index,
-                value,
-            },
-        ) if index == change_index => {
-            let current = verified_steps(item, request, cache)?;
-            if *index >= current.len() || !valid_kind_default(value) {
-                return None;
-            }
-            let mut next = current.to_vec();
-            next[*index] = value.clone();
-            Some((
-                OriginalField::Steps(current),
-                MacroChange::Step {
-                    index: *index,
-                    value: value.clone(),
-                },
-                Some(Rc::from(next)),
-            ))
-        }
-        (
-            MacroEditTarget::StepDelay { index },
-            MacroChange::Step {
-                index: change_index,
-                value: MacroStep::Wait { ms },
-            },
-        ) if index == change_index => {
-            let current = verified_steps(item, request, cache)?;
-            if *index >= current.len() || !matches!(current[*index], MacroStep::Wait { .. }) {
-                return None;
-            }
-            let mut next = current.to_vec();
-            next[*index] = MacroStep::Wait { ms: *ms };
-            Some((
-                OriginalField::Steps(current),
-                MacroChange::Step {
-                    index: *index,
-                    value: MacroStep::Wait { ms: *ms },
-                },
-                Some(Rc::from(next)),
-            ))
-        }
-        (
-            MacroEditTarget::StepKeycode { index },
-            MacroChange::Step {
-                index: change_index,
-                value,
-            },
-        ) if index == change_index => {
-            let current = verified_steps(item, request, cache)?;
-            let old = current.get(*index)?;
-            let code = match value {
-                MacroStep::Tap {
-                    binding: KeyBinding::KeyPress { keycode },
-                } if matches!(old, MacroStep::Tap { .. }) => keycode,
-                MacroStep::Press {
-                    binding: KeyBinding::KeyPress { keycode },
-                } if matches!(old, MacroStep::Press { .. }) => keycode,
-                MacroStep::Release {
-                    binding: KeyBinding::KeyPress { keycode },
-                } if matches!(old, MacroStep::Release { .. }) => keycode,
-                _ => return None,
-            };
-            let merged = match old {
-                MacroStep::Tap { .. } => MacroStep::Tap {
-                    binding: KeyBinding::KeyPress {
-                        keycode: code.clone(),
-                    },
-                },
-                MacroStep::Press { .. } => MacroStep::Press {
-                    binding: KeyBinding::KeyPress {
-                        keycode: code.clone(),
-                    },
-                },
-                MacroStep::Release { .. } => MacroStep::Release {
-                    binding: KeyBinding::KeyPress {
-                        keycode: code.clone(),
-                    },
-                },
-                MacroStep::Wait { .. } => return None,
-            };
-            let mut next = current.to_vec();
-            next[*index] = merged.clone();
-            Some((
-                OriginalField::Steps(current),
-                MacroChange::Step {
-                    index: *index,
-                    value: merged,
-                },
-                Some(Rc::from(next)),
-            ))
-        }
-        _ => None,
-    }
-}
-
-fn verified_steps(
-    item: &KeymapMacro,
-    request: &MacroEditRequest,
-    cache: &SequenceCache,
-) -> Option<Rc<[MacroStep]>> {
-    let requested = request.step_sequence.as_ref()?;
-    let cached = cache.by_macro.borrow().get(&item.id)?.clone();
-    (Rc::ptr_eq(requested, &cached) && requested.as_ref() == item.steps.as_slice())
-        .then_some(cached)
-}
-
-fn valid_kind_default(step: &MacroStep) -> bool {
-    match step {
-        MacroStep::Wait { ms } => *ms == 100,
-        MacroStep::Tap { binding }
-        | MacroStep::Press { binding }
-        | MacroStep::Release { binding } => {
-            matches!(binding, KeyBinding::KeyPress { keycode } if keycode == "A")
-        }
-    }
-}
-
-fn tap_a() -> MacroStep {
-    MacroStep::Tap {
-        binding: KeyBinding::KeyPress {
-            keycode: "A".into(),
-        },
-    }
-}
-
-fn is_noop(intent: &MacroIntent, snapshot: &AcceptedSnapshot) -> bool {
-    let Some(id) = intent.macro_id.as_deref() else {
-        return false;
-    };
-    let item = snapshot
-        .document
-        .keymap
-        .as_ref()
-        .and_then(|map| map.macros.iter().find(|item| item.id == id));
-    match &intent.change {
-        MacroEditChange::Change(MacroChange::Name { value }) => {
-            item.is_some_and(|item| item.name == *value)
-        }
-        MacroEditChange::Change(MacroChange::TapMs { value }) => {
-            item.is_some_and(|item| item.tap_ms == *value)
-        }
-        MacroEditChange::Change(MacroChange::WaitMs { value }) => {
-            item.is_some_and(|item| item.wait_ms == *value)
-        }
-        MacroEditChange::Change(MacroChange::Step { index, value }) => item
-            .and_then(|item| item.steps.get(*index))
-            .is_some_and(|step| step == value),
-        _ => false,
-    }
-}
-
-fn core_change(intent: &MacroIntent) -> KeymapChange {
-    match (&intent.change, &intent.macro_id) {
-        (
-            MacroEditChange::Add {
-                name,
-                tap_ms,
-                wait_ms,
-                steps,
-            },
-            Some(id),
-        ) => KeymapChange::SaveMacro {
-            value: KeymapMacro {
-                id: id.clone(),
-                name: name.clone(),
-                tap_ms: *tap_ms,
-                wait_ms: *wait_ms,
-                steps: steps.clone(),
-            },
-        },
-        (MacroEditChange::Remove, Some(id)) => KeymapChange::RemoveMacro { id: id.clone() },
-        (MacroEditChange::Change(change), Some(id)) => KeymapChange::EditMacro {
-            macro_id: id.clone(),
-            change: change.clone(),
-        },
-        _ => unreachable!("admitted macro intent has a complete entity identity"),
-    }
-}
-
-fn intent_applied(intent: &MacroIntent, snapshot: &AcceptedSnapshot) -> bool {
-    let macros = snapshot
-        .document
-        .keymap
-        .as_ref()
-        .map_or(&[][..], |map| map.macros.as_slice());
-    match (&intent.change, intent.macro_id.as_deref()) {
-        (
-            MacroEditChange::Add {
-                name,
-                tap_ms,
-                wait_ms,
-                steps,
-            },
-            Some(id),
-        ) => macros.iter().any(|item| {
-            item.id == id
-                && item.name == *name
-                && item.tap_ms == *tap_ms
-                && item.wait_ms == *wait_ms
-                && item.steps == *steps
-        }),
-        (MacroEditChange::Remove, Some(id)) => macros.iter().all(|item| item.id != id),
-        (MacroEditChange::Change(MacroChange::Name { value }), Some(id)) => macros
-            .iter()
-            .any(|item| item.id == id && item.name == *value),
-        (MacroEditChange::Change(MacroChange::TapMs { value }), Some(id)) => macros
-            .iter()
-            .any(|item| item.id == id && item.tap_ms == *value),
-        (MacroEditChange::Change(MacroChange::WaitMs { value }), Some(id)) => macros
-            .iter()
-            .any(|item| item.id == id && item.wait_ms == *value),
-        (_, Some(id)) => intent.expected_steps.as_ref().is_some_and(|expected| {
-            macros
+fn macro_resolver(request: MacroEditRequest, seed: u64) -> EditResolver {
+    EditResolver::new("keymap-macro", move |accepted: &AcceptedSnapshot| {
+        if accepted.session_epoch != request.scope.session_epoch
+            || accepted.document.id != request.scope.document_id
+            || !accepted
+                .document
+                .boards
                 .iter()
-                .any(|item| item.id == id && item.steps.as_slice() == expected.as_ref())
-        }),
-        _ => false,
-    }
-}
-
-fn failure_still_relevant(
-    intent: &MacroIntent,
-    snapshot: &AcceptedSnapshot,
-    cache: &SequenceCache,
-) -> bool {
-    let macros = snapshot
-        .document
-        .keymap
-        .as_ref()
-        .map_or(&[][..], |map| map.macros.as_slice());
-    let item = intent
-        .macro_id
-        .as_deref()
-        .and_then(|id| macros.iter().find(|item| item.id == id));
-    match (&intent.original_field, &intent.change) {
-        (OriginalField::Absent, MacroEditChange::Add { .. }) => item.is_none(),
-        (OriginalField::Present, MacroEditChange::Remove) => item.is_some(),
-        (OriginalField::Name(value), _) => item.is_some_and(|item| item.name == *value),
-        (OriginalField::TapMs(value), _) => item.is_some_and(|item| item.tap_ms == *value),
-        (OriginalField::WaitMs(value), _) => item.is_some_and(|item| item.wait_ms == *value),
-        (OriginalField::Steps(value), _) => item.is_some_and(|item| {
-            item.steps.as_slice() == value.as_ref()
-                && cache
-                    .by_macro
-                    .borrow()
-                    .get(&item.id)
-                    .is_some_and(|current| Rc::ptr_eq(current, value))
-        }),
-        _ => false,
-    }
+                .any(|board| board.id == request.scope.board_id)
+        {
+            return Resolution::Retire("This board no longer exists.".into());
+        }
+        let macros = accepted
+            .document
+            .keymap
+            .as_ref()
+            .map_or(&[][..], |map| map.macros.as_slice());
+        let change = match (&request.target, &request.change) {
+            (
+                MacroEditTarget::AddMacro,
+                MacroEditChange::Add {
+                    tap_ms,
+                    wait_ms,
+                    steps,
+                    ..
+                },
+            ) if request.macro_id.is_none() => {
+                if macros.len() >= 128 {
+                    return Resolution::Retire("The keymap already has 128 macros.".into());
+                }
+                let mut id = format!("keymap-macro-{seed}");
+                let mut suffix = 0u64;
+                while macros.iter().any(|item| item.id == id) {
+                    suffix += 1;
+                    id = format!("keymap-macro-{seed}-{suffix}");
+                }
+                KeymapChange::SaveMacro {
+                    value: KeymapMacro {
+                        id,
+                        name: format!("Macro {}", macros.len() + 1),
+                        tap_ms: *tap_ms,
+                        wait_ms: *wait_ms,
+                        steps: steps.clone(),
+                    },
+                }
+            }
+            _ => {
+                let Some(item) = request
+                    .macro_id
+                    .as_ref()
+                    .and_then(|id| macros.iter().find(|item| &item.id == id))
+                else {
+                    return Resolution::Retire("This macro no longer exists.".into());
+                };
+                match (&request.target, &request.change) {
+                    (MacroEditTarget::RemoveMacro, MacroEditChange::Remove) => {
+                        KeymapChange::RemoveMacro {
+                            id: item.id.clone(),
+                        }
+                    }
+                    (target, MacroEditChange::Change(change)) => {
+                        let valid = match (target, change) {
+                            (MacroEditTarget::Name, MacroChange::Name { value }) => {
+                                if item.name == *value {
+                                    return Resolution::Unchanged;
+                                }
+                                true
+                            }
+                            (MacroEditTarget::TapMs, MacroChange::TapMs { value }) => {
+                                if item.tap_ms == *value {
+                                    return Resolution::Unchanged;
+                                }
+                                true
+                            }
+                            (MacroEditTarget::WaitMs, MacroChange::WaitMs { value }) => {
+                                if item.wait_ms == *value {
+                                    return Resolution::Unchanged;
+                                }
+                                true
+                            }
+                            (MacroEditTarget::AddStep, MacroChange::AddStep { .. }) => {
+                                item.steps.len() < 128
+                            }
+                            (
+                                MacroEditTarget::RemoveStep { index },
+                                MacroChange::RemoveStep { index: changed },
+                            ) => {
+                                index == changed
+                                    && *index < item.steps.len()
+                                    && item.steps.len() > 1
+                            }
+                            (
+                                MacroEditTarget::StepKind { index }
+                                | MacroEditTarget::StepDelay { index }
+                                | MacroEditTarget::StepKeycode { index },
+                                MacroChange::Step {
+                                    index: changed,
+                                    value,
+                                },
+                            ) => {
+                                let Some(current) = item.steps.get(*index) else {
+                                    return Resolution::Retire(
+                                        "This macro step no longer exists.".into(),
+                                    );
+                                };
+                                if index != changed {
+                                    return Resolution::Retire(
+                                        "This macro step is no longer available.".into(),
+                                    );
+                                }
+                                if !matches!(target, MacroEditTarget::StepKind { .. })
+                                    && std::mem::discriminant(current)
+                                        != std::mem::discriminant(value)
+                                {
+                                    return Resolution::Retire(
+                                        "This macro step field is no longer available.".into(),
+                                    );
+                                }
+                                if current == value {
+                                    return Resolution::Unchanged;
+                                }
+                                true
+                            }
+                            _ => false,
+                        };
+                        if !valid {
+                            return Resolution::Retire(
+                                "This macro field or step is no longer available.".into(),
+                            );
+                        }
+                        KeymapChange::EditMacro {
+                            macro_id: item.id.clone(),
+                            change: change.clone(),
+                        }
+                    }
+                    _ => {
+                        return Resolution::Retire(
+                            "This macro edit is no longer available.".into(),
+                        );
+                    }
+                }
+            }
+        };
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![request.scope.board_id.clone()],
+            operation: EditOperation::EditKeymap { change },
+        })
+    })
 }

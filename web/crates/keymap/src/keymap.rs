@@ -23,3 +23,6 @@ pub use macro_editor::MacroEditor;
 pub use panel::KeymapPanel;
 pub use view::{KeymapView, project};
 pub use view_controls::{fit_camera, selected_bounds};
+
+#[cfg(test)]
+mod queued_edit_tests;

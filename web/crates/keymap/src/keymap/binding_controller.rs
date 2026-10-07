@@ -7,12 +7,12 @@ use super::layer_controller::LayerSource;
 use super::view::KeymapView;
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken,
-    TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, EncoderDirection, KeyBinding, KeymapChange,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -43,8 +43,6 @@ pub struct EncoderInputProjection {
     pub identity: EncoderInputIdentity,
     pub encoders: Rc<[EncoderInputChoice]>,
     /// True once the F5 board plan for this accepted snapshot has settled.
-    /// A completed binding edit waits for this edge before acknowledging a
-    /// physical encoder whose input identity came from that plan.
     pub electrical_plan_settled: bool,
 }
 
@@ -74,33 +72,21 @@ pub struct BindingProjectionSources {
     pub source: Option<LayerSource>,
     pub view: Option<Rc<KeymapView>>,
     pub encoder_projection: Memo<Option<EncoderInputProjection>>,
-    pub current_encoder_projection:
-        Rc<dyn Fn() -> Option<EncoderInputProjection>>,
+    pub current_encoder_projection: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
 }
 
 #[derive(Clone)]
-struct PendingBindingEdit {
+struct BindingTicket {
     request: BindingEditRequest,
     scope_generation: u64,
-    operation_id: OperationId,
-    outcome: crate::operation_outcomes::OutcomeSlot,
-    admission_field_value: AcceptedFieldValue,
+    ticket: EditTicket,
 }
 
 #[derive(Clone)]
 struct BindingFeedbackState {
     request: BindingEditRequest,
     scope_generation: u64,
-    operation_id: OperationId,
-    admission_field_value: AcceptedFieldValue,
-    failure_snapshot_token: Option<SnapshotToken>,
     status: BindingEditStatus,
-}
-
-#[derive(Clone, Copy)]
-enum EncoderIdentityCheck {
-    ExactAdmission,
-    StableLineage,
 }
 
 /// Inputs for reading one current binding. Grouping these keeps the accepted
@@ -112,7 +98,6 @@ struct BindingReadContext<'a> {
     view: Option<&'a KeymapView>,
     encoder_inputs: Option<&'a EncoderInputProjection>,
     choices: &'a BindingReferenceChoices,
-    encoder_identity_check: EncoderIdentityCheck,
 }
 
 /// Editor-lifetime state and the narrow current projection passed to the panel.
@@ -441,14 +426,6 @@ fn same_input_lineage(captured: &EncoderInputIdentity, current: &EncoderInputIde
         && captured.electrical_fingerprint == current.electrical_fingerprint
 }
 
-fn waiting_for_electrical_plan(
-    captured: Option<&EncoderInputIdentity>,
-    current: Option<&EncoderInputProjection>,
-) -> bool {
-    captured.is_some_and(|identity| identity.electrical_fingerprint.is_some())
-        && current.is_some_and(|inputs| !inputs.electrical_plan_settled)
-}
-
 fn binding_for_key_id(
     snapshot: &AcceptedSnapshot,
     board_id: &str,
@@ -515,161 +492,41 @@ pub fn use_binding_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request_id = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let pending = use_signal(|| None::<PendingBindingEdit>);
-    let feedback = use_signal(|| None::<BindingFeedbackState>);
-    let outcome_source = source.clone();
-    let outcome_view = view.clone();
-
-    use_effect(use_reactive((&version, &encoder_inputs_value), {
+    let pending = use_signal(Vec::<BindingTicket>::new);
+    let feedback = use_signal(Vec::<BindingFeedbackState>::new);
+    use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
-        let source = outcome_source;
-        let view = outcome_view;
-        let current_encoder_inputs = current_encoder_projection.clone();
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow().clone() else {
-                return;
-            };
-            let live_scope = runtime.scope();
-            if waiting.request.editor_instance_id != editor_instance_id
-                || live_scope.as_ref() != Some(&waiting.request.scope)
-                || waiting.scope_generation != captured_generation
-                || scope_generation() != waiting.scope_generation
-            {
-                pending.set(None);
-                feedback.set(None);
-                return;
-            }
-
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let current_inputs = current_encoder_inputs();
-            let identity = feedback_for(&waiting, BindingEditStatus::Pending, None);
-            match outcome {
-                TerminalOutcome::Completed => {
-                    let saved_current = model.lifecycle == Lifecycle::Ready
-                        && model.durability
-                            == (Durability::Saved {
-                                revision: snapshot.document.revision,
-                            });
-                    if !saved_current
-                        || snapshot.token == waiting.request.admission_token
-                        || snapshot.document.revision <= waiting.request.admission_revision
+            let mut tickets = pending.peek().clone();
+            let before = tickets.len();
+            tickets.retain(|waiting| {
+                let live = runtime.scope().as_ref() == Some(&waiting.request.scope)
+                    && scope_generation() == waiting.scope_generation;
+                let status = match waiting.ticket.settlement(live) {
+                    Settlement::Pending => return true,
+                    Settlement::Landed { .. } => Some(BindingEditStatus::Saved),
+                    Settlement::Failed { message } => Some(BindingEditStatus::Failed(message)),
+                    Settlement::Retired => None,
+                };
+                if let Some(status) = status {
+                    if let Some(entry) = feedback
+                        .write()
+                        .iter_mut()
+                        .find(|entry| entry.request.request_id == waiting.request.request_id)
                     {
-                        return;
+                        entry.status = status;
                     }
-                    let choices = project_binding_choices(snapshot);
-                    // F5 invalidates its plan while the accepted edit advances
-                    // the snapshot, then publishes the replacement plan
-                    // asynchronously. Keep a successful physical encoder edit
-                    // pending until that plan settles so its own snapshot
-                    // transition is not mistaken for an input replacement.
-                    if waiting_for_electrical_plan(
-                        waiting.request.input_identity.as_ref(),
-                        current_inputs.as_ref(),
-                    ) {
-                        return;
-                    }
-                    let current = current_binding_for_request(
-                        &waiting.request,
-                        BindingReadContext {
-                            snapshot,
-                            active_layer_id: &waiting.request.active_layer_id,
-                            source: source.as_ref(),
-                            view: view.as_deref(),
-                            encoder_inputs: current_inputs.as_ref(),
-                            choices: &choices,
-                            encoder_identity_check: EncoderIdentityCheck::StableLineage,
-                        },
-                    );
-                    pending.set(None);
-                    let Some(current) = current else {
-                        feedback.set(None);
-                        return;
-                    };
-                    let acknowledged = field_value(&current.binding, waiting.request.field)
-                        == field_value(&waiting.request.binding, waiting.request.field);
-                    if acknowledged {
-                        feedback.set(Some(BindingFeedbackState {
-                            status: BindingEditStatus::Saved,
-                            failure_snapshot_token: None,
-                            ..identity
-                        }));
-                    } else {
-                        feedback.set(Some(BindingFeedbackState {
-                            status: BindingEditStatus::Failed(
-                                "The saved binding no longer matches this edit. Review the accepted value and retry.".into(),
-                            ),
-                            failure_snapshot_token: Some(snapshot.token),
-                            ..identity
-                        }));
-                    }
+                } else {
+                    feedback
+                        .write()
+                        .retain(|entry| entry.request.request_id != waiting.request.request_id);
                 }
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::PersistenceFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message)
-                | TerminalOutcome::ExecutorFailed(message) => {
-                    pending.set(None);
-                    let choices = project_binding_choices(snapshot);
-                    if current_binding_for_request(
-                        &waiting.request,
-                        BindingReadContext {
-                            snapshot,
-                            active_layer_id: &waiting.request.active_layer_id,
-                            source: source.as_ref(),
-                            view: view.as_deref(),
-                            encoder_inputs: current_inputs.as_ref(),
-                            choices: &choices,
-                            encoder_identity_check: EncoderIdentityCheck::StableLineage,
-                        },
-                    )
-                    .is_some()
-                    {
-                        feedback.set(Some(BindingFeedbackState {
-                            status: BindingEditStatus::Failed(message),
-                            failure_snapshot_token: None,
-                            ..identity
-                        }));
-                    } else {
-                        feedback.set(None);
-                    }
-                }
-                TerminalOutcome::Superseded
-                | TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed => {
-                    pending.set(None);
-                    let choices = project_binding_choices(snapshot);
-                    if current_binding_for_request(
-                        &waiting.request,
-                        BindingReadContext {
-                            snapshot,
-                            active_layer_id: &waiting.request.active_layer_id,
-                            source: source.as_ref(),
-                            view: view.as_deref(),
-                            encoder_inputs: current_inputs.as_ref(),
-                            choices: &choices,
-                            encoder_identity_check: EncoderIdentityCheck::StableLineage,
-                        },
-                    )
-                    .is_some()
-                    {
-                        feedback.set(Some(BindingFeedbackState {
-                            status: BindingEditStatus::Failed(
-                                "The binding edit did not complete in the active session.".into(),
-                            ),
-                            failure_snapshot_token: None,
-                            ..identity
-                        }));
-                    } else {
-                        feedback.set(None);
-                    }
-                }
+                false
+            });
+            if tickets.len() != before {
+                pending.set(tickets);
             }
         }
     }));
@@ -770,48 +627,38 @@ pub fn use_binding_operations(
             current_encoder_projection()
                 .is_some_and(|current| current.identity == projection.input_identity)
         });
-    // Focus follows the exact accepted display owner through Busy/Unsaved settlement.
-    // Dispatch below separately requires Saved and rejects additional pending requests.
-    let enabled = workspace() == "Keymap" && admission_current() && display_snapshot.is_some();
-    let feedback_guard = feedback.read();
-    let visible_feedback = feedback_guard.as_ref().and_then(|state| {
-        let source = source.as_ref()?;
-        let snapshot = display_snapshot.as_ref()?;
-        let choices = choices.as_deref()?;
-        let request = &state.request;
-        if request.editor_instance_id != editor_instance_id
-            || request.scope != source.scope
-            || state.scope_generation != captured_generation
-            || scope_generation() != state.scope_generation
-        {
-            return None;
-        }
-        let current_inputs = current_encoder_projection();
-        let projection = current_binding_for_request(
-            request,
-            BindingReadContext {
-                snapshot,
-                active_layer_id: &active_layer_id,
-                source: Some(source),
-                view: view.as_deref(),
-                encoder_inputs: current_inputs.as_ref(),
-                choices,
-                encoder_identity_check: EncoderIdentityCheck::StableLineage,
-            },
-        )?;
-        if request.active_layer_id != projection.effective_layer_id
-            || matches!(
-                &request.target,
-                BindingTarget::Key { key_id }
-                    if selected_key_id.as_deref() != Some(key_id.as_str())
-            )
-        {
-            return None;
-        }
-        let pending_guard = pending.read();
-        feedback_visible(state, snapshot, &projection, pending_guard.as_ref()).then_some(state)
-    });
-    let visible_feedback = visible_feedback.map(feedback_for_state);
+    let enabled = current_edit_source(
+        &runtime,
+        source.as_ref(),
+        captured_generation,
+        scope_generation,
+        workspace(),
+        admission_current.as_ref(),
+    )
+    .is_some();
+    let visible_feedback = feedback
+        .read()
+        .iter()
+        .rev()
+        .find(|state| {
+            state.request.editor_instance_id == editor_instance_id
+                && source.as_ref().map(|source| &source.scope) == Some(&state.request.scope)
+                && state.scope_generation == scope_generation()
+                && state.request.active_layer_id == active_layer_id
+                && match &state.request.target {
+                    BindingTarget::Key { key_id } => {
+                        selected_key_id.as_deref() == Some(key_id.as_str())
+                    }
+                    _ => current_encoder_projection().is_some_and(|current| {
+                        state
+                            .request
+                            .input_identity
+                            .as_ref()
+                            .is_some_and(|identity| same_input_lineage(identity, &current.identity))
+                    }),
+                }
+        })
+        .map(feedback_for_state);
 
     let on_change = EventHandler::new({
         let runtime = runtime.clone();
@@ -821,14 +668,11 @@ pub fn use_binding_operations(
         let view = view.clone();
         let current_encoder_inputs = current_encoder_projection.clone();
         let choices = choices.clone();
-        move |mut request: BindingEditRequest| {
-            if pending.read().is_some() {
-                return;
-            }
+        move |request: BindingEditRequest| {
             if request.request_id <= last_admitted_request_id() {
                 return;
             }
-            let Some(snapshot) = current_saved_source(
+            let Some(snapshot) = current_edit_source(
                 &runtime,
                 source.as_ref(),
                 captured_generation,
@@ -868,69 +712,33 @@ pub fn use_binding_operations(
                     view: view.as_deref(),
                     encoder_inputs: current_inputs.as_ref(),
                     choices,
-                    encoder_identity_check: EncoderIdentityCheck::ExactAdmission,
                 },
             ) else {
                 return;
             };
-            let Some(admission_field_value) = field_value(&current.binding, request.field) else {
-                return;
-            };
-            let Some(next_binding) =
-                apply_requested_field(&current.binding, &request.binding, request.field)
-            else {
-                return;
-            };
-            if current.binding == next_binding {
+            if apply_requested_field(&current.binding, &request.binding, request.field).is_none() {
                 return;
             }
-            request.binding = next_binding;
-
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let waiting = PendingBindingEdit {
+            let ticket = EditTicket::begin(
+                &runtime,
+                "keymap-binding",
+                Some("binding".into()),
+                binding_resolver(request.clone()),
+            );
+            pending.write().push(BindingTicket {
                 request: request.clone(),
                 scope_generation: captured_generation,
-                operation_id,
-                outcome,
-                admission_field_value,
-            };
-            let identity = feedback_for(&waiting, BindingEditStatus::Pending, None);
-            let transaction_id = format!(
-                "keymap-binding-{}-{}-{}",
-                request.editor_instance_id, request.request_id, operation_id.0
-            );
-            pending.set(Some(waiting));
-            feedback.set(Some(identity));
-            last_admitted_request_id.set(request.request_id);
-            let change = match &request.target {
-                BindingTarget::Key { key_id } | BindingTarget::EncoderPush { key_id, .. } => {
-                    KeymapChange::Binding {
-                        layer_id: request.active_layer_id.clone(),
-                        key_id: key_id.clone(),
-                        binding: request.binding,
-                    }
-                }
-                BindingTarget::EncoderRotation {
-                    encoder_id,
-                    direction,
-                } => KeymapChange::Encoder {
-                    layer_id: request.active_layer_id,
-                    encoder_id: encoder_id.clone(),
-                    direction: direction.clone(),
-                    binding: request.binding,
-                },
-            };
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id,
-                    phase: EditPhase::Commit,
-                    target_ids: vec![expected_source.scope.board_id.clone()],
-                    operation: EditOperation::EditKeymap { change },
-                },
+                ticket,
             });
+            feedback.write().retain(|entry| {
+                !(entry.request.target == request.target && entry.request.field == request.field)
+            });
+            feedback.write().push(BindingFeedbackState {
+                request: request.clone(),
+                scope_generation: captured_generation,
+                status: BindingEditStatus::Pending,
+            });
+            last_admitted_request_id.set(request.request_id);
         }
     });
 
@@ -945,7 +753,7 @@ pub fn use_binding_operations(
     }
 }
 
-fn current_saved_source(
+fn current_edit_source(
     runtime: &Runtime,
     expected_source: Option<&LayerSource>,
     expected_generation: u64,
@@ -972,8 +780,14 @@ fn current_saved_source(
             .keymap
             .as_ref()
             .is_none_or(|keymap| !keymap.layers.is_empty())
-        && model.lifecycle == Lifecycle::Ready
-        && model.durability == (Durability::Saved { revision })
+        && matches!(
+            model.lifecycle,
+            Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+        )
+        && matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
         && model.display_preview.is_none()
         && model.gesture.is_none()
         && generation() == expected_generation)
@@ -1013,7 +827,6 @@ fn current_binding_for_request(
         view,
         encoder_inputs,
         choices,
-        encoder_identity_check,
     } = context;
     if request.scope.session_epoch != snapshot.session_epoch
         || request.scope.document_id != snapshot.document.id
@@ -1056,13 +869,7 @@ fn current_binding_for_request(
             encoder_id,
             direction,
         } => {
-            if !encoder_request_matches_projection(
-                request,
-                source?,
-                encoder_inputs?,
-                snapshot,
-                encoder_identity_check,
-            ) {
+            if !encoder_request_matches_projection(request, source?, encoder_inputs?, snapshot) {
                 return None;
             }
             let encoder = encoder_inputs?
@@ -1082,13 +889,7 @@ fn current_binding_for_request(
             (format!("{} {direction_label}", encoder.label), binding)
         }
         BindingTarget::EncoderPush { encoder_id, key_id } => {
-            if !encoder_request_matches_projection(
-                request,
-                source?,
-                encoder_inputs?,
-                snapshot,
-                encoder_identity_check,
-            ) {
+            if !encoder_request_matches_projection(request, source?, encoder_inputs?, snapshot) {
                 return None;
             }
             let encoder = encoder_inputs?.encoders.iter().find(|encoder| {
@@ -1121,7 +922,6 @@ fn encoder_request_matches_projection(
     source: &LayerSource,
     inputs: &EncoderInputProjection,
     snapshot: &AcceptedSnapshot,
-    check: EncoderIdentityCheck,
 ) -> bool {
     let Some(captured) = request.input_identity.as_ref() else {
         return false;
@@ -1131,25 +931,7 @@ fn encoder_request_matches_projection(
     {
         return false;
     }
-    match check {
-        EncoderIdentityCheck::ExactAdmission => captured == &inputs.identity,
-        EncoderIdentityCheck::StableLineage => same_input_lineage(captured, &inputs.identity),
-    }
-}
-
-fn feedback_for(
-    waiting: &PendingBindingEdit,
-    status: BindingEditStatus,
-    failure_snapshot_token: Option<SnapshotToken>,
-) -> BindingFeedbackState {
-    BindingFeedbackState {
-        request: waiting.request.clone(),
-        scope_generation: waiting.scope_generation,
-        operation_id: waiting.operation_id,
-        admission_field_value: waiting.admission_field_value.clone(),
-        failure_snapshot_token,
-        status,
-    }
+    captured == &inputs.identity
 }
 
 fn feedback_for_state(state: &BindingFeedbackState) -> BindingEditFeedback {
@@ -1167,39 +949,117 @@ fn feedback_for_state(state: &BindingFeedbackState) -> BindingEditFeedback {
     }
 }
 
-fn feedback_visible(
-    state: &BindingFeedbackState,
-    snapshot: &AcceptedSnapshot,
-    projection: &BindingEditorProjection,
-    pending: Option<&PendingBindingEdit>,
-) -> bool {
-    let Some(current_value) = field_value(&projection.binding, state.request.field) else {
-        return false;
-    };
-    let requested_value = field_value(&state.request.binding, state.request.field);
-    match &state.status {
-        BindingEditStatus::Pending => pending.is_some_and(|waiting| {
-            waiting.request == state.request
-                && waiting.scope_generation == state.scope_generation
-                && waiting.operation_id == state.operation_id
-        }),
-        BindingEditStatus::Saved => {
-            snapshot.token != state.request.admission_token
-                && requested_value.as_ref() == Some(&current_value)
+fn binding_resolver(request: BindingEditRequest) -> EditResolver {
+    EditResolver::new("keymap-binding", move |accepted: &AcceptedSnapshot| {
+        if accepted.session_epoch != request.scope.session_epoch
+            || accepted.document.id != request.scope.document_id
+        {
+            return Resolution::Retire("The project is no longer open.".into());
         }
-        BindingEditStatus::Failed(_) => match state.failure_snapshot_token {
-            Some(acknowledgement_token) => {
-                snapshot.token == acknowledgement_token
-                    && requested_value.as_ref() != Some(&current_value)
+        let map = accepted.document.keymap.as_ref();
+        let layer = map.and_then(|map| {
+            map.layers
+                .iter()
+                .find(|layer| layer.id == request.active_layer_id)
+        });
+        if layer.is_none() && !(map.is_none() && request.active_layer_id == "base") {
+            return Resolution::Retire("This layer no longer exists.".into());
+        }
+        let layer_index = map
+            .and_then(|map| {
+                map.layers
+                    .iter()
+                    .position(|layer| layer.id == request.active_layer_id)
+            })
+            .unwrap_or(0);
+        let key_binding = |key: &str| {
+            binding_for_key_id(accepted, &request.scope.board_id, key, layer, layer_index)
+        };
+        let current = match &request.target {
+            BindingTarget::Key { key_id } => {
+                let view = super::view::project(
+                    accepted,
+                    Some(&request.scope),
+                    &request.scope.board_id,
+                    &request.active_layer_id,
+                );
+                if !view.is_some_and(|view| view.keys.iter().any(|key| key.id.as_ref() == key_id)) {
+                    return Resolution::Retire("This key no longer exists.".into());
+                }
+                key_binding(key_id)
             }
-            None => current_value == state.admission_field_value,
-        },
-    }
+            BindingTarget::EncoderRotation {
+                encoder_id,
+                direction,
+            } => {
+                if !boardstudio_core::electrical_peripherals::describe(
+                    &accepted.document,
+                    &request.scope.board_id,
+                )
+                .iter()
+                .any(|encoder| encoder.kind == "encoder" && encoder.part_id == *encoder_id)
+                {
+                    return Resolution::Retire("This encoder no longer exists.".into());
+                }
+                layer
+                    .and_then(|layer| layer.sensors.get(encoder_id))
+                    .map_or(KeyBinding::None, |binding| match direction {
+                        EncoderDirection::Clockwise => binding.clockwise.clone(),
+                        EncoderDirection::Counterclockwise => binding.counterclockwise.clone(),
+                    })
+            }
+            BindingTarget::EncoderPush { encoder_id, key_id } => {
+                if !boardstudio_core::electrical_peripherals::describe(
+                    &accepted.document,
+                    &request.scope.board_id,
+                )
+                .iter()
+                .any(|encoder| {
+                    encoder.part_id == *encoder_id && encoder.press_key_id.as_ref() == Some(key_id)
+                }) {
+                    return Resolution::Retire("This encoder push input no longer exists.".into());
+                }
+                key_binding(key_id)
+            }
+        };
+        let Some(binding) = apply_requested_field(&current, &request.binding, request.field) else {
+            return Resolution::Retire("This binding field is no longer available.".into());
+        };
+        if binding == current {
+            return Resolution::Unchanged;
+        }
+        let change = match &request.target {
+            BindingTarget::Key { key_id } | BindingTarget::EncoderPush { key_id, .. } => {
+                KeymapChange::Binding {
+                    layer_id: request.active_layer_id.clone(),
+                    key_id: key_id.clone(),
+                    binding,
+                }
+            }
+            BindingTarget::EncoderRotation {
+                encoder_id,
+                direction,
+            } => KeymapChange::Encoder {
+                layer_id: request.active_layer_id.clone(),
+                encoder_id: encoder_id.clone(),
+                direction: direction.clone(),
+                binding,
+            },
+        };
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![request.scope.board_id.clone()],
+            operation: EditOperation::EditKeymap { change },
+        })
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_application::SnapshotToken;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -1231,38 +1091,6 @@ mod tests {
 
         assert!(same_input_lineage(&captured, &after_own_edit));
         assert!(!same_input_lineage(&captured, &replaced_inputs));
-    }
-
-    #[wasm_bindgen_test]
-    fn completed_physical_encoder_edit_waits_for_pending_plan_then_resumes() {
-        let scope = Scope {
-            session_epoch: boardstudio_application::SessionEpoch(4),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let captured = EncoderInputIdentity {
-            scope: scope.clone(),
-            token: SnapshotToken(8),
-            revision: 12,
-            projection_generation: 21,
-            electrical_fingerprint: Some("plan".into()),
-        };
-        let mut current = EncoderInputProjection {
-            identity: EncoderInputIdentity {
-                token: SnapshotToken(9),
-                revision: 13,
-                ..captured.clone()
-            },
-            encoders: Rc::from([]),
-            electrical_plan_settled: false,
-        };
-        assert!(waiting_for_electrical_plan(Some(&captured), Some(&current)));
-        current.electrical_plan_settled = true;
-        assert!(!waiting_for_electrical_plan(
-            Some(&captured),
-            Some(&current)
-        ));
     }
 
     #[wasm_bindgen_test]

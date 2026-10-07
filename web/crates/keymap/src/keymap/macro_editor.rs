@@ -13,11 +13,7 @@ pub struct MacroReadSource {
 }
 
 impl MacroReadSource {
-    pub fn new(
-        document: Arc<ProjectDoc>,
-        token: SnapshotToken,
-        revision: u64,
-    ) -> Self {
+    pub fn new(document: Arc<ProjectDoc>, token: SnapshotToken, revision: u64) -> Self {
         Self {
             document,
             token,
@@ -210,10 +206,10 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
                     )
             })
     });
-    let feedback_text = feedback.map(|feedback| match &feedback.status {
-        MacroEditStatus::Pending => "Saving macro…".to_owned(),
-        MacroEditStatus::Saved => "Macro saved".to_owned(),
-        MacroEditStatus::Failed(message) => message.clone(),
+    let feedback_text = feedback.and_then(|feedback| match &feedback.status {
+        MacroEditStatus::Pending => None,
+        MacroEditStatus::Saved => Some("Macro saved".to_owned()),
+        MacroEditStatus::Failed(message) => Some(message.clone()),
     });
 
     let add_context = MacroRequestContext::from(&props);
@@ -246,7 +242,7 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
             }
             button {
                 r#type: "button",
-                disabled: busy || macros.len() >= 128,
+                disabled: busy || macros.len() >= 128 || super::macro_controller::action_pending(None, MacroEditTarget::AddMacro),
                 onclick: move |_| {
                     if macro_count >= 128 { return; }
                     // Entity identity is allocated by the controller; this typed request
@@ -350,17 +346,17 @@ fn MacroCard(props: MacroCardProps) -> Element {
             TextDraft {
                 label: "Name", aria_label: format!("Macro name {}", value.name),
                 accepted: value.name.clone(), max_length: Some(32), identity: format!("{:?}:{}:{}:name:{}", props.scope, props.editor_instance_id, value.id, value.name),
-                enabled: props.enabled, on_commit: EventHandler::new(name_change),
+                enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::Name), on_commit: EventHandler::new(name_change),
             }
             NumberDraft {
                 label: "Tap duration (ms)", aria_label: format!("{} tapMs", value.name),
                 accepted: value.tap_ms, identity: format!("{:?}:{}:{}:tap:{}", props.scope, props.editor_instance_id, value.id, value.tap_ms),
-                enabled: props.enabled, on_commit: EventHandler::new(tap_change),
+                enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::TapMs), on_commit: EventHandler::new(tap_change),
             }
             NumberDraft {
                 label: "Between actions (ms)", aria_label: format!("{} waitMs", value.name),
                 accepted: value.wait_ms, identity: format!("{:?}:{}:{}:wait:{}", props.scope, props.editor_instance_id, value.id, value.wait_ms),
-                enabled: props.enabled, on_commit: EventHandler::new(wait_change),
+                enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::WaitMs), on_commit: EventHandler::new(wait_change),
             }
             for (index, _) in value.steps.iter().enumerate() {
                 {
@@ -379,7 +375,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                 }
             }
             button {
-                r#type: "button", disabled: !props.enabled || !can_add_step,
+                r#type: "button", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
                 onclick: move |_| {
                     if !can_add_step { return; }
                     request(&add_context, MacroEditTarget::AddStep, Some(add_macro_id.clone()), Some(add_sequence.clone()),
@@ -387,7 +383,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                 }, "Add step"
             }
             button {
-                r#type: "button", disabled: !props.enabled,
+                r#type: "button", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
                 onclick: move |_| request(&remove_context, MacroEditTarget::RemoveMacro,
                     Some(remove_macro_id.clone()), None, MacroEditChange::Remove),
                 "Remove macro"
@@ -477,6 +473,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                 NumberDraft {
                     label: "Delay (ms)", aria_label: crate::macro_accessible_names::step_value_control_name(true).to_owned(),
                     accepted: value, identity: format!("{}:delay:{}", identity, value), enabled: props.enabled,
+                    feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::StepDelay { index }),
                     on_commit: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |ms| {
                         request(&context, MacroEditTarget::StepDelay { index }, Some(macro_id.clone()), Some(sequence.clone()),
                             MacroEditChange::Change(MacroChange::Step { index, value: MacroStep::Wait { ms } }));
@@ -486,6 +483,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                 TextDraft {
                     label: "Keycode", aria_label: crate::macro_accessible_names::step_value_control_name(false).to_owned(),
                     accepted: keycode, identity: format!("{}:keycode:{}", identity, keycode_identity), enabled: props.enabled,
+                    feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::StepKeycode { index }),
                     trim_on_commit: true,
                     // React skips an unchanged valid keycode, but blurring an
                     // unsupported legacy binding normalizes it to a key press.
@@ -503,7 +501,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                 }
             }
             button {
-                r#type: "button", disabled: !props.enabled || props.sequence.len() <= 1,
+                r#type: "button", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
                 onclick: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |_| {
                     if sequence_len <= 1 { return; }
                     request(&context, MacroEditTarget::RemoveStep { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -527,18 +525,31 @@ struct TextDraftProps {
     commit_if_unchanged: bool,
     #[props(default)]
     max_length: Option<u32>,
+    #[props(default)]
+    feedback: Option<MacroEditFeedback>,
     on_commit: EventHandler<String>,
 }
 
 #[component]
 fn TextDraft(props: TextDraftProps) -> Element {
     let mut draft = use_signal(|| props.accepted.clone());
+    let mut dirty = use_signal(|| false);
     let accepted_for_effect = props.accepted.clone();
-    use_effect(use_reactive((&props.identity, &props.accepted), {
-        let mut draft = draft;
-        move |_| draft.set(accepted_for_effect.clone())
-    }));
-    let accepted = props.accepted.clone();
+    use_effect(use_reactive(
+        (&props.identity, &props.accepted, &props.feedback),
+        {
+            let mut draft = draft;
+            move |(_, _, feedback)| {
+                if !dirty()
+                    && !feedback
+                        .as_ref()
+                        .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending))
+                {
+                    draft.set(accepted_for_effect.clone());
+                }
+            }
+        },
+    ));
     let on_commit = props.on_commit;
     let trim = props.trim_on_commit;
     let commit_if_unchanged = props.commit_if_unchanged;
@@ -546,11 +557,16 @@ fn TextDraft(props: TextDraftProps) -> Element {
         label { "{props.label}"
             input {
                 aria_label: "{props.aria_label}", maxlength: props.max_length, value: "{draft}", disabled: !props.enabled,
-                oninput: move |event| draft.set(event.value()),
+                oninput: move |event| { draft.set(event.value()); dirty.set(true); },
                 onblur: move |_| {
                     let raw = draft();
                     let value = if trim { raw.trim().to_owned() } else { raw };
-                    if value != accepted || commit_if_unchanged { on_commit.call(value); }
+                    if dirty() || commit_if_unchanged { dirty.set(false); on_commit.call(value); }
+                }
+            }
+            if !dirty() {
+                if let Some(MacroEditFeedback { status: MacroEditStatus::Failed(message), .. }) = props.feedback.as_ref() {
+                    small { role: "alert", "{message}" }
                 }
             }
         }
@@ -564,29 +580,47 @@ struct NumberDraftProps {
     accepted: u32,
     identity: String,
     enabled: bool,
+    #[props(default)]
+    feedback: Option<MacroEditFeedback>,
     on_commit: EventHandler<u32>,
 }
 
 #[component]
 fn NumberDraft(props: NumberDraftProps) -> Element {
     let mut draft = use_signal(|| props.accepted.to_string());
+    let mut dirty = use_signal(|| false);
     let accepted_for_effect = props.accepted;
-    use_effect(use_reactive((&props.identity, &props.accepted), {
-        let mut draft = draft;
-        move |_| draft.set(accepted_for_effect.to_string())
-    }));
-    let accepted = props.accepted;
+    use_effect(use_reactive(
+        (&props.identity, &props.accepted, &props.feedback),
+        {
+            let mut draft = draft;
+            move |(_, _, feedback)| {
+                if !dirty()
+                    && !feedback
+                        .as_ref()
+                        .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending))
+                {
+                    draft.set(accepted_for_effect.to_string());
+                }
+            }
+        },
+    ));
     let on_commit = props.on_commit;
     rsx! {
         label { "{props.label}"
             input {
                 aria_label: "{props.aria_label}", r#type: "number", min: "0", max: "10000",
                 value: "{draft}", disabled: !props.enabled,
-                oninput: move |event| draft.set(event.value()),
+                oninput: move |event| { draft.set(event.value()); dirty.set(true); },
                 onblur: move |_| {
                     let raw = draft();
                     let parsed = if raw.is_empty() { Some(0) } else { raw.parse::<u32>().ok() };
-                    if let Some(value) = parsed && value != accepted { on_commit.call(value); }
+                    if let Some(value) = parsed && dirty() { dirty.set(false); on_commit.call(value); }
+                }
+            }
+            if !dirty() {
+                if let Some(MacroEditFeedback { status: MacroEditStatus::Failed(message), .. }) = props.feedback.as_ref() {
+                    small { role: "alert", "{message}" }
                 }
             }
         }

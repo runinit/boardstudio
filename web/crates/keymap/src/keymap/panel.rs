@@ -72,8 +72,7 @@ pub fn KeymapPanel(
     let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
     let key_count = view.keys.len();
-    let layer_controls_key =
-        active_layer.map(|layer| format!("{:?}:{}:{}", scope, layer.id, layer.name));
+    let layer_controls_key = active_layer.map(|layer| format!("{:?}:{}", scope, layer.id));
 
     rsx! {
         section { class: "m1-keymap-panel", "aria-label": "Keymap",
@@ -257,11 +256,24 @@ struct KeymapLayerControlsProps {
 #[component]
 fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
     let mut name_draft = use_signal(|| props.layer_name.clone());
-    let add_disabled = !props.enabled || props.layer_count >= 32;
-    let remove_disabled = !props.enabled || props.is_base;
+    let mut dirty = use_signal(|| false);
+    use_effect(use_reactive(
+        (&props.layer_name, &props.feedback),
+        move |(name, feedback)| {
+            if !dirty() && !matches!(feedback, Some(KeymapLayerFeedback::Pending)) {
+                name_draft.set(name);
+            }
+        },
+    ));
+    let add_disabled = !props.enabled
+        || props.layer_count >= 32
+        || super::layer_controller::action_pending(&KeymapLayerOperation::Add);
+    let remove_disabled = !props.enabled
+        || props.is_base
+        || super::layer_controller::action_pending(&KeymapLayerOperation::Remove {
+            layer_id: props.layer_id.clone(),
+        });
     let layer_id = props.layer_id.clone();
-    let accepted_name = props.layer_name.clone();
-    let feedback_pending = matches!(props.feedback.as_ref(), Some(KeymapLayerFeedback::Pending));
     let feedback_saved = matches!(props.feedback.as_ref(), Some(KeymapLayerFeedback::Saved));
     let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
         KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
@@ -284,15 +296,15 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                     maxlength: 32,
                     value: "{name_draft}",
                     disabled: !props.enabled,
-                    oninput: move |event: FormEvent| name_draft.set(event.value()),
+                    oninput: move |event: FormEvent| { name_draft.set(event.value()); dirty.set(true); },
                     onblur: {
                         let name_draft = name_draft;
                         let on_operation = props.on_operation;
                         let layer_id = layer_id.clone();
-                        let accepted_name = accepted_name.clone();
                         move |_| {
                             let name = name_draft();
-                            if name != accepted_name && props.enabled {
+                            if dirty() && props.enabled {
+                                dirty.set(false);
                                 on_operation.call(KeymapLayerOperation::Rename {
                                     layer_id: layer_id.clone(),
                                     name,
@@ -319,7 +331,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
             if !props.enabled && props.feedback.is_none() {
                 p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
-            if feedback_pending { p { role: "status", "Saving layer changes…" } }
+
             if feedback_saved { p { role: "status", "Layer changes saved." } }
             if let Some(message) = feedback_error { p { role: "alert", "{message}" } }
         }

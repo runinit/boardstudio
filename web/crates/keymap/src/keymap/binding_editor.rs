@@ -562,6 +562,7 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                             accepted_value: accepted_value.to_string(),
                             datalist_id: datalist_id.clone(),
                             error: code_error.clone(),
+                            pending: feedback.is_some_and(|feedback| feedback.field == field && matches!(feedback.status, BindingEditStatus::Pending)),
                             disabled,
                         }
                     }
@@ -697,33 +698,30 @@ struct KeycodeFieldProps {
     accepted_value: String,
     datalist_id: String,
     error: Option<String>,
+    pending: bool,
     disabled: bool,
-}
-
-fn code_draft_failure_visible(draft: &str, accepted_value: &str) -> bool {
-    draft.trim() != accepted_value
 }
 
 #[component]
 fn KeycodeField(props: KeycodeFieldProps) -> Element {
     let mut draft = use_signal(|| props.accepted_value.clone());
-    let accepted_for_effect = props.accepted_value.clone();
-    use_effect(use_reactive(&props.accepted_value, {
-        let mut draft = draft;
-        move |_| draft.set(accepted_for_effect.clone())
-    }));
+    let mut dirty = use_signal(|| false);
+    use_effect(use_reactive(
+        (&props.accepted_value, &props.pending, &props.error),
+        move |(accepted, pending, _)| {
+            if !dirty() && !pending {
+                draft.set(accepted);
+            }
+        },
+    ));
     let mut request_sequence = props.request_sequence;
     let context = props.context.clone();
     let binding = props.binding.clone();
     let field = props.field;
-    let accepted_value = props.accepted_value.clone();
     let on_change = props.on_change;
     let request_field = field;
     let datalist_id = props.datalist_id.clone();
-    let show_error = props
-        .error
-        .as_ref()
-        .is_some_and(|_| code_draft_failure_visible(&draft(), &props.accepted_value));
+    let show_error = !dirty() && props.error.is_some();
 
     rsx! {
         label { class: "m1-keymap-binding-field", "{props.field_label}"
@@ -735,11 +733,12 @@ fn KeycodeField(props: KeycodeFieldProps) -> Element {
                 "aria-invalid": "{show_error}",
                 value: "{draft}",
                 disabled: props.disabled,
-                oninput: move |event: FormEvent| draft.set(event.value()),
+                oninput: move |event: FormEvent| { dirty.set(true); draft.set(event.value()); },
                 onblur: move |_| {
                     let next = draft().trim().to_owned();
-                    if next != accepted_value
+                    if dirty()
                         && let Some(binding) = with_keycode(&binding, if request_field == BindingField::Tap { "tap" } else { "keycode" }, next) {
+                            dirty.set(false);
                             emit_change(
                                 &context,
                                 &mut request_sequence,
@@ -846,12 +845,5 @@ mod tests {
             }
         );
         assert_ne!(KeyBinding::Transparent, KeyBinding::None);
-    }
-
-    #[wasm_bindgen_test]
-    fn accepted_value_reversion_hides_a_stale_code_error_without_a_request() {
-        assert!(!code_draft_failure_visible("A", "A"));
-        assert!(!code_draft_failure_visible(" A ", "A"));
-        assert!(code_draft_failure_visible("LC(A)", "A"));
     }
 }
