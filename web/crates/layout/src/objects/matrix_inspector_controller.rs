@@ -2718,7 +2718,90 @@ mod tests {
         use super::super::*;
         use crate::presentation::objects::matrix_edit_test_support as fixture;
         use crate::runtime::project_name_test_support as support;
+        use wasm_bindgen::JsCast;
         use wasm_bindgen_test::wasm_bindgen_test;
+
+        #[derive(Clone)]
+        struct MountedMatrixInspectorProbe {
+            runtime: Rc<Runtime>,
+            scope: Scope,
+            selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
+            version: Rc<RefCell<Option<Signal<u64>>>>,
+        }
+
+        fn mounted_matrix_inspector_host() -> Element {
+            let probe = use_context::<MountedMatrixInspectorProbe>();
+            let version = use_signal(|| 0u64);
+            let workspace = use_signal(|| "Layout");
+            let generation = use_signal(|| 1u64);
+            let selected = use_signal(|| {
+                Some(ScopedTreeContext {
+                    scope: probe.scope.clone(),
+                    context: TreeContext::Matrix {
+                        matrix_id: fixture::MATRIX_ID.into(),
+                    },
+                })
+            });
+            *probe.selected_context.borrow_mut() = Some(selected);
+            *probe.version.borrow_mut() = Some(version);
+            let mount = use_matrix_inspector(
+                probe.runtime.clone(),
+                version,
+                selected,
+                workspace,
+                generation,
+            );
+            let Some(projection) = mount.projection else {
+                return rsx! {};
+            };
+            rsx! {
+                crate::presentation::objects::MatrixInspector {
+                    projection,
+                    request_sequence: mount.request_sequence,
+                    editable: mount.editable,
+                    busy: mount.busy,
+                    feedback: mount.feedback,
+                    on_edit: mount.on_edit,
+                    on_apply_preset: mount.on_apply_preset,
+                    on_delete: mount.on_delete,
+                    on_unlink: mount.on_unlink,
+                    on_duplicate: mount.on_duplicate,
+                }
+            }
+        }
+
+        async fn mount_matrix_inspector(
+            runtime: Rc<Runtime>,
+        ) -> (MountedMatrixInspectorProbe, web_sys::Element) {
+            let scope = runtime.scope().expect("matrix fixture has active scope");
+            let probe = MountedMatrixInspectorProbe {
+                runtime,
+                scope,
+                selected_context: Rc::default(),
+                version: Rc::default(),
+            };
+            let document = web_sys::window().unwrap().document().unwrap();
+            let root = document.create_element("div").unwrap();
+            root.set_id("matrix-action-mounted-test");
+            document.body().unwrap().append_child(&root).unwrap();
+            let dom = VirtualDom::new(mounted_matrix_inspector_host);
+            dom.provide_root_context(probe.clone());
+            dioxus_web::launch::launch_virtual_dom(
+                dom,
+                dioxus_web::Config::new().rootnode(root.clone().into()),
+            );
+            gloo_timers::future::TimeoutFuture::new(40).await;
+            (probe, root)
+        }
+
+        fn button_named(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
+            let buttons = root.query_selector_all("button").unwrap();
+            (0..buttons.length())
+                .filter_map(|index| buttons.item(index))
+                .filter_map(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+                .find(|button| button.text_content().as_deref() == Some(name))
+                .unwrap_or_else(|| panic!("mounted Matrix Inspector has {name:?} button"))
+        }
 
         async fn settle_action(
             runtime: &Rc<Runtime>,
@@ -2880,6 +2963,53 @@ mod tests {
                     ..
                 }]
             ));
+        }
+
+        #[wasm_bindgen_test]
+        async fn mounted_delete_stays_disabled_until_saved_then_clears_its_exact_selection() {
+            let runtime = fixture::open_matrix_runtime().await;
+            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+
+            button_named(&root, "Delete matrix").click();
+            support::drive_pending(&runtime);
+            entered.await.expect("the mounted delete reached Core");
+            gloo_timers::future::TimeoutFuture::new(35).await;
+            assert!(
+                button_named(&root, "Delete matrix").has_attribute("disabled"),
+                "the production Matrix action stays disabled while its Core request is held"
+            );
+
+            release.send(()).expect("release the held delete");
+            support::run_pending(&runtime).await;
+            let mut version = probe
+                .version
+                .borrow()
+                .as_ref()
+                .copied()
+                .expect("mounted version signal");
+            version.set(version() + 1);
+            gloo_timers::future::TimeoutFuture::new(35).await;
+            support::run_pending(&runtime).await;
+
+            assert!(
+                probe
+                    .selected_context
+                    .borrow()
+                    .as_ref()
+                    .copied()
+                    .expect("mounted selection signal")
+                    .read()
+                    .is_none(),
+                "the landed delete clears only its captured selected matrix context"
+            );
+            assert!(
+                runtime
+                    .model()
+                    .accepted
+                    .is_some_and(|snapshot| snapshot.document.matrices.is_empty()),
+                "the matrix was removed by the real Core edit"
+            );
         }
     }
 }
