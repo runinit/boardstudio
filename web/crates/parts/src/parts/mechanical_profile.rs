@@ -327,15 +327,18 @@ fn infer_switch_family(definition: &PartDefinition) -> Option<MechanicalSwitchFa
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(target_arch = "wasm32"))]
     use boardstudio_application::{
         AcceptedSnapshot, EditResolver, Event, OperationId, Resolution, TerminalOutcome,
     };
-    use boardstudio_core::model::{
-        EditOperation, EditPhase, MechanicalPartProfile, MechanicalProfileSource, PartDefinition,
-    };
+    #[cfg(not(target_arch = "wasm32"))]
+    use boardstudio_core::model::{EditOperation, EditPhase};
+    use boardstudio_core::model::{MechanicalPartProfile, MechanicalProfileSource, PartDefinition};
     use boardstudio_core::model::{ProjectDoc, Vec2};
+    #[cfg(not(target_arch = "wasm32"))]
     use std::rc::Rc;
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn fixed_commit(
         operation_id: OperationId,
         command: boardstudio_core::model::EditCommand,
@@ -384,6 +387,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn document(definitions: Vec<PartDefinition>) -> ProjectDoc {
         let mut document = ProjectDoc::empty("parts-fit", "Parts fit fixture");
         document.definitions = definitions;
@@ -405,6 +409,7 @@ mod tests {
         runtime.model().accepted.clone().expect("open accepted")
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn edit_owner(
         snapshot: &AcceptedSnapshot,
         scope: Option<Scope>,

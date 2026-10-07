@@ -2018,6 +2018,18 @@ mod tests {
     async fn hook_mounted() -> (HookProbe, VirtualDom) {
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::open_document(&runtime, fixture()).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::Ready);
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .as_ref()
+                .expect("open fixture is accepted")
+                .document
+                .boards
+                .len(),
+            1
+        );
         let probe = HookProbe {
             runtime,
             canvas_interaction: CanvasInteractionArbiter::default(),
@@ -2052,17 +2064,32 @@ mod tests {
     }
 
     async fn replace_accepted_document(probe: &HookProbe, document: ProjectDoc) {
+        let expected_board_ids: Vec<_> = document
+            .boards
+            .iter()
+            .map(|board| board.id.clone())
+            .collect();
         let transaction_id = format!(
             "part-placement-test-replacement-{}",
             probe.runtime.model().accepted.unwrap().document.revision
         );
-        crate::runtime::project_name_test_support::replace_document(
+        let accepted = crate::runtime::project_name_test_support::replace_document(
             &probe.runtime,
             &transaction_id,
             "board-main",
             document,
         )
         .await;
+        let actual_board_ids: Vec<_> = accepted
+            .document
+            .boards
+            .iter()
+            .map(|board| board.id.clone())
+            .collect();
+        assert_eq!(
+            actual_board_ids, expected_board_ids,
+            "replacement must land"
+        );
     }
 
     fn flush_hook(dom: &mut VirtualDom) {
@@ -2080,6 +2107,18 @@ mod tests {
 
     async fn let_hook_tasks_run() {
         gloo_timers::future::TimeoutFuture::new(20).await;
+    }
+
+    async fn wait_for_outcome(
+        outcome: &boardstudio_web_runtime::operation_outcomes::OutcomeSlot,
+    ) -> TerminalOutcome {
+        for _ in 0..100 {
+            if let Some(outcome) = outcome.borrow().clone() {
+                return outcome;
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        panic!("runtime did not settle the observed operation");
     }
 
     async fn run_pending_runtime(probe: &HookProbe) {
@@ -2776,8 +2815,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn production_hook_routes_persistence_failure_back_but_terminal_cancel_does_not_redirect()
-    {
+    async fn production_hook_routes_persistence_failure_but_close_drains_pending_save() {
         for fail_save in [true, false] {
             let (probe, mut dom) = hook_mounted().await;
             let active = start_hook_placement(&probe, &mut dom).await;
@@ -2811,10 +2849,10 @@ mod tests {
                 Some(if fail_save {
                     TerminalOutcome::PersistenceFailed("disk full".into())
                 } else {
-                    TerminalOutcome::Cancelled
+                    TerminalOutcome::Completed
                 })
             );
-            let expected_workspace = if fail_save { "Parts" } else { "Layout" };
+            let expected_workspace = if fail_save { "Parts" } else { "PCB" };
             assert_eq!(workspace(&probe), expected_workspace);
             let error = probe.latest.borrow().as_ref().unwrap().error.clone();
             assert_eq!(
@@ -2840,14 +2878,23 @@ mod tests {
                 document.boards.push(Board {
                     id: "board-other".into(),
                     name: "Other".into(),
-                    outline_ids: vec!["envelope-main".into()],
+                    outline_ids: vec!["envelope-other".into()],
                     part_ids: vec![],
                     net_ids: vec![],
                     thickness: 1.6,
                     traces: vec![],
                     vias: vec![],
                 });
+                document.outline.push(OutlineFeature::PartEnvelope {
+                    connections: vec![],
+                    settings: OutlineSettings::default(),
+                    id: "envelope-other".into(),
+                    part_ids: vec![],
+                    margin: 4.0,
+                    operation: boardstudio_core::model::Operation::Add,
+                });
                 replace_accepted_document(&probe, document).await;
+                flush_hook(&mut dom);
             }
             let active = start_hook_placement(&probe, &mut dom).await;
             let (entered, release) =
@@ -2856,20 +2903,37 @@ mod tests {
             active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
             start_pending_runtime(&probe);
             entered.await.expect("save reaches persistence gate");
+            let mut open_outcome = None;
             if stale_identity == "board" {
                 crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other")
                     .await;
             } else {
-                crate::runtime::project_name_test_support::open_document(
+                let open_operation = probe.runtime.operation();
+                open_outcome = Some(crate::runtime::project_name_test_support::observe(
                     &probe.runtime,
-                    ProjectDoc::empty("replacement-project", "Replacement"),
-                )
-                .await;
+                    open_operation,
+                ));
+                probe.runtime.submit(Event::Open {
+                    operation_id: open_operation,
+                    document: ProjectDoc::empty("replacement-project", "Replacement"),
+                });
+                // Event::Open queues behind the held save in this Session. Keep that Session
+                // alive so its active placement and queued project replacement both settle.
             }
             let _ = release.send(());
-            let_hook_tasks_run().await;
+            assert_eq!(
+                wait_for_outcome(&outcome).await,
+                TerminalOutcome::Completed,
+                "stale {stale_identity} placement should finish saving"
+            );
+            if let Some(open_outcome) = open_outcome {
+                assert_eq!(
+                    wait_for_outcome(&open_outcome).await,
+                    TerminalOutcome::Completed,
+                    "queued project open should complete after the save"
+                );
+            }
             flush_hook(&mut dom);
-            assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
             assert_eq!(
                 workspace(&probe),
                 "Layout",
@@ -2910,54 +2974,59 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn production_hook_suppresses_actionable_failure_after_board_or_project_switch() {
-        for stale_identity in ["board", "project"] {
-            let (probe, mut dom) = hook_mounted().await;
-            if stale_identity == "board" {
-                let mut document = accepted_document(&probe);
-                document.boards.push(Board {
-                    id: "board-other".into(),
-                    name: "Other".into(),
-                    outline_ids: vec!["envelope-main".into()],
-                    part_ids: vec![],
-                    net_ids: vec![],
-                    thickness: 1.6,
-                    traces: vec![],
-                    vias: vec![],
-                });
-                replace_accepted_document(&probe, document).await;
-            }
-            let active = start_hook_placement(&probe, &mut dom).await;
-            crate::runtime::project_name_test_support::fail_next_persist(
-                &probe.runtime,
-                format!("stale {stale_identity}"),
-            );
-            let outcome = observe_next_operation(&probe);
-            active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
-            if stale_identity == "board" {
-                crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other")
-                    .await;
-            } else {
-                crate::runtime::project_name_test_support::open_document(
-                    &probe.runtime,
-                    ProjectDoc::empty("replacement-project", "Replacement"),
-                )
-                .await;
-            }
-            let_hook_tasks_run().await;
-            flush_hook(&mut dom);
-            assert_eq!(workspace(&probe), "Layout");
-            assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
-            assert_eq!(
-                *outcome.borrow(),
-                Some(TerminalOutcome::PersistenceFailed(format!(
-                    "stale {stale_identity}"
-                )))
-            );
-            assert!(
-                probe.runtime.model().selected_part_ids.is_empty(),
-                "stale {stale_identity} failure submitted a new selection"
-            );
-        }
+        let (probe, mut dom) = hook_mounted().await;
+        let mut replacement = accepted_document(&probe);
+        replacement.boards.push(Board {
+            id: "board-other".into(),
+            name: "Other".into(),
+            outline_ids: vec!["envelope-other".into()],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        replacement.outline.push(OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: OutlineSettings::default(),
+            id: "envelope-other".into(),
+            part_ids: vec![],
+            margin: 4.0,
+            operation: boardstudio_core::model::Operation::Add,
+        });
+        replace_accepted_document(&probe, replacement).await;
+        flush_hook(&mut dom);
+
+        let active = start_hook_placement(&probe, &mut dom).await;
+        let (entered, release) =
+            crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        let outcome = observe_next_operation(&probe);
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        start_pending_runtime(&probe);
+        entered.await.expect("Core reply reaches its gate");
+
+        // Navigate while the real Core operation is pending. Session updates the active board
+        // scope immediately; the held edit can still finish, then fail persistence.
+        crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other").await;
+        crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "stale board");
+        let _ = release.send(());
+        let_hook_tasks_run().await;
+        assert_eq!(
+            *outcome.borrow(),
+            Some(TerminalOutcome::PersistenceFailed("stale board".into()))
+        );
+        assert_eq!(probe.runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        flush_hook(&mut dom);
+        assert_eq!(workspace(&probe), "Layout");
+        assert_eq!(probe.latest.borrow().as_ref().unwrap().error, None);
+        assert_eq!(
+            *outcome.borrow(),
+            Some(TerminalOutcome::PersistenceFailed("stale board".into()))
+        );
+        assert!(
+            probe.runtime.model().selected_part_ids.is_empty(),
+            "stale board failure submitted a new selection"
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -3214,7 +3283,7 @@ mod tests {
         assert_eq!(cell.offset, Some(Vec2 { x: 0.5, y: -0.5 }));
         assert_eq!(cell.rotation, Some(12.0));
         assert_eq!(cell.assemblies_local, Some(true));
-        assert_eq!(cell.assemblies[0].id, "library-imported:reset-switch-1");
+        assert_eq!(cell.assemblies[0].id, "library-imported-reset-switch-1");
         assert_eq!(accepted, original);
 
         let operation = selected_key_component_operation(

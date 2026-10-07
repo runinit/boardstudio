@@ -1,6 +1,6 @@
 //! Private transform selection-retention policy, shared by the mounted controller
 //! and native regressions. Draft merging remains field-local in the inspector.
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 use boardstudio_application::SnapshotToken;
 
 #[derive(Default)]

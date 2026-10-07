@@ -3,11 +3,8 @@
 extern crate self as gloo_timers;
 extern crate self as wasm_bindgen_futures;
 
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, ReadModel, Scope, SessionEpoch,
-    SnapshotToken,
-};
-use boardstudio_core::model::{ProjectDoc, SceneDelta};
+use boardstudio_application::{Event, OperationId};
+use boardstudio_core::model::{Board, ProjectDoc};
 use std::{
     cell::{Cell, RefCell},
     future::Future,
@@ -16,10 +13,8 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-#[path = "../src/matrix_setup_operation.rs"]
+#[path = "../crates/catalogue/src/matrix_setup_operation.rs"]
 mod matrix_setup_operation;
-#[path = "../crates/runtime/src/operation_outcomes.rs"]
-mod operation_outcomes;
 #[path = "support/matrix_setup_presentation.rs"]
 mod presentation;
 
@@ -59,66 +54,37 @@ pub mod future {
 }
 
 thread_local! { static TEMPLATES: RefCell<Option<Result<Vec<boardstudio_core::model::PartDefinition>, String>>> = const { RefCell::new(None) }; }
-mod runtime {
-    use super::*;
-    pub struct Runtime {
-        pub model: RefCell<ReadModel>,
-        pub events: RefCell<Vec<Event>>,
-        pub outcomes: operation_outcomes::OperationOutcomes,
-        next: Cell<u64>,
+use boardstudio_web_runtime::runtime;
+
+fn document(id: &str, revision: u64, with_instance: bool) -> ProjectDoc {
+    let mut document = ProjectDoc::empty(id, id);
+    document.revision = revision;
+    document.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    if with_instance {
+        document.hardware = Some(
+            serde_json::from_value(serde_json::json!({"instances":[{
+                "id":"primary", "name":"Primary", "boardId":"board", "half":"single", "role":"standalone", "flipped":false, "constructionLinked":false
+            }]}))
+            .unwrap(),
+        );
     }
-    impl Runtime {
-        pub fn new() -> Rc<Self> {
-            Rc::new(Self {
-                model: RefCell::new(model("A", 1, 10)),
-                events: RefCell::default(),
-                outcomes: Default::default(),
-                next: Cell::new(10),
-            })
-        }
-        pub fn model(&self) -> ReadModel {
-            self.model.borrow().clone()
-        }
-        pub fn scope(&self) -> Option<Scope> {
-            let model = self.model();
-            let accepted = model.accepted?;
-            Some(Scope {
-                session_epoch: accepted.session_epoch,
-                document_id: accepted.document.id.clone(),
-                board_id: model.active_board_id,
-                instance_id: model.active_instance_id,
-            })
-        }
-        pub fn operation(&self) -> OperationId {
-            let next = self.next.get();
-            self.next.set(next + 1);
-            OperationId(next)
-        }
-        pub fn observe_operation(&self, id: OperationId) -> operation_outcomes::OutcomeSlot {
-            self.outcomes.observe(id)
-        }
-        pub fn submit(&self, event: Event) {
-            self.events.borrow_mut().push(event);
-        }
-    }
-    pub fn model(id: &str, token: u64, revision: u64) -> ReadModel {
-        let mut document = ProjectDoc::empty(id, id);
-        document.revision = revision;
-        document.boards.push(serde_json::from_value(serde_json::json!({ "id":"board", "name":"Board", "outlineIds":[], "partIds":[], "netIds":[], "thickness":1.6, "traces":[], "vias":[] })).unwrap());
-        let scene: SceneDelta=serde_json::from_value(serde_json::json!({ "revision":revision,"transactionId":"fixture","changedIds":[],"transforms":[],"matrixScenes":[],"contours":[],"boardContours":[],"boardReadiness":[],"findings":[], "readiness":{"layout":true,"outline":true,"pcb":true,"case":false} })).unwrap();
-        ReadModel {
-            lifecycle: Lifecycle::Ready,
-            durability: Durability::Saved { revision },
-            active_board_id: "board".into(),
-            accepted: Some(AcceptedSnapshot {
-                session_epoch: SessionEpoch(1),
-                token: SnapshotToken(token),
-                document: std::sync::Arc::new(document),
-                scene: std::sync::Arc::new(scene),
-            }),
-            ..Default::default()
-        }
-    }
+    document
+}
+
+fn open_document(runtime: &runtime::Runtime, id: &str, revision: u64, with_instance: bool) {
+    runtime.submit(Event::Open {
+        operation_id: runtime.operation(),
+        document: document(id, revision, with_instance),
+    });
 }
 
 use boardstudio_core::model::{PartDefinition, PartGenerator, PartKind};
