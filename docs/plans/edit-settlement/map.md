@@ -95,6 +95,11 @@ until ticket 15 merges and ticket 17 completes; they do not resolve those ticket
   Undo are covered, while electrical remap stays strict:
   [issues/14-pcb-wiring-modules-physical-setup.md](issues/14-pcb-wiring-modules-physical-setup.md).
 
+- 15 Remaining Parts actions resolve against accepted state and settle through edit
+  tickets; exact post-landing selection, queued profiles/models and generator
+  upload/Apply races are covered:
+  [issues/15-parts-remainder.md](issues/15-parts-remainder.md).
+
 ## Not yet specified
 
 Nothing. The cluster migrations are now tickets, sliced from the

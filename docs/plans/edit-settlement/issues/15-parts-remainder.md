@@ -1,6 +1,6 @@
 # 15: Remaining Parts actions land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06, 07
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -93,12 +93,12 @@ line numbers at `3368825`, orientation only):
 
 ## Acceptance criteria
 
-- [ ] Rapid test: mechanical profile save queued behind a custom-definition field edit keeps the field edit.
-- [ ] Rapid test: generator Apply queued behind a definition rename keeps the rename.
-- [ ] Editing a model on a definition deleted before execution retires with a reason.
-- [ ] Create, import and assembly-place still select what they created after landing.
-- [ ] All listed `Pending*` structs and heuristics are gone; no action sends `Event::Edit` commits directly.
-- [ ] One-shot controls are disabled while pending; field edits are not.
+- [x] Rapid test: mechanical profile save queued behind a custom-definition field edit keeps the field edit.
+- [x] Rapid test: generator Apply queued behind a definition rename keeps the rename.
+- [x] Editing a model on a definition deleted before execution retires with a reason.
+- [x] Create, import and assembly-place still select what they created after landing.
+- [x] All listed `Pending*` structs and heuristics are gone; no action sends `Event::Edit` commits directly.
+- [x] One-shot controls are disabled while pending; field edits are not.
 
 ## Verification
 
@@ -119,3 +119,41 @@ wasm-pack test --headless --chrome web/crates/parts --locked --lib
 and four partial uncommitted files in `edit-settlement-agent-a`. Their patch was
 preserved and carried into `edit-settlement-b`; the original worktree is untouched.
 Complete this ticket and its checks/review before ticket 17.
+
+## Outcome
+
+Completed in `96313b44`, `bc610b41`, `6beba848` and `0dc767b9` after the user
+confirmed takeover of the unfinished parallel worktree. Its four partial files
+were preserved; that worktree was not changed.
+
+All listed actions now submit pure accepted-state resolvers through `EditTicket`.
+Field edits queue freely; one-shot controls track their own tickets. Owner guards
+retire stale callbacks. Create/import/assembly placement select only their exact
+accepted result after landing; assembly saves retain the exact existing identity.
+Mechanical and module profiles preserve queued field intent, including returning a
+value to its original setting. Generator Apply tracks explicitly edited keys,
+preserves queued uploads, and regenerates final geometry through Core. Uploads
+refresh filename and model preview without discarding unrelated typing. Apply
+failure restores accepted fields and invalidates late previews.
+
+Verification:
+
+- Parts browser suite: **50 passed**, including mounted create/import/placement,
+  queued model axes and Undo, generator upload/Apply races and failed settlement.
+- Expected RED regressions were confirmed for lost queued generator metadata,
+  erased model typing, explicit value reversal, wrong assembly follow-up identity,
+  upload/default conflicts and failed-Apply draft retention; corresponding fixes
+  passed. The final generator subset passed **10 tests**.
+- `check.py repo typecheck`, WASM test ownership and documentation links passed.
+- `check.py test` passed the Rust workspace suites (including Parts **37**, Runtime
+  **102**, Application **29**) and footprint tests, then hit the existing nested
+  CAD workspace discovery problem. In an isolated checkout, CAD reached **49
+  passed, 1 failed, 4 ignored**. The failed gasket-volume fixture reproduced with
+  identical values on pre-ticket `dev` (`d6f6c7b74`): expected `80481.2399`, actual
+  `80579.55733514718`. This is a pre-existing verification limitation, not a Parts
+  regression; no unrelated CAD changes were made.
+- Astra high reviews covered Standards and Spec separately; actionable findings
+  were fixed and reviewed again.
+
+No product decision was taken for tickets 18 or 19. Ticket 17 can now refresh the
+cleanup and remaining replacement-resolver inventory against this implementation.
