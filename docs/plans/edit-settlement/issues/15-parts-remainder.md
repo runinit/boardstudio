@@ -1,6 +1,6 @@
 # 15: Remaining Parts actions land through resolution
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 06, 07
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
