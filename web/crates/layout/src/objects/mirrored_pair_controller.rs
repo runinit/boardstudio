@@ -13,7 +13,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Layout};
+use boardstudio_core::model::{EditOperation, Layout};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -59,23 +59,20 @@ fn mirrored_pair_resolver(
                     "The mirrored pair's identity is already in use.".into(),
                 );
             }
-            Resolution::Submit(EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![
+            Resolution::submit(
+                vec![
                     matrix.id.clone(),
                     right_matrix_id.clone(),
                     left.id.clone(),
                     right.id.clone(),
                 ],
-                operation: EditOperation::CreateMirroredPair {
+                EditOperation::CreateMirroredPair {
                     left: left.clone(),
                     right: right.clone(),
                     matrix: Box::new(matrix.clone()),
                     definitions: Some(definitions.clone()),
                 },
-            })
+            )
         },
     )
 }

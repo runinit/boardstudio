@@ -12,7 +12,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Matrix, PartDefinition};
+use boardstudio_core::model::{EditOperation, Matrix, PartDefinition};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -59,16 +59,13 @@ fn place_matrix_resolver(matrix: Matrix, definitions: Vec<PartDefinition>) -> Ed
                 })
                 .cloned()
                 .collect();
-            Resolution::Submit(EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix.id.clone()],
-                operation: EditOperation::SetMatrix {
+            Resolution::submit(
+                vec![matrix.id.clone()],
+                EditOperation::SetMatrix {
                     matrix: matrix.clone(),
                     definitions: Some(required),
                 },
-            })
+            )
         },
     )
 }

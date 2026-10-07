@@ -3,7 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, PressScanMode};
+use boardstudio_core::model::{EditOperation, PressScanMode};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use serde_json::Value;
@@ -381,11 +381,6 @@ fn input_resolver(
 ) -> EditResolver {
     EditResolver::new("pcb-part-settings", move |accepted: &AcceptedSnapshot| {
         let identity = &request.identity;
-        if accepted.session_epoch != identity.ui_scope.session_epoch
-            || accepted.document.id != identity.ui_scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         let Some(projection) = project(&accepted.document, &identity.board_id, &identity.part_id)
         else {
             return Resolution::Retire(
@@ -511,13 +506,7 @@ fn input_resolver(
                 }
             }
         };
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![identity.part_id.clone()],
-            operation,
-        })
+        Resolution::submit(vec![identity.part_id.clone()], operation)
     })
 }
 

@@ -3,21 +3,18 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Finding, Script, Severity};
+use boardstudio_core::model::{EditOperation, Finding, Script, Severity};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
 fn script_commit(document: boardstudio_core::model::ProjectDoc, script_id: &str) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids: vec![script_id.to_owned()],
-        operation: EditOperation::ReplaceDocument {
+    Resolution::submit(
+        vec![script_id.to_owned()],
+        EditOperation::ReplaceDocument {
             document: Box::new(document),
         },
-    })
+    )
 }
 
 /// Resolve "+ New script": the script is appended to the accepted document when the edit
@@ -354,7 +351,7 @@ fn severity_label(severity: &Severity) -> &'static str {
 mod queued_script_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_core::model::{Board, EditCommand, EditPhase, ProjectDoc};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

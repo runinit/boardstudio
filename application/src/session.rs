@@ -188,6 +188,35 @@ pub enum Resolution {
     Retire(String),
 }
 
+impl Resolution {
+    /// Submit a committed edit intent. Session fills in the accepted revision
+    /// and a transaction ID when one was not supplied by the resolver.
+    pub fn submit(target_ids: Vec<String>, operation: EditOperation) -> Self {
+        Self::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        })
+    }
+
+    /// Submit a committed edit intent that belongs to a caller-managed transaction.
+    pub fn submit_with_transaction_id(
+        target_ids: Vec<String>,
+        transaction_id: impl Into<String>,
+        operation: EditOperation,
+    ) -> Self {
+        Self::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: transaction_id.into(),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        })
+    }
+}
+
 /// The owner-captured intent of a pending edit: a pure function of the accepted snapshot
 /// and the values the owner captured when the user committed. Session calls it exactly
 /// once, when the edit reaches the head of the queue with nothing else running — the

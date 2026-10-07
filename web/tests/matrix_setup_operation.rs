@@ -447,21 +447,18 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
     )
     .expect("the selected MX solder recipe exists");
     let matrix_id = prepared.matrix.id.clone();
-    let command = EditCommand {
-            base_revision: 0,
-            transaction_id: "matrix-setup-1".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![matrix_id.clone()],
-            operation: EditOperation::SetMatrix {
-                matrix: prepared.matrix,
-                definitions: Some(prepared.definitions),
-            },
-        };
+    let resolution = boardstudio_application::Resolution::submit(
+        vec![matrix_id.clone()],
+        EditOperation::SetMatrix {
+            matrix: prepared.matrix,
+            definitions: Some(prepared.definitions),
+        },
+    );
     let edit_effects = session.submit(Event::ResolveEdit {
         operation_id: OperationId(2),
         label: "fixed matrix setup test".into(),
         resolver: boardstudio_application::EditResolver::new("fixed matrix setup test", move |_| {
-            boardstudio_application::Resolution::Submit(command.clone())
+            resolution.clone()
         }),
     });
     let save_effects = complete_session_core(&mut session, &mut engine, edit_effects);

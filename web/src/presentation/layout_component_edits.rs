@@ -9,8 +9,7 @@
 use crate::edit_ticket::{EditTicket, Settlement};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, EditCommand, EditOperation, EditPhase, Part, PartOutline, Position, ProjectDoc,
-    Vec2,
+    Constraint, EditOperation, Part, PartOutline, Position, ProjectDoc, Vec2,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
 use std::rc::Rc;
@@ -64,13 +63,7 @@ impl InspectorField {
 }
 
 fn commit(command: EditOperation, target_ids: Vec<String>) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids,
-        operation: command,
-    })
+    Resolution::submit(target_ids, command)
 }
 
 fn part_of<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
@@ -417,13 +410,11 @@ pub fn commit_position_resolver(
         if delta == Vec2::default() {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: transaction_id.clone(),
-            phase: EditPhase::Commit,
-            target_ids: part_ids.clone(),
-            operation: EditOperation::MoveParts { positions },
-        })
+        Resolution::submit_with_transaction_id(
+            part_ids.clone(),
+            transaction_id.clone(),
+            EditOperation::MoveParts { positions },
+        )
     })
 }
 

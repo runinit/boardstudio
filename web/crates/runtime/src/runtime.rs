@@ -6780,12 +6780,25 @@ pub mod project_name_test_support {
         operation_id: OperationId,
         command: boardstudio_core::model::EditCommand,
     ) -> Event {
-        let resolver_command = command;
+        let boardstudio_core::model::EditCommand {
+            transaction_id,
+            target_ids,
+            operation,
+            ..
+        } = command;
         Event::ResolveEdit {
             operation_id,
             label: "test fixed command".into(),
             resolver: EditResolver::new("test fixed command", move |_| {
-                Resolution::Submit(resolver_command.clone())
+                if transaction_id.is_empty() {
+                    Resolution::submit(target_ids.clone(), operation.clone())
+                } else {
+                    Resolution::submit_with_transaction_id(
+                        target_ids.clone(),
+                        transaction_id.clone(),
+                        operation.clone(),
+                    )
+                }
             }),
         }
     }

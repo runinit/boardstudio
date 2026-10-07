@@ -12,13 +12,13 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    CaseOpening, EditCommand, EditOperation, EditPhase, GasketConstructionVersion, GasketPlacement,
-    HardwareTransport, InsertInstallation, InternalClosureHardware, InternalGasketConfiguration,
-    MechanicalAssembly, MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile,
-    MechanicalConfiguration, MechanicalCriticalFit, MechanicalGasketLayout,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
-    MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition, PartKind, PlateMethod,
-    ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    CaseOpening, EditOperation, GasketConstructionVersion, GasketPlacement, HardwareTransport,
+    InsertInstallation, InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly,
+    MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalConfiguration,
+    MechanicalCriticalFit, MechanicalGasketLayout, MechanicalHardwareSpecification,
+    MechanicalMount, MechanicalPartProcess, MechanicalPartProfile, MechanicalSwitchFamily, Mount,
+    MountKind, Part, PartDefinition, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
+    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use std::{
@@ -165,15 +165,12 @@ impl MechanicalSettingsController {
                                 Ok(document) if document == *accepted.document => {
                                     Resolution::Unchanged
                                 }
-                                Ok(document) => Resolution::Submit(EditCommand {
-                                    base_revision: 0,
-                                    transaction_id: String::new(),
-                                    phase: EditPhase::Commit,
-                                    target_ids: vec![intent.identity.active_board_id.clone()],
-                                    operation: EditOperation::ReplaceDocument {
+                                Ok(document) => Resolution::submit(
+                                    vec![intent.identity.active_board_id.clone()],
+                                    EditOperation::ReplaceDocument {
                                         document: Box::new(document),
                                     },
-                                }),
+                                ),
                                 Err(message) => Resolution::Retire(message),
                             }
                         },

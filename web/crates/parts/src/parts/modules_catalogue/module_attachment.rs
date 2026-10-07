@@ -413,8 +413,7 @@ fn attachment_resolver(
     EditResolver::new(
         "attach-mounted-module",
         move |accepted: &AcceptedSnapshot| {
-            if accepted.session_epoch != scope.session_epoch
-                || accepted.document.id != scope.document_id
+            if accepted.document.id != scope.document_id
                 || !accepted
                     .document
                     .boards

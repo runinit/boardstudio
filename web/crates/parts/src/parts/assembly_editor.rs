@@ -111,9 +111,7 @@ fn assembly_save_resolver(draft: AssemblyDraft, definitions: Vec<PartDefinition>
     EditResolver::new(
         "parts-assembly-editor",
         move |accepted: &AcceptedSnapshot| {
-            if accepted.document.id != draft.document_id
-                || accepted.session_epoch != draft.session_epoch
-            {
+            if accepted.document.id != draft.document_id {
                 return Resolution::Retire("The assembly's project changed.".into());
             }
             let mut draft = draft.clone();
@@ -154,9 +152,7 @@ fn assembly_place_resolver(
     EditResolver::new(
         "parts-assembly-place",
         move |accepted: &AcceptedSnapshot| {
-            if accepted.document.id != scope.document_id
-                || accepted.session_epoch != scope.session_epoch
-            {
+            if accepted.document.id != scope.document_id {
                 return Resolution::Retire("The assembly's project changed.".into());
             }
             let mut placement = seed.clone();
@@ -238,9 +234,7 @@ fn assembly_matrix_resolver(
     EditResolver::new(
         "parts-assembly-matrix-apply",
         move |accepted: &AcceptedSnapshot| {
-            if accepted.document.id != scope.document_id
-                || accepted.session_epoch != scope.session_epoch
-            {
+            if accepted.document.id != scope.document_id {
                 return Resolution::Retire("The assembly's project changed.".into());
             }
             let Some(matrix) = accepted.document.matrices.iter().find(|matrix| {

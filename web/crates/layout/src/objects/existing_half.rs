@@ -4,7 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
+    EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -85,15 +85,12 @@ fn mirror_existing_half_resolver(
                 axis_x,
                 &mut id_factory,
             ) {
-                Ok(prepared) => Resolution::Submit(EditCommand {
-                    base_revision: 0,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: matrix_ids.clone(),
-                    operation: EditOperation::ReplaceDocument {
+                Ok(prepared) => Resolution::submit(
+                    matrix_ids.clone(),
+                    EditOperation::ReplaceDocument {
                         document: Box::new(prepared.document),
                     },
-                }),
+                ),
                 Err(message) => Resolution::Retire(message),
             }
         },

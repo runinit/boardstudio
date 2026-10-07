@@ -13,8 +13,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc,
-    Vec2,
+    EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -115,13 +114,7 @@ pub fn transform_edit_resolver(
                 }
                 (_, operation, _) => operation,
             };
-            Resolution::Submit(EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix.id.clone()],
-                operation,
-            })
+            Resolution::submit(vec![matrix.id.clone()], operation)
         },
     )
 }

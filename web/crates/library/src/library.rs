@@ -3,7 +3,9 @@ use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, PartKind, ProjectDoc};
+#[cfg(test)]
+use boardstudio_core::model::{EditCommand, EditPhase};
+use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1000,23 +1002,16 @@ fn commit_project_name(
     if name.is_empty() {
         return None;
     }
-    let target = owner.clone();
     let resolver = EditResolver::new("project-name", move |accepted: &AcceptedSnapshot| {
-        if ProjectNameOwner::from(accepted) != target {
-            return Resolution::Retire("The project is no longer open.".into());
-        }
         let Some(document) = renamed_document(&accepted.document, &name) else {
             return Resolution::Unchanged;
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![document.id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![document.id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(document),
             },
-        })
+        )
     });
     Some(EditTicket::begin(
         runtime,

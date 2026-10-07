@@ -6,9 +6,8 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange,
-    KeycapKeySettings, KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile,
-    ProjectDoc, Vec2,
+    EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
+    KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -1100,10 +1099,7 @@ fn submit_keycap_edit(
 ) {
     let intent = request.clone();
     let resolver = EditResolver::new("keycaps", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != intent.scope.session_epoch
-            || accepted.document.id != intent.scope.document_id
-            || !valid_edit_target(accepted, &intent.scope, &intent.target)
-        {
+        if !valid_edit_target(accepted, &intent.scope, &intent.target) {
             return Resolution::Retire("This keycap settings target no longer exists.".into());
         }
         let Some(operation) = edit_operation(
@@ -1122,13 +1118,7 @@ fn submit_keycap_edit(
         ) {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![target_id(&intent.target, &intent.scope)],
-            operation,
-        })
+        Resolution::submit(vec![target_id(&intent.target, &intent.scope)], operation)
     });
     let ticket = EditTicket::begin(runtime, "keycaps", Some("keycap settings".into()), resolver);
     feedback.set(Some(FeedbackState {

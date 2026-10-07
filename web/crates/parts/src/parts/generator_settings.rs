@@ -477,8 +477,7 @@ pub fn generator_apply_resolver(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            if accepted.session_epoch != owner.session_epoch
-                || accepted.document.id != owner.document_id
+            if accepted.document.id != owner.document_id
                 || candidate.id != owner.definition_id
                 || candidate.generator.as_ref().is_none_or(|generator| {
                     generator.source != owner.source || generator.version != owner.generator_version
@@ -512,8 +511,7 @@ pub fn generator_model_upload_resolver(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            if accepted.session_epoch != owner.session_epoch
-                || accepted.document.id != owner.document_id
+            if accepted.document.id != owner.document_id
                 || candidate.id != owner.definition_id
                 || candidate.generator.is_none()
             {

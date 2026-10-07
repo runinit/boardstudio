@@ -4,7 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, KeymapChange};
+use boardstudio_core::model::{EditCommand, EditOperation, KeymapChange};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -219,13 +219,11 @@ fn current_source(
 
 fn layer_resolver(scope: Scope, request: KeymapLayerOperation, seed: u64) -> EditResolver {
     EditResolver::new("keymap-layer", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != scope.session_epoch
-            || accepted.document.id != scope.document_id
-            || !accepted
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
+        if !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == scope.board_id)
         {
             return Resolution::Retire("This board no longer exists.".into());
         }
@@ -280,13 +278,10 @@ fn layer_resolver(scope: Scope, request: KeymapLayerOperation, seed: u64) -> Edi
                 }
             }
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![scope.board_id.clone()],
-            operation: EditOperation::EditKeymap { change },
-        })
+        Resolution::submit(
+            vec![scope.board_id.clone()],
+            EditOperation::EditKeymap { change },
+        )
     })
 }
 

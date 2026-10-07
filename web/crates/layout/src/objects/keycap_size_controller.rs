@@ -7,7 +7,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc, Vec2};
+use boardstudio_core::model::{EditOperation, ProjectDoc, Vec2};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
@@ -115,15 +115,12 @@ fn resize_resolver(
         }) else {
             return Resolution::Unchanged;
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: plan.target_ids,
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            plan.target_ids,
+            EditOperation::ReplaceDocument {
                 document: Box::new(plan.document),
             },
-        })
+        )
     })
 }
 

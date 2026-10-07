@@ -253,15 +253,12 @@ mod tests {
             move |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut document = (*accepted.document).clone();
                 document.name = name.into();
-                Resolution::Submit(boardstudio_core::model::EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![document.id.clone()],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec![document.id.clone()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         )
     }

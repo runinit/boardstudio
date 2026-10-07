@@ -12,8 +12,8 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    DiodeDirection, EditCommand, EditOperation, EditPhase, Matrix, MatrixAssembly, MatrixCell,
-    PartDefinition, ProjectDoc, Side, Vec2,
+    DiodeDirection, EditOperation, Matrix, MatrixAssembly, MatrixCell, PartDefinition, ProjectDoc,
+    Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -66,13 +66,7 @@ fn matrix_of<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Matrix
 }
 
 fn commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids,
-        operation,
-    })
+    Resolution::submit(target_ids, operation)
 }
 
 /// Resolve one field edit against the accepted document at execution time: the matrix (or

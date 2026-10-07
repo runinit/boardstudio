@@ -10,7 +10,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    Contour, EditCommand, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
+    Contour, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
@@ -977,13 +977,11 @@ pub(super) fn action_resolver(
     EditResolver::new(
         "layout-outline",
         move |accepted: &AcceptedSnapshot| match plan_action(accepted, &action, seed) {
-            Ok((operation, target_ids)) => Resolution::Submit(EditCommand {
-                base_revision: 0,
-                transaction_id: transaction_id.clone(),
-                phase: EditPhase::Commit,
+            Ok((operation, target_ids)) => Resolution::submit_with_transaction_id(
                 target_ids,
+                transaction_id.clone(),
                 operation,
-            }),
+            ),
             Err(Skip::Unchanged) => Resolution::Unchanged,
             Err(Skip::Retire(reason)) => Resolution::Retire(reason),
         },

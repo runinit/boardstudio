@@ -10,7 +10,7 @@ use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolut
 #[cfg(test)]
 use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{
-    CaseBody, CaseKind, EditCommand, EditOperation, EditPhase, Mount, MountKind, Vec2,
+    CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -415,13 +415,7 @@ fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {
         {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![body.id.clone()],
-            operation: EditOperation::SetCase { body },
-        })
+        Resolution::submit(vec![body.id.clone()], EditOperation::SetCase { body })
     })
 }
 

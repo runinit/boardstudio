@@ -163,13 +163,11 @@ mod selection_retention_tests {
     use boardstudio_core::model::*;
     use std::collections::BTreeMap;
 
-    fn fixed_commit(operation_id: OperationId, command: EditCommand) -> Event {
+    fn fixed_commit(operation_id: OperationId, resolution: Resolution) -> Event {
         Event::ResolveEdit {
             operation_id,
             label: "test fixed command".into(),
-            resolver: EditResolver::new("test fixed command", move |_| {
-                Resolution::Submit(command.clone())
-            }),
+            resolver: EditResolver::new("test fixed command", move |_| resolution.clone()),
         }
     }
 
@@ -369,16 +367,14 @@ mod selection_retention_tests {
         };
         runtime.submit(fixed_commit(
             OperationId(2),
-            EditCommand {
-                base_revision: 0,
-                transaction_id: "create-matrix".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix.id.clone()],
-                operation: EditOperation::SetMatrix {
+            Resolution::submit_with_transaction_id(
+                vec![matrix.id.clone()],
+                "create-matrix",
+                EditOperation::SetMatrix {
                     matrix,
                     definitions: None,
                 },
-            },
+            ),
         ));
         let key_id = "matrix/matrix-main/r0c0";
         let accepted = runtime.model().accepted.unwrap();
@@ -424,19 +420,16 @@ mod selection_retention_tests {
             assemblies: vec![],
             assemblies_local: None,
         });
-        let revision = before.accepted.as_ref().unwrap().document.revision;
         runtime.submit(fixed_commit(
             OperationId(4),
-            EditCommand {
-                base_revision: revision,
-                transaction_id: "disable-key".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["matrix-main".into()],
-                operation: EditOperation::SetMatrix {
+            Resolution::submit_with_transaction_id(
+                vec!["matrix-main".into()],
+                "disable-key",
+                EditOperation::SetMatrix {
                     matrix: disabled,
                     definitions: None,
                 },
-            },
+            ),
         ));
         let after_disable = runtime.model();
         assert!(

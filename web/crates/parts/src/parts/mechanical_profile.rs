@@ -328,27 +328,19 @@ fn infer_switch_family(definition: &PartDefinition) -> Option<MechanicalSwitchFa
 mod tests {
     use super::*;
     #[cfg(not(target_arch = "wasm32"))]
-    use boardstudio_application::{
-        AcceptedSnapshot, EditResolver, Event, OperationId, Resolution, TerminalOutcome,
-    };
+    use boardstudio_application::{Event, TerminalOutcome};
     #[cfg(not(target_arch = "wasm32"))]
-    use boardstudio_core::model::{EditOperation, EditPhase};
-    use boardstudio_core::model::{MechanicalPartProfile, MechanicalProfileSource, PartDefinition};
-    use boardstudio_core::model::{ProjectDoc, Vec2};
+    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_core::model::{MechanicalProfileSource, Vec2};
     #[cfg(not(target_arch = "wasm32"))]
     use std::rc::Rc;
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn fixed_commit(
-        operation_id: OperationId,
-        command: boardstudio_core::model::EditCommand,
-    ) -> Event {
+    fn fixed_commit(operation_id: OperationId, resolution: Resolution) -> Event {
         Event::ResolveEdit {
             operation_id,
             label: "test fixed command".into(),
-            resolver: EditResolver::new("test fixed command", move |_| {
-                Resolution::Submit(command.clone())
-            }),
+            resolver: EditResolver::new("test fixed command", move |_| resolution.clone()),
         }
     }
 
@@ -465,15 +457,13 @@ mod tests {
         unrelated.name = "Renamed project during draft".into();
         runtime.submit(fixed_commit(
             OperationId(2),
-            boardstudio_core::model::EditCommand {
-                base_revision: 0,
-                transaction_id: "unrelated-project-rename".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![unrelated.id.clone()],
-                operation: EditOperation::ReplaceDocument {
+            Resolution::submit_with_transaction_id(
+                vec![unrelated.id.clone()],
+                "unrelated-project-rename",
+                EditOperation::ReplaceDocument {
                     document: Box::new(unrelated),
                 },
-            },
+            ),
         ));
 
         let edited_profile = profile("switch", "Parts library");
@@ -574,15 +564,13 @@ mod tests {
         without.definitions.clear();
         runtime.submit(fixed_commit(
             OperationId(4),
-            boardstudio_core::model::EditCommand {
-                base_revision: 1,
-                transaction_id: "remove-definition".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["switch".into()],
-                operation: EditOperation::ReplaceDocument {
+            Resolution::submit_with_transaction_id(
+                vec!["switch".into()],
+                "remove-definition",
+                EditOperation::ReplaceDocument {
                     document: Box::new(without),
                 },
-            },
+            ),
         ));
         assert_eq!(
             resolve_profile(
@@ -607,29 +595,25 @@ mod tests {
         materialized.definitions.push(selected.clone());
         runtime.submit(fixed_commit(
             OperationId(2),
-            boardstudio_core::model::EditCommand {
-                base_revision: 0,
-                transaction_id: "materialize".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["bundled-switch".into()],
-                operation: EditOperation::ReplaceDocument {
+            Resolution::submit_with_transaction_id(
+                vec!["bundled-switch".into()],
+                "materialize",
+                EditOperation::ReplaceDocument {
                     document: Box::new(materialized),
                 },
-            },
+            ),
         ));
         let mut latest = accepted(&runtime).document.as_ref().clone();
         latest.definitions[1].name = "Edited meanwhile".into();
         runtime.submit(fixed_commit(
             OperationId(3),
-            boardstudio_core::model::EditCommand {
-                base_revision: 1,
-                transaction_id: "rename".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec!["bundled-switch".into()],
-                operation: EditOperation::ReplaceDocument {
+            Resolution::submit_with_transaction_id(
+                vec!["bundled-switch".into()],
+                "rename",
+                EditOperation::ReplaceDocument {
                     document: Box::new(latest),
                 },
-            },
+            ),
         ));
 
         assert_eq!(

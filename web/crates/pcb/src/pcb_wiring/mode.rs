@@ -7,10 +7,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::{
-    electrical::ElectricalMode,
-    model::{EditCommand, EditOperation, EditPhase},
-};
+use boardstudio_core::{electrical::ElectricalMode, model::EditOperation};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -172,11 +169,6 @@ pub fn use_board_wiring_mode_edits(
 fn mode_resolver(request: BoardWiringModeEditRequest) -> EditResolver {
     EditResolver::new("pcb-wiring-mode", move |accepted: &AcceptedSnapshot| {
         let board_id = &request.identity.plan.scope.board_id;
-        if accepted.session_epoch != request.identity.ui_scope.session_epoch
-            || accepted.document.id != request.identity.ui_scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         if !accepted
             .document
             .boards
@@ -199,16 +191,13 @@ fn mode_resolver(request: BoardWiringModeEditRequest) -> EditResolver {
         if current_mode == request.mode {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![board_id.clone()],
-            operation: EditOperation::SetWiringMode {
+        Resolution::submit(
+            vec![board_id.clone()],
+            EditOperation::SetWiringMode {
                 board_id: board_id.clone(),
                 mode: request.mode,
             },
-        })
+        )
     })
 }
 

@@ -46,6 +46,31 @@ fn fixture() -> ProjectDoc {
     document
 }
 
+#[test]
+fn resolution_constructor_keeps_session_owned_fields_out_of_the_resolver() {
+    let operation = EditOperation::MoveParts { positions: vec![] };
+
+    let Resolution::Submit(command) = Resolution::submit(vec!["key".into()], operation.clone())
+    else {
+        panic!("submit constructor must produce an edit intent");
+    };
+
+    assert_eq!(command.base_revision, 0);
+    assert!(command.transaction_id.is_empty());
+    assert!(matches!(command.phase, EditPhase::Commit));
+    assert_eq!(command.target_ids, ["key"]);
+    assert_eq!(command.operation, operation);
+
+    let Resolution::Submit(grouped) = Resolution::submit_with_transaction_id(
+        vec!["key".into()],
+        "outline-transaction",
+        EditOperation::MoveParts { positions: vec![] },
+    ) else {
+        panic!("grouped submit constructor must produce an edit intent");
+    };
+    assert_eq!(grouped.transaction_id, "outline-transaction");
+}
+
 fn matrix_range_fixture() -> (ProjectDoc, Vec<String>) {
     let mut document = fixture();
     let mut member_ids = Vec::new();

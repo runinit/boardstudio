@@ -10,7 +10,9 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Part, ProjectDoc, Vec2};
+#[cfg(test)]
+use boardstudio_core::model::{EditCommand, EditPhase};
+use boardstudio_core::model::{EditOperation, Part, ProjectDoc, Vec2};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
@@ -775,13 +777,7 @@ fn align_resolver(
         else {
             return Resolution::Retire("The aligned selection no longer exists.".into());
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids,
-            operation,
-        })
+        Resolution::submit(target_ids, operation)
     })
 }
 

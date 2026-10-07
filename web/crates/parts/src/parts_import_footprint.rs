@@ -97,9 +97,7 @@ fn import_resolver(capture: ImportCapture, imported: CompiledFootprint) -> EditR
     EditResolver::new(
         "parts-import-footprint",
         move |accepted: &AcceptedSnapshot| {
-            if accepted.session_epoch != capture.session_epoch
-                || accepted.document.id != capture.document_id
-            {
+            if accepted.document.id != capture.document_id {
                 return Resolution::Retire("The Parts project changed during import.".into());
             }
             if imported.definition.id != capture.definition_id {

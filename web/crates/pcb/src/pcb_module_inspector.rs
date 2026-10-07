@@ -5,8 +5,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleConnection, ModuleSupport,
-    PartDefinition, Side, VikRole, VikSignal,
+    EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, PartDefinition, Side,
+    VikRole, VikSignal,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -1022,11 +1022,6 @@ fn module_resolver(
     operation: Result<EditOperation, String>,
 ) -> EditResolver {
     EditResolver::new("pcb-module", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != scope.session_epoch
-            || accepted.document.id != scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         let operation = match &operation {
             Ok(operation) => operation,
             Err(reason) => return Resolution::Retire(reason.clone()),
@@ -1089,13 +1084,7 @@ fn module_resolver(
             }
             _ => {}
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![module_id.clone()],
-            operation: operation.clone(),
-        })
+        Resolution::submit(vec![module_id.clone()], operation.clone())
     })
 }
 

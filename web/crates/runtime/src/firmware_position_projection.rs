@@ -380,24 +380,20 @@ mod tests {
             },
         ));
 
-        let command = EditCommand {
-            base_revision: snapshot.document.revision,
-            transaction_id: "firmware-position-test".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![runtime_scope.board_id.clone(), key_id.clone()],
-            operation: EditOperation::SetKeyBinding {
+        let resolution = Resolution::submit_with_transaction_id(
+            vec![runtime_scope.board_id.clone(), key_id.clone()],
+            "firmware-position-test",
+            EditOperation::SetKeyBinding {
                 board_id: runtime_scope.board_id.clone(),
                 key_id: key_id.clone(),
                 binding: "&kp Q".into(),
             },
-        };
+        );
         let ticket = crate::edit_ticket::EditTicket::begin(
             &runtime,
             "firmware position test",
             Some("key".into()),
-            EditResolver::new("firmware position test", move |_| {
-                Resolution::Submit(command.clone())
-            }),
+            EditResolver::new("firmware position test", move |_| resolution.clone()),
         );
         assert!(matches!(
             ticket.settlement(true),

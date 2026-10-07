@@ -2,8 +2,7 @@
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Pad, PadShape, PartDefinition, PartKind, ProjectDoc,
-    Vec2,
+    EditOperation, Pad, PadShape, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
 
 pub(crate) const DEFINITION_GONE: &str = "This part definition no longer exists.";
@@ -1089,13 +1088,7 @@ pub fn validate_definition_edit(edit: &DefinitionEdit) -> Result<(), String> {
 /// One resolved edit: Session fills the base revision and transaction identity when
 /// the edit runs (ticket 03), so the resolver submits only the operation and targets.
 pub(crate) fn replacement_commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids,
-        operation,
-    })
+    Resolution::submit(target_ids, operation)
 }
 
 /// Resolve one definition-field edit against the accepted document at execution: find

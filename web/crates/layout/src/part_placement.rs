@@ -16,8 +16,8 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditOperation, EditPhase, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition,
-    PartKind, Pose2, ProjectDoc, Side, Vec2,
+    EditOperation, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition, PartKind,
+    Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
@@ -200,13 +200,7 @@ fn placement_resolver(
             &part,
             layout_id.as_deref(),
         ) {
-            Ok(operation) => Resolution::Submit(boardstudio_core::model::EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![part.id.clone()],
-                operation,
-            }),
+            Ok(operation) => Resolution::submit(vec![part.id.clone()], operation),
             Err(message) => Resolution::Retire(message),
         },
     )
@@ -241,13 +235,7 @@ fn key_component_resolver(
             if definitions.is_some() {
                 target_ids.push(definition.id.clone());
             }
-            Resolution::Submit(boardstudio_core::model::EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids,
-                operation,
-            })
+            Resolution::submit(target_ids, operation)
         },
     )
 }
@@ -1789,8 +1777,10 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
-    use boardstudio_core::model::{Board, EditCommand, OutlineSettings};
+    use boardstudio_application::{
+        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken, TerminalOutcome,
+    };
+    use boardstudio_core::model::{Board, EditCommand, EditPhase, OutlineSettings};
     use std::{
         cell::{Cell, RefCell},
         sync::Arc,

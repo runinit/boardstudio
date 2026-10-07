@@ -6,7 +6,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::{
     electrical::{self, ElectricalPlan},
-    model::{EditCommand, EditOperation, EditPhase, ProjectDoc},
+    model::{EditOperation, ProjectDoc},
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -192,11 +192,6 @@ fn apply_resolver(
 ) -> EditResolver {
     EditResolver::new("pcb-wiring-apply", move |accepted: &AcceptedSnapshot| {
         let board_id = &identity.ui_scope.board_id;
-        if accepted.session_epoch != identity.ui_scope.session_epoch
-            || accepted.document.id != identity.ui_scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         if !accepted
             .document
             .boards
@@ -249,15 +244,12 @@ fn apply_resolver(
         if proposal == *accepted.document {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![board_id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(proposal),
             },
-        })
+        )
     })
 }
 
