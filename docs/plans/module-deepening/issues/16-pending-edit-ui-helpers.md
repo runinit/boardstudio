@@ -96,8 +96,8 @@ Native cfg executes the pure draft policy test; mounted behavior executes in Chr
 Root reused this final evidence and inspected the final committed source.
 
 The app's full browser step exposed native Runtime collection fixtures compiling for
-WASM; root independently reproduced that test-target failure and is fixing it at the
-Runtime owner. It does not invalidate the directly executed UI-shared browser groups.
+WASM; root independently reproduced that test-target failure and integrated the native-only
+fixture cfg fix recorded in the keyed collection Outcome. It does not invalidate the directly executed UI-shared browser groups.
 Its full native step stopped at 13 KiCad environment failures: a missing pcbnew library
 under ZCode's AppImage mount. An affected KiCad test passed from root's clean process
 on the same tree; these are reported separately from the CAD volume baseline, and

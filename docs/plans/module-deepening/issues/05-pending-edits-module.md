@@ -29,8 +29,9 @@ slice and Outcome; the Signal contract lives in the shared-helper slice and Outc
 
 - [ ] Every implementation slice is merged, reviewed and resolved.
 - [ ] Native collection tests cover latest ticket per key, one-shot pending until
-  settled, failure message, silent retirement on Scope/owner departure and on
-  Superseded/Cancelled/Closed, and Landed revision.
+  settled, failure message, silent retirement on Scope/owner departure and Closed, and Landed revision.
+  Superseded/Cancelled mapping is covered at EditTicket; those outcomes are unreachable
+  through ResolveEdit-only collection submission (see the keyed collection Outcome).
 - [ ] Edit ticket tests cover captured-scope retirement using the real Runtime.
 - [ ] MatrixSubmission, MatrixPresetSubmission, MatrixDeletionSubmission,
   MatrixEditState::Saved and all four original settle_pending functions are gone;

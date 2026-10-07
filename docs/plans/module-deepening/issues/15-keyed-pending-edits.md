@@ -107,3 +107,14 @@ EditTicket outcome-mapping coverage remains; no Session policy was changed.
 GitNexus was stale at agent verification and missed the new unindexed module; source
 inspection confirmed the bounded additions. Both consumers must coordinate later API
 changes rather than independently edit Runtime.
+
+### Integration follow-up: native test cfg
+
+The shared-helper full browser step exposed that the collection's real native Runtime
+fixture tests were also selected by WASM test builds. Root reproduced the failure
+(15 compile errors from native-only construction/gates), then integrated
+`b9034d00eca868b35d88a4fe3315145fd88248f6`: the test module is explicitly native-only.
+The production collection remains available on both targets, with no API or behavior
+change. Native Runtime remains 110/110; the previously failing WASM Runtime test target
+now compiles; targeted Clippy and fmt pass. Both pinned reviews passed. This repairs a
+verification gap in the original slice; it adds no fake browser fixture or hand-settling.
