@@ -249,10 +249,27 @@ pub fn use_controller(
                         return;
                     }
                     let model = runtime.model();
-                    let live = model.accepted.as_ref().is_some_and(|accepted| {
+                    let same_session = model.accepted.as_ref().is_some_and(|accepted| {
                         accepted.session_epoch == identity.session_epoch
                             && accepted.document.id == identity.document_id
                     });
+                    let reassigned = matches!(ticket.settlement(true), Settlement::Landed { .. })
+                        && match &intent {
+                            PhysicalSetupIntent::CasePcbDesign(board_id) => model
+                                .accepted
+                                .as_ref()
+                                .and_then(|accepted| {
+                                    expected_case_reassignment_owner(
+                                        &identity,
+                                        board_id,
+                                        accepted.token,
+                                        generation(),
+                                    )
+                                })
+                                .is_some_and(|owner| activity.matches(&owner, false)),
+                            _ => false,
+                        };
+                    let live = same_session && (activity.matches(&identity, false) || reassigned);
                     match ticket.settlement(live) {
                         Settlement::Pending => {}
                         settlement => {

@@ -475,7 +475,7 @@ pub fn use_pcb_part_net_edits(
                         &alive,
                         workspace,
                         scope_generation,
-                        generation,
+                        request.identity.generation,
                     ) || !instance_is_current()
                         || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
                         || runtime.model().selected_part_ids.as_slice()
