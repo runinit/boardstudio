@@ -72,6 +72,7 @@ pub(crate) use boardstudio_web_parts::parts;
 pub(crate) use boardstudio_web_ui_shared::panels;
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
+mod setup_workspace;
 pub(crate) use boardstudio_web_pcb::pcb_board_reference;
 pub(crate) use boardstudio_web_pcb::pcb_layers;
 pub(crate) use boardstudio_web_pcb::pcb_module_footprints;
@@ -98,7 +99,7 @@ use panels::{
 };
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
-use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
+use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};
 use zmk_firmware_export::use_export_panel_input;
 #[cfg(test)]
 use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
@@ -2496,105 +2497,30 @@ fn Editor() -> Element {
     let compact_panel_state = use_context::<CompactPanelState>();
     let mut objects_open = compact_panel_state.objects_open;
     let mut inspect_open = compact_panel_state.inspector_open;
-    let mut geometry_scripts_open = use_signal(|| false);
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
-    let created_request = created_request_signal();
-    let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
+    let setup_state = setup_workspace::use_setup_workspace_state(
+        runtime.clone(),
+        created_request_signal,
+        objects_open,
+        inspect_open,
+        objects_panel_settings,
+        inspector_panel_settings,
+    );
+    let guide_preferences = setup_state.guide_preferences();
+    let geometry_scripts_open = setup_state.geometry_scripts_open();
     let guide_name_edit = use_setup_project_name(runtime.clone());
     let guide_name_draft = guide_name_edit.draft;
     let guide_name_failure = guide_name_edit.failure;
-    let consumed_guide_requests = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
-    let accepted_project_id = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .map(|snapshot| snapshot.document.id.clone());
-    let mut guide_workspace = use_context::<WorkspaceState>().0;
-    use_effect(use_reactive!(|accepted_project_id, created_request| {
-        let mut created_request_signal = created_request_signal;
-        let Some(project_id) = accepted_project_id.as_ref() else {
-            return;
-        };
-        if let Some(request) = created_request
-            .as_ref()
-            .filter(|request| request.project_id == *project_id)
-        {
-            let already_consumed = consumed_guide_requests
-                .borrow()
-                .contains(&request.request_id);
-            if !already_consumed {
-                consumed_guide_requests
-                    .borrow_mut()
-                    .insert(request.request_id.clone());
-                guide_preferences.set(Some(SetupGuidePreferences {
-                    project_id: project_id.clone(),
-                    open: true,
-                    current_stage: if request.start_at_project {
-                        SetupGuideStage::Project
-                    } else {
-                        guide_preferences()
-                            .filter(|preferences| preferences.project_id == *project_id)
-                            .map(|preferences| preferences.current_stage)
-                            .unwrap_or_else(|| {
-                                setup_guide::read_preferences(project_id).current_stage
-                            })
-                    },
-                }));
-                if request.start_at_project {
-                    guide_workspace.set("Layout");
-                }
-                setup_guide::reveal_panels(
-                    crate::setup_guide_state::GuideReveal::Guide,
-                    objects_open,
-                    inspect_open,
-                    objects_panel_settings,
-                    inspector_panel_settings,
-                );
-                created_request_signal.set(None);
-            }
-        } else if guide_preferences()
-            .as_ref()
-            .is_none_or(|preferences| preferences.project_id != *project_id)
-        {
-            let preferences = setup_guide::read_preferences(project_id);
-            if preferences.open {
-                setup_guide::reveal_panels(
-                    crate::setup_guide_state::GuideReveal::Guide,
-                    objects_open,
-                    inspect_open,
-                    objects_panel_settings,
-                    inspector_panel_settings,
-                );
-            }
-            guide_preferences.set(Some(preferences));
-        }
-    }));
-    let preferences_to_persist = guide_preferences();
-    use_effect(use_reactive!(|preferences_to_persist| {
-        if let Some(preferences) = preferences_to_persist.as_ref() {
-            setup_guide::write_preferences(preferences);
-        }
-    }));
     let adapter = use_context::<SelectionAdapter>();
     let layout_component_inspector_lifetime =
         use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
     let version = use_context::<Signal<u64>>();
     let observed_version = version();
-    let instance_preference = use_signal(|| {
-        runtime.scope().and_then(|scope| {
-            scope
-                .instance_id
-                .map(|explicit_id| instance_selection::Preference {
-                    session_epoch: scope.session_epoch,
-                    document_id: scope.document_id,
-                    explicit_id,
-                })
-        })
-    });
-    let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
+    let instance_preference = setup_state.instance_preference();
+    let instance_selection = InstanceSelection(instance_preference);
     let case_workspace_state = case_workspace::use_case_workspace_state();
     let case_selection = case_workspace_state.selection();
     let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
@@ -4681,6 +4607,7 @@ fn Editor() -> Element {
     };
     let navigate = {
         let runtime = runtime.clone();
+        let setup_state = setup_state;
         let adapter = adapter.clone();
         let mut navigate_scoped = navigate_scoped.clone();
         let generation = render_generation;
@@ -4712,8 +4639,7 @@ fn Editor() -> Element {
                 if !valid {
                     return;
                 }
-                let mut preference = instance_preference;
-                preference.set(Some(instance_selection::Preference {
+                setup_state.set_instance_preference(Some(instance_selection::Preference {
                     session_epoch: snapshot.session_epoch,
                     document_id: snapshot.document.id.clone(),
                     explicit_id: id,
@@ -4890,13 +4816,13 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
         let mut findings_open = layout_findings.open;
-        let mut scripts_open = geometry_scripts_open;
+        let setup_state = setup_state;
         move |()| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
             }
             findings_open.set(false);
-            scripts_open.set(false);
+            setup_state.set_geometry_scripts_open(false);
             if let Some(element) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.get_element_by_id("m1-layout-findings-trigger"))
@@ -6465,7 +6391,7 @@ fn Editor() -> Element {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let mut geometry_scripts_open = geometry_scripts_open;
+        let setup_state = setup_state;
         let inspector_settings = inspector_panel_settings;
         workspace_callbacks
             .open_geometry_scripts
@@ -6473,7 +6399,7 @@ fn Editor() -> Element {
                 workspace.set("Layout");
                 objects_open.set(false);
                 inspect_open.set(true);
-                geometry_scripts_open.set(true);
+                setup_state.set_geometry_scripts_open(true);
                 pin_inspector_on_desktop(inspector_settings);
             }));
     }
@@ -7348,7 +7274,7 @@ fn Editor() -> Element {
             layout_workspace::InspectorInput {
                 geometry_scripts_open: geometry_scripts_open(),
                 on_close_geometry_scripts: EventHandler::new(move |()| {
-                    geometry_scripts_open.set(false);
+                    setup_state.set_geometry_scripts_open(false)
                 }),
                 context_title: context_summary
                     .as_ref()
@@ -7591,18 +7517,13 @@ fn Editor() -> Element {
     let on_name_commit = guide_name_edit.on_commit;
     let guide_runtime = runtime.clone();
     let mut guide_adapter = adapter.clone();
-    let mut guide_preferences_for_stage = guide_preferences;
+    let setup_state_for_stage = setup_state;
     let guide_workspace_for_stage = workspace;
     let guide_project_id = document.id.clone();
     let on_stage_change = move |stage: SetupGuideStage| {
-        let Some(mut preferences) = guide_preferences_for_stage()
-            .filter(|preferences| preferences.project_id == guide_project_id)
-        else {
+        if !setup_state_for_stage.update_guide_stage(&guide_project_id, stage) {
             return;
-        };
-        preferences.current_stage = stage;
-        preferences.open = true;
-        guide_preferences_for_stage.set(Some(preferences));
+        }
         setup_guide::activate_stage(
             stage,
             guide_workspace_for_stage,
@@ -7657,15 +7578,10 @@ fn Editor() -> Element {
             mode: SelectionMode::Replace,
         });
     };
-    let mut guide_preferences_for_dismiss = guide_preferences;
+    let setup_state_for_dismiss = setup_state;
     let guide_project_id_for_dismiss = document.id.clone();
     let on_dismiss_guide = move |_| {
-        if let Some(mut preferences) = guide_preferences_for_dismiss()
-            .filter(|preferences| preferences.project_id == guide_project_id_for_dismiss)
-        {
-            preferences.open = false;
-            guide_preferences_for_dismiss.set(Some(preferences));
-        }
+        setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
     };
     let guide_statuses = setup_guide::stage_statuses(
         &document,
