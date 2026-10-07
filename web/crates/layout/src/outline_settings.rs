@@ -21,23 +21,6 @@ pub enum OutlineEdit {
     RemoveProtectedGap { gap_id: String },
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum OutlineExpectation {
-    VersionName {
-        version_id: String,
-        name: String,
-    },
-    VersionSettings {
-        version_id: String,
-        settings: OutlineSettings,
-    },
-    GeneratedFeature(OutlineFeature),
-    VersionFeature {
-        version_id: String,
-        feature: OutlineFeature,
-    },
-}
-
 pub fn generated_feature<'a>(
     document: &'a ProjectDoc,
     board: &Board,
@@ -72,56 +55,13 @@ pub fn reference_outline_settings() -> OutlineSettings {
     }
 }
 
-pub fn expectation_applied(
-    document: &ProjectDoc,
-    board_id: &str,
-    expected: &OutlineExpectation,
-) -> bool {
-    let state = document
-        .board_outlines
-        .iter()
-        .find(|state| state.board_id == board_id);
-    match expected {
-        OutlineExpectation::VersionName { version_id, name } => state
-            .into_iter()
-            .flat_map(|state| &state.versions)
-            .any(|version| version.id == *version_id && version.name == *name),
-        OutlineExpectation::VersionSettings {
-            version_id,
-            settings,
-        } => state
-            .into_iter()
-            .flat_map(|state| &state.versions)
-            .any(|version| version.id == *version_id && version.geometry.settings == *settings),
-        OutlineExpectation::GeneratedFeature(feature) => {
-            document
-                .boards
-                .iter()
-                .find(|board| board.id == board_id)
-                .is_some_and(|board| board.outline_ids.iter().any(|id| id == feature.id()))
-                && document
-                    .outline
-                    .iter()
-                    .any(|candidate| candidate == feature)
-        }
-        OutlineExpectation::VersionFeature {
-            version_id,
-            feature,
-        } => state
-            .into_iter()
-            .flat_map(|state| &state.versions)
-            .find(|version| version.id == *version_id)
-            .is_some_and(|version| version.geometry.features.iter().any(|item| item == feature)),
-    }
-}
-
 pub fn apply_outline_edit(
     document: &ProjectDoc,
     scene: &SceneDelta,
     board_id: &str,
     edit: &OutlineEdit,
     operation_id: OperationId,
-) -> Option<(EditOperation, OutlineExpectation, Vec<String>)> {
+) -> Option<(EditOperation, Vec<String>)> {
     let board = document.boards.iter().find(|board| board.id == board_id)?;
     let state = document
         .board_outlines
@@ -149,10 +89,6 @@ pub fn apply_outline_edit(
         return Some((
             EditOperation::RenameOutline {
                 board_id: board_id.to_owned(),
-                version_id: version_id.clone(),
-                name: name.to_owned(),
-            },
-            OutlineExpectation::VersionName {
                 version_id: version_id.clone(),
                 name: name.to_owned(),
             },
@@ -193,7 +129,7 @@ pub fn apply_outline_edit(
             EditOperation::ReplaceDocument {
                 document: Box::new(replacement),
             },
-            OutlineExpectation::GeneratedFeature(feature),
+
             vec![board_id.to_owned(), feature_id],
         ));
     }
@@ -330,10 +266,6 @@ pub fn apply_outline_edit(
             EditOperation::ReplaceDocument {
                 document: Box::new(replacement),
             },
-            OutlineExpectation::VersionSettings {
-                version_id: version.id.clone(),
-                settings,
-            },
             vec![board_id.to_owned(), version.id.clone()],
         ))
     } else {
@@ -364,7 +296,7 @@ pub fn apply_outline_edit(
             EditOperation::SetOutline {
                 feature: next.clone(),
             },
-            OutlineExpectation::GeneratedFeature(next),
+
             vec![board_id.to_owned(), id.clone()],
         ))
     }
@@ -442,7 +374,7 @@ mod tests {
         let mut without_generator = document.clone();
         without_generator.outline.clear();
         without_generator.boards[0].outline_ids.clear();
-        let (operation, expectation, targets) = apply_outline_edit(
+        let (operation, targets) = apply_outline_edit(
             &without_generator,
             &scene(vec![]),
             "board",
@@ -473,7 +405,6 @@ mod tests {
         assert_eq!(settings.size, 2.0);
         assert_eq!(settings.bridge_width, 10.0);
         assert_eq!(targets.len(), 2);
-        assert!(expectation_applied(&replacement, "board", &expectation));
     }
 
     #[test]
@@ -539,7 +470,7 @@ mod tests {
                 },
             }],
         });
-        let (operation, expectation, _) = apply_outline_edit(
+        let (operation, _) = apply_outline_edit(
             &document,
             &scene(vec![]),
             "board",
@@ -564,7 +495,6 @@ mod tests {
                 .edge_clearance,
             1.25
         );
-        assert!(expectation_applied(&replacement, "board", &expectation));
     }
 
     #[test]
@@ -581,7 +511,7 @@ mod tests {
             protected: false,
             protected_ids: vec![],
         };
-        let (operation, expectation, _) = apply_outline_edit(
+        let (operation, _) = apply_outline_edit(
             &document,
             &scene(vec![gap.clone()]),
             "board",
@@ -605,7 +535,6 @@ mod tests {
             outline: vec![feature],
             ..document.clone()
         };
-        assert!(expectation_applied(&accepted, "board", &expectation,));
         assert!(
             apply_outline_edit(
                 &document,

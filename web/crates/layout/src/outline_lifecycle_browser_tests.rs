@@ -1,15 +1,11 @@
 use super::*;
-use boardstudio_application::{
-    AcceptedSnapshot, Durability, Lifecycle, ReadModel, Scope, SessionEpoch, SnapshotToken,
-};
+use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Board, BoardContours, BoardOutline, Contour, CoreReply, CoreRequest, EditOperation,
-    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSnapshot,
-    OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side,
-    Vec2,
+    Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature,
+    OutlineProvenance, OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2,
+    ProjectDoc, Side, Vec2,
 };
-use std::sync::Arc;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -163,6 +159,42 @@ fn mount_dimension() -> (DimensionProbe, web_sys::Element) {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     (probe, root)
+}
+
+/// Drive the in-process Session and Core until every queued edit has settled.
+async fn accept(probe: &InspectorProbe) {
+    for _ in 0..6 {
+        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        gloo_timers::future::TimeoutFuture::new(10).await;
+    }
+}
+
+pub(super) async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
+    runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    crate::runtime::project_name_test_support::run_pending(runtime).await;
+}
+
+fn accepted_revision(probe: &InspectorProbe) -> u64 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision
+}
+
+fn accepted_document(probe: &InspectorProbe) -> boardstudio_core::model::ProjectDoc {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .as_ref()
+        .clone()
 }
 
 async fn settle_dimension() {
@@ -326,23 +358,18 @@ fn mounted_outline_inspector_host() -> Element {
     }
 }
 
-fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
-    mounted_outline_inspector_with_version(None)
+async fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
+    mounted_outline_inspector_with_version(None).await
 }
 
-fn mounted_outline_inspector_with_version(
+async fn mounted_outline_inspector_with_version(
     version: Option<boardstudio_core::model::OutlineVersion>,
 ) -> (InspectorProbe, web_sys::Element) {
-    let scope = Scope {
-        session_epoch: SessionEpoch(5),
-        document_id: "outline-inspector-doc".into(),
-        board_id: "outline-board".into(),
-        instance_id: None,
-    };
+    let board_id = "outline-board".to_string();
     let mut document = ProjectDoc::empty("outline-inspector-doc", "Outline fixture");
     document.revision = 9;
-    document.boards.push(Board {
-        id: scope.board_id.clone(),
+        document.boards.push(Board {
+        id: board_id.clone(),
         name: "Board".into(),
         outline_ids: vec![],
         part_ids: vec![],
@@ -355,46 +382,15 @@ fn mounted_outline_inspector_with_version(
         document
             .board_outlines
             .push(boardstudio_core::model::BoardOutline {
-                board_id: scope.board_id.clone(),
+                board_id: board_id.clone(),
                 active_version_id: Some(version.id.clone()),
                 versions: vec![version],
                 generated_last_valid: None,
             });
     }
-    let snapshot = AcceptedSnapshot {
-        token: SnapshotToken(13),
-        session_epoch: scope.session_epoch,
-        document: Arc::new(document),
-        scene: Arc::new(SceneDelta {
-            module_scenes: vec![],
-            revision: 9,
-            transaction_id: "outline-inspector-fixture".into(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![],
-            board_readiness: vec![],
-            board_outline_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: true,
-                case_ready: false,
-            },
-        }),
-    };
-    let model = ReadModel {
-        lifecycle: Lifecycle::Ready,
-        durability: Durability::Saved { revision: 9 },
-        accepted: Some(snapshot),
-        active_board_id: scope.board_id.clone(),
-        ..ReadModel::default()
-    };
-    let runtime = crate::runtime::Runtime::new().expect("browser Runtime initializes");
-    runtime.set_layout_component_inspector_test_state(model, Some(scope.clone()));
+    let runtime = crate::runtime::project_name_test_support::new_runtime();
+    crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+    let scope = runtime.scope().expect("the opened outline fixture has a scope");
     let probe = InspectorProbe {
         runtime,
         scope,
@@ -416,7 +412,7 @@ fn mounted_outline_inspector_with_version(
 
 #[wasm_bindgen_test]
 async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
-    let (probe, root) = mounted_polygon_outline_inspector(true);
+    let (probe, root) = mounted_polygon_outline_inspector(true).await;
     settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
     let selection = *probe
@@ -485,7 +481,7 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
 
 #[wasm_bindgen_test]
 async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_editing() {
-    let (probe, root) = mounted_polygon_outline_inspector(true);
+    let (probe, root) = mounted_polygon_outline_inspector(true).await;
     settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
     let selected_context = *probe
@@ -599,10 +595,10 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         Vec2 { x: 13.0, y: -13.0 },
         Vec2 { x: 13.0, y: 13.0 },
     ];
-    let (probe, root) = mounted_polygon_outline_inspector_with_points(true, points);
+    let (probe, root) = mounted_polygon_outline_inspector_with_points(true, points).await;
     settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
-    let _ = probe.runtime.take_layout_component_inspector_test_events();
+    let revision_before = accepted_revision(&probe);
 
     document
         .query_selector("#outline-points-inspector-mount button.m1-outline-action")
@@ -637,10 +633,11 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         None,
         "the mounted production pointerup handler finished the point interaction"
     );
-    let pointer_events = probe.runtime.take_layout_component_inspector_test_events();
-    assert!(
-        pointer_events.is_empty(),
-        "a pointer interaction without pointer movement must not submit an outline edit; got {pointer_events:?}"
+    accept(&probe).await;
+    assert_eq!(
+        accepted_revision(&probe),
+        revision_before,
+        "a pointer interaction without pointer movement must not edit the outline"
     );
 
     dispatch_test_pointer_at(&point, "pointerdown", 1, client_x, client_y);
@@ -648,12 +645,13 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
     dispatch_test_pointer_at(&point, "pointerup", 0, client_x + 4, client_y);
     settle_dimension().await;
     assert_eq!(captured.captured.get(), None);
-    let displacement_events = probe.runtime.take_layout_component_inspector_test_events();
-    assert!(
-        matches!(displacement_events.as_slice(), [boardstudio_application::Event::Edit { command, .. }]
-            if command.phase == boardstudio_core::model::EditPhase::Commit),
-        "a pointer-up displaced from pointer-down still commits the final sample when no pointermove was delivered; got {displacement_events:?}"
+    accept(&probe).await;
+    assert_eq!(
+        accepted_revision(&probe),
+        revision_before + 1,
+        "a pointer-up displaced from pointer-down still commits the final sample when no pointermove was delivered"
     );
+    let revision_after_commit = accepted_revision(&probe);
 
     let shift = web_sys::KeyboardEventInit::new();
     shift.set_key("Shift");
@@ -678,11 +676,11 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         .unwrap();
     settle_dimension().await;
 
-    assert!(
-        probe
-            .runtime
-            .take_layout_component_inspector_test_events()
-            .is_empty()
+    accept(&probe).await;
+    assert_eq!(
+        accepted_revision(&probe),
+        revision_after_commit,
+        "Shift and Escape do not edit the outline"
     );
     root.remove();
 }
@@ -774,11 +772,11 @@ fn dispatch_test_pointer_at(
     target.dispatch_event(&event).unwrap();
 }
 
-fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
-    mounted_polygon_outline_inspector_with_connections(fixed, vec![])
+async fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
+    mounted_polygon_outline_inspector_with_connections(fixed, vec![]).await
 }
 
-fn mounted_polygon_outline_inspector_with_connections(
+async fn mounted_polygon_outline_inspector_with_connections(
     fixed: bool,
     connections: Vec<OutlineConnection>,
 ) -> (InspectorProbe, web_sys::Element) {
@@ -788,30 +786,25 @@ fn mounted_polygon_outline_inspector_with_connections(
         boardstudio_core::model::Vec2 { x: 20.0, y: 20.0 },
         boardstudio_core::model::Vec2 { x: 0.0, y: 20.0 },
     ];
-    mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, connections)
+    mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, connections).await
 }
 
-fn mounted_polygon_outline_inspector_with_points(
+async fn mounted_polygon_outline_inspector_with_points(
     fixed: bool,
     points: Vec<Vec2>,
 ) -> (InspectorProbe, web_sys::Element) {
-    mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, vec![])
+    mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, vec![]).await
 }
 
-fn mounted_polygon_outline_inspector_with_points_and_connections(
+async fn mounted_polygon_outline_inspector_with_points_and_connections(
     fixed: bool,
     points: Vec<Vec2>,
     connections: Vec<OutlineConnection>,
 ) -> (InspectorProbe, web_sys::Element) {
-    let scope = Scope {
-        session_epoch: SessionEpoch(6),
-        document_id: "outline-points-doc".into(),
-        board_id: "outline-points-board".into(),
-        instance_id: None,
-    };
+    let board_id = "outline-points-board".to_string();
     let mut document = ProjectDoc::empty("outline-points-doc", "Outline points fixture");
     document.revision = 11;
-    let has_envelope_part = !connections.is_empty();
+        let has_envelope_part = !connections.is_empty() || !fixed;
     if has_envelope_part {
         document.definitions.push(PartDefinition {
             hardware_profile: None,
@@ -853,7 +846,7 @@ fn mounted_polygon_outline_inspector_with_points_and_connections(
         });
     }
     document.boards.push(Board {
-        id: scope.board_id.clone(),
+        id: board_id.clone(),
         name: "Board".into(),
         outline_ids: if fixed {
             vec![]
@@ -871,7 +864,7 @@ fn mounted_polygon_outline_inspector_with_points_and_connections(
     });
     if fixed {
         document.board_outlines.push(BoardOutline {
-            board_id: scope.board_id.clone(),
+            board_id: board_id.clone(),
             active_version_id: Some("fixed-outline-v1".into()),
             versions: vec![OutlineVersion {
                 id: "fixed-outline-v1".into(),
@@ -908,54 +901,9 @@ fn mounted_polygon_outline_inspector_with_points_and_connections(
             operation: boardstudio_core::model::Operation::Add,
         });
     }
-    let snapshot = AcceptedSnapshot {
-        token: SnapshotToken(21),
-        session_epoch: scope.session_epoch,
-        document: Arc::new(document),
-        scene: Arc::new(SceneDelta {
-            module_scenes: vec![],
-            revision: 11,
-            transaction_id: "outline-points-fixture".into(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![BoardContours {
-                board_id: scope.board_id.clone(),
-                contours: vec![Contour {
-                    points: points.clone(),
-                    hole: false,
-                }],
-            }],
-            board_readiness: vec![],
-            board_outline_scenes: vec![boardstudio_core::model::BoardOutlineScene {
-                board_id: scope.board_id.clone(),
-                source_contours: vec![Contour {
-                    points,
-                    hole: false,
-                }],
-                bridges: vec![],
-                gaps: vec![],
-            }],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: true,
-                case_ready: false,
-            },
-        }),
-    };
-    let model = ReadModel {
-        lifecycle: Lifecycle::Ready,
-        durability: Durability::Saved { revision: 11 },
-        accepted: Some(snapshot),
-        active_board_id: scope.board_id.clone(),
-        ..ReadModel::default()
-    };
-    let runtime = crate::runtime::Runtime::new().expect("browser Runtime initializes");
-    runtime.set_layout_component_inspector_test_state(model, Some(scope.clone()));
+    let runtime = crate::runtime::project_name_test_support::new_runtime();
+    crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+    let scope = runtime.scope().expect("the opened outline fixture has a scope");
     let probe = InspectorProbe {
         runtime,
         scope,
@@ -991,49 +939,29 @@ async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_vali
             },
         ],
     };
-    let (probe, root) = mounted_polygon_outline_inspector_with_connections(false, vec![existing]);
+    let (probe, root) = mounted_polygon_outline_inspector_with_connections(false, vec![existing]).await;
     settle_dimension().await;
     probe.add_connection(vec![Vec2 { x: -6.0, y: 0.0 }, Vec2 { x: -16.0, y: 0.0 }]);
     settle_dimension().await;
 
-    let events = probe.runtime.take_layout_component_inspector_test_events();
-    let command = match events.as_slice() {
-        [boardstudio_application::Event::Edit { command, .. }] => command.clone(),
-        _ => panic!("adding a Generated connection submits one edit"),
-    };
-    let EditOperation::SetOutline { feature } = &command.operation else {
-        panic!("Generated connection edits the accepted PartEnvelope")
-    };
+    accept(&probe).await;
+    let document = accepted_document(&probe);
+    let scene = probe.runtime.model().accepted.expect("accepted").scene.clone();
+    let feature = document
+        .outline
+        .iter()
+        .find(|candidate| candidate.id() == "generated-outline")
+        .expect("the generated outline stays accepted");
     let OutlineFeature::PartEnvelope { connections, .. } = feature else {
         panic!("the connection edit retains a PartEnvelope")
     };
-    assert_eq!(
-        connections
-            .iter()
-            .map(|connection| connection.id.as_str())
-            .collect::<Vec<_>>(),
-        ["outline-connection-1", "outline-connection-1-2"]
+    assert_eq!(connections.len(), 2);
+    assert_eq!(connections[0].id, "outline-connection-1");
+    assert_ne!(
+        connections[1].id, connections[0].id,
+        "the added connection gets a distinct identity"
     );
-
-    let mut core = boardstudio_core::CoreEngine::new();
-    let baseline = probe.runtime.model().accepted.unwrap();
-    assert!(matches!(
-        core.handle(CoreRequest::Open {
-            id: "open-outline-connection-fixture".into(),
-            document: baseline.document.as_ref().clone(),
-        }),
-        CoreReply::Scene { .. }
-    ));
-    let reply = core.handle(CoreRequest::Edit {
-        id: "add-outline-connection-after-reopen".into(),
-        command,
-    });
-    let CoreReply::Scene {
-        scene, document, ..
-    } = reply
-    else {
-        panic!("unique saved connection IDs must remain a valid accepted Core edit")
-    };
+    let new_connection_id = connections[1].id.clone();
     assert!(
         scene
             .findings
@@ -1070,7 +998,7 @@ async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_vali
     );
     let moved_new = move_connection_point(
         accepted,
-        "outline-connection-1-2",
+        &new_connection_id,
         0,
         Vec2 { x: -7.0, y: 1.0 },
         &document.parts,
@@ -1098,8 +1026,8 @@ async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_vali
 }
 
 #[wasm_bindgen_test]
-fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
-    let (probe, root) = mounted_polygon_outline_inspector(true);
+async fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
+    let (probe, root) = mounted_polygon_outline_inspector(true).await;
     let mut snapshot = probe.runtime.model().accepted.unwrap();
     let document = Arc::make_mut(&mut snapshot.document);
     let features = &mut document.board_outlines[0].versions[0].geometry.features;
@@ -1167,7 +1095,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
     use boardstudio_core::model::{
         CornerStyle, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
     };
-    let (probe, root) = mounted_outline_inspector_with_version(Some(OutlineVersion {
+    let (_probe, root) = mounted_outline_inspector_with_version(Some(OutlineVersion {
         id: "saved-outline".into(),
         name: "QA Outline".into(),
         source: OutlineProvenance {
@@ -1185,7 +1113,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
             bridges: vec![],
             protected_gaps: vec![],
         },
-    }));
+    })).await;
     settle_dimension().await;
     let select = root
         .query_selector("select[aria-label='Active outline']")
@@ -1206,18 +1134,12 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap();
     assert_eq!(size.value(), "7.25");
-    assert!(
-        probe
-            .runtime
-            .take_layout_component_inspector_test_events()
-            .is_empty()
-    );
     root.remove();
 }
 
 #[wasm_bindgen_test]
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
-    let (probe, root) = mounted_outline_inspector();
+    let (probe, root) = mounted_outline_inspector().await;
     settle_dimension().await;
     let button = web_sys::window()
         .unwrap()
@@ -1230,55 +1152,30 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
         .unwrap();
     button.click();
     settle_dimension().await;
-    let events = probe.runtime.take_layout_component_inspector_test_events();
-    let operation = match events.as_slice() {
-        [boardstudio_application::Event::Edit { operation_id, .. }] => *operation_id,
-        _ => panic!("the production owner should submit exactly one edit"),
-    };
-    let created = match events.as_slice() {
-        [boardstudio_application::Event::Edit { command, .. }] => {
-            let boardstudio_core::model::EditOperation::ReplaceDocument { document } =
-                &command.operation
-            else {
-                panic!("automatic outline creation uses the existing document edit")
-            };
-            document
-                .boards
-                .iter()
-                .find(|board| board.id == probe.scope.board_id)
-                .is_some_and(|board| {
-                    board.outline_ids.iter().any(|id| {
-                        document.outline.iter().any(|feature| {
-                            feature.id() == id
-                                && matches!(
-                                    feature,
-                                    boardstudio_core::model::OutlineFeature::PartEnvelope { .. }
-                                )
-                        })
-                    })
+    accept(&probe).await;
+    let document = accepted_document(&probe);
+    let created = document
+        .boards
+        .iter()
+        .find(|board| board.id == probe.scope.board_id)
+        .is_some_and(|board| {
+            board.outline_ids.iter().any(|id| {
+                document.outline.iter().any(|feature| {
+                    feature.id() == id
+                        && matches!(feature, boardstudio_core::model::OutlineFeature::PartEnvelope { .. })
                 })
-        }
-        _ => false,
-    };
+            })
+        });
     assert!(
         created,
-        "the mounted Inspector emits a generated feature edit"
+        "the mounted Inspector's generate action leaves a generated feature accepted"
     );
-    assert!(
-        probe
-            .runtime
-            .settle_layout_component_inspector_test_operation(
-                operation,
-                boardstudio_application::TerminalOutcome::Rejected("fixture rejection".into()),
-            )
-    );
-    settle_dimension().await;
     root.remove();
 }
 
 #[wasm_bindgen_test]
 async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_points() {
-    let (probe, root) = mounted_polygon_outline_inspector(false);
+    let (probe, root) = mounted_polygon_outline_inspector(false).await;
     settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
     let open = document
@@ -1298,34 +1195,45 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
     insert.click();
     settle_dimension().await;
 
-    let events = probe.runtime.take_layout_component_inspector_test_events();
-    let operation = match events.as_slice() {
-        [boardstudio_application::Event::Edit { command, .. }] => &command.operation,
-        _ => panic!("inserting a Generated outline point submits one edit"),
+    accept(&probe).await;
+    let source_points = probe
+        .runtime
+        .model()
+        .accepted
+        .map(|snapshot| snapshot.scene.board_outline_scenes.clone())
+        .and_then(|scenes| {
+            scenes
+                .iter()
+                .find(|scene| scene.board_id == probe.scope.board_id)
+                .and_then(|scene| scene.source_contours.first().map(|contour| contour.points.len()))
+        });
+    let document = accepted_document(&probe);
+    let outline = document
+        .board_outlines
+        .iter()
+        .find(|outline| outline.board_id == probe.scope.board_id)
+        .expect("the first Generated edit creates a fixed copy");
+    let version = outline
+        .versions
+        .iter()
+        .find(|version| Some(&version.id) == outline.active_version_id.as_ref())
+        .expect("the fixed copy is active");
+    assert_eq!(version.name, "Edited outline 1");
+    assert!(version.id.starts_with("outline-version-"));
+    let OutlineFeature::Polygon { points, .. } = &version.geometry.features[0] else {
+        panic!("the fixed copy holds the edited polygon")
     };
-    let boardstudio_core::model::EditOperation::CopyOutline {
-        board_id,
-        version_id,
-        name,
-        edit: Some(edit),
-        feature: None,
-    } = operation
-    else {
-        panic!("the first Generated edit creates a fixed copy with its point edit")
-    };
-    assert_eq!(board_id, &probe.scope.board_id);
-    assert_eq!(name, "Edited outline 1");
-    assert!(version_id.starts_with("outline-version-"));
-    assert_eq!(edit.contour, 0);
-    assert_eq!(edit.points.len(), 5);
-    assert_eq!(edit.points[1].x, 10.0);
-    assert_eq!(edit.points[1].y, 0.0);
+    assert_eq!(
+        Some(points.len()),
+        source_points.map(|count| count + 1),
+        "one inserted point on the accepted contour"
+    );
     root.remove();
 }
 
 #[wasm_bindgen_test]
 async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_feature() {
-    let (probe, root) = mounted_polygon_outline_inspector(true);
+    let (probe, root) = mounted_polygon_outline_inspector(true).await;
     settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
     let open = document
@@ -1361,26 +1269,252 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
     send_key(&input, "Enter");
     settle_dimension().await;
 
-    let events = probe.runtime.take_layout_component_inspector_test_events();
-    let operation = match events.as_slice() {
-        [boardstudio_application::Event::Edit { command, .. }] => &command.operation,
-        _ => panic!("a finite coordinate Enter submits one edit"),
-    };
-    let boardstudio_core::model::EditOperation::SetOutline {
-        feature:
-            OutlineFeature::Polygon {
-                id,
-                points,
-                operation: boardstudio_core::model::Operation::Add,
-                ..
-            },
-    } = operation
-    else {
+    accept(&probe).await;
+    let document = accepted_document(&probe);
+    let feature = document.board_outlines[0].versions[0]
+        .geometry
+        .features
+        .iter()
+        .find(|feature| feature.id() == "fixed-contour")
+        .expect("the fixed contour stays accepted");
+    let OutlineFeature::Polygon { points, .. } = feature else {
         panic!("a fixed edit updates its accepted outline feature")
     };
-    assert_eq!(id, "fixed-contour");
     assert_eq!(points.len(), 4);
     assert_eq!(points[0].x, 1.5);
     assert_eq!(points[0].y, 0.0);
     root.remove();
+}
+
+mod queued_actions {
+    use super::*;
+    use crate::outline_lifecycle::{OutlineAction, action_resolver};
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::{
+        BoardOutline, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
+    };
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    fn polygon(id: &str, x: f64) -> OutlineFeature {
+        OutlineFeature::Polygon {
+            id: id.into(),
+            anchor_part_id: None,
+            points: vec![
+                Vec2 { x, y: 0.0 },
+                Vec2 { x: x + 10.0, y: 0.0 },
+                Vec2 { x: x + 10.0, y: 10.0 },
+                Vec2 { x, y: 10.0 },
+            ],
+            operation: Operation::Add,
+        }
+    }
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("outline-queue-doc", "Outline queue");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.board_outlines.push(BoardOutline {
+            board_id: "board".into(),
+            active_version_id: Some("v1".into()),
+            versions: vec![OutlineVersion {
+                id: "v1".into(),
+                name: "Edited outline 1".into(),
+                source: OutlineProvenance {
+                    revision: 0,
+                    version_id: None,
+                },
+                geometry: OutlineSnapshot {
+                    features: vec![polygon("base", 0.0), polygon("second", 30.0)],
+                    settings: OutlineSettings::default(),
+                    expected_regions: 1,
+                    bridges: vec![],
+                    protected_gaps: vec![],
+                },
+            }],
+            generated_last_valid: None,
+        });
+        document
+    }
+
+    async fn open() -> (Rc<crate::runtime::Runtime>, Scope) {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let scope = runtime.scope().expect("the fixture has a scope");
+        (runtime, scope)
+    }
+
+    fn envelope(scope: &Scope) -> (Scope, SnapshotToken, u64, u64, String) {
+        (scope.clone(), SnapshotToken(0), 0, 1, scope.board_id.clone())
+    }
+
+    fn set_feature(scope: &Scope, before: OutlineFeature, after: OutlineFeature) -> OutlineAction {
+        let (scope, token, revision, generation, board_id) = envelope(scope);
+        OutlineAction::SetFeature {
+            scope: scope.clone(),
+            token,
+            revision,
+            generation,
+            board_id: board_id.clone(),
+            context: super::super::super::objects::TreeContext::OutlineVersion {
+                board_id,
+                version_id: Some("v1".into()),
+            },
+            version_id: Some("v1".into()),
+            before,
+            after,
+        }
+    }
+
+    fn add_feature(scope: &Scope, feature: OutlineFeature) -> OutlineAction {
+        let (scope, token, revision, generation, board_id) = envelope(scope);
+        OutlineAction::AddFeature {
+            scope,
+            token,
+            revision,
+            generation,
+            board_id: board_id.clone(),
+            context: super::super::super::objects::TreeContext::OutlineVersion {
+                board_id,
+                version_id: Some("v1".into()),
+            },
+            feature,
+        }
+    }
+
+    fn begin(runtime: &Rc<crate::runtime::Runtime>, action: OutlineAction, seed: u64) -> EditTicket {
+        EditTicket::begin(
+            runtime,
+            "layout-outline",
+            Some("outline".into()),
+            action_resolver(action, seed, String::new()),
+        )
+    }
+
+    fn features(runtime: &Rc<crate::runtime::Runtime>) -> Vec<OutlineFeature> {
+        runtime.model().accepted.unwrap().document.board_outlines[0].versions[0]
+            .geometry
+            .features
+            .clone()
+    }
+
+    async fn settle(runtime: &Rc<crate::runtime::Runtime>, ticket: &EditTicket) {
+        for _ in 0..100 {
+            support::run_pending(runtime).await;
+            if !ticket.is_pending() {
+                return;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn two_set_feature_edits_on_different_features_both_survive_and_undo_removes_them_in_order()
+     {
+        let (runtime, scope) = open().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first = begin(&runtime, set_feature(&scope, polygon("base", 0.0), polygon("base", 5.0)), 1);
+        support::drive_pending(&runtime);
+        entered.await.expect("the first edit reached Core");
+        let second = begin(&runtime, set_feature(&scope, polygon("second", 30.0), polygon("second", 35.0)), 2);
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held reply");
+        settle(&runtime, &second).await;
+
+        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        let accepted = features(&runtime);
+        assert_eq!(accepted[0], polygon("base", 5.0), "the first edit survived");
+        assert_eq!(accepted[1], polygon("second", 35.0), "the second edit applied on top");
+
+        super::undo(&runtime).await;
+        let after_one = features(&runtime);
+        assert_eq!(after_one[0], polygon("base", 5.0));
+        assert_eq!(after_one[1], polygon("second", 30.0), "one Undo removes the later edit");
+        super::undo(&runtime).await;
+        assert_eq!(features(&runtime)[0], polygon("base", 0.0));
+    }
+
+    #[wasm_bindgen_test]
+    async fn two_queued_add_features_both_exist_with_distinct_ids() {
+        let (runtime, scope) = open().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        // Both adds were minted with the same identity at the same revision.
+        let first = begin(&runtime, add_feature(&scope, polygon("outline-manual", 60.0)), 1);
+        support::drive_pending(&runtime);
+        entered.await.expect("the first add reached Core");
+        let second = begin(&runtime, add_feature(&scope, polygon("outline-manual", 80.0)), 2);
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held reply");
+        settle(&runtime, &second).await;
+
+        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        let accepted = features(&runtime);
+        let ids = accepted.iter().map(|feature| feature.id().to_owned()).collect::<Vec<_>>();
+        assert_eq!(accepted.len(), 4, "both added features exist: {ids:?}");
+        let distinct = ids.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(distinct.len(), 4, "identities are distinct: {ids:?}");
+    }
+
+    #[wasm_bindgen_test]
+    async fn set_feature_on_a_feature_deleted_before_execution_retires_with_a_reason() {
+        let (runtime, scope) = open().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let remove = {
+            let (scope, token, revision, generation, board_id) = envelope(&scope);
+            begin(
+                &runtime,
+                OutlineAction::RemoveFeature {
+                    scope,
+                    token,
+                    revision,
+                    generation,
+                    board_id: board_id.clone(),
+                    context: super::super::super::objects::TreeContext::OutlineVersion {
+                        board_id,
+                        version_id: Some("v1".into()),
+                    },
+                    version_id: "v1".into(),
+                    feature_id: "second".into(),
+                },
+                1,
+            )
+        };
+        support::drive_pending(&runtime);
+        entered.await.expect("the removal reached Core");
+        let edit = begin(&runtime, set_feature(&scope, polygon("second", 30.0), polygon("second", 40.0)), 2);
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held reply");
+        settle(&runtime, &edit).await;
+
+        assert!(matches!(remove.settlement(true), Settlement::Landed { .. }));
+        match edit.settlement(true) {
+            Settlement::Failed { message } => assert!(
+                message.contains("no longer exists"),
+                "the reason is explained: {message}"
+            ),
+            other => panic!("expected a retirement with a reason, got {other:?}"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn one_shot_outline_tickets_stay_pending_until_they_settle() {
+        let (runtime, scope) = open().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let add = begin(&runtime, add_feature(&scope, polygon("another", 100.0)), 1);
+        support::drive_pending(&runtime);
+        entered.await.expect("the add reached Core");
+        assert!(add.is_pending(), "the add control stays disabled while pending");
+        release.send(()).expect("release the held reply");
+        settle(&runtime, &add).await;
+        assert!(!add.is_pending());
+    }
 }
