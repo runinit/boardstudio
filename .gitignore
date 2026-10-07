@@ -28,6 +28,30 @@ renderer/pkg/
 .omo/
 .impeccable/
 /.github/hooks/impeccable.json
+.gitnexus/
+.zcode/
+.zcodeignore
+.serena/
+.kiro/
+.junie/
+.amazonq/
+.trae/
+.mcp.json
+.ripgreprc
+.worktrees/
+
+# Editor settings.
+.idea
+.vscode
+*.code-workspace
+
+# Empty mount stubs the agent sandbox leaves at the repo root.
+/.bash_profile
+/.bashrc
+/.profile
+/.zprofile
+/.zshrc
+/.gitconfig
 /agent/skills/
 AGENTS.md
 CLAUDE.md
@@ -37,7 +61,6 @@ SKILL.md
 /data/iii-config.yaml
 /data/state_store.db/
 /data/stream_store/
-ts-boardstudio2.code-workspace
 
 # Local memory journals and Python bytecode.
 .memsearch/
