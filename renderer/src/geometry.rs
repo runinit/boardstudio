@@ -548,7 +548,7 @@ mod tests {
         )
         .unwrap();
         let contains_on_top = |point: [f32; 2]| {
-            mesh.indices.chunks_exact(3).any(|triangle| {
+            mesh.indices.as_chunks::<3>().0.iter().any(|triangle| {
                 let vertices = [triangle[0], triangle[1], triangle[2]]
                     .map(|index| mesh.positions[index as usize]);
                 if !vertices.iter().all(|vertex| (vertex[2] - 1.2).abs() < 1e-5) {

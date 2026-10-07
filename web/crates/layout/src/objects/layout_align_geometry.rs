@@ -180,10 +180,7 @@ mod state_tests {
 }
 
 /// Resolve the exact accepted envelope used by React selectionOutline for one live part.
-pub fn transformed_envelope(
-    part: &Part,
-    definition: &PartDefinition,
-) -> Result<Vec<Vec2>, String> {
+pub fn transformed_envelope(part: &Part, definition: &PartDefinition) -> Result<Vec<Vec2>, String> {
     let local = if matches!(&definition.kind, PartKind::Switch) {
         match part.keycap.or(definition.keycap) {
             Some(size) if finite_point(size) && size.x > 0.0 && size.y > 0.0 => {

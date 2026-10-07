@@ -1720,7 +1720,7 @@ fn settled_landing(
                 operation_id: settled,
                 outcome,
                 landing,
-            } if *settled == operation_id => Some((outcome.clone(), landing.clone())),
+            } if *settled == operation_id => Some((outcome.clone(), *landing)),
             _ => None,
         })
         .unwrap_or_else(|| panic!("operation {operation_id:?} never settled"))
@@ -1971,7 +1971,7 @@ fn position_resolver(
     })
 }
 
-fn resolved_position<'a>(accepted: &'a AcceptedSnapshot) -> &'a Vec2 {
+fn resolved_position(accepted: &AcceptedSnapshot) -> &Vec2 {
     &accepted
         .document
         .parts
@@ -2173,7 +2173,7 @@ fn an_unchanged_resolution_lands_at_the_current_snapshot_and_keeps_draining() {
         has_core_request(&effects),
         "the queue keeps draining after an unchanged resolution"
     );
-    let (request_id, epoch, request) = core_effect(&effects);
+    let (_request_id, _epoch, request) = core_effect(&effects);
     assert!(
         matches!(&request, CoreRequest::Edit { command, .. } if command.transaction_id == "supplied-transaction"),
         "a supplied transaction id is kept"
@@ -2264,7 +2264,7 @@ fn recovery_and_closing_refuse_resolvers_without_calling_them() {
         reply: Box::new(reply),
     });
     let (save_attempt_id, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
+    let _effects = session.complete(Completion::Persist {
         save_attempt_id,
         result: SaveResult::Aborted("quota".into()),
     });

@@ -22,3 +22,6 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 [dev-dependencies]
 # Fixtures are read with their key order so schema order can be checked.
 serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+
+[lints]
+workspace = true

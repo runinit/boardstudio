@@ -24,3 +24,6 @@ web-sys = { version = "=0.3.106", features = [
   "WebGl2RenderingContext",
 ] }
 
+
+[lints]
+workspace = true

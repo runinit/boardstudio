@@ -7,9 +7,7 @@ pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, Art
     finish(request, false)
 }
 
-pub fn finish_preview(
-    request: FinishExportRequest,
-) -> Result<PcbPreview, ArtifactError> {
+pub fn finish_preview(request: FinishExportRequest) -> Result<PcbPreview, ArtifactError> {
     if !matches!(request.plan.target, ExportTarget::Board { .. }) {
         return Err(validation("Preview requires a board"));
     }

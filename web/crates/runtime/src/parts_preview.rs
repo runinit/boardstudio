@@ -131,62 +131,6 @@ impl PartsPreviewLeaseSlot {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boardstudio_application::SessionEpoch;
-
-    fn lease(generation: u64) -> Rc<PartsPreviewOwnerLease> {
-        PartsPreviewOwnerLease::new(PartsPreviewOwnerIdentity {
-            scope: Scope {
-                session_epoch: SessionEpoch(1),
-                document_id: "doc".into(),
-                board_id: "board".into(),
-                instance_id: None,
-            },
-            snapshot_token: SnapshotToken(1),
-            accepted_revision: 1,
-            accepted_document_identity: 1,
-            definition_id: "definition".into(),
-            recipe_identity: "recipe".into(),
-            source_generation: generation,
-            request_token: format!("request-{generation}"),
-        })
-    }
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    fn late_old_generation_invalidation_cannot_revoke_new_parts_preview_lease() {
-        let slot = PartsPreviewLeaseSlot::default();
-        slot.select_generation(1);
-        let old = lease(1);
-        slot.replace(old.clone());
-
-        slot.select_generation(2);
-        assert!(!old.is_active(), "selection change retires the old lease");
-        let late_old = lease(1);
-        slot.replace(late_old.clone());
-        assert!(
-            !late_old.is_active(),
-            "a late old task cannot reclaim the slot"
-        );
-
-        let current = lease(2);
-        slot.replace(current.clone());
-        slot.invalidate_generation(1);
-        assert!(
-            current.is_active(),
-            "the old deferred effect must not revoke the new lease"
-        );
-        assert!(
-            slot.current
-                .borrow()
-                .as_ref()
-                .is_some_and(|lease| Rc::ptr_eq(lease, &current))
-        );
-    }
-}
-
 impl Drop for PartsPreviewLeaseSlot {
     fn drop(&mut self) {
         self.invalidate();
@@ -431,4 +375,60 @@ fn sample_contour(points: Vec<Vec2>) -> Vec<Contour> {
             Vec2 { x: min_x, y: max_y },
         ],
     }]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+
+    fn lease(generation: u64) -> Rc<PartsPreviewOwnerLease> {
+        PartsPreviewOwnerLease::new(PartsPreviewOwnerIdentity {
+            scope: Scope {
+                session_epoch: SessionEpoch(1),
+                document_id: "doc".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            snapshot_token: SnapshotToken(1),
+            accepted_revision: 1,
+            accepted_document_identity: 1,
+            definition_id: "definition".into(),
+            recipe_identity: "recipe".into(),
+            source_generation: generation,
+            request_token: format!("request-{generation}"),
+        })
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn late_old_generation_invalidation_cannot_revoke_new_parts_preview_lease() {
+        let slot = PartsPreviewLeaseSlot::default();
+        slot.select_generation(1);
+        let old = lease(1);
+        slot.replace(old.clone());
+
+        slot.select_generation(2);
+        assert!(!old.is_active(), "selection change retires the old lease");
+        let late_old = lease(1);
+        slot.replace(late_old.clone());
+        assert!(
+            !late_old.is_active(),
+            "a late old task cannot reclaim the slot"
+        );
+
+        let current = lease(2);
+        slot.replace(current.clone());
+        slot.invalidate_generation(1);
+        assert!(
+            current.is_active(),
+            "the old deferred effect must not revoke the new lease"
+        );
+        assert!(
+            slot.current
+                .borrow()
+                .as_ref()
+                .is_some_and(|lease| Rc::ptr_eq(lease, &current))
+        );
+    }
 }

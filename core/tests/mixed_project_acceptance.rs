@@ -245,8 +245,7 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
         "modelPaths":{"bundled-model:thqwgd001/THQWGD001C [2pin] #1.stp":"models/thq-tactile.step"}
     });
     let fabrication: Value = serde_json::from_str(&artifact_request(
-        &json!({"id":"host-fabrication","kind":"export-pcb","request":export_request})
-            .to_string(),
+        &json!({"id":"host-fabrication","kind":"export-pcb","request":export_request}).to_string(),
     ))
     .unwrap();
     assert_eq!(fabrication["kind"], "error", "{fabrication}");
@@ -286,8 +285,10 @@ fn mixed_host_project_keeps_module_ownership_and_public_export_gates_together() 
             .any(|part| part["reference"] == "TEST1")
     );
     let preview: Value = serde_json::from_str(&artifact_request(
-        &json!({"id":"host-preview-finish","kind":"preview-pcb","request":export_request}).to_string(),
-    )).unwrap();
+        &json!({"id":"host-preview-finish","kind":"preview-pcb","request":export_request})
+            .to_string(),
+    ))
+    .unwrap();
     assert_eq!(preview["kind"], "preview-board", "{preview}");
     assert!(preview["result"]["diagnostics"].as_array().is_some());
 

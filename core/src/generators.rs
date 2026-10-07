@@ -3,12 +3,12 @@
 //! of generated parts. The generators themselves live in `boardstudio-footprints`.
 use std::collections::BTreeMap;
 
+pub use boardstudio_footprints::definition::DEFINITION_ID_PREFIX;
 use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::geometry::{Geometry, geometry};
 use boardstudio_footprints::models;
-use boardstudio_footprints::nets::NoNets;
-pub use boardstudio_footprints::definition::DEFINITION_ID_PREFIX;
 pub use boardstudio_footprints::models::BUNDLED_MODEL_PREFIX;
+use boardstudio_footprints::nets::NoNets;
 pub use boardstudio_footprints::sexpr::{Expr, child, children, parse_forms};
 use boardstudio_footprints::types::{GeneratorRef, PartRef};
 use boardstudio_footprints::{GeneratorError, bundled};

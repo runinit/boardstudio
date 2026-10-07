@@ -27,6 +27,10 @@ Investigations distinguish observations, reproductions and proposals. Record the
 inspected revision, reproduction steps, verification limits and remaining work so
 the evidence can be checked before implementation.
 
+[Rust conventions review](investigations/rust-conventions-review.md) weighs the
+installed Rust skills against this codebase, with measured costs and a ranked,
+unimplemented change list.
+
 [TypeScript and Node removal](investigations/typescript-node-removal.md) inventories
 the remaining provider, content, build and test dependencies, with a phased removal
 plan and completion criteria. It is an assessment, not a completed migration.

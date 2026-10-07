@@ -50,7 +50,7 @@ build or cleanup commands.
 python3 scripts/check.py
 ```
 
-This runs documentation link checks, build and content tool tests, native
+This runs documentation link checks, build and content tool tests, rustfmt and Clippy, native
 Rust and provider tests, WASM page compilation, release packaging, native/WASM
 boundary checks and mounted headless browser tests. Name steps (`python3 scripts/check.py --list`) to run
 only the affected checks during development. The browser runner checks

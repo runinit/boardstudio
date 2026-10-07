@@ -16,3 +16,6 @@ sha2 = { version = "=0.11.0", default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.79"
+
+[lints]
+workspace = true

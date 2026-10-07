@@ -31,9 +31,9 @@ pub mod model_asset_import;
 #[cfg(target_arch = "wasm32")]
 pub mod object_options;
 #[cfg(target_arch = "wasm32")]
-pub mod project_menu;
-#[cfg(target_arch = "wasm32")]
 pub mod panels;
+#[cfg(target_arch = "wasm32")]
+pub mod project_menu;
 // Panel policy is plain logic; compile it natively too so its unit tests run under `cargo test`.
 #[cfg(not(target_arch = "wasm32"))]
 mod panels {

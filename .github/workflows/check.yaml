@@ -35,7 +35,7 @@ jobs:
         with:
           path: cad/.cache/cadrum/*/*.tar.gz
           key: occt-native-${{ hashFiles('cad/scripts/cadrum_build.py') }}
-      - run: python3 scripts/check.py repo tooling test
+      - run: python3 scripts/check.py repo tooling lint test
 
   # Release build and mounted browser tests.
   web:

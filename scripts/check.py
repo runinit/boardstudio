@@ -10,9 +10,11 @@ Steps:
   tooling*    tests for the Python build, content and CAD tooling
   build*      production web build (providers and release packaging)
   test*       native Rust tests (Core, application, footprints, renderer, CAD, web)
+  lint*       rustfmt and Clippy with warnings denied (workspace lints live in Cargo.toml)
   typecheck   WASM page compilation (the build step already compiles the page for WASM)
   browser*    mounted headless-browser tests and the real-browser CAD smoke gate
   security    dependency audit of every Rust lockfile (separate CI workflow)
+  deny        cargo-deny license, ban and source policy from deny.toml (separate CI workflow)
   precommit   typecheck the page
 """
 
@@ -78,14 +80,22 @@ def browser() -> list[Command]:
     ]
 
 
+# `--no-deps` keeps Clippy off the vendored cgmath patch; its lints are not ours to fix.
+LINT: list[list[str]] = [
+    ["cargo", "fmt", "--all", "--check"],
+    ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
+]
+
 STEPS: dict[str, tuple[bool, list[Command]]] = {
     "repo": (True, [[PY, "-B", "scripts/test-check-doc-links.py"], [PY, "scripts/check-doc-links.py"]]),
     "tooling": (True, [[PY, "-B", script] for script in TOOLING_TESTS]),
+    "lint": (True, LINT),
     "build": (True, [[PY, "scripts/build-web.py"]]),
     "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cadrum.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
+    "deny": (False, [["cargo", "deny", "--locked", "check", "licenses", "bans", "sources"]]),
     "precommit": (False, typecheck()),
 }
 DEFAULT = tuple(name for name, (included, _) in STEPS.items() if included)

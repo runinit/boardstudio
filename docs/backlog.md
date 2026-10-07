@@ -15,6 +15,7 @@ and subsequent cluster migrations; they are no longer deferred work.
 
 - **Stale edit previews:** an `Event::Edit` preview queued behind a commit is rebased by Session but keeps its old payload, so it is drawn over the newly accepted document until the next commit or a matching clear (`application/src/session.rs`, preview handling). It never changes the accepted document. Affects the old position Inspector, transform drag and outline perimeter previews. The [edit settlement plan](plans/edit-settlement/map.md) leaves previews unchanged; reproduce before repairing.
 
+- **Rust conventions:** audit six production `unwrap` sites (`find`-by-id in `core/src/inputs.rs`, `core/src/modules/circuit.rs`, `core/src/mechanical/gasket.rs`; `accepted.unwrap()` in `application/src/session.rs`) for panics reachable from real documents, and drop 17 dead `#[allow(unused_imports)]` re-exports. Measurements, rejected advice and ordering are in the [Rust conventions review](investigations/rust-conventions-review.md). Reproduce before repairing.
 - **Undo/Redo:** investigate outstanding history behavior separately. Existing controls and tests remain; earlier qualification was deferred.
 - **Generator errors:** replace raw JavaScript stack text in Parts validation with an actionable message (`web/src/presentation/parts/`).
 - **Feature ownership:** reduce shared composition changes across `web/src/presentation.rs` and `web/src/runtime.rs` when concrete feature work exposes a useful boundary. Avoid a general framework rewrite.

@@ -393,11 +393,7 @@ pub struct NativePreviewState {
 }
 
 impl NativePreviewState {
-    pub fn begin(
-        &mut self,
-        owner: CasePreviewOwnerIdentity,
-        lease: Rc<CasePreviewOwnerLease>,
-    ) {
+    pub fn begin(&mut self, owner: CasePreviewOwnerIdentity, lease: Rc<CasePreviewOwnerLease>) {
         self.retire_leases();
         self.pending = Some((owner, lease));
     }

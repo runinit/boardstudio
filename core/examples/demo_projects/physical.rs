@@ -262,6 +262,7 @@ pub(super) fn append(
     let mut origins = Vec::new();
     let mut offsets = Vec::new();
     let mut staggers = Vec::new();
+    #[allow(clippy::needless_range_loop)] // `col` is a column id as well as an index into `angles`.
     for col in 0..columns {
         let bottom = keys
             .iter()

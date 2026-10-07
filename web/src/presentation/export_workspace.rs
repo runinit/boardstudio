@@ -218,9 +218,9 @@ fn export_rows(
     let authored_case_ready =
         boardstudio_core::authored_case_geometry_ready(document, scene, board_id);
     let mechanical_scope = runtime.scope();
-    let mechanical_document = mechanical_scope
-        .as_ref()
-        .and_then(|scope| boardstudio_web_host::cad_jobs::captured_case_document(snapshot, scope).ok());
+    let mechanical_document = mechanical_scope.as_ref().and_then(|scope| {
+        boardstudio_web_host::cad_jobs::captured_case_document(snapshot, scope).ok()
+    });
     let generated_case = mechanical_document
         .as_ref()
         .and_then(|document| document.mechanical.as_ref())

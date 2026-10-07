@@ -27,10 +27,7 @@ pub struct AutomaticCaseGeneration {
 /// Snapshot tokens/revisions are intentionally excluded; owner identity is checked
 /// separately before a completed result can be rebound. In-flight work never uses
 /// this relaxation.
-pub fn physical_case_fingerprint(
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-) -> Option<[u8; 32]> {
+pub fn physical_case_fingerprint(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<[u8; 32]> {
     if snapshot.document.id != scope.document_id
         || snapshot.document.revision != snapshot.scene.revision
         || snapshot.session_epoch != scope.session_epoch

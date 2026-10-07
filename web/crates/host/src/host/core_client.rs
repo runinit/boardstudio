@@ -59,7 +59,9 @@ impl CoreExecutor for CoreWorker {
         executor_epoch: &'a str,
         request: &'a CoreRequest,
     ) -> CoreExecutorFuture<'a, CoreReply> {
-        Box::pin(async move { CoreWorker::request(self, request_id, executor_epoch, request).await })
+        Box::pin(
+            async move { CoreWorker::request(self, request_id, executor_epoch, request).await },
+        )
     }
 
     fn archive<'a>(
@@ -80,7 +82,9 @@ impl CoreExecutor for CoreWorker {
         executor_epoch: &'a str,
         request: &'a ArtifactRequest,
     ) -> CoreExecutorFuture<'a, ArtifactReply> {
-        Box::pin(async move { CoreWorker::artifact(self, request_id, executor_epoch, request).await })
+        Box::pin(
+            async move { CoreWorker::artifact(self, request_id, executor_epoch, request).await },
+        )
     }
 
     fn ready<'a>(&'a self) -> CoreExecutorFuture<'a, ()> {

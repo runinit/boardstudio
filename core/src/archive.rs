@@ -411,7 +411,10 @@ mod tests {
         };
         let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
         assert_eq!(project["formatVersion"], 2);
-        assert_eq!(project["definitions"][0]["id"], "generator:ceoloide/switch_mx");
+        assert_eq!(
+            project["definitions"][0]["id"],
+            "generator:ceoloide/switch_mx"
+        );
     }
 
     #[test]

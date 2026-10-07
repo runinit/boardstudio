@@ -1,0 +1,29 @@
+# cargo-deny policy for the root workspace (`python3 scripts/check.py deny`).
+# Advisories are covered by cargo-audit in the separate security workflow, so they are not repeated.
+# The cad/wasm and cad/step-oracle workspaces have their own lockfiles and are not checked here.
+
+[graph]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib", "CC0-1.0", "Unicode-3.0"]
+confidence-threshold = 0.9
+# Weak (file-level) copyleft: a dependency of the matrix/keymap crates. Listed by crate so a new
+# MPL dependency still fails the check.
+exceptions = [{ allow = ["MPL-2.0"], crate = "smartstring" }]
+
+[licenses.private]
+# The workspace crates are `publish = false`. footprints' CC-BY-NC-SA data license is its own
+# decision and is not a dependency policy question.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

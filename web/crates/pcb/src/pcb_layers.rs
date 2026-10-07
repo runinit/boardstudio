@@ -43,10 +43,7 @@ pub fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
     }
 }
 
-pub fn use_layer_groups(
-    snapshot: &AcceptedSnapshot,
-    scope: &Scope,
-) -> Vec<CanvasLayerGroup> {
+pub fn use_layer_groups(snapshot: &AcceptedSnapshot, scope: &Scope) -> Vec<CanvasLayerGroup> {
     let request = GeneratorLayerRequest {
         scope: scope.clone(),
         sources: generator_sources(snapshot, scope),

@@ -7,8 +7,10 @@ fn request(engine: &mut CoreEngine, value: Value) -> Value {
 }
 
 fn splitter() -> Value {
-    let catalogue: Value =
-        serde_json::from_str(include_str!("../../catalogue/modules/imported-modules.json")).unwrap();
+    let catalogue: Value = serde_json::from_str(include_str!(
+        "../../catalogue/modules/imported-modules.json"
+    ))
+    .unwrap();
     catalogue["modules"]
         .as_array()
         .unwrap()

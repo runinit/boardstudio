@@ -1695,9 +1695,13 @@ mod mounted_tests {
         unrelated
             .parameters
             .insert("independent".into(), serde_json::json!(42));
-        let latest =
-            support::replace_document(&runtime, "parts-name-unrelated-edit", "unrelated", unrelated)
-                .await;
+        let latest = support::replace_document(
+            &runtime,
+            "parts-name-unrelated-edit",
+            "unrelated",
+            unrelated,
+        )
+        .await;
         assert!(latest.document.revision > initial_revision);
         controls.snapshot.set(latest.clone());
         settle().await;

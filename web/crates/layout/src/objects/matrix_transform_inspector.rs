@@ -68,9 +68,7 @@ pub struct MatrixTransformInspectorProps {
 }
 
 #[component]
-pub fn MatrixTransformInspector(
-    props: MatrixTransformInspectorProps,
-) -> Element {
+pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element {
     let Some(projection) = props.mount.projection.as_ref() else {
         return rsx! {};
     };

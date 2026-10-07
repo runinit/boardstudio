@@ -10,9 +10,7 @@ pub struct MirroredPairCanvasOverlayProps {
 }
 
 #[component]
-pub fn MirroredPairCanvasOverlay(
-    props: MirroredPairCanvasOverlayProps,
-) -> Element {
+pub fn MirroredPairCanvasOverlay(props: MirroredPairCanvasOverlayProps) -> Element {
     let owner = props.projection.owner.clone();
     let on_cancel = props.on_cancel;
     rsx! {

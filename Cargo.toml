@@ -31,6 +31,14 @@ cgmath = { path = "renderer/vendor/cgmath-0.18.0" }
 # about 550 MB, and dx's `wasm-bindgen --keep-debug` pass over it took about 52 s of a
 # 78 s rebuild. Line tables keep file:line for browser DWARF debugging and halve the
 # rebuild. Set `debug = true` here locally to inspect variables in the debugger.
+# Lints every workspace crate inherits (`[lints] workspace = true`). `scripts/check.py lint`
+# runs Clippy with warnings denied, so a lint that is intentionally off belongs here, with its
+# reason, rather than in a command-line flag.
+[workspace.lints.clippy]
+# The large variants are UI and session state enums that are built once and moved rarely;
+# boxing them would change every construction and match site for no measured gain.
+large_enum_variant = "allow"
+
 [profile.wasm-dev]
 inherits = "dev"
 debug = "line-tables-only"

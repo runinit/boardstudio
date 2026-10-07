@@ -41,7 +41,8 @@ pub fn matrix() -> Value {
 
 pub fn document() -> Value {
     let matrix = matrix();
-    let mut doc = serde_json::to_value(ProjectDoc::empty("boundary-fixture", "Boundary fixture")).unwrap();
+    let mut doc =
+        serde_json::to_value(ProjectDoc::empty("boundary-fixture", "Boundary fixture")).unwrap();
     doc["definitions"] = json!([{ "id": "switch", "name": "Switch", "kind": "switch", "pads": [], "courtyard": [] }]);
     doc["matrices"] = json!([matrix]);
     let part_ids = matrix["partIds"].as_array().unwrap().clone();
@@ -73,7 +74,10 @@ pub fn core_requests() -> Vec<Value> {
     };
     let mut drafts = Vec::new();
     for mirror in ["none", "x", "y"] {
-        for (index, origin) in [json!({ "x": 0, "y": 0 }), json!({ "x": 42, "y": -17 })].into_iter().enumerate() {
+        for (index, origin) in [json!({ "x": 0, "y": 0 }), json!({ "x": 42, "y": -17 })]
+            .into_iter()
+            .enumerate()
+        {
             drafts.push(with(json!({ "id": format!("draft-{mirror}-{index}"), "origin": origin, "mirror": mirror, "rotation": 37 })));
         }
     }
@@ -115,12 +119,23 @@ pub fn core_requests() -> Vec<Value> {
 pub fn equivalent(actual: &Value, expected: &Value, label: &str) {
     match expected {
         Value::Number(want) => {
-            let (got, want) = (actual.as_f64().unwrap_or_else(|| panic!("{label}: not a number: {actual}")), want.as_f64().unwrap());
-            assert!((got - want).abs() <= 1e-9 * want.abs().max(1.0), "{label}: {got} versus {want}");
+            let (got, want) = (
+                actual
+                    .as_f64()
+                    .unwrap_or_else(|| panic!("{label}: not a number: {actual}")),
+                want.as_f64().unwrap(),
+            );
+            assert!(
+                (got - want).abs() <= 1e-9 * want.abs().max(1.0),
+                "{label}: {got} versus {want}"
+            );
         }
         Value::Object(want) => {
-            let got = actual.as_object().unwrap_or_else(|| panic!("{label}: not an object"));
-            let (mut left, mut right): (Vec<_>, Vec<_>) = (got.keys().collect(), want.keys().collect());
+            let got = actual
+                .as_object()
+                .unwrap_or_else(|| panic!("{label}: not an object"));
+            let (mut left, mut right): (Vec<_>, Vec<_>) =
+                (got.keys().collect(), want.keys().collect());
             left.sort();
             right.sort();
             assert_eq!(left, right, "{label} keys");
@@ -129,7 +144,9 @@ pub fn equivalent(actual: &Value, expected: &Value, label: &str) {
             }
         }
         Value::Array(want) => {
-            let got = actual.as_array().unwrap_or_else(|| panic!("{label}: not an array"));
+            let got = actual
+                .as_array()
+                .unwrap_or_else(|| panic!("{label}: not an array"));
             assert_eq!(got.len(), want.len(), "{label} length");
             for (index, value) in want.iter().enumerate() {
                 equivalent(&got[index], value, &format!("{label}[{index}]"));
@@ -155,11 +172,26 @@ pub type CoreTransport<'a> = &'a mut dyn FnMut(&str) -> String;
 pub type ArchiveTransport<'a> = &'a mut dyn FnMut(&Value, &[Vec<u8>]) -> (Value, Vec<Vec<u8>>);
 
 fn check_core(replies: &[Value]) {
-    assert_eq!(replies[0]["scene"]["matrixScenes"][0]["cells"].as_array().unwrap().len(), 9);
+    assert_eq!(
+        replies[0]["scene"]["matrixScenes"][0]["cells"]
+            .as_array()
+            .unwrap()
+            .len(),
+        9
+    );
     assert_eq!(replies[2]["kind"], "matrix-projections");
-    assert_eq!(replies[4]["scene"]["matrixScenes"], replies[6]["scene"]["matrixScenes"]);
-    assert_eq!(replies[8]["scene"]["matrixScenes"], replies[0]["scene"]["matrixScenes"]);
-    assert_eq!(replies[9]["scene"]["matrixScenes"], replies[6]["scene"]["matrixScenes"]);
+    assert_eq!(
+        replies[4]["scene"]["matrixScenes"],
+        replies[6]["scene"]["matrixScenes"]
+    );
+    assert_eq!(
+        replies[8]["scene"]["matrixScenes"],
+        replies[0]["scene"]["matrixScenes"]
+    );
+    assert_eq!(
+        replies[9]["scene"]["matrixScenes"],
+        replies[6]["scene"]["matrixScenes"]
+    );
     let drafts = replies[2]["matrixScenes"].as_array().unwrap();
     assert_eq!(drafts.len(), 6);
     for pair in (0..drafts.len()).step_by(2) {
@@ -174,23 +206,50 @@ fn check_core(replies: &[Value]) {
             assert!(cell.get("memberId").is_none());
         }
     }
-    assert_eq!(replies[10]["matrixScenes"][0]["cells"].as_array().unwrap().len(), 500);
+    assert_eq!(
+        replies[10]["matrixScenes"][0]["cells"]
+            .as_array()
+            .unwrap()
+            .len(),
+        500
+    );
     assert_eq!(replies[11]["kind"], "preview");
     assert_eq!(replies[12]["kind"], "scene");
-    assert_eq!(replies[11]["scene"]["matrixScenes"], replies[12]["scene"]["matrixScenes"]);
+    assert_eq!(
+        replies[11]["scene"]["matrixScenes"],
+        replies[12]["scene"]["matrixScenes"]
+    );
     assert_eq!(replies[3]["kind"], "error");
     assert_eq!(replies[4]["kind"], "preview");
-    assert_eq!(replies[1]["scene"]["matrixScenes"], replies[5]["scene"]["matrixScenes"]);
+    assert_eq!(
+        replies[1]["scene"]["matrixScenes"],
+        replies[5]["scene"]["matrixScenes"]
+    );
     assert_eq!(replies[7]["kind"], "error");
-    assert_eq!(replies[13]["document"]["hardware"]["boards"][0]["keyBindings"]["matrix/matrix/r0c0"], "&kp A");
-    assert_eq!(replies[14]["document"]["keycaps"]["matrices"]["matrix"]["wallThickness"].as_f64(), Some(1.2));
-    assert_eq!(replies[15]["document"]["keycaps"]["boards"]["board"]["color"], "#123456");
-    assert_eq!(replies[16]["document"]["keycaps"]["keys"]["matrix/matrix/r0c0"]["legend"], "");
+    assert_eq!(
+        replies[13]["document"]["hardware"]["boards"][0]["keyBindings"]["matrix/matrix/r0c0"],
+        "&kp A"
+    );
+    assert_eq!(
+        replies[14]["document"]["keycaps"]["matrices"]["matrix"]["wallThickness"].as_f64(),
+        Some(1.2)
+    );
+    assert_eq!(
+        replies[15]["document"]["keycaps"]["boards"]["board"]["color"],
+        "#123456"
+    );
+    assert_eq!(
+        replies[16]["document"]["keycaps"]["keys"]["matrix/matrix/r0c0"]["legend"],
+        ""
+    );
 }
 
 fn compact(replies: &mut [Value]) {
     // The 500-cell draft is only recorded by size to keep the golden file small.
-    let cells = replies[10]["matrixScenes"][0]["cells"].as_array().unwrap().len();
+    let cells = replies[10]["matrixScenes"][0]["cells"]
+        .as_array()
+        .unwrap()
+        .len();
     replies[10] = json!({ "kind": replies[10]["kind"], "cells": cells });
 }
 
@@ -199,7 +258,9 @@ fn compact(replies: &mut [Value]) {
 pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
     let mut replies: Vec<Value> = core_requests()
         .iter()
-        .map(|request| serde_json::from_str(&core(&request.to_string())).expect("core reply is JSON"))
+        .map(|request| {
+            serde_json::from_str(&core(&request.to_string())).expect("core reply is JSON")
+        })
         .collect();
     check_core(&replies);
     compact(&mut replies);
@@ -218,7 +279,10 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
     let asset_path = format!("assets/{ASSET_SHA256}");
     let asset = ASSET.to_vec();
 
-    let (reply, packed) = call(json!({ "kind": "pack-project", "projectJson": project_json, "archiveJson": json!({ "embedUsedModels": true }).to_string(), "assets": [{ "path": asset_path, "bufferIndex": 0 }] }), &[asset.clone()]);
+    let (reply, packed) = call(
+        json!({ "kind": "pack-project", "projectJson": project_json, "archiveJson": json!({ "embedUsedModels": true }).to_string(), "assets": [{ "path": asset_path, "bufferIndex": 0 }] }),
+        std::slice::from_ref(&asset),
+    );
     assert_eq!(reply["kind"], "packed");
     let (reply, unpacked) = call(json!({ "kind": "unpack-project" }), &packed);
     assert_eq!(reply["projectJson"], project_json);
@@ -226,18 +290,36 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
 
     // Archives from another producer: an old project without archive.json,
     // wrong asset bytes, and a truncated archive.
-    let (_, old) = call(json!({ "kind": "pack-files", "entries": [{ "path": "project.json", "bufferIndex": 0 }, { "path": asset_path, "bufferIndex": 1 }] }), &[project_json.clone().into_bytes(), asset.clone()]);
+    let (_, old) = call(
+        json!({ "kind": "pack-files", "entries": [{ "path": "project.json", "bufferIndex": 0 }, { "path": asset_path, "bufferIndex": 1 }] }),
+        &[project_json.clone().into_bytes(), asset.clone()],
+    );
     let (reply, _) = call(json!({ "kind": "unpack-project" }), &old);
     assert_eq!(reply["projectJson"], project_json);
-    let (_, wrong) = call(json!({ "kind": "pack-files", "entries": [{ "path": "project.json", "bufferIndex": 0 }, { "path": asset_path, "bufferIndex": 1 }] }), &[project_json.clone().into_bytes(), b"wrong".to_vec()]);
-    assert_eq!(call(json!({ "kind": "unpack-project" }), &wrong).0["kind"], "error");
+    let (_, wrong) = call(
+        json!({ "kind": "pack-files", "entries": [{ "path": "project.json", "bufferIndex": 0 }, { "path": asset_path, "bufferIndex": 1 }] }),
+        &[project_json.clone().into_bytes(), b"wrong".to_vec()],
+    );
+    assert_eq!(
+        call(json!({ "kind": "unpack-project" }), &wrong).0["kind"],
+        "error"
+    );
     let truncated = vec![old[0][..old[0].len() - 12].to_vec()];
-    assert_eq!(call(json!({ "kind": "unpack-project" }), &truncated).0["kind"], "error");
+    assert_eq!(
+        call(json!({ "kind": "unpack-project" }), &truncated).0["kind"],
+        "error"
+    );
 
-    let (reply, generic) = call(json!({ "kind": "pack-files", "entries": [{ "path": "BoardStudio.pretty/part.kicad_mod", "bufferIndex": 0 }, { "path": "models/component.step", "bufferIndex": 1 }] }), &[b"(footprint \"part\")".to_vec(), asset.clone()]);
+    let (reply, generic) = call(
+        json!({ "kind": "pack-files", "entries": [{ "path": "BoardStudio.pretty/part.kicad_mod", "bufferIndex": 0 }, { "path": "models/component.step", "bufferIndex": 1 }] }),
+        &[b"(footprint \"part\")".to_vec(), asset.clone()],
+    );
     assert_eq!(reply["kind"], "packed");
     assert_eq!(generic.len(), 1);
-    let duplicate = call(json!({ "kind": "pack-files", "entries": [{ "path": "same", "bufferIndex": 0 }, { "path": "same", "bufferIndex": 1 }] }), &[asset.clone(), asset.clone()]);
+    let duplicate = call(
+        json!({ "kind": "pack-files", "entries": [{ "path": "same", "bufferIndex": 0 }, { "path": "same", "bufferIndex": 1 }] }),
+        &[asset.clone(), asset.clone()],
+    );
     assert_eq!(duplicate.0["kind"], "error");
 
     let payload = payload();
@@ -246,7 +328,10 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
     let large = json!({ "kind": "pack-project", "projectJson": doc.to_string(), "assets": [{ "path": format!("assets/{PAYLOAD_SHA256}"), "bufferIndex": 0 }] });
     let (reply, measured) = call(large, &[payload]);
     assert_eq!(reply["kind"], "packed");
-    assert_eq!(call(json!({ "kind": "unpack-project" }), &measured).0["kind"], "unpacked");
+    assert_eq!(
+        call(json!({ "kind": "unpack-project" }), &measured).0["kind"],
+        "unpacked"
+    );
 
     json!({ "core": replies, "archive": transcript })
 }

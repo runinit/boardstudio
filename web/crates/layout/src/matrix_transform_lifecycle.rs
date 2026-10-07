@@ -430,13 +430,13 @@ mod selection_retention_tests {
         let before = session.read_model();
         let selected = before.selected_part_ids.clone();
         assert_eq!(selected, vec![key_id]);
-        assert_eq!(eligible_ids(&before, "matrix-main", key_id), selected);
+        assert_eq!(eligible_ids(before, "matrix-main", key_id), selected);
         assert_eq!(
             retention.reconcile(
                 Some(&owner),
                 &selected,
-                &eligible_ids(&before, "matrix-main", key_id),
-                &live_ids(&before, key_id)
+                &eligible_ids(before, "matrix-main", key_id),
+                &live_ids(before, key_id)
             ),
             selected
         );
@@ -470,10 +470,10 @@ mod selection_retention_tests {
         advance(&mut session, &mut core, effects);
         let after_disable = session.read_model();
         assert!(
-            live_ids(&after_disable, key_id).is_empty(),
+            live_ids(after_disable, key_id).is_empty(),
             "Core removes the disabled generated part from the board"
         );
-        assert!(eligible_ids(&after_disable, "matrix-main", key_id).is_empty());
+        assert!(eligible_ids(after_disable, "matrix-main", key_id).is_empty());
         assert!(
             after_disable.selected_part_ids.is_empty(),
             "Session prunes the selected part before presentation reconciliation"
@@ -483,8 +483,8 @@ mod selection_retention_tests {
                 .reconcile(
                     Some(&owner),
                     &after_disable.selected_part_ids,
-                    &eligible_ids(&after_disable, "matrix-main", key_id),
-                    &live_ids(&after_disable, key_id)
+                    &eligible_ids(after_disable, "matrix-main", key_id),
+                    &live_ids(after_disable, key_id)
                 )
                 .is_empty()
         );
@@ -494,13 +494,13 @@ mod selection_retention_tests {
         });
         advance(&mut session, &mut core, effects);
         let after_undo = session.read_model();
-        assert_eq!(live_ids(&after_undo, key_id), selected);
-        assert_eq!(eligible_ids(&after_undo, "matrix-main", key_id), selected);
+        assert_eq!(live_ids(after_undo, key_id), selected);
+        assert_eq!(eligible_ids(after_undo, "matrix-main", key_id), selected);
         let restored = retention.reconcile(
             Some(&owner),
             &after_undo.selected_part_ids,
-            &eligible_ids(&after_undo, "matrix-main", key_id),
-            &live_ids(&after_undo, key_id),
+            &eligible_ids(after_undo, "matrix-main", key_id),
+            &live_ids(after_undo, key_id),
         );
         assert_eq!(restored, selected);
     }

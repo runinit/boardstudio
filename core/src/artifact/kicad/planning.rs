@@ -4,9 +4,7 @@ pub fn prepare_export(request: PrepareExportRequest) -> Result<ExportPlan, Artif
     prepare(request, true)
 }
 
-pub fn prepare_preview(
-    request: PrepareExportRequest,
-) -> Result<ExportPlan, ArtifactError> {
+pub fn prepare_preview(request: PrepareExportRequest) -> Result<ExportPlan, ArtifactError> {
     prepare(request, false)
 }
 

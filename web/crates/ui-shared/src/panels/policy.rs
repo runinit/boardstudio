@@ -75,11 +75,7 @@ impl PanelSettings {
     }
 }
 
-pub fn decode_settings(
-    side: PanelSide,
-    mode: Option<&str>,
-    width: Option<f64>,
-) -> PanelSettings {
+pub fn decode_settings(side: PanelSide, mode: Option<&str>, width: Option<f64>) -> PanelSettings {
     let (minimum, maximum) = side.width_bounds();
     PanelSettings {
         mode: mode.and_then(PanelMode::parse).unwrap_or(PanelMode::Pinned),

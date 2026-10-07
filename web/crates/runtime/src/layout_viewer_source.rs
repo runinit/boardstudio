@@ -380,12 +380,10 @@ impl LayoutSourceCapture {
             return Err("Layout preview artifact request ID must not be empty".into());
         }
         match (&self.request, imported_source) {
-            (LayoutPreviewRequest::Authored(request), None) => {
-                Ok(ArtifactRequest::PreviewPcb {
-                    id,
-                    request: request.as_ref().clone(),
-                })
-            }
+            (LayoutPreviewRequest::Authored(request), None) => Ok(ArtifactRequest::PreviewPcb {
+                id,
+                request: request.as_ref().clone(),
+            }),
             (LayoutPreviewRequest::Imported { .. }, Some(source)) if !source.is_empty() => {
                 Ok(ArtifactRequest::PreviewBoard {
                     id,
@@ -404,10 +402,7 @@ impl LayoutSourceCapture {
 
     /// Accept only a preview for this accepted revision. Core reply/request IDs are
     /// checked by Runtime before this method is called.
-    pub fn accept_preview(
-        &self,
-        preview: PcbPreview,
-    ) -> Result<LayoutPreviewSnapshot, String> {
+    pub fn accept_preview(&self, preview: PcbPreview) -> Result<LayoutPreviewSnapshot, String> {
         if preview.revision != self.owner.accepted_revision
             || self.document.revision != self.owner.accepted_revision
         {

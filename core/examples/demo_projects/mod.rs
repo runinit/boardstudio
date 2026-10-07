@@ -262,7 +262,10 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
         let mut fixtures = Vec::new();
         let mut engine = CoreEngine::new();
         let bytes = fs::read(root().join("content/archives/reviung41-original.boardstudio"))?;
-        let (reply, buffers) = archive_request(json!({"kind":"unpack-project"}), &[bytes.clone()])?;
+        let (reply, buffers) = archive_request(
+            json!({"kind":"unpack-project"}),
+            std::slice::from_ref(&bytes),
+        )?;
         let mut assets = Vec::new();
         for asset in a(&reply["assets"]) {
             let b = &buffers[asset["bufferIndex"].as_u64().unwrap() as usize];

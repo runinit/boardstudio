@@ -1427,9 +1427,7 @@ impl Session {
             {
                 self.settle(
                     intent.operation_id,
-                    TerminalOutcome::Rejected(
-                        DOCUMENT_SESSION_CHANGED.into(),
-                    ),
+                    TerminalOutcome::Rejected(DOCUMENT_SESSION_CHANGED.into()),
                     effects,
                 );
                 continue;

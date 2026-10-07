@@ -154,12 +154,7 @@ fn asymmetric_definition() -> PartDefinition {
     }
 }
 
-fn result(
-    plan: &ExportPlan,
-    index: usize,
-    source: &str,
-    nets: Vec<ReservedNet>,
-) -> RenderedJob {
+fn result(plan: &ExportPlan, index: usize, source: &str, nets: Vec<ReservedNet>) -> RenderedJob {
     RenderedJob {
         snapshot_token: plan.snapshot_token.clone(),
         revision: plan.revision,

@@ -87,3 +87,6 @@ wasm-bindgen-test = "=0.3.79"
 [[example]]
 name = "case-settings"
 required-features = ["page"]
+
+[lints]
+workspace = true

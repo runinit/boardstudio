@@ -13,10 +13,7 @@ fn model_basename(path: &str) -> &str {
 }
 
 /// Return each model path paired with the index of its uniquely matching file.
-pub fn unique_directory_matches(
-    paths: &[String],
-    filenames: &[String],
-) -> Vec<(String, usize)> {
+pub fn unique_directory_matches(paths: &[String], filenames: &[String]) -> Vec<(String, usize)> {
     let mut candidates = BTreeMap::<&str, Vec<usize>>::new();
     for (index, filename) in filenames.iter().enumerate() {
         if is_model_filename(filename) {

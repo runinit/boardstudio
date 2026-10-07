@@ -196,11 +196,7 @@ pub struct ModelBatchIdentity {
 }
 
 impl ModelBatchIdentity {
-    pub fn new(
-        owner: ModelOwnerIdentity,
-        accepted_revision: u64,
-        batch_generation: u64,
-    ) -> Self {
+    pub fn new(owner: ModelOwnerIdentity, accepted_revision: u64, batch_generation: u64) -> Self {
         Self {
             owner,
             accepted_revision,
@@ -363,8 +359,7 @@ pub struct ModelDeliveryPorts {
         Rc<dyn Fn(ResolvedModelAsset) -> ModelFuture<Option<VerifiedModelBytes>>>,
     pub decode_stl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
     pub decode_wrl: Rc<dyn Fn(VerifiedModelBytes) -> ModelFuture<MeshArrays>>,
-    pub read_step:
-        Rc<dyn Fn(VerifiedModelBytes, ModelOwnerIdentity) -> ModelFuture<MeshArrays>>,
+    pub read_step: Rc<dyn Fn(VerifiedModelBytes, ModelOwnerIdentity) -> ModelFuture<MeshArrays>>,
 }
 
 impl Clone for ModelDeliveryPorts {
@@ -557,12 +552,7 @@ impl ModelMeshCache {
         })
     }
 
-    pub fn complete(
-        &mut self,
-        sha256: &str,
-        task_token: u64,
-        mesh: Rc<ValidatedMesh>,
-    ) -> bool {
+    pub fn complete(&mut self, sha256: &str, task_token: u64, mesh: Rc<ValidatedMesh>) -> bool {
         let current = matches!(self.slots.get(sha256),
             Some(CacheSlot::Pending { task_token: current, .. }) if *current == task_token);
         if current {

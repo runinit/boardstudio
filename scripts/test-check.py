@@ -23,7 +23,7 @@ class CheckTests(unittest.TestCase):
                         self.assertTrue((ROOT / argument).is_file(), f"{name}: {argument} is missing")
 
     def test_full_check_runs_the_documented_steps_in_order(self):
-        self.assertEqual(check.DEFAULT, ("repo", "tooling", "build", "test", "browser"))
+        self.assertEqual(check.DEFAULT, ("repo", "tooling", "lint", "build", "test", "browser"))
         self.assertNotIn("security", check.DEFAULT)
         self.assertNotIn("typecheck", check.DEFAULT)
 

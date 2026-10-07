@@ -265,8 +265,8 @@ mod tests {
 
     #[test]
     fn catalogue_digest_matches_the_exact_staged_vendor_source_file() {
-        let vendor_root =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ergogen/library/vendor");
+        let vendor_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../ergogen/library/vendor");
         for model in BUNDLED_MODELS {
             let bytes = std::fs::read(vendor_root.join(model.source_relative_path))
                 .expect("catalogue source file is available");

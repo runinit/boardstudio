@@ -355,6 +355,7 @@ fn snapshot_definition(
 
 impl MatrixSetupPreset {
     /// Parse a Matrix Setup form value.
+    #[allow(clippy::should_implement_trait)] // Returns `Option`, with no error type to report.
     pub fn from_str(value: &str) -> Option<Self> {
         Some(match value {
             "mx-solder" => Self::MxSolder,

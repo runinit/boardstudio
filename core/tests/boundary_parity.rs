@@ -16,7 +16,12 @@ fn golden_path() -> PathBuf {
 
 #[test]
 fn fixture_hashes_match_their_bytes() {
-    let hex = |bytes: &[u8]| Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let hex = |bytes: &[u8]| {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    };
     assert_eq!(hex(boundary::ASSET), boundary::ASSET_SHA256);
     assert_eq!(hex(&boundary::payload()), boundary::PAYLOAD_SHA256);
 }
@@ -27,7 +32,8 @@ fn native_transport_reproduces_the_golden_transcript() {
     let transcript = boundary::run(
         &mut |request| engine.request(request),
         &mut |request, buffers| {
-            let (reply, outputs) = boardstudio_core::archive::request(&request.to_string(), buffers);
+            let (reply, outputs) =
+                boardstudio_core::archive::request(&request.to_string(), buffers);
             (serde_json::from_str(&reply).unwrap(), outputs)
         },
     );
@@ -37,6 +43,10 @@ fn native_transport_reproduces_the_golden_transcript() {
         std::fs::write(golden_path(), text).unwrap();
         return;
     }
-    let golden: Value = serde_json::from_str(&std::fs::read_to_string(golden_path()).expect("golden transcript; run with BOUNDARY_BLESS=1")).unwrap();
+    let golden: Value = serde_json::from_str(
+        &std::fs::read_to_string(golden_path())
+            .expect("golden transcript; run with BOUNDARY_BLESS=1"),
+    )
+    .unwrap();
     boundary::assert_golden(&transcript, &golden);
 }

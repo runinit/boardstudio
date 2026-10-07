@@ -2,6 +2,7 @@
 //! Identifiers are mechanically
 //! renamed; placements, source references, matrix recipes, wiring and model hashes are frozen.
 #[path = "../examples/demo_projects/mod.rs"]
+#[allow(clippy::module_inception)] // The module is the shared example source, included by path.
 mod demo_projects;
 use serde_json::Value;
 use std::fs;

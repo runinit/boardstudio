@@ -2,9 +2,7 @@
 use super::tree::{self, TreeContext};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::Vec2;
-pub use boardstudio_web_ui_model::state::{
-    LayoutSnapSettings, TreeCellAnchor,
-};
+pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
