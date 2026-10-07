@@ -65,6 +65,17 @@ enforcement), and rejecting commits at runtime while the type still allows them 
 mistake surfaces in tests or use, not at compile time). Removing the revision refresh
 from the direct event was not needed once it carries previews only.
 
+## Amendment: a retired edit is silent (2026-10-07)
+
+Panels disagreed about an edit ticket that settles retired while its panel is still
+open (the session changed, the project closed, or Session superseded or cancelled the
+edit): some showed "did not complete in the active session", others nothing. On
+2026-10-07 the user chose silence everywhere
+([module deepening 01](../plans/module-deepening/issues/01-decide-pending-edit-settlement.md#answer)):
+a retired edit shows no message and its field shows the accepted value again, the
+same as an edit whose owner has gone. A landed edit shows no "Saved" status either;
+the accepted value is the confirmation. Failures keep their inline message.
+
 ## Considered Options
 
 - **Reject stale edits** (strict base revision): simple, but rapid entry across

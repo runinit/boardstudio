@@ -31,6 +31,10 @@ the evidence can be checked before implementation.
 installed Rust skills against this codebase, with measured costs and a ranked,
 unimplemented change list.
 
+The [architecture review of 2026-10-07](investigations/architecture-review-2026-10-07.html)
+proposes six module deepenings; the [module deepening](plans/module-deepening/map.md)
+effort plans all of them.
+
 [TypeScript and Node removal](investigations/typescript-node-removal.md) inventories
 the remaining provider, content, build and test dependencies, with a phased removal
 plan and completion criteria. It is an assessment, not a completed migration.

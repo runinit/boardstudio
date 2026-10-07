@@ -31,6 +31,11 @@ and for any bulk action a recorded decision permits.
   [edit settlement ticket 19](../edit-settlement/issues/19-decide-first-typed-core-edits.md#answer).
 - Only the first ticket is specified; the next ones are sliced after it lands, from what
   it settled.
+- Mechanical settings and outline versions come next, from
+  [module deepening](../module-deepening/map.md) (user, 2026-10-07):
+  [02](issues/02-mechanical-settings-patch.md) is recorded, to be specified after 01;
+  [03](issues/03-decide-outline-version-intents.md) is a decision once 01 lands and
+  the outline planner is separated from its UI.
 
 ## Progress
 
