@@ -38,8 +38,7 @@ finish      13 cleanup (07, 08, 09, 10, 12)
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20 is resolved; 03, 06 and TCE-01 are unblocked. Tickets 10 and 11 are resolved; wave-2 tickets are claimed and running, and 12 is
-unblocked.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Tickets 03, 04 and 12 are claimed; 03 and 12 are completing verification, and 04 integrates after 03. Ticket 05 starts after both 03 and 04 merge. The TCE-02 spec and TCE-03 decision proposals await human approval.
 
 ## Decisions so far
 
