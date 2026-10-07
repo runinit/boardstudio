@@ -1,6 +1,6 @@
 # 08: Parts custom definition and definition-name fields land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06, 07
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -114,3 +114,63 @@ python3 scripts/check-doc-links.py
   not commit on blur.
 - The draft must not become a second copy of the definition. Once the ticket
   settles, render from the accepted document.
+
+## Outcome
+
+Commits: "WIP: land Parts definition edits through resolution" (a mid-flight
+checkpoint; the wasm typecheck on dev was broken at the time by the missing
+`EditTicket: Clone`, fixed upstream in e42dae9f6), "Land Parts definition edits
+through resolution", "Address review findings on the Parts definition landing".
+A rebase dropped the original claim and finding commits from this branch; the
+claim was re-landed and the finding test restored inside the landing.
+
+- Every custom-definition field and the definition name submit intent through
+  `EditTicket::begin` (`Event::ResolveEdit`); neither panel builds `Event::Edit`
+  any more. `definition_field_resolver` / `definition_name_resolver` are pure
+  functions of the accepted snapshot plus the captured ids and value: they find
+  the definition at execution, apply only that field to a clone of the accepted
+  document, resolve `Unchanged` when the value already matches, and retire
+  vanished or ineligible targets with user-readable reasons (definition gone,
+  generated definitions, imported KiCad pads, pad gone, duplicate ids/numbers).
+- `DefinitionPanelCapture` admits at dispatch on scope, session epoch, document
+  id and selection only — the token/revision equality gates are gone, so field
+  edits queue freely. The settle pass answers real owner liveness each render
+  (these panels outlive selection changes).
+- One ticket per committed field (`DefinitionPanelEdits` plus per-row
+  `PadRowEdits`): pending keeps the draft, failure restores the accepted value
+  with the edit ticket's message inline, landed/retired drop. "+ Add pad" and
+  per-row "Remove pad" disable while `is_pending()` — the amendment's one-shot
+  rule, first cluster use. A pad row whose pad vanished settles its queued
+  tickets and surfaces the reason before dropping.
+- Both panels subscribe to the workspace `version` signal (bumped on every
+  runtime change) so a settlement wakes the settle pass even when the accepted
+  document did not change — a failed save, for example.
+- Ticket 07's dirty-courtyard blur finding is established: a harness artefact.
+  A pad-less definition's custom section defaults open; the old mounted test's
+  summary click closed it, so focus/blur no-opped on hidden inputs and nothing
+  submitted (the old interception had also discarded the event).
+  `mounted_dirty_courtyard_width_commits_when_focus_moves_away` covers the real
+  behaviour: the blur commits and lands.
+- Native tests drive resolvers through a real Session and Core (accepted
+  results, settlements, undo/redo, persistence round trip). The mounted harness
+  mounts each test under its own root element, so one test's leftover DOM can no
+  longer satisfy another's selectors, and `accept_edits` drains a released gate
+  before refreshing the host.
+
+Checks (all pass): `cargo test -p boardstudio-web-parts --locked` — 36 passed;
+`wasm-pack test --headless --chrome web/crates/parts --locked --lib` — 35 passed
+(30 before, plus the finding test and the four acceptance tests);
+`cargo test -p boardstudio-application --locked` — 29 passed;
+`cargo test -p boardstudio-web-runtime --locked` — 103 passed;
+`python3 scripts/check.py typecheck`; `python3 scripts/check-wasm-tests.py`;
+`python3 scripts/check-doc-links.py`. Code review (standards and spec): no hard
+findings; applied — vanished-row ticket settlement, the second-Undo assertion
+(undo order), a comment tying the resolver's equality check to `Unchanged`, and
+a stray debug log removed. Deferred: `settle_ticket`/`apply_text_settlement`
+duplicate the layout helpers and belong in `edit_ticket.rs` (shared file;
+ticket 17 territory), the parallel `DefinitionEdit`→slot matches, and splitting
+the shared panel infrastructure out of `parts_custom_definition.rs`.
+
+Follow-up: the rapid-entry test holds only the first Core reply; gating both
+would letter the "with Core replies gated" criterion exactly, though the
+queueing it exists to prove is covered.
