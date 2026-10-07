@@ -266,24 +266,6 @@ impl Runtime {
         }
     }
 
-    #[cfg(not(any(test, feature = "test-support")))]
-    fn run_core(
-        &self,
-        request_id: RequestId,
-        executor_epoch: boardstudio_application::ExecutorEpoch,
-        request: Box<CoreRequest>,
-    ) -> VecDeque<Effect> {
-        let reply = self.engine.borrow_mut().handle(*request);
-        self.session
-            .borrow_mut()
-            .complete(Completion::Core {
-                request_id,
-                executor_epoch,
-                reply: Box::new(reply),
-            })
-            .into()
-    }
-
     #[cfg(any(test, feature = "test-support"))]
     fn run_save(
         &self,
@@ -306,15 +288,6 @@ impl Runtime {
             }
             None => self.commit_save(save_attempt_id, &document),
         }
-    }
-
-    #[cfg(not(any(test, feature = "test-support")))]
-    fn run_save(
-        &self,
-        save_attempt_id: boardstudio_application::SaveAttemptId,
-        document: std::sync::Arc<ProjectDoc>,
-    ) -> VecDeque<Effect> {
-        self.commit_save(save_attempt_id, &document)
     }
 
     fn commit_save(
