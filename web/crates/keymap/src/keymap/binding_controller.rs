@@ -4,13 +4,14 @@ use super::binding_editor::{
     BindingMacroChoice, BindingTarget, EncoderInputIdentity,
 };
 use super::layer_controller::LayerSource;
+use super::observed_edits::ObservedEdits;
 use super::view::KeymapView;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -73,15 +74,26 @@ pub struct BindingProjectionSources {
     pub current_encoder_projection: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
 }
 
-#[derive(Clone)]
-struct BindingTicket {
+struct BindingOwner {
     request: BindingEditRequest,
     scope_generation: u64,
-    ticket: EditTicket,
 }
 
+/// A binding field's logical identity: the latest edit for it replaces the earlier one.
+type BindingKey = (String, BindingTarget, BindingField);
+
+type BindingPending = ObservedEdits<BindingKey, BindingOwner>;
+
 #[derive(Clone, Copy)]
-struct BindingTickets(Signal<Vec<BindingTicket>>);
+struct BindingTickets(Signal<BindingPending>);
+
+fn binding_key(request: &BindingEditRequest) -> BindingKey {
+    (
+        request.active_layer_id.clone(),
+        request.target.clone(),
+        request.field,
+    )
+}
 
 /// Pending field values belong to the editor, not the accepted document projection.
 pub(super) fn draft_binding(
@@ -92,15 +104,16 @@ pub(super) fn draft_binding(
 ) -> KeyBinding {
     let mut value = accepted.clone();
     if let Some(tickets) = try_consume_context::<BindingTickets>() {
-        for entry in tickets.0.read().iter().filter(|entry| {
-            entry.request.scope == *scope
-                && entry.request.active_layer_id == layer
-                && entry.request.target == *target
-                && entry.ticket.is_pending()
+        for entry in tickets.0.read().pending().filter(|entry| {
+            entry.meta.request.scope == *scope
+                && entry.meta.request.active_layer_id == layer
+                && entry.meta.request.target == *target
         }) {
-            if let Some(next) =
-                apply_requested_field(&value, &entry.request.binding, entry.request.field)
-            {
+            if let Some(next) = apply_requested_field(
+                &value,
+                &entry.meta.request.binding,
+                entry.meta.request.field,
+            ) {
                 value = next;
             }
         }
@@ -518,7 +531,7 @@ pub fn use_binding_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request_id = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let pending = use_signal(Vec::<BindingTicket>::new);
+    let pending = use_signal(BindingPending::default);
     use_context_provider(|| BindingTickets(pending));
     let feedback = use_signal(Vec::<BindingFeedbackState>::new);
     use_effect(use_reactive((&version,), {
@@ -526,34 +539,27 @@ pub fn use_binding_operations(
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            let mut tickets = pending.peek().clone();
-            let before = tickets.len();
-            tickets.retain(|waiting| {
+            if !pending.peek().has_terminal() {
+                return;
+            }
+            for (observation, result) in pending.write().settle() {
+                let waiting = observation.meta;
                 let live = runtime.scope().as_ref() == Some(&waiting.request.scope)
                     && scope_generation() == waiting.scope_generation;
-                let status = match waiting.ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(BindingEditStatus::Saved),
-                    Settlement::Failed { message } => Some(BindingEditStatus::Failed(message)),
-                    Settlement::Retired => None,
-                };
-                if let Some(status) = status {
-                    if let Some(entry) = feedback
-                        .write()
-                        .iter_mut()
-                        .find(|entry| entry.request.request_id == waiting.request.request_id)
-                    {
-                        entry.status = status;
+                match result {
+                    PendingEditResult::Failed { message, .. } if live => {
+                        if let Some(entry) = feedback
+                            .write()
+                            .iter_mut()
+                            .find(|entry| entry.request.request_id == waiting.request.request_id)
+                        {
+                            entry.status = BindingEditStatus::Failed(message);
+                        }
                     }
-                } else {
-                    feedback
+                    _ => feedback
                         .write()
-                        .retain(|entry| entry.request.request_id != waiting.request.request_id);
+                        .retain(|entry| entry.request.request_id != waiting.request.request_id),
                 }
-                false
-            });
-            if tickets.len() != before {
-                pending.set(tickets);
             }
         }
     }));
@@ -746,17 +752,17 @@ pub fn use_binding_operations(
             if apply_requested_field(&request.binding, &request.binding, request.field).is_none() {
                 return;
             }
-            let ticket = EditTicket::begin(
+            pending.write().begin(
                 &runtime,
+                binding_key(&request),
                 "keymap-binding",
-                Some("binding".into()),
+                "binding",
+                BindingOwner {
+                    request: request.clone(),
+                    scope_generation: captured_generation,
+                },
                 binding_resolver(request.clone()),
             );
-            pending.write().push(BindingTicket {
-                request: request.clone(),
-                scope_generation: captured_generation,
-                ticket,
-            });
             feedback.write().retain(|entry| {
                 !(entry.request.target == request.target && entry.request.field == request.field)
             });

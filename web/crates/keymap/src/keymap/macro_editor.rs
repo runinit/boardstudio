@@ -92,7 +92,6 @@ pub enum MacroEditChange {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MacroEditStatus {
     Pending,
-    Saved,
     Failed(String),
 }
 
@@ -208,7 +207,6 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
     });
     let feedback_text = feedback.and_then(|feedback| match &feedback.status {
         MacroEditStatus::Pending => None,
-        MacroEditStatus::Saved => Some("Macro saved".to_owned()),
         MacroEditStatus::Failed(message) => Some(message.clone()),
     });
 

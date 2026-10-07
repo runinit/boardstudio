@@ -1,11 +1,12 @@
 //! Editor-owned layer intents and ticket settlement.
 use super::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
+use super::observed_edits::ObservedEdits;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{EditCommand, EditOperation, KeymapChange};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -16,13 +17,30 @@ pub struct LayerSource {
     pub revision: u64,
 }
 
-#[derive(Clone)]
-struct LayerTicket {
+/// A layer operation's logical identity: the latest edit for it replaces the earlier one.
+#[derive(Clone, Debug, PartialEq)]
+enum LayerKey {
+    Add,
+    Rename(String),
+    Remove(String),
+}
+
+impl From<&KeymapLayerOperation> for LayerKey {
+    fn from(request: &KeymapLayerOperation) -> Self {
+        match request {
+            KeymapLayerOperation::Add => Self::Add,
+            KeymapLayerOperation::Rename { layer_id, .. } => Self::Rename(layer_id.clone()),
+            KeymapLayerOperation::Remove { layer_id } => Self::Remove(layer_id.clone()),
+        }
+    }
+}
+
+struct LayerOwner {
     scope: Scope,
     generation: u64,
-    request: KeymapLayerOperation,
-    ticket: EditTicket,
 }
+
+type LayerPending = ObservedEdits<LayerKey, LayerOwner>;
 
 #[derive(Clone)]
 struct LayerFeedbackState {
@@ -33,16 +51,11 @@ struct LayerFeedbackState {
 }
 
 #[derive(Clone, Copy)]
-struct LayerTickets(Signal<Vec<LayerTicket>>);
+struct LayerTickets(Signal<LayerPending>);
 
 pub(super) fn action_pending(request: &KeymapLayerOperation) -> bool {
-    try_consume_context::<LayerTickets>().is_some_and(|tickets| {
-        tickets
-            .0
-            .read()
-            .iter()
-            .any(|entry| &entry.request == request && entry.ticket.is_pending())
-    })
+    try_consume_context::<LayerTickets>()
+        .is_some_and(|tickets| tickets.0.read().is_pending(&LayerKey::from(request)))
 }
 
 pub struct LayerActions {
@@ -61,7 +74,7 @@ pub fn use_layer_operations(
 ) -> LayerActions {
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
-    let pending = use_signal(Vec::<LayerTicket>::new);
+    let pending = use_signal(LayerPending::default);
     use_context_provider(|| LayerTickets(pending));
     let feedback = use_signal(|| None::<LayerFeedbackState>);
     use_effect(use_reactive((&version,), {
@@ -69,33 +82,31 @@ pub fn use_layer_operations(
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            let mut tickets = pending.peek().clone();
-            let before = tickets.len();
-            tickets.retain(|entry| {
-                let live = runtime.scope().as_ref() == Some(&entry.scope)
-                    && scope_generation() == entry.generation;
-                let result = match entry.ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(KeymapLayerFeedback::Saved),
-                    Settlement::Failed { message } => Some(KeymapLayerFeedback::Failed(message)),
-                    Settlement::Retired => None,
+            if !pending.peek().has_terminal() {
+                return;
+            }
+            for (observation, result) in pending.write().settle() {
+                let owner = observation.meta;
+                let live = runtime.scope().as_ref() == Some(&owner.scope)
+                    && scope_generation() == owner.generation;
+                let outcome = match result {
+                    PendingEditResult::Failed { message, .. } if live => {
+                        Some(KeymapLayerFeedback::Failed(message))
+                    }
+                    _ => None,
                 };
                 if feedback
                     .peek()
                     .as_ref()
-                    .is_some_and(|state| state.operation == entry.ticket.operation())
+                    .is_some_and(|state| state.operation == observation.operation)
                 {
-                    feedback.set(result.map(|result| LayerFeedbackState {
-                        scope: entry.scope.clone(),
-                        generation: entry.generation,
-                        operation: entry.ticket.operation(),
-                        feedback: result,
+                    feedback.set(outcome.map(|feedback| LayerFeedbackState {
+                        scope: owner.scope,
+                        generation: owner.generation,
+                        operation: observation.operation,
+                        feedback,
                     }));
                 }
-                false
-            });
-            if before != tickets.len() {
-                pending.set(tickets);
             }
         }
     }));
@@ -135,10 +146,7 @@ pub fn use_layer_operations(
                 return;
             };
             if !matches!(request, KeymapLayerOperation::Rename { .. })
-                && pending
-                    .peek()
-                    .iter()
-                    .any(|entry| entry.request == request && entry.ticket.is_pending())
+                && pending.peek().is_pending(&LayerKey::from(&request))
             {
                 return;
             }
@@ -164,20 +172,23 @@ pub fn use_layer_operations(
                     active_layer.set(id);
                 }
             }
-            let ticket =
-                EditTicket::begin(&runtime, "keymap-layer", Some("layer".into()), resolver);
+            let operation = pending.write().begin(
+                &runtime,
+                LayerKey::from(&request),
+                "keymap-layer",
+                "layer",
+                LayerOwner {
+                    scope: source.scope.clone(),
+                    generation: captured_generation,
+                },
+                resolver,
+            );
             feedback.set(Some(LayerFeedbackState {
                 scope: source.scope.clone(),
                 generation: captured_generation,
-                operation: ticket.operation(),
+                operation,
                 feedback: KeymapLayerFeedback::Pending,
             }));
-            pending.write().push(LayerTicket {
-                scope: source.scope.clone(),
-                generation: captured_generation,
-                request,
-                ticket,
-            });
         }
     });
     LayerActions {

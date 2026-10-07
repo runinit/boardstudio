@@ -10,6 +10,5 @@ pub enum KeymapLayerOperation {
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeymapLayerFeedback {
     Pending,
-    Saved,
     Failed(String),
 }

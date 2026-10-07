@@ -683,19 +683,9 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
         );
         let eligible = removed.is_none_or(|index| index > 1);
         assert_eq!(
-            matches!(
-                &probe
-                    .macros
-                    .borrow()
-                    .as_ref()
-                    .unwrap()
-                    .feedback
-                    .as_ref()
-                    .unwrap()
-                    .status,
-                super::macro_editor::MacroEditStatus::Saved
-            ),
-            eligible
+            probe.macros.borrow().as_ref().unwrap().feedback.is_none(),
+            eligible,
+            "a landed edit leaves no status; an ineligible one reports its failure"
         );
         if !eligible {
             assert!(root.text_content().unwrap().contains("macro step"));

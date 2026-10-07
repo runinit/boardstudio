@@ -274,10 +274,9 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
             layer_id: props.layer_id.clone(),
         });
     let layer_id = props.layer_id.clone();
-    let feedback_saved = matches!(props.feedback.as_ref(), Some(KeymapLayerFeedback::Saved));
     let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
         KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
-        KeymapLayerFeedback::Pending | KeymapLayerFeedback::Saved => None,
+        KeymapLayerFeedback::Pending => None,
     });
 
     rsx! {
@@ -332,7 +331,6 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
 
-            if feedback_saved { p { role: "status", "Layer changes saved." } }
             if let Some(message) = feedback_error { p { role: "alert", "{message}" } }
         }
     }
