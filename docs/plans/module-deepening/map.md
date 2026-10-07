@@ -74,6 +74,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 
 <!-- one line per resolved build ticket -->
 
+- [Parts and PCB native test preparation](issues/19-parts-pcb-native-test-preparation.md#outcome):
+  remaining Parts pumps removed, queued domain regressions added; native 42/21 and
+  browser 50/38 tests passed.
+
 - [PendingEdits owns keyed settlement](issues/15-keyed-pending-edits.md#outcome):
   a Dioxus-free collection owns latest-key observations and once-only terminal results;
   reviewed API published, Runtime 110 tests passed.
@@ -148,9 +152,9 @@ combined verification. The three wider panel migrations then run in parallel.
   Layout panels.
 - The user's second app owns the reserved shared UI helpers, then can take the
   Case/Keymap/Keycaps/Library migration after the tracer gate.
-- The user's third app can start the claimed
+- The user's third app completed
   [Parts and PCB native test preparation](issues/19-parts-pcb-native-test-preparation.md)
-  now, then take Parts/PCB settlement after its preparation and the tracer gate merge.
+  and can take Parts/PCB settlement after the tracer gate merges.
 
 The test-preparation stream touches only Parts test modules and the existing PCB native
 owner test file, so it does not share files with the Runtime, UI helpers or Matrix
