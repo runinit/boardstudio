@@ -17,6 +17,7 @@ pub mod edit_ticket;
 pub(crate) mod export_lease;
 pub mod firmware_position_projection;
 pub mod layout_viewer_source;
+pub(crate) mod mechanical_package;
 pub mod model_delivery;
 pub mod operation_outcomes;
 pub mod parts_preview;

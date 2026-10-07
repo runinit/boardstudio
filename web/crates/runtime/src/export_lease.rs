@@ -3,9 +3,7 @@
 //! A lease is valid only while Session still owns the export and the accepted project,
 //! scope, Core executor epoch, and worker identity remain the ones captured at start.
 
-use boardstudio_application::{
-    AcceptedSnapshot, ExecutorEpoch, OperationId, Scope, Session, SnapshotToken,
-};
+use boardstudio_application::{AcceptedSnapshot, ExecutorEpoch, OperationId, Scope, SnapshotToken};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,7 +15,7 @@ pub(crate) enum ExportKind {
     Footprints,
     PcbHandoff { draft: bool },
     Mechanical { filename: String },
-    BoardOutline,
+    BoardOutline { dxf: bool },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,11 +64,24 @@ impl ExportLease {
         self.executor_epoch
     }
 
+    pub(crate) fn source_is_current(
+        &self,
+        current_snapshot: Option<&AcceptedSnapshot>,
+        executor_epoch: ExecutorEpoch,
+        worker_identity: usize,
+    ) -> bool {
+        current_snapshot.is_some_and(|current| self.accepted_snapshot_matches(current))
+            && executor_epoch == self.executor_epoch
+            && worker_identity == self.worker_identity
+    }
+
     /// Advance ownership after an export's own accepted commit, retaining its strict origin.
     pub(crate) fn advance(&mut self, snapshot: AcceptedSnapshot) -> Result<(), String> {
         if snapshot.session_epoch != self.snapshot.session_epoch
             || snapshot.document.id != self.snapshot.document.id
-            || snapshot.document.revision <= self.snapshot.document.revision
+            || snapshot.document.revision < self.snapshot.document.revision
+            || (snapshot.document.revision == self.snapshot.document.revision
+                && snapshot.token == self.snapshot.token)
             || snapshot.scene.revision != snapshot.document.revision
         {
             return Err("Export commit did not advance the captured project revision.".into());
@@ -81,23 +92,18 @@ impl ExportLease {
 
     pub(crate) fn require_current(
         &self,
-        operation_id: OperationId,
-        session: &Session,
+        session_owns_export: bool,
+        current_snapshot: Option<&AcceptedSnapshot>,
         executor_epoch: ExecutorEpoch,
         worker_identity: usize,
     ) -> Result<(), String> {
-        let accepted_matches = session
-            .read_model()
-            .accepted
-            .as_ref()
-            .is_some_and(|current| self.accepted_snapshot_matches(current));
-        self.require_authority(
-            session.export_is_current(operation_id, self.snapshot.token, &self.scope)
-                && session.scope().as_ref() == Some(&self.scope),
-            accepted_matches,
-            executor_epoch,
-            worker_identity,
-        )
+        if session_owns_export
+            && self.source_is_current(current_snapshot, executor_epoch, worker_identity)
+        {
+            Ok(())
+        } else {
+            Err("Export lease is no longer current.".into())
+        }
     }
 
     fn accepted_snapshot_matches(&self, current: &AcceptedSnapshot) -> bool {
@@ -106,24 +112,6 @@ impl ExportLease {
             && current.token == self.snapshot.token
             && current.document.revision == self.snapshot.document.revision
             && current.scene.revision == self.snapshot.scene.revision
-    }
-
-    fn require_authority(
-        &self,
-        session_owns_export: bool,
-        accepted_snapshot_matches: bool,
-        executor_epoch: ExecutorEpoch,
-        worker_identity: usize,
-    ) -> Result<(), String> {
-        if session_owns_export
-            && accepted_snapshot_matches
-            && executor_epoch == self.executor_epoch
-            && worker_identity == self.worker_identity
-        {
-            Ok(())
-        } else {
-            Err("Export lease is no longer current.".into())
-        }
     }
 }
 
@@ -139,10 +127,6 @@ impl ExportLeases {
 
     pub(crate) fn get(&self, operation_id: OperationId) -> Option<&ExportLease> {
         self.active.get(&operation_id)
-    }
-
-    pub(crate) fn get_mut(&mut self, operation_id: OperationId) -> Option<&mut ExportLease> {
-        self.active.get_mut(&operation_id)
     }
 
     pub(crate) fn finish(&mut self, operation_id: OperationId) -> Option<ExportLease> {
@@ -208,14 +192,36 @@ mod tests {
             ExportKind::Mechanical {
                 filename: "board-mechanical.zip".into(),
             },
-            ExportKind::BoardOutline,
+            ExportKind::BoardOutline { dxf: true },
         ] {
             let lease = captured(kind);
-            assert!(lease.require_authority(true, true, ExecutorEpoch(11), 123).is_ok());
-            assert!(lease.require_authority(true, true, ExecutorEpoch(12), 123).is_err());
-            assert!(lease.require_authority(true, true, ExecutorEpoch(11), 456).is_err());
-            assert!(lease.require_authority(false, true, ExecutorEpoch(11), 123).is_err());
-            assert!(lease.require_authority(true, false, ExecutorEpoch(11), 123).is_err());
+            assert!(
+                lease
+                    .require_current(true, Some(lease.snapshot()), ExecutorEpoch(11), 123)
+                    .is_ok()
+            );
+            assert!(
+                lease
+                    .require_current(true, Some(lease.snapshot()), ExecutorEpoch(12), 123)
+                    .is_err()
+            );
+            assert!(
+                lease
+                    .require_current(true, Some(lease.snapshot()), ExecutorEpoch(11), 456)
+                    .is_err()
+            );
+            assert!(
+                lease
+                    .require_current(false, Some(lease.snapshot()), ExecutorEpoch(11), 123)
+                    .is_err()
+            );
+            let mut changed = lease.snapshot().clone();
+            changed.token = SnapshotToken(18);
+            assert!(
+                lease
+                    .require_current(true, Some(&changed), ExecutorEpoch(11), 123)
+                    .is_err()
+            );
         }
     }
 
