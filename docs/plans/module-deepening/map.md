@@ -74,6 +74,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 
 <!-- one line per resolved build ticket -->
 
+- [Edit tickets own captured Scope liveness](issues/14-edit-ticket-scope-lineage.md#outcome):
+  retained Scope readers and shared retirement latches cover real navigation/Open/Close;
+  native Runtime 105 and browser Runtime 29 tests passed.
+
 - [Editor composes per-workspace state](issues/12-editor-workspace-state.md#outcome):
   six private-state handles own their projections/effects/actions; the complete
   browser gate and final page integration passed.

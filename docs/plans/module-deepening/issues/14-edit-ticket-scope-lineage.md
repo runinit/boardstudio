@@ -1,6 +1,6 @@
 # 14: Edit tickets own captured Scope liveness
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 03, 04
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits and Matrix tracer gate](05-pending-edits-module.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
@@ -32,12 +32,12 @@ usable so every intermediate branch compiles without a sweep of workspace files.
 
 ## Acceptance criteria
 
-- [ ] Native interface tests fail first for captured-scope retirement, then pass.
-- [ ] Held Core/save operations demonstrate retirement on real navigation or Open;
+- [x] Native interface tests fail first for captured-scope retirement, then pass.
+- [x] Held Core/save operations demonstrate retirement on real navigation or Open;
   use actual Session sequencing, including Open/Close draining active work.
-- [ ] Revision changes in the same Scope remain live; departed panel owners retire.
-- [ ] Existing ticket outcomes and Runtime consumers continue to compile and pass.
-- [ ] The port/lifetime contract is documented for the keyed collection implementer.
+- [x] Revision changes in the same Scope remain live; departed panel owners retire.
+- [x] Existing ticket outcomes and Runtime consumers continue to compile and pass.
+- [x] The port/lifetime contract is documented for the keyed collection implementer.
 
 ## Verification
 
@@ -49,3 +49,26 @@ python3 scripts/check.py lint typecheck test
 Run the affected Runtime browser suite for changes to the WASM port. Record known
 baseline gate failures separately; test-only native changes need no unrelated browser
 rerun. Complete the handoff's parallel Standards and Spec reviews before integration.
+
+## Outcome
+
+Merged `f0c5cb1f70a66dd485ab3e4d0289dfd13adc0985` into dev at `b19bdc9f8`.
+Both pinned Standards and Spec reviews passed. The retirement regression failed first
+with the old always-live behavior, then passed. Native Runtime: 105/105; Runtime
+browser: 29/29; lint and typecheck passed. Workspace and footprint tests passed;
+the existing rotated-concave bottom CAD baseline remains 49 passed, 1 failed,
+4 ignored (expected 80481.2399, actual 80579.55733514718, tolerance 0.1).
+
+`EditTicketPort::scope_source()` returns an owned `Rc<dyn Fn() -> Option<Scope>>`.
+`EditTicket::begin(port, label, feature, resolver)` captures Scope before allocation,
+observation and submission. Ticket clones share the reader, outcome/landing slots and
+a retirement latch. `settlement(owner_is_live)` uses the predicate only for panel
+lifetime; Scope mismatch or owner departure permanently retires the observation.
+`is_pending()` also checks Scope liveness. Same-Scope revision changes remain live.
+Retirement/drop does not cancel the authoritative Session operation.
+
+Real navigation away and back to the exact original Scope cannot revive an observed
+retirement, including across clones. Actual Open drains active work before changing
+Scope. Close also drains active work: while its accepted Scope remains unchanged,
+the active edit can report Landed; no lifecycle-only retirement policy was added.
+The keyed collection can consume this port without a second captured Scope.
