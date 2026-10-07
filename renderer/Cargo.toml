@@ -1,0 +1,29 @@
+[package]
+name = "boardstudio-renderer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+i_overlay = "=9.0.0"
+lyon_path = "=1.0.19"
+lyon_tessellation = "=1.0.22"
+serde = { version = "1", features = ["derive"] }
+three-d = { version = "=0.19.0", default-features = false }
+three-d-asset = { version = "=0.10.0", default-features = false, features = ["stl"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "=0.3.106"
+serde-wasm-bindgen = "=0.6.5"
+wasm-bindgen = "=0.2.129"
+web-sys = { version = "=0.3.106", features = [
+  "HtmlCanvasElement",
+  "WebGl2RenderingContext",
+] }
+
+
+[lints]
+workspace = true

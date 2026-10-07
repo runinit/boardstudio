@@ -2,18 +2,33 @@ pub mod archive;
 pub mod artifact;
 mod case;
 mod constraints;
+pub mod electrical;
+pub mod electrical_jumpers;
+pub mod electrical_peripherals;
+pub mod electrical_profiles;
+pub mod firmware;
+pub mod generators;
 mod geometry;
+mod hardware;
+mod inputs;
+mod keycaps;
+mod keymap;
 mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
+pub mod migrate;
 pub mod model;
+mod modules;
+mod outline_controls;
+mod outline_validation;
+mod outline_versions;
 mod script;
 mod validate;
 
 use geometry::{OutlineCache, outlines};
 use matrix::layout;
 use model::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -51,6 +66,78 @@ impl CoreEngine {
 #[wasm_bindgen]
 pub fn artifact_request(json: &str) -> String {
     artifact::request(json)
+}
+
+/// Whether saved Case geometry for a board is current and usable as a Case
+/// input with a current outer board contour, independently of PCB-coupled
+/// `BoardReadiness::case_ready`.
+///
+/// This is a derived capability, not part of the serialized readiness
+/// contract: authored Case geometry can be prepared/exported without claiming
+/// that the board's PCB is ready.
+pub fn authored_case_geometry_ready(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    board_id: &str,
+) -> bool {
+    if scene.revision != document.revision
+        || !document.boards.iter().any(|board| board.id == board_id)
+    {
+        return false;
+    }
+    let Some(readiness) = scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == board_id)
+    else {
+        return false;
+    };
+    if !readiness.outline
+        || !scene
+            .board_contours
+            .iter()
+            .find(|contours| contours.board_id == board_id)
+            .is_some_and(|entry| entry.contours.iter().any(|contour| !contour.hole))
+    {
+        return false;
+    }
+    if !document
+        .case_bodies
+        .iter()
+        .any(|body| body.board_id == board_id)
+    {
+        return false;
+    }
+    !scene.findings.iter().any(|finding| {
+        finding.severity == Severity::Error
+            && finding.scope == Scope::Case
+            // Material references affect BOM metadata, not prepared solid
+            // geometry; Core's case preparer intentionally accepts them.
+            && !validate::is_case_material_finding_id(&finding.id)
+            && (finding.target_ids.is_empty()
+                || finding.target_ids.iter().any(|target| {
+                    target == board_id
+                        || document.case_bodies.iter().any(|body| {
+                            body.board_id == board_id && body.id.as_str() == target.as_str()
+                        })
+                }))
+    })
+}
+
+/// Whether Case preparation may run for a selected board. A resolved
+/// mechanical configuration remains sufficient; otherwise saved authored
+/// Case geometry is admitted by its own capability above.
+pub fn case_preparation_ready(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    board_id: &str,
+    configured: bool,
+) -> bool {
+    scene
+        .board_readiness
+        .iter()
+        .any(|readiness| readiness.board_id == board_id)
+        && (configured || authored_case_geometry_ready(document, scene, board_id))
 }
 
 /// Archive payloads cross WASM as typed buffers, independently of JSON metadata.
@@ -101,9 +188,51 @@ impl Default for CoreEngine {
 impl CoreEngine {
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
         match request {
+            CoreRequest::ResolveModules {
+                id,
+                document,
+                board_id,
+                preview_top_z,
+            } => {
+                let mut result = modules::resolve(&document, &board_id);
+                match modules::prepare_preview(
+                    &document,
+                    &board_id,
+                    &mut result,
+                    preview_top_z.unwrap_or(0.0),
+                ) {
+                    Ok(()) => CoreReply::ModulesResolved { id, result },
+                    Err(message) => CoreReply::Error {
+                        id,
+                        message,
+                        revision: document.revision,
+                    },
+                }
+            }
+            CoreRequest::ResolveKeycaps {
+                id,
+                document,
+                board_id,
+                cases,
+            } => CoreReply::KeycapsResolved {
+                id,
+                result: keycaps::resolve(&document, &board_id, cases.as_ref()),
+            },
+            CoreRequest::GenerateFirmware { id, request } => match firmware::generate(&request) {
+                Ok(package) => CoreReply::FirmwareGenerated { id, package },
+                Err(message) => self.error(id, &message),
+            },
             CoreRequest::Open { id, mut document } => {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
+                }
+                if document.format_version != migrate::CURRENT_VERSION {
+                    return self.error(id, "Document must be migrated before it is opened");
+                }
+                if let Some(map) = &document.keymap
+                    && let Err(message) = keymap::validate(map)
+                {
+                    return self.error(id, &message);
                 }
                 if let Err(message) = script::apply_scripts(&mut document) {
                     return self.error(id, &message);
@@ -129,13 +258,15 @@ impl CoreEngine {
                 self.recompute();
                 self.scene(
                     id,
-                    "open",
-                    vec![],
-                    &self.document,
-                    &self.contours,
-                    &self.findings,
-                    &self.outline_cache,
-                    SceneKind::Committed,
+                    SceneInput {
+                        transaction: "open",
+                        changed: vec![],
+                        document: &self.document,
+                        contours: &self.contours,
+                        geom_findings: &self.findings,
+                        cache: &self.outline_cache,
+                        kind: SceneKind::Committed,
+                    },
                 )
             }
             CoreRequest::Edit { id, command } => self.edit(id, command),
@@ -172,13 +303,15 @@ impl CoreEngine {
             },
             CoreRequest::Snapshot { id } => self.scene(
                 id,
-                "snapshot",
-                vec![],
-                &self.document,
-                &self.contours,
-                &self.findings,
-                &self.outline_cache,
-                SceneKind::Committed,
+                SceneInput {
+                    transaction: "snapshot",
+                    changed: vec![],
+                    document: &self.document,
+                    contours: &self.contours,
+                    geom_findings: &self.findings,
+                    cache: &self.outline_cache,
+                    kind: SceneKind::Committed,
+                },
             ),
             CoreRequest::ProjectMatrices {
                 id,
@@ -208,6 +341,154 @@ impl CoreEngine {
                     matrix_scenes: scenes,
                 }
             }
+            CoreRequest::ResolveElectrical { id, request } => CoreReply::ElectricalResolved {
+                id,
+                plan: electrical::resolve(request),
+            },
+            CoreRequest::ApplyElectrical {
+                id,
+                base_revision,
+                plan,
+                draft,
+            } => {
+                if base_revision != self.document.revision {
+                    return self.error(id, "Stale base revision");
+                }
+                let reviewed = electrical::resolve(electrical::ElectricalPlanRequest {
+                    document: self.document.clone(),
+                    instance_id: plan.instance_id.clone(),
+                    mode: plan.mode,
+                    locks: Default::default(),
+                    controller_profile: plan.controller_profile.clone(),
+                    board_id: plan.board_id.clone(),
+                    controller_part_id: plan.controller_part_id.clone(),
+                });
+                if reviewed.fingerprint != plan.fingerprint {
+                    return self.error(
+                        id,
+                        "The wiring inputs changed; resolve again before applying",
+                    );
+                }
+                let mut document = self.document.clone();
+                if let Err(message) =
+                    electrical::materialize_reviewed(&mut document, &reviewed, draft)
+                {
+                    return self.error(id, &message);
+                }
+                self.edit(
+                    id,
+                    EditCommand {
+                        base_revision,
+                        transaction_id: "apply-wiring".into(),
+                        phase: EditPhase::Commit,
+                        target_ids: vec![],
+                        operation: EditOperation::ReplaceDocument {
+                            document: Box::new(document),
+                        },
+                    },
+                )
+            }
+            CoreRequest::ReviewElectricalRemap {
+                id,
+                base_revision,
+                board_id,
+                expected_fingerprint,
+            } => {
+                if base_revision != self.document.revision {
+                    return self.error(id, "Stale base revision");
+                }
+                let Some(config) = self.document.hardware.as_mut().and_then(|hardware| {
+                    hardware
+                        .boards
+                        .iter_mut()
+                        .find(|board| board.board_id == board_id)
+                }) else {
+                    return self.error(id, "PCB wiring configuration is missing");
+                };
+                if config
+                    .protected_handoff
+                    .as_ref()
+                    .map(|baseline| baseline.fingerprint.as_str())
+                    != Some(expected_fingerprint.as_str())
+                {
+                    return self.error(id, "The PCB handoff changed; review it again");
+                }
+                config.protected_handoff = None;
+                self.document.revision += 1;
+                self.scene(
+                    id,
+                    SceneInput {
+                        transaction: "review-remap",
+                        changed: vec![],
+                        document: &self.document,
+                        contours: &self.contours,
+                        geom_findings: &self.findings,
+                        cache: &self.outline_cache,
+                        kind: SceneKind::Committed,
+                    },
+                )
+            }
+            CoreRequest::ProtectElectricalHandoff {
+                id,
+                base_revision,
+                board_id,
+                plan,
+            } => {
+                if base_revision != self.document.revision {
+                    return self.error(id, "Stale base revision");
+                }
+                if plan.revision != self.document.revision {
+                    return self.error(id, "Wiring plan is stale");
+                }
+                if plan.board_id.as_deref() != Some(&board_id) {
+                    return self.error(id, "The handoff belongs to a different PCB");
+                }
+                let reviewed = electrical::resolve(electrical::ElectricalPlanRequest {
+                    document: self.document.clone(),
+                    instance_id: None,
+                    mode: plan.mode,
+                    locks: Default::default(),
+                    controller_profile: plan.controller_profile.clone(),
+                    board_id: plan.board_id.clone(),
+                    controller_part_id: plan.controller_part_id.clone(),
+                });
+                if plan.instance_id.is_some() || reviewed.fingerprint != plan.fingerprint {
+                    return self.error(id, "The handoff no longer matches the PCB wiring");
+                }
+                let hw = self.document.hardware.get_or_insert_with(Default::default);
+                let index = hw.boards.iter().position(|b| b.board_id == board_id);
+                let index = index.unwrap_or_else(|| {
+                    hw.boards.push(ElectricalBoardConfiguration {
+                        board_id: board_id.clone(),
+                        ..Default::default()
+                    });
+                    hw.boards.len() - 1
+                });
+                let board = &mut hw.boards[index];
+                let mut assignments = board
+                    .protected_handoff
+                    .as_ref()
+                    .map(|baseline| baseline.assignments.clone())
+                    .unwrap_or_default();
+                assignments.extend(electrical::handoff_assignments(&plan));
+                board.protected_handoff = Some(ElectricalHandoffBaseline {
+                    fingerprint: plan.fingerprint.clone(),
+                    revision: self.document.revision,
+                    assignments,
+                });
+                self.scene(
+                    id,
+                    SceneInput {
+                        transaction: "protect-handoff",
+                        changed: vec![],
+                        document: &self.document,
+                        contours: &self.contours,
+                        geom_findings: &self.findings,
+                        cache: &self.outline_cache,
+                        kind: SceneKind::Committed,
+                    },
+                )
+            }
         }
     }
 
@@ -230,7 +511,13 @@ impl CoreEngine {
             Ok(changed) => changed,
             Err(message) => return self.error(id, &message),
         };
+        if let Some(map) = &next.keymap
+            && let Err(message) = keymap::validate(map)
+        {
+            return self.error(id, &message);
+        }
         let mut changed = changed;
+        electrical::preserve_handoff(&self.document, &mut next);
         if let Err(message) = layout::validate(&next) {
             return self.error(id, &message);
         }
@@ -250,6 +537,7 @@ impl CoreEngine {
             Ok(ids) => changed.extend(ids),
             Err(message) => return self.error(id, &message),
         }
+        outline_controls::detach_removed(&self.document.parts, &mut next);
         changed.sort();
         changed.dedup();
         let (cache, contours, findings) = if affects_outline(&command.operation) {
@@ -269,16 +557,19 @@ impl CoreEngine {
         if command.phase == EditPhase::Preview {
             return self.scene(
                 id,
-                &command.transaction_id,
-                changed,
-                &next,
-                &contours,
-                &findings,
-                &cache,
-                SceneKind::Preview,
+                SceneInput {
+                    transaction: &command.transaction_id,
+                    changed,
+                    document: &next,
+                    contours: &contours,
+                    geom_findings: &findings,
+                    cache: &cache,
+                    kind: SceneKind::Preview,
+                },
             );
         }
         next.revision = self.document.revision + 1;
+        outline_versions::refresh_recovery(&mut next, &cache);
         self.undo.push(self.document.clone());
         self.redo.clear();
         self.document = next;
@@ -287,24 +578,28 @@ impl CoreEngine {
         self.outline_cache = cache;
         self.scene(
             id,
-            &command.transaction_id,
-            changed,
-            &self.document,
-            &self.contours,
-            &self.findings,
-            &self.outline_cache,
-            SceneKind::Committed,
+            SceneInput {
+                transaction: &command.transaction_id,
+                changed,
+                document: &self.document,
+                contours: &self.contours,
+                geom_findings: &self.findings,
+                cache: &self.outline_cache,
+                kind: SceneKind::Committed,
+            },
         )
     }
 
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
         let backup = PreviewBackup::capture(&self.document, &command.operation);
+        let attachments = outline_controls::attached_parts(&self.document);
         let result = apply(&mut self.document, &command.operation).and_then(|mut changed| {
             layout::validate(&self.document)?;
             changed.extend(constraints::resolve(&mut self.document)?);
             changed.extend(layout::sync_components(&mut self.document)?);
             changed.extend(constraints::resolve(&mut self.document)?);
             changed.extend(layout::sync_components(&mut self.document)?);
+            outline_controls::detach_removed(&attachments, &mut self.document);
             changed.sort();
             changed.dedup();
             Ok(changed)
@@ -317,13 +612,15 @@ impl CoreEngine {
                 let (cache, contours, findings) = outlines(&self.document, previous, &changed);
                 self.scene(
                     id,
-                    &command.transaction_id,
-                    changed,
-                    &self.document,
-                    &contours,
-                    &findings,
-                    &cache,
-                    SceneKind::Preview,
+                    SceneInput {
+                        transaction: &command.transaction_id,
+                        changed,
+                        document: &self.document,
+                        contours: &contours,
+                        geom_findings: &findings,
+                        cache: &cache,
+                        kind: SceneKind::Preview,
+                    },
                 )
             }
         };
@@ -340,6 +637,7 @@ impl CoreEngine {
             return self.error(id, "History is empty");
         };
         let changed = changed_ids(&self.document, &next);
+        electrical::preserve_handoff(&self.document, &mut next);
         to.push(self.document.clone());
         next.revision = self.document.revision + 1;
         self.document = next;
@@ -350,31 +648,33 @@ impl CoreEngine {
         };
         self.scene(
             id,
-            transaction,
-            changed,
-            &self.document,
-            &self.contours,
-            &self.findings,
-            &self.outline_cache,
-            SceneKind::Committed,
+            SceneInput {
+                transaction,
+                changed,
+                document: &self.document,
+                contours: &self.contours,
+                geom_findings: &self.findings,
+                cache: &self.outline_cache,
+                kind: SceneKind::Committed,
+            },
         )
     }
 
     fn recompute(&mut self) {
         (self.outline_cache, self.contours, self.findings) = outlines(&self.document, None, &[]);
+        outline_versions::refresh_recovery(&mut self.document, &self.outline_cache);
     }
 
-    fn scene(
-        &self,
-        id: String,
-        transaction: &str,
-        changed: Vec<String>,
-        doc: &ProjectDoc,
-        contours: &[Contour],
-        geom_findings: &[Finding],
-        cache: &OutlineCache,
-        kind: SceneKind,
-    ) -> CoreReply {
+    fn scene(&self, id: String, input: SceneInput<'_>) -> CoreReply {
+        let SceneInput {
+            transaction,
+            changed,
+            document: doc,
+            contours,
+            geom_findings,
+            cache,
+            kind,
+        } = input;
         let mut findings = geom_findings.to_vec();
         let definition_ids: BTreeSet<_> =
             doc.definitions.iter().map(|def| def.id.as_str()).collect();
@@ -390,8 +690,48 @@ impl CoreEngine {
             }
         }
         findings.extend(validate::validate(doc));
-        let (board_contours, board_findings) = geometry::board_contours(doc, cache);
+        let (board_contours, board_findings, corner_markers) = geometry::board_contours(doc, cache);
+        let fitted_targets: BTreeSet<_> = board_findings
+            .iter()
+            .filter(|finding| finding.id.ends_with(":feature:outline:corners:fitted"))
+            .flat_map(|finding| finding.target_ids.iter().cloned())
+            .collect();
+        findings.retain(|finding| {
+            finding.id != "outline:corners:fitted"
+                || !finding
+                    .target_ids
+                    .iter()
+                    .all(|id| fitted_targets.contains(id))
+        });
         findings.extend(board_findings);
+        let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
+        let (outline_findings, mut finding_markers) =
+            outline_validation::validate(doc, &board_contours, &board_outline_scenes);
+        findings.extend(outline_findings);
+        finding_markers.extend(inputs::finding_markers(doc, &findings));
+        finding_markers.extend(hardware::nominal_fit(doc).1);
+        finding_markers.extend(modules::finding_markers(doc, &findings));
+        let mut generic_markers: BTreeMap<(String, String), Vec<Contour>> = BTreeMap::new();
+        for marker in outline_validation::feature_markers(doc, &findings) {
+            generic_markers
+                .entry((marker.finding_id, marker.board_id))
+                .or_default()
+                .extend(marker.contours);
+        }
+        for ((finding_id, board_id), contours) in generic_markers {
+            if !finding_markers
+                .iter()
+                .any(|marker| marker.finding_id == finding_id && marker.board_id == board_id)
+            {
+                finding_markers.push(FindingMarker {
+                    finding_id,
+                    board_id,
+                    contours,
+                });
+            }
+        }
+        finding_markers.extend(corner_markers);
+        finding_markers.extend(keycaps::finding_markers(doc, &findings));
         for board in &board_contours {
             if board.contours.is_empty() {
                 findings.push(Finding {
@@ -448,7 +788,12 @@ impl CoreEngine {
                             || finding.id.ends_with(":empty-outline"))
                 });
                 let outline = !board.contours.is_empty() && !invalid_outline;
-                let pcb = layout && outline && !invalid_pcb;
+                let valid_layout = !findings.iter().any(|finding| {
+                    finding.severity == Severity::Error
+                        && finding.scope == Scope::Layout
+                        && relevant(finding)
+                });
+                let pcb = valid_layout && outline && !invalid_pcb;
                 let bodies: Vec<_> = doc
                     .case_bodies
                     .iter()
@@ -481,6 +826,11 @@ impl CoreEngine {
                 .iter()
                 .any(|f| matches!(f.scope, Scope::Case) && matches!(f.severity, Severity::Error));
         let scene = SceneDelta {
+            module_scenes: doc
+                .boards
+                .iter()
+                .flat_map(|b| modules::resolve(doc, &b.id).modules)
+                .collect(),
             revision: doc.revision,
             transaction_id: transaction.into(),
             changed_ids: changed,
@@ -505,6 +855,8 @@ impl CoreEngine {
             contours: contours.to_vec(),
             board_contours,
             board_readiness,
+            board_outline_scenes,
+            finding_markers,
             findings,
             readiness: Readiness {
                 layout,
@@ -518,7 +870,7 @@ impl CoreEngine {
             SceneKind::Committed => CoreReply::Scene {
                 id,
                 scene,
-                document: doc.clone(),
+                document: Box::new(doc.clone()),
             },
         }
     }
@@ -541,14 +893,24 @@ enum SceneKind {
     Committed,
 }
 
+struct SceneInput<'a> {
+    transaction: &'a str,
+    changed: Vec<String>,
+    document: &'a ProjectDoc,
+    contours: &'a [Contour],
+    geom_findings: &'a [Finding],
+    cache: &'a OutlineCache,
+    kind: SceneKind,
+}
+
+type SavedPartPose = (
+    usize,
+    Pose2,
+    Option<std::collections::BTreeMap<String, serde_json::Value>>,
+);
+
 enum PreviewBackup {
-    Parts(
-        Vec<(
-            usize,
-            Pose2,
-            Option<std::collections::BTreeMap<String, serde_json::Value>>,
-        )>,
-    ),
+    Parts(Vec<SavedPartPose>),
     Matrix {
         definition_len: usize,
         parts: Vec<Part>,
@@ -633,8 +995,14 @@ impl PreviewBackup {
 fn affects_outline(op: &EditOperation) -> bool {
     matches!(
         op,
-        EditOperation::MoveParts { .. }
+        EditOperation::SetMountedModule {
+            host_connector_definition: Some(_),
+            ..
+        } | EditOperation::MoveParts { .. }
             | EditOperation::SetOutline { .. }
+            | EditOperation::CopyOutline { .. }
+            | EditOperation::SelectOutline { .. }
+            | EditOperation::RemoveOutline { .. }
             | EditOperation::AddPart { .. }
             | EditOperation::RemoveParts { .. }
             | EditOperation::RemoveMatrix { .. }
@@ -650,6 +1018,45 @@ fn affects_outline(op: &EditOperation) -> bool {
 
 fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
     match op {
+        EditOperation::SetModuleDefinition { definition } => {
+            modules::set_definition(doc, definition)
+        }
+        EditOperation::SetMountedModule {
+            instance,
+            definition,
+            host_connector_definition,
+        } => modules::set(
+            doc,
+            instance,
+            definition.as_deref(),
+            host_connector_definition.as_deref(),
+        ),
+        EditOperation::RemoveMountedModule { id } => modules::remove(doc, id),
+        EditOperation::EmbedModuleCircuit {
+            id,
+            definition,
+            host_board_id,
+            pose,
+            side,
+            joins,
+        } => modules::embed(
+            doc,
+            id,
+            definition,
+            host_board_id,
+            *pose,
+            side.clone(),
+            joins,
+        ),
+        EditOperation::RemoveEmbeddedCircuit { id } => modules::remove_circuit(doc, id),
+        EditOperation::SetInputScanMode { part_id, mode } => {
+            inputs::set_scan_mode(doc, part_id, *mode)
+        }
+        EditOperation::EditKeymap { change } => keymap::apply_edit(doc, change),
+        EditOperation::SetKeyBinding { .. }
+        | EditOperation::SetKeycapBoard { .. }
+        | EditOperation::SetMatrixKeycaps { .. }
+        | EditOperation::SetKeycapKey { .. } => keycaps::apply_edit(doc, op),
         EditOperation::MoveParts { positions } => {
             let (mut changed, handled) = layout::move_keys(doc, positions)?;
             for position in positions {
@@ -709,13 +1116,24 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
         }
         EditOperation::SetOutline { feature } => {
             let id = feature.id().to_string();
-            if let Some(current) = doc.outline.iter_mut().find(|item| item.id() == id) {
+            let current = doc
+                .board_outlines
+                .iter_mut()
+                .flat_map(|state| &mut state.versions)
+                .flat_map(|version| &mut version.geometry.features)
+                .find(|item| item.id() == id)
+                .or_else(|| doc.outline.iter_mut().find(|item| item.id() == id));
+            if let Some(current) = current {
                 *current = feature.clone();
             } else {
                 doc.outline.push(feature.clone());
             }
             Ok(vec![id])
         }
+        operation @ (EditOperation::CopyOutline { .. }
+        | EditOperation::SelectOutline { .. }
+        | EditOperation::RenameOutline { .. }
+        | EditOperation::RemoveOutline { .. }) => outline_versions::apply(doc, operation),
         EditOperation::AddPart { part, board_id } => {
             if doc.parts.iter().any(|item| item.id == part.id) {
                 return Err(format!("Duplicate part {}", part.id));
@@ -744,21 +1162,21 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             }
             let mut attached = false;
             for feature in &mut doc.outline {
-                if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature {
-                    if board_outline.contains(id) {
-                        part_ids.push(part.id.clone());
-                        attached = true;
-                    }
+                if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature
+                    && board_outline.contains(id)
+                {
+                    part_ids.push(part.id.clone());
+                    attached = true;
                 }
             }
-            if !attached && doc.boards.is_empty() {
-                if let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
+            if !attached
+                && doc.boards.is_empty()
+                && let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
                     .outline
                     .iter_mut()
                     .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
-                {
-                    part_ids.push(part.id.clone());
-                }
+            {
+                part_ids.push(part.id.clone());
             }
             doc.parts.push(part.clone());
             Ok(vec![part.id.clone()])
@@ -831,15 +1249,15 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             } else {
                 doc.nets.push(net.clone());
             }
-            if let Some(board) = doc.boards.first_mut() {
-                if !board.net_ids.contains(&net.id) {
-                    board.net_ids.push(net.id.clone());
-                }
+            if let Some(board) = doc.boards.first_mut()
+                && !board.net_ids.contains(&net.id)
+            {
+                board.net_ids.push(net.id.clone());
             }
             Ok(vec![net.id.clone()])
         }
         EditOperation::SetMechanical { configuration } => {
-            doc.mechanical = configuration.clone();
+            doc.mechanical = configuration.as_deref().cloned();
             Ok(vec![])
         }
         EditOperation::SetCase { body } => {
@@ -926,11 +1344,11 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             let mut changed = apply(
                 doc,
                 &EditOperation::SetMatrix {
-                    matrix: matrix.clone(),
+                    matrix: matrix.as_ref().clone(),
                     definitions: definitions.clone(),
                 },
             )?;
-            let mut target = matrix.clone();
+            let mut target = matrix.as_ref().clone();
             target.id = right.matrix_id.clone();
             target.name = Some(right.name.clone());
             for cell in &mut target.cells {
@@ -1003,8 +1421,11 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
             }
+            if document.format_version != migrate::CURRENT_VERSION {
+                return Err("Document must be migrated before it replaces the open one".into());
+            }
             let changed = changed_ids(doc, document);
-            let mut prepared = document.clone();
+            let mut prepared = document.as_ref().clone();
             script::apply_scripts(&mut prepared)?;
             layout::resolve(&mut prepared)?;
             *doc = prepared;

@@ -2,36 +2,85 @@ name: Validate Board Studio
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  # Native test binaries link Core many times; full debuginfo made them (and the cache) several
+  # times larger and slower to link. Line tables keep file:line in panics and backtraces.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 jobs:
-  check:
+  # Native Rust tests (including KiCad and native CAD checks). Runs beside `web` so the KiCad
+  # install is off the critical path.
+  native:
     runs-on: ubuntu-latest
-    env:
-      NODE_OPTIONS: --no-experimental-webstorage
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install KiCad 10
         run: |
           sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends kicad
           kicad-cli version | grep '^10\.'
+      - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            . -> target
+            cad/wasm -> target
+            cad/step-oracle -> target
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cad/.cache/cadrum/*/*.tar.gz
+          key: occt-native-${{ hashFiles('cad/scripts/cadrum_build.py') }}
+      - run: python3 scripts/check.py repo tooling lint test
+
+  # Release build and mounted browser tests.
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup target add wasm32-unknown-unknown
-      - run: cargo install wasm-pack --locked --version 0.15.0
-      - run: pnpm --dir app exec playwright install --with-deps chromium
-      - run: pnpm run check
-      - uses: actions/upload-artifact@v4
+      - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
+      - uses: ./.github/actions/web-tools
+      # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/.wasm-pack
+          key: wasm-pack-0.15.0-wasm-bindgen-0.2.129
+      - name: Verify headless Chrome tools
+        run: |
+          google-chrome --version
+          chromedriver --version
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: . -> target
+          shared-key: web
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            cad/.cache/cadrum/*/*.tar.gz
+            cad/.cache/cargo-registry
+            cad/.cache/cargo-git
+          key: cadrum-wasm-${{ hashFiles('cad/scripts/cadrum_build.py', 'cad/wasm/Cargo.lock') }}
+      # Pull the published CAD toolchain image; cadrum_build.py builds it locally if this fails
+      # (for example on forks, or before cad-image.yaml has published a changed Containerfile).
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        continue-on-error: true
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: python3 scripts/check.py build browser
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: browser-failure
-          path: app/test-results
+          path: web/target/test-results
           retention-days: 7

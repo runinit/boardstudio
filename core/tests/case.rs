@@ -3,6 +3,8 @@ use boardstudio_core::model::*;
 
 fn outline(id: &str) -> OutlineFeature {
     OutlineFeature::Rect {
+        rotation: None,
+        anchor_part_id: None,
         id: id.into(),
         center: Vec2 { x: 0.0, y: 0.0 },
         size: Vec2 { x: 20.0, y: 10.0 },
@@ -32,6 +34,7 @@ fn case_ir(assembly_revision: u64, body_revision: u64) -> CaseAssemblyIR {
         bodies: vec![CaseIR {
             revision: body_revision,
             body: CaseBody {
+                features: None,
                 openings: None,
                 id: "case".into(),
                 name: "Case".into(),
@@ -63,7 +66,7 @@ fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
     match engine.handle(CoreRequest::Snapshot {
         id: "snapshot".into(),
     }) {
-        CoreReply::Scene { document, .. } => document,
+        CoreReply::Scene { document, .. } => *document,
         other => panic!("expected scene snapshot, got {other:?}"),
     }
 }

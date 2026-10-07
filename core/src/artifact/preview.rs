@@ -148,12 +148,14 @@ fn graphic(
     placement: &Pose2,
     out: &mut PcbPreview,
     edges: &mut Vec<Vec<Vec2>>,
+    allow_fabrication: bool,
 ) -> Result<(), ArtifactError> {
     let layer = child(n, "layer").map(|n| value(n, 1)).unwrap_or("");
     if !matches!(
         layer,
         "Edge.Cuts" | "F.SilkS" | "B.SilkS" | "F.Cu" | "B.Cu" | "F.Mask" | "B.Mask"
-    ) {
+    ) && !(allow_fabrication && matches!(layer, "F.Fab" | "B.Fab"))
+    {
         return Ok(());
     }
     let tag = head(n).unwrap_or("");
@@ -193,7 +195,15 @@ fn graphic(
         {
             return Ok(());
         }
-        let at = pose(n)?;
+        // KiCad text may omit its angle before the optional unlocked flag.
+        let at = if child(n, "at").is_some_and(|at| value(at, 3) == "unlocked") {
+            Pose2 {
+                at: xy(n, "at")?,
+                rotation: 0.,
+            }
+        } else {
+            pose(n)?
+        };
         let text = if tag == "fp_text" || tag == "property" {
             value(n, 2)
         } else {
@@ -427,7 +437,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                                     id: format!("{}:{}", reference, out.models.len()),
                                     reference: reference.clone(),
                                     path: value(node, 1).into(),
-                                    pose: fp.clone(),
+                                    pose: fp,
                                     side: side.clone(),
                                     offset: xyz(node, "offset", 0.)?,
                                     rotation: xyz(node, "rotate", 0.)?,
@@ -436,7 +446,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                             }
                         }
                         tag if tag.starts_with("fp_") || tag == "property" => {
-                            graphic(node, &fp, &mut out, &mut edges)?
+                            graphic(node, &fp, &mut out, &mut edges, false)?
                         }
                         _ => {}
                     }
@@ -473,7 +483,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                 }
             }
             tag if tag.starts_with("gr_") || tag == "segment" || tag == "arc" => {
-                graphic(n, &origin, &mut out, &mut edges)?
+                graphic(n, &origin, &mut out, &mut edges, false)?
             }
             _ => {}
         }
@@ -487,6 +497,48 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
     Ok(out)
 }
 
+/// Project only source-local front/back silkscreen and fabrication artwork from a footprint.
+pub(super) fn footprint_surfaces(source: &str) -> Result<Vec<PcbSurface>, ArtifactError> {
+    if source.len() > 4 * 1024 * 1024 {
+        return Err(error("Footprint source exceeds the 4 MiB preview limit"));
+    }
+    let parsed = kiutils_sexpr::parse_one(source).map_err(|e| error(e.to_string()))?;
+    let root = parsed
+        .nodes
+        .first()
+        .ok_or_else(|| error("Empty footprint source"))?;
+    if !matches!(head(root), Some("footprint" | "module")) {
+        return Err(error("Expected a KiCad footprint source"));
+    }
+    let mut out = PcbPreview {
+        revision: 0,
+        thickness: 0.,
+        contours: Vec::new(),
+        surfaces: Vec::new(),
+        holes: Vec::new(),
+        models: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+    let identity = Pose2 {
+        at: Vec2 { x: 0., y: 0. },
+        rotation: 0.,
+    };
+    let mut edges = Vec::new();
+    for node in items(root).unwrap_or(&[]).iter().skip(1) {
+        let tag = head(node).unwrap_or("");
+        if tag.starts_with("fp_") || tag == "property" {
+            graphic(node, &identity, &mut out, &mut edges, true)?;
+        }
+    }
+    out.surfaces.retain(|surface| {
+        matches!(
+            surface.layer.as_str(),
+            "F.SilkS" | "B.SilkS" | "F.Fab" | "B.Fab"
+        )
+    });
+    Ok(out.surfaces)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,7 +546,9 @@ mod tests {
         "(gr_rect (start 0 0) (end 20 10) (layer \"Edge.Cuts\") (stroke (width 0.05)))";
     #[test]
     fn projects_copper_holes_models_and_saved_fills() {
-        let input=format!("(kicad_pcb (general (thickness 1.2)) {EDGE} (segment (start 1 2) (end 5 2) (width 0.3) (layer \"F.Cu\")) (via (at 5 2) (size 0.7) (drill 0.3)) (footprint \"switch\" (layer \"B.Cu\") (at 4 5 30) (property \"Reference\" \"SW1\") (pad \"1\" thru_hole oval (at 2 0 30) (size 3 2) (drill oval 1.5 0.8) (layers \"*.Cu\" \"*.Mask\")) (model \"switch.step\" (offset (xyz 1 2 3)) (rotate (xyz 20 40 70)))) (zone (layer \"B.Cu\")))");
+        let input = format!(
+            "(kicad_pcb (general (thickness 1.2)) {EDGE} (segment (start 1 2) (end 5 2) (width 0.3) (layer \"F.Cu\")) (via (at 5 2) (size 0.7) (drill 0.3)) (footprint \"switch\" (layer \"B.Cu\") (at 4 5 30) (property \"Reference\" \"SW1\") (pad \"1\" thru_hole oval (at 2 0 30) (size 3 2) (drill oval 1.5 0.8) (layers \"*.Cu\" \"*.Mask\")) (model \"switch.step\" (offset (xyz 1 2 3)) (rotate (xyz 20 40 70)))) (zone (layer \"B.Cu\")))"
+        );
         let result = board(&input, 17).unwrap();
         assert_eq!(result.revision, 17);
         assert_eq!(result.thickness, 1.2);
@@ -503,24 +557,51 @@ mod tests {
         assert_eq!(result.models[0].side, Side::Back);
         assert_eq!(result.models[0].offset.y, 2.);
         assert_eq!(result.models[0].pose.at.y, -5.);
-        assert!(result
-            .diagnostics
-            .iter()
-            .any(|s| s.contains("no saved fill")));
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|s| s.contains("no saved fill"))
+        );
         assert!(result.surfaces.iter().any(|s| s.layer == "B.Mask"));
     }
     #[test]
+    fn footprint_projection_includes_fab_without_changing_board_preview_layers() {
+        let footprint = "(footprint \"resistor\" (layer \"B.Cu\") (at 0 0) (fp_line (start 0 0) (end 2 0) (stroke (width 0.1)) (layer \"B.SilkS\")) (fp_rect (start -1 -1) (end 1 1) (stroke (width 0.05)) (layer \"B.Fab\")))";
+        let surfaces = footprint_surfaces(footprint).unwrap();
+        assert!(surfaces.iter().any(|surface| surface.layer == "B.SilkS"));
+        assert!(surfaces.iter().any(|surface| surface.layer == "B.Fab"));
+
+        let board = board(&format!("(kicad_pcb {EDGE} {footprint})"), 0).unwrap();
+        assert!(
+            board
+                .surfaces
+                .iter()
+                .any(|surface| surface.layer == "B.SilkS")
+        );
+        assert!(
+            !board
+                .surfaces
+                .iter()
+                .any(|surface| surface.layer == "B.Fab")
+        );
+    }
+    #[test]
     fn rejects_open_edges_and_non_finite_values() {
-        assert!(board(
-            "(kicad_pcb (gr_line (start 0 0) (end 1 1) (layer \"Edge.Cuts\")))",
-            0
-        )
-        .is_err());
-        assert!(board(
-            &format!("(kicad_pcb {EDGE} (segment (start NaN 0) (end 1 1) (layer \"F.Cu\")))"),
-            0
-        )
-        .is_err());
+        assert!(
+            board(
+                "(kicad_pcb (gr_line (start 0 0) (end 1 1) (layer \"Edge.Cuts\")))",
+                0
+            )
+            .is_err()
+        );
+        assert!(
+            board(
+                &format!("(kicad_pcb {EDGE} (segment (start NaN 0) (end 1 1) (layer \"F.Cu\")))"),
+                0
+            )
+            .is_err()
+        );
     }
     #[test]
     fn joins_edges_and_classifies_cutouts() {

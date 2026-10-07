@@ -1,9 +1,0 @@
-packages:
-  - app
-  - contracts
-  - kicad
-  - ergogen
-  - cad
-
-allowBuilds:
-  esbuild: true

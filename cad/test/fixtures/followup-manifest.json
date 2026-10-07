@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "units": "millimetres",
+  "fixtures": [
+    {
+      "id": "large-plate",
+      "kind": "assembly",
+      "file": "large-plate.json",
+      "sha256": "fc3bcafb3a6ba677488dc6edb459ce4fe5457e9af3f8be4bdd99f6801339963a",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          240,
+          160,
+          2
+        ]
+      ],
+      "expectedSolids": 1,
+      "expectedVolume": 57600
+    },
+    {
+      "id": "four-trays",
+      "kind": "assembly",
+      "file": "four-trays.json",
+      "sha256": "f06fd4bd2493357772b7849f2e9174be97fe69ea86f8db37adcf738c66cafcb4",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          120,
+          80,
+          70
+        ]
+      ],
+      "expectedSolids": 4
+    },
+    {
+      "id": "multi-cavity",
+      "kind": "assembly",
+      "file": "multi-cavity.json",
+      "sha256": "6c10a7ef15c98da6c456518330515518822e4ca0974c84ff73056ee685611fa1",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          100,
+          40,
+          10
+        ]
+      ],
+      "expectedSolids": 1,
+      "expectedCavities": 2
+    },
+    {
+      "id": "concave-gasket",
+      "kind": "assembly",
+      "file": "concave-gasket.json",
+      "sha256": "6e5df8bb1ff364427f2eca1378eff02a1447689f15c5f92e2d03250344f76150",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          80,
+          60,
+          20
+        ]
+      ],
+      "expectedSolids": 2
+    },
+    {
+      "id": "imported-switch",
+      "kind": "step",
+      "file": "ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step",
+      "sha256": "c30e15d8da5c3856f0a5b19ab62f22eef9b06d69161963e77cdf6c0b09a7ac8c",
+      "expectedBounds": [
+        [
+          -3.2000001,
+          -1.7500001000000007,
+          -0.5000001000000639
+        ],
+        [
+          3.2000001,
+          2.7500001000000003,
+          1.6500001
+        ]
+      ],
+      "expectedSolids": 1
+    },
+    {
+      "id": "imported-controller",
+      "kind": "step",
+      "file": "ergogen/library/vendor/tsuki/3d_models/nrf52840.step",
+      "sha256": "c841576b727e83402939f7efa75149a68e9a9bd1f71e0315ca37b3bbc1a084b5",
+      "expectedBounds": [
+        [
+          -0.7491289871314739,
+          -1e-7,
+          -1.6000001000000001
+        ],
+        [
+          33.0000001,
+          17.780000100000002,
+          1.7000001
+        ]
+      ],
+      "expectedSolids": 1
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+[package]
+name = "boardstudio-web-runtime"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "BoardStudio page runtime: browser services, model delivery and presentation-independent operations."
+
+[features]
+# Exposes the `#[cfg(test)]` helpers the page's own tests drive (enabled by its dev-dependency).
+test-support = []
+
+[dependencies]
+boardstudio-application = { path = "../../../application" }
+boardstudio_core = { path = "../../../core" }
+boardstudio-web-host = { path = "../host", features = ["page"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = { version = "=0.11.0", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "=0.3.0", features = ["futures"] }
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+js-sys = "=0.3.106"
+serde-wasm-bindgen = "=0.6.5"
+futures-channel = "=0.3.34"
+web-sys = { version = "=0.3.106", features = [
+  "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventInit", "EventTarget", "MessageEvent", "KeyboardEventInit", "CssStyleDeclaration",
+  "Worker", "WorkerOptions", "WorkerType", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbOpenDbRequest",
+  "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlCanvasElement", "SvgElement", "PointerEvent", "KeyboardEvent", "FocusOptions", "DomRect", "Response", "Request", "Blob", "BlobPropertyBag", "Url", "Location", "Node", "File", "FileList", "HtmlInputElement", "ResizeObserver", "MediaQueryList",
+  "Cache", "CacheStorage", "ExtendableEvent", "FetchEvent", "Clients", "ServiceWorkerContainer",
+  "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "WorkerGlobalScope", "Navigator", "RegistrationOptions", "RequestDestination", "HtmlDialogElement"
+] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+futures-channel = "=0.3.34"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.79"
+
+[build-dependencies]
+sha2 = "=0.11.0"
+
+[lints]
+workspace = true

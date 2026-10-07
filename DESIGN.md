@@ -250,14 +250,10 @@ The working character is calm, precise, and restrained: small controls, aligned 
 - Fixed canvas controls and independently scrolling side panels.
 - Light and dark palettes with a persisted System option.
 
-This document captures the working tree on 2026-09-24, based on revision
-`7703d27`, including the locally implemented unified workbench shell and inspector edits. The main sources
-are [workspace styles](app/src/ui/workbench.css),
-[inspector styles](app/src/ui/inspector.css), and
-[footprint workspace styles](app/src/ui/library-workspace.css).
-The review originals in `app/.impeccable/review/` support the desktop and narrow
-layout description; current source supplies the token values. The latest
-visual review also records the dark unified composition.
+The September 2026 cleanup preserves the unified workbench shell and its visual
+identity. Dioxus shell, panel, Inspector and geometry styles live in [the web stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
+Exploratory review images are local artifacts; current source supplies the
+implemented layout and token values.
 
 ## Colors
 
@@ -310,7 +306,7 @@ sidecar together when the implementation's palette changes.
 
 **The Geometry Role Rule.** Keep canvas, board, key, pad, and selection roles separate from shell surfaces and status roles.
 
-[CasePreview](app/src/ui/CasePreview.tsx) uses a transparent WebGL background
+[The shared viewer](web/crates/case/src/shared_viewer.rs) uses a transparent WebGL background
 over the shared canvas token, with board, key, and part geometry colors on
 its materials. Lighting remains specific to the 3D scene, so shaded materials
 are not flat swatches of those colors.
@@ -351,8 +347,8 @@ on the workbench root.
 Both upright variable WOFF2 fonts are self-hosted, use `font-display: swap`, and
 are included in the generated offline cache. The main UI face is preloaded;
 monospace loads on demand. Segoe UI/sans-serif and Consolas/monospace remain
-fallbacks. Source provenance and checksums live in `app/src/assets/fonts/README.md`;
-SIL OFL licenses ship in `app/public/licenses/fonts/`.
+fallbacks. Source provenance and checksums live in `web/assets/fonts/README.md`;
+SIL OFL licenses ship in `web/assets/licenses/fonts/`.
 
 - Preview titles use 20px and selected inspector titles use 23px.
 - Section headings, actions, and control values use 13px; field labels and
@@ -365,10 +361,10 @@ and keep precise values available alongside direct manipulation.
 
 ## Layout
 
-The application owns the viewport height (100dvh). The 48px header, 44px
-command toolbar, and 34px footer frame independently scrolling navigator,
-canvas, and right inspector panels. At 1440px and above these become 60px,
-64px, and 60px. The center expands to absorb available width.
+The application owns the viewport height (100dvh). The 44px single-row header
+and 34px footer frame independently scrolling navigator,
+canvas, and right inspector panels. These shell heights remain fixed across
+desktop widths; the center expands to absorb available width.
 
 | Width | Implemented arrangement |
 | --- | --- |
@@ -377,19 +373,46 @@ canvas, and right inspector panels. At 1440px and above these become 60px,
 | 821–980px | Full-width center with navigator drawer and 300px inspector |
 | 820px and below | Full-width workspace with navigator and inspector drawers |
 
-The desktop project header is 48px and the command toolbar is 44px. At 1440px
-they become 60px and 64px; the footer becomes 60px. At 560px and below the
-compact navigation remains label-led. The navigator drawer is capped at 290px
+The project header is 44px at all widths. At 820px and below, direct view tabs
+become a native Workspace selector; the footer has a 44px minimum height and
+grows when it wraps.
+The navigator drawer is capped at 290px
 and the inspector at 370px, each bounded by 92vw, with a scrim.
 
 Both desktop panels support pinned, collapsed, and opt-in auto-hide modes.
-Widths (navigator 200–420px, inspector 280–480px) and modes persist locally.
+Widths (navigator 200–420px, inspector 280–480px) and modes persist locally;
+Workspace settings owns appearance and restoring this panel layout. The Project
+menu owns naming, opening, new projects, and saving portable copies.
 Collapsed panels release their full column and reopen from narrow edge controls.
 Auto-hide leaves the same reveal control and opens the panel over the canvas;
 pointer presence, keyboard focus, and resizing prevent dismissal. Reveals use
 a short slide, removed under reduced motion. Narrow screens use explicit drawers
 opened from the header instead of hover behavior. Resizing supports pointer
 dragging and arrow keys. Add opens a create view within the Objects panel.
+
+The single header keeps direct Layout, PCB, Case, and Parts tabs visible outside
+the dock columns, so navigation survives collapsed or temporary panel states.
+The object tree is contextual to the active view and shows the relevant
+selectable objects. Export remains a dedicated header action and page.
+When open, the setup guide occupies the left workspace in place of the object
+tree. Project → Setup guide is its entry point, and the guide header's
+Back to objects control returns to the contextual tree. The current-step list is
+one bounded scrolling region and uses the same panel surface, rules, typography,
+and selection tokens as Objects. SetupGuide uses
+`is-current` and `is-ready` step states, with marker and accent treatment rather
+than nested cards. On narrow widths it follows the same left drawer and scrim
+behavior as Objects.
+
+The guide opens automatically after a new project is saved successfully. Its
+steps are Project & hardware, Layout & assemblies, Controller & wiring, optional
+Case, and Review & export. Project → Setup guide and Back to objects
+provide explicit entry and exit paths. The open state and selected step are browser
+preferences scoped to the project; completion comes from the current document,
+selected board, wiring, and geometry. Steps remain freely navigable. Existing
+projects retain the ordinary workbench and each exporter remains authoritative.
+Returning from a temporary Parts or Export task returns to the prior design view;
+the guide can be resumed from its current step, and Back to objects returns to
+the contextual object tree.
 
 Recurring spacing uses compact 4px gaps, 8px inline separation, 12px field gaps,
 16px inspector insets, and 20px section endings. These are extracted repeated
@@ -399,10 +422,43 @@ insets at 700px and below. Footprint workspace padding changes from 35px 38px
 
 **The Stationary Controls Rule.** Scope and snap controls remain anchored to the workspace while world geometry pans and zooms.
 
-The Case view uses the shared footer for its 3D Fit and zoom controls. Its zoom
-percentage is relative to the fitted camera; 2D scale, axes, coordinates, and
-snap status do not appear over the perspective preview. Assembly metadata stays
-at the upper left, and the visual-preview limitation stays at the lower left.
+The Case action bar owns geometry readiness and its next action: configure,
+generate, wait/cancel, retry, review errors, or export. Export requires current
+generation, preview, committed scene, and resolved assembly revisions on the
+configured board. Mechanical errors block export; warnings remain reviewable
+without blocking. The canvas labels only the geometry currently displayed.
+Configuration metadata does not imply generated-solid or manufacturing readiness.
+
+Layout findings and Mechanical findings have separate, explicitly scoped footer
+controls. Counts match the grouped lists they open. Mechanical review opens and
+focuses diagnostics, including from a closed compact inspector. Model notices
+remain separate from mechanical findings.
+
+The mechanical inspector orders active diagnostics, Construction, Inherited part profiles,
+Dimensions & clearances, and Resolved stack before optional openings/battery,
+mounting/hardware, and manufacturing overrides. Async results can open an
+untouched disclosure; ordinary edits preserve a user's open/closed choice.
+Disable mechanical stack belongs in Configuration management at the end.
+Part fit comes from the key assembly or definition selected in Parts. The inherited
+summary links to that definition's fit editor, where standard switch profiles,
+custom cutouts and clearances, and imported KiCad geometry can be reviewed before
+saving. Opening or cancelling the editor does not change the document. Existing
+Case-specific profile overrides remain under Advanced source geometry.
+
+Layout, PCB, Parts, and assembly previews share a floating Layers pill in the
+lower-right corner. It starts collapsed. Expanding the bounded list never changes
+the drawing dimensions or camera. Below 640px of drawing width it has a Close
+control and 44px targets; Escape closes it and returns focus to the trigger.
+Availability is separate from visibility preference: generated solids show
+Not generated, while unavailable component assets show Missing model. Preferences
+remain view-only, survive generation, and assembly preferences are scoped to the
+project and board. Long labels wrap; lists scroll inside.
+
+Assembly display and assembled/exploded/section controls occupy a wrapping rail
+above the drawing. Camera controls remain outside the Layers pill.
+Compact Case settings has a visible label, and compact generation, layer, and
+settings controls use 44px touch targets. Passive canvas hints do not intercept
+geometry selection or gasket dragging.
 
 ## Elevation & Depth
 
@@ -452,11 +508,14 @@ adds a visible ring. Error text remains beside the operation that produced it.
 
 ### Stage navigation and preview switching
 
-Design and Parts tabs use text labels. Export is a labeled, icon-only action at
-the upper right beside Undo/Redo; Project, history, and Export use quiet buttons
-with hover and keyboard-focus feedback rather than permanent outlined boxes.
-Layout, PCB, and Case are linked object-tree branches. Active tabs use a 2px action-colored
-bottom rule, stronger text, and weight 700. The Parts preview uses two small
+Layout, PCB, Case, and Parts are permanent text-labeled view tabs in the 44px
+header, outside the navigator and inspector docks. At 820px and below they use
+the native Workspace selector. Their contextual object tree changes with the
+selected view. Export is a dedicated labeled page with its own artifact,
+readiness, and review context. Save status sits beside the project identity;
+desktop Undo/Redo live in the canvas footer, while compact actions remain in
+the project menu. Active tabs use a 2px action-colored
+bottom rule, stronger text, and weight 600. The Parts preview uses two small
 outlined buttons with pressed state, switching between 2D footprint and 3D model.
 
 Add groups Layouts, contextual matrix actions, Parts, and Board geometry into
@@ -498,6 +557,23 @@ rule, and an optional trailing detail. Summary rows have a 46px minimum height
 
 **The Disclosure Rule.** Separate inspector sections with quiet rules and reveal optional settings in place, preserving the selected object as the editing context.
 
+### Parts catalog
+
+New placements use one preferred entry per supported key part: Ceoloide MX,
+Choc V1/V2, Gateron KS27/KS33, matrix diode, and SK6812 MINI-E. Solder and
+hotswap are settings within a switch entry. The eight assembly presets remain;
+Choc presets explicitly identify V1 compatibility. Parts, Add component, and
+assembly selectors share these choices and searchable labels.
+
+Retired built-in key parts and the duplicate Infused Kim Choc and diode remain
+resolvable in saved projects. Existing assignments retain their current selector
+option; opening a project never replaces them. User-created and imported parts
+remain available, including similarly named parts. Internal placement snapshots
+are not separate catalog products. **Update assembly preset** is an explicit,
+undoable matrix action that refreshes its recipe and definition snapshots. Added
+rows and columns inherit that recipe; linked halves retain their own companion
+parts and existing key edits.
+
 ### Drawing and footprint workspace
 
 Board outlines and component boundaries remain separate from the slate field.
@@ -506,7 +582,13 @@ guides in the Parts preview remain dashed. The Layout canvas offers a separate
 keycap overlay with a rounded outer envelope and inset top face, using the
 resolved key dimensions and existing geometry/selection tokens. Matrix membership
 identifies keys even when their definition is a socket; pitch minus edge gap
-supplies missing key dimensions. Keys and Components have independent visibility. Layer swatches distinguish
+supplies missing key dimensions. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
+and Board switches; all start visible except Footprints. The toolbar Footprints
+switch shares that view-only state. Visibility survives workspace changes without
+creating document revisions or history entries. The control overlays the canvas
+without changing its bounds or camera. Compact canvas widths use 44px targets and
+a Close action; Escape closes the list and restores focus to the trigger.
+Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
 Selection types have direct icon shortcuts. Stagger, Splay, and Origin activate
@@ -575,8 +657,8 @@ Reduced motion removes pane travel and chevron transitions, substitutes a brief
 
 ### Workbench controls and review
 
-Desktop selection uses the five scope shortcuts; at widths of 1050px and below,
-one labeled selector takes their place. Rows/Columns tree grouping belongs in
+Selection uses one labeled selector alongside Transform, Align, and Snap. The
+2D/3D switch occupies a separate control so view changes are distinct from editing. Rows/Columns tree grouping belongs in
 Objects options. Panel menu actions occupy full-width rows, and Escape closes
 the menu without changing the canvas selection.
 
@@ -594,3 +676,46 @@ Fit board and Fit selection sit beside zoom. Fitting includes transformed part
 and keycap bounds, reserves room for canvas controls, and uses empty default
 bounds only when no geometry exists. Selecting a half in the tree selects its
 matrices and components for inspection with Fit selection.
+
+
+### Wiring and physical assemblies
+
+The PCB inspector identifies the selected part and its named terminal assignments.
+Key switches inherit wiring from the board plan; the Wiring section owns controller
+selection, explicit matrix/direct mode, automatic resolution, pin locks and manual
+assignments. Mechanical holes never appear as electrical terminals. Peripheral pins
+are allocated before scan pins. Missing profiles, diode polarity, capacity conflicts,
+and manual-net conflicts remain explicit findings rather than guessed connections.
+When existing connections conflict with the automatic plan, Wiring names the
+affected nets and requires an explicit replacement action. That action releases
+only the conflicting terminals, preserves other manual connections, and supports
+Undo.
+
+The firmware keymap starts with unassigned keys and offers an editable binding for
+each current key and encoder push button. Layout edits define a new hardware/keymap
+revision; deleted-key tombstones and automatic keymap migration are not promised.
+PCB downloads include a wiring report and per-part jumper instructions for each
+physical population sharing the board. Draft
+handoffs retain unresolved findings. Successful PCB handoffs protect valid signal
+assignments, including drafts; protection survives Undo. Starting a new PCB revision
+requires the explicit remap review in Wiring. Failed exports record no handoff.
+
+Reversible recipes preserve fabricated local nets across open solder gaps and use
+part IDs rather than editable references for their names. Instructions identify the
+face and bridge state; optional omitted footprint traces are routing obligations.
+Firmware resolves the module GPIO behind each selected population, including the
+reduced MCU jumper variant. Wired halves use local power, crossed TX/RX through a
+straight TRRS cable, sleeve ground, and an unused ring 1.
+
+Physical assembly selection is separate from the PCB design. A split may share one
+reversible PCB or use two boards. Turning a half over changes its face and reflects
+its physical X/Z placement. Construction dimensions may be linked; openings, mounts,
+and battery space remain local. PCB thickness remains authoritative. Case geometry
+is retained across electrical-only edits only when its exact physical dependency
+signature and project/instance identity still match.
+The Case preview uses that instance's reflected parts and outline together. Layout
+2D and 3D continue to show the canonical PCB design.
+
+ZMK handoffs target v0.3.0 and contain editable source, pin assignments, and build
+configuration. Source generation and device-tree syntax checks do not substitute
+for a complete target firmware build or hardware verification.

@@ -1,7 +1,7 @@
 # Rust core
 
-`wasm-pack build core --target web --release` emits the worker package in
-`core/pkg`. `CoreEngine.request(json)` accepts and returns the JSON protocol
+The browser runs Core inside the `web` crate's core-worker build
+(`python3 scripts/build-web.py --providers-only`). `CoreEngine.request(json)` accepts and returns the JSON protocol
 from `contracts`. Preview replies contain projected scene geometry while
 `document` remains committed. Commit, undo, and redo each advance revision.
 
@@ -53,6 +53,6 @@ When `diodes: true`, the core requires the `matrix-diode` definition, adds a
 stable row, column, and switch-link nets. This mode requires switch pad IDs
 `one` and `two`, plus diode pad IDs `anode` and `cathode`.
 RGB LED assemblies require pads `vdd`, `gnd`, `din`, and `dout`. The core
-maintains matrix-owned power nets, input/output endpoints, and a row-major
+maintains matrix-owned power nets, input/output endpoints, and deterministic
 DIN/DOUT chain across enabled cells. A `set-matrix` edit may include new
 definitions; registration and placement share one undo step.

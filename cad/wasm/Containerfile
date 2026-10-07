@@ -1,0 +1,54 @@
+FROM ghcr.io/webassembly/wasi-sdk@sha256:737535e2e75a90303fb2b9783c03002c1b8623264e2c853297e9a965a6b6d795
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git python3 gcc g++ cmake ninja-build make \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CC=gcc CXX=g++ AR=ar RANLIB=ranlib LD=ld
+
+# Only the GitHub-hosted submodules: src/config (GNU config.guess/config.sub on
+# git.savannah.gnu.org, unreachable from CI runners) is used only by the toolchain
+# build, and this image reuses the base image's toolchain.
+RUN git clone --depth 1 --recurse-submodules=src/llvm-project \
+      --recurse-submodules=src/wasi-libc --shallow-submodules \
+      --branch wasi-sdk-33 https://github.com/WebAssembly/wasi-sdk /tmp/wasi-sdk \
+    && test "$(git -C /tmp/wasi-sdk rev-parse HEAD)" = "c10c0507deb3e5aad506f1f9f32084e49a21834b" \
+    && sed -i 's/-wasm-use-legacy-eh=false/-wasm-use-legacy-eh=true/' /tmp/wasi-sdk/cmake/wasi-sdk-sysroot.cmake \
+    && rm -rf /opt/wasi-sdk/share/wasi-sysroot \
+    && cmake -G Ninja -B /tmp/wasi-sdk-build -S /tmp/wasi-sdk \
+      -DCMAKE_TOOLCHAIN_FILE=/opt/wasi-sdk/share/cmake/wasi-sdk.cmake \
+      -DCMAKE_C_COMPILER_WORKS=ON -DCMAKE_CXX_COMPILER_WORKS=ON \
+      -DCMAKE_INSTALL_PREFIX=/opt/wasi-sdk \
+      -DWASI_SDK_TARGETS=wasm32-wasip1 -DWASI_SDK_EXCEPTIONS=DUAL \
+      -DWASI_SDK_INCLUDE_TESTS=OFF \
+    && cmake --build /tmp/wasi-sdk-build --target install \
+    && rm -rf /tmp/wasi-sdk /tmp/wasi-sdk-build
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
+      -y --default-toolchain 1.98.0 --profile minimal
+ENV PATH=/opt/wasi-sdk/bin:/root/.cargo/bin:$PATH
+# Prebuilt release binaries, pinned by SHA-256, instead of compiling them with cargo install.
+RUN rustup target add wasm32-unknown-unknown \
+    && curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/wasm-pack.tar.gz \
+      https://github.com/wasm-bindgen/wasm-pack/releases/download/v0.15.0/wasm-pack-v0.15.0-x86_64-unknown-linux-musl.tar.gz \
+    && echo "c09f971ecaed9a2efc80fdcea7a00ef6b53c7fadc8c57d1f61b53a6aa66b668a  /tmp/wasm-pack.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/wasm-pack.tar.gz -C /root/.cargo/bin --strip-components=1 \
+      wasm-pack-v0.15.0-x86_64-unknown-linux-musl/wasm-pack \
+    && curl --proto '=https' --tlsv1.2 -sSfL -o /tmp/wasm-bindgen.tar.gz \
+      https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz \
+    && echo "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e  /tmp/wasm-bindgen.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/wasm-bindgen.tar.gz -C /root/.cargo/bin --strip-components=1 \
+      wasm-bindgen-0.2.129-x86_64-unknown-linux-musl/wasm-bindgen \
+      wasm-bindgen-0.2.129-x86_64-unknown-linux-musl/wasm-bindgen-test-runner \
+    && rm /tmp/wasm-pack.tar.gz /tmp/wasm-bindgen.tar.gz \
+    && wasm-pack --version && wasm-bindgen --version
+
+ENV SYSROOT=/opt/wasi-sdk/share/wasi-sysroot \
+    CC_wasm32_unknown_unknown=clang \
+    CXX_wasm32_unknown_unknown=clang++ \
+    CXXSTDLIB=c++ \
+    CFLAGS_wasm32_unknown_unknown="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_GETPID" \
+    CXXFLAGS_wasm32_unknown_unknown="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot -fwasm-exceptions -fexceptions -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_GETPID" \
+    CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS="-L native=/opt/wasi-sdk/share/wasi-sysroot/lib/wasm32-wasip1/eh -L native=/opt/wasi-sdk/share/wasi-sysroot/lib/wasm32-wasip1 -l static=c++abi -l static=unwind -l static=c"
+
+WORKDIR /workspace/cad

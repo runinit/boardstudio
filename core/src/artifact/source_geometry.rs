@@ -138,8 +138,8 @@ fn project_pad(
         size.y = size.y.max(offset.y.abs() * 2.0 + hole_size.y);
         approximations.push("offset drill bounds");
     }
-    if drill_node.is_some() {
-        let values = sexpr::items(drill_node.unwrap()).unwrap_or(&[]);
+    if let Some(drill_node) = drill_node {
+        let values = sexpr::items(drill_node).unwrap_or(&[]);
         let slotted = values.iter().any(|v| sexpr::atom(v) == Some("oval")) || values.len() > 3;
         if slotted {
             approximations.push("slotted drill");

@@ -1,0 +1,804 @@
+{
+  "formatVersion": 1,
+  "entries": [
+    {
+      "id": "kicad:marbastlib/STAB_MX_2u",
+      "name": "MX PCB stabilizer · 2u",
+      "kind": "custom",
+      "file": "sources/STAB_MX_2u.kicad_mod",
+      "sha256": "e6dbfefba073f23abe8a003656cee4d54d051cb21535850f3332c651f54c9bfc",
+      "repository": "https://github.com/ebastler/marbastlib",
+      "revision": "6b0a9a73f579e377816d60b58eac2b3252de7868",
+      "sourcePath": "footprints/marbastlib-mx.pretty/STAB_MX_2u.kicad_mod",
+      "license": "CERN-OHL-P-2.0",
+      "licenseFile": "sources/LICENSE",
+      "mechanical": {
+        "plateToPcb": 3.5,
+        "switchFamily": "mx",
+        "mappings": [
+          {
+            "kind": "line",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "arc",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "line",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "kind": "arc",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "sourceId": "pad-0-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-1-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-2-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-3-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kicad:marbastlib/STAB_MX_6.25u",
+      "name": "MX PCB stabilizer · 6.25u",
+      "kind": "custom",
+      "file": "sources/STAB_MX_6.25u.kicad_mod",
+      "sha256": "c0ddbafba01affa537638cd7ddec12c17ec0ea15c1e1436886f0a3d7b67a2d4d",
+      "repository": "https://github.com/ebastler/marbastlib",
+      "revision": "6b0a9a73f579e377816d60b58eac2b3252de7868",
+      "sourcePath": "footprints/marbastlib-mx.pretty/STAB_MX_6.25u.kicad_mod",
+      "license": "CERN-OHL-P-2.0",
+      "licenseFile": "sources/LICENSE",
+      "mechanical": {
+        "plateToPcb": 3.5,
+        "switchFamily": "mx",
+        "mappings": [
+          {
+            "kind": "line",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "arc",
+            "layer": "Eco2.User",
+            "purpose": "plate-cutout"
+          },
+          {
+            "kind": "line",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "kind": "arc",
+            "layer": "Dwgs.User",
+            "purpose": "drawing-guide"
+          },
+          {
+            "sourceId": "pad-0-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-1-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-2-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          },
+          {
+            "sourceId": "pad-3-drill",
+            "purpose": "electrical-pcb-mounting-hole"
+          }
+        ]
+      }
+    },
+    {
+      "id": "thqwgd001:rotation-reversible",
+      "name": "THQWGD001 · rotation only · reversible",
+      "kind": "encoder",
+      "file": "sources/thqwgd001/THQWGD001 [Reversible].kicad_mod",
+      "sha256": "b8e6b2d19c1a2e8fd741582e45ed27aaf6f8a79ac2c76605a8ec8172845c9eae",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/THQWGD001 [Reversible].kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/THQWGD001 [Reversible].kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "b8e6b2d19c1a2e8fd741582e45ed27aaf6f8a79ac2c76605a8ec8172845c9eae"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "physical-encoder-part-identity",
+            "message": "Physical encoder part identity. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "both-side-rotary-contact-continuity",
+            "message": "Both side rotary contact continuity. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "reversible-mask-solder-access",
+            "message": "Reversible mask solder access. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "selected-pcb-thickness-assembled-fit",
+            "message": "Selected pcb thickness assembled fit. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "manufacturing-drc-and-required-slot-alternative-validation",
+            "message": "Manufacturing drc and required slot alternative validation. Required for footprint qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "measured-rotation-swept-envelope",
+            "message": "Measured rotation swept envelope. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "plate-and-functional-opening-dimensions",
+            "message": "Plate and functional opening dimensions. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "screwdriver-and-nut-service-envelope",
+            "message": "Screwdriver and nut service envelope. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "production-tolerance-stack",
+            "message": "Production tolerance stack. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "both-side-model-hole-alignment",
+            "message": "Both side model hole alignment. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "published-reversible-90-degree-model-transform-inconsistent-with-leads",
+            "message": "Published reversible 90 degree model transform inconsistent with leads. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "component-versus-pcb-preview-export-transform-parity",
+            "message": "Component versus pcb preview export transform parity. Required for mechanical qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "encoder-pulses-per-rotation",
+            "message": "Encoder pulses per rotation. Required for firmware qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "detents-and-quadrature-direction",
+            "message": "Detents and quadrature direction. Required for firmware qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "driver-and-config-hardware-validation",
+            "message": "Driver and config hardware validation. Required for firmware qualification."
+          },
+          {
+            "output": "electrical",
+            "code": "reversible-contact-mapping-unverified",
+            "message": "Published alternate pads are retained. Ordinary #2 and reversible A/C positions differ; verify continuity for the selected encoder and assembly side."
+          },
+          {
+            "output": "model",
+            "code": "candidate-assembly-datum",
+            "message": "This is a nominal #1 assembly model. Back-side datum, selected wheel shape and physical mounting alignment remain unqualified."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      },
+      "terminals": {
+        "A": [
+          "A"
+        ],
+        "B": [
+          "B"
+        ],
+        "C": [
+          "C"
+        ]
+      },
+      "inputProfile": {
+        "rotary": {
+          "a": "A",
+          "b": "B",
+          "common": "C"
+        }
+      },
+      "models": [
+        {
+          "assetId": "bundled-model:thqwgd001/THQWGD001 #1.stp",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      ],
+      "mechanical": {
+        "plateToPcb": 0,
+        "mappings": [],
+        "clearanceVolumes": [
+          {
+            "points": [
+              {
+                "x": -9.216318757,
+                "y": -8.812124801663625
+              },
+              {
+                "x": 9.166318857,
+                "y": -8.812124801663625
+              },
+              {
+                "x": 9.166318857,
+                "y": 9.183731752105535
+              },
+              {
+                "x": -9.216318757,
+                "y": 9.183731752105535
+              }
+            ],
+            "z": -3.5,
+            "height": 23.872216784663628
+          }
+        ]
+      }
+    },
+    {
+      "id": "thqwgd001:c-2pin-reversible",
+      "name": "THQWGD001C · 2-pin tactile · reversible",
+      "kind": "encoder",
+      "file": "sources/thqwgd001/THQWGD001C [2pin] [Reversible].kicad_mod",
+      "sha256": "8968592eb16178eb07cf7d5aa3c0035a37f382f39bd8806fadf7823ce2c3f86c",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/THQWGD001C [2pin] [Reversible].kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/THQWGD001C [2pin] [Reversible].kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "8968592eb16178eb07cf7d5aa3c0035a37f382f39bd8806fadf7823ce2c3f86c"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "physical-encoder-part-identity",
+            "message": "Physical encoder part identity. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "both-side-rotary-contact-continuity",
+            "message": "Both side rotary contact continuity. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "reversible-mask-solder-access",
+            "message": "Reversible mask solder access. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "selected-pcb-thickness-assembled-fit",
+            "message": "Selected pcb thickness assembled fit. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "manufacturing-drc-and-required-slot-alternative-validation",
+            "message": "Manufacturing drc and required slot alternative validation. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "named-two-pin-tactile-manufacturer-drawing",
+            "message": "Named two pin tactile manufacturer drawing. Required for footprint qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "measured-press-and-rotation-swept-envelope",
+            "message": "Measured press and rotation swept envelope. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "plate-and-functional-opening-dimensions",
+            "message": "Plate and functional opening dimensions. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "screwdriver-and-nut-service-envelope",
+            "message": "Screwdriver and nut service envelope. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "production-tolerance-stack",
+            "message": "Production tolerance stack. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "both-side-model-hole-alignment",
+            "message": "Both side model hole alignment. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "component-versus-pcb-preview-export-transform-parity",
+            "message": "Component versus pcb preview export transform parity. Required for mechanical qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "encoder-pulses-per-rotation",
+            "message": "Encoder pulses per rotation. Required for firmware qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "detents-and-quadrature-direction",
+            "message": "Detents and quadrature direction. Required for firmware qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "driver-and-config-hardware-validation",
+            "message": "Driver and config hardware validation. Required for firmware qualification."
+          },
+          {
+            "output": "electrical",
+            "code": "reversible-contact-mapping-unverified",
+            "message": "Published alternate pads are retained. Ordinary #2 and reversible A/C positions differ; verify continuity for the selected encoder and assembly side."
+          },
+          {
+            "output": "model",
+            "code": "candidate-assembly-datum",
+            "message": "This is a nominal #1 assembly model. Back-side datum, selected wheel shape and physical mounting alignment remain unqualified."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      },
+      "terminals": {
+        "1": [
+          "1"
+        ],
+        "2": [
+          "2"
+        ],
+        "A": [
+          "A"
+        ],
+        "B": [
+          "B"
+        ],
+        "C": [
+          "C"
+        ]
+      },
+      "inputProfile": {
+        "rotary": {
+          "a": "A",
+          "b": "B",
+          "common": "C"
+        },
+        "press": {
+          "row": "1",
+          "column": "2",
+          "independent": true
+        }
+      },
+      "matrixTerminals": {
+        "row": "1",
+        "column": "2"
+      },
+      "models": [
+        {
+          "assetId": "bundled-model:thqwgd001/THQWGD001C [2pin] #1.stp",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      ],
+      "mechanical": {
+        "plateToPcb": 0,
+        "mappings": [],
+        "clearanceVolumes": [
+          {
+            "points": [
+              {
+                "x": -9.064170501,
+                "y": -8.952765449643723
+              },
+              {
+                "x": 9.554079635,
+                "y": -8.952765449643723
+              },
+              {
+                "x": 9.554079635,
+                "y": 9.042790449643723
+              },
+              {
+                "x": -9.064170501,
+                "y": 9.042790449643723
+              }
+            ],
+            "z": -3.461776741,
+            "height": 23.527777949643728
+          }
+        ]
+      }
+    },
+    {
+      "id": "thqwgd001:c-4pin-reversible",
+      "name": "THQWGD001C · 4-pin tactile · reversible",
+      "kind": "encoder",
+      "file": "sources/thqwgd001/THQWGD001C [4pin] [Reversible].kicad_mod",
+      "sha256": "eaa7eccad4b5467dbaa4e36298f4e39b1c90a496ec98eb6d5db310623ea4b4e5",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/THQWGD001C [4pin] [Reversible].kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/THQWGD001C [4pin] [Reversible].kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "eaa7eccad4b5467dbaa4e36298f4e39b1c90a496ec98eb6d5db310623ea4b4e5"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "physical-encoder-part-identity",
+            "message": "Physical encoder part identity. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "both-side-rotary-contact-continuity",
+            "message": "Both side rotary contact continuity. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "reversible-mask-solder-access",
+            "message": "Reversible mask solder access. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "selected-pcb-thickness-assembled-fit",
+            "message": "Selected pcb thickness assembled fit. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "manufacturing-drc-and-required-slot-alternative-validation",
+            "message": "Manufacturing drc and required slot alternative validation. Required for footprint qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "measured-press-and-rotation-swept-envelope",
+            "message": "Measured press and rotation swept envelope. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "plate-and-functional-opening-dimensions",
+            "message": "Plate and functional opening dimensions. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "screwdriver-and-nut-service-envelope",
+            "message": "Screwdriver and nut service envelope. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "production-tolerance-stack",
+            "message": "Production tolerance stack. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "both-side-model-hole-alignment",
+            "message": "Both side model hole alignment. Required for mechanical qualification."
+          },
+          {
+            "output": "mechanical",
+            "code": "component-versus-pcb-preview-export-transform-parity",
+            "message": "Component versus pcb preview export transform parity. Required for mechanical qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "encoder-pulses-per-rotation",
+            "message": "Encoder pulses per rotation. Required for firmware qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "detents-and-quadrature-direction",
+            "message": "Detents and quadrature direction. Required for firmware qualification."
+          },
+          {
+            "output": "firmware",
+            "code": "driver-and-config-hardware-validation",
+            "message": "Driver and config hardware validation. Required for firmware qualification."
+          },
+          {
+            "output": "electrical",
+            "code": "reversible-contact-mapping-unverified",
+            "message": "Published alternate pads are retained. Ordinary #2 and reversible A/C positions differ; verify continuity for the selected encoder and assembly side."
+          },
+          {
+            "output": "model",
+            "code": "candidate-assembly-datum",
+            "message": "This is a nominal #1 assembly model. Back-side datum, selected wheel shape and physical mounting alignment remain unqualified."
+          },
+          {
+            "output": "footprint",
+            "code": "selected-four-pin-tactile-identity",
+            "message": "Confirm the selected four-pin tactile manufacturer and order code. A compatible nominal drawing does not identify purchased hardware."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      },
+      "terminals": {
+        "1": [
+          "1"
+        ],
+        "2": [
+          "2"
+        ],
+        "A": [
+          "A"
+        ],
+        "B": [
+          "B"
+        ],
+        "C": [
+          "C"
+        ]
+      },
+      "inputProfile": {
+        "rotary": {
+          "a": "A",
+          "b": "B",
+          "common": "C"
+        },
+        "press": {
+          "row": "1",
+          "column": "2",
+          "independent": true
+        }
+      },
+      "matrixTerminals": {
+        "row": "1",
+        "column": "2"
+      },
+      "models": [
+        {
+          "assetId": "bundled-model:thqwgd001/THQWGD001C [4pin] #1.stp",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "rotation": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          }
+        }
+      ],
+      "mechanical": {
+        "plateToPcb": 0,
+        "mappings": [],
+        "clearanceVolumes": [
+          {
+            "points": [
+              {
+                "x": -9.064170501,
+                "y": -8.952765449643723
+              },
+              {
+                "x": 10.3549875,
+                "y": -8.952765449643723
+              },
+              {
+                "x": 10.3549875,
+                "y": 9.042790449643723
+              },
+              {
+                "x": -9.064170501,
+                "y": 9.042790449643723
+              }
+            ],
+            "z": -3.461776741,
+            "height": 23.527777949643728
+          }
+        ]
+      }
+    },
+    {
+      "id": "thqwgd001:slit",
+      "name": "THQWGD001 mounting cuts · routed slots",
+      "kind": "custom",
+      "file": "sources/thqwgd001/Slit.kicad_mod",
+      "sha256": "df0ff8eea2189d8fd27025075c327c81d8b81978b134eeb8f166d31e7c82e324",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/Slit.kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/Slit.kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "df0ff8eea2189d8fd27025075c327c81d8b81978b134eeb8f166d31e7c82e324"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "confirm-helper-placement-and-closed-contour-machining",
+            "message": "Confirm helper placement and closed contour machining. The routed source geometry is open and must be integrated into a reviewed closed board contour. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "fabricator-minimum-slot-radius-and-web-width",
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      }
+    },
+    {
+      "id": "thqwgd001:slit-drill",
+      "name": "THQWGD001 mounting cuts · drilled slots",
+      "kind": "custom",
+      "file": "sources/thqwgd001/Slit [Drill].kicad_mod",
+      "sha256": "516101ff459ef42144c355758116d5b6b7475376b099c61d0f7a5fc649e8e46e",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/Slit [Drill].kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/Slit [Drill].kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "516101ff459ef42144c355758116d5b6b7475376b099c61d0f7a5fc649e8e46e"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "confirm-helper-placement-assumption",
+            "message": "Confirm this independently placed helper’s pose relative to the encoder. The pinned source defines the helper-local origin but publishes no companion transform. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "fabricator-minimum-slot-radius-and-web-width",
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      }
+    },
+    {
+      "id": "thqwgd001:slitc",
+      "name": "THQWGD001C mounting cuts · routed slots",
+      "kind": "custom",
+      "file": "sources/thqwgd001/SlitC.kicad_mod",
+      "sha256": "c7bc07ba3b5fc651672aef18a8fb14a50b351ea2e0814b6308a0c3264ea059ef",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/SlitC.kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/SlitC.kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "c7bc07ba3b5fc651672aef18a8fb14a50b351ea2e0814b6308a0c3264ea059ef"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "confirm-helper-placement-and-closed-contour-machining",
+            "message": "Confirm helper placement and closed contour machining. The routed source geometry is open and must be integrated into a reviewed closed board contour. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "fabricator-minimum-slot-radius-and-web-width",
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      }
+    },
+    {
+      "id": "thqwgd001:slitc-drill",
+      "name": "THQWGD001C mounting cuts · drilled slots",
+      "kind": "custom",
+      "file": "sources/thqwgd001/SlitC [Drill].kicad_mod",
+      "sha256": "16518d689f7e3ff7c8ce9ffe070544f7ebc2805c3d8cfbbb3104835a121ec14a",
+      "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+      "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+      "sourcePath": "KiCad/footprints/THQWGD001.pretty/SlitC [Drill].kicad_mod",
+      "license": "CC-BY-4.0",
+      "licenseFile": "sources/thqwgd001/ATTRIBUTION.md",
+      "hardwareProfile": {
+        "source": {
+          "repository": "https://github.com/Taro-Hayashi/THQWGD001",
+          "revision": "78e1c42dbebca1a9e28cf057d7d84f7eb786aa15",
+          "path": "KiCad/footprints/THQWGD001.pretty/SlitC [Drill].kicad_mod",
+          "license": "CC-BY-4.0",
+          "sha256": "16518d689f7e3ff7c8ce9ffe070544f7ebc2805c3d8cfbbb3104835a121ec14a"
+        },
+        "gates": [
+          {
+            "output": "footprint",
+            "code": "confirm-helper-placement-assumption",
+            "message": "Confirm this independently placed helper’s pose relative to the encoder. The pinned source defines the helper-local origin but publishes no companion transform. Required for footprint qualification."
+          },
+          {
+            "output": "footprint",
+            "code": "fabricator-minimum-slot-radius-and-web-width",
+            "message": "Confirm the selected fabricator’s minimum slot radius and remaining web width. Required for footprint qualification."
+          }
+        ],
+        "footprintSurfaceVolumes": true
+      }
+    }
+  ]
+}

@@ -9,6 +9,9 @@ const KEY_PITCH_MM: f64 = 19.05;
 fn fixture(keys: usize) -> ProjectDoc {
     let mut doc = ProjectDoc::empty("bench", "Benchmark");
     doc.definitions.push(PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
         kind: PartKind::Switch,
@@ -19,7 +22,6 @@ fn fixture(keys: usize) -> ProjectDoc {
             Vec2 { x: -7.0, y: 7.0 },
         ],
         pads: vec![],
-        model: None,
         models: None,
         keycap: None,
         envelope_source: None,
@@ -50,6 +52,7 @@ fn fixture(keys: usize) -> ProjectDoc {
         });
     }
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "boundary".into(),
         part_ids: doc.parts.iter().map(|part| part.id.clone()).collect(),
         settings: Default::default(),

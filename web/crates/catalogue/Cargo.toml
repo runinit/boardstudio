@@ -1,0 +1,21 @@
+[package]
+name = "boardstudio-web-catalogue"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "BoardStudio bundled component catalogue: loading, generator normalization and physical setup proposals."
+
+[dependencies]
+boardstudio-application = { path = "../../../application" }
+boardstudio_core = { path = "../../../core" }
+boardstudio-web-host = { path = "../host", features = ["page"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = { version = "=0.11.0", default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.79"
+
+[lints]
+workspace = true

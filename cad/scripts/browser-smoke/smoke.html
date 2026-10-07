@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Cadrum WASM browser smoke</title>
+<pre id="result">pending</pre>
+<script type="module">
+// Exercises the real wasm-bindgen exports in a real browser: JS typed-array result shapes,
+// STEP import bounds and rejection, and buffer ownership. Geometry correctness lives in the
+// native Rust tests; this only proves the binding layer the retired Node tests used to cover.
+import init, { build_case, build_assembly, build_keycaps, read_step_model } from '../../wasm/pkg/boardstudio_cadrum_wasm.js';
+
+const checks = [];
+const check = (name, ok, detail = '') => checks.push({ name, ok: Boolean(ok), detail: String(detail) });
+const square = (min, max) => [{ x: min, y: min }, { x: max, y: min }, { x: max, y: max }, { x: min, y: max }];
+const near = (actual, expected, tolerance) => actual.length === expected.length
+  && expected.every((value, index) => Math.abs(actual[index] - value) <= tolerance);
+const plate = (revision, z) => ({ revision, body: { id: `p${z}`, name: `p${z}`, kind: 'plate', thickness: 2, z },
+  regions: [{ outer: square(0, 20), holes: [square(5, 15)], cavities: [], gaskets: [], mounts: [] }] });
+const rejection = (run) => { try { run(); return null; } catch (error) { return String(error); } };
+const spec = { id: 'key-a', reference: 'SW1', profile: 'dsa', mount: 'mx', row: 3, size: { x: 18.2, y: 18.2 },
+  topSize: { x: 13.2, y: 13.2 }, height: 7.5, tilt: 0, dishDepth: 0.65, spherical: true, wallThickness: 1.2,
+  pose: { at: { x: 30, y: 20 }, rotation: 15 }, side: 'front', z: 10, travel: 4, legend: 'O', color: '#eeeeee', legendColor: '#222222' };
+
+let error = null;
+try {
+  await init();
+  check('module initializes', true);
+
+  const built = build_case(plate(7, 0));
+  check('build_case keeps the revision', built.revision === 7, built.revision);
+  check('STEP is a Uint8Array of ISO-10303-21 text', built.step instanceof Uint8Array && built.step.length > 1000
+    && new TextDecoder().decode(built.step.slice(0, 13)) === 'ISO-10303-21;', built.step?.length);
+  check('mesh buffers are equal-length Float32Arrays of whole triangles',
+    built.mesh.positions instanceof Float32Array && built.mesh.normals instanceof Float32Array
+    && built.mesh.positions.length > 0 && built.mesh.positions.length === built.mesh.normals.length
+    && built.mesh.positions.length % 9 === 0, built.mesh.positions?.length);
+
+  const model = read_step_model(built.step);
+  check('read_step_model reports millimetre bounds', near(model.bounds.min, [0, 0, 0], 1e-4) && near(model.bounds.max, [20, 20, 2], 1e-4),
+    JSON.stringify(model.bounds));
+  check('imported mesh is non-empty Float32Arrays of equal length', model.mesh.positions instanceof Float32Array
+    && model.mesh.positions.length > 0 && model.mesh.positions.length === model.mesh.normals.length);
+  check('malformed STEP rejects', /STEP import failed/.test(rejection(() => read_step_model(new Uint8Array([1, 2, 3]))) ?? ''));
+  check('empty STEP rejects on size', /invalid file size/.test(rejection(() => read_step_model(new Uint8Array(0))) ?? ''));
+
+  const assembly = build_assembly({ revision: 9, bodies: [plate(9, 0), plate(9, 8)] });
+  check('build_assembly returns one STEP and per-body meshes', assembly.revision === 9 && assembly.step.length > 1000
+    && assembly.bodies.length === 2 && assembly.bodies.every(body => body.positions instanceof Float32Array && body.positions.length > 0),
+    assembly.bodies?.length);
+  check('compound STEP imports back with the stacked height', near(read_step_model(assembly.step).bounds.max, [20, 20, 10], 1e-4));
+  check('invalid input is rejected, not trapped', /Invalid CAD input/.test(rejection(() => build_case({ revision: 1 })) ?? ''));
+
+  const preview = build_keycaps({ revision: 5, specs: [spec], export: false });
+  check('keycap preview has cap and legend bodies and no STEP', preview.step.length === 0 && preview.bodies.length === 2
+    && preview.bodies[1].id === 'keycap-legend:key-a');
+  const firstX = preview.bodies[0].positions[0];
+  structuredClone(preview.bodies[0].positions, { transfer: [preview.bodies[0].positions.buffer] });
+  check('transferring a result buffer detaches only that copy', preview.bodies[0].positions.byteLength === 0);
+  const again = build_keycaps({ revision: 6, specs: [spec], export: false });
+  check('cached keycap geometry survives a transfer', again.bodies[0].positions[0] === firstX, again.bodies[0].positions[0]);
+  const exported = build_keycaps({ revision: 6, specs: [spec], export: true });
+  const keycap = read_step_model(exported.step);
+  check('keycap STEP exports and re-imports in place', exported.step.length > 1000 && keycap.bounds.min[0] > 15 && keycap.bounds.max[0] < 45,
+    JSON.stringify(keycap.bounds));
+} catch (caught) {
+  error = String(caught?.stack ?? caught);
+}
+document.getElementById('result').textContent = JSON.stringify({ ok: !error && checks.length > 0 && checks.every(c => c.ok), error, checks });
+</script>

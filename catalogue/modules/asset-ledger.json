@@ -1,0 +1,1393 @@
+{
+  "formatVersion": 1,
+  "models": [
+    {
+      "repository": "sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "path": "pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step",
+      "sourceUrl": "https://github.com/sadekbaroudi/vik/blob/cd5d16e4cd9137a229fc673412a89d75f4e64553/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step",
+      "catalogRow": "per56-cirque-leds",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "de569b8afc8a919c433d6c22fecb17380da130e3aec72f2c3803eaeefed03933",
+      "nativeBoundsMm": {
+        "XMin": 142.24,
+        "XMax": 207.01,
+        "YMin": -152.4,
+        "YMax": -88.9,
+        "ZMin": 0,
+        "ZMax": 1.6,
+        "XLength": 64.77,
+        "YLength": 63.5,
+        "ZLength": 1.6
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 5987.538948120219,
+      "productNames": [
+        "pers60-cirque-leds-pcb 1",
+        "scroll-wheel-trackpad PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step",
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "Showcase/Kiwano.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/Showcase/Kiwano.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "6adc2dadd69b0590ad4fd0a9ff59bc8c3609469e4c9625fbada0c0a7a39830af",
+      "nativeBoundsMm": {
+        "XMin": -31.494884,
+        "XMax": 31.494885,
+        "YMin": -31.494883,
+        "YMax": 31.494889,
+        "ZMin": -3.01204684,
+        "ZMax": 11.95,
+        "XLength": 62.989769,
+        "YLength": 62.989772,
+        "ZLength": 14.96204684
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 74,
+      "volumeMm3": 10492.108293881342,
+      "productNames": [
+        "Kiwano 1",
+        "RotaryEncoder_Bourns_PER561-P115-N0015",
+        "COMPOUND",
+        "C_0402_1005Metric",
+        "SOLID",
+        "R_0402_1005Metric",
+        "SOLID",
+        "COMPOUND",
+        "LED_OPSCO_SK6812MINI-E",
+        "COMPOUND",
+        "SOT-23",
+        "SOLID",
+        "Kiwano PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/Showcase/Kiwano.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/Showcase/Kiwano.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Trackpad Mount.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Trackpad%20Mount.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "09dd7624a3b8f556880c3894bb12f8ca051a44a232fd46b3bb00b028b9c3a6b5",
+      "nativeBoundsMm": {
+        "XMin": -25.40587698,
+        "XMax": 25.46655643,
+        "YMin": -50.08812754,
+        "YMax": 0.78430138,
+        "ZMin": 4.07642504,
+        "ZMax": 27.38883893,
+        "XLength": 50.87243341,
+        "YLength": 50.87242892,
+        "ZLength": 23.31241389
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 10533.419429701657,
+      "productNames": [
+        "Trackpad Mount"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackpad Mount.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackpad Mount.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Trackball Mount Semi.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Trackball%20Mount%20Semi.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "7614dacb07ca9d5d2fa471746017330f93e24b8c59cf611c451a6f3306d00efb",
+      "nativeBoundsMm": {
+        "XMin": -22.5,
+        "XMax": 22.5,
+        "YMin": -23.21011474,
+        "YMax": 22.5,
+        "ZMin": 7.90499955,
+        "ZMax": 29.10161546,
+        "XLength": 45,
+        "YLength": 45.71011474,
+        "ZLength": 21.19661591
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 14093.346202128154,
+      "productNames": [
+        "Trackball Mount Semi"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Semi.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Trackball Mount Low Profile.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Trackball%20Mount%20Low%20Profile.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "5a6f14a61005b0c85fb9e5f2df0e0a49a64871804f6f29e6545a7472d5d11c60",
+      "nativeBoundsMm": {
+        "XMin": -21.60077353,
+        "XMax": 21.8627574,
+        "YMin": -23.19234707,
+        "YMax": 16.6785,
+        "ZMin": 7.77999955,
+        "ZMax": 28.94908701,
+        "XLength": 43.46353093,
+        "YLength": 39.87084707,
+        "ZLength": 21.16908746
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 4564.851802254196,
+      "productNames": [
+        "Trackball Mount Low Profile"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Trackball Mount Full.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Trackball%20Mount%20Full.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "c6c84c0464d7ed92994a9b97ace17692be3afde6a70e40231861365bb4e1b44f",
+      "nativeBoundsMm": {
+        "XMin": -25.43621671,
+        "XMax": 25.43621671,
+        "YMin": -25.43621671,
+        "YMax": 25.43621671,
+        "ZMin": 7.90499955,
+        "ZMax": 32.34162873,
+        "XLength": 50.87243341,
+        "YLength": 50.87243341,
+        "ZLength": 24.43662918
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 19266.355904064712,
+      "productNames": [
+        "Trackball Mount Full"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Full.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Trackball Mount Full.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Knob Ribbed.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Knob%20Ribbed.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "205a94ad1adea33c51896170fdd76c41a6a8d38bd7e9aeab30a6734874aedf06",
+      "nativeBoundsMm": {
+        "XMin": -40.34974064,
+        "XMax": 40.34974064,
+        "YMin": -40.34974064,
+        "YMax": 40.34974064,
+        "ZMin": 13.53832459,
+        "ZMax": 38.29003408,
+        "XLength": 80.69948128,
+        "YLength": 80.69948128,
+        "ZLength": 24.75170949
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 28653.574292313468,
+      "productNames": [
+        "Knob Ribbed"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Ribbed.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Ribbed.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Knob Low Profile.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Knob%20Low%20Profile.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "889acf479c910201a19f966a2db8eddc78979bcebd98e5d6a467baeddce5ea0f",
+      "nativeBoundsMm": {
+        "XMin": -37.34253091,
+        "XMax": 37.34253091,
+        "YMin": -37.34253091,
+        "YMax": 37.34253091,
+        "ZMin": 13.53832459,
+        "ZMax": 29.6324697,
+        "XLength": 74.68506182,
+        "YLength": 74.68506182,
+        "ZLength": 16.09414511
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 13725.89371837732,
+      "productNames": [
+        "Knob Low Profile"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Low Profile.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Low Profile.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Knob Full.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Knob%20Full.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "d843af89bf42dbc1f4d9b0c8252491bba4fd268d5412896ca1610b42a26dea4d",
+      "nativeBoundsMm": {
+        "XMin": -37.34253091,
+        "XMax": 37.34253091,
+        "YMin": -37.34253091,
+        "YMax": 37.34253091,
+        "ZMin": 13.53832459,
+        "ZMax": 30.69043159,
+        "XLength": 74.68506182,
+        "YLength": 74.68506182,
+        "ZLength": 17.15210699
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 15697.588428198489,
+      "productNames": [
+        "Knob Full"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Full.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Full.step"
+    },
+    {
+      "repository": "Ariamelon/Kiwano",
+      "revision": "1f59c4cd6c829ef414e1f67927971d8f2da21fad",
+      "path": "3DP/Knob Base.step",
+      "sourceUrl": "https://github.com/Ariamelon/Kiwano/blob/1f59c4cd6c829ef414e1f67927971d8f2da21fad/3DP/Knob%20Base.step",
+      "catalogRow": "per56-pmw3360-cirque-leds (Kiwano)",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "fada074dcbd6002573bda3313fae8666b042e4292fa6953b07628b52ae8a6721",
+      "nativeBoundsMm": {
+        "XMin": -33.53765336,
+        "XMax": 33.53765336,
+        "YMin": -33.53765336,
+        "YMax": 33.53765336,
+        "ZMin": 11.63631964,
+        "ZMax": 17.12999972,
+        "XLength": 67.07530673,
+        "YLength": 67.07530673,
+        "ZLength": 5.49368008
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 5647.01418301944,
+      "productNames": [
+        "(Unsaved)"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Knob Base.step",
+      "assetId": "bundled-model:vik/Ariamelon-Kiwano/3DP/Knob Base.step"
+    },
+    {
+      "repository": "Ariamelon/Crenshaw",
+      "revision": "c9a6a5b56f88a089719862b32b200b1d82380aed",
+      "path": "Showcase/Crenshaw.step",
+      "sourceUrl": "https://github.com/Ariamelon/Crenshaw/blob/c9a6a5b56f88a089719862b32b200b1d82380aed/Showcase/Crenshaw.step",
+      "catalogRow": "ssd1351 (Crenshaw)",
+      "family": "display",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "57bd00e8cce9a613dab6c6a772c38b9c9e8c5788a193726bfaf21259ceac1a93",
+      "nativeBoundsMm": {
+        "XMin": 32.75,
+        "XMax": 77.25,
+        "YMin": -58.5,
+        "YMax": -21.5,
+        "ZMin": -1.6,
+        "ZMax": 1.6,
+        "XLength": 44.5,
+        "YLength": 37,
+        "ZLength": 3.2
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 27,
+      "volumeMm3": 2437.420581239642,
+      "productNames": [
+        "Crenshaw 1",
+        "R_0402_1005Metric",
+        "SOLID",
+        "C_0603_1608Metric",
+        "SOLID",
+        "D_SOD-323",
+        "SOLID",
+        "L_Sunlord_SWPA3012S",
+        "COMPOUND",
+        "SOT-23",
+        "SOLID",
+        "FH34SRJ-30S-0.5SH",
+        "SOLID",
+        "C_0402_1005Metric",
+        "SOLID",
+        "FH34SRJ-12S-0.5SH",
+        "SOLID",
+        "SOT-23-5",
+        "SOLID",
+        "R_0603_1608Metric",
+        "SOLID",
+        "Crenshaw PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/Showcase/Crenshaw.step",
+      "assetId": "bundled-model:vik/Ariamelon-Crenshaw/Showcase/Crenshaw.step"
+    },
+    {
+      "repository": "Ariamelon/Crenshaw",
+      "revision": "c9a6a5b56f88a089719862b32b200b1d82380aed",
+      "path": "PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step",
+      "sourceUrl": "https://github.com/Ariamelon/Crenshaw/blob/c9a6a5b56f88a089719862b32b200b1d82380aed/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step",
+      "catalogRow": "ssd1351 (Crenshaw)",
+      "family": "display",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "b589af7f61b80dfa9fe4cc09064fd67cfa3985e1e7502fc49431fd0f1c806124",
+      "nativeBoundsMm": {
+        "XMin": -9.55,
+        "XMax": 9.55,
+        "YMin": -4.4,
+        "YMax": 2,
+        "ZMin": -0.05,
+        "ZMax": 2.05,
+        "XLength": 19.1,
+        "YLength": 6.4,
+        "ZLength": 2.1
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 148.4497249941478,
+      "productNames": [
+        "(Unsaved)",
+        "FH12-30S-0.5SH_\\X\\8A\\X\\C8\\X\\97\\X\\AA"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step",
+      "assetId": "bundled-model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step"
+    },
+    {
+      "repository": "Ariamelon/Crenshaw",
+      "revision": "c9a6a5b56f88a089719862b32b200b1d82380aed",
+      "path": "PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step",
+      "sourceUrl": "https://github.com/Ariamelon/Crenshaw/blob/c9a6a5b56f88a089719862b32b200b1d82380aed/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step",
+      "catalogRow": "ssd1351 (Crenshaw)",
+      "family": "display",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "38e264f27210f9c9e7d4b6ed3effd575e67ebecfe91daee67b169116f1a7fee0",
+      "nativeBoundsMm": {
+        "XMin": -5.05,
+        "XMax": 5.05,
+        "YMin": -4.4,
+        "YMax": 2,
+        "ZMin": -0.05,
+        "ZMax": 2.05,
+        "XLength": 10.1,
+        "YLength": 6.4,
+        "ZLength": 2.1
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 73.633945723131,
+      "productNames": [
+        "(Unsaved)",
+        "FH12-12S-0.5SH_\\X\\8A\\X\\C8\\X\\97\\X\\AA"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step",
+      "assetId": "bundled-model:vik/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step"
+    },
+    {
+      "repository": "sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "path": "pcb/vik-playground/vik-playground.step",
+      "sourceUrl": "https://github.com/sadekbaroudi/vik/blob/cd5d16e4cd9137a229fc673412a89d75f4e64553/pcb/vik-playground/vik-playground.step",
+      "catalogRow": "vik-playground",
+      "family": "feedback-expansion",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "90cba788b98b336ba2cf8133927b3e1763978315b8313fa449749294bd6a1fec",
+      "nativeBoundsMm": {
+        "XMin": 142.24,
+        "XMax": 241.24,
+        "YMin": -154.4,
+        "YMax": -88.9,
+        "ZMin": -7.05,
+        "ZMax": 3.05,
+        "XLength": 99,
+        "YLength": 65.5,
+        "ZLength": 10.1
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 25,
+      "volumeMm3": 12193.144310469412,
+      "productNames": [
+        "vik-playground 1",
+        "PinSocket_1x08_P2.54mm_Vertical",
+        "SOLID",
+        "vik-connector-horizontal",
+        "COMPOUND",
+        "vik-playground PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step",
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step"
+    },
+    {
+      "repository": "zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "path": "pcb/2inch-0.8mm/2inch-0.8mm.step",
+      "sourceUrl": "https://github.com/zzeneg/vik-display-adapter/blob/114070d9936597e3e9ade65b88e180b0235527dc/pcb/2inch-0.8mm/2inch-0.8mm.step",
+      "catalogRow": "vik-display-adapter",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "012db17efd7bfbd10b17d9fd304e4d36b960a413b7a3e3cc66eba1832dd02e20",
+      "nativeBoundsMm": {
+        "XMin": -11,
+        "XMax": 11,
+        "YMin": -34,
+        "YMax": -1,
+        "ZMin": -1.65,
+        "ZMax": 1.6,
+        "XLength": 22,
+        "YLength": 33,
+        "ZLength": 3.25
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 6,
+      "volumeMm3": 1167.3240518020018,
+      "productNames": [
+        "1.47inch 1",
+        "C_1206_3216Metric",
+        "SOLID",
+        "R_1206_3216Metric",
+        "SOLID",
+        "SOT-23",
+        "SOLID",
+        "_autosave-pcb PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step",
+      "appliesToVariants": [
+        "pcb/2inch-0.8mm/pcb"
+      ]
+    },
+    {
+      "repository": "zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "path": "pcb/1.47inch/LCD_lcd_ips.stp",
+      "sourceUrl": "https://github.com/zzeneg/vik-display-adapter/blob/114070d9936597e3e9ade65b88e180b0235527dc/pcb/1.47inch/LCD_lcd_ips.stp",
+      "catalogRow": "vik-display-adapter",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "870642aebf11045ae2e0022be59ee3efb064d72bfad1ae808fa961941ca9c37f",
+      "nativeBoundsMm": {
+        "XMin": 0,
+        "XMax": 38.98,
+        "YMin": 0,
+        "YMax": 19.39,
+        "ZMin": -2.4,
+        "ZMax": 1.46,
+        "XLength": 38.98,
+        "YLength": 19.39,
+        "ZLength": 3.86
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 1187.3133087550814,
+      "productNames": [
+        "LCD_lcd_ips"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/LCD_lcd_ips.stp",
+      "appliesToVariants": [
+        "pcb/1.47inch/pcb"
+      ]
+    },
+    {
+      "repository": "zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "path": "pcb/1.47inch/1.47inch.step",
+      "sourceUrl": "https://github.com/zzeneg/vik-display-adapter/blob/114070d9936597e3e9ade65b88e180b0235527dc/pcb/1.47inch/1.47inch.step",
+      "catalogRow": "vik-display-adapter",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "be573eeba862f4cfe074e9294ba07a546392cbb4e9f635e72c5ee43af43fd605",
+      "nativeBoundsMm": {
+        "XMin": -11,
+        "XMax": 11,
+        "YMin": -38.88,
+        "YMax": 1,
+        "ZMin": -2.16,
+        "ZMax": 3.01,
+        "XLength": 22,
+        "YLength": 39.88,
+        "ZLength": 5.17
+      },
+      "datumStatus": "source-derived PCB alignment; asymmetric mounting holes match H1/H2",
+      "boardToModelTransform": {
+        "offset": {
+          "x": 0,
+          "y": 18.5,
+          "z": -0.8
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "coordinateFrame": "STEP source axes to imported PCB frame; X unchanged, Y translated to board center, Z centered on 1.6 mm PCB midplane",
+        "evidence": {
+          "boardOutline": "Pinned KiCad source Edge.Cuts outline 22 mm \u00d7 39 mm; STEP board solid bounds X -11..11, Y -38..1, Z 0..1.6 mm.",
+          "asymmetricFeatures": "Pinned KiCad H1/H2 are X -7.5/+7.5 mm and Y +16 mm in imported PCB coordinates. The STEP PCB has 2.65 mm mounting-hole rims at X -7.5/+7.5, Y -2.5, Z 0..1.6 mm; the stated translation maps both centers exactly.",
+          "sourcePcbSha256": "ca9c4b36d42798ba4ae2b927c1a7958a9caf9aecc85182f0fe62885af33b9de9",
+          "sourceModelSha256": "be573eeba862f4cfe074e9294ba07a546392cbb4e9f635e72c5ee43af43fd605"
+        }
+      },
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 24,
+      "volumeMm3": 2596.438255627701,
+      "productNames": [
+        "1.47inch 1",
+        "LCD_lcd_ips",
+        "SOLID",
+        "C_1206_3216Metric",
+        "SOLID",
+        "R_1206_3216Metric",
+        "SOLID",
+        "vik-connector-horizontal",
+        "COMPOUND",
+        "SOT-23",
+        "SOLID",
+        "pcb PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step",
+      "appliesToVariants": [
+        "pcb/1.47inch/pcb"
+      ],
+      "nominalProfile": {
+        "occupied": {
+          "points": [
+            {
+              "x": -11,
+              "y": -20.38
+            },
+            {
+              "x": 11,
+              "y": -20.38
+            },
+            {
+              "x": 11,
+              "y": 19.5
+            },
+            {
+              "x": -11,
+              "y": 19.5
+            }
+          ],
+          "z": -2.96,
+          "height": 5.17
+        },
+        "viewingAperture": {
+          "points": [
+            {
+              "x": -8.75,
+              "y": -17.065
+            },
+            {
+              "x": 8.64,
+              "y": -17.065
+            },
+            {
+              "x": 8.64,
+              "y": 15.285
+            },
+            {
+              "x": -8.75,
+              "y": 15.285
+            }
+          ],
+          "z": -2.96,
+          "height": 5.17
+        },
+        "viewingApertureSource": "Waveshare 1.47-inch LCD official specification (17.39 \u00d7 32.35 mm active area), nominally centered on the source LCD body bounds in the pinned assembly STEP; active-area offset/rotation is a human-review assumption. https://www.waveshare.com/1.47inch-LCD-Module.htm"
+      },
+      "boardNativeBoundsMm": {
+        "XMin": -11,
+        "XMax": 11,
+        "YMin": -38,
+        "YMax": 1,
+        "ZMin": 0,
+        "ZMax": 1.6
+      }
+    },
+    {
+      "repository": "zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "path": "pcb/1.28inch-round/GC9A01.STEP",
+      "sourceUrl": "https://github.com/zzeneg/vik-display-adapter/blob/114070d9936597e3e9ade65b88e180b0235527dc/pcb/1.28inch-round/GC9A01.STEP",
+      "catalogRow": "vik-display-adapter",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "1f45d3e24c83607de7ae1f9a3b122d2afdc454ba5817a6f581ac890dc67ba262",
+      "nativeBoundsMm": {
+        "XMin": -17.75,
+        "XMax": 17.75,
+        "YMin": -1.15,
+        "YMax": 1.62,
+        "ZMin": -17.75,
+        "ZMax": 20.64198686,
+        "XLength": 35.5,
+        "YLength": 2.77,
+        "ZLength": 38.39198686
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 2,
+      "volumeMm3": 1665.0206970735032,
+      "productNames": [],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/GC9A01.step",
+      "appliesToVariants": [
+        "pcb/1.28inch-round/pcb"
+      ]
+    },
+    {
+      "repository": "zzeneg/vik-display-adapter",
+      "revision": "114070d9936597e3e9ade65b88e180b0235527dc",
+      "path": "pcb/1.28inch-round/1.28inch-round.step",
+      "sourceUrl": "https://github.com/zzeneg/vik-display-adapter/blob/114070d9936597e3e9ade65b88e180b0235527dc/pcb/1.28inch-round/1.28inch-round.step",
+      "catalogRow": "vik-display-adapter",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "b68c3659671fb169c1ec18036daa4237a87e3bafae6d029490608920ba9b4537",
+      "nativeBoundsMm": {
+        "XMin": -18,
+        "XMax": 18,
+        "YMin": -37.54198686,
+        "YMax": 2.220789,
+        "ZMin": -2.16,
+        "ZMax": 2.57,
+        "XLength": 36,
+        "YLength": 39.76277586,
+        "ZLength": 4.73
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 25,
+      "volumeMm3": 3535.209161232923,
+      "productNames": [
+        "1.28inch-round 1",
+        "GC9A01",
+        "COMPOUND",
+        "C_1206_3216Metric",
+        "SOLID",
+        "R_1206_3216Metric",
+        "SOLID",
+        "vik-connector-horizontal",
+        "COMPOUND",
+        "SOT-23",
+        "SOLID",
+        "pcb PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step",
+      "assetId": "bundled-model:vik/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step",
+      "appliesToVariants": [
+        "pcb/1.28inch-round/pcb"
+      ]
+    },
+    {
+      "repository": "christrotter/shift-register-spi-breakout-pcb",
+      "revision": "543dd90f1a7e95949d31d4c137593244efef5a07",
+      "path": "matrix-inator-rev2.step",
+      "sourceUrl": "https://github.com/christrotter/shift-register-spi-breakout-pcb/blob/543dd90f1a7e95949d31d4c137593244efef5a07/matrix-inator-rev2.step",
+      "catalogRow": "shift-register-spi-breakout-pcb",
+      "family": "feedback-expansion",
+      "declaredLicense": "MIT",
+      "sha256": "71d197b0a0a5e5c2114a6882c8a0b0d81c1f9353b5cc8f4b6ef0ffd2e98b5220",
+      "nativeBoundsMm": {
+        "XMin": -748.43831572,
+        "XMax": 145,
+        "YMin": -90,
+        "YMax": 779.37108018,
+        "ZMin": -1.75,
+        "ZMax": 10.19,
+        "XLength": 893.43831572,
+        "YLength": 869.37108018,
+        "ZLength": 11.94
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 204,
+      "volumeMm3": 5629.162134382817,
+      "productNames": [
+        "shift-register-breakout-pcb 1",
+        "C0402",
+        "C0402_L1.0-W0.5-H0.5",
+        "JST_XH_B8B-XH-A_1x08_P2.50mm_Vertical",
+        "JST_B8B_XH_A",
+        "RES-ARRAY-SMD_0603-8P-L3.2-W1.6-BL",
+        "R0603-8P_L3.2-W1.6-H0.6",
+        "FPC-SMD_XF2M-1215-1AH",
+        "FPC-SMD_XF2M-1215-L9.5-W5.9-H2.0-1AH",
+        "SOIC-16_L9.9-W3.9-P1.27-LS6.0-BL",
+        "SOIC-16_L9.9-W3.9-H1.8-LS6.0-P1.27",
+        "SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR",
+        "SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95",
+        "PinHeader_1x03_P2.54mm_Vertical",
+        "PinHeader_1x03_P254mm_Vertical",
+        "R1206",
+        "R1206_L3.2-W1.6-H0.6",
+        "shift-register-breakout-pcb_PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step",
+      "assetId": "bundled-model:vik/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step"
+    },
+    {
+      "repository": "george-norton/peacock",
+      "revision": "d2849eaa70a10b4fd1a533099be7f069278b452f",
+      "path": "case/peacock-low-case-v5.stl",
+      "sourceUrl": "https://github.com/george-norton/peacock/blob/d2849eaa70a10b4fd1a533099be7f069278b452f/case/peacock-low-case-v5.stl",
+      "catalogRow": "peacock trackpad",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "3d72509f7268e5042e5c8ce8626469585a1e8037cb1f62a386fe39ed22f5a9b1",
+      "nativeBoundsMm": {
+        "XMin": -128.08639526,
+        "XMax": 50.91360092,
+        "YMin": -14.11499977,
+        "YMax": 146.052948,
+        "ZMin": -5.0999999,
+        "ZMax": 7.94999981,
+        "XLength": 178.99999619,
+        "YLength": 160.16794777,
+        "ZLength": 13.04999971
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "meshFacets": 43700,
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.stl",
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5.stl"
+    },
+    {
+      "repository": "george-norton/peacock",
+      "revision": "d2849eaa70a10b4fd1a533099be7f069278b452f",
+      "path": "case/peacock-low-case-v5.step",
+      "sourceUrl": "https://github.com/george-norton/peacock/blob/d2849eaa70a10b4fd1a533099be7f069278b452f/case/peacock-low-case-v5.step",
+      "catalogRow": "peacock trackpad",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "c5df05cf81a1e4bea1a56c28bef94984beca2ddea3c3a7280071bc9961110bda",
+      "nativeBoundsMm": {
+        "XMin": -128.0864,
+        "XMax": 50.9136,
+        "YMin": -14.115,
+        "YMax": 146.052944,
+        "ZMin": -6.025,
+        "ZMax": 7.95,
+        "XLength": 179,
+        "YLength": 160.167944,
+        "ZLength": 13.975
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": false,
+      "solidCount": 1,
+      "volumeMm3": 56818.24930485187,
+      "productNames": [
+        "trackpad-low"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.step",
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5.step"
+    },
+    {
+      "repository": "george-norton/peacock",
+      "revision": "d2849eaa70a10b4fd1a533099be7f069278b452f",
+      "path": "case/peacock-low-case-v5-5deg-tilt.stl",
+      "sourceUrl": "https://github.com/george-norton/peacock/blob/d2849eaa70a10b4fd1a533099be7f069278b452f/case/peacock-low-case-v5-5deg-tilt.stl",
+      "catalogRow": "peacock trackpad",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "46bdc99a714938207f714da97c5838ce1bced94f398853ca4105ac032f7e5a98",
+      "nativeBoundsMm": {
+        "XMin": -128.08639526,
+        "XMax": 50.91360092,
+        "YMin": -14.11499977,
+        "YMax": 146.052948,
+        "ZMin": -5.0999999,
+        "ZMax": 20.72797775,
+        "XLength": 178.99999619,
+        "YLength": 160.16794777,
+        "ZLength": 25.82797766
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "meshFacets": 21674,
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.stl",
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.stl"
+    },
+    {
+      "repository": "george-norton/peacock",
+      "revision": "d2849eaa70a10b4fd1a533099be7f069278b452f",
+      "path": "case/peacock-low-case-v5-5deg-tilt.step",
+      "sourceUrl": "https://github.com/george-norton/peacock/blob/d2849eaa70a10b4fd1a533099be7f069278b452f/case/peacock-low-case-v5-5deg-tilt.step",
+      "catalogRow": "peacock trackpad",
+      "family": "pointing-input",
+      "declaredLicense": "CERN-OHL-S-2.0",
+      "sha256": "95b5702b6464b91c4446705559665ba4e0b847c9d7aeb77d464d734a51b05035",
+      "nativeBoundsMm": {
+        "XMin": -128.08647378,
+        "XMax": 50.91367485,
+        "YMin": -14.11507848,
+        "YMax": 146.05303883,
+        "ZMin": -6.025,
+        "ZMax": 20.72797753,
+        "XLength": 179.00014863,
+        "YLength": 160.16811731,
+        "ZLength": 26.75297753
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": false,
+      "solidCount": 1,
+      "volumeMm3": 208249.31369175337,
+      "productNames": [
+        "trackpad-low"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step",
+      "assetId": "bundled-model:vik/george-norton-peacock/case/peacock-low-case-v5-5deg-tilt.step"
+    },
+    {
+      "repository": "sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "path": "kicad/3dmodels/vik-connector-horizontal.stp",
+      "sourceUrl": "https://github.com/sadekbaroudi/vik/blob/cd5d16e4cd9137a229fc673412a89d75f4e64553/kicad/3dmodels/vik-connector-horizontal.stp",
+      "catalogRow": "shared connector",
+      "family": "shared",
+      "declaredLicense": "CERN-OHL-P-2.0",
+      "sha256": "3643ce1269eb16f894533d5697def5b2dbf9b1498cef612a6e7a72dd61b0f238",
+      "nativeBoundsMm": {
+        "XMin": -2.4,
+        "XMax": 7.9,
+        "YMin": -5.8,
+        "YMax": 0.05,
+        "ZMin": 0,
+        "ZMax": 2.11,
+        "XLength": 10.3,
+        "YLength": 5.85,
+        "ZLength": 2.11
+      },
+      "datumStatus": "source footprint translation known; selected ATOM identity mismatch",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 17,
+      "volumeMm3": 67.30407840469347,
+      "productNames": [
+        ""
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "sourceFootprintOffsetMm": [
+        -2.75,
+        2.3,
+        0
+      ],
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp",
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp"
+    },
+    {
+      "repository": "sadekbaroudi/vik",
+      "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+      "path": "kicad/3dmodels/vik-connector-horizontal-mini.step",
+      "sourceUrl": "https://github.com/sadekbaroudi/vik/blob/cd5d16e4cd9137a229fc673412a89d75f4e64553/kicad/3dmodels/vik-connector-horizontal-mini.step",
+      "catalogRow": "shared connector",
+      "family": "shared",
+      "declaredLicense": "CERN-OHL-P-2.0",
+      "sha256": "0f450b7b32e31b0c188f87140341ca117b43cfe91d33a3f6ddc8616040500555",
+      "nativeBoundsMm": {
+        "XMin": -3.885,
+        "XMax": 3.885,
+        "YMin": -1.95,
+        "YMax": 1.85,
+        "ZMin": 0,
+        "ZMax": 1,
+        "XLength": 7.77,
+        "YLength": 3.8,
+        "ZLength": 1
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 28,
+      "volumeMm3": 13.189725000000003,
+      "productNames": [
+        "VIK horizontal mini - HDGC 0.5K-QX-12PWB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step",
+      "assetId": "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step"
+    },
+    {
+      "repository": "sadekbaroudi/fingerpunch",
+      "revision": "906a8221e5a61f1710af04e8752317d01f108c01",
+      "path": "3d-models/display-housings/ili9341/ili9341-4inch-housing.step",
+      "sourceUrl": "https://github.com/sadekbaroudi/fingerpunch/blob/906a8221e5a61f1710af04e8752317d01f108c01/3d-models/display-housings/ili9341/ili9341-4inch-housing.step",
+      "catalogRow": "ili9341v",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "92d5f88b10b371ba4108d663f09a9d0fb31789aae59e9bb7ec81fec9286e5b82",
+      "nativeBoundsMm": {
+        "XMin": -56.2,
+        "XMax": 56.2,
+        "YMin": -32.87,
+        "YMax": 32.87,
+        "ZMin": -6,
+        "ZMax": 4,
+        "XLength": 112.4,
+        "YLength": 65.74,
+        "ZLength": 10
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 15804.916567252998,
+      "productNames": [
+        "4.0 inch dsiplay holder"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step",
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-housing.step"
+    },
+    {
+      "repository": "sadekbaroudi/fingerpunch",
+      "revision": "906a8221e5a61f1710af04e8752317d01f108c01",
+      "path": "3d-models/display-housings/ili9341/ili9341-4inch-cover.step",
+      "sourceUrl": "https://github.com/sadekbaroudi/fingerpunch/blob/906a8221e5a61f1710af04e8752317d01f108c01/3d-models/display-housings/ili9341/ili9341-4inch-cover.step",
+      "catalogRow": "ili9341v",
+      "family": "display",
+      "declaredLicense": "MIT",
+      "sha256": "a839e845381d485f82997385e07715415e6ea647b6e190e9e01b9c39e2d8b594",
+      "nativeBoundsMm": {
+        "XMin": -55,
+        "XMax": 55,
+        "YMin": -31.67,
+        "YMax": 31.67,
+        "ZMin": 1.6,
+        "ZMax": 8,
+        "XLength": 110,
+        "YLength": 63.34,
+        "ZLength": 6.4
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 1,
+      "volumeMm3": 8819.677614314769,
+      "productNames": [
+        "4.0 inch display cover"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step",
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/3d-models/display-housings/ili9341/ili9341-4inch-cover.step"
+    },
+    {
+      "repository": "sadekbaroudi/fingerpunch",
+      "revision": "906a8221e5a61f1710af04e8752317d01f108c01",
+      "path": "keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step",
+      "sourceUrl": "https://github.com/sadekbaroudi/fingerpunch/blob/906a8221e5a61f1710af04e8752317d01f108c01/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step",
+      "catalogRow": "vikropad",
+      "family": "feedback-expansion",
+      "declaredLicense": "MIT",
+      "sha256": "045808b51863d22a8c3a064827d0401d28fb83f1f6d8d47121bc98dbf3567c9e",
+      "nativeBoundsMm": {
+        "XMin": -4.975,
+        "XMax": 99.025,
+        "YMin": -4.9862,
+        "YMax": 99.5138,
+        "ZMin": -10.12,
+        "ZMax": 8,
+        "XLength": 104,
+        "YLength": 104.5,
+        "ZLength": 18.12
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "validShape": true,
+      "solidCount": 53,
+      "volumeMm3": 68917.20360370779,
+      "productNames": [
+        "vikropad choc",
+        "vikropad",
+        "vik-connector-horizontal",
+        "COMPOUND",
+        "vikropad PCB",
+        "xivik",
+        "HRO_TYPE-C-31-M-12",
+        "SOLID",
+        "SOLID (1)",
+        "SOLID (2)",
+        "SOLID (3)",
+        "QFN_2520_4pins",
+        "SOLID (4)",
+        "vik-connector-horizontal_1",
+        "COMPOUND_1",
+        "W25X05CLUXIG",
+        "COMPOUND (1)",
+        "xivik PCB"
+      ],
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step",
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step"
+    },
+    {
+      "repository": "sadekbaroudi/fingerpunch",
+      "revision": "906a8221e5a61f1710af04e8752317d01f108c01",
+      "path": "keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl",
+      "sourceUrl": "https://github.com/sadekbaroudi/fingerpunch/blob/906a8221e5a61f1710af04e8752317d01f108c01/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl",
+      "catalogRow": "vikropad",
+      "family": "feedback-expansion",
+      "declaredLicense": "MIT",
+      "sha256": "359b2ec13d4ee6a5252b5e8ebaaa162254e840dcf0c5d85922a0d6e28a3a3602",
+      "nativeBoundsMm": {
+        "XMin": -4.9749999,
+        "XMax": 99.02500153,
+        "YMin": -4.98619986,
+        "YMax": 99.51380157,
+        "ZMin": -10.11999989,
+        "ZMax": -3.5999999,
+        "XLength": 104.00000143,
+        "YLength": 104.50000143,
+        "ZLength": 6.51999998
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "meshFacets": 876,
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl",
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-bottom-xivik.stl"
+    },
+    {
+      "repository": "sadekbaroudi/fingerpunch",
+      "revision": "906a8221e5a61f1710af04e8752317d01f108c01",
+      "path": "keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl",
+      "sourceUrl": "https://github.com/sadekbaroudi/fingerpunch/blob/906a8221e5a61f1710af04e8752317d01f108c01/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl",
+      "catalogRow": "vikropad",
+      "family": "feedback-expansion",
+      "declaredLicense": "MIT",
+      "sha256": "a6ad53e0943830cd0814f3468c373bb2fce8fa397a09d45d5c68d7f6792fdd44",
+      "nativeBoundsMm": {
+        "XMin": -4.9749999,
+        "XMax": 99.02500153,
+        "YMin": -4.98619986,
+        "YMax": 99.51380157,
+        "ZMin": -3.5999999,
+        "ZMax": 8,
+        "XLength": 104.00000143,
+        "YLength": 104.50000143,
+        "ZLength": 11.5999999
+      },
+      "datumStatus": "unknown",
+      "boardToModelTransform": null,
+      "gates": [
+        "selected-population identity",
+        "board/model datum and orientation",
+        "service/cable clearance",
+        "embedded third-party model provenance"
+      ],
+      "meshFacets": 2706,
+      "nativeUnits": "STEP millimetres / STL units presumed mm where paired STEP exists",
+      "identityStatus": "candidate, not certified complete assembly",
+      "bundledFile": "ergogen/library/vendor/vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl",
+      "assetId": "bundled-model:vik/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-body.stl"
+    }
+  ]
+}

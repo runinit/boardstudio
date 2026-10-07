@@ -1,8 +1,8 @@
-pub mod builtins;
 pub mod compile;
 pub mod kicad;
 pub mod mechanical_extract;
 mod mechanical_plate;
+mod module_import;
 pub mod outline;
 mod preview;
 mod sexpr;
@@ -14,6 +14,13 @@ use crate::model::{
     FootprintCompileJob, PartDefinition,
 };
 pub use crate::model::{ArtifactError, ArtifactErrorCode};
+
+/// Parse source-owned footprint graphics for module preview without widening the parser helpers.
+pub(crate) fn preview_footprint_surfaces(
+    source: &str,
+) -> Result<Vec<crate::model::PcbSurface>, ArtifactError> {
+    preview::footprint_surfaces(source)
+}
 
 /// Handle a stateless artifact operation without touching CoreEngine history or the document.
 pub fn request(json: &str) -> String {
@@ -48,14 +55,32 @@ pub fn request(json: &str) -> String {
     serde_json::to_string(&reply).expect("artifact reply serializes")
 }
 
-/// Return the synchronous built-in footprint catalogue through the same compiler used by requests.
-pub fn builtin_catalogue() -> Result<Vec<CompiledFootprint>, ArtifactError> {
-    compile::builtin_catalogue()
-        .map_err(|message| ArtifactError::new(ArtifactErrorCode::Validation, message))
-}
-
 fn handle(request: ArtifactRequest) -> ArtifactReply {
     match request {
+        ArtifactRequest::ImportModuleBoard {
+            id,
+            definition_id,
+            name,
+            source,
+            provenance,
+            family,
+            variant,
+            repair,
+        } => match module_import::import(
+            &source,
+            &definition_id,
+            &name,
+            provenance,
+            family,
+            variant,
+            repair,
+        ) {
+            Ok(result) => ArtifactReply::ImportModuleBoard {
+                id,
+                result: Box::new(result),
+            },
+            Err(error) => ArtifactReply::Error { id, error },
+        },
         ArtifactRequest::ExportMechanicalPlate {
             id,
             document,
@@ -103,15 +128,18 @@ fn handle(request: ArtifactRequest) -> ArtifactReply {
             definition_id,
             source,
         } => match source::import_footprint(&source, &definition_id) {
-            Ok(result) => ArtifactReply::ImportFootprint { id, result },
+            Ok(result) => ArtifactReply::ImportFootprint {
+                id,
+                result: Box::new(result),
+            },
             Err(error) => ArtifactReply::Error { id, error },
         },
-        ArtifactRequest::PrepareExport { id, request } => match kicad::prepare_export(request) {
-            Ok(result) => ArtifactReply::PrepareExport { id, result },
+        ArtifactRequest::PreviewPcb { id, request } => match kicad::preview(request) {
+            Ok(result) => ArtifactReply::PreviewBoard { id, result },
             Err(error) => ArtifactReply::Error { id, error },
         },
-        ArtifactRequest::FinishExport { id, request } => match kicad::finish_export(request) {
-            Ok(result) => ArtifactReply::FinishExport { id, result },
+        ArtifactRequest::ExportPcb { id, request } => match kicad::export(request) {
+            Ok(result) => ArtifactReply::ExportPcb { id, result },
             Err(error) => ArtifactReply::Error { id, error },
         },
         ArtifactRequest::ExportOutline { id, request } => match outline::export_outline(request) {
@@ -146,7 +174,7 @@ fn compile_job(job: &FootprintCompileJob) -> Result<CompiledFootprint, ArtifactE
         }
         return Ok(compiled);
     }
-    compile::compile_builtin(&job.definition, &job.parameters, job.side.clone())
+    compile::compile_authored(&job.definition, job.side.clone())
         .map_err(|message| ArtifactError::new(ArtifactErrorCode::Validation, message))
 }
 

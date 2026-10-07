@@ -1,0 +1,1274 @@
+{
+  "version": 1,
+  "units": "millimetres",
+  "purpose": "Kernel-agnostic expectations for the CAD adapter retirement. 'expect' holds the original assertions with their original tolerances (basis: analytic or pinned source); 'baseline' holds the libcascade measurement taken on 2026-10-05 from the passing Node suite and is informational unless a gate promotes it.",
+  "baselineKernel": "Cadrum 0.8.20 / OCCT 8.0.1 exports, measured by libcascade 3.0.2 (OCCT) STEP reimport",
+  "manifestBaselines": {
+    "holed-plate": {
+      "solids": 1,
+      "volume": 14400,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        120.0,
+        80.0,
+        2.0
+      ]
+    },
+    "boss-tray": {
+      "solids": 1,
+      "volume": 29512.5663,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        120.0,
+        80.0,
+        10.0
+      ]
+    },
+    "gasketed-pair": {
+      "solids": 2,
+      "volume": 18244.0,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        60.0,
+        40.0,
+        20.0
+      ]
+    },
+    "split-assembly": {
+      "solids": 4,
+      "volume": 21040.0,
+      "min": [
+        -0.0,
+        -0.0,
+        -10.0
+      ],
+      "max": [
+        120.0,
+        40.0,
+        2.0
+      ]
+    },
+    "imported-multi-solid": {
+      "solids": 63,
+      "volume": 495.9464,
+      "min": [
+        -6.25,
+        -21.7,
+        -5.1
+      ],
+      "max": [
+        37.820542,
+        12.5,
+        1.2
+      ]
+    },
+    "large-plate": {
+      "solids": 1,
+      "volume": 57600.0,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        240.0,
+        160.0,
+        2.0
+      ]
+    },
+    "four-trays": {
+      "solids": 4,
+      "volume": 118050.265,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        120.0,
+        80.0,
+        70.0
+      ]
+    },
+    "multi-cavity": {
+      "solids": 1,
+      "volume": 14304,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        100.0,
+        40.0,
+        10.0
+      ]
+    },
+    "concave-gasket": {
+      "solids": 2,
+      "volume": 28004.0,
+      "min": [
+        -0.0,
+        -0.0,
+        -0.0
+      ],
+      "max": [
+        80.0,
+        60.0,
+        20.0
+      ]
+    },
+    "imported-switch": {
+      "solids": 1,
+      "volume": 28.4712,
+      "min": [
+        -3.2,
+        -1.75,
+        -0.5
+      ],
+      "max": [
+        3.2,
+        2.75,
+        1.65
+      ]
+    },
+    "imported-controller": {
+      "solids": 1,
+      "volume": 1087.2719,
+      "min": [
+        -0.749129,
+        -0.0,
+        -1.6
+      ],
+      "max": [
+        33.0,
+        17.78,
+        1.7
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "plate-generated-20x20x2",
+      "originalTest": "case.test.mjs: imports a generated STEP with mesh and bounds",
+      "expect": {
+        "cadrumBounds": {
+          "min": [
+            0,
+            0,
+            0
+          ],
+          "max": [
+            20,
+            20,
+            2
+          ],
+          "tolerance": 1e-05,
+          "basis": "analytic: 20x20 contour, thickness 2"
+        },
+        "malformedBytesRejectedWith": "STEP import failed"
+      }
+    },
+    {
+      "id": "trackpoint-vendor-multi-solid",
+      "originalTest": "case.test.mjs: imports a transformed multi-solid component STEP in millimeters",
+      "expect": {
+        "solids": 63,
+        "bounds": {
+          "min": [
+            -6.25,
+            -21.7,
+            -5.1
+          ],
+          "max": [
+            37.8205,
+            12.5,
+            1.2
+          ],
+          "tolerance": 0.01,
+          "basis": "vendor file, original assertBounds default"
+        },
+        "meshBoundsWithinModelBounds": 0.15,
+        "minMeshPositionFloats": 10000,
+        "normalUnitLengthTolerance": 0.001,
+        "allPositionsFinite": true
+      },
+      "baseline": {
+        "solids": 63,
+        "volume": 495.9464,
+        "min": [
+          -6.25,
+          -21.7,
+          -5.1
+        ],
+        "max": [
+          37.820542,
+          12.5,
+          1.2
+        ]
+      }
+    },
+    {
+      "id": "holed-plate-export",
+      "originalTest": "case.test.mjs: exports a holed plate as a readable STEP and mesh",
+      "expect": {
+        "revision": 7,
+        "volume": {
+          "value": 720,
+          "tolerance": 0.1,
+          "basis": "analytic: (21^2-9^2)*2, clearance 0.5 outsets outline"
+        },
+        "stepReaderAccepts": true
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 720.0,
+        "min": [
+          -0.5,
+          -0.5,
+          0.0
+        ],
+        "max": [
+          20.5,
+          20.5,
+          2.0
+        ]
+      }
+    },
+    {
+      "id": "module-support-annular-boss",
+      "originalTest": "case.test.mjs: exports module supports as fused annular case bosses with verified STEP bounds",
+      "expect": {
+        "bounds": {
+          "min": [
+            -40,
+            -40,
+            -9.2
+          ],
+          "max": [
+            40,
+            40,
+            -6.2
+          ],
+          "tolerance": 1e-05,
+          "basis": "analytic: 80x80 plate z -9.2..-7.2 plus 1 mm boss"
+        },
+        "volumeDeltaVersusPlain": {
+          "value": 24.473007,
+          "tolerance": 0.15,
+          "basis": "analytic: annulus pi*(3^2-1.1^2) x 1 mm"
+        }
+      },
+      "baseline": {
+        "plain": {
+          "solids": 1,
+          "volume": 12792.3973,
+          "min": [
+            -40.0,
+            -40.0,
+            -9.2
+          ],
+          "max": [
+            40.0,
+            40.0,
+            -7.2
+          ]
+        },
+        "boss": {
+          "solids": 1,
+          "volume": 12816.8704,
+          "min": [
+            -40.0,
+            -40.0,
+            -9.2
+          ],
+          "max": [
+            40.0,
+            40.0,
+            -6.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "module-standoff-annulus",
+      "originalTest": "case.test.mjs: exports a board-module standoff as an annular STEP solid with the authored drill",
+      "expect": {
+        "solids": 1,
+        "bounds": {
+          "min": [
+            -3,
+            -3,
+            0
+          ],
+          "max": [
+            3,
+            3,
+            3
+          ],
+          "tolerance": 0.02,
+          "basis": "analytic: outer radius 3, height 3"
+        },
+        "volume": {
+          "value": 66.350437,
+          "tolerance": 0.06,
+          "basis": "analytic: annulus pi*(3^2-1.4^2) x 3 (96-gon outline)"
+        }
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 66.3031,
+        "min": [
+          -3.0,
+          -3.0,
+          0.0
+        ],
+        "max": [
+          3.0,
+          3.0,
+          3.0
+        ]
+      }
+    },
+    {
+      "id": "concave-notch-clearance",
+      "originalTest": "case.test.mjs: clearance closes a narrow concave notch without invalid edges",
+      "expect": {
+        "volume": {
+          "value": 2888,
+          "tolerance": 0.1,
+          "basis": "analytic: notch closed by clearance 4, 38x38x2"
+        }
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 2888,
+        "min": [
+          -4.0,
+          -4.0,
+          0.0
+        ],
+        "max": [
+          34.0,
+          34.0,
+          2.0
+        ]
+      }
+    },
+    {
+      "id": "concave-tray-and-lid-inset",
+      "originalTest": "case.test.mjs: concave tray and lid retain valid wall solids after inset",
+      "expect": {
+        "perKind": [
+          "tray",
+          "lid"
+        ],
+        "volumeExclusiveRange": [
+          0,
+          9408
+        ]
+      },
+      "baseline": {
+        "tray": {
+          "solids": 1,
+          "volume": 4088.0,
+          "min": [
+            -1.0,
+            -1.0,
+            0.0
+          ],
+          "max": [
+            41.0,
+            31.0,
+            7.0
+          ]
+        },
+        "lid": {
+          "solids": 1,
+          "volume": 4088.0,
+          "min": [
+            -1.0,
+            -1.0,
+            0.0
+          ],
+          "max": [
+            41.0,
+            31.0,
+            7.0
+          ]
+        }
+      }
+    },
+    {
+      "id": "tray-lid-cavity-mount",
+      "originalTest": "case.test.mjs: tray and lid form cavities and honor mounting geometry",
+      "expect": {
+        "plateVolume": {
+          "value": 3200,
+          "tolerance": 0.1,
+          "basis": "analytic: 40x40x2"
+        },
+        "trayVolumeGreaterThanPlate": true,
+        "trayVolumeBelow": 12800,
+        "lidVolume": {
+          "value": 5864,
+          "tolerance": 0.1,
+          "basis": "analytic: 40x40x8 minus 34x34x6 cavity"
+        },
+        "trayZ": [
+          3,
+          11
+        ],
+        "lidZ": [
+          3,
+          11
+        ],
+        "zTolerance": 0.01
+      },
+      "baseline": {
+        "plate": {
+          "solids": 1,
+          "volume": 3200.0,
+          "min": [
+            0.0,
+            0.0,
+            3.0
+          ],
+          "max": [
+            40.0,
+            40.0,
+            5.0
+          ]
+        },
+        "tray": {
+          "solids": 1,
+          "volume": 5831.1969,
+          "min": [
+            0.0,
+            0.0,
+            3.0
+          ],
+          "max": [
+            40.0,
+            40.0,
+            11.0
+          ]
+        },
+        "lid": {
+          "solids": 1,
+          "volume": 5864.0,
+          "min": [
+            0.0,
+            0.0,
+            3.0
+          ],
+          "max": [
+            40.0,
+            40.0,
+            11.0
+          ]
+        }
+      }
+    },
+    {
+      "id": "compound-two-offset-plates",
+      "originalTest": "case.test.mjs: exports two vertically offset bodies as one STEP compound",
+      "expect": {
+        "revision": 9,
+        "volume": {
+          "value": 1600,
+          "tolerance": 0.1,
+          "basis": "analytic: 2 x 20x20x2"
+        },
+        "zRange": [
+          0,
+          10
+        ],
+        "zTolerance": 0.01,
+        "meshEqualLength": true
+      },
+      "baseline": {
+        "solids": 2,
+        "volume": 1600.0,
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          20.0,
+          20.0,
+          10.0
+        ]
+      },
+      "notes": "original test does not assert solid count; baseline is 2"
+    },
+    {
+      "id": "deleted-corner-and-cutout",
+      "originalTest": "case.test.mjs: plate construction retains a deleted corner and authored cutout",
+      "expect": {
+        "revision": 12,
+        "volume": {
+          "value": 1550,
+          "tolerance": 0.1,
+          "basis": "analytic: 30x30 minus 10x10 corner minus 5x5 cutout, x2"
+        }
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 1550.0,
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          30.0,
+          30.0,
+          2.0
+        ]
+      }
+    },
+    {
+      "id": "mechanical-plate-battery-stack",
+      "originalTest": "case.test.mjs: generated mechanical plate and battery stack roundtrip with nominal dimensions",
+      "expect": {
+        "plateVolumeFormula": "(polygonArea(outer plate contour) - 196 - pi) * 1.5",
+        "plateVolumeTolerance": 0.1,
+        "outerMinX": -2.2,
+        "outerMinXTolerance": 0.001,
+        "stackMaxZ": 5,
+        "stackMinZEqualsBottomLayerZ": true,
+        "zTolerance": 0.01,
+        "revision": 21,
+        "minBodies": 4
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 2658.3276,
+        "min": [
+          -2.2,
+          -2.2,
+          3.5
+        ],
+        "max": [
+          42.2,
+          42.2,
+          5.0
+        ]
+      },
+      "notes": "plate contours come from the Core mechanical resolver; the volume is derived from them geometrically"
+    },
+    {
+      "id": "integrated-lid-frame-side-access",
+      "originalTest": "case.test.mjs: integrated plate lid has downward frame and exact side-access subtraction",
+      "expect": {
+        "plainVolume": {
+          "value": 4984.0,
+          "tolerance": 0.1,
+          "basis": "analytic: plate + 2 mm wall frame"
+        },
+        "zRange": [
+          -5,
+          5
+        ],
+        "zTolerance": 0.01,
+        "openingVolumeRemoved": {
+          "value": 60,
+          "tolerance": 0.1,
+          "basis": "analytic: 10 wide x 2 wall x 3 high"
+        },
+        "negativeHeightOpeningRejectedWith": "opening"
+      },
+      "baseline": {
+        "plain": {
+          "solids": 1,
+          "volume": 4984.0,
+          "min": [
+            0.0,
+            0.0,
+            -5.0
+          ],
+          "max": [
+            40.0,
+            40.0,
+            5.0
+          ]
+        },
+        "cut": {
+          "solids": 1,
+          "volume": 4924,
+          "min": [
+            0.0,
+            0.0,
+            -5.0
+          ],
+          "max": [
+            40.0,
+            40.0,
+            5.0
+          ]
+        }
+      }
+    },
+    {
+      "id": "additive-support-refills-drill",
+      "originalTest": "case.test.mjs: an additive support refills the earlier mounting drill through exported STEP",
+      "expect": {
+        "solids": 1,
+        "bounds": {
+          "min": [
+            0,
+            0,
+            0
+          ],
+          "max": [
+            20,
+            20,
+            3
+          ],
+          "tolerance": 0.01,
+          "basis": "analytic"
+        },
+        "volume": {
+          "value": 823.433629,
+          "tolerance": 0.01,
+          "basis": "analytic: plate + 6x6x2 prism over 1 mm drilled remainder"
+        }
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 823.4336,
+        "min": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max": [
+          20.0,
+          20.0,
+          3.0
+        ]
+      }
+    },
+    {
+      "id": "source-module-pcb-front",
+      "originalTest": "case.test.mjs: source module PCB preview retains above and below placement through exported STEP",
+      "expect": {
+        "solids": 1,
+        "bounds": {
+          "min": [
+            2.5,
+            -5.515,
+            3
+          ],
+          "max": [
+            27.5,
+            19.515,
+            4.6
+          ],
+          "tolerance": 0.01,
+          "basis": "pinned source board placement"
+        },
+        "volume": {
+          "value": 946.578202,
+          "tolerance": 0.6,
+          "basis": "pinned source dims: 25x25.03, R3.94 corners; drills 2xO2.2, 12xO1.1, 2xO0.4, 22xO0.3 vias; polygonized outline allowance"
+        },
+        "findingRetained": "case-scope error finding for unknown assembly dimensions"
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 946.1314,
+        "min": [
+          2.5,
+          -5.515,
+          3.0
+        ],
+        "max": [
+          27.5,
+          19.515,
+          4.6
+        ]
+      }
+    },
+    {
+      "id": "source-module-pcb-back",
+      "originalTest": "case.test.mjs: source module PCB preview retains above and below placement through exported STEP",
+      "expect": {
+        "solids": 1,
+        "bounds": {
+          "min": [
+            2.5,
+            -5.515,
+            -6.2
+          ],
+          "max": [
+            27.5,
+            19.515,
+            -4.6
+          ],
+          "tolerance": 0.01,
+          "basis": "pinned source board placement"
+        },
+        "volume": {
+          "value": 946.578202,
+          "tolerance": 0.6,
+          "basis": "pinned source dims: 25x25.03, R3.94 corners; drills 2xO2.2, 12xO1.1, 2xO0.4, 22xO0.3 vias; polygonized outline allowance"
+        },
+        "findingRetained": "case-scope error finding for unknown assembly dimensions"
+      },
+      "baseline": {
+        "solids": 1,
+        "volume": 946.1314,
+        "min": [
+          2.5,
+          -5.515,
+          -6.2
+        ],
+        "max": [
+          27.5,
+          19.515,
+          -4.6
+        ]
+      }
+    },
+    {
+      "id": "allowance-frame-gasket-assembly",
+      "originalTest": "case.test.mjs: resolved allowance, integrated frame and gasket assemblies retain fit geometry through STEP",
+      "expect": {
+        "nominalOpeningArea": {
+          "value": 196,
+          "tolerance": 0.001,
+          "basis": "analytic 14x14"
+        },
+        "actualOpeningArea": {
+          "value": 207.36,
+          "tolerance": 0.1,
+          "basis": "analytic: 0.2 allowance per side"
+        },
+        "plateVolumeFormula": "(polygonArea(outer) - polygonArea(actual opening) - pi) * 1.5",
+        "plateVolumeTolerance": 0.1,
+        "foamHoleAreaNominal": 196,
+        "rigidPlateBodyKind": "lid",
+        "gasketPlateBodyKind": "plate",
+        "gasketStripCount": 12,
+        "generatedHardwareCount": 12,
+        "lowerStripMinZ": 1.8,
+        "lowerStripMaxZEqualsPlateMinZ": true,
+        "upperStripMinZEqualsPlateMaxZ": true,
+        "upperStripMaxZEqualsRetainerMinZ": true,
+        "trayMaxZEqualsRetainerMinZ": true,
+        "lowerStripVolume": {
+          "value": 61.2,
+          "tolerance": 0.1,
+          "basis": "analytic 12x3x1.7"
+        },
+        "retainerMaxZ": 9.7,
+        "zTolerance": 0.01,
+        "assemblyTopZ": {
+          "rigid": 5,
+          "gasket": 9.7
+        }
+      },
+      "baseline": {
+        "allowancePlate": {
+          "solids": 1,
+          "volume": 2641.2876,
+          "min": [
+            -2.2,
+            -2.2,
+            3.5
+          ],
+          "max": [
+            42.2,
+            42.2,
+            5.0
+          ]
+        },
+        "lowerStrip": {
+          "solids": 1,
+          "volume": 61.2,
+          "min": [
+            20.0,
+            -5.7,
+            1.8
+          ],
+          "max": [
+            32.0,
+            -2.7,
+            3.5
+          ]
+        },
+        "upperStrip": {
+          "solids": 1,
+          "volume": 61.2,
+          "min": [
+            20.0,
+            -5.7,
+            5.0
+          ],
+          "max": [
+            32.0,
+            -2.7,
+            6.7
+          ]
+        },
+        "tray": {
+          "solids": 1,
+          "volume": 29904.3181,
+          "min": [
+            -15.4,
+            -15.4,
+            -4.1
+          ],
+          "max": [
+            95.4,
+            95.4,
+            6.7
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 4786.7761,
+          "min": [
+            -15.4,
+            -15.4,
+            6.7
+          ],
+          "max": [
+            95.4,
+            95.4,
+            9.7
+          ]
+        },
+        "gasketPlate": {
+          "solids": 1,
+          "volume": 10859.04,
+          "min": [
+            -6.2,
+            -6.2,
+            3.5
+          ],
+          "max": [
+            86.2,
+            86.2,
+            5.0
+          ]
+        }
+      }
+    },
+    {
+      "id": "component-local-connector-opening",
+      "originalTest": "case.test.mjs: component-local connector access transforms into a real side-wall opening",
+      "expect": {
+        "transformedOpeningFirstPoint": [
+          1,
+          15
+        ],
+        "pointTolerance": 0.001,
+        "openingVolumeRemoved": {
+          "value": 60,
+          "tolerance": 0.1,
+          "basis": "original assertion: 60 mm3 removed (10 wide profile x 2 mm wall x 3 high)"
+        }
+      },
+      "baseline": {
+        "before": {
+          "solids": 1,
+          "volume": 5928.3196,
+          "min": [
+            -2.2,
+            -2.2,
+            -4.1
+          ],
+          "max": [
+            42.2,
+            42.2,
+            3.5
+          ]
+        },
+        "after": {
+          "solids": 1,
+          "volume": 5868.3196,
+          "min": [
+            -2.2,
+            -2.2,
+            -4.1
+          ],
+          "max": [
+            42.2,
+            42.2,
+            3.5
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-rectangle",
+      "originalTest": "case.test.mjs: internal gasket rectangle exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 40747.3303,
+          "min": [
+            -7.502,
+            -7.502,
+            -4.25
+          ],
+          "max": [
+            107.502,
+            77.502,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 15998.0224,
+          "min": [
+            -7.502,
+            -7.502,
+            8.2
+          ],
+          "max": [
+            107.502,
+            77.502,
+            14.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-countersunk",
+      "originalTest": "case.test.mjs: internal gasket countersunk exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 40766.5568,
+          "min": [
+            -7.502,
+            -7.502,
+            -4.25
+          ],
+          "max": [
+            107.502,
+            77.502,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 15998.0224,
+          "min": [
+            -7.502,
+            -7.502,
+            8.2
+          ],
+          "max": [
+            107.502,
+            77.502,
+            14.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-downward-boss",
+      "originalTest": "case.test.mjs: internal gasket downward-boss exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 46729.5394,
+          "min": [
+            -10.3,
+            -10.3,
+            -4.25
+          ],
+          "max": [
+            110.3,
+            80.3,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 12817.4898,
+          "min": [
+            -10.3,
+            -10.3,
+            5.45
+          ],
+          "max": [
+            110.3,
+            80.3,
+            11.45
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-rotated-concave",
+      "originalTest": "case.test.mjs: internal gasket rotated-concave exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 80481.2399,
+          "min": [
+            -38.604,
+            -9.367,
+            -4.25
+          ],
+          "max": [
+            181.502,
+            157.624,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 28108.0455,
+          "min": [
+            -38.604,
+            -9.367,
+            8.2
+          ],
+          "max": [
+            181.502,
+            157.624,
+            14.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-split",
+      "originalTest": "case.test.mjs: internal gasket split exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 2,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 2,
+          "volume": 81494.6605,
+          "min": [
+            -7.502,
+            -7.502,
+            -4.25
+          ],
+          "max": [
+            307.502,
+            77.502,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 2,
+          "volume": 31996.0448,
+          "min": [
+            -7.502,
+            -7.502,
+            8.2
+          ],
+          "max": [
+            307.502,
+            77.502,
+            14.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-mixed-cuts",
+      "originalTest": "case.test.mjs: internal gasket mixed-cuts exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true,
+        "distinctSupportLengthsGreaterThan": 1
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 42205.3391,
+          "min": [
+            -7.502,
+            -7.502,
+            -4.25
+          ],
+          "max": [
+            107.502,
+            77.502,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 15998.0224,
+          "min": [
+            -7.502,
+            -7.502,
+            8.2
+          ],
+          "max": [
+            107.502,
+            77.502,
+            14.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-automatic-count",
+      "originalTest": "case.test.mjs: internal gasket automatic-count exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true,
+        "gasketSupportsGreaterThan": 4
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 42211.4577,
+          "min": [
+            -7.502,
+            -7.502,
+            -4.25
+          ],
+          "max": [
+            107.502,
+            77.502,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 15998.0224,
+          "min": [
+            -7.502,
+            -7.502,
+            8.2
+          ],
+          "max": [
+            107.502,
+            77.502,
+            14.2
+          ]
+        }
+      }
+    },
+    {
+      "id": "internal-gasket-sofle-outline",
+      "originalTest": "case.test.mjs: internal gasket sofle-outline exports connected tray and top regions",
+      "expect": {
+        "solidsPerBodyEqualsInputContours": 1,
+        "bodies": [
+          "bottom",
+          "retainer"
+        ],
+        "positiveVolume": true,
+        "finiteMesh": true,
+        "resolverNotBlocked": true
+      },
+      "baseline": {
+        "bottom": {
+          "solids": 1,
+          "volume": 68852.0954,
+          "min": [
+            -11.322,
+            -122.45,
+            -4.25
+          ],
+          "max": [
+            152.622,
+            11.044,
+            8.2
+          ]
+        },
+        "retainer": {
+          "solids": 1,
+          "volume": 22877.9571,
+          "min": [
+            -11.322,
+            -122.45,
+            8.2
+          ],
+          "max": [
+            152.622,
+            11.044,
+            14.2
+          ]
+        }
+      }
+    }
+  ]
+}

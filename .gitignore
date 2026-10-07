@@ -1,9 +1,13 @@
 node_modules/
 **/dist/
+**/target/
 **/coverage/
 **/.generated/
 **/test-results/
 **/playwright-report/
+cad/.cache/
+cad/wasm/pkg/
+renderer/pkg/
 .env.local
 
 # Local AI agents, skills, indexes, and memory.
@@ -34,3 +38,18 @@ SKILL.md
 /data/state_store.db/
 /data/stream_store/
 ts-boardstudio2.code-workspace
+
+# Local memory journals and Python bytecode.
+.memsearch/
+__pycache__/
+
+# Local experiments and generated frontend providers.
+.scratch/
+core/pkg/
+web/assets/ergogen-models/
+web/assets/fixtures/
+web/assets/core-worker/
+web/assets/cad-worker/
+web/assets/cad/
+web/assets/renderer/
+web/assets/imported-modules.json

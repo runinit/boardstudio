@@ -1,0 +1,58 @@
+//! The bundled generators, one module per generator.
+//!
+//! Each module keeps the SPDX identifier and author of its source file.
+//! `ceoloide/*` files are MIT or CC-BY-NC-SA-4.0 as marked in each module;
+//! `infused-kim/*` files are CC-BY-NC-SA-4.0 (see the vendored LICENSE).
+use std::sync::OnceLock;
+
+use crate::registry::{GeneratorSpec, Registry};
+
+pub mod ceoloide;
+pub mod infused_kim;
+pub(crate) mod util;
+
+/// Every bundled generator.
+pub static SPECS: &[&GeneratorSpec] = &[
+    &infused_kim::smd_0805::SPEC,
+    &infused_kim::nice_view::SPEC,
+    &infused_kim::trackpoint_mount::SPEC,
+    &infused_kim::switch_reset::SPEC,
+    &infused_kim::switch_power::SPEC,
+    &infused_kim::conn_molex_pico_ezmate_1x05::SPEC,
+    &infused_kim::conn_molex_pico_ezmate_1x02::SPEC,
+    &ceoloide::trrs_pj320a::SPEC,
+    &ceoloide::battery_connector_molex_pico_ezmate_1x02::SPEC,
+    &ceoloide::battery_connector_jst_ph_2::SPEC,
+    &ceoloide::rotary_encoder_ec11_ec12::SPEC,
+    &ceoloide::display_ssd1306::SPEC,
+    &ceoloide::display_nice_view::SPEC,
+    &ceoloide::mcu_supermini_nrf52840::SPEC,
+    &ceoloide::mcu_nice_nano::SPEC,
+    &ceoloide::switch_gateron_ks27_ks33::SPEC,
+    &ceoloide::switch_choc_v1_v2::SPEC,
+    &ceoloide::switch_mx::SPEC,
+    &ceoloide::power_switch_smd_side::SPEC,
+    &ceoloide::reset_switch_tht_top::SPEC,
+    &ceoloide::reset_switch_smd_side::SPEC,
+    &ceoloide::led_sk6812mini_e::SPEC,
+    &ceoloide::diode_tht_sod123::SPEC,
+    &ceoloide::mounting_hole_npth::SPEC,
+    &ceoloide::mounting_hole_plated::SPEC,
+    &ceoloide::utility_filled_zone::SPEC,
+    &ceoloide::utility_keepout_zone::SPEC,
+    &ceoloide::utility_logo::SPEC,
+    &ceoloide::utility_point_debugger::SPEC,
+    &ceoloide::utility_router::SPEC,
+    &ceoloide::utility_text::SPEC,
+    &infused_kim::icon_bat::SPEC,
+    &infused_kim::mounting_hole::SPEC,
+    &infused_kim::pads::SPEC,
+    &infused_kim::point_debugger::SPEC,
+    &infused_kim::text::SPEC,
+];
+
+/// The registry of bundled generators.
+pub fn bundled() -> &'static Registry {
+    static REGISTRY: OnceLock<Registry> = OnceLock::new();
+    REGISTRY.get_or_init(|| Registry::new(SPECS).expect("bundled generator declarations are valid"))
+}

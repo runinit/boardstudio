@@ -1,0 +1,156 @@
+{
+  "parameters": {
+    "demo": "vik-module-review",
+    "moduleHumanReview": {
+      "assumptions": "Illustrative placement anchors and 3 mm face gaps; they are not measured mounting dimensions. Source PCB outlines and thicknesses are shown where recorded. The 6 mm outer, 2.8 mm hole, 3 mm high standoffs are designer-selected examples; they are not vendor fastener dimensions. Component, cable and actuator envelopes are incomplete. The source catalogue is not proof of electrical continuity, host voltage compatibility or a working firmware driver. Use the app to inspect above/below transforms, model bounds, findings and output gates. Do not treat this project as fabrication-ready.",
+      "purpose": "Human in-app review fixture",
+      "sourceRevision": "sadekbaroudi/vik@cd5d16e4cd9137a229fc673412a89d75f4e64553"
+    }
+  },
+  "keymap": {
+    "layers": [
+      {
+        "id": "base",
+        "name": "Base",
+        "bindings": {
+          "matrix/matrix/r0c0": {
+            "kind": "mod-tap",
+            "hold": "LSHIFT",
+            "tap": "A"
+          },
+          "matrix/matrix/r0c1": {
+            "kind": "layer-tap",
+            "layerId": "navigation",
+            "tap": "SPACE"
+          }
+        },
+        "sensors": {
+          "matrix/matrix/r0c0": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "RIGHT"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "LEFT"
+            }
+          },
+          "matrix/matrix/r0c1": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "HOME"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "END"
+            }
+          },
+          "review/ec11-rotary": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "RIGHT"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "LEFT"
+            }
+          },
+          "review/wheel-rotation-only": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "UP"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "DOWN"
+            }
+          }
+        }
+      },
+      {
+        "id": "navigation",
+        "name": "Navigation",
+        "bindings": {
+          "matrix/matrix/r0c0": {
+            "kind": "key-press",
+            "keycode": "ESC"
+          },
+          "matrix/matrix/r0c1": {
+            "kind": "macro",
+            "macroId": "review_navigation_pulse"
+          }
+        },
+        "sensors": {
+          "matrix/matrix/r0c0": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "UP"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "DOWN"
+            }
+          },
+          "matrix/matrix/r0c1": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "HOME"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "END"
+            }
+          },
+          "review/ec11-rotary": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "UP"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "DOWN"
+            }
+          },
+          "review/wheel-rotation-only": {
+            "clockwise": {
+              "kind": "key-press",
+              "keycode": "RIGHT"
+            },
+            "counterclockwise": {
+              "kind": "key-press",
+              "keycode": "LEFT"
+            }
+          }
+        }
+      }
+    ],
+    "macros": [
+      {
+        "id": "review_navigation_pulse",
+        "name": "Navigation pulse",
+        "steps": [
+          {
+            "kind": "tap",
+            "binding": {
+              "kind": "key-press",
+              "keycode": "ENTER"
+            }
+          },
+          {
+            "kind": "wait",
+            "ms": 40
+          },
+          {
+            "kind": "tap",
+            "binding": {
+              "kind": "key-press",
+              "keycode": "SPACE"
+            }
+          }
+        ],
+        "tapMs": 30,
+        "waitMs": 0
+      }
+    ]
+  }
+}

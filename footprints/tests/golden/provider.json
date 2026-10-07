@@ -1,0 +1,390 @@
+{
+ "isErgogen": {
+  "ceoloide/switch_mx": true,
+  "infused-kim/text": true,
+  "infused-kim/choc": false,
+  "ceoloide/missing": false,
+  "toString": false,
+  "": false
+ },
+ "isErgogenUndefined": false,
+ "unknownGenerator": {
+  "parameters": {
+   "error": "Unknown Ergogen generator: ceoloide/missing"
+  },
+  "render": {
+   "error": "Unknown Ergogen generator: ceoloide/missing"
+  },
+  "normalize": {
+   "ok": {
+    "id": "generator:ceoloide/switch_mx",
+    "name": "switch mx",
+    "kind": "switch",
+    "pads": [
+     {
+      "id": "pad-0",
+      "number": "",
+      "at": {
+       "x": 0,
+       "y": 0
+      },
+      "size": {
+       "x": 4.1,
+       "y": 4.1
+      },
+      "shape": "circle",
+      "drill": 4.1,
+      "plated": false,
+      "rotation": 0
+     },
+     {
+      "id": "pad-1",
+      "number": "",
+      "at": {
+       "x": 5.08,
+       "y": 0
+      },
+      "size": {
+       "x": 1.9,
+       "y": 1.9
+      },
+      "shape": "circle",
+      "drill": 1.9,
+      "plated": false,
+      "rotation": 0
+     },
+     {
+      "id": "pad-2",
+      "number": "",
+      "at": {
+       "x": -5.08,
+       "y": 0
+      },
+      "size": {
+       "x": 1.9,
+       "y": 1.9
+      },
+      "shape": "circle",
+      "drill": 1.9,
+      "plated": false,
+      "rotation": 0
+     },
+     {
+      "id": "pad-3",
+      "number": "",
+      "at": {
+       "x": -2.54,
+       "y": 5.08
+      },
+      "size": {
+       "x": 3,
+       "y": 3
+      },
+      "shape": "circle",
+      "drill": 3,
+      "plated": false,
+      "rotation": -180
+     },
+     {
+      "id": "pad-4",
+      "number": "",
+      "at": {
+       "x": 3.81,
+       "y": 2.54
+      },
+      "size": {
+       "x": 3,
+       "y": 3
+      },
+      "shape": "circle",
+      "drill": 3,
+      "plated": false,
+      "rotation": -180
+     },
+     {
+      "id": "pad-5",
+      "number": "1",
+      "at": {
+       "x": 7.109999999999999,
+       "y": 2.54
+      },
+      "size": {
+       "x": 2.6,
+       "y": 2.5
+      },
+      "shape": "rect",
+      "rotation": 0
+     },
+     {
+      "id": "pad-6",
+      "number": "2",
+      "at": {
+       "x": -5.842,
+       "y": 5.08
+      },
+      "size": {
+       "x": 2.55,
+       "y": 2.5
+      },
+      "shape": "rect",
+      "rotation": 0
+     }
+    ],
+    "courtyard": [
+     {
+      "x": -7.116999999999999,
+      "y": -2.05
+     },
+     {
+      "x": 8.41,
+      "y": -2.05
+     },
+     {
+      "x": 8.41,
+      "y": 6.58
+     },
+     {
+      "x": -7.116999999999999,
+      "y": 6.58
+     }
+    ],
+    "keycap": {
+     "x": 18,
+     "y": 18
+    },
+    "matrixTerminals": {
+     "row": "from",
+     "column": "to"
+    },
+    "envelopeSource": {
+     "courtyard": "generated",
+     "keycap": "generated"
+    },
+    "terminals": {
+     "from": [
+      "pad-5"
+     ],
+     "to": [
+      "pad-6"
+     ]
+    },
+    "generator": {
+     "source": "ceoloide/missing",
+     "version": "bundled-1",
+     "parameters": {}
+    },
+    "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents."
+   }
+  }
+ },
+ "unsupportedVersion": {
+  "error": "Unsupported Ergogen generator version: future"
+ },
+ "noGenerator": {
+  "error": "Unknown Ergogen generator: undefined"
+ },
+ "parseForms": [
+  {
+   "source": "(footprint",
+   "result": {
+    "error": "Unbalanced Ergogen output"
+   },
+   "tree": {
+    "error": "Unbalanced Ergogen output"
+   }
+  },
+  {
+   "source": "footprint",
+   "result": {
+    "error": "Ergogen output must contain KiCad forms"
+   },
+   "tree": {
+    "error": "Ergogen output must contain KiCad forms"
+   }
+  },
+  {
+   "source": "",
+   "result": {
+    "ok": []
+   },
+   "tree": {
+    "ok": []
+   }
+  },
+  {
+   "source": "   ",
+   "result": {
+    "ok": []
+   },
+   "tree": {
+    "ok": []
+   }
+  },
+  {
+   "source": ")",
+   "result": {
+    "error": "Unbalanced Ergogen output"
+   },
+   "tree": {
+    "error": "Unbalanced Ergogen output"
+   }
+  },
+  {
+   "source": "(a (b \"c d\" e) \"f\\\"g\")",
+   "result": {
+    "ok": [
+     "(a (b \"c d\" e) \"f\\\"g\")"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "a",
+      [
+       "b",
+       "\u0000c d",
+       "e"
+      ],
+      "\u0000f\"g"
+     ]
+    ]
+   }
+  },
+  {
+   "source": "(a \"\")",
+   "result": {
+    "ok": [
+     "(a \"\")"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "a",
+      "\u0000"
+     ]
+    ]
+   }
+  },
+  {
+   "source": "(a b)(c d)",
+   "result": {
+    "ok": [
+     "(a b)",
+     "(c d)"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "a",
+      "b"
+     ],
+     [
+      "c",
+      "d"
+     ]
+    ]
+   }
+  },
+  {
+   "source": "(module \"x\" (at 1 2.50 -0))",
+   "result": {
+    "ok": [
+     "(module \"x\" (at 1 2.50 -0))"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "module",
+      "\u0000x",
+      [
+       "at",
+       "1",
+       "2.50",
+       "-0"
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "source": "(a \"line\\nbreak\")",
+   "result": {
+    "ok": [
+     "(a \"line\\nbreak\")"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "a",
+      "\u0000line\nbreak"
+     ]
+    ]
+   }
+  },
+  {
+   "source": "(a \"é ☃\")",
+   "result": {
+    "ok": [
+     "(a \"é ☃\")"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "a",
+      "\u0000é ☃"
+     ]
+    ]
+   }
+  },
+  {
+   "source": "(a #x)",
+   "result": {
+    "ok": [
+     "(a #x)"
+    ]
+   },
+   "tree": {
+    "ok": [
+     [
+      "a",
+      "#x"
+     ]
+    ]
+   }
+  },
+  {
+   "source": "\"standalone\"",
+   "result": {
+    "error": "Ergogen output must contain KiCad forms"
+   },
+   "tree": {
+    "error": "Ergogen output must contain KiCad forms"
+   }
+  }
+ ],
+ "modelAssetIdsForPaths": {
+  "paths": [
+   "boardstudio-asset:abc_123",
+   "boardstudio-asset:bad id",
+   "${KIPRJMOD}/models/boardstudio/kicad/a.step",
+   "${EG_INFUSED_KIM_3D_MODELS}/b.wrl",
+   "${KIPRJMOD}/other/c.step",
+   "custom://x.step",
+   ""
+  ],
+  "ids": [
+   "abc_123",
+   null,
+   "bundled-model:kicad/a.step",
+   "bundled-model:infused-kim/b.wrl",
+   null,
+   null,
+   null
+  ]
+ }
+}

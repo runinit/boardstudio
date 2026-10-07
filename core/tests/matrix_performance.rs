@@ -22,6 +22,9 @@ fn pad(id: &str) -> Pad {
 
 fn definition(id: &str, pads: Vec<Pad>) -> PartDefinition {
     PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        mechanical_profile: None,
         id: id.into(),
         name: id.into(),
         kind: PartKind::Switch,
@@ -32,7 +35,6 @@ fn definition(id: &str, pads: Vec<Pad>) -> PartDefinition {
             Vec2 { x: -7.0, y: 7.0 },
         ],
         pads,
-        model: None,
         models: None,
         keycap: None,
         envelope_source: None,
@@ -60,6 +62,7 @@ fn guided_matrix_preview() {
         vec![pad("vdd"), pad("gnd"), pad("din"), pad("dout")],
     ));
     doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
         id: "edge".into(),
         part_ids: vec![],
         settings: Default::default(),
@@ -83,11 +86,11 @@ fn guided_matrix_preview() {
     let cells = (0..6)
         .flat_map(|row| {
             (0..5).map(move |column| MatrixCell {
-            assemblies_local: None,
+                assemblies_local: None,
                 row,
                 column,
                 enabled: true,
-                diode: None,
+
                 definition_id: None,
                 variant: None,
                 offset: None,
@@ -118,7 +121,7 @@ fn guided_matrix_preview() {
         mirror: None,
         rotation: None,
         edge_gap: None,
-        diodes: Some(true),
+
         diode_direction: None,
         row_offsets: vec![],
         column_offsets: vec![],

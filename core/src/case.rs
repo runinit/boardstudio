@@ -70,6 +70,30 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
         ));
     }
 
+    for feature in ir.body.features.iter().flatten() {
+        if let crate::model::CaseFeature::SupportPrism { id, points, .. } = feature {
+            use i_overlay::{
+                core::{fill_rule::FillRule, overlay_rule::OverlayRule},
+                float::single::SingleFloatOverlay,
+            };
+            let footprint: Vec<[f64; 2]> = points.iter().map(|p| [p.x, p.y]).collect();
+            let owners = regions
+                .iter()
+                .filter(|(outer, _)| {
+                    let boundary: Vec<[f64; 2]> = outer.iter().map(|p| [p.x, p.y]).collect();
+                    footprint
+                        .overlay(&boundary, OverlayRule::Difference, FillRule::EvenOdd)
+                        .is_empty()
+                })
+                .count();
+            if owners != 1 {
+                return Err(format!(
+                    "Support feature '{id}' must remain inside one case exterior"
+                ));
+            }
+        }
+    }
+
     let mut prepared = Vec::with_capacity(regions.len());
     for (outer, holes) in regions {
         let mut cavities = Vec::new();
@@ -223,20 +247,79 @@ fn validate_body(ir: &CaseIR) -> Result<(), String> {
                 "Case body '{id}' wall height and thickness must be positive"
             ));
         }
-        if let Some(gasket) = &body.gasket {
-            if !gasket.inset.is_finite()
+        if let Some(gasket) = &body.gasket
+            && (!gasket.inset.is_finite()
                 || !gasket.width.is_finite()
                 || !gasket.depth.is_finite()
                 || gasket.inset < 0.0
                 || gasket.width <= 0.0
                 || gasket.depth <= 0.0
                 || gasket.inset + gasket.width >= thickness
-                || gasket.depth >= height
-            {
-                return Err(format!(
-                    "Case body '{id}' gasket groove must fit within the wall rim"
-                ));
-            }
+                || gasket.depth >= height)
+        {
+            return Err(format!(
+                "Case body '{id}' gasket groove must fit within the wall rim"
+            ));
+        }
+    }
+    let mut feature_ids = std::collections::HashSet::new();
+    for feature in body.features.iter().flatten() {
+        use crate::model::CaseFeature;
+        let (feature_id, z, height, valid) = match feature {
+            CaseFeature::SupportPrism {
+                id,
+                points,
+                z,
+                height,
+            } => (
+                id,
+                *z,
+                *height,
+                points.len() >= 3
+                    && points.iter().all(|p| valid_point(*p))
+                    && area_float(points) > 0.000001,
+            ),
+            CaseFeature::ConicalSeat {
+                id,
+                at,
+                z,
+                height,
+                diameter,
+                end_diameter,
+            } => (
+                id,
+                *z,
+                *height,
+                valid_point(*at)
+                    && diameter.is_finite()
+                    && *diameter > 0.
+                    && end_diameter.is_finite()
+                    && *end_diameter > 0.
+                    && *end_diameter < *diameter,
+            ),
+            CaseFeature::RoundSeat {
+                id,
+                at,
+                z,
+                height,
+                diameter,
+            } => (
+                id,
+                *z,
+                *height,
+                valid_point(*at) && diameter.is_finite() && *diameter > 0.,
+            ),
+        };
+        if feature_id.is_empty()
+            || !feature_ids.insert(feature_id)
+            || !valid
+            || !z.is_finite()
+            || !height.is_finite()
+            || height <= 0.
+        {
+            return Err(format!(
+                "Case body '{id}' feature '{feature_id}' requires a unique ID and finite positive geometry"
+            ));
         }
     }
     for opening in body.openings.as_deref().unwrap_or_default() {
@@ -502,6 +585,7 @@ mod tests {
         CaseIR {
             revision: 7,
             body: CaseBody {
+                features: None,
                 openings: None,
                 id: "case-a".into(),
                 name: "Case A".into(),

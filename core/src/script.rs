@@ -210,6 +210,8 @@ pub fn apply_scripts(doc: &mut ProjectDoc) -> Result<(), String> {
                     };
                     outline_ids.insert(id.clone());
                     next.outline.push(OutlineFeature::Rect {
+                        rotation: None,
+                        anchor_part_id: None,
                         id,
                         center: Vec2 { x, y },
                         size: Vec2 {

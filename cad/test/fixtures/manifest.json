@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "units": "millimetres",
+  "fixtures": [
+    {
+      "id": "holed-plate",
+      "kind": "assembly",
+      "file": "holed-plate.json",
+      "sha256": "f41faae6e341d15e91a6d932bd785393df1e874ea35c1048fa42ecdc1b45ca54",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          120,
+          80,
+          2
+        ]
+      ],
+      "expectedSolids": 1,
+      "expectedVolume": 14400
+    },
+    {
+      "id": "boss-tray",
+      "kind": "assembly",
+      "file": "boss-tray.json",
+      "sha256": "8a1468ea4f998ddf87418c8a0011507f7afe009b162d7946d4c537917188c0dc",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          120,
+          80,
+          10
+        ]
+      ],
+      "expectedSolids": 1
+    },
+    {
+      "id": "gasketed-pair",
+      "kind": "assembly",
+      "file": "gasketed-pair.json",
+      "sha256": "d63eccf442122c18235b63e8a0e3f80278539249bb679a1cba8319943b2ca324",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          60,
+          40,
+          20
+        ]
+      ],
+      "expectedSolids": 2
+    },
+    {
+      "id": "split-assembly",
+      "kind": "assembly",
+      "file": "split-assembly.json",
+      "sha256": "3f29ba3b2e80f108aa527bd9f13cd8dcf700c8fbd82c08804f0d6467ee51b864",
+      "expectedBounds": [
+        [
+          0,
+          0,
+          -10
+        ],
+        [
+          120,
+          40,
+          2
+        ]
+      ],
+      "expectedSolids": 4
+    },
+    {
+      "id": "imported-multi-solid",
+      "kind": "step",
+      "file": "ergogen/library/vendor/infused-kim/3d_models/trackpoint/TP_Red_T460S_platform_z_offset_+0.0_pcb_offset_-2.0.step",
+      "sha256": "feb172578631b76c48a832e94c58b2ffccd73b2d3ae75adb57f4aa1266e97904",
+      "expectedBounds": [
+        [
+          -6.25,
+          -21.7,
+          -5.1
+        ],
+        [
+          37.8205,
+          12.5,
+          1.2
+        ]
+      ],
+      "expectedSolids": 63
+    }
+  ]
+}

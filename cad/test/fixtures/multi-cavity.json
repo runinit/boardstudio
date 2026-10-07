@@ -1,0 +1,73 @@
+{
+  "bodies": [
+    {
+      "revision": 1,
+      "body": {
+        "id": "multi-cavity",
+        "name": "boss-tray",
+        "boardId": "bench",
+        "kind": "tray",
+        "thickness": 2,
+        "clearance": 0,
+        "wallHeight": 8,
+        "wallThickness": 3
+      },
+      "contours": [
+        {
+          "hole": false,
+          "points": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 40,
+              "y": 0
+            },
+            {
+              "x": 40,
+              "y": 18
+            },
+            {
+              "x": 60,
+              "y": 18
+            },
+            {
+              "x": 60,
+              "y": 0
+            },
+            {
+              "x": 100,
+              "y": 0
+            },
+            {
+              "x": 100,
+              "y": 40
+            },
+            {
+              "x": 60,
+              "y": 40
+            },
+            {
+              "x": 60,
+              "y": 22
+            },
+            {
+              "x": 40,
+              "y": 22
+            },
+            {
+              "x": 40,
+              "y": 40
+            },
+            {
+              "x": 0,
+              "y": 40
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "revision": 1
+}

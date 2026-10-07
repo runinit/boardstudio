@@ -111,7 +111,6 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
     } else {
         Mirror::X
     });
-    result.diodes = source.diodes;
     result.diode_direction = source.diode_direction;
     result.row_offsets = source.row_offsets.clone();
     result.column_offsets = source.column_offsets.clone();
@@ -129,18 +128,42 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
         .filter(|cell| cell.row < source.rows && cell.column < source.columns)
         .map(|cell| ((cell.row, cell.column), cell.clone()))
         .collect();
+    let local_preset = target.cells.iter().find(|cell| {
+        cell.assemblies_local == Some(true)
+            && cell.definition_id.as_deref() == Some(target.definition_id.as_str())
+            && cell
+                .variant
+                .as_deref()
+                .is_some_and(|variant| variant.starts_with("preset/"))
+    });
     for (coordinate, source_cell) in &source_cells {
-        cells.entry(*coordinate).or_insert_with(|| MatrixCell {
-            row: source_cell.row,
-            column: source_cell.column,
-            enabled: true,
-            diode: None,
-            definition_id: None,
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![],
-            assemblies_local: None,
+        cells.entry(*coordinate).or_insert_with(|| {
+            // New keys inherit this half's saved hardware, not the other half's
+            // local companion assignments. Existing per-key overrides stay intact.
+            if (source_cell.row >= target.rows || source_cell.column >= target.columns)
+                && let Some(template) = local_preset
+            {
+                return MatrixCell {
+                    row: source_cell.row,
+                    column: source_cell.column,
+                    enabled: true,
+                    offset: None,
+                    rotation: None,
+                    ..template.clone()
+                };
+            }
+            MatrixCell {
+                row: source_cell.row,
+                column: source_cell.column,
+                enabled: true,
+
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }
         });
     }
     for (coordinate, cell) in &mut cells {
@@ -150,7 +173,6 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
         cell.rotation = source_cell
             .and_then(|cell| cell.rotation)
             .map(|angle| -angle);
-        cell.diode = source_cell.and_then(|cell| cell.diode);
         if cell.assemblies_local != Some(true)
             && !source_cell.is_some_and(|cell| cell.assemblies_local == Some(true))
         {
@@ -213,13 +235,13 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
             .map(|cell| ((cell.row, cell.column), cell))
             .collect();
         for cell in &mut reflected_matrix.cells {
-            if let Some(canonical) = canonical_cells.get(&(cell.row, cell.column)) {
-                if cell.assemblies_local != Some(true) {
-                    cell.definition_id = canonical.definition_id.clone();
-                    cell.variant = canonical.variant.clone();
-                    cell.assemblies = canonical.assemblies.clone();
-                    cell.assemblies_local = canonical.assemblies_local;
-                }
+            if let Some(canonical) = canonical_cells.get(&(cell.row, cell.column))
+                && cell.assemblies_local != Some(true)
+            {
+                cell.definition_id = canonical.definition_id.clone();
+                cell.variant = canonical.variant.clone();
+                cell.assemblies = canonical.assemblies.clone();
+                cell.assemblies_local = canonical.assemblies_local;
             }
         }
     }
@@ -230,10 +252,10 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
         .find(|matrix| matrix.id == target_id)
         .ok_or("Linked matrix is missing")?;
     for (cell, id) in matrix::cell_members(target) {
-        if let Some(size) = sizes.get(&cell) {
-            if let Some(part) = doc.parts.iter_mut().find(|part| part.id == id) {
-                part.keycap = Some(*size);
-            }
+        if let Some(size) = sizes.get(&cell)
+            && let Some(part) = doc.parts.iter_mut().find(|part| part.id == id)
+        {
+            part.keycap = Some(*size);
         }
     }
     if source_is_target {
@@ -499,10 +521,11 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
             }
             sync_component_nets(doc, &source_id, &target_id);
             for feature in &mut doc.outline {
-                if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature {
-                    if part_ids.contains(&source_id) && !part_ids.contains(&target_id) {
-                        part_ids.push(target_id.clone());
-                    }
+                if let crate::model::OutlineFeature::PartEnvelope { part_ids, .. } = feature
+                    && part_ids.contains(&source_id)
+                    && !part_ids.contains(&target_id)
+                {
+                    part_ids.push(target_id.clone());
                 }
             }
             changed.extend([source_id, target_id]);
@@ -626,7 +649,8 @@ fn adopt_unassigned_components(
         .clone();
     let unassigned: Vec<_> = board_parts
         .into_iter()
-        .filter(|id| !assigned.contains(id))
+        // Case hardware is resolved in board coordinates, independently of layout mirrors.
+        .filter(|id| !assigned.contains(id) && !id.starts_with("case-closure/"))
         .filter_map(|id| {
             let part = doc.parts.iter().find(|part| part.id == id)?;
             let on_source_side = if source_is_left {
@@ -935,7 +959,7 @@ pub(crate) fn move_keys(
                     row,
                     column,
                     enabled: true,
-                    diode: None,
+
                     definition_id: None,
                     variant: None,
                     offset: None,
@@ -966,4 +990,20 @@ pub(crate) fn move_keys(
         changed.extend(sync(doc, &matrix.id)?);
     }
     Ok((changed, handled))
+}
+
+#[cfg(test)]
+mod case_hardware_tests {
+    use super::*;
+
+    #[test]
+    fn case_clearance_holes_are_not_adopted_by_linked_layouts() {
+        let mut doc = ProjectDoc::empty("case", "Case");
+        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["case-closure/board/10/10"],"netIds":[],"thickness":1.6}])).unwrap();
+        doc.parts = serde_json::from_value(serde_json::json!([{"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"}])).unwrap();
+        doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}])).unwrap();
+        doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixId":"matrix","partIds":[]}])).unwrap();
+        adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
+        assert!(doc.layouts[0].part_ids.is_empty());
+    }
 }

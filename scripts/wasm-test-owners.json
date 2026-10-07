@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "web/src/presentation/objects/matrix_transform_controller.rs": {
+      "tests": [
+        "presentation::objects::matrix_transform_controller::workspace_route_tests::matrix_transform_owner_cannot_cross_workspace_routes",
+        "presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement"
+      ],
+      "coverage": "The route guard protects workspace ownership; the mounted Inspector test exercises controller-produced attached choices and the selected replacement event. It does not cover every controller branch."
+    },
+    "web/src/presentation/objects/matrix_transform_inspector.rs": {
+      "tests": [
+        "presentation::objects::matrix_transform_inspector::mounted_tests::mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement"
+      ],
+      "coverage": "Mounted controller-to-Inspector attached-choice projection and selected replacement event; unrelated Inspector presentation branches remain outside this owner mapping."
+    }
+  }
+}

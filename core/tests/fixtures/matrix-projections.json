@@ -179,7 +179,7 @@
       ]
     },
     {
-      "name": "none-legacy",
+      "name": "none-saved-poses",
       "matrix": {
         "id": "fixture",
         "rows": 3,
@@ -233,19 +233,19 @@
           }
         ],
         "partIds": [
-          "legacy-a",
+          "matrix/fixture/r0c0",
           "matrix/fixture/r0c1",
-          "legacy-b",
-          "legacy-c",
-          "legacy-d",
-          "legacy-e",
-          "legacy-f",
-          "legacy-g"
+          "matrix/fixture/r0c2",
+          "matrix/fixture/r1c0",
+          "matrix/fixture/r1c2",
+          "matrix/fixture/r2c0",
+          "matrix/fixture/r2c1",
+          "matrix/fixture/r2c2"
         ]
       },
       "parts": [
         {
-          "id": "legacy-a",
+          "id": "matrix/fixture/r0c0",
           "definitionId": "switch",
           "reference": "S0",
           "side": "front",
@@ -271,7 +271,7 @@
           }
         },
         {
-          "id": "legacy-b",
+          "id": "matrix/fixture/r0c2",
           "definitionId": "switch",
           "reference": "S2",
           "side": "front",
@@ -284,7 +284,7 @@
           }
         },
         {
-          "id": "legacy-c",
+          "id": "matrix/fixture/r1c0",
           "definitionId": "switch",
           "reference": "S3",
           "side": "front",
@@ -297,7 +297,7 @@
           }
         },
         {
-          "id": "legacy-d",
+          "id": "matrix/fixture/r1c2",
           "definitionId": "switch",
           "reference": "S4",
           "side": "front",
@@ -310,7 +310,7 @@
           }
         },
         {
-          "id": "legacy-e",
+          "id": "matrix/fixture/r2c0",
           "definitionId": "switch",
           "reference": "S5",
           "side": "front",
@@ -323,7 +323,7 @@
           }
         },
         {
-          "id": "legacy-f",
+          "id": "matrix/fixture/r2c1",
           "definitionId": "switch",
           "reference": "S6",
           "side": "front",
@@ -336,7 +336,7 @@
           }
         },
         {
-          "id": "legacy-g",
+          "id": "matrix/fixture/r2c2",
           "definitionId": "switch",
           "reference": "S7",
           "side": "front",
@@ -354,7 +354,7 @@
           "row": 0,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-a",
+          "memberId": "matrix/fixture/r0c0",
           "pose": {
             "at": {
               "x": 0,
@@ -380,7 +380,7 @@
           "row": 0,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-b",
+          "memberId": "matrix/fixture/r0c2",
           "pose": {
             "at": {
               "x": 40,
@@ -393,7 +393,7 @@
           "row": 1,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-c",
+          "memberId": "matrix/fixture/r1c0",
           "pose": {
             "at": {
               "x": 3,
@@ -408,8 +408,8 @@
           "enabled": false,
           "pose": {
             "at": {
-              "x": 13.196494997166148,
-              "y": -4.342529200749453
+              "x": 7.705805221843793,
+              "y": 23.254346260056487
             },
             "rotation": 69
           }
@@ -418,7 +418,7 @@
           "row": 1,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-d",
+          "memberId": "matrix/fixture/r1c2",
           "pose": {
             "at": {
               "x": 42,
@@ -431,7 +431,7 @@
           "row": 2,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-e",
+          "memberId": "matrix/fixture/r2c0",
           "pose": {
             "at": {
               "x": 5,
@@ -444,7 +444,7 @@
           "row": 2,
           "column": 1,
           "enabled": true,
-          "memberId": "legacy-f",
+          "memberId": "matrix/fixture/r2c1",
           "pose": {
             "at": {
               "x": 25,
@@ -457,7 +457,7 @@
           "row": 2,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-g",
+          "memberId": "matrix/fixture/r2c2",
           "pose": {
             "at": {
               "x": 45,
@@ -646,7 +646,7 @@
       ]
     },
     {
-      "name": "x-legacy",
+      "name": "x-saved-poses",
       "matrix": {
         "id": "fixture",
         "rows": 3,
@@ -701,19 +701,19 @@
           }
         ],
         "partIds": [
-          "legacy-a",
+          "matrix/fixture/r0c0",
           "matrix/fixture/r0c1",
-          "legacy-b",
-          "legacy-c",
-          "legacy-d",
-          "legacy-e",
-          "legacy-f",
-          "legacy-g"
+          "matrix/fixture/r0c2",
+          "matrix/fixture/r1c0",
+          "matrix/fixture/r1c2",
+          "matrix/fixture/r2c0",
+          "matrix/fixture/r2c1",
+          "matrix/fixture/r2c2"
         ]
       },
       "parts": [
         {
-          "id": "legacy-a",
+          "id": "matrix/fixture/r0c0",
           "definitionId": "switch",
           "reference": "S0",
           "side": "front",
@@ -739,7 +739,7 @@
           }
         },
         {
-          "id": "legacy-b",
+          "id": "matrix/fixture/r0c2",
           "definitionId": "switch",
           "reference": "S2",
           "side": "front",
@@ -752,7 +752,7 @@
           }
         },
         {
-          "id": "legacy-c",
+          "id": "matrix/fixture/r1c0",
           "definitionId": "switch",
           "reference": "S3",
           "side": "front",
@@ -765,7 +765,7 @@
           }
         },
         {
-          "id": "legacy-d",
+          "id": "matrix/fixture/r1c2",
           "definitionId": "switch",
           "reference": "S4",
           "side": "front",
@@ -778,7 +778,7 @@
           }
         },
         {
-          "id": "legacy-e",
+          "id": "matrix/fixture/r2c0",
           "definitionId": "switch",
           "reference": "S5",
           "side": "front",
@@ -791,7 +791,7 @@
           }
         },
         {
-          "id": "legacy-f",
+          "id": "matrix/fixture/r2c1",
           "definitionId": "switch",
           "reference": "S6",
           "side": "front",
@@ -804,7 +804,7 @@
           }
         },
         {
-          "id": "legacy-g",
+          "id": "matrix/fixture/r2c2",
           "definitionId": "switch",
           "reference": "S7",
           "side": "front",
@@ -822,7 +822,7 @@
           "row": 0,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-a",
+          "memberId": "matrix/fixture/r0c0",
           "pose": {
             "at": {
               "x": 0,
@@ -848,7 +848,7 @@
           "row": 0,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-b",
+          "memberId": "matrix/fixture/r0c2",
           "pose": {
             "at": {
               "x": 40,
@@ -861,7 +861,7 @@
           "row": 1,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-c",
+          "memberId": "matrix/fixture/r1c0",
           "pose": {
             "at": {
               "x": 3,
@@ -876,8 +876,8 @@
           "enabled": false,
           "pose": {
             "at": {
-              "x": -10.055153374520835,
-              "y": -21.863903002800207
+              "x": -18.431843696764613,
+              "y": 3.558215057274209
             },
             "rotation": 31
           }
@@ -886,7 +886,7 @@
           "row": 1,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-d",
+          "memberId": "matrix/fixture/r1c2",
           "pose": {
             "at": {
               "x": 42,
@@ -899,7 +899,7 @@
           "row": 2,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-e",
+          "memberId": "matrix/fixture/r2c0",
           "pose": {
             "at": {
               "x": 5,
@@ -912,7 +912,7 @@
           "row": 2,
           "column": 1,
           "enabled": true,
-          "memberId": "legacy-f",
+          "memberId": "matrix/fixture/r2c1",
           "pose": {
             "at": {
               "x": 25,
@@ -925,7 +925,7 @@
           "row": 2,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-g",
+          "memberId": "matrix/fixture/r2c2",
           "pose": {
             "at": {
               "x": 45,
@@ -1114,7 +1114,7 @@
       ]
     },
     {
-      "name": "y-legacy",
+      "name": "y-saved-poses",
       "matrix": {
         "id": "fixture",
         "rows": 3,
@@ -1169,19 +1169,19 @@
           }
         ],
         "partIds": [
-          "legacy-a",
+          "matrix/fixture/r0c0",
           "matrix/fixture/r0c1",
-          "legacy-b",
-          "legacy-c",
-          "legacy-d",
-          "legacy-e",
-          "legacy-f",
-          "legacy-g"
+          "matrix/fixture/r0c2",
+          "matrix/fixture/r1c0",
+          "matrix/fixture/r1c2",
+          "matrix/fixture/r2c0",
+          "matrix/fixture/r2c1",
+          "matrix/fixture/r2c2"
         ]
       },
       "parts": [
         {
-          "id": "legacy-a",
+          "id": "matrix/fixture/r0c0",
           "definitionId": "switch",
           "reference": "S0",
           "side": "front",
@@ -1207,7 +1207,7 @@
           }
         },
         {
-          "id": "legacy-b",
+          "id": "matrix/fixture/r0c2",
           "definitionId": "switch",
           "reference": "S2",
           "side": "front",
@@ -1220,7 +1220,7 @@
           }
         },
         {
-          "id": "legacy-c",
+          "id": "matrix/fixture/r1c0",
           "definitionId": "switch",
           "reference": "S3",
           "side": "front",
@@ -1233,7 +1233,7 @@
           }
         },
         {
-          "id": "legacy-d",
+          "id": "matrix/fixture/r1c2",
           "definitionId": "switch",
           "reference": "S4",
           "side": "front",
@@ -1246,7 +1246,7 @@
           }
         },
         {
-          "id": "legacy-e",
+          "id": "matrix/fixture/r2c0",
           "definitionId": "switch",
           "reference": "S5",
           "side": "front",
@@ -1259,7 +1259,7 @@
           }
         },
         {
-          "id": "legacy-f",
+          "id": "matrix/fixture/r2c1",
           "definitionId": "switch",
           "reference": "S6",
           "side": "front",
@@ -1272,7 +1272,7 @@
           }
         },
         {
-          "id": "legacy-g",
+          "id": "matrix/fixture/r2c2",
           "definitionId": "switch",
           "reference": "S7",
           "side": "front",
@@ -1290,7 +1290,7 @@
           "row": 0,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-a",
+          "memberId": "matrix/fixture/r0c0",
           "pose": {
             "at": {
               "x": 0,
@@ -1316,7 +1316,7 @@
           "row": 0,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-b",
+          "memberId": "matrix/fixture/r0c2",
           "pose": {
             "at": {
               "x": 40,
@@ -1329,7 +1329,7 @@
           "row": 1,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-c",
+          "memberId": "matrix/fixture/r1c0",
           "pose": {
             "at": {
               "x": 3,
@@ -1344,8 +1344,8 @@
           "enabled": false,
           "pose": {
             "at": {
-              "x": 16.055153374520838,
-              "y": -8.136096997199788
+              "x": 32.431843696764616,
+              "y": -9.558215057274209
             },
             "rotation": 31
           }
@@ -1354,7 +1354,7 @@
           "row": 1,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-d",
+          "memberId": "matrix/fixture/r1c2",
           "pose": {
             "at": {
               "x": 42,
@@ -1367,7 +1367,7 @@
           "row": 2,
           "column": 0,
           "enabled": true,
-          "memberId": "legacy-e",
+          "memberId": "matrix/fixture/r2c0",
           "pose": {
             "at": {
               "x": 5,
@@ -1380,7 +1380,7 @@
           "row": 2,
           "column": 1,
           "enabled": true,
-          "memberId": "legacy-f",
+          "memberId": "matrix/fixture/r2c1",
           "pose": {
             "at": {
               "x": 25,
@@ -1393,7 +1393,7 @@
           "row": 2,
           "column": 2,
           "enabled": true,
-          "memberId": "legacy-g",
+          "memberId": "matrix/fixture/r2c2",
           "pose": {
             "at": {
               "x": 45,
@@ -1971,5 +1971,6 @@
         }
       ]
     }
-  ]
+  ],
+  "identityNote": "Saved-pose IDs use canonical matrix IDs. Empty cells use parametric poses; obsolete ordered-ID residual interpolation is removed."
 }

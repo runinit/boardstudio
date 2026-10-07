@@ -1,23 +1,9 @@
-use crate::artifact::builtins;
 use crate::model::{CompiledFootprint, FootprintGeometry, PadShape, PartDefinition, Side, Vec2};
-use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-/// Compile the checked-in default library geometry for both board sides.
-pub fn builtin_catalogue() -> Result<Vec<CompiledFootprint>, String> {
-    let mut compiled = Vec::with_capacity(12);
-    for definition in builtins::builtin_definitions() {
-        for side in [Side::Front, Side::Back] {
-            compiled.push(compile_builtin(&definition, &BTreeMap::new(), side)?);
-        }
-    }
-    Ok(compiled)
-}
-
-/// Compile one authored or built-in footprint without process-local caching.
-pub fn compile_builtin(
+/// Compile authored geometry. Generated parts must use their generator pipeline.
+pub fn compile_authored(
     definition: &PartDefinition,
-    parameters: &BTreeMap<String, Value>,
     side: Side,
 ) -> Result<CompiledFootprint, String> {
     if definition.kicad_source.is_some() {
@@ -26,55 +12,18 @@ pub fn compile_builtin(
             definition.id
         ));
     }
-
-    let generated = if let Some(generator) = &definition.generator {
-        if generator.source.starts_with("builtin:") {
-            if generator.version != builtins::BUILTIN_VERSION {
-                return Err(format!(
-                    "Unsupported built-in footprint version: {}",
-                    generator.version
-                ));
-            }
-            let mut effective = generator.parameters.clone();
-            effective.extend(parameters.clone());
-            Some(
-                builtins::generate(&generator.source, &effective)?
-                    .ok_or_else(|| format!("Unknown built-in footprint: {}", generator.source))?,
-            )
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
+    if let Some(generator) = &definition.generator {
+        return Err(format!(
+            "Unsupported authored-footprint generator: {}",
+            generator.source
+        ));
+    }
     let mut geometry = FootprintGeometry {
         side,
-        courtyard: if definition
-            .envelope_source
-            .as_ref()
-            .and_then(|source| source.courtyard)
-            == Some(crate::model::EnvelopeOrigin::Authored)
-        {
-            definition.courtyard.clone()
-        } else {
-            generated
-                .as_ref()
-                .map(|geometry| geometry.courtyard.clone())
-                .unwrap_or_else(|| definition.courtyard.clone())
-        },
-        pads: generated
-            .as_ref()
-            .map(|geometry| geometry.pads.clone())
-            .unwrap_or_else(|| definition.pads.clone()),
-        traces: generated
-            .as_ref()
-            .map(|geometry| geometry.traces.clone())
-            .unwrap_or_default(),
-        vias: generated
-            .as_ref()
-            .map(|geometry| geometry.vias.clone())
-            .unwrap_or_default(),
+        courtyard: definition.courtyard.clone(),
+        pads: definition.pads.clone(),
+        traces: vec![],
+        vias: vec![],
     };
     for pad in &mut geometry.pads {
         pad.net_id = None;
@@ -104,15 +53,12 @@ pub fn validate_geometry(
     }
 
     let mut ids = BTreeSet::new();
-    let mut numbers = BTreeSet::new();
     for pad in &geometry.pads {
         if !ids.insert(pad.id.as_str()) {
             return Err(format!("Duplicate footprint pad id: {}", pad.id));
         }
-        if (pad.number.trim().is_empty() && pad.plated != Some(false))
-            || (!pad.number.trim().is_empty() && !numbers.insert(pad.number.as_str()))
-        {
-            return Err(format!("Duplicate or empty pad number: {}", pad.number));
+        if pad.number.trim().is_empty() && pad.plated != Some(false) {
+            return Err(format!("Empty electrical pad number: {}", pad.id));
         }
         if !finite_point(pad.at)
             || !finite_point(pad.size)
@@ -278,231 +224,37 @@ fn escape_xml(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::artifact::builtins::builtin_definitions;
-    use crate::model::{EnvelopeOrigin, EnvelopeSource, PartKind, Vec2};
+    use crate::model::{PartKind, Vec2};
 
-    fn params(entries: &[(&str, Value)]) -> BTreeMap<String, Value> {
-        entries
-            .iter()
-            .map(|(key, value)| ((*key).into(), value.clone()))
-            .collect()
-    }
-
-    fn definition(source: &str) -> PartDefinition {
-        builtin_definitions()
-            .into_iter()
-            .find(|definition| {
-                definition
-                    .generator
-                    .as_ref()
-                    .is_some_and(|generator| generator.source == source)
-            })
-            .unwrap()
+    fn definition() -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id":"authored-diode", "name":"Authored diode", "kind":"passive",
+            "courtyard":[{"x":-3,"y":-1.5},{"x":3,"y":-1.5},{"x":3,"y":1.5},{"x":-3,"y":1.5}],
+            "pads":[{"id":"anode","number":"1","at":{"x":-1.5,"y":0},"size":{"x":1,"y":1},"shape":"rect"}]
+        })).unwrap()
     }
 
     #[test]
-    fn builtins_compile_with_defaults_and_repeat_without_cache_state() {
-        let ids = builtin_definitions()
-            .into_iter()
-            .map(|definition| definition.id)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            ids,
-            [
-                "mx-switch",
-                "choc-switch",
-                "mx-hotswap",
-                "choc-hotswap",
-                "rgb-led",
-                "matrix-diode"
-            ]
-        );
-        let definition = definition("builtin:rgb-led");
-        for compiled in builtin_catalogue().unwrap() {
-            assert!(compiled.preview_svg.as_deref().unwrap().starts_with("<svg"));
-        }
-        let first = compile_builtin(&definition, &BTreeMap::new(), Side::Front).unwrap();
-        let second = compile_builtin(&definition, &BTreeMap::new(), Side::Front).unwrap();
-        assert_eq!(first, second);
-        assert_eq!(first.geometry.pads.len(), 4);
-        assert_eq!(first.geometry.side, Side::Front);
-        assert!(first.preview_svg.as_deref().unwrap().starts_with("<svg"));
-    }
-
-    #[test]
-    fn builtin_parameters_override_generator_defaults() {
-        let definition = definition("builtin:rgb-led");
-        let defaults = compile_builtin(&definition, &BTreeMap::new(), Side::Front).unwrap();
-        assert_eq!(defaults.geometry.pads[0].at.x, 2.7);
-        let customized = compile_builtin(
-            &definition,
-            &params(&[
-                ("padSpacing", Value::from(6.0)),
-                ("padSize", Value::from(1.25)),
-            ]),
-            Side::Back,
-        )
-        .unwrap();
-        assert_eq!(customized.geometry.side, Side::Back);
-        assert_eq!(customized.geometry.pads[0].at.x, 3.0);
-        assert_eq!(customized.geometry.pads[0].size.x, 1.25);
-    }
-
-    #[test]
-    fn generated_builtin_geometry_preserves_an_authored_courtyard() {
-        let mut definition = definition("builtin:mx-hotswap");
-        let authored = vec![
-            Vec2 { x: -11.0, y: -8.0 },
-            Vec2 { x: 9.0, y: -8.0 },
-            Vec2 { x: 12.0, y: 0.0 },
-            Vec2 { x: 9.0, y: 8.0 },
-            Vec2 { x: -11.0, y: 8.0 },
-        ];
-        definition.courtyard = authored.clone();
-        definition.envelope_source = Some(EnvelopeSource {
-            courtyard: Some(EnvelopeOrigin::Authored),
-            keycap: None,
-        });
-        let compiled = compile_builtin(
-            &definition,
-            &params(&[
-                ("reversible", Value::Bool(true)),
-                ("includeTracesVias", Value::Bool(true)),
-            ]),
-            Side::Front,
-        )
-        .unwrap();
-
-        assert_eq!(compiled.geometry.courtyard, authored);
-        assert_eq!(compiled.geometry.pads.len(), 7);
-        assert_eq!(compiled.geometry.traces.len(), 2);
-        assert_eq!(compiled.geometry.vias.len(), 2);
-        assert_eq!(compiled.geometry.pads[0].shape, PadShape::Rect);
-    }
-
-    #[test]
-    fn reversible_settings_generate_front_traces_and_vias_on_supported_builtins() {
-        let definition = definition("builtin:mx-hotswap");
-        let geometry = compile_builtin(
-            &definition,
-            &params(&[
-                ("reversible", Value::Bool(true)),
-                ("includeTracesVias", Value::Bool(true)),
-            ]),
-            Side::Back,
-        )
-        .unwrap()
-        .geometry;
-        assert_eq!(geometry.side, Side::Back);
-        assert_eq!(geometry.traces.len(), 2);
-        assert_eq!(geometry.vias.len(), 2);
-        assert!(
-            geometry
-                .traces
-                .iter()
-                .all(|trace| trace.layer == Side::Front)
-        );
-        assert!(geometry.traces.iter().all(|trace| trace.pad_id.is_some()));
-    }
-
-    #[test]
-    fn rgb_reversible_copper_and_via_dimensions_follow_parameters() {
-        let definition = definition("builtin:rgb-led");
-        let geometry = compile_builtin(
-            &definition,
-            &params(&[
-                ("reversible", Value::Bool(true)),
-                ("includeTracesVias", Value::Bool(true)),
-                ("traceWidth", Value::from(0.3)),
-                ("viaSize", Value::from(0.8)),
-                ("viaDrill", Value::from(0.4)),
-            ]),
-            Side::Front,
-        )
-        .unwrap()
-        .geometry;
-        assert_eq!(geometry.traces.len(), 4);
-        assert_eq!(geometry.vias.len(), 4);
-        assert!(geometry.traces.iter().all(|trace| trace.width == 0.3));
-        assert!(
-            geometry
-                .vias
-                .iter()
-                .all(|via| via.size == 0.8 && via.drill == 0.4)
-        );
-    }
-
-    #[test]
-    fn mechanical_holes_are_unplated_and_empty_numbered() {
-        for source in ["builtin:mx-switch", "builtin:choc-hotswap"] {
-            let geometry = compile_builtin(&definition(source), &BTreeMap::new(), Side::Front)
-                .unwrap()
-                .geometry;
-            assert!(
-                geometry
-                    .pads
-                    .iter()
-                    .filter(|pad| pad.plated == Some(false))
-                    .all(|pad| pad.number.is_empty() && pad.drill.is_some())
-            );
-        }
-    }
-
-    #[test]
-    fn rejects_invalid_builtin_parameters_and_source_authoritative_definitions() {
-        let mx = definition("builtin:mx-switch");
-        assert!(
-            compile_builtin(
-                &mx,
-                &params(&[("padSpacing", Value::String("wide".into()))]),
-                Side::Front
-            )
-            .unwrap_err()
-            .contains("Invalid padSpacing")
-        );
-        let bad_hole = definition("builtin:mx-switch");
-        assert!(
-            compile_builtin(
-                &bad_hole,
-                &params(&[("padSpacing", Value::from(1.0))]),
-                Side::Front
-            )
-            .unwrap_err()
-            .contains("overlaps mounting hole")
-        );
-        let mut source = mx;
-        source.kicad_source = Some(crate::model::KicadSource {
-            format_version: 1,
-            source: "(footprint)".into(),
+    fn retired_generators_cannot_fall_back_to_saved_pad_geometry() {
+        let mut definition = definition();
+        definition.generator = Some(crate::model::PartGenerator {
+            source: "builtin:rgb-led".into(),
+            version: "builtin-1".into(),
+            parameters: Default::default(),
         });
         assert!(
-            compile_builtin(&source, &BTreeMap::new(), Side::Front)
+            compile_authored(&definition, Side::Front)
                 .unwrap_err()
-                .contains("authoritative KiCad source")
-        );
-        let choc = definition("builtin:choc-hotswap");
-        assert!(
-            compile_builtin(
-                &choc,
-                &params(&[
-                    ("reversible", Value::Bool(true)),
-                    ("includeTracesVias", Value::Bool(true)),
-                    ("viaSize", Value::from(0.4)),
-                    ("viaDrill", Value::from(0.4)),
-                ]),
-                Side::Front,
-            )
-            .unwrap_err()
-            .contains("Via drill must be smaller")
+                .contains("Unsupported")
         );
     }
 
     #[test]
     fn preview_svg_matches_expected_orientation_and_escapes_pad_numbers() {
-        let mut definition = definition("builtin:matrix-diode");
+        let mut definition = definition();
         definition.generator = None;
         definition.pads[0].number = "1<&".into();
-        let output = compile_builtin(&definition, &BTreeMap::new(), Side::Back).unwrap();
+        let output = compile_authored(&definition, Side::Back).unwrap();
         let svg = output.preview_svg.unwrap();
         assert!(svg.contains("viewBox=\"-4 -2.5 8 5\""));
         assert!(svg.contains("<polygon points=\"-3,1.5 3,1.5 3,-1.5 -3,-1.5\""));
@@ -511,27 +263,23 @@ mod tests {
 
     #[test]
     fn net_label_changes_do_not_change_compiled_geometry() {
-        let mut definition = definition("builtin:matrix-diode");
-        let without_net = compile_builtin(&definition, &BTreeMap::new(), Side::Front)
-            .unwrap()
-            .geometry;
+        let mut definition = definition();
+        let without_net = compile_authored(&definition, Side::Front).unwrap().geometry;
         definition.pads[0].net_id = Some("row".into());
-        let with_net = compile_builtin(&definition, &BTreeMap::new(), Side::Front)
-            .unwrap()
-            .geometry;
+        let with_net = compile_authored(&definition, Side::Front).unwrap().geometry;
         assert_eq!(without_net, with_net);
     }
 
     #[test]
-    fn arbitrary_authored_geometry_can_be_compiled_without_builtin_generator() {
-        let mut definition = definition("builtin:matrix-diode");
+    fn arbitrary_authored_geometry_can_be_compiled_without_generator() {
+        let mut definition = definition();
         definition.generator = None;
         definition.courtyard = vec![
             Vec2 { x: -4.0, y: -4.0 },
             Vec2 { x: 4.0, y: -4.0 },
             Vec2 { x: 4.0, y: 4.0 },
         ];
-        assert!(compile_builtin(&definition, &BTreeMap::new(), Side::Back).is_ok());
+        assert!(compile_authored(&definition, Side::Back).is_ok());
         assert_eq!(PartKind::Passive, definition.kind);
     }
 }

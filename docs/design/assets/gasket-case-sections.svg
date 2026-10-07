@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Compact internal gasket mount: plan and two separate sections</title>
+  <desc id="desc">All six gasket supports and four closure lands join the surrounding wall without a rear channel. Local gasket pockets cross the dashed nominal inner wall while preserving a default minimum 2 mm exterior skin, configurable in Advanced settings. A separate small horizontal PCB-to-support clearance is also configurable. The section distinguishes nominal wall thickness from remaining material behind the pocket. Bottom-up screws engage blind inserts in the top case. Schematic only; the 4 mm wall and foam example excludes fit allowances from its nominal 2 mm interior projection.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 8 4 0 8Z" fill="#526174"/></marker>
+    <marker id="wall-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 8 4 0 8Z" fill="#98631b"/></marker>
+    <style>
+      text { font-family: 'DejaVu Sans', sans-serif; fill: #172536; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 18px; fill: #526174; }
+      .heading { font-size: 23px; font-weight: 700; }
+      .label { font-size: 18px; }
+      .small { font-size: 16px; fill: #526174; }
+      .tray { fill: #aabaca; stroke: #526a80; stroke-width: 2; }
+      .top { fill: #5685b0; stroke: #2d577d; stroke-width: 2; }
+      .plate { fill: #eac679; stroke: #957332; stroke-width: 2; }
+      .foam { fill: #b278a5; stroke: #75496c; stroke-width: 2; }
+      .pcb { fill: #519281; stroke: #286958; stroke-width: 2; }
+      .leader { fill: none; stroke: #526174; stroke-width: 1.5; marker-end: url(#arrow); }
+      .guide { fill: none; stroke: #526174; stroke-width: 1.5; stroke-dasharray: 5 5; }
+      .dimension { fill: none; stroke: #526174; stroke-width: 1.5; marker-start: url(#arrow); marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1600" height="1080" fill="#f7f8fa"/>
+  <text x="50" y="62" class="title">Compact internal gasket mount</text>
+  <text x="50" y="98" class="subtitle">Local pockets share the wall depth · schematic, not manufacturing dimensions</text>
+  <path d="M50 124H1550" stroke="#cbd3dc"/>
+
+  <text x="50" y="175" class="heading">01  Plan — top case removed</text>
+  <text x="50" y="207" class="subtitle">The shell follows the board; tabs stay within it.</text>
+
+  <rect id="plan-exterior" x="133" y="303" width="494" height="414" rx="24" class="tray"/>
+  <!-- Local shelves connect to the thicker nominal wall; the lighter pocket floors show recesses above them. -->
+  <path id="plan-free-cavity" d="M193 355H228V362H320V355H440V362H532V355H567Q575 355 575 363V461H568V553H575V657Q575 665 567 665H532V658H440V665H320V658H228V665H193Q185 665 185 657V553H192V461H185V363Q185 355 193 355Z" fill="#e3e9ef" stroke="#526a80" stroke-width="2"/>
+  <g id="plan-wall-pockets" fill="#c6d2de" stroke="#526a80" stroke-width="1.5">
+    <rect x="228" y="329" width="92" height="33"/>
+    <rect x="440" y="329" width="92" height="33"/>
+    <rect x="228" y="658" width="92" height="33"/>
+    <rect x="440" y="658" width="92" height="33"/>
+    <rect x="159" y="461" width="33" height="92"/>
+    <rect x="568" y="461" width="33" height="92"/>
+  </g>
+  <g id="plan-closure-bores" fill="#f7f8fa" stroke="#526a80" stroke-width="2">
+    <circle cx="177" cy="347" r="7"/><circle cx="583" cy="347" r="7"/>
+    <circle cx="177" cy="673" r="7"/><circle cx="583" cy="673" r="7"/>
+  </g>
+  <!-- Tabs overhang the small PCB-facing clearance; the foam stays over solid support material. -->
+  <path d="M195 365H238V337H310V365H450V337H522V365H565V471H593V543H565V655H522V683H450V655H310V683H238V655H195V543H167V471H195Z" class="plate"/>
+  <g fill="#e3e9ef" stroke="#957332" stroke-width="1.5">
+    <path d="M222 396h44v44h-44Z M289 396h44v44h-44Z M356 396h44v44h-44Z M423 396h44v44h-44Z M490 396h44v44h-44Z"/>
+    <path d="M222 478h44v44h-44Z M289 478h44v44h-44Z M356 478h44v44h-44Z M423 478h44v44h-44Z M490 478h44v44h-44Z"/>
+    <path d="M222 560h44v44h-44Z M289 560h44v44h-44Z M356 560h44v44h-44Z M423 560h44v44h-44Z M490 560h44v44h-44Z"/>
+  </g>
+  <path d="M195 365H565V655H195Z" fill="none" stroke="#286958" stroke-width="3" stroke-dasharray="9 5"/>
+  <g class="foam">
+    <rect x="246" y="341" width="56" height="17"/>
+    <rect x="458" y="341" width="56" height="17"/>
+    <rect x="246" y="662" width="56" height="17"/>
+    <rect x="458" y="662" width="56" height="17"/>
+    <rect x="172" y="479" width="17" height="56"/>
+    <rect x="571" y="479" width="17" height="56"/>
+  </g>
+  <path id="plan-nominal-inner-wall" d="M185 355H575V665H185Z" fill="none" stroke="#98631b" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="90" y="250" class="label">Continuous outer wall</text>
+  <path d="M333 245L358 307" class="leader"/>
+  <text x="90" y="797" class="label">Closure positions are independent of the tabs.</text>
+  <path d="M177 775V699" class="leader"/>
+  <text x="90" y="842" class="label">Unchanged PCB / nominal plate boundary</text>
+  <path d="M75 834H60V618L192 618" class="leader"/>
+  <g transform="translate(90 892)">
+    <rect width="22" height="16" class="plate"/><text x="34" y="15" class="small">Plate + tabs</text>
+    <rect x="215" width="22" height="16" class="foam"/><text x="249" y="15" class="small">Foam pads</text>
+    <rect x="420" width="22" height="16" class="tray"/><text x="454" y="15" class="small">Tray</text>
+  </g>
+  <text x="90" y="951" class="small">Dashed amber line: nominal inner wall.</text>
+  <text x="90" y="979" class="small">Pockets use wall depth; the outer skin stays continuous.</text>
+
+  <path d="M745 158V995" stroke="#cbd3dc"/>
+  <text x="785" y="175" class="heading">02  Section through a gasket tab</text>
+  <text x="785" y="207" class="subtitle">The tab and foam pocket can recess into the wall.</text>
+  <!-- One continuous section: floor, support and exterior wall; no rear channel. -->
+  <path id="gasket-tray-section" d="M825 520H1100V365H1240V300H1300V545H825Z" class="tray"/>
+  <rect x="1080" y="255" width="220" height="45" class="top"/>
+  <rect x="1110" y="300" width="120" height="25" class="foam"/>
+  <rect x="830" y="325" width="405" height="15" class="plate"/>
+  <rect x="1110" y="340" width="120" height="25" class="foam"/>
+  <path id="section-nominal-inner-wall" d="M1180 298V391" fill="none" stroke="#98631b" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <rect x="830" y="412" width="230" height="12" class="pcb"/>
+  <g id="pcb-support-clearance">
+    <path d="M1060 425V452M1100 425V452" class="guide"/>
+    <path d="M1061 446H1099" class="dimension"/>
+    <text x="976" y="478" class="label">PCB-to-support clearance</text>
+    <text x="976" y="500" class="small">Advanced setting · mm</text>
+  </g>
+  <text x="850" y="282" class="label">Upper pad</text>
+  <path d="M958 279H995L1106 312" class="leader"/>
+  <text x="850" y="380" class="label">Lower pad</text>
+  <path d="M958 376H995L1106 352" class="leader"/>
+  <text x="850" y="453" class="label">Floating PCB</text>
+  <path d="M923 433V427" class="leader"/>
+  <text x="1140" y="420" class="small">Support joined</text>
+  <text x="1140" y="442" class="small">to wall</text>
+  <text x="1120" y="285" font-size="18" fill="#fff" style="fill:#fff">Top case</text>
+  <path d="M1304 300H1375" class="leader"/>
+  <text x="1383" y="292" class="small">Rigid</text>
+  <text x="1383" y="315" class="small">stop</text>
+  <g id="wall-thickness">
+    <path d="M1180 232V253M1300 232V253" fill="none" stroke="#98631b" stroke-width="1.5"/>
+    <path d="M1181 240H1299" fill="none" stroke="#98631b" stroke-width="1.5" marker-start="url(#wall-arrow)" marker-end="url(#wall-arrow)"/>
+    <text x="1240" y="226" class="small" text-anchor="middle" style="fill:#98631b">Nominal wall</text>
+  </g>
+  <g id="remaining-wall">
+    <path d="M1241 345H1299" fill="none" stroke="#98631b" stroke-width="1.5" marker-start="url(#wall-arrow)" marker-end="url(#wall-arrow)"/>
+    <text x="1320" y="349" class="small" style="fill:#98631b">2 mm minimum wall</text>
+    <text x="1320" y="372" class="small">Advanced override</text>
+  </g>
+  <text x="825" y="573" class="small">Dashed line: nominal inner wall, crossed by the pocket.</text>
+  <text x="825" y="603" class="small">4 mm wall + 4 mm foam: 2 mm interior, plus fit allowances.</text>
+
+  <text x="785" y="665" class="heading">03  Separate section through a closure</text>
+  <rect x="950" y="700" width="540" height="60" class="top"/>
+  <path id="closure-tray-section" d="M950 900H1250V760H1490V930H950Z" class="tray"/>
+  <!-- Blind insert seat opens from the underside of the top case. -->
+  <rect x="1284" y="720" width="52" height="40" fill="#d4a34e" stroke="#7d5e28" stroke-width="2"/>
+  <rect x="1303" y="730" width="14" height="188" fill="#f7f8fa"/>
+  <rect x="1289" y="914" width="42" height="16" fill="#f7f8fa"/>
+  <rect x="1306" y="737" width="8" height="183" fill="#526174"/>
+  <rect x="1294" y="915" width="32" height="10" rx="3" fill="#526174"/>
+  <text x="950" y="802" class="label">Insert in top</text>
+  <path d="M1084 798H1154L1278 742" class="leader"/>
+  <text x="950" y="842" class="label">Closure land</text>
+  <text x="950" y="865" class="label">joined to wall</text>
+  <path d="M1130 850H1244" class="leader"/>
+  <text x="1390" y="695" class="small">Closed roof</text>
+  <path d="M1406 700L1336 711" class="leader"/>
+  <text x="950" y="978" class="label">Screw enters from below</text>
+  <path d="M1310 987V935" class="leader"/>
+  <text x="950" y="1010" class="small">No screw or rigid boss touches the plate or PCB.</text>
+  <path d="M50 1041H1550" stroke="#cbd3dc"/>
+  <text x="50" y="1068" class="small">Reserve 2 mm of wall behind gasket pockets by default. PCB clearance and foam compression remain separate settings.</text>
+</svg>

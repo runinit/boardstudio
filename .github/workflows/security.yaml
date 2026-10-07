@@ -1,0 +1,26 @@
+name: Dependency security
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+  schedule:
+    - cron: '23 13 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo install cargo-audit --locked --version 0.22.2
+      - run: python3 scripts/check.py security
+      - run: cargo install cargo-deny --locked --version 0.20.2
+      - run: python3 scripts/check.py deny
+      - name: Validate patched matrix operations with Miri
+        run: |
+          rustup toolchain install nightly-2026-08-12 --profile minimal --component miri,rust-src
+          # The vendored crate is a patched path dependency of the workspace, so Cargo treats it
+          # as a workspace package in place. Test an exact copy outside the tree.
+          cp -r renderer/vendor/cgmath-0.18.0 "$RUNNER_TEMP/cgmath-0.18.0"
+          cargo +nightly-2026-08-12 miri test --manifest-path "$RUNNER_TEMP/cgmath-0.18.0/Cargo.toml" --locked --test security_swaps

@@ -14,7 +14,7 @@ fn matrix() -> Matrix {
         mirror: None,
         rotation: None,
         edge_gap: None,
-        diodes: None,
+
         diode_direction: None,
         row_offsets: vec![],
         column_offsets: vec![],
@@ -28,12 +28,14 @@ fn matrix() -> Matrix {
 fn open() -> CoreEngine {
     let mut doc = ProjectDoc::empty("p", "P");
     doc.definitions.push(PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        mechanical_profile: None,
         id: "switch".into(),
         name: "Switch".into(),
         kind: PartKind::Switch,
         courtyard: vec![],
         pads: vec![],
-        model: None,
         models: None,
         keycap: None,
         envelope_source: None,
@@ -97,7 +99,7 @@ fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
     match reply {
         CoreReply::Scene {
             scene, document, ..
-        } => (scene, document),
+        } => (scene, *document),
         other => panic!("expected scene: {other:?}"),
     }
 }
@@ -212,10 +214,10 @@ fn editing_the_mirrored_half_updates_both_projections() {
             world: Some(Vec2 { x: -7.0, y: -13.0 }),
         },
     );
-    if let CoreRequest::Edit { command, .. } = &mut request {
-        if let EditOperation::SetMatrixSplay { matrix_id, .. } = &mut command.operation {
-            *matrix_id = "right".into();
-        }
+    if let CoreRequest::Edit { command, .. } = &mut request
+        && let EditOperation::SetMatrixSplay { matrix_id, .. } = &mut command.operation
+    {
+        *matrix_id = "right".into();
     }
     let (committed, document) = scene(engine.handle(request));
     assert!(

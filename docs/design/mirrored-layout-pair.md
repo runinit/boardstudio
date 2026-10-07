@@ -5,7 +5,7 @@ hardware on each side, as confirmed by the user.
 
 Experienced keyboard designers need to create a split ergonomic keyboard as
 two named layouts beneath one board, with an understandable relationship between
-the halves. This remains within the existing Keyboard Lab visual system.
+the halves within the BoardStudio workbench.
 
 - Add → Layouts → Mirrored pair opens a focused setup for names, matrix
   dimensions, key assembly, and the gap between the inner key edges.
@@ -32,13 +32,9 @@ the halves. This remains within the existing Keyboard Lab visual system.
   both halves. Removing a companion only affects that half.
 - The Rust-owned optional `layouts` record owns a matrix and independent part
   IDs. A single mirror link is stored on the right layout, while edits can
-  originate on either side. Creation is a single core transaction. Old projects
-  without layouts keep their existing behavior; TypeScript contracts are
-  generated from Rust.
+  originate on either side. Creation is a single core transaction; TypeScript
+  contracts are generated from Rust.
 - Both layouts belong to one board. Board outlines, PCB, case bodies, and export
   readiness remain board-level; creating the pair does not automatically split
   a board outline or establish fabrication readiness. Independent components
   retain their own positions when the linked key geometry changes.
-
-Impeccable routing: shape for the relationship and creation flow, distill for
-the Add information hierarchy, then implementation and focused interaction tests.

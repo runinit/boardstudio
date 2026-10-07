@@ -1,0 +1,52 @@
+[package]
+name = "boardstudio-web-case"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "BoardStudio Case workspace features: case viewer and bodies, mechanical settings, closure clearance and the shared 3D viewer."
+
+[features]
+test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-shared/test-support", "boardstudio-web-keycaps/test-support"]
+
+[dependencies]
+boardstudio-application = { path = "../../../application" }
+boardstudio_core = { path = "../../../core" }
+boardstudio-web-host = { path = "../host", features = ["page"] }
+boardstudio-web-runtime = { path = "../runtime" }
+boardstudio-web-ui-model = { path = "../ui-model" }
+boardstudio-web-ui-shared = { path = "../ui-shared" }
+boardstudio-web-catalogue = { path = "../catalogue" }
+boardstudio-web-keycaps = { path = "../keycaps" }
+dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dioxus = { version = "=0.7.10", default-features = false, features = ["minimal", "web", "mounted"] }
+dioxus-web = { version = "=0.7.10", default-features = false, features = ["mounted"] }
+gloo-timers = { version = "=0.3.0", features = ["futures"] }
+futures-channel = "=0.3.34"
+js-sys = "=0.3.106"
+sha2 = { version = "=0.11.0", default-features = false }
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+web-sys = { version = "=0.3.106", features = [
+  "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventInit", "EventTarget", "MessageEvent", "KeyboardEventInit", "CssStyleDeclaration",
+  "Worker", "WorkerOptions", "WorkerType", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbOpenDbRequest",
+  "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlCanvasElement", "SvgElement", "PointerEvent", "KeyboardEvent", "FocusOptions", "DomRect", "Response", "Request", "Blob", "BlobPropertyBag", "Url", "Location", "Node", "File", "FileList", "HtmlInputElement", "ResizeObserver", "MediaQueryList",
+  "Cache", "CacheStorage", "ExtendableEvent", "FetchEvent", "Clients", "ServiceWorkerContainer",
+  "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "WorkerGlobalScope", "Navigator", "RegistrationOptions", "RequestDestination", "HtmlDialogElement"
+] }
+
+[dev-dependencies]
+boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
+boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
+boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
+boardstudio-web-keycaps = { path = "../keycaps", features = ["test-support"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.79"
+
+[lints]
+workspace = true

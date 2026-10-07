@@ -24,24 +24,14 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
     let margin = radius + config.clearance.max(0.2);
     for contour in contours.iter().filter(|contour| !contour.hole) {
         let (min, max) = bounds(&contour.points);
-        for at in [
-            Vec2 {
-                x: min.x + margin,
-                y: min.y + margin,
-            },
-            Vec2 {
-                x: max.x - margin,
-                y: min.y + margin,
-            },
-            Vec2 {
-                x: max.x - margin,
-                y: max.y - margin,
-            },
-            Vec2 {
-                x: min.x + margin,
-                y: max.y - margin,
-            },
-        ] {
+        let columns = (((max.x - min.x) / 2.0).ceil() as usize).clamp(1, 80);
+        let rows = (((max.y - min.y) / 2.0).ceil() as usize).clamp(1, 80);
+        for at in (0..=rows).flat_map(|row| {
+            (0..=columns).map(move |column| Vec2 {
+                x: min.x + margin + (max.x - min.x - 2.0 * margin) * column as f64 / columns as f64,
+                y: min.y + margin + (max.y - min.y - 2.0 * margin) * row as f64 / rows as f64,
+            })
+        }) {
             let contained = contains(&contour.points, at)
                 && !contours
                     .iter()
@@ -50,7 +40,7 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
             let edge_clear = contours.iter().all(|c| {
                 (0..c.points.len()).all(|i| {
                     point_segment(at, c.points[i], c.points[(i + 1) % c.points.len()])
-                        >= radius + 0.1
+                        >= radius + config.clearance.max(0.2)
                 })
             });
             let occupied = config
@@ -86,7 +76,30 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
             }
         }
     }
-    proposals
+    // Pick well-separated supports rather than clustering at the first clear corner.
+    let mut selected: Vec<Mount> = vec![];
+    while !proposals.is_empty() && selected.len() < 4 {
+        let index = if selected.is_empty() {
+            0
+        } else {
+            proposals
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| {
+                    let distance = |mount: &Mount| {
+                        selected
+                            .iter()
+                            .map(|other| (mount.at.x - other.at.x).hypot(mount.at.y - other.at.y))
+                            .fold(f64::INFINITY, f64::min)
+                    };
+                    distance(a).total_cmp(&distance(b))
+                })
+                .unwrap()
+                .0
+        };
+        selected.push(proposals.remove(index));
+    }
+    selected
 }
 
 fn contains(points: &[Vec2], p: Vec2) -> bool {
@@ -116,6 +129,7 @@ pub(crate) fn apply_allowance(config: &MechanicalConfiguration, assembly: &mut M
     };
     if !allowance.is_finite() || allowance.abs() > 1.0 {
         assembly.diagnostics.push(failure("Opening allowance must be finite and within ±1 mm. Confirm fit against the profile's functional engagement dimensions.".into()));
+        assembly.generation_blocked = true;
         return;
     }
     let mut adjusted = vec![];
@@ -128,6 +142,7 @@ pub(crate) fn apply_allowance(config: &MechanicalConfiguration, assembly: &mut M
             Some(points) => adjusted.push(Contour { hole: true, points }),
             None => {
                 assembly.diagnostics.push(failure("Opening allowance collapses or splits a functional opening. Reduce the allowance or choose a compatible profile.".into()));
+                assembly.generation_blocked = true;
                 return;
             }
         }
@@ -218,9 +233,12 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
                 ),
             );
         }
+        let disabled_foam = matches!(process.part_id.as_str(), "plate-foam" | "bottom-foam")
+            && process.thickness == 0.0
+            && expected_layer_thickness(config, &process.part_id) == Some(0.0);
         if process.material.trim().is_empty()
             || !process.thickness.is_finite()
-            || process.thickness <= 0.0
+            || (process.thickness <= 0.0 && !disabled_foam)
         {
             add(
                 format!("stock:{}", process.part_id),
@@ -231,13 +249,7 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
                 ),
             );
         }
-        let expected_thickness = match process.part_id.as_str() {
-            "plate" => Some(config.plate_thickness),
-            "bottom" => Some(config.bottom_thickness),
-            "plate-foam" => Some(config.plate_foam_thickness),
-            "bottom-foam" => Some(config.bottom_foam_thickness),
-            _ => None,
-        };
+        let expected_thickness = expected_layer_thickness(config, &process.part_id);
         if expected_thickness.is_some_and(|expected| (process.thickness - expected).abs() > EPSILON)
         {
             add(
@@ -310,10 +322,20 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
     {
         add("wall".into(), Severity::Warning, "Walls below 1.0 mm require material and supplier review; 1.0 mm is a screening recommendation, not a documented process limit.".into());
     }
+    // Internal closures are validated against their case lands by the generator;
+    // their independent positions intentionally lie outside the floating plate.
+    let internal_closures =
+        config.internal_gasket.is_some() && config.mount == crate::model::MechanicalMount::Gasket;
     let mounts: Vec<_> = config
         .mounts
         .iter()
-        .chain(config.closure_mounts.iter().flatten())
+        .chain(
+            config
+                .closure_mounts
+                .iter()
+                .flatten()
+                .filter(|_| !internal_closures),
+        )
         .collect();
     for (index, mount) in mounts.iter().enumerate() {
         let radius = mount.boss_diameter.unwrap_or(mount.hole_diameter) / 2.0;
@@ -398,6 +420,16 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
         }
     }
     findings
+}
+
+fn expected_layer_thickness(config: &MechanicalConfiguration, part_id: &str) -> Option<f64> {
+    match part_id {
+        "plate" => Some(config.plate_thickness),
+        "bottom" => Some(config.bottom_thickness),
+        "plate-foam" => Some(config.plate_foam_thickness),
+        "bottom-foam" => Some(config.bottom_foam_thickness),
+        _ => None,
+    }
 }
 
 fn bounds(points: &[Vec2]) -> (Vec2, Vec2) {
@@ -485,47 +517,6 @@ fn contour_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
     min
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn square(x: f64, y: f64, size: f64) -> Vec<Vec2> {
-        vec![
-            Vec2 { x, y },
-            Vec2 { x: x + size, y },
-            Vec2 {
-                x: x + size,
-                y: y + size,
-            },
-            Vec2 { x, y: y + size },
-        ]
-    }
-    #[test]
-    fn detects_crossings_and_remaining_web() {
-        assert_eq!(
-            contour_distance(&square(0.0, 0.0, 2.0), &square(1.0, 1.0, 2.0)),
-            0.0
-        );
-        assert!(
-            (contour_distance(&square(0.0, 0.0, 2.0), &square(2.4, 0.0, 2.0)) - 0.4).abs()
-                < EPSILON
-        );
-    }
-    #[test]
-    fn sharp_rectangles_are_distinct_from_tessellated_round_openings() {
-        assert!(sharp_corner(&square(0.0, 0.0, 2.0)));
-        let round: Vec<_> = (0..64)
-            .map(|i| {
-                let t = i as f64 * std::f64::consts::TAU / 64.0;
-                Vec2 {
-                    x: t.cos(),
-                    y: t.sin(),
-                }
-            })
-            .collect();
-        assert!(!sharp_corner(&round));
-    }
-}
-
 pub(crate) fn check_specifications(
     config: &MechanicalConfiguration,
     assembly: &crate::model::CaseAssemblyIR,
@@ -589,4 +580,45 @@ pub(crate) fn check_specifications(
         }
     }
     findings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn square(x: f64, y: f64, size: f64) -> Vec<Vec2> {
+        vec![
+            Vec2 { x, y },
+            Vec2 { x: x + size, y },
+            Vec2 {
+                x: x + size,
+                y: y + size,
+            },
+            Vec2 { x, y: y + size },
+        ]
+    }
+    #[test]
+    fn detects_crossings_and_remaining_web() {
+        assert_eq!(
+            contour_distance(&square(0.0, 0.0, 2.0), &square(1.0, 1.0, 2.0)),
+            0.0
+        );
+        assert!(
+            (contour_distance(&square(0.0, 0.0, 2.0), &square(2.4, 0.0, 2.0)) - 0.4).abs()
+                < EPSILON
+        );
+    }
+    #[test]
+    fn sharp_rectangles_are_distinct_from_tessellated_round_openings() {
+        assert!(sharp_corner(&square(0.0, 0.0, 2.0)));
+        let round: Vec<_> = (0..64)
+            .map(|i| {
+                let t = i as f64 * std::f64::consts::TAU / 64.0;
+                Vec2 {
+                    x: t.cos(),
+                    y: t.sin(),
+                }
+            })
+            .collect();
+        assert!(!sharp_corner(&round));
+    }
 }
