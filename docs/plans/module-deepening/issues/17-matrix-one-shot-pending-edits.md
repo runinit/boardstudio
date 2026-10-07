@@ -67,11 +67,16 @@ selection only if the same captured matrix remains selected. The preset no longe
 a `Saved` status.
 
 The browser-gated one-shot test now uses `PendingEdits` with a real Runtime/Core gate;
-the existing edit field submission/feedback layer is left for ticket 18.
+the existing edit field submission/feedback layer is left for ticket 18. Duplicate-variant
+preparation maps a departed Scope, missing matrix, or closed owner directly to silent
+retirement, before the generic genuine-failure recovery path. A WASM Runtime test covers
+Scope departure during this preparation window.
 
-Verification so far: `cargo test -p boardstudio-web-layout --locked` passed 51 tests
-with one ignored; `python3 scripts/check.py lint typecheck` passed. The workspace test
+Verification: `cargo test -p boardstudio-web-layout --locked` passed 51 tests with one
+ignored; `python3 scripts/check.py lint typecheck` passed; and
+`cargo check -p boardstudio-web-layout --tests --locked --target wasm32-unknown-unknown`
+passed with one existing unused-import warning in `part_placement.rs`. The workspace test
 step passed before the CAD step reproduced the known baseline failure: 49 passed, 1
 failed, 4 ignored in `core_internal_gasket_fixtures_export_connected_positive_regions`
-(rotated-concave/bottom expected 80481.2399, actual 80579.55733514718). Browser tests
-and pinned Standards/Spec reviews are pending.
+(rotated-concave/bottom expected 80481.2399, actual 80579.55733514718). Browser tests and
+final pinned Standards/Spec reviews remain pending.

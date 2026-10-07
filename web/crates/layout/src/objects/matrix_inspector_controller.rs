@@ -1989,17 +1989,20 @@ async fn duplicate_design_variant(
     });
     let reversible = is_reversible(&accepted.document);
     let result = async {
-        let accepted =
-            exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
-        let matrix = accepted
+        let Some(accepted) =
+            current_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)
+        else {
+            return Ok(VariantEditWait::Retired);
+        };
+        let Some(matrix) = accepted
             .document
             .matrices
             .iter()
             .find(|matrix| matrix.id == request.owner.matrix_id)
             .cloned()
-            .ok_or_else(|| {
-                "The copied project no longer contains the selected matrix.".to_owned()
-            })?;
+        else {
+            return Ok(VariantEditWait::Retired);
+        };
         let prepared = prepare_preset_matrix(
             &accepted.document,
             &matrix,
@@ -2010,11 +2013,15 @@ async fn duplicate_design_variant(
         )
         .await?;
         if !alive.get() {
-            return Err("The matrix design variant owner closed.".into());
+            return Ok(VariantEditWait::Retired);
         }
         // Preparing the catalogue can take long enough for the user to open another project.
         // Confirm the clone is still the active project before submitting any intent.
-        exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
+        if current_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)
+            .is_none()
+        {
+            return Ok(VariantEditWait::Retired);
+        }
         wait_for_variant_edit(
             &runtime,
             &accepted,
@@ -2092,6 +2099,15 @@ fn exact_variant_snapshot(
         return Err("The duplicated project changed before its matrix preset was ready.".into());
     }
     Ok(current)
+}
+
+fn current_variant_snapshot(
+    runtime: &Runtime,
+    expected: &boardstudio_application::AcceptedSnapshot,
+    variant_id: &str,
+    source_scope: &Scope,
+) -> Option<boardstudio_application::AcceptedSnapshot> {
+    exact_variant_snapshot(runtime, expected, variant_id, source_scope).ok()
 }
 
 async fn wait_for_variant_edit(
@@ -2711,6 +2727,32 @@ mod tests {
                     None,
                 ),
             )
+        }
+
+        #[wasm_bindgen_test]
+        async fn variant_snapshot_scope_departure_is_retired_before_recovery() {
+            let runtime = support::new_runtime();
+            let mut document = fixture::matrix_document();
+            document.boards.push(boardstudio_core::model::Board {
+                id: "board-other".into(),
+                name: "Other".into(),
+                outline_ids: vec![],
+                part_ids: vec![],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            });
+            support::open_document(&runtime, document).await;
+            let accepted = runtime.model().accepted.expect("accepted project");
+            let scope = runtime.scope().expect("active board scope");
+            let variant_id = accepted.document.id.clone();
+
+            support::navigate(&runtime, "board-other").await;
+
+            assert!(current_variant_snapshot(&runtime, &accepted, &variant_id, &scope).is_none());
+            // The production preparation path maps this missing snapshot to `Retired`, which
+            // bypasses the generic error branch that invokes source-project recovery.
         }
 
         #[wasm_bindgen_test]
