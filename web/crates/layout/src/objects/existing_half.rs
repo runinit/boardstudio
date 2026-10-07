@@ -85,15 +85,12 @@ fn mirror_existing_half_resolver(
                 axis_x,
                 &mut id_factory,
             ) {
-                Ok(prepared) => Resolution::Submit(EditCommand {
-                    base_revision: 0,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: matrix_ids.clone(),
-                    operation: EditOperation::ReplaceDocument {
+                Ok(prepared) => Resolution::submit(
+                    matrix_ids.clone(),
+                    EditOperation::ReplaceDocument {
                         document: Box::new(prepared.document),
                     },
-                }),
+                ),
                 Err(message) => Resolution::Retire(message),
             }
         },

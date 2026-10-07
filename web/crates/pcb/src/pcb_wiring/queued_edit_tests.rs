@@ -326,15 +326,12 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
                     .pose
                     .at
                     .x = 40.0;
-                Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec!["connector".into()],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec!["connector".into()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         ),
     });
@@ -513,15 +510,12 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut document = (*accepted.document).clone();
                 document.name = "Later name".into();
-                Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec![],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         ),
     });
@@ -562,15 +556,12 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
             |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut document = (*accepted.document).clone();
                 document.name = "Layout name".into();
-                Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec![],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         ),
     });

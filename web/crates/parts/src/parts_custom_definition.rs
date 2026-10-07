@@ -1089,13 +1089,7 @@ pub fn validate_definition_edit(edit: &DefinitionEdit) -> Result<(), String> {
 /// One resolved edit: Session fills the base revision and transaction identity when
 /// the edit runs (ticket 03), so the resolver submits only the operation and targets.
 pub(crate) fn replacement_commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids,
-        operation,
-    })
+    Resolution::submit(target_ids, operation)
 }
 
 /// Resolve one definition-field edit against the accepted document at execution: find

@@ -9,15 +9,12 @@ use dioxus::prelude::*;
 use std::rc::Rc;
 
 fn script_commit(document: boardstudio_core::model::ProjectDoc, script_id: &str) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids: vec![script_id.to_owned()],
-        operation: EditOperation::ReplaceDocument {
+    Resolution::submit(
+        vec![script_id.to_owned()],
+        EditOperation::ReplaceDocument {
             document: Box::new(document),
         },
-    })
+    )
 }
 
 /// Resolve "+ New script": the script is appended to the accepted document when the edit

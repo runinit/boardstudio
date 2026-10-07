@@ -415,13 +415,7 @@ fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {
         {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![body.id.clone()],
-            operation: EditOperation::SetCase { body },
-        })
+        Resolution::submit(vec![body.id.clone()], EditOperation::SetCase { body })
     })
 }
 

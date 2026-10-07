@@ -65,15 +65,12 @@ fn add_board_resolver(board_id: String, outline_id: String) -> EditResolver {
             margin: 4.0,
             operation: Operation::Add,
         });
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![board_id.clone(), outline_id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![board_id.clone(), outline_id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(replacement),
             },
-        })
+        )
     })
 }
 

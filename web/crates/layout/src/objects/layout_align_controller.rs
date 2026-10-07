@@ -775,13 +775,7 @@ fn align_resolver(
         else {
             return Resolution::Retire("The aligned selection no longer exists.".into());
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids,
-            operation,
-        })
+        Resolution::submit(target_ids, operation)
     })
 }
 

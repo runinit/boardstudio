@@ -165,15 +165,12 @@ impl MechanicalSettingsController {
                                 Ok(document) if document == *accepted.document => {
                                     Resolution::Unchanged
                                 }
-                                Ok(document) => Resolution::Submit(EditCommand {
-                                    base_revision: 0,
-                                    transaction_id: String::new(),
-                                    phase: EditPhase::Commit,
-                                    target_ids: vec![intent.identity.active_board_id.clone()],
-                                    operation: EditOperation::ReplaceDocument {
+                                Ok(document) => Resolution::submit(
+                                    vec![intent.identity.active_board_id.clone()],
+                                    EditOperation::ReplaceDocument {
                                         document: Box::new(document),
                                     },
-                                }),
+                                ),
                                 Err(message) => Resolution::Retire(message),
                             }
                         },

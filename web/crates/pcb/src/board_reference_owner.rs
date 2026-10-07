@@ -143,13 +143,6 @@ pub fn submit_board_reference_document(
     let resolver = EditResolver::new(
         "board-reference-upload",
         move |accepted: &AcceptedSnapshot| {
-            if accepted.session_epoch != scope.session_epoch
-                || accepted.document.id != scope.document_id
-            {
-                return Resolution::Retire(
-                    boardstudio_application::DOCUMENT_SESSION_CHANGED.into(),
-                );
-            }
             if !accepted
                 .document
                 .boards
@@ -207,15 +200,12 @@ pub fn submit_board_reference_document(
                     }
                 }
             }
-            Resolution::Submit(EditCommand {
-                base_revision: accepted.document.revision,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![scope.board_id.clone()],
-                operation: EditOperation::ReplaceDocument {
+            Resolution::submit(
+                vec![scope.board_id.clone()],
+                EditOperation::ReplaceDocument {
                     document: Box::new(document),
                 },
-            })
+            )
         },
     );
     Ok(Some(EditTicket::begin(
@@ -240,11 +230,6 @@ pub fn dispatch_board_reference_action(
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
     let resolver = EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != scope.session_epoch
-            || accepted.document.id != scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         let mut proposed = accepted.document.as_ref().clone();
         if matches!(&action, pcb_board_reference::Action::Remove) {
             let count = proposed.board_references.len();
@@ -309,15 +294,12 @@ pub fn dispatch_board_reference_action(
         if proposed == *accepted.document {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![scope.board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![scope.board_id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(proposed),
             },
-        })
+        )
     });
     Some(EditTicket::begin(
         runtime,

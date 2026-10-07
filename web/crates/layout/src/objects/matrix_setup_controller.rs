@@ -52,16 +52,13 @@ fn create_matrix_resolver(
                 "The prepared matrix definitions conflict with the accepted document.".into(),
             );
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![matrix.id.clone()],
-            operation: EditOperation::SetMatrix {
+        Resolution::submit(
+            vec![matrix.id.clone()],
+            EditOperation::SetMatrix {
                 matrix: matrix.clone(),
                 definitions: Some(definitions.clone()),
             },
-        })
+        )
     })
 }
 

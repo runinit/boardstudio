@@ -2384,32 +2384,20 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
             draft.set(Some((id.clone(), current.document.name.clone())));
             return;
         }
-        let expected_epoch = *epoch;
-        let target_document_id = id.clone();
         let resolver = boardstudio_application::EditResolver::new(
             "setup-project-name",
             move |accepted: &boardstudio_application::AcceptedSnapshot| {
-                if accepted.session_epoch != expected_epoch
-                    || accepted.document.id != target_document_id
-                {
-                    return boardstudio_application::Resolution::Retire(
-                        boardstudio_application::DOCUMENT_SESSION_CHANGED.into(),
-                    );
-                }
                 if accepted.document.name == proposed {
                     return boardstudio_application::Resolution::Unchanged;
                 }
                 let mut document = accepted.document.as_ref().clone();
                 document.name = proposed.clone();
-                boardstudio_application::Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![document.id.clone()],
-                    operation: EditOperation::ReplaceDocument {
+                boardstudio_application::Resolution::submit(
+                    vec![document.id.clone()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         );
         let ticket = EditTicket::begin(

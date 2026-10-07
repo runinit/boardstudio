@@ -980,11 +980,6 @@ fn feedback_for_state(state: &BindingFeedbackState) -> BindingEditFeedback {
 
 fn binding_resolver(request: BindingEditRequest) -> EditResolver {
     EditResolver::new("keymap-binding", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != request.scope.session_epoch
-            || accepted.document.id != request.scope.document_id
-        {
-            return Resolution::Retire("The project is no longer open.".into());
-        }
         let map = accepted.document.keymap.as_ref();
         let layer = map.and_then(|map| {
             map.layers
@@ -1075,13 +1070,10 @@ fn binding_resolver(request: BindingEditRequest) -> EditResolver {
                 binding,
             },
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![request.scope.board_id.clone()],
-            operation: EditOperation::EditKeymap { change },
-        })
+        Resolution::submit(
+            vec![request.scope.board_id.clone()],
+            EditOperation::EditKeymap { change },
+        )
     })
 }
 

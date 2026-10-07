@@ -797,13 +797,7 @@ fn transform_commit(
     matrix_id: &str,
     operation: EditOperation,
 ) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id,
-        phase: EditPhase::Commit,
-        target_ids: vec![matrix_id.to_owned()],
-        operation,
-    })
+    Resolution::submit_with_transaction_id(vec![matrix_id.to_owned()], transaction_id, operation)
 }
 
 /// Resolve a handle key press: the step is added to the accepted matrix (stagger offset) or

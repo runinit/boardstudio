@@ -464,13 +464,11 @@ fn macro_resolver(
     preceding_structure: Option<PrecedingStructure>,
 ) -> EditResolver {
     EditResolver::new("keymap-macro", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != request.scope.session_epoch
-            || accepted.document.id != request.scope.document_id
-            || !accepted
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == request.scope.board_id)
+        if !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == request.scope.board_id)
         {
             return Resolution::Retire("This board no longer exists.".into());
         }
@@ -632,12 +630,9 @@ fn macro_resolver(
                 }
             }
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![request.scope.board_id.clone()],
-            operation: EditOperation::EditKeymap { change },
-        })
+        Resolution::submit(
+            vec![request.scope.board_id.clone()],
+            EditOperation::EditKeymap { change },
+        )
     })
 }

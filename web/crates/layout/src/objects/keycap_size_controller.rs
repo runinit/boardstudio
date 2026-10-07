@@ -115,15 +115,12 @@ fn resize_resolver(
         }) else {
             return Resolution::Unchanged;
         };
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: plan.target_ids,
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            plan.target_ids,
+            EditOperation::ReplaceDocument {
                 document: Box::new(plan.document),
             },
-        })
+        )
     })
 }
 

@@ -226,11 +226,6 @@ pub fn use_firmware_position_edits(
 fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
     EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
         let scope = &request.identity.ui_scope;
-        if accepted.session_epoch != scope.session_epoch
-            || accepted.document.id != scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         let boardstudio_core::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
             ..
@@ -269,17 +264,14 @@ fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResol
         {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![scope.board_id.clone(), request.key_id.clone()],
-            operation: EditOperation::SetKeyBinding {
+        Resolution::submit(
+            vec![scope.board_id.clone(), request.key_id.clone()],
+            EditOperation::SetKeyBinding {
                 board_id: scope.board_id.clone(),
                 key_id: request.key_id.clone(),
                 binding: request.binding.clone(),
             },
-        })
+        )
     })
 }
 
@@ -533,11 +525,6 @@ fn part_net_resolver(
     seed: u64,
 ) -> EditResolver {
     EditResolver::new("pcb-part-net", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != request.identity.ui_scope.session_epoch
-            || accepted.document.id != request.identity.ui_scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         let part = accepted
             .document
             .parts
@@ -583,18 +570,15 @@ fn part_net_resolver(
         if proposal == *accepted.document {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![
+        Resolution::submit(
+            vec![
                 request.identity.board_id.clone(),
                 request.identity.part_id.clone(),
             ],
-            operation: EditOperation::ReplaceDocument {
+            EditOperation::ReplaceDocument {
                 document: Box::new(proposal),
             },
-        })
+        )
     })
 }
 

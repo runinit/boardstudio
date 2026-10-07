@@ -200,13 +200,7 @@ fn placement_resolver(
             &part,
             layout_id.as_deref(),
         ) {
-            Ok(operation) => Resolution::Submit(boardstudio_core::model::EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![part.id.clone()],
-                operation,
-            }),
+            Ok(operation) => Resolution::submit(vec![part.id.clone()], operation),
             Err(message) => Resolution::Retire(message),
         },
     )
@@ -241,13 +235,7 @@ fn key_component_resolver(
             if definitions.is_some() {
                 target_ids.push(definition.id.clone());
             }
-            Resolution::Submit(boardstudio_core::model::EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids,
-                operation,
-            })
+            Resolution::submit(target_ids, operation)
         },
     )
 }

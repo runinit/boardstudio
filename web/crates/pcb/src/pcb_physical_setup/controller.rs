@@ -654,9 +654,7 @@ fn setup_resolver(
     prepared: Result<(), String>,
 ) -> EditResolver {
     EditResolver::new("physical-setup", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != owner.session_epoch
-            || accepted.document.id != owner.document_id
-        {
+        if accepted.document.id != owner.document_id {
             return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
         }
         if let Err(reason) = &prepared {
@@ -698,15 +696,12 @@ fn setup_resolver(
         if proposal == *accepted.document {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![owner.board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![owner.board_id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(proposal),
             },
-        })
+        )
     })
 }
 
