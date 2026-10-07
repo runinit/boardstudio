@@ -154,14 +154,13 @@ impl<K: Clone + PartialEq> SelectionRetention<K> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod selection_retention_tests {
     use super::*;
     use boardstudio_application::{
-        Completion, EditResolver, Event, OperationId, Resolution, SaveResult, Scope, SelectionMode,
-        Session,
+        EditResolver, Event, OperationId, Resolution, Scope, SelectionMode,
     };
-    use boardstudio_core::{CoreEngine, model::*};
+    use boardstudio_core::model::*;
     use std::collections::BTreeMap;
 
     fn fixed_commit(operation_id: OperationId, command: EditCommand) -> Event {
@@ -171,40 +170,6 @@ mod selection_retention_tests {
             resolver: EditResolver::new("test fixed command", move |_| {
                 Resolution::Submit(command.clone())
             }),
-        }
-    }
-
-    fn advance(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        initial: Vec<boardstudio_application::Effect>,
-    ) {
-        let mut pending = initial;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                boardstudio_application::Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                boardstudio_application::Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
         }
     }
 
@@ -290,14 +255,12 @@ mod selection_retention_tests {
         use boardstudio_application::{GestureView, SessionEpoch};
         use std::{cell::Cell, rc::Rc, sync::Arc};
 
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(Event::Open {
+        let runtime = boardstudio_web_runtime::runtime::Runtime::new();
+        runtime.submit(Event::Open {
             operation_id: OperationId(1),
             document: matrix_fixture(),
         });
-        advance(&mut session, &mut core, effects);
-        let mut model = session.read_model().clone();
+        let mut model = runtime.model();
         assert!(
             model.accepted.is_some(),
             "fixture must reach real Core acceptance"
@@ -366,7 +329,7 @@ mod selection_retention_tests {
             panic!("closed source has no membership to project")
         });
         assert!(empty.eligible.is_empty() && empty.live.is_empty());
-        let reopened = session.read_model().clone();
+        let reopened = runtime.model();
         let before = calls.get();
         cache.project(&reopened, compute);
         assert_eq!(
@@ -378,13 +341,11 @@ mod selection_retention_tests {
 
     #[test]
     fn core_disable_then_undo_restores_scoped_key_selection() {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(Event::Open {
+        let runtime = boardstudio_web_runtime::runtime::Runtime::new();
+        runtime.submit(Event::Open {
             operation_id: OperationId(1),
             document: matrix_fixture(),
         });
-        advance(&mut session, &mut core, effects);
         let matrix = Matrix {
             id: "matrix-main".into(),
             name: None,
@@ -406,7 +367,7 @@ mod selection_retention_tests {
             column_origins: vec![],
             cells: vec![],
         };
-        let effects = session.submit(fixed_commit(
+        runtime.submit(fixed_commit(
             OperationId(2),
             EditCommand {
                 base_revision: 0,
@@ -419,16 +380,15 @@ mod selection_retention_tests {
                 },
             },
         ));
-        advance(&mut session, &mut core, effects);
         let key_id = "matrix/matrix-main/r0c0";
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        let accepted = runtime.model().accepted.unwrap();
         let scope = Scope {
             session_epoch: accepted.session_epoch,
             document_id: accepted.document.id.clone(),
             board_id: "main".into(),
             instance_id: None,
         };
-        session.submit(Event::SelectMatrixCell {
+        runtime.submit(Event::SelectMatrixCell {
             operation_id: OperationId(3),
             scope: scope.clone(),
             matrix_id: "matrix-main".into(),
@@ -438,16 +398,16 @@ mod selection_retention_tests {
         });
         let owner = (scope, "key:matrix-main:r0c0".to_owned());
         let mut retention = SelectionRetention::default();
-        let before = session.read_model();
+        let before = runtime.model();
         let selected = before.selected_part_ids.clone();
         assert_eq!(selected, vec![key_id]);
-        assert_eq!(eligible_ids(before, "matrix-main", key_id), selected);
+        assert_eq!(eligible_ids(&before, "matrix-main", key_id), selected);
         assert_eq!(
             retention.reconcile(
                 Some(&owner),
                 &selected,
-                &eligible_ids(before, "matrix-main", key_id),
-                &live_ids(before, key_id)
+                &eligible_ids(&before, "matrix-main", key_id),
+                &live_ids(&before, key_id)
             ),
             selected
         );
@@ -465,7 +425,7 @@ mod selection_retention_tests {
             assemblies_local: None,
         });
         let revision = before.accepted.as_ref().unwrap().document.revision;
-        let effects = session.submit(fixed_commit(
+        runtime.submit(fixed_commit(
             OperationId(4),
             EditCommand {
                 base_revision: revision,
@@ -478,13 +438,12 @@ mod selection_retention_tests {
                 },
             },
         ));
-        advance(&mut session, &mut core, effects);
-        let after_disable = session.read_model();
+        let after_disable = runtime.model();
         assert!(
-            live_ids(after_disable, key_id).is_empty(),
+            live_ids(&after_disable, key_id).is_empty(),
             "Core removes the disabled generated part from the board"
         );
-        assert!(eligible_ids(after_disable, "matrix-main", key_id).is_empty());
+        assert!(eligible_ids(&after_disable, "matrix-main", key_id).is_empty());
         assert!(
             after_disable.selected_part_ids.is_empty(),
             "Session prunes the selected part before presentation reconciliation"
@@ -494,24 +453,23 @@ mod selection_retention_tests {
                 .reconcile(
                     Some(&owner),
                     &after_disable.selected_part_ids,
-                    &eligible_ids(after_disable, "matrix-main", key_id),
-                    &live_ids(after_disable, key_id)
+                    &eligible_ids(&after_disable, "matrix-main", key_id),
+                    &live_ids(&after_disable, key_id)
                 )
                 .is_empty()
         );
 
-        let effects = session.submit(Event::Undo {
+        runtime.submit(Event::Undo {
             operation_id: OperationId(5),
         });
-        advance(&mut session, &mut core, effects);
-        let after_undo = session.read_model();
-        assert_eq!(live_ids(after_undo, key_id), selected);
-        assert_eq!(eligible_ids(after_undo, "matrix-main", key_id), selected);
+        let after_undo = runtime.model();
+        assert_eq!(live_ids(&after_undo, key_id), selected);
+        assert_eq!(eligible_ids(&after_undo, "matrix-main", key_id), selected);
         let restored = retention.reconcile(
             Some(&owner),
             &after_undo.selected_part_ids,
-            &eligible_ids(after_undo, "matrix-main", key_id),
-            &live_ids(after_undo, key_id),
+            &eligible_ids(&after_undo, "matrix-main", key_id),
+            &live_ids(&after_undo, key_id),
         );
         assert_eq!(restored, selected);
     }
