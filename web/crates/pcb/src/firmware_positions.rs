@@ -32,11 +32,7 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
         .count();
     let ready = matches!(&props.projection.state, FirmwarePositionState::Current)
         && props.projection.identity.is_some();
-    let pending = props
-        .feedback
-        .as_ref()
-        .is_some_and(|feedback| matches!(&feedback.state, FirmwarePositionFeedbackState::Pending));
-    let disabled = !ready || !props.editable || pending;
+    let disabled = !ready || !props.editable;
 
     let content = match &props.projection.state {
         FirmwarePositionState::Idle => rsx! {
@@ -64,10 +60,11 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
                                 let label = key.label.clone();
                                 let id = format!("firmware-key-{}", key.id);
                                 let identity = props.projection.identity.clone();
-                                let value = props.projection.bindings
+                                let accepted_value = props.projection.bindings
                                     .get(&key.id)
                                     .map_or("&none", String::as_str)
                                     .to_owned();
+                                let value = identity.as_ref().and_then(|identity| super::pcb_wiring::pending_binding(identity, &key.id)).unwrap_or(accepted_value);
                                 let choices = firmware_position_choices::choices();
                                 rsx! {
                                     label { class: "firmware-keymap-row", r#for: "{id}", key: "{key_id}",

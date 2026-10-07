@@ -130,7 +130,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
     let Some(part_id) = props.source.active_part_id.as_deref() else {
         return rsx! {};
     };
-    let Some(projection) = project(
+    let Some(mut projection) = project(
         &props.source.document,
         &props.source.identity.scope.board_id,
         part_id,
@@ -145,6 +145,7 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         .generator
         .as_ref()
         .map(|generator| generator.source.clone());
+    owner::apply_drafts(&identity, &mut projection);
     let schema = use_resource(use_reactive((&generator_source,), |(source,)| async move {
         match source {
             Some(source) => crate::presentation::parts::generator_parameter_schema(source).await,
@@ -152,11 +153,11 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         }
     }));
     let schema_state = schema.read().clone();
-    let matching_feedback = props
-        .actions
-        .feedback
-        .clone()
-        .filter(|feedback| feedback.identity == identity);
+    let matching_feedback = props.actions.feedback.clone().filter(|feedback| {
+        feedback.identity.ui_scope == identity.ui_scope
+            && feedback.identity.scope_generation == identity.scope_generation
+            && feedback.identity.part_id == identity.part_id
+    });
     let read_only = !props.actions.editable || projection.part.locked == Some(true);
     let on_edit = props.actions.on_edit;
     let scan_mode = projection.press_mode;
@@ -254,24 +255,14 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                                                 let field_name = name.clone();
                                                 let field_axis = axis.to_owned();
                                                 let edit = props.actions.on_edit;
-                                                let preserved = current.clone();
                                                 let on_change = move |event: FormEvent| {
                                                     let raw = event.value();
-                                                    let mut next = preserved.clone();
-                                                    if raw.trim().is_empty() {
-                                                        next.remove(&field_axis);
-                                                    } else {
+                                                    let value = if raw.trim().is_empty() { None } else {
                                                         let Ok(coordinate) = raw.parse::<f64>() else { return; };
                                                         if !coordinate.is_finite() { return; }
-                                                        next.insert(field_axis.clone(), Value::from(coordinate));
-                                                    }
-                                                    edit.call(PartInputEditRequest {
-                                                        identity: field_identity.clone(),
-                                                        intent: PartInputIntent::GeneratorParameter {
-                                                            name: field_name.clone(),
-                                                            value: (!next.is_empty()).then_some(Value::Object(next)),
-                                                        },
-                                                    });
+                                                        Some(coordinate)
+                                                    };
+                                                    edit.call(PartInputEditRequest { identity: field_identity.clone(), intent: PartInputIntent::GeneratorAnchor { name: field_name.clone(), axis: field_axis.clone(), value } });
                                                 };
                                                 rsx! {
                                                     label { class: "m1-pcb-part-input-axis", key: "{axis}",

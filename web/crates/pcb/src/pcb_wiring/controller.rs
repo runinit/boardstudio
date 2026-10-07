@@ -6,15 +6,23 @@ use super::{
     PcbWiringResolution, WiringPlanIdentity, firmware_position_projection,
 };
 use crate::firmware_position_projection::{
-    EditSettlement, EditSettlementSource, FirmwarePositionAdmission,
-    FirmwarePositionFeedbackTarget, admits_edit, settle_edit,
+    FirmwarePositionAdmission, FirmwarePositionFeedbackTarget, admits_edit,
 };
 use crate::pcb_wiring_mode_operation::{ResolutionAdmission, begin_resolution};
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Durability, Event, Lifecycle, Scope};
+use boardstudio_application::{
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
+};
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, ProjectDoc};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
-use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::VecDeque,
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+};
 use wasm_bindgen_futures::spawn_local;
 
 use super::{
@@ -23,11 +31,21 @@ use super::{
     part_connections::{self, PartNetIntent},
 };
 
-#[derive(Clone)]
-struct PendingFirmwarePositionEdit {
-    request: FirmwarePositionEditRequest,
-    base_revision: u64,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+#[derive(Clone, Copy)]
+struct FirmwareTickets(Signal<Vec<(FirmwarePositionEditRequest, EditTicket)>>);
+
+pub(crate) fn pending_binding(
+    identity: &crate::firmware_position_projection::FirmwarePositionIdentity,
+    key_id: &str,
+) -> Option<String> {
+    let tickets = try_consume_context::<FirmwareTickets>()?;
+    tickets.0.read().iter().rev().find_map(|(request, ticket)| {
+        (ticket.is_pending()
+            && request.identity.ui_scope == identity.ui_scope
+            && request.identity.scope_generation == identity.scope_generation
+            && request.key_id == key_id)
+            .then(|| request.binding.clone())
+    })
 }
 
 pub struct FirmwarePositionActions {
@@ -45,103 +63,50 @@ pub fn use_firmware_position_edits(
     instance_is_current: Rc<dyn Fn() -> bool>,
     resolution: Signal<PcbWiringResolution>,
 ) -> FirmwarePositionActions {
-    let pending = use_signal(|| None::<PendingFirmwarePositionEdit>);
+    let tickets = use_signal(Vec::<(FirmwarePositionEditRequest, EditTicket)>::new);
+    use_context_provider(|| FirmwareTickets(tickets));
+    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
     let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
     let generation = scope_generation();
     let observed_version = version();
 
     use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
         let mut feedback = feedback;
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow().clone() else {
-                return;
-            };
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let target_still_current = runtime.scope().as_ref().is_some_and(|scope| {
-                same_feedback_target(scope, &waiting.request.identity.ui_scope)
-            }) && snapshot.session_epoch
-                == waiting.request.identity.ui_scope.session_epoch
-                && snapshot.document.id == waiting.request.identity.ui_scope.document_id
-                && model.active_board_id == waiting.request.identity.ui_scope.board_id
-                && model.active_instance_id == waiting.request.identity.ui_scope.instance_id
-                && snapshot
-                    .document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == waiting.request.identity.ui_scope.board_id)
-                    .is_some_and(|board| {
-                        let part_id = waiting
-                            .request
-                            .key_id
-                            .strip_suffix("/push")
-                            .unwrap_or(&waiting.request.key_id);
-                        board.part_ids.iter().any(|id| id == part_id)
-                            && snapshot
-                                .document
-                                .parts
-                                .iter()
-                                .any(|part| part.id == part_id)
-                    });
-            let saved = model.lifecycle == Lifecycle::Ready
-                && model.durability
-                    == (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    });
-            let durability_failure = match &model.durability {
-                Durability::Failed { reason, .. } => Some(reason.as_str()),
-                _ => None,
-            };
-            let accepted_value = legacy_binding(
-                snapshot,
-                &waiting.request.identity.ui_scope.board_id,
-                &waiting.request.key_id,
-            );
-            match settle_edit(
-                &outcome,
-                EditSettlementSource {
-                    target_is_current: target_still_current,
-                    accepted_is_saved: saved,
-                    accepted_revision: snapshot.document.revision,
-                    base_revision: waiting.base_revision,
-                    durability_failure,
-                    accepted_value,
-                    requested_value: &waiting.request.binding,
-                },
-            ) {
-                EditSettlement::Wait => {}
-                EditSettlement::Suppress => {
-                    pending.set(None);
-                    feedback.set(None);
-                }
-                EditSettlement::Saved => {
-                    pending.set(None);
-                    feedback.set(Some(FirmwarePositionFeedback {
-                        target: feedback_target(&waiting.request),
-                        state: FirmwarePositionFeedbackState::Saved,
+            let mut entries = tickets.peek().clone();
+            let before = entries.len();
+            entries.retain(|(request, ticket)| {
+                let live = workspace() == "PCB"
+                    && scope_generation() == request.identity.scope_generation
+                    && runtime.scope().as_ref() == Some(&request.identity.ui_scope);
+                let state = match ticket.settlement(live) {
+                    Settlement::Pending => return true,
+                    Settlement::Landed { .. } => Some(FirmwarePositionFeedbackState::Saved),
+                    Settlement::Failed { message } => {
+                        Some(FirmwarePositionFeedbackState::Failed(message))
+                    }
+                    Settlement::Retired => None,
+                };
+                if *latest.peek() == Some(ticket.operation()) {
+                    feedback.set(state.map(|state| FirmwarePositionFeedback {
+                        target: feedback_target(request),
+                        state,
                     }));
                 }
-                EditSettlement::Failed(message) => {
-                    pending.set(None);
-                    feedback.set(Some(FirmwarePositionFeedback {
-                        target: feedback_target(&waiting.request),
-                        state: FirmwarePositionFeedbackState::Failed(message),
-                    }));
-                }
+                false
+            });
+            if before != entries.len() {
+                tickets.set(entries);
             }
         }
     }));
 
     let on_edit = use_callback({
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
+        let mut latest = latest;
         let mut feedback = feedback;
         let instance_is_current = instance_is_current.clone();
         move |request: FirmwarePositionEditRequest| {
@@ -153,10 +118,15 @@ pub fn use_firmware_position_edits(
                 return;
             }
             let model = runtime.model();
-            if model.lifecycle != Lifecycle::Ready
-                || model.display_preview.is_some()
+            if !matches!(
+                model.lifecycle,
+                Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+            ) || model.display_preview.is_some()
                 || model.gesture.is_some()
-                || !matches!(model.durability, Durability::Saved { .. })
+                || !matches!(
+                    model.durability,
+                    Durability::Saved { .. } | Durability::Saving { .. }
+                )
                 || model.active_board_id != request.identity.ui_scope.board_id
                 || model.active_instance_id != request.identity.ui_scope.instance_id
             {
@@ -223,38 +193,18 @@ pub fn use_firmware_position_edits(
             ) {
                 return;
             }
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let base_revision = snapshot.document.revision;
-            pending.set(Some(PendingFirmwarePositionEdit {
-                request: request.clone(),
-                base_revision,
-                outcome,
-            }));
+            let ticket = EditTicket::begin(
+                &runtime,
+                "firmware-position",
+                Some("firmware position".into()),
+                firmware_position_resolver(request.clone()),
+            );
+            latest.set(Some(ticket.operation()));
             feedback.set(Some(FirmwarePositionFeedback {
                 target: feedback_target(&request),
                 state: FirmwarePositionFeedbackState::Pending,
             }));
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision,
-                    transaction_id: format!(
-                        "firmware-position-{}-{}",
-                        request.identity.scope_generation, operation_id.0
-                    ),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![
-                        request.identity.ui_scope.board_id.clone(),
-                        request.key_id.clone(),
-                    ],
-                    operation: EditOperation::SetKeyBinding {
-                        board_id: request.identity.ui_scope.board_id,
-                        key_id: request.key_id,
-                        binding: request.binding,
-                    },
-                },
-            });
+            tickets.write().push((request, ticket));
         }
     });
 
@@ -273,15 +223,108 @@ pub fn use_firmware_position_edits(
     }
 }
 
-#[derive(Clone)]
-struct PendingPartNetEdit {
-    identity: PartNetEditIdentity,
-    proposal: ProjectDoc,
-    base_revision: u64,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
+    EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
+        let scope = &request.identity.ui_scope;
+        if accepted.session_epoch != scope.session_epoch
+            || accepted.document.id != scope.document_id
+        {
+            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
+        }
+        let boardstudio_core::model::CoreRequest::ResolveElectrical {
+            request: electrical_request,
+            ..
+        } = crate::pcb_wiring_mode_operation::electrical_preview_request(
+            "firmware-position",
+            &accepted.document,
+            &scope.board_id,
+        )
+        else {
+            unreachable!()
+        };
+        let plan = boardstudio_core::electrical::resolve(electrical_request);
+        let identity = WiringPlanIdentity {
+            token: accepted.token,
+            revision: accepted.document.revision,
+            ..request.identity.plan.clone()
+        };
+        let projection = firmware_position_projection::project(
+            &accepted.document,
+            &identity,
+            scope,
+            request.identity.scope_generation,
+            super::PlanLifecycle::Current(&identity, &plan),
+        );
+        if !projection.keys.iter().any(|key| key.id == request.key_id) {
+            return Resolution::Retire(
+                "The firmware key was deleted or is no longer eligible on this board.".into(),
+            );
+        }
+        if projection
+            .bindings
+            .get(&request.key_id)
+            .map(String::as_str)
+            .unwrap_or("&none")
+            == request.binding
+        {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![scope.board_id.clone(), request.key_id.clone()],
+            operation: EditOperation::SetKeyBinding {
+                board_id: scope.board_id.clone(),
+                key_id: request.key_id.clone(),
+                binding: request.binding.clone(),
+            },
+        })
+    })
 }
 
-/// Editor-lifetime admission and exact outcome owner for contextual PCB part-net edits.
+#[derive(Clone, Copy)]
+struct PartNetTickets {
+    tickets: Signal<Vec<(PartNetEditRequest, EditTicket, bool)>>,
+    preparing_create: Signal<bool>,
+}
+
+pub(super) fn create_net_pending() -> bool {
+    try_consume_context::<PartNetTickets>().is_some_and(|owner| {
+        (owner.preparing_create)()
+            || owner
+                .tickets
+                .read()
+                .iter()
+                .any(|(_, ticket, create)| *create && ticket.is_pending())
+    })
+}
+
+pub(super) fn pending_net(
+    identity: &PartNetEditIdentity,
+    pad_ids: &[String],
+) -> Option<Option<String>> {
+    let owner = try_consume_context::<PartNetTickets>()?;
+    owner
+        .tickets
+        .read()
+        .iter()
+        .rev()
+        .find_map(|(request, ticket, _)| match &request.action {
+            PartNetEditAction::AssignPads {
+                pad_ids: target,
+                net_id,
+            } if ticket.is_pending()
+                && same_part_net_identity(&request.identity, identity)
+                && target == pad_ids =>
+            {
+                Some(net_id.clone())
+            }
+            _ => None,
+        })
+}
+
+/// Queue each connection intent against the accepted board at execution.
 pub fn use_pcb_part_net_edits(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -289,255 +332,186 @@ pub fn use_pcb_part_net_edits(
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
 ) -> PartNetActions {
-    let pending = use_signal(|| None::<PendingPartNetEdit>);
+    let tickets = use_signal(Vec::<(PartNetEditRequest, EditTicket, bool)>::new);
+    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
     let feedback = use_signal(|| None::<PartNetFeedback>);
+    let preparing_create = use_signal(|| false);
+    use_context_provider(|| PartNetTickets {
+        tickets,
+        preparing_create,
+    });
+    let queue = use_hook(|| {
+        Rc::new(RefCell::new(VecDeque::<(
+            PartNetEditRequest,
+            String,
+            Option<String>,
+            bool,
+        )>::new()))
+    });
+    let preparing = use_hook(|| Rc::new(Cell::new(false)));
     let alive = use_part_net_owner_lifetime();
     let generation = scope_generation();
     let observed_version = version();
-
     use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
         let mut feedback = feedback;
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow_mut().take() else {
-                return;
-            };
-            let model = runtime.model();
-            let accepted = model.accepted.as_ref().filter(|accepted| {
-                accepted.session_epoch == waiting.identity.ui_scope.session_epoch
-                    && accepted.document.id == waiting.identity.ui_scope.document_id
+            let mut entries = tickets.peek().clone();
+            let before = entries.len();
+            entries.retain(|(request, ticket, _)| {
+                let identity = &request.identity;
+                let live = workspace() == "PCB"
+                    && scope_generation() == identity.generation
+                    && runtime.scope().as_ref() == Some(&identity.ui_scope)
+                    && runtime.model().selected_part_ids.as_slice() == [identity.part_id.as_str()];
+                let result = match ticket.settlement(live) {
+                    Settlement::Pending => return true,
+                    Settlement::Landed { .. } => {
+                        Some(("Connection saved.".into(), PartNetFeedbackState::Saved))
+                    }
+                    Settlement::Failed { message } => Some((message, PartNetFeedbackState::Failed)),
+                    Settlement::Retired => None,
+                };
+                if *latest.peek() == Some(ticket.operation()) {
+                    feedback.set(result.map(|(message, state)| PartNetFeedback {
+                        identity: identity.clone(),
+                        message,
+                        state,
+                    }));
+                }
+                false
             });
-            let saved_proposal = accepted.is_some_and(|accepted| {
-                let mut expected = waiting.proposal.clone();
-                expected.revision = accepted.document.revision;
-                model.lifecycle == Lifecycle::Ready
-                    && model.durability
-                        == (Durability::Saved {
-                            revision: accepted.document.revision,
-                        })
-                    && accepted.document.revision > waiting.base_revision
-                    && *accepted.document == expected
-            });
-            let (message, state) = match outcome {
-                boardstudio_application::TerminalOutcome::Completed if saved_proposal =>
-                    ("Connection saved.".into(), PartNetFeedbackState::Saved),
-                boardstudio_application::TerminalOutcome::Completed => (
-                    "The edit completed, but its proposal is no longer the accepted project. Retry the connection change.".into(),
-                    PartNetFeedbackState::Failed,
-                ),
-                boardstudio_application::TerminalOutcome::Rejected(message)
-                | boardstudio_application::TerminalOutcome::ExecutorFailed(message)
-                | boardstudio_application::TerminalOutcome::PersistenceFailed(message)
-                | boardstudio_application::TerminalOutcome::BlockedByRecovery(message) =>
-                    (format!("Connection edit failed: {message}"), PartNetFeedbackState::Failed),
-                boardstudio_application::TerminalOutcome::Cancelled
-                | boardstudio_application::TerminalOutcome::Closed
-                | boardstudio_application::TerminalOutcome::Superseded =>
-                    ("Connection edit was cancelled before it could be saved.".into(), PartNetFeedbackState::Failed),
-            };
-            let mut feedback_identity = waiting.identity.clone();
-            if saved_proposal && let Some(accepted) = accepted {
-                feedback_identity.token = accepted.token;
-                feedback_identity.revision = accepted.document.revision;
+            if before != entries.len() {
+                tickets.set(entries);
             }
-            feedback.set(Some(PartNetFeedback {
-                identity: feedback_identity,
-                message,
-                state,
-            }));
-            pending.set(None);
         }
     }));
-
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
         move |request: PartNetEditRequest| {
-            if pending.peek().is_some()
-                || workspace() != "PCB"
-                || scope_generation() != generation
-                || !instance_is_current()
-            {
+            if workspace() != "PCB" || scope_generation() != generation || !instance_is_current() {
                 return;
             }
-            let Some(current_identity) =
+            let Some(current) =
                 current_part_net_identity(&runtime, generation, instance_is_current())
             else {
                 return;
             };
-            if !request_matches_current_part(&request.identity, &current_identity) {
+            if !request_matches_current_part(&request.identity, &current) {
                 return;
             }
-            let model = runtime.model();
-            if model.lifecycle != Lifecycle::Ready
-                || model.display_preview.is_some()
-                || model.gesture.is_some()
-                || !matches!(model.durability, Durability::Saved { .. })
-                || model.active_board_id != request.identity.ui_scope.board_id
-                || model.active_instance_id != request.identity.ui_scope.instance_id
-                || model.selected_part_ids.as_slice() != [request.identity.part_id.as_str()]
-                || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
+            let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
+            if create
+                && (*preparing_create.peek()
+                    || tickets
+                        .peek()
+                        .iter()
+                        .any(|(_, ticket, create)| *create && ticket.is_pending()))
             {
                 return;
             }
-            let Some(accepted) = model.accepted.as_ref() else {
-                return;
-            };
-            if accepted.session_epoch != request.identity.ui_scope.session_epoch
-                || accepted.document.id != request.identity.ui_scope.document_id
-                || accepted.token != request.identity.token
-                || accepted.document.revision != request.identity.revision
-                || accepted.scene.revision != accepted.document.revision
-            {
-                return;
-            }
-            let Some(part) = accepted
+            let accepted = runtime.model().accepted.unwrap();
+            let part = accepted
                 .document
                 .parts
                 .iter()
                 .find(|part| part.id == request.identity.part_id)
-            else {
-                return;
-            };
-            let Some(definition) = accepted
+                .unwrap();
+            let definition = accepted
                 .document
                 .definitions
                 .iter()
                 .find(|definition| definition.id == part.definition_id)
-            else {
-                return;
-            };
+                .unwrap();
+            let definition_id = definition.id.clone();
             let source = definition
                 .generator
                 .as_ref()
                 .map(|generator| generator.source.clone());
-            let captured_document = (*accepted.document).clone();
-            let runtime = runtime.clone();
-            let mut pending = pending;
+            let mut preparing_create = preparing_create;
+            if create {
+                preparing_create.set(true);
+            }
+            let mut latest = latest;
+            latest.set(None);
             let mut feedback = feedback;
-            let instance_is_current = instance_is_current.clone();
+            feedback.set(None);
+            queue
+                .borrow_mut()
+                .push_back((request, definition_id, source, create));
+            if preparing.replace(true) {
+                return;
+            }
+            let queue = queue.clone();
+            let preparing = preparing.clone();
+            let runtime = runtime.clone();
             let alive = alive.clone();
-            let generation = request.identity.generation;
+            let instance_is_current = instance_is_current.clone();
+            let mut tickets = tickets;
+            let mut latest = latest;
+            let mut feedback = feedback;
             spawn_local(async move {
-                let is_generator_source = match source.as_deref() {
-                    Some(source) => {
-                        match crate::presentation::parts::is_generator_source(source.to_owned()).await
-                        {
-                            Ok(is_generator_source) => is_generator_source,
-                            Err(_) => return,
+                loop {
+                    let item = queue.borrow_mut().pop_front();
+                    let Some((request, definition_id, source, create)) = item else {
+                        preparing.set(false);
+                        break;
+                    };
+                    let classified = match source.as_deref() {
+                        Some(source) => {
+                            crate::presentation::parts::is_generator_source(source.to_owned()).await
                         }
+                        None => Ok(false),
+                    };
+                    if !alive.get() {
+                        return;
                     }
-                    None => false,
-                };
-                // This callback can outlive the Editor. Check the hook lifetime before reading
-                // any Dioxus signals or invoking the selection predicate it captured.
-                if !part_net_owner_context_is_current(
-                    &alive,
-                    workspace,
-                    scope_generation,
-                    generation,
-                ) {
-                    return;
-                }
-                let Some(current_identity) =
-                    current_part_net_identity(&runtime, generation, instance_is_current())
-                else {
-                    return;
-                };
-                if pending.peek().is_some()
-                    || !request_matches_current_part(&request.identity, &current_identity)
-                {
-                    return;
-                }
-                let model = runtime.model();
-                let Some(accepted) = model.accepted.as_ref() else {
-                    return;
-                };
-                if model.lifecycle != Lifecycle::Ready
-                    || model.display_preview.is_some()
-                    || model.gesture.is_some()
-                    || !matches!(model.durability, Durability::Saved { .. })
-                    || model.active_board_id != request.identity.ui_scope.board_id
-                    || model.active_instance_id != request.identity.ui_scope.instance_id
-                    || model.selected_part_ids.as_slice() != [request.identity.part_id.as_str()]
-                    || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
-                    || accepted.token != request.identity.token
-                    || accepted.document.revision != request.identity.revision
-                    || *accepted.document != captured_document
-                {
-                    return;
-                }
-                let Some(part) = accepted
-                    .document
-                    .parts
-                    .iter()
-                    .find(|part| part.id == request.identity.part_id)
-                else {
-                    return;
-                };
-                let current_source = accepted
-                    .document
-                    .definitions
-                    .iter()
-                    .find(|definition| definition.id == part.definition_id)
-                    .and_then(|definition| definition.generator.as_ref())
-                    .map(|generator| generator.source.as_str());
-                if current_source != source.as_deref() {
-                    return;
-                }
-                let operation_id = runtime.operation();
-                let intent = match request.action {
-                    PartNetEditAction::AssignPads { pad_ids, net_id } => {
-                        PartNetIntent::AssignPads { pad_ids, net_id }
+                    if create {
+                        preparing_create.set(false);
                     }
-                    PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
-                        net_id: fresh_net_id(&accepted.document, operation_id.0),
-                        name,
-                    },
-                };
-                let proposal = match part_connections::propose(
-                    &accepted.document,
-                    &request.identity.board_id,
-                    &request.identity.part_id,
-                    is_generator_source,
-                    intent,
-                ) {
-                    Ok(proposal) => proposal,
-                    Err(_) => return,
-                };
-                if proposal == *accepted.document {
-                    return;
+                    if !part_net_owner_context_is_current(
+                        &alive,
+                        workspace,
+                        scope_generation,
+                        generation,
+                    ) || !instance_is_current()
+                        || runtime.scope().as_ref() != Some(&request.identity.ui_scope)
+                        || runtime.model().selected_part_ids.as_slice()
+                            != [request.identity.part_id.as_str()]
+                    {
+                        continue;
+                    }
+                    let request_for_ui = request.clone();
+                    let seed = runtime.operation().0;
+                    let resolver = match classified {
+                        Ok(is_generator_source) => part_net_resolver(
+                            request,
+                            definition_id,
+                            source,
+                            is_generator_source,
+                            seed,
+                        ),
+                        Err(reason) => EditResolver::new("pcb-part-net", move |_| {
+                            Resolution::Retire(reason.clone())
+                        }),
+                    };
+                    let ticket = EditTicket::begin(
+                        &runtime,
+                        "pcb-part-net",
+                        Some("connection".into()),
+                        resolver,
+                    );
+                    latest.set(Some(ticket.operation()));
+                    feedback.set(None);
+                    tickets.write().push((request_for_ui, ticket, create));
                 }
-                let outcome = runtime.observe_operation(operation_id);
-                let base_revision = accepted.document.revision;
-                pending.set(Some(PendingPartNetEdit {
-                    identity: request.identity.clone(),
-                    proposal: proposal.clone(),
-                    base_revision,
-                    outcome,
-                }));
-                feedback.set(None);
-                runtime.submit(Event::Edit {
-                    operation_id,
-                    command: EditCommand {
-                        base_revision,
-                        transaction_id: format!("pcb-part-net-{}", operation_id.0),
-                        phase: EditPhase::Commit,
-                        target_ids: vec![request.identity.board_id, request.identity.part_id],
-                        operation: EditOperation::ReplaceDocument {
-                            document: Box::new(proposal),
-                        },
-                    },
-                });
             });
         }
     });
     let identity = current_part_net_identity(&runtime, generation, instance_is_current());
-    let editable = identity.is_some() && workspace() == "PCB" && pending().is_none();
+    let editable = identity.is_some() && workspace() == "PCB";
     let visible_feedback = feedback().filter(|feedback| {
         identity
             .as_ref()
@@ -549,6 +523,79 @@ pub fn use_pcb_part_net_edits(
         feedback: visible_feedback,
         on_edit,
     }
+}
+
+fn part_net_resolver(
+    request: PartNetEditRequest,
+    definition_id: String,
+    source: Option<String>,
+    is_generator_source: bool,
+    seed: u64,
+) -> EditResolver {
+    EditResolver::new("pcb-part-net", move |accepted: &AcceptedSnapshot| {
+        if accepted.session_epoch != request.identity.ui_scope.session_epoch
+            || accepted.document.id != request.identity.ui_scope.document_id
+        {
+            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
+        }
+        let part = accepted
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == request.identity.part_id);
+        let definition = part.and_then(|part| {
+            accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+        });
+        if definition.is_none_or(|definition| {
+            definition.id != definition_id
+                || definition
+                    .generator
+                    .as_ref()
+                    .map(|generator| &generator.source)
+                    != source.as_ref()
+        }) {
+            return Resolution::Retire("The part was deleted or its definition changed.".into());
+        }
+        let intent = match &request.action {
+            PartNetEditAction::AssignPads { pad_ids, net_id } => PartNetIntent::AssignPads {
+                pad_ids: pad_ids.clone(),
+                net_id: net_id.clone(),
+            },
+            PartNetEditAction::CreateNet { name } => PartNetIntent::CreateNet {
+                net_id: fresh_net_id(&accepted.document, seed),
+                name: name.clone(),
+            },
+        };
+        let proposal = match part_connections::propose(
+            &accepted.document,
+            &request.identity.board_id,
+            &request.identity.part_id,
+            is_generator_source,
+            intent,
+        ) {
+            Ok(proposal) => proposal,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        if proposal == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![
+                request.identity.board_id.clone(),
+                request.identity.part_id.clone(),
+            ],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(proposal),
+            },
+        })
+    })
 }
 
 fn current_part_net_identity(
@@ -570,10 +617,15 @@ fn current_part_net_identity(
         .boards
         .iter()
         .find(|board| board.id == scope.board_id)?;
-    if model.lifecycle != Lifecycle::Ready
-        || model.display_preview.is_some()
+    if !matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) || model.display_preview.is_some()
         || model.gesture.is_some()
-        || !matches!(model.durability, Durability::Saved { .. })
+        || !matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
         || model.active_board_id != scope.board_id
         || model.active_instance_id != scope.instance_id
         || accepted.session_epoch != scope.session_epoch
@@ -610,7 +662,10 @@ fn current_part_net_identity(
 }
 
 fn same_part_net_identity(left: &PartNetEditIdentity, right: &PartNetEditIdentity) -> bool {
-    left == right
+    left.ui_scope == right.ui_scope
+        && left.generation == right.generation
+        && left.part_id == right.part_id
+        && left.board_id == right.board_id
 }
 
 fn request_matches_current_part(
@@ -687,10 +742,15 @@ fn firmware_position_editable(
         return false;
     }
     let model = runtime.model();
-    if model.lifecycle != Lifecycle::Ready
-        || model.display_preview.is_some()
+    if !matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) || model.display_preview.is_some()
         || model.gesture.is_some()
-        || !matches!(model.durability, Durability::Saved { .. })
+        || !matches!(
+            model.durability,
+            Durability::Saved { .. } | Durability::Saving { .. }
+        )
     {
         return false;
     }
@@ -737,30 +797,6 @@ fn feedback_target(request: &FirmwarePositionEditRequest) -> FirmwarePositionFee
     }
 }
 
-fn same_feedback_target(current: &Scope, expected: &Scope) -> bool {
-    current.session_epoch == expected.session_epoch
-        && current.document_id == expected.document_id
-        && current.board_id == expected.board_id
-        && current.instance_id == expected.instance_id
-}
-
-fn legacy_binding<'a>(
-    snapshot: &'a AcceptedSnapshot,
-    board_id: &str,
-    key_id: &str,
-) -> Option<&'a str> {
-    snapshot
-        .document
-        .hardware
-        .as_ref()?
-        .boards
-        .iter()
-        .find(|board| board.board_id == board_id)?
-        .key_bindings
-        .get(key_id)
-        .map(String::as_str)
-}
-
 #[derive(Clone)]
 pub struct PcbWiringMount {
     pub resolution: PcbWiringResolution,
@@ -805,10 +841,7 @@ pub fn wiring_resolution_notice(
 
 /// Keep the board-plan query alive at Editor lifetime, regardless of the selected component
 /// or which workspace is currently visible. Call this hook unconditionally in the page parent.
-pub fn use_pcb_wiring_controller(
-    runtime: Rc<Runtime>,
-    version: Signal<u64>,
-) -> PcbWiringMount {
+pub fn use_pcb_wiring_controller(runtime: Rc<Runtime>, version: Signal<u64>) -> PcbWiringMount {
     let current: Rc<dyn Fn() -> Option<(WiringPlanIdentity, AcceptedSnapshot, Scope)>> = {
         let runtime = runtime.clone();
         Rc::new(move || current_input(&runtime))

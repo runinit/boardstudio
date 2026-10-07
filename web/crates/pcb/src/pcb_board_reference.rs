@@ -1,6 +1,6 @@
 //! Scoped controls and file-backed editing for routed-board references.
-use boardstudio_application::TerminalOutcome;
 use boardstudio_core::model::{Asset, BoardReference};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
@@ -73,6 +73,24 @@ pub enum Action {
     Remove,
 }
 
+fn action_key(action: &Action) -> String {
+    match action {
+        Action::SetEnabled(_) => "enabled".into(),
+        Action::SetPositionX(_) => "x".into(),
+        Action::SetPositionY(_) => "y".into(),
+        Action::SetRotation(_) => "rotation".into(),
+        Action::SetElevation(_) => "elevation".into(),
+        Action::SetModelAsset { path, .. } => format!("model/{path}"),
+        Action::Remove => "remove".into(),
+    }
+}
+fn action_pending(tickets: Signal<Vec<(String, EditTicket)>>, key: &str) -> bool {
+    tickets
+        .read()
+        .iter()
+        .any(|(action, ticket)| action == key && ticket.is_pending())
+}
+
 async fn read_kicad_file(file: &File) -> Result<(Vec<u8>, String), String> {
     let filename = file.name();
     if !filename.to_ascii_lowercase().ends_with(".kicad_pcb") {
@@ -101,54 +119,23 @@ fn preview_paths(models: &[boardstudio_core::model::PcbModel]) -> Vec<String> {
         .collect()
 }
 
-async fn wait_for_reference_edit(
+async fn wait_for_reference_ticket(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &super::SelectionAdapter,
     owner: &super::LayoutOwnerIdentity,
     generation: Signal<u64>,
     request_generation: u64,
-    reference_id: &str,
-    source_asset_id: &str,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+    ticket: EditTicket,
 ) -> Result<(), String> {
     loop {
-        if generation() != request_generation
-            || !super::board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner)
-        {
-            return Err(
-                "The routed-board edit changed before it finished saving. Check the current board."
-                    .into(),
-            );
-        }
-        let settled = outcome.borrow().clone();
-        if let Some(settled) = settled {
-            return match settled {
-                TerminalOutcome::Completed
-                    if super::board_reference_target_is_current(
-                        runtime,
-                        workspace,
-                        adapter,
-                        owner,
-                        reference_id,
-                        source_asset_id,
-                    ) =>
-                {
-                    Ok(())
-                }
-                TerminalOutcome::Completed => Err(
-                    "The routed-board edit finished, but its reference is no longer active.".into(),
-                ),
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::PersistenceFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message)
-                | TerminalOutcome::ExecutorFailed(message) => Err(message),
-                TerminalOutcome::Superseded
-                | TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed => {
-                    Err("The routed-board edit was cancelled or superseded.".into())
-                }
-            };
+        let live = generation() == request_generation
+            && super::board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner);
+        match ticket.settlement(live) {
+            Settlement::Pending => {}
+            Settlement::Landed { .. } => return Ok(()),
+            Settlement::Failed { message } => return Err(message),
+            Settlement::Retired => return Err(String::new()),
         }
         TimeoutFuture::new(25).await;
     }
@@ -345,15 +332,13 @@ async fn import_routed_board(
         "board-reference-import",
     )?
     .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
-    wait_for_reference_edit(
+    wait_for_reference_ticket(
         runtime,
         workspace,
         adapter,
         owner,
         generation,
         request_generation,
-        &reference_id,
-        &asset_id,
         outcome,
     )
     .await?;
@@ -488,15 +473,13 @@ async fn attach_model_files(
         "board-reference-model-attach",
     )?
     .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
-    wait_for_reference_edit(
+    wait_for_reference_ticket(
         runtime,
         workspace,
         adapter,
         owner,
         generation,
         request_generation,
-        &reference.id,
-        &reference.asset_id,
         outcome,
     )
     .await
@@ -557,12 +540,15 @@ fn begin_board_import(
                     paths.set(discovered);
                     paths_asset_id.set(Some(asset_id));
                 }
-                Err(message) => error.set(Some(super::board_reference_effect::retryable_error(
-                    message,
-                    super::board_reference_owner_lineage_is_current(
-                        &runtime, workspace, &adapter, &owner,
-                    ),
-                ))),
+                Err(message) if !message.is_empty() => {
+                    error.set(Some(super::board_reference_effect::retryable_error(
+                        message,
+                        super::board_reference_owner_lineage_is_current(
+                            &runtime, workspace, &adapter, &owner,
+                        ),
+                    )))
+                }
+                Err(_) => {}
             }
         }
     });
@@ -604,7 +590,9 @@ fn begin_model_attachment(
         .await;
         if current_epoch() == epoch {
             busy.set(false);
-            if let Err(message) = result {
+            if let Err(message) = result
+                && !message.is_empty()
+            {
                 error.set(Some(super::board_reference_effect::retryable_error(
                     message,
                     super::board_reference_owner_lineage_is_current(
@@ -729,23 +717,65 @@ pub fn Editor(
         },
     ));
 
+    let action_tickets = use_signal(Vec::<(String, EditTicket)>::new);
+    let action_latest = use_signal(|| None::<boardstudio_application::OperationId>);
+    let version = use_context::<Signal<u64>>()();
+    use_effect(use_reactive((&version,), {
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner = owner.clone();
+        let mut action_tickets = action_tickets;
+        let mut error = error;
+        move |_| {
+            let mut entries = action_tickets.peek().clone();
+            let before = entries.len();
+            entries.retain(|(_, ticket)| {
+                let message =
+                    match ticket.settlement(super::board_reference_owner_lineage_is_current(
+                        &runtime, workspace, &adapter, &owner,
+                    )) {
+                        Settlement::Pending => return true,
+                        Settlement::Failed { message } => Some(message),
+                        _ => None,
+                    };
+                if *action_latest.peek() == Some(ticket.operation()) {
+                    error.set(message);
+                }
+                false
+            });
+            if entries.len() != before {
+                action_tickets.set(entries);
+            }
+        }
+    }));
     let on_action = use_callback({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = owner.clone();
         let reference_id = reference.as_ref().map(|reference| reference.id.clone());
+        let mut action_tickets = action_tickets;
+        let mut action_latest = action_latest;
+        let mut error = error;
         move |action: Action| {
             let Some(reference_id) = reference_id.as_deref() else {
                 return;
             };
-            super::dispatch_board_reference_action(
+            let key = action_key(&action);
+            if action_pending(action_tickets, &key) {
+                return;
+            }
+            if let Some(ticket) = super::dispatch_board_reference_action(
                 &runtime,
                 workspace,
                 &adapter,
                 &owner,
                 reference_id,
                 action,
-            );
+            ) {
+                action_latest.set(Some(ticket.operation()));
+                error.set(None);
+                action_tickets.write().push((key, ticket));
+            }
         }
     });
     let on_import = use_callback({
@@ -856,7 +886,7 @@ pub fn Editor(
                     input {
                         r#type: "checkbox",
                         checked: reference.enabled,
-                        disabled: disabled || busy,
+                        disabled: disabled || busy || action_pending(action_tickets, "enabled"),
                         aria_label: "Use routed PCB in assembly",
                         onchange: move |event: FormEvent| on_action.call(Action::SetEnabled(event.checked())),
                     }
@@ -866,7 +896,7 @@ pub fn Editor(
                     label { "X (mm)"
                         input {
                             r#type: "number", step: "0.1", value: "{reference.pose.at.x}",
-                            disabled: disabled || busy,
+                            disabled: disabled || busy || action_pending(action_tickets, "x"),
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
@@ -877,7 +907,7 @@ pub fn Editor(
                     label { "Y (mm)"
                         input {
                             r#type: "number", step: "0.1", value: "{reference.pose.at.y}",
-                            disabled: disabled || busy,
+                            disabled: disabled || busy || action_pending(action_tickets, "y"),
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
@@ -888,7 +918,7 @@ pub fn Editor(
                     label { "Z (mm)"
                         input {
                             r#type: "number", step: "0.1", value: "{reference.elevation}",
-                            disabled: disabled || busy,
+                            disabled: disabled || busy || action_pending(action_tickets, "elevation"),
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
@@ -900,7 +930,7 @@ pub fn Editor(
                 label { "Rotation (°)"
                     input {
                         r#type: "number", value: "{reference.pose.rotation}",
-                        disabled: disabled || busy,
+                        disabled: disabled || busy || action_pending(action_tickets, "rotation"),
                         oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f64>()
                                 && value.is_finite()
@@ -946,7 +976,7 @@ pub fn Editor(
                             label { key: "{path}", "Model asset for {path}"
                                 select {
                                     aria_label: "Model asset for {path}",
-                                    disabled: disabled || busy,
+                                    disabled: disabled || busy || action_pending(action_tickets, &format!("model/{path}")),
                                     onchange: move |event: FormEvent| {
                                         let selected = event.value();
                                         on_action.call(Action::SetModelAsset {
@@ -983,12 +1013,12 @@ pub fn Editor(
                 }
                 button {
                     r#type: "button",
-                    disabled: disabled || busy,
+                    disabled: disabled || busy || action_pending(action_tickets, "remove"),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }
             }
-            if busy { p { role: "status", "Reading routed board or model assets…" } }
+
             if let Some(message) = error() { p { role: "alert", "{message}" } }
             if reference.is_some() && error().is_some() && current_paths.is_empty() {
                 button {
@@ -1047,7 +1077,6 @@ mod mounted_async_tests {
     use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
-    use dioxus::prelude::*;
     use js_sys::{Array, Uint8Array};
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -1131,6 +1160,8 @@ mod mounted_async_tests {
 
     #[component]
     fn missing_asset_host(fixture: Fixture) -> Element {
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
         let workspace = use_signal(|| "Layout");
         let selected_context = use_signal(|| None);
         let anchor_scope = use_signal(|| None);
@@ -1404,7 +1435,11 @@ mod mounted_async_tests {
                 .await
                 .expect("real File.array_buffer read reaches gate");
             changed_owner(&fixture, change).await;
-            let accepted_after_change = fixture.runtime.model().accepted.expect("project stays accepted");
+            let accepted_after_change = fixture
+                .runtime
+                .model()
+                .accepted
+                .expect("project stays accepted");
             release.send(()).expect("release file-read admission gate");
 
             let busy = probe.busy.borrow().expect("mounted busy signal");
@@ -1438,11 +1473,14 @@ mod mounted_async_tests {
                 support::take_held_effects(&fixture.runtime).is_empty(),
                 "no project edit may be submitted after the stale file read"
             );
-            let accepted_after_read = fixture.runtime.model().accepted.expect("project stays accepted");
+            let accepted_after_read = fixture
+                .runtime
+                .model()
+                .accepted
+                .expect("project stays accepted");
             assert_eq!(accepted_after_read.token, accepted_after_change.token);
             assert_eq!(
-                accepted_after_read.document.revision,
-                accepted_after_change.document.revision,
+                accepted_after_read.document.revision, accepted_after_change.document.revision,
                 "the stale file read changed no accepted document"
             );
             let stored = fixture

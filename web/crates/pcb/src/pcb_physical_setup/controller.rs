@@ -1,18 +1,18 @@
 use crate::{physical_setup::SetupIntent, runtime::Runtime};
 use boardstudio_application::{
-    AcceptedSnapshot, Event, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
+    SnapshotToken,
 };
 use boardstudio_core::model::{
     EditCommand, EditOperation, EditPhase, HardwareTopology, HardwareTransport, ProjectDoc,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
-pub type ProposalFuture =
-    Pin<Box<dyn Future<Output = Result<ProjectDoc, String>>>>;
-pub type ProposalPreparer =
-    Rc<dyn Fn(ProjectDoc, SetupIntent) -> ProposalFuture>;
+pub type ProposalFuture = Pin<Box<dyn Future<Output = Result<ProjectDoc, String>>>>;
+pub type ProposalPreparer = Rc<dyn Fn(ProjectDoc, SetupIntent) -> ProposalFuture>;
 pub type CurrentOwner = Rc<dyn Fn(&OwnerIdentity, bool) -> bool>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,14 +149,6 @@ impl OperationUi {
         }
     }
 }
-struct SubmittedSetup {
-    operation_id: OperationId,
-    owner: OwnerIdentity,
-    proposal: ProjectDoc,
-    navigate_to: Option<(String, String)>,
-    case_reassignment: bool,
-}
-
 pub fn use_controller(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -191,7 +183,7 @@ pub fn use_controller(
         feedback()
             .filter(|value| {
                 value.owner.context == context
-                    && activity.matches(&value.owner, true)
+                    && activity.matches(&value.owner, false)
                     && pending.is_none_or(|id| id == value.operation_id)
             })
             .map(|value| value.message)
@@ -205,7 +197,7 @@ pub fn use_controller(
     );
     let on_intent = use_callback({
         let runtime = runtime.clone();
-        let mut ui = OperationUi {
+        let ui = OperationUi {
             feedback,
             busy,
             alive,
@@ -215,7 +207,7 @@ pub fn use_controller(
                 return;
             }
             let identity = request.owner;
-            let Some((accepted, board_id, selected_instance_id, current)) =
+            let Some((accepted, _board_id, _selected_instance_id, current)) =
                 current_source(&runtime, *generation.peek(), identity.context)
             else {
                 return;
@@ -223,159 +215,60 @@ pub fn use_controller(
             if identity != current || !activity.matches(&identity, true) {
                 return;
             }
-            let operation_id = runtime.operation();
-            let (proposal_future, navigate_to, case_reassignment) = match request.intent {
-                PhysicalSetupIntent::CasePcbDesign(board_id) => {
-                    let proposal = propose_case_instance_edit(
-                        &accepted.document,
-                        &identity,
-                        CaseInstanceEdit::PcbDesign(board_id.clone()),
-                    );
-                    let case_reassignment = board_id != identity.board_id;
-                    (
-                        Box::pin(async move { proposal }) as ProposalFuture,
-                        Some((board_id, identity.instance_id.clone().unwrap_or_default())),
-                        case_reassignment,
-                    )
-                }
-                PhysicalSetupIntent::CaseFlip(flipped) => {
-                    let proposal = propose_case_instance_edit(
-                        &accepted.document,
-                        &identity,
-                        CaseInstanceEdit::Flip(flipped),
-                    );
-                    (
-                        Box::pin(async move { proposal }) as ProposalFuture,
-                        None,
-                        false,
-                    )
-                }
-                intent => {
-                    let setup_intent = match intent {
-                        PhysicalSetupIntent::ProjectTopology(split) => SetupIntent::Topology {
-                            board_id,
-                            selected_instance_id,
-                            split,
-                            new_primary_id: fresh_id(
-                                &accepted.document,
-                                "physical-primary",
-                                operation_id.0,
-                            ),
-                            new_secondary_id: fresh_id(
-                                &accepted.document,
-                                "physical-secondary",
-                                operation_id.0,
-                            ),
-                        },
-                        PhysicalSetupIntent::ProjectTransport(transport)
-                        | PhysicalSetupIntent::CaseTransport(transport) => {
-                            SetupIntent::Transport(transport)
-                        }
-                        PhysicalSetupIntent::ProjectReversibleLayout(enabled) => {
-                            SetupIntent::ReversibleLayout(enabled)
-                        }
-                        PhysicalSetupIntent::CasePcbDesign(_)
-                        | PhysicalSetupIntent::CaseFlip(_) => unreachable!(),
-                    };
-                    let navigate_to = matches!(setup_intent, SetupIntent::Topology { .. })
-                        .then(|| (identity.board_id.clone(), String::new()));
-                    let future = prepare((*accepted.document).clone(), setup_intent.clone());
-                    (future, navigate_to, false)
-                }
-            };
+            let seed = runtime.operation().0;
+            let intent = request.intent;
+            let setup_intent = setup_intent(&accepted.document, &identity, &intent, seed);
+            let preparation =
+                setup_intent.map(|intent| prepare((*accepted.document).clone(), intent));
             let runtime = runtime.clone();
             let activity = activity.clone();
-            ui.busy.set(Some(operation_id));
-            ui.publish(
-                operation_id,
-                &identity,
-                "Preparing physical setup…".into(),
-                false,
-            );
             let mut ui = ui.clone();
+            ui.busy.set(Some(OperationId(seed)));
+            ui.feedback.set(None);
             spawn_local(async move {
-                let proposed = match proposal_future.await {
-                    Ok(proposed) => proposed,
-                    Err(message) => {
-                        ui.publish(
-                            operation_id,
-                            &identity,
-                            format!("Physical setup was not applied: {message}"),
-                            true,
-                        );
+                let prepared = match preparation {
+                    Some(future) => future.await.map(|_| ()),
+                    None => Ok(()),
+                };
+                if !ui.alive.get() {
+                    return;
+                }
+                if !activity.matches(&identity, false) {
+                    ui.busy.set(None);
+                    return;
+                }
+                let ticket = EditTicket::begin(
+                    &runtime,
+                    "physical-setup",
+                    Some("physical setup".into()),
+                    setup_resolver(identity.clone(), intent.clone(), seed, prepared),
+                );
+                ui.busy.set(Some(ticket.operation()));
+                loop {
+                    if !ui.alive.get() {
                         return;
                     }
-                };
-                if proposed == *accepted.document {
-                    ui.publish(
-                        operation_id,
-                        &identity,
-                        "That physical setup is already active.".into(),
-                        true,
-                    );
-                    return;
-                }
-                if !ui.alive.get() || !activity.matches(&identity, true) {
-                    ui.publish(
-                        operation_id,
-                        &identity,
-                        "The accepted project or selection changed; retry physical setup.".into(),
-                        true,
-                    );
-                    return;
-                }
-                // Register before submission and retain this exact slot through hidden/unmounted UI.
-                let outcome = runtime.observe_operation(operation_id);
-                runtime.submit(Event::Edit {
-                    operation_id,
-                    command: EditCommand {
-                        base_revision: accepted.document.revision,
-                        transaction_id: format!("physical-setup-{}", operation_id.0),
-                        phase: EditPhase::Commit,
-                        target_ids: Vec::new(),
-                        operation: EditOperation::ReplaceDocument {
-                            document: Box::new(proposed.clone()),
-                        },
-                    },
-                });
-                ui.publish(
-                    operation_id,
-                    &identity,
-                    "Physical setup submitted; waiting for save…".into(),
-                    false,
-                );
-                let navigate_to = navigate_to.and_then(|(board_id, instance_id)| {
-                    if instance_id.is_empty() {
-                        proposed
-                            .hardware
-                            .as_ref()?
-                            .instances
-                            .iter()
-                            .find(|instance| instance.board_id == board_id)
-                            .map(|instance| (board_id, instance.id.clone()))
-                    } else {
-                        Some((board_id, instance_id))
-                    }
-                });
-                let submitted = SubmittedSetup {
-                    operation_id,
-                    owner: identity,
-                    proposal: proposed,
-                    navigate_to,
-                    case_reassignment,
-                };
-                loop {
-                    if let Some(outcome) = outcome.borrow_mut().take() {
-                        finish_operation(
-                            &runtime,
-                            &submitted,
-                            outcome,
-                            &activity,
-                            instance_selection,
-                            generation,
-                            &mut ui,
-                        );
-                        break;
+                    let model = runtime.model();
+                    let live = model.accepted.as_ref().is_some_and(|accepted| {
+                        accepted.session_epoch == identity.session_epoch
+                            && accepted.document.id == identity.document_id
+                    });
+                    match ticket.settlement(live) {
+                        Settlement::Pending => {}
+                        settlement => {
+                            finish_operation(
+                                &runtime,
+                                &identity,
+                                &intent,
+                                ticket.operation(),
+                                settlement,
+                                &activity,
+                                instance_selection,
+                                generation,
+                                &mut ui,
+                            );
+                            break;
+                        }
                     }
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 }
@@ -587,7 +480,15 @@ fn current_source(
     context: OwnerContext,
 ) -> Option<(AcceptedSnapshot, String, Option<String>, OwnerIdentity)> {
     let model = runtime.model();
-    if !matches!(model.lifecycle, Lifecycle::Ready) {
+    if !matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) || !matches!(
+        model.durability,
+        Durability::Saved { .. } | Durability::Saving { .. }
+    ) || model.display_preview.is_some()
+        || model.gesture.is_some()
+    {
         return None;
     }
     let accepted = model.accepted?.clone();
@@ -706,10 +607,93 @@ fn project_setup(
     }
 }
 
+fn setup_intent(
+    document: &ProjectDoc,
+    owner: &OwnerIdentity,
+    intent: &PhysicalSetupIntent,
+    seed: u64,
+) -> Option<SetupIntent> {
+    match intent {
+        PhysicalSetupIntent::ProjectTopology(split) => Some(SetupIntent::Topology {
+            board_id: owner.board_id.clone(),
+            selected_instance_id: owner.instance_id.clone(),
+            split: *split,
+            new_primary_id: fresh_id(document, "physical-primary", seed),
+            new_secondary_id: fresh_id(document, "physical-secondary", seed),
+        }),
+        PhysicalSetupIntent::ProjectTransport(transport)
+        | PhysicalSetupIntent::CaseTransport(transport) => Some(SetupIntent::Transport(*transport)),
+        PhysicalSetupIntent::ProjectReversibleLayout(enabled) => {
+            Some(SetupIntent::ReversibleLayout(*enabled))
+        }
+        _ => None,
+    }
+}
+
+fn setup_resolver(
+    owner: OwnerIdentity,
+    intent: PhysicalSetupIntent,
+    seed: u64,
+    prepared: Result<(), String>,
+) -> EditResolver {
+    EditResolver::new("physical-setup", move |accepted: &AcceptedSnapshot| {
+        if accepted.session_epoch != owner.session_epoch
+            || accepted.document.id != owner.document_id
+        {
+            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
+        }
+        if let Err(reason) = &prepared {
+            return Resolution::Retire(reason.clone());
+        }
+        if !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| board.id == owner.board_id)
+        {
+            return Resolution::Retire("The PCB design was deleted.".into());
+        }
+        let proposal = match &intent {
+            PhysicalSetupIntent::CasePcbDesign(board_id) => propose_case_instance_edit(
+                &accepted.document,
+                &owner,
+                CaseInstanceEdit::PcbDesign(board_id.clone()),
+            ),
+            PhysicalSetupIntent::CaseFlip(flipped) => propose_case_instance_edit(
+                &accepted.document,
+                &owner,
+                CaseInstanceEdit::Flip(*flipped),
+            ),
+            intent => boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
+                &accepted.document,
+                setup_intent(&accepted.document, &owner, intent, seed).unwrap(),
+            ),
+        };
+        let proposal = match proposal {
+            Ok(proposal) => proposal,
+            Err(reason) => return Resolution::Retire(reason),
+        };
+        if proposal == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![owner.board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(proposal),
+            },
+        })
+    })
+}
+
 fn finish_operation(
     runtime: &Rc<Runtime>,
-    submitted: &SubmittedSetup,
-    outcome: TerminalOutcome,
+    identity: &OwnerIdentity,
+    intent: &PhysicalSetupIntent,
+    operation_id: OperationId,
+    settlement: Settlement,
     activity: &OwnerActivity,
     instance_selection: super::super::InstanceSelection,
     generation: Signal<u64>,
@@ -718,81 +702,87 @@ fn finish_operation(
     if !ui.alive.get() {
         return;
     }
-    let identity = &submitted.owner;
-    let proposal = &submitted.proposal;
+    let landed = matches!(settlement, Settlement::Landed { .. });
     let model = runtime.model();
-    let accepted = model.accepted.as_ref().filter(|accepted| {
-        accepted.session_epoch == identity.session_epoch
-            && accepted.document.id == identity.document_id
-    });
-    let accepted_proposal = crate::physical_setup::can_reconcile_primary(
-        &outcome,
-        true,
-        accepted.map(|accepted| accepted.document.as_ref()),
-        proposal,
-    );
-    let accepted_token = accepted.map(|snapshot| snapshot.token);
-    let reassignment_owner = if accepted_proposal && submitted.case_reassignment {
-        submitted
-            .navigate_to
+    let accepted = model.accepted.as_ref();
+    let navigate_to = match intent {
+        PhysicalSetupIntent::CasePcbDesign(board_id) => identity
+            .instance_id
             .as_ref()
-            .and_then(|(target_board_id, _)| {
-                expected_case_reassignment_owner(
-                    identity,
-                    target_board_id,
-                    accepted_token?,
-                    *generation.peek(),
-                )
+            .map(|id| (board_id.clone(), id.clone())),
+        PhysicalSetupIntent::ProjectTopology(_) => accepted
+            .and_then(|accepted| accepted.document.hardware.as_ref())
+            .and_then(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .find(|instance| instance.board_id == identity.board_id)
             })
+            .map(|instance| (instance.board_id.clone(), instance.id.clone())),
+        _ => None,
+    };
+    let reassignment_owner = if landed {
+        navigate_to.as_ref().and_then(|(board_id, _)| {
+            expected_case_reassignment_owner(
+                identity,
+                board_id,
+                accepted.map(|snapshot| snapshot.token)?,
+                *generation.peek(),
+            )
+        })
     } else {
         None
     };
-    let current_owner = activity.matches(identity, false)
+    let current = activity.matches(identity, false)
         || reassignment_owner
             .as_ref()
             .is_some_and(|owner| activity.matches(owner, false));
-    let navigation_target = (accepted_proposal && current_owner)
-        .then(|| submitted.navigate_to.clone())
-        .flatten();
-    // A hidden owner still owns its exact accepted result. Visibility gates navigation,
-    // not attribution; projection will hide feedback until this owner is visible again.
-    let mut feedback_owner = identity.clone();
-    if accepted_proposal {
-        let accepted = accepted.expect("accepted proposal checked above");
-        feedback_owner.token = accepted.token;
-        feedback_owner.revision = accepted.document.revision;
-        if let Some((board_id, instance_id)) = &navigation_target {
-            feedback_owner.board_id = board_id.clone();
-            feedback_owner.instance_id = Some(instance_id.clone());
-            feedback_owner.scope_transition = None;
-            let target_scope = Scope {
-                session_epoch: accepted.session_epoch,
-                document_id: accepted.document.id.clone(),
-                board_id: board_id.clone(),
-                instance_id: Some(instance_id.clone()),
-            };
-            let navigation_changes_scope = runtime.scope().as_ref() != Some(&target_scope);
-            let current_generation = *generation.peek();
-            feedback_owner.generation = current_generation
-                .checked_add(if navigation_changes_scope { 1 } else { 0 })
-                .unwrap_or(current_generation);
-        }
+    let mut owner = identity.clone();
+    if !current {
+        ui.feedback.set(None);
+        ui.busy.set(None);
+        return;
     }
-    let message = match outcome {
-        TerminalOutcome::Completed if accepted_proposal => {
-            let accepted = accepted.expect("accepted proposal checked above");
-            if let Some((board_id, explicit_id)) = &navigation_target {
-                    instance_selection.reconcile(accepted.session_epoch, accepted.document.id.clone(), explicit_id.clone());
-                    runtime.submit(Event::Navigate { operation_id: runtime.operation(), board_id: board_id.clone(), instance_id: Some(explicit_id.clone()) });
+    let message = match settlement {
+        Settlement::Landed { .. } => {
+            if let Some(accepted) = accepted {
+                owner.token = accepted.token;
+                owner.revision = accepted.document.revision;
+                if let Some((board_id, instance_id)) = navigate_to {
+                    owner.board_id = board_id.clone();
+                    owner.instance_id = Some(instance_id.clone());
+                    owner.scope_transition = None;
+                    let scope = Scope {
+                        session_epoch: owner.session_epoch,
+                        document_id: owner.document_id.clone(),
+                        board_id: board_id.clone(),
+                        instance_id: Some(instance_id.clone()),
+                    };
+                    owner.generation = generation()
+                        .saturating_add(u64::from(runtime.scope().as_ref() != Some(&scope)));
+                    instance_selection.reconcile(
+                        accepted.session_epoch,
+                        accepted.document.id.clone(),
+                        instance_id.clone(),
+                    );
+                    runtime.submit(Event::Navigate {
+                        operation_id: runtime.operation(),
+                        board_id,
+                        instance_id: Some(instance_id),
+                    });
+                }
             }
             "Physical setup saved.".into()
         }
-        TerminalOutcome::Completed => "The setup operation completed, but its proposal is no longer the current accepted project.".into(),
-        TerminalOutcome::Rejected(message) | TerminalOutcome::ExecutorFailed(message)
-        | TerminalOutcome::PersistenceFailed(message) | TerminalOutcome::BlockedByRecovery(message) => format!("Physical setup failed: {message}"),
-        TerminalOutcome::Cancelled | TerminalOutcome::Closed | TerminalOutcome::Superseded => "Physical setup was cancelled before it could be saved.".into(),
+        Settlement::Failed { message } => message,
+        Settlement::Retired => {
+            ui.feedback.set(None);
+            ui.busy.set(None);
+            return;
+        }
+        Settlement::Pending => return,
     };
-    ui.publish(submitted.operation_id, &feedback_owner, message, true);
+    ui.publish(operation_id, &owner, message, true);
 }
 
 fn fresh_id(document: &ProjectDoc, prefix: &str, operation: u64) -> String {

@@ -1,6 +1,5 @@
 //! Private physical-setup proposal rules. This code prepares values only; it never submits edits.
 
-use boardstudio_application::TerminalOutcome;
 use boardstudio_core::model::{
     HardwareTopology, HardwareTransport, MechanicalConfiguration, PartDefinition,
     PhysicalBoardInstance, ProjectDoc,
@@ -20,26 +19,6 @@ pub enum SetupIntent {
     },
     Transport(HardwareTransport),
     ReversibleLayout(bool),
-}
-
-/// A Session acceptance may assign the next revision while retaining the exact proposal payload.
-/// Keep this comparison at the owner boundary so unrelated or superseding accepted edits never
-/// reconcile the physical-instance preference.
-pub fn accepted_matches_proposal(accepted: &ProjectDoc, proposal: &ProjectDoc) -> bool {
-    let mut normalized = accepted.clone();
-    normalized.revision = proposal.revision;
-    normalized == *proposal
-}
-
-pub fn can_reconcile_primary(
-    outcome: &TerminalOutcome,
-    owner_is_current: bool,
-    accepted: Option<&ProjectDoc>,
-    proposal: &ProjectDoc,
-) -> bool {
-    matches!(outcome, TerminalOutcome::Completed)
-        && owner_is_current
-        && accepted.is_some_and(|document| accepted_matches_proposal(document, proposal))
 }
 
 /// Build a reference-compatible proposal from an immutable accepted document.
@@ -502,44 +481,6 @@ mod tests {
         expected.transport = HardwareTransport::Wired;
         assert_eq!(result.hardware, Some(expected));
         assert_eq!(doc, accepted);
-    }
-
-    #[test]
-    fn selection_reconciliation_requires_the_exact_accepted_proposal() {
-        let original = document();
-        let mut proposal = original.clone();
-        proposal
-            .parameters
-            .insert("reversibleLayout".into(), json!(true));
-        proposal.revision = original.revision;
-
-        let mut accepted = proposal.clone();
-        accepted.revision += 1;
-        assert!(accepted_matches_proposal(&accepted, &proposal));
-
-        accepted.name.push_str(" changed after save");
-        assert!(!accepted_matches_proposal(&accepted, &proposal));
-
-        let mut matching = proposal.clone();
-        matching.revision += 1;
-        assert!(can_reconcile_primary(
-            &TerminalOutcome::Completed,
-            true,
-            Some(&matching),
-            &proposal,
-        ));
-        assert!(!can_reconcile_primary(
-            &TerminalOutcome::PersistenceFailed("disk full".into()),
-            true,
-            Some(&matching),
-            &proposal,
-        ));
-        assert!(!can_reconcile_primary(
-            &TerminalOutcome::Completed,
-            false,
-            Some(&matching),
-            &proposal,
-        ));
     }
 
     #[test]

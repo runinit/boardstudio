@@ -1,9 +1,9 @@
 //! Apply the exact current accepted board plan through the normal Session edit owner.
-use super::mode::{current_snapshot, mode_identity};
+use super::mode::{current_edit_snapshot, mode_identity};
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
 use crate::pcb_wiring_mode_operation::BoardWiringModeIdentity;
 use crate::runtime::Runtime;
-use boardstudio_application::{Durability, Event, Lifecycle, TerminalOutcome};
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::{
     electrical::{self, ElectricalPlan},
     model::{EditCommand, EditOperation, EditPhase, ProjectDoc},
@@ -34,12 +34,18 @@ pub struct BoardWiringApplyActions {
     pub on_release_reviewed_connections: EventHandler<BoardWiringModeIdentity>,
 }
 
-#[derive(Clone)]
-struct PendingApply {
-    identity: BoardWiringModeIdentity,
-    proposal: ProjectDoc,
-    base_revision: u64,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+#[derive(Clone, Copy)]
+struct ApplyTickets(Signal<Vec<(BoardWiringModeIdentity, EditTicket, bool)>>);
+
+pub(super) fn release_pending() -> bool {
+    try_consume_context::<ApplyTickets>().is_some_and(|tickets| {
+        tickets
+            .0
+            .read()
+            .iter()
+            .any(|(_, ticket, release)| *release && ticket.is_pending())
+    })
 }
 
 pub fn use_board_wiring_apply(
@@ -51,90 +57,66 @@ pub fn use_board_wiring_apply(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringApplyActions {
-    let pending = use_signal(|| None::<PendingApply>);
+    let tickets = use_signal(Vec::<(BoardWiringModeIdentity, EditTicket, bool)>::new);
+    use_context_provider(|| ApplyTickets(tickets));
+    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
     let feedback = use_signal(|| None::<BoardWiringApplyFeedbackView>);
     let observed_version = version();
-
     use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
         let mut feedback = feedback;
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow_mut().take() else {
-                return;
-            };
-            let model = runtime.model();
-            let accepted = model.accepted.as_ref().filter(|accepted| {
-                accepted.session_epoch == waiting.identity.ui_scope.session_epoch
-                    && accepted.document.id == waiting.identity.ui_scope.document_id
+            let mut entries = tickets.peek().clone();
+            let before = entries.len();
+            entries.retain(|(identity, ticket, _)| {
+                let live = workspace() == "PCB"
+                    && identity.feedback_target().is_visible(
+                        runtime.scope().as_ref(),
+                        runtime
+                            .model()
+                            .selected_part_ids
+                            .first()
+                            .map(String::as_str),
+                        scope_generation(),
+                    );
+                let state = match ticket.settlement(live) {
+                    Settlement::Pending => return true,
+                    Settlement::Landed { .. } => Some(BoardWiringApplyFeedback::Saved),
+                    Settlement::Failed { message } => {
+                        Some(BoardWiringApplyFeedback::Failed(message))
+                    }
+                    Settlement::Retired => None,
+                };
+                if *latest.peek() == Some(ticket.operation()) {
+                    feedback.set(state.map(|state| BoardWiringApplyFeedbackView {
+                        target: identity.feedback_target(),
+                        request_plan: identity.plan.clone(),
+                        state,
+                    }));
+                }
+                false
             });
-            let saved_proposal = accepted.is_some_and(|accepted| {
-                let mut expected = waiting.proposal.clone();
-                expected.revision = accepted.document.revision;
-                model.lifecycle == Lifecycle::Ready
-                    && model.durability
-                        == (Durability::Saved {
-                            revision: accepted.document.revision,
-                        })
-                    && accepted.document.revision > waiting.base_revision
-                    && *accepted.document == expected
-            });
-            let target_current = waiting.identity.feedback_target().is_visible(
-                runtime.scope().as_ref(),
-                model.selected_part_ids.first().map(String::as_str),
-                scope_generation(),
-            ) && model.active_board_id == waiting.identity.ui_scope.board_id
-                && model.active_instance_id == waiting.identity.ui_scope.instance_id
-                && accepted.is_some_and(|accepted| {
-                    saved_proposal
-                        || (accepted.token == waiting.identity.plan.token
-                            && accepted.document.revision == waiting.identity.plan.revision)
-                });
-            pending.set(None);
-            if !target_current {
-                feedback.set(None);
-                return;
+            if before != entries.len() {
+                tickets.set(entries);
             }
-            let state = match outcome {
-                TerminalOutcome::Completed if saved_proposal => BoardWiringApplyFeedback::Saved,
-                TerminalOutcome::Completed => BoardWiringApplyFeedback::Failed(
-                    "The plan edit completed, but the requested wiring is not the saved board state. Resolve again before applying.".into(),
-                ),
-                TerminalOutcome::PersistenceFailed(message) => {
-                    BoardWiringApplyFeedback::Failed(format!("Could not save wiring plan: {message}"))
-                }
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::ExecutorFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message) => {
-                    BoardWiringApplyFeedback::Failed(format!("Wiring plan was rejected: {message}"))
-                }
-                TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed
-                | TerminalOutcome::Superseded => BoardWiringApplyFeedback::Failed(
-                    "Applying the wiring plan was cancelled before it could be saved.".into(),
-                ),
-            };
-            feedback.set(Some(BoardWiringApplyFeedbackView {
-                target: waiting.identity.feedback_target(),
-                request_plan: waiting.identity.plan.clone(),
-                state,
-            }));
         }
     }));
-
-    let on_apply = use_callback({
+    let submit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
+        let mut latest = latest;
         let mut feedback = feedback;
-        move |identity: BoardWiringModeIdentity| {
-            if pending.peek().is_some() {
+        move |(identity, release): (BoardWiringModeIdentity, bool)| {
+            if tickets
+                .peek()
+                .iter()
+                .any(|(_, ticket, kind)| *kind == release && ticket.is_pending())
+            {
                 return;
             }
-            let Some(snapshot) = current_snapshot(
+            let Some(snapshot) = current_edit_snapshot(
                 &runtime,
                 &identity,
                 workspace(),
@@ -143,98 +125,43 @@ pub fn use_board_wiring_apply(
             ) else {
                 return;
             };
-            let Some(plan) = current_plan(&identity.plan, &resolution.read(), &snapshot.document)
-            else {
-                return;
-            };
-            let mut proposal = (*snapshot.document).clone();
-            if let Err(message) = electrical::materialize(&mut proposal, &plan) {
-                feedback.set(Some(BoardWiringApplyFeedbackView {
-                    target: identity.feedback_target(),
-                    request_plan: identity.plan.clone(),
-                    state: BoardWiringApplyFeedback::Failed(message),
-                }));
-                return;
-            }
-
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let base_revision = snapshot.document.revision;
-            pending.set(Some(PendingApply {
-                identity: identity.clone(),
-                proposal: proposal.clone(),
-                base_revision,
-                outcome,
-            }));
-            feedback.set(Some(BoardWiringApplyFeedbackView {
-                target: identity.feedback_target(),
-                request_plan: identity.plan.clone(),
-                state: BoardWiringApplyFeedback::Pending,
-            }));
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision,
-                    transaction_id: format!("pcb-wiring-apply-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![identity.plan.scope.board_id.clone()],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(proposal),
-                    },
-                },
-            });
-        }
-    });
-
-    let on_release_reviewed_connections = use_callback({
-        let runtime = runtime.clone();
-        let instance_is_current = instance_is_current.clone();
-        move |identity: BoardWiringModeIdentity| {
-            let Some(snapshot) = current_snapshot(
-                &runtime,
-                &identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
-            ) else {
-                return;
-            };
-            let Some(plan) =
+            let plan = if release {
                 current_review_plan(&identity.plan, &resolution.read(), &snapshot.document)
-            else {
+            } else {
+                current_plan(&identity.plan, &resolution.read(), &snapshot.document)
+            };
+            let Some(plan) = plan else {
                 return;
             };
-            let Some(review) =
+            let review = if release {
                 super::connections::existing_connection_review(&snapshot.document, &plan)
-            else {
-                return;
+            } else {
+                None
             };
-            let proposal =
-                super::connections::release_reviewed_connections(&snapshot.document, &review);
-            if proposal == *snapshot.document {
+            if release && review.is_none() {
                 return;
             }
-            let operation_id = runtime.operation();
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id: format!("pcb-review-connections-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![identity.plan.scope.board_id.clone()],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(proposal),
-                    },
-                },
-            });
+            let ticket = EditTicket::begin(
+                &runtime,
+                "pcb-wiring-apply",
+                Some("wiring plan".into()),
+                apply_resolver(identity.clone(), (*plan).clone(), review),
+            );
+            latest.set(Some(ticket.operation()));
+            // One-shot actions stay quiet while their own ticket is pending.
+            feedback.set(None);
+            tickets.write().push((identity, ticket, release));
         }
     });
-
+    let on_apply = use_callback(move |identity| submit.call((identity, false)));
+    let on_release_reviewed_connections =
+        use_callback(move |identity| submit.call((identity, true)));
     let identity = source.as_ref().map(mode_identity);
-    let editable = identity.as_ref().is_some_and(|identity| {
-        workspace() == "PCB"
-            && pending().is_none()
-            && current_snapshot(
+    let editable = !tickets()
+        .iter()
+        .any(|(_, ticket, release)| !release && ticket.is_pending())
+        && identity.as_ref().is_some_and(|identity| {
+            current_edit_snapshot(
                 &runtime,
                 identity,
                 workspace(),
@@ -244,17 +171,11 @@ pub fn use_board_wiring_apply(
             .is_some_and(|snapshot| {
                 current_plan(&identity.plan, &resolution.read(), &snapshot.document).is_some()
             })
-    });
-    let feedback_target = identity
+        });
+    let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
-    let feedback = feedback().filter(|item| {
-        feedback_target.as_ref() == Some(&item.target)
-            && (matches!(&item.state, BoardWiringApplyFeedback::Saved)
-                || identity
-                    .as_ref()
-                    .is_some_and(|identity| identity.plan == item.request_plan))
-    });
+    let feedback = feedback().filter(|item| target.as_ref() == Some(&item.target));
     BoardWiringApplyActions {
         identity,
         editable,
@@ -262,6 +183,82 @@ pub fn use_board_wiring_apply(
         on_apply,
         on_release_reviewed_connections,
     }
+}
+
+fn apply_resolver(
+    identity: BoardWiringModeIdentity,
+    plan: ElectricalPlan,
+    review: Option<super::connections::ExistingConnectionReview>,
+) -> EditResolver {
+    EditResolver::new("pcb-wiring-apply", move |accepted: &AcceptedSnapshot| {
+        let board_id = &identity.ui_scope.board_id;
+        if accepted.session_epoch != identity.ui_scope.session_epoch
+            || accepted.document.id != identity.ui_scope.document_id
+        {
+            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
+        }
+        if !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| &board.id == board_id)
+        {
+            return Resolution::Retire("The board was deleted.".into());
+        }
+        if plan
+            .controller_part_id
+            .as_ref()
+            .is_some_and(|id| !accepted.document.parts.iter().any(|part| &part.id == id))
+            || plan.nets.iter().flat_map(|net| &net.pins).any(|pin| {
+                !accepted
+                    .document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == pin.part_id)
+            })
+        {
+            return Resolution::Retire(
+                "A part used by this wiring plan was deleted. Resolve the plan again.".into(),
+            );
+        }
+        if board_mode(&accepted.document, board_id) != plan.mode {
+            return Resolution::Retire(
+                "The board wiring mode changed. Resolve the plan again.".into(),
+            );
+        }
+        let proposal = if let Some(review) = &review {
+            if review.nets.iter().any(|reviewed| {
+                !accepted
+                    .document
+                    .nets
+                    .iter()
+                    .any(|net| net.id == reviewed.id)
+            }) {
+                return Resolution::Retire("A reviewed connection net was deleted.".into());
+            }
+            super::connections::release_reviewed_connections(&accepted.document, review)
+        } else {
+            let mut proposal = (*accepted.document).clone();
+            let mut plan = plan.clone();
+            plan.revision = accepted.document.revision;
+            if let Err(reason) = electrical::materialize(&mut proposal, &plan) {
+                return Resolution::Retire(reason);
+            }
+            proposal
+        };
+        if proposal == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(proposal),
+            },
+        })
+    })
 }
 
 fn current_plan(

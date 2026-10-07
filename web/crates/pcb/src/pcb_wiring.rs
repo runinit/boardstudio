@@ -10,13 +10,12 @@ use boardstudio_core::{
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-pub use boardstudio_web_ui_model::wiring::{
-    PcbWiringResolution, PcbWiringSource,
-};
+pub use boardstudio_web_ui_model::wiring::{PcbWiringResolution, PcbWiringSource};
 
 mod apply;
 mod connections;
 mod controller;
+pub(crate) use controller::pending_binding;
 mod mode;
 mod part_connections;
 mod part_input_settings;
@@ -28,9 +27,7 @@ pub use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
-pub use apply::{
-    BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply,
-};
+pub use apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
 pub use controller::{
     WiringResolutionNotice, use_firmware_position_edits, use_pcb_part_net_edits,
     use_pcb_wiring_controller, wiring_resolution_notice,
@@ -43,9 +40,7 @@ pub use part_input_settings::PartInputActions;
 pub use pins::{
     PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
 };
-pub use remap::{
-    ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review,
-};
+pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartNetEditIdentity {
@@ -564,7 +559,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                             let on_edit = actions.on_edit;
                             let identity = actions.identity.clone();
                             let pad_ids = row.pad_ids.clone();
-                            let value = row.selected_net_id.clone().unwrap_or_default();
+                            let value = identity.as_ref().and_then(|identity| controller::pending_net(identity, &row.pad_ids)).unwrap_or_else(|| row.selected_net_id.clone()).unwrap_or_default();
                             rsx! {
                                 label { class: "m1-pcb-wiring-assignment", key: "{row.label}",
                                     span { "{row.label}" }
@@ -603,7 +598,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                     disabled: !actions.editable || identity.is_none(),
                     oninput: move |event| new_net_name.set(event.value()),
                 }
-                button { r#type: "submit", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty(), "Add net" }
+                button { r#type: "submit", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || controller::create_net_pending(), "Add net" }
             }
             details { class: "m1-pcb-wiring-section",
                 summary { "Electrical nets ({nets.len()})" }
@@ -720,7 +715,12 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_resolve = props.on_resolve;
     let on_choose_controller = props.on_choose_controller;
     let mode_actions = props.mode_actions.clone();
-    let selected_mode = match display.mode {
+    let selected_mode = match mode_actions
+        .identity
+        .as_ref()
+        .and_then(mode::pending_mode)
+        .unwrap_or(display.mode)
+    {
         ElectricalMode::Matrix => "matrix",
         ElectricalMode::Direct => "direct",
     };
@@ -732,9 +732,17 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let pin_actions = props.pin_actions.clone();
     let pin_identity = pin_actions.identity.clone();
     let on_pin_change = pin_actions.on_change;
-    let pin_rows = matching_plan
+    let mut pin_rows = matching_plan
         .map(|plan| pins::assignments(&props.source, plan))
         .unwrap_or_default();
+    if let Some(identity) = &pin_identity {
+        for row in &mut pin_rows {
+            if let Some(value) = pins::pending_pin(identity, &row.id) {
+                row.value = value;
+            }
+        }
+    }
+
     let protected_remap_actions = props.protected_remap_actions.clone();
     let protected_remap_identity = protected_remap_actions.identity.clone();
     let on_review_remap = protected_remap_actions.on_review;
@@ -877,7 +885,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     button {
                         type: "button",
-                        disabled: !mode_actions.editable || review_connections_identity.is_none(),
+                        disabled: !mode_actions.editable || review_connections_identity.is_none() || apply::release_pending(),
                         onclick: move |_| {
                             let Some(identity) = review_connections_identity.clone() else { return; };
                             on_release_reviewed_connections.call(identity);
@@ -1085,3 +1093,6 @@ mod tests {
         root.remove();
     }
 }
+
+#[cfg(test)]
+mod queued_edit_tests;

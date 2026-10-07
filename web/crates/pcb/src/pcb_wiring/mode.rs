@@ -6,10 +6,12 @@ use crate::{
     },
     runtime::Runtime,
 };
-use boardstudio_application::{Durability, Event, Lifecycle, Scope, TerminalOutcome};
+use boardstudio_application::{
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
+};
 use boardstudio_core::{
     electrical::ElectricalMode,
-    model::{EditCommand, EditOperation, EditPhase, ProjectDoc},
+    model::{EditCommand, EditOperation, EditPhase},
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -30,8 +32,6 @@ pub enum BoardWiringModeFeedback {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeFeedbackView {
     pub target: BoardWiringModeFeedbackTarget,
-    /// Pending and failed results stay tied to the accepted plan that requested them.
-    /// Successful save feedback may survive the accepted plan's revision advance.
     pub request_plan: WiringPlanIdentity,
     pub state: BoardWiringModeFeedback,
 }
@@ -44,12 +44,21 @@ pub struct BoardWiringModeActions {
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 
-#[derive(Clone)]
-struct PendingModeEdit {
-    request: BoardWiringModeEditRequest,
-    proposal: ProjectDoc,
-    base_revision: u64,
-    outcome: crate::operation_outcomes::OutcomeSlot,
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+#[derive(Clone, Copy)]
+struct ModeTickets(Signal<Vec<(BoardWiringModeEditRequest, EditTicket)>>);
+
+pub(super) fn pending_mode(
+    identity: &BoardWiringModeIdentity,
+) -> Option<boardstudio_core::electrical::ElectricalMode> {
+    let tickets = try_consume_context::<ModeTickets>()?;
+    tickets.0.read().iter().rev().find_map(|(request, ticket)| {
+        if ticket.is_pending() && request.identity.feedback_target() == identity.feedback_target() {
+            Some(request.mode)
+        } else {
+            None
+        }
+    })
 }
 
 pub fn use_board_wiring_mode_edits(
@@ -61,91 +70,59 @@ pub fn use_board_wiring_mode_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    let pending = use_signal(|| None::<PendingModeEdit>);
+    let tickets = use_signal(Vec::<(BoardWiringModeEditRequest, EditTicket)>::new);
+    use_context_provider(|| ModeTickets(tickets));
+    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
     let feedback = use_signal(|| None::<BoardWiringModeFeedbackView>);
     let observed_version = version();
-
     use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
         let mut feedback = feedback;
         move |_| {
-            let Some(waiting) = pending.read().clone() else {
-                return;
-            };
-            let Some(outcome) = waiting.outcome.borrow_mut().take() else {
-                return;
-            };
-            let model = runtime.model();
-            let accepted = model.accepted.as_ref().filter(|accepted| {
-                accepted.session_epoch == waiting.request.identity.ui_scope.session_epoch
-                    && accepted.document.id == waiting.request.identity.ui_scope.document_id
+            let mut entries = tickets.peek().clone();
+            let before = entries.len();
+            entries.retain(|(request, ticket)| {
+                let live = workspace() == "PCB"
+                    && request.identity.feedback_target().is_visible(
+                        runtime.scope().as_ref(),
+                        runtime
+                            .model()
+                            .selected_part_ids
+                            .first()
+                            .map(String::as_str),
+                        scope_generation(),
+                    );
+                let state = match ticket.settlement(live) {
+                    Settlement::Pending => return true,
+                    Settlement::Landed { .. } => Some(BoardWiringModeFeedback::Saved),
+                    Settlement::Failed { message } => {
+                        Some(BoardWiringModeFeedback::Failed(message))
+                    }
+                    Settlement::Retired => None,
+                };
+                if *latest.peek() == Some(ticket.operation()) {
+                    feedback.set(state.map(|state| BoardWiringModeFeedbackView {
+                        target: request.identity.feedback_target(),
+                        request_plan: request.identity.plan.clone(),
+                        state,
+                    }));
+                }
+                false
             });
-            let saved_proposal = accepted.is_some_and(|accepted| {
-                let mut expected = waiting.proposal.clone();
-                expected.revision = accepted.document.revision;
-                model.lifecycle == Lifecycle::Ready
-                    && model.durability
-                        == (Durability::Saved {
-                            revision: accepted.document.revision,
-                        })
-                    && accepted.document.revision > waiting.base_revision
-                    && *accepted.document == expected
-            });
-            let target_current = waiting.request.identity.feedback_target().is_visible(
-                runtime.scope().as_ref(),
-                model.selected_part_ids.first().map(String::as_str),
-                scope_generation(),
-            ) && model.active_board_id
-                == waiting.request.identity.ui_scope.board_id
-                && model.active_instance_id == waiting.request.identity.ui_scope.instance_id
-                && accepted.is_some_and(|accepted| {
-                    saved_proposal
-                        || (accepted.token == waiting.request.identity.plan.token
-                            && accepted.document.revision == waiting.request.identity.plan.revision)
-                });
-            pending.set(None);
-            if !target_current {
-                feedback.set(None);
-                return;
+            if before != entries.len() {
+                tickets.set(entries);
             }
-            let state = match outcome {
-                TerminalOutcome::Completed if saved_proposal => BoardWiringModeFeedback::Saved,
-                TerminalOutcome::Completed => BoardWiringModeFeedback::Failed(
-                    "The mode edit completed, but the requested mode is not the saved board state. Retry the change.".into(),
-                ),
-                TerminalOutcome::PersistenceFailed(message) => {
-                    BoardWiringModeFeedback::Failed(format!("Could not save wiring mode: {message}"))
-                }
-                TerminalOutcome::Rejected(message)
-                | TerminalOutcome::ExecutorFailed(message)
-                | TerminalOutcome::BlockedByRecovery(message) => {
-                    BoardWiringModeFeedback::Failed(format!("Wiring mode was rejected: {message}"))
-                }
-                TerminalOutcome::Cancelled
-                | TerminalOutcome::Closed
-                | TerminalOutcome::Superseded => BoardWiringModeFeedback::Failed(
-                    "The wiring mode change was cancelled before it could be saved.".into(),
-                ),
-            };
-            feedback.set(Some(BoardWiringModeFeedbackView {
-                target: waiting.request.identity.feedback_target(),
-                request_plan: waiting.request.identity.plan.clone(),
-                state,
-            }));
         }
     }));
-
     let on_change = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut pending = pending;
+        let mut tickets = tickets;
+        let mut latest = latest;
         let mut feedback = feedback;
         move |request: BoardWiringModeEditRequest| {
-            if pending.peek().is_some() {
-                return;
-            }
-            let Some(snapshot) = current_snapshot(
+            let Some(_snapshot) = current_edit_snapshot(
                 &runtime,
                 &request.identity,
                 workspace(),
@@ -154,84 +131,78 @@ pub fn use_board_wiring_mode_edits(
             ) else {
                 return;
             };
-            let PcbWiringResolution::Current { identity, .. } = &*resolution.read() else {
+            let PcbWiringResolution::Current {
+                identity,
+                plan: _plan,
+            } = &*resolution.read()
+            else {
                 return;
             };
             if identity != &request.identity.plan {
                 return;
-            }
-            let Some(proposal) = propose_mode(
-                &snapshot.document,
-                &request.identity.plan.scope.board_id,
-                request.mode,
-            ) else {
-                return;
             };
-            if proposal == *snapshot.document {
-                return;
-            }
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let base_revision = snapshot.document.revision;
-            pending.set(Some(PendingModeEdit {
-                request: request.clone(),
-                proposal: proposal.clone(),
-                base_revision,
-                outcome,
-            }));
+            let ticket = EditTicket::begin(
+                &runtime,
+                "pcb-wiring-mode",
+                Some("wiring mode".into()),
+                mode_resolver(request.clone()),
+            );
+            latest.set(Some(ticket.operation()));
             feedback.set(Some(BoardWiringModeFeedbackView {
                 target: request.identity.feedback_target(),
                 request_plan: request.identity.plan.clone(),
                 state: BoardWiringModeFeedback::Pending,
             }));
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision,
-                    transaction_id: format!("pcb-wiring-mode-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![request.identity.plan.scope.board_id],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(proposal),
-                    },
-                },
-            });
+            tickets.write().push((request, ticket));
         }
     });
-
     let identity = source.as_ref().map(mode_identity);
-    let editable = identity.as_ref().is_some_and(|identity| {
-        workspace() == "PCB"
-            && pending().is_none()
-            && current_snapshot(
-                &runtime,
-                identity,
-                workspace(),
-                scope_generation(),
-                instance_is_current(),
-            )
-            .is_some()
-            && matches!(
-                &*resolution.read(),
-                PcbWiringResolution::Current { identity: current, .. } if current == &identity.plan
-            )
-    });
-    let feedback_target = identity
+    let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
+        && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
+    let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
-    let feedback = feedback().filter(|item| {
-        feedback_target.as_ref() == Some(&item.target)
-            && (matches!(&item.state, BoardWiringModeFeedback::Saved)
-                || identity
-                    .as_ref()
-                    .is_some_and(|identity| identity.plan == item.request_plan))
-    });
+    let feedback = feedback().filter(|item| target.as_ref() == Some(&item.target));
     BoardWiringModeActions {
         identity,
         editable,
         feedback,
         on_change,
     }
+}
+
+fn mode_resolver(request: BoardWiringModeEditRequest) -> EditResolver {
+    EditResolver::new("pcb-wiring-mode", move |accepted: &AcceptedSnapshot| {
+        let board_id = &request.identity.plan.scope.board_id;
+        if accepted.session_epoch != request.identity.ui_scope.session_epoch
+            || accepted.document.id != request.identity.ui_scope.document_id
+        {
+            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
+        }
+        if !accepted
+            .document
+            .boards
+            .iter()
+            .any(|board| &board.id == board_id)
+        {
+            return Resolution::Retire("The board was deleted.".into());
+        }
+        let Some(proposal) = propose_mode(&accepted.document, board_id, request.mode) else {
+            return Resolution::Unchanged;
+        };
+        if proposal == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(proposal),
+            },
+        })
+    })
 }
 
 pub fn mode_identity(source: &PcbWiringSource) -> BoardWiringModeIdentity {
@@ -286,6 +257,42 @@ pub fn current_snapshot_probe(
     scope_generation: u64,
     instance_is_current: bool,
 ) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
+    snapshot_probe(
+        runtime,
+        identity,
+        workspace,
+        scope_generation,
+        instance_is_current,
+        false,
+    )
+}
+
+pub(super) fn current_edit_snapshot(
+    runtime: &Runtime,
+    identity: &BoardWiringModeIdentity,
+    workspace: &str,
+    scope_generation: u64,
+    instance_is_current: bool,
+) -> Option<boardstudio_application::AcceptedSnapshot> {
+    snapshot_probe(
+        runtime,
+        identity,
+        workspace,
+        scope_generation,
+        instance_is_current,
+        true,
+    )
+    .ok()
+}
+
+fn snapshot_probe(
+    runtime: &Runtime,
+    identity: &BoardWiringModeIdentity,
+    workspace: &str,
+    scope_generation: u64,
+    instance_is_current: bool,
+    queued: bool,
+) -> Result<boardstudio_application::AcceptedSnapshot, CurrentSnapshotBlocker> {
     if workspace != "PCB" {
         return Err(CurrentSnapshotBlocker::Workspace);
     }
@@ -306,7 +313,9 @@ pub fn current_snapshot_probe(
         revision: snapshot.document.revision,
         executor_epoch: runtime.electrical_preview_executor_epoch(),
     };
-    if model.lifecycle != Lifecycle::Ready {
+    if !(model.lifecycle == Lifecycle::Ready
+        || queued && matches!(model.lifecycle, Lifecycle::Applying | Lifecycle::Saving))
+    {
         return Err(CurrentSnapshotBlocker::Lifecycle);
     }
     if model.display_preview.is_some() {
@@ -315,10 +324,11 @@ pub fn current_snapshot_probe(
     if model.gesture.is_some() {
         return Err(CurrentSnapshotBlocker::Gesture);
     }
-    if model.durability
-        != (Durability::Saved {
+    if !(model.durability
+        == (Durability::Saved {
             revision: snapshot.document.revision,
         })
+        || queued && matches!(model.durability, Durability::Saving { .. }))
     {
         return Err(CurrentSnapshotBlocker::Durability);
     }
