@@ -17,6 +17,7 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 
 pub mod footprint_forms;
 pub mod layout_camera;
+pub mod pending_edit_helpers;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_reference_effect;
