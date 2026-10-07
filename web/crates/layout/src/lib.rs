@@ -55,6 +55,7 @@ pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;
 pub mod mirrored_pair_geometry;
 pub mod mirrored_pair_lifecycle;
+pub mod outline;
 pub mod outline_settings;
 pub mod setup_guide_state;
 

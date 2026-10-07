@@ -1307,7 +1307,7 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
 
 mod queued_actions {
     use super::*;
-    use crate::outline_lifecycle::{OutlineAction, action_resolver};
+    use crate::outline::{OutlineAction, action_resolver};
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{
         BoardOutline, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
