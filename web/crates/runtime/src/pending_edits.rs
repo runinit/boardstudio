@@ -104,7 +104,7 @@ impl<K: PartialEq> PendingEdits<K> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
     use boardstudio_application::{EditResolver, Event, Resolution};
