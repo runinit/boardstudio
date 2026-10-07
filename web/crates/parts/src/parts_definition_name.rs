@@ -1480,6 +1480,18 @@ mod mounted_tests {
             "one Undo reverts only the height change"
         );
         assert_eq!(courtyard_height_input(&root).value(), "6");
+
+        runtime.submit(AppEvent::Undo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        let undone_again = runtime.model().accepted.unwrap();
+        assert_eq!(
+            definition_bounds(&undone_again.document),
+            (10.0, 6.0),
+            "a second Undo reverts the width change: the edits undo in order"
+        );
+        assert_eq!(courtyard_width_input(&root).value(), "10");
         root.remove();
     }
 
@@ -1539,16 +1551,6 @@ mod mounted_tests {
         let _ = courtyard_width_input(&root).blur();
         settle().await;
         support::run_pending(&runtime).await;
-        let probed = runtime.model().clone();
-        web_sys::console::log_1(
-            &format!(
-                "after run_pending: revision={} durability={:?} lifecycle={:?}",
-                probed.accepted.as_ref().map(|s| s.document.revision).unwrap_or(999),
-                probed.durability,
-                probed.lifecycle
-            )
-            .into(),
-        );
         refresh_host(&runtime, &controls).await;
 
         let accepted = runtime.model().accepted.unwrap();

@@ -305,7 +305,25 @@ pub(crate) mod ui {
                     apply_plain_settlement(settlement, &mut error);
                 }
             }
-            edits.pads.retain(|row, _| row_keys.contains(row));
+            // A row whose pad vanished (an accepted edit removed it) still owes its
+            // queued tickets a settlement: surface the failure reason before the row's
+            // drafts disappear with it.
+            let vanished: Vec<u64> = edits
+                .pads
+                .keys()
+                .copied()
+                .filter(|row| !row_keys.contains(row))
+                .collect();
+            for row in vanished {
+                if let Some(mut row_edits) = edits.pads.remove(&row) {
+                    for ticket in row_edits.tickets_mut() {
+                        if let Some(settlement) = settle_ticket(ticket, owner_live) {
+                            changed = true;
+                            apply_plain_settlement(settlement, &mut error);
+                        }
+                    }
+                }
+            }
             if changed {
                 pending.set(edits);
             }
@@ -454,6 +472,24 @@ pub(crate) mod ui {
     }
 
     impl PadRowEdits {
+        /// Every ticket slot, for settle passes that have no draft to restore.
+        fn tickets_mut(&mut self) -> [&mut Option<EditTicket>; 9] {
+            let PadRowEdits {
+                id,
+                number,
+                x,
+                y,
+                size_x,
+                size_y,
+                drill,
+                shape,
+                remove,
+            } = self;
+            [
+                id, number, x, y, size_x, size_y, drill, shape, remove,
+            ]
+        }
+
         fn park(&mut self, field: PadField, ticket: EditTicket) {
             match field {
                 PadField::Id => self.id = Some(ticket),
@@ -1107,6 +1143,9 @@ pub fn definition_field_resolver(
             ) {
                 return Resolution::Retire(reason);
             }
+            // The clone is built from the accepted document, so equality means this
+            // field already holds the committed value: resolve Unchanged, not a
+            // landing heuristic (ADR-0005).
             if replacement == **document {
                 return Resolution::Unchanged;
             }
