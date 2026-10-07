@@ -1,6 +1,6 @@
 # 12: Outline actions land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -115,3 +115,50 @@ wasm-pack test --headless --chrome web/crates/layout --locked --lib
 
 - One outline module or typed outline edits (architecture review candidates 9 and 2; decision ticket 19).
 - Perimeter preview staleness (`docs/backlog.md`).
+
+## Outcome
+
+Commits: claim; "Delete the layout-inspector interception from Runtime" (shared
+`runtime.rs`, its own commit); "Land outline actions through resolution".
+
+- `submit_action` keeps admission (workspace, generation, selection, `is_current`, the gap
+  camera) and then plans the action with the new pure `plan_action(snapshot, action, seed)`,
+  once at dispatch (an unsupported action is ignored early, as before) and again as the
+  resolver (`action_resolver`) against the accepted snapshot at execution. Commit actions begin
+  an `EditTicket`; perimeter previews stay on `Event::Edit` with the preview phase.
+- `plan_action` returns the operation and target ids, retiring with a reason when the board,
+  version, feature or perimeter is gone or changed ("The outline feature no longer
+  exists.", …) and `Unchanged` for equal values. New identities (copied versions, added
+  features, connections) are chosen inside it against the accepted document from a seed
+  captured at submit; an added feature whose minted id is already taken gets a fresh one, so
+  two queued adds cannot collide. `SetFeature` no longer compares the accepted feature with
+  the panel's `before` snapshot: the committed `after` wins unless the feature is gone.
+- Deleted: `Pending`'s kind/outcome/snapshot, `PendingKind`, the settle effect's per-action
+  content checks and revision/token/durability gates, `OutlineExpectation`,
+  `expectation_applied`, the "saved outline no longer matches this action" message and the
+  untracked wait task. The settle effect now maps `Settlement` to the existing feedback
+  states and supports several in-flight edits.
+- One-shot controls (activate, copy, delete, create automatic, add/subtract/connect drawing,
+  remove feature) disable on `OutlineInspectorProjection::one_shot_pending`; settings
+  fields, feature values and perimeter edits are field edits and the panel stays editable
+  while an earlier edit is applying or saving.
+- The layout-inspector interception (`set_layout_component_inspector_test_state`, the event
+  capture and its read-model override) is gone from Runtime; ticket 11 had already moved
+  the transform Inspector suite, and `outline_lifecycle_browser_tests.rs` now opens its
+  fixtures through the real Session and Core and asserts accepted results (revisions,
+  accepted features, connection identities, the fixed copy's points).
+- New tests (real Session/Core, gated reply): two `SetFeature` edits on different features
+  both survive and Undo removes them in order; two queued `AddFeature`s with the same minted
+  id both exist with distinct ids; `SetFeature` on a feature removed first retires with a
+  reason; a one-shot ticket stays pending until it settles.
+
+Checks: `cargo test -p boardstudio-web-layout --locked` 50 passed; `cargo test -p
+boardstudio-web-runtime --locked` 103 passed; `python3 scripts/check.py typecheck`;
+`python3 scripts/check-wasm-tests.py`; `python3 scripts/check-doc-links.py`;
+`wasm-pack test --headless --chrome web/crates/layout --locked --lib` — 92 passed;
+`run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs` — 20
+executed, 0 failed. `check.py test` still fails only on the missing `step-oracle/`.
+
+Follow-ups: `outline_lifecycle_tests.rs` kept its native stub-runtime pure-geometry tests;
+the board name action (ticket 16) is untouched. `Unchanged` from `apply_outline_edit`
+also covers edits whose target is missing (no resolver retire reason there).

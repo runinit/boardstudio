@@ -63,6 +63,9 @@ which remaining whole-document replacements become typed Core edits.
   nudges submit intent through the edit ticket; the baseline rejections are gone; the
   transform Inspector tests run on the real Session and Core:
   [issues/11-matrix-and-transform.md](issues/11-matrix-and-transform.md).
+- 12 Outline actions go through one planner and the edit ticket; the `Pending` settle
+  effect is gone; the layout-inspector interception is deleted from Runtime:
+  [issues/12-outline.md](issues/12-outline.md).
 
 ## Not yet specified
 
