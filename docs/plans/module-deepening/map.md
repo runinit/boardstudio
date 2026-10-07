@@ -51,7 +51,12 @@ finish       cleanup after the three panel migrations, export leases and workspa
 ```
 
 ES-20 is [edit settlement 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md);
-TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TCE-01, 10 and 11 are resolved. Ticket 03 is resolved. Resolution constructors are resolved. Editor workspace state is resolved. Captured Scope and keyed settlement are resolved. Shared UI helpers are merged; Matrix actions await final mounted controller coverage, then Matrix fields complete the tracer. The captured-Scope slice starts after the native Runtime and resolution constructors merge; the tracer gate now groups five smaller builds. Shared helpers and Matrix actions can run in parallel after the keyed collection merges. The TCE-02 spec and TCE-03 decision proposals await human approval.
+TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. Preview-only events,
+the native Runtime, resolution constructors, outline split, typed wiring, export leases
+and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers and
+Matrix actions are merged and resolved. Matrix fields are the final implementation
+slice before the PendingEdits tracer gate; wider panel migrations still wait for that
+gate. Mechanical patch and outline intent proposals await human approval.
 
 ## Decisions so far
 
@@ -73,6 +78,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. ES-20, 06, TC
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [Matrix one-shot actions use PendingEdits](issues/17-matrix-one-shot-pending-edits.md#outcome):
+  keyed actions retain precise selection and retire departed-owner reports silently;
+  native 51 and browser 114+1 tests passed, final reviews clear.
 
 - [Shared UI helpers present pending edits](issues/16-pending-edit-ui-helpers.md#outcome):
   one shared collection binds field drafts/failures and action disabling; native 8
