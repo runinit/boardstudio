@@ -9,8 +9,6 @@ For new work, record the observed problem, affected behavior and completion
 condition. Update the entry when the behavior is verified. Ordinary development
 uses the commands in the root README.
 
-- **Layout queued coordinate edits:** the [Layout part-editing investigation](investigations/layout-part-editing.md) reproduces a queued Y command restoring the old X through Session/Core. The 17 mounted Inspector tests pass but intercept commands before acceptance. Complete a browser reproduction, preserve both accepted coordinates through rapid X/Y edits and Undo, and then choose the bounded ownership change. No repair or replacement interface has been selected.
-
 - **Stale edit previews:** an `Event::Edit` preview queued behind a commit is rebased by Session but keeps its old payload, so it is drawn over the newly accepted document until the next commit or a matching clear (`application/src/session.rs`, preview handling). It never changes the accepted document. Affects the old position Inspector, transform drag and outline perimeter previews. The [edit settlement plan](plans/edit-settlement/map.md) leaves previews unchanged; reproduce before repairing.
 
 - **Undo/Redo:** investigate outstanding history behavior separately. Existing controls and tests remain; earlier qualification was deferred.

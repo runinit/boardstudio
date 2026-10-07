@@ -1,8 +1,12 @@
 # Layout part editing: ownership and queued coordinates
 
-Investigated 2026-10-05 at `3cdeb2ac2`. Status: open finding; the queued overwrite
-is reproduced, while live browser reproduction, repair and interface design
-remain open. Application behavior was not changed.
+Investigated 2026-10-05 at `3cdeb2ac2`. Status: resolved 2026-10-06 by the
+[edit settlement](../plans/edit-settlement/map.md) tracer bullet
+([ticket 06](../plans/edit-settlement/issues/06-layout-inspector-tracer-bullet.md)):
+the Layout Inspector submits every edit as an owner-captured resolver through
+`Event::ResolveEdit`, resolved against the accepted document at execution, per
+[ADR-0005](../adr/0005-resolve-queued-edits-at-execution.md). The mounted
+rapid X/Y regression test keeps both coordinates and one Undo removes only Y.
 
 Layout part editing spreads draft behavior, selection ownership and command
 construction across the Inspector and shared presentation module. The most useful
@@ -133,14 +137,16 @@ retain separate projection, form and execution adapters. A generic numeric-edit
 framework or another adapter that only captures events would not resolve the
 acceptance gap.
 
-## Remaining work
+## Resolution
 
-1. Reproduce rapid X/Y input through the mounted Inspector and real edit path,
-   controlling completion timing and checking accepted coordinates and Undo.
-2. Decide where queued field intent is resolved against accepted state, and how
-   pending edits, rejection and retry should appear to the user.
-3. Select a bounded module interface only after that behavior is settled; retain
-   existing precision and owner-admission regressions during implementation.
+The three remaining-work items were settled by the edit settlement effort:
+the mounted Inspector now runs against the real Session and CoreEngine through
+the in-process adapter (ticket 05), the resolution point and failure behaviour
+were decided in ADR-0005, and the bounded interface is the edit ticket
+(ticket 04) plus the per-field resolver builders in
+[layout_component_edits.rs](../../web/src/presentation/layout_component_edits.rs).
+The precision and owner-admission regressions from this investigation are
+retained in the mounted suite.
 
 Track the unresolved behavior in the [backlog](../backlog.md). This investigation
 does not establish a new architectural decision or reopen either outline ADR.

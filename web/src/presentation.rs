@@ -21,6 +21,7 @@ mod keycaps_workspace;
 pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
+mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
@@ -101,7 +102,7 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Constraint, Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
+    Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
     PartDefinition, PartKind, PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
@@ -2118,23 +2119,28 @@ fn layout_component_inspector_owner_is_current(
         && model.selected_part_ids.first() == Some(&owner.part_id)
 }
 
+/// Begin the pending edit for an Inspector field and park it on its field of the
+/// Inspector's pending-edit state, so the form renders the draft while it is pending and
+/// the accepted value again when it settles.
 fn submit_layout_component_edit(
     runtime: &Rc<Runtime>,
-    owner: &inspector::LayoutComponentInspectorOwner,
-    target_ids: Vec<String>,
-    operation: EditOperation,
+    mut pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
+    field: layout_component_edits::InspectorField,
+    resolver: boardstudio_application::EditResolver,
 ) {
-    let operation_id = runtime.operation();
-    runtime.submit(Event::Edit {
-        operation_id,
-        command: EditCommand {
-            base_revision: owner.revision,
-            transaction_id: format!("layout-component-inspector-{}", operation_id.0),
-            phase: EditPhase::Commit,
-            target_ids,
-            operation,
-        },
-    });
+    let ticket = layout_component_edits::begin_inspector_edit(runtime, field, resolver);
+    let mut edits = pending_edits.peek().clone();
+    match field {
+        layout_component_edits::InspectorField::X => edits.x = Some(ticket),
+        layout_component_edits::InspectorField::Y => edits.y = Some(ticket),
+        layout_component_edits::InspectorField::Margin => edits.margin = Some(ticket),
+        layout_component_edits::InspectorField::Layout => edits.layout = Some(ticket),
+        layout_component_edits::InspectorField::Constraint => edits.constraint = Some(ticket),
+        layout_component_edits::InspectorField::RemoveConstraint => {
+            edits.remove_constraint = Some(ticket)
+        }
+    }
+    pending_edits.set(edits);
 }
 
 fn dispatch_layout_component_inspector_action(
@@ -2144,6 +2150,7 @@ fn dispatch_layout_component_inspector_action(
     lifetime: &inspector::LayoutComponentInspectorLifetime,
     mut workspace: Signal<&'static str>,
     mut inspect_open: Signal<bool>,
+    pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
     action: inspector::LayoutComponentInspectorAction,
 ) {
     let action_owner = match &action {
@@ -2194,49 +2201,21 @@ fn dispatch_layout_component_inspector_action(
             if !value.is_finite() {
                 return;
             }
-            let Some(part) = snapshot
-                .document
-                .parts
-                .iter()
-                .find(|part| part.id == owner.part_id)
-            else {
-                return;
+            let field = match axis {
+                inspector::ComponentPositionAxis::X => layout_component_edits::InspectorField::X,
+                inspector::ComponentPositionAxis::Y => layout_component_edits::InspectorField::Y,
             };
-            let mut at = part.pose.at;
-            match axis {
-                inspector::ComponentPositionAxis::X => at.x = value,
-                inspector::ComponentPositionAxis::Y => at.y = value,
-            }
-            let delta = Vec2 {
-                x: at.x - part.pose.at.x,
-                y: at.y - part.pose.at.y,
-            };
-            let positions = owner
-                .selected_part_ids
-                .iter()
-                .filter_map(|selected_id| {
-                    let selected = snapshot
-                        .document
-                        .parts
-                        .iter()
-                        .find(|part| part.id == *selected_id)?;
-                    Some(Position {
-                        id: selected.id.clone(),
-                        at: Vec2 {
-                            x: selected.pose.at.x + delta.x,
-                            y: selected.pose.at.y + delta.y,
-                        },
-                    })
-                })
-                .collect::<Vec<_>>();
-            if positions.len() != owner.selected_part_ids.len() {
-                return;
-            }
             submit_layout_component_edit(
                 runtime,
-                &owner,
-                owner.selected_part_ids.clone(),
-                EditOperation::MoveParts { positions },
+                pending_edits,
+                field,
+                layout_component_edits::position_resolver(
+                    owner.part_id.clone(),
+                    owner.selected_part_ids.clone(),
+                    owner.scope.board_id.clone(),
+                    axis,
+                    value,
+                ),
             );
         }
         inspector::LayoutComponentInspectorAction::AssignLayout { owner, layout_id } => {
@@ -2255,50 +2234,23 @@ fn dispatch_layout_component_inspector_action(
             if current_layout.map(|layout| layout.id.as_str()) == layout_id.as_deref() {
                 return;
             }
-            let mut replacement = snapshot.document.as_ref().clone();
-            for layout in &mut replacement.layouts {
-                if layout.board_id == board.id {
-                    layout.part_ids.retain(|part_id| part_id != &owner.part_id);
-                }
-            }
-            if let Some(layout_id) = layout_id.as_ref()
-                && let Some(layout) = replacement
-                    .layouts
-                    .iter_mut()
-                    .find(|layout| layout.id == *layout_id && layout.board_id == board.id)
-            {
-                layout.part_ids.push(owner.part_id.clone());
-            }
-            let mut target_ids = vec![owner.part_id.clone()];
-            if let Some(layout_id) = layout_id {
-                target_ids.push(layout_id);
-            }
             submit_layout_component_edit(
                 runtime,
-                &owner,
-                target_ids,
-                EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
+                pending_edits,
+                layout_component_edits::InspectorField::Layout,
+                layout_component_edits::assign_layout_resolver(
+                    owner.part_id.clone(),
+                    owner.scope.board_id.clone(),
+                    layout_id,
+                ),
             );
         }
         inspector::LayoutComponentInspectorAction::SetOutline { owner, outline } => {
-            let mut replacement = snapshot.document.as_ref().clone();
-            let Some(part) = replacement
-                .parts
-                .iter_mut()
-                .find(|part| part.id == owner.part_id)
-            else {
-                return;
-            };
-            part.outline = Some(outline);
             submit_layout_component_edit(
                 runtime,
-                &owner,
-                vec![owner.part_id.clone()],
-                EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
+                pending_edits,
+                layout_component_edits::InspectorField::Margin,
+                layout_component_edits::outline_resolver(owner.part_id.clone(), outline),
             );
         }
         inspector::LayoutComponentInspectorAction::SetConstraint {
@@ -2311,63 +2263,32 @@ fn dispatch_layout_component_inspector_action(
             {
                 return;
             }
-            let existing_id = snapshot
-                .document
-                .constraints
-                .iter()
-                .find(|constraint| {
-                    constraint.target() == owner.part_id
-                        && board.part_ids.iter().any(|id| id == constraint.source())
-                })
-                .map(|constraint| constraint.id().to_owned());
-            let constraint_id = existing_id.unwrap_or_else(|| {
-                format!("layout-component-constraint-{}", runtime.operation().0)
-            });
-            let constraint = match values {
-                inspector::LayoutConstraintValues::Offset { offset, rotation } => {
-                    Constraint::Offset {
-                        id: constraint_id,
-                        source_part_id,
-                        target_part_id: owner.part_id.clone(),
-                        offset,
-                        rotation,
-                    }
-                }
-                inspector::LayoutConstraintValues::Mirror { axis, coordinate } => {
-                    Constraint::Mirror {
-                        id: constraint_id,
-                        source_part_id,
-                        target_part_id: owner.part_id.clone(),
-                        axis,
-                        coordinate,
-                    }
-                }
-            };
-            let mut target_ids = vec![constraint.id().to_owned(), owner.part_id.clone()];
-            if !target_ids.iter().any(|id| id == constraint.source()) {
-                target_ids.push(constraint.source().to_owned());
-            }
+            let id_seed = runtime.operation().0;
             submit_layout_component_edit(
                 runtime,
-                &owner,
-                target_ids,
-                EditOperation::SetConstraint { constraint },
+                pending_edits,
+                layout_component_edits::InspectorField::Constraint,
+                layout_component_edits::constraint_resolver(
+                    owner.part_id.clone(),
+                    owner.scope.board_id.clone(),
+                    source_part_id,
+                    values,
+                    id_seed,
+                ),
             );
         }
         inspector::LayoutComponentInspectorAction::RemoveConstraint {
             owner,
             constraint_id,
         } => {
-            if !snapshot.document.constraints.iter().any(|constraint| {
-                constraint.id() == constraint_id && constraint.target() == owner.part_id
-            }) {
-                return;
-            }
             submit_layout_component_edit(
                 runtime,
-                &owner,
-                vec![constraint_id.clone(), owner.part_id.clone()],
-                EditOperation::RemoveConstraint { id: constraint_id },
+                pending_edits,
+                layout_component_edits::InspectorField::RemoveConstraint,
+                layout_component_edits::remove_constraint_resolver(
+                    owner.part_id.clone(),
+                    constraint_id,
+                ),
             );
         }
         inspector::LayoutComponentInspectorAction::NavigateElectrical { .. } => {
@@ -7762,6 +7683,8 @@ fn Editor() -> Element {
             },
         )),
     };
+    let component_inspector_pending_edits =
+        use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
     let on_component_inspector_action = EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -7775,6 +7698,7 @@ fn Editor() -> Element {
                 &lifetime,
                 workspace,
                 inspect_open,
+                component_inspector_pending_edits,
                 action,
             )
         }
@@ -7979,6 +7903,7 @@ fn Editor() -> Element {
                     }),
                 show_position_inspector,
                 component_inspector: component_inspector.clone(),
+                component_inspector_pending_edits,
                 on_component_inspector_action,
                 matrix_inspector,
                 key_size,

@@ -47,6 +47,8 @@ pub(super) struct InspectorInput {
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
     pub(super) component_inspector: Option<super::inspector::LayoutComponentInspectorProjection>,
+    pub(super) component_inspector_pending_edits:
+        dioxus::prelude::Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub(super) on_component_inspector_action:
         EventHandler<super::inspector::LayoutComponentInspectorAction>,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
@@ -307,6 +309,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     super::inspector::LayoutComponentInspector {
                         projection,
                         inspector_tab: input.inspector_tab,
+                        pending_edits: input.component_inspector_pending_edits,
                         on_action: input.on_component_inspector_action,
                     }
                 } else if input.show_position_inspector { super::inspector::Inspector {} }

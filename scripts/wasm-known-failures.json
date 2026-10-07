@@ -1,6 +1,1 @@
-[
-  {
-    "test": "mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_only_y",
-    "reason": "queued Inspector edits overwrite: the Y edit is built from the document captured before the X edit was accepted; fixed by ticket 06 (Layout Inspector migrates to resolvers)"
-  }
-]
+[]

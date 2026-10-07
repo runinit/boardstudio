@@ -477,6 +477,8 @@ fn mounted_component_inspector_host() -> Element {
     let adapter =
         use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
     let lifetime = use_hook(|| std::rc::Rc::new(LayoutComponentInspectorLifetime::default()));
+    let pending_edits =
+        use_signal(super::layout_component_edits::LayoutComponentInspectorEdits::default);
     let runtime = probe.runtime.clone();
     let model = runtime.model();
     let next_context = probe
@@ -511,6 +513,7 @@ fn mounted_component_inspector_host() -> Element {
     let action_adapter = adapter.clone();
     let action_lifetime = lifetime.clone();
     let action_workspace = workspace;
+    let action_pending_edits = pending_edits;
     let action_handler = EventHandler::new(move |action| {
         dispatch_layout_component_inspector_action(
             &action_runtime,
@@ -519,6 +522,7 @@ fn mounted_component_inspector_host() -> Element {
             &action_lifetime,
             action_workspace,
             inspect_open,
+            action_pending_edits,
             action,
         )
     });
@@ -536,7 +540,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-select-component", onclick: { let mut generation = render_generation; move |_| { let part = component_probe.selected_part.borrow().clone().unwrap_or_else(|| "selected-part".into()); component_probe.select_component_from_finding(&part); generation += 1; } }, "Select component from finding" }
         button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
         if let Some(projection) = projection {
-            LayoutComponentInspector { projection, inspector_tab, on_action: action_handler }
+            LayoutComponentInspector { projection, inspector_tab, pending_edits, on_action: action_handler }
         }
     }
 }
@@ -1586,6 +1590,134 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
             y: -47.625
         },
         "one Undo removes only the Y change"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
+    let (probe, root) = mounted_probe("layout-component-position-save-failure-test-root").await;
+    settle_component_inspector().await;
+    crate::runtime::project_name_test_support::fail_next_persist(
+        &probe.runtime,
+        "injected durable write failure",
+    );
+    let x = position_input(probe.root_id, "X mm");
+    x.focus().unwrap();
+    x.set_value("7.5");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    accept_pending(&probe).await;
+    assert_eq!(
+        accepted_position(&probe, "selected-part"),
+        Vec2 { x: 4.0, y: 3.0 },
+        "a failed save must not move the part"
+    );
+    settle_component_inspector().await;
+    assert_eq!(
+        x.value(),
+        "4.00",
+        "a failed edit shows the accepted value again"
+    );
+    let alert = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{} [role='alert']", probe.root_id))
+        .unwrap()
+        .expect("the failure is explained inline")
+        .text_content()
+        .unwrap();
+    assert!(
+        alert.contains("did not save") && alert.contains("injected durable write failure"),
+        "the inline message names the failure: {alert}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
+    let (probe, root) = mounted_probe("layout-component-position-retire-test-root").await;
+    settle_component_inspector().await;
+    // Hold the lock edit's Core reply so the position edit queues behind it.
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    let accepted = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("fixture snapshot")
+        .clone();
+    let mut replacement = (*accepted.document).clone();
+    replacement
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "selected-part")
+        .unwrap()
+        .locked = Some(true);
+    probe.runtime.submit(boardstudio_application::Event::Edit {
+        operation_id: probe.runtime.operation(),
+        command: boardstudio_core::model::EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: "lock-before-position".into(),
+            phase: boardstudio_core::model::EditPhase::Commit,
+            target_ids: vec!["selected-part".into()],
+            operation: boardstudio_core::model::EditOperation::ReplaceDocument {
+                document: Box::new(replacement),
+            },
+        },
+    });
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered
+        .await
+        .expect("the lock edit reached the in-process Core");
+
+    let x = position_input(probe.root_id, "X mm");
+    x.focus().unwrap();
+    x.set_value("7.5");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    release.send(()).expect("release the held lock edit");
+    // The parked task drives the lock edit and the queued position edit to completion
+    // on its own; only afterwards does a forced rerender settle the ticket.
+    settle_component_inspector().await;
+    probe.refresh();
+    settle_component_inspector().await;
+    assert!(
+        accepted_position(&probe, "selected-part") == Vec2 { x: 4.0, y: 3.0 },
+        "a retired edit moves nothing"
+    );
+    let alert = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{} [role='alert']", probe.root_id))
+        .unwrap()
+        .expect("the retirement is explained inline")
+        .text_content()
+        .unwrap();
+    assert!(
+        alert.contains("locked"),
+        "the inline message explains why the edit retired: {alert}"
     );
     root.remove();
 }

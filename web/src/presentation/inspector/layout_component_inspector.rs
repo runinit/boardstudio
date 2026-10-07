@@ -149,6 +149,7 @@ pub enum LayoutComponentInspectorAction {
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
     pub inspector_tab: Signal<LayoutInspectorTab>,
+    pub pending_edits: Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
 }
 
@@ -403,6 +404,26 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         }
     };
 
+    // Settle the pending edit tickets before rendering: pending fields keep their
+    // drafts, failures restore the accepted value with the message inline, and landed
+    // or retired tickets drop so the fields follow the accepted document again.
+    {
+        let mut settle_x = x;
+        let mut settle_y = y;
+        let mut settle_margin = margin;
+        let mut settle_error = error;
+        super::super::layout_component_edits::settle_inspector_edits(
+            props.pending_edits,
+            projection.position.x,
+            projection.position.y,
+            projection.outline.margin,
+            &mut settle_x,
+            &mut settle_y,
+            &mut settle_margin,
+            &mut settle_error,
+        );
+    }
+
     let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
     let commit_position: Rc<dyn Fn(ComponentPositionAxis, PositionCommitTrigger)> = {
         let latest_capture = latest_capture;
@@ -453,11 +474,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             let untouched_blur =
                 trigger == PositionCommitTrigger::Blur && draft == format!("{current:.2}");
             if value != current && !untouched_blur {
-                action.call(LayoutComponentInspectorAction::SetPosition {
-                    owner,
-                    axis,
-                    value,
-                });
+                action.call(LayoutComponentInspectorAction::SetPosition { owner, axis, value });
             }
         })
     };
