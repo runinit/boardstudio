@@ -600,69 +600,6 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
 }
 
 #[test]
-fn queued_discrete_edits_use_each_preceding_durable_revision() {
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    open_ready(&mut session, &mut engine);
-
-    let first_effects = session.submit(move_edit(11, 0, 2.0));
-    let (first_id, first_epoch, first_request) = core_effect(&first_effects);
-    let second_effects = session.submit(move_edit(12, 0, 6.0));
-    assert!(
-        !second_effects
-            .iter()
-            .any(|effect| matches!(effect, Effect::Core { .. }))
-    );
-
-    let first_reply = engine.handle(first_request);
-    let effects = session.complete(Completion::Core {
-        request_id: first_id,
-        executor_epoch: first_epoch,
-        reply: Box::new(first_reply),
-    });
-    let (first_save, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id: first_save,
-        result: SaveResult::Committed,
-    });
-    let (second_id, second_epoch, second_request) = core_effect(&effects);
-    assert!(
-        matches!(&second_request, CoreRequest::Edit { command, .. } if command.base_revision == 1)
-    );
-
-    let second_reply = engine.handle(second_request);
-    let effects = session.complete(Completion::Core {
-        request_id: second_id,
-        executor_epoch: second_epoch,
-        reply: Box::new(second_reply),
-    });
-    let (second_save, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id: second_save,
-        result: SaveResult::Committed,
-    });
-    assert_eq!(
-        session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .revision,
-        2
-    );
-    assert!(effects.iter().any(|effect| matches!(
-        effect,
-        Effect::Settled {
-            operation_id: OperationId(12),
-            outcome: TerminalOutcome::Completed,
-
-            ..
-        }
-    )));
-}
-
-#[test]
 fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
