@@ -2746,7 +2746,6 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 }
                             }
                             DimensionField {
-                                key: "process-thickness:{target.part_id}",
                                 identity: props.identity.clone(),
                                 request_sequence: props.request_sequence,
                                 on_request: props.on_request,

@@ -590,7 +590,7 @@ mod mounted_tests {
     use super::*;
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{Event as AppEvent, Scope};
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_core::model::{PartDefinition, ProjectDoc};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
