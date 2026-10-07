@@ -215,9 +215,9 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
     // Ordinary document replacement is still an edit, so Core restores the protected handoff.
     let mut attempted_clear = opened.clone();
     attempted_clear.hardware.as_mut().unwrap().boards[0].protected_handoff = None;
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: EditCommand {
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        EditCommand {
             base_revision: 0,
             transaction_id: "ordinary-clear-attempt".into(),
             phase: EditPhase::Commit,
@@ -226,7 +226,7 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
                 document: Box::new(attempted_clear),
             },
         },
-    });
+    ));
     let (after_edit, _) = settle_core_and_save(&mut session, &mut engine, effects);
     assert_eq!(after_edit.revision, 1);
     assert_eq!(
@@ -400,9 +400,9 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         }
     )));
 
-    let event = Event::Edit {
-        operation_id: OperationId(2),
-        command: EditCommand {
+    let event = resolved_edit(
+        OperationId(2),
+        EditCommand {
             base_revision: 0,
             transaction_id: "move-1".into(),
             phase: EditPhase::Commit,
@@ -414,7 +414,7 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
                 }],
             },
         },
-    };
+    );
     let effects = session.submit(event);
     let (edit_request_id, edit_epoch, edit) = core_effect(&effects);
     let committed_reply = engine.handle(edit);
@@ -502,10 +502,21 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
     );
 }
 
+fn resolved_edit(operation_id: OperationId, command: EditCommand) -> Event {
+    let resolver_command = command;
+    Event::ResolveEdit {
+        operation_id,
+        label: "test fixed command".into(),
+        resolver: EditResolver::new("test fixed command", move |_| {
+            Resolution::Submit(resolver_command.clone())
+        }),
+    }
+}
+
 fn move_edit(operation_id: u64, base_revision: u64, x: f64) -> Event {
-    Event::Edit {
-        operation_id: OperationId(operation_id),
-        command: EditCommand {
+    resolved_edit(
+        OperationId(operation_id),
+        EditCommand {
             base_revision,
             transaction_id: format!("move-{operation_id}"),
             phase: EditPhase::Commit,
@@ -517,7 +528,7 @@ fn move_edit(operation_id: u64, base_revision: u64, x: f64) -> Event {
                 }],
             },
         },
-    }
+    )
 }
 
 fn open_ready(session: &mut Session, engine: &mut CoreEngine) {
@@ -555,9 +566,9 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
     });
     settle_core_and_save(&mut session, &mut engine, effects);
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: EditCommand {
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        EditCommand {
             base_revision: 0,
             transaction_id: "group-position-blur".into(),
             phase: EditPhase::Commit,
@@ -575,7 +586,7 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
                 ],
             },
         },
-    });
+    ));
     let (moved, _) = settle_core_and_save(&mut session, &mut engine, effects);
     assert_eq!(moved.parts[0].pose.at.x, 3.0);
     assert_eq!(moved.parts[1].pose.at.x, 13.0);
@@ -649,6 +660,56 @@ fn queued_discrete_edits_use_each_preceding_durable_revision() {
             ..
         }
     )));
+}
+
+#[test]
+fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let accepted = session
+        .read_model()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .as_ref()
+        .clone();
+
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(11),
+        transaction_id: "preview-position".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 8.0, y: 0.0 },
+            }],
+        },
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    assert!(matches!(
+        &request,
+        CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview
+    ));
+    let reply = engine.handle(request);
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+
+    let after_preview = session.read_model().accepted.as_ref().unwrap();
+    assert_eq!(after_preview.document.as_ref(), &accepted);
+    assert!(session.read_model().display_preview.is_some());
+
+    let undo = engine.handle(CoreRequest::Undo {
+        id: "preview-history-check".into(),
+    });
+    assert!(matches!(
+        undo,
+        CoreReply::Error { message, .. } if message == "History is empty"
+    ));
 }
 
 #[test]
@@ -1742,10 +1803,10 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
     assert_eq!(open_landing.revision, accepted.document.revision);
     assert_eq!(open_landing.token, accepted.token);
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: rename_edit_command(0, "Renamed"),
-    });
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        rename_edit_command(0, "Renamed"),
+    ));
     let (_, settled) = settle_core_and_save(&mut session, &mut engine, effects);
     let (outcome, landing) = settled_landing(&settled, OperationId(2));
     assert_eq!(outcome, TerminalOutcome::Completed);
@@ -1803,10 +1864,10 @@ fn retrying_a_failed_save_settles_the_retry_and_the_original_with_the_same_landi
     });
     let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: rename_edit_command(0, "Renamed"),
-    });
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        rename_edit_command(0, "Renamed"),
+    ));
     let (request_id, executor_epoch, request) = core_effect(&effects);
     let reply = engine.handle(request);
     let effects = session.complete(Completion::Core {
@@ -2252,10 +2313,10 @@ fn recovery_and_closing_refuse_resolvers_without_calling_them() {
         })
     };
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: rename_edit_command(0, "Renamed"),
-    });
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        rename_edit_command(0, "Renamed"),
+    ));
     let (request_id, epoch, request) = core_effect(&effects);
     let reply = engine.handle(request);
     let effects = session.complete(Completion::Core {
