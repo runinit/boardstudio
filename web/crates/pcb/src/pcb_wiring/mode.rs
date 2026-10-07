@@ -1,9 +1,7 @@
 //! Accepted board-level mode edits for PCB wiring.
 use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
 use crate::{
-    pcb_wiring_mode_operation::{
-        BoardWiringModeFeedbackTarget, BoardWiringModeIdentity, propose_mode,
-    },
+    pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity},
     runtime::Runtime,
 };
 use boardstudio_application::{
@@ -187,10 +185,18 @@ fn mode_resolver(request: BoardWiringModeEditRequest) -> EditResolver {
         {
             return Resolution::Retire("The board was deleted.".into());
         }
-        let Some(proposal) = propose_mode(&accepted.document, board_id, request.mode) else {
-            return Resolution::Unchanged;
-        };
-        if proposal == *accepted.document {
+        let current_mode = accepted
+            .document
+            .hardware
+            .as_ref()
+            .and_then(|hardware| {
+                hardware
+                    .boards
+                    .iter()
+                    .find(|configuration| configuration.board_id == *board_id)
+            })
+            .map_or(ElectricalMode::Matrix, |configuration| configuration.mode);
+        if current_mode == request.mode {
             return Resolution::Unchanged;
         }
         Resolution::Submit(EditCommand {
@@ -198,8 +204,9 @@ fn mode_resolver(request: BoardWiringModeEditRequest) -> EditResolver {
             transaction_id: String::new(),
             phase: EditPhase::Commit,
             target_ids: vec![board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(proposal),
+            operation: EditOperation::SetWiringMode {
+                board_id: board_id.clone(),
+                mode: request.mode,
             },
         })
     })

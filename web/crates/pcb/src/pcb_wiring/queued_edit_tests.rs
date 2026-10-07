@@ -224,12 +224,21 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
         .next()
         .unwrap()
         .clone();
-    let direct = crate::pcb_wiring_mode_operation::propose_mode(
-        &accepted.document,
-        "left",
-        ElectricalMode::Direct,
-    )
-    .unwrap();
+    let mut direct = (*accepted.document).clone();
+    let hardware = direct.hardware.get_or_insert_with(Default::default);
+    if let Some(configuration) = hardware
+        .boards
+        .iter_mut()
+        .find(|configuration| configuration.board_id == "left")
+    {
+        configuration.mode = ElectricalMode::Direct;
+    } else {
+        hardware.boards.push(ElectricalBoardConfiguration {
+            board_id: "left".into(),
+            mode: ElectricalMode::Direct,
+            ..Default::default()
+        });
+    }
     let direct_plan = plan(&direct);
     let pin = first_plan
         .free_pins
