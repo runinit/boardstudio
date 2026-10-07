@@ -681,10 +681,15 @@ fn setup_resolver(
                 &owner,
                 CaseInstanceEdit::Flip(*flipped),
             ),
-            intent => boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
-                &accepted.document,
-                setup_intent(&accepted.document, &owner, intent, seed).unwrap(),
-            ),
+            intent @ (PhysicalSetupIntent::ProjectTopology(_)
+            | PhysicalSetupIntent::ProjectTransport(_)
+            | PhysicalSetupIntent::ProjectReversibleLayout(_)
+            | PhysicalSetupIntent::CaseTransport(_)) => {
+                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
+                    &accepted.document,
+                    setup_intent(&accepted.document, &owner, intent, seed).unwrap(),
+                )
+            }
         };
         let proposal = match proposal {
             Ok(proposal) => proposal,

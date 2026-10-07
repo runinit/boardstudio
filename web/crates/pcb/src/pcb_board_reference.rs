@@ -73,22 +73,39 @@ pub enum Action {
     Remove,
 }
 
-fn action_key(action: &Action) -> String {
-    match action {
-        Action::SetEnabled(_) => "enabled".into(),
-        Action::SetPositionX(_) => "x".into(),
-        Action::SetPositionY(_) => "y".into(),
-        Action::SetRotation(_) => "rotation".into(),
-        Action::SetElevation(_) => "elevation".into(),
-        Action::SetModelAsset { path, .. } => format!("model/{path}"),
-        Action::Remove => "remove".into(),
-    }
-}
-fn action_pending(tickets: Signal<Vec<(String, EditTicket)>>, key: &str) -> bool {
+fn removal_pending(tickets: Signal<Vec<(Action, EditTicket)>>) -> bool {
     tickets
         .read()
         .iter()
-        .any(|(action, ticket)| action == key && ticket.is_pending())
+        .any(|(action, ticket)| *action == Action::Remove && ticket.is_pending())
+}
+
+fn reference_with_drafts(
+    mut reference: BoardReference,
+    tickets: &[(Action, EditTicket)],
+) -> BoardReference {
+    for (action, ticket) in tickets {
+        if !ticket.is_pending() {
+            continue;
+        }
+        match action {
+            Action::SetEnabled(value) => reference.enabled = *value,
+            Action::SetPositionX(value) => reference.pose.at.x = *value,
+            Action::SetPositionY(value) => reference.pose.at.y = *value,
+            Action::SetRotation(value) => reference.pose.rotation = *value,
+            Action::SetElevation(value) => reference.elevation = *value,
+            Action::SetModelAsset { path, asset_id } => match asset_id {
+                Some(id) => {
+                    reference.model_assets.insert(path.clone(), id.clone());
+                }
+                None => {
+                    reference.model_assets.remove(path);
+                }
+            },
+            Action::Remove => {}
+        }
+    }
+    reference
 }
 
 async fn read_kicad_file(file: &File) -> Result<(Vec<u8>, String), String> {
@@ -717,7 +734,7 @@ pub fn Editor(
         },
     ));
 
-    let action_tickets = use_signal(Vec::<(String, EditTicket)>::new);
+    let action_tickets = use_signal(Vec::<(Action, EditTicket)>::new);
     let action_latest = use_signal(|| None::<boardstudio_application::OperationId>);
     let version = use_context::<Signal<u64>>()();
     use_effect(use_reactive((&version,), {
@@ -760,8 +777,7 @@ pub fn Editor(
             let Some(reference_id) = reference_id.as_deref() else {
                 return;
             };
-            let key = action_key(&action);
-            if action_pending(action_tickets, &key) {
+            if action == Action::Remove && removal_pending(action_tickets) {
                 return;
             }
             if let Some(ticket) = super::dispatch_board_reference_action(
@@ -770,11 +786,11 @@ pub fn Editor(
                 &adapter,
                 &owner,
                 reference_id,
-                action,
+                action.clone(),
             ) {
                 action_latest.set(Some(ticket.operation()));
                 error.set(None);
-                action_tickets.write().push((key, ticket));
+                action_tickets.write().push((action, ticket));
             }
         }
     });
@@ -849,6 +865,8 @@ pub fn Editor(
         }
     });
 
+    let reference =
+        reference.map(|reference| reference_with_drafts(reference, &action_tickets.read()));
     let options = assets
         .iter()
         .filter(|asset| matching::is_model_filename(&asset.name))
@@ -886,7 +904,7 @@ pub fn Editor(
                     input {
                         r#type: "checkbox",
                         checked: reference.enabled,
-                        disabled: disabled || busy || action_pending(action_tickets, "enabled"),
+                        disabled,
                         aria_label: "Use routed PCB in assembly",
                         onchange: move |event: FormEvent| on_action.call(Action::SetEnabled(event.checked())),
                     }
@@ -896,7 +914,7 @@ pub fn Editor(
                     label { "X (mm)"
                         input {
                             r#type: "number", step: "0.1", value: "{reference.pose.at.x}",
-                            disabled: disabled || busy || action_pending(action_tickets, "x"),
+                            disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
@@ -907,7 +925,7 @@ pub fn Editor(
                     label { "Y (mm)"
                         input {
                             r#type: "number", step: "0.1", value: "{reference.pose.at.y}",
-                            disabled: disabled || busy || action_pending(action_tickets, "y"),
+                            disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
@@ -918,7 +936,7 @@ pub fn Editor(
                     label { "Z (mm)"
                         input {
                             r#type: "number", step: "0.1", value: "{reference.elevation}",
-                            disabled: disabled || busy || action_pending(action_tickets, "elevation"),
+                            disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
@@ -930,7 +948,7 @@ pub fn Editor(
                 label { "Rotation (°)"
                     input {
                         r#type: "number", value: "{reference.pose.rotation}",
-                        disabled: disabled || busy || action_pending(action_tickets, "rotation"),
+                        disabled,
                         oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f64>()
                                 && value.is_finite()
@@ -976,7 +994,7 @@ pub fn Editor(
                             label { key: "{path}", "Model asset for {path}"
                                 select {
                                     aria_label: "Model asset for {path}",
-                                    disabled: disabled || busy || action_pending(action_tickets, &format!("model/{path}")),
+                                    disabled,
                                     onchange: move |event: FormEvent| {
                                         let selected = event.value();
                                         on_action.call(Action::SetModelAsset {
@@ -1013,7 +1031,7 @@ pub fn Editor(
                 }
                 button {
                     r#type: "button",
-                    disabled: disabled || busy || action_pending(action_tickets, "remove"),
+                    disabled: disabled || busy || removal_pending(action_tickets),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }
@@ -1181,6 +1199,127 @@ mod mounted_async_tests {
                 owner,
             }
         }
+    }
+
+    #[component]
+    fn field_edit_host(fixture: Fixture) -> Element {
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        use_hook(|| {
+            fixture.runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version.set(version() + 1);
+            }));
+        });
+        let _ = version();
+        let workspace = use_signal(|| "Layout");
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| None);
+        let generation = use_signal(|| 1u64);
+        let adapter = use_hook(|| {
+            super::super::SelectionAdapter::new(selected_context, anchor_scope, generation)
+        });
+        let owner = super::super::current_layout_owner(&fixture.runtime, workspace, &adapter);
+        let disabled = !super::super::board_reference_owner_is_current(
+            &fixture.runtime,
+            workspace,
+            &adapter,
+            &owner,
+        );
+        let snapshot = fixture.runtime.model().accepted.unwrap();
+        rsx! {
+            Editor {
+                reference: snapshot.document.board_references.first().cloned(),
+                assets: snapshot.document.assets.clone(),
+                disabled,
+                runtime: BoardReferenceRuntimeHandle::new(fixture.runtime.clone()),
+                workspace,
+                adapter: BoardReferenceAdapterHandle::new(adapter),
+                owner,
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn reference_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
+        let fixture = fixture().await;
+        let runtime = &fixture.runtime;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new_with_props(
+            field_edit_host,
+            field_edit_hostProps {
+                fixture: fixture.clone(),
+            },
+        );
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        TimeoutFuture::new(100).await;
+        let x = root
+            .query_selector("input[type='number']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        let (entered, release) = support::gate_next_core_reply(runtime);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        x.set_value("7.25");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        TimeoutFuture::new(80).await;
+        support::drive_pending(runtime);
+        entered.await.unwrap();
+        TimeoutFuture::new(80).await;
+        assert!(
+            !x.disabled(),
+            "coordinate fields stay enabled while pending"
+        );
+        assert_eq!(
+            x.value(),
+            "7.25",
+            "the pending coordinate draft stays visible"
+        );
+        x.set_value("9.5");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        TimeoutFuture::new(80).await;
+        assert_eq!(x.value(), "9.5");
+        release.send(()).unwrap();
+        for _ in 0..12 {
+            support::run_pending(runtime).await;
+            TimeoutFuture::new(30).await;
+        }
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.board_references[0]
+                .pose
+                .at
+                .x,
+            9.5
+        );
+        assert_eq!(x.value(), "9.5");
+        for expected in [7.25, 0.0] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            for _ in 0..8 {
+                support::run_pending(runtime).await;
+                TimeoutFuture::new(30).await;
+            }
+            assert_eq!(
+                runtime.model().accepted.unwrap().document.board_references[0]
+                    .pose
+                    .at
+                    .x,
+                expected
+            );
+            assert_eq!(x.value(), expected.to_string());
+        }
+        runtime.unsubscribe();
+        root.remove();
     }
 
     #[wasm_bindgen_test]

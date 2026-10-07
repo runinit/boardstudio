@@ -8010,14 +8010,9 @@ fn Editor() -> Element {
             workspace: active_workspace,
         };
         let assets = document.assets.clone();
-        let editable = model.lifecycle == Lifecycle::Ready
-            && model.durability
-                == (Durability::Saved {
-                    revision: snapshot.document.revision,
-                })
-            && model.display_preview.is_none()
-            && model.gesture.is_none()
-            && active_board_scope_matches(&model, &render_scope);
+        let editable = boardstudio_web_pcb::board_reference_owner::board_reference_owner_is_current(
+            &runtime, workspace, &adapter, &owner,
+        );
         Some((reference, assets, editable, owner))
     } else {
         None
