@@ -3830,7 +3830,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 previous_accepted.set(accepted);
             }
             let Some(request) = submitted_copy.read().clone() else {
-                if accepted_changed {
+                if accepted_changed && !dirty_for_ack() {
                     draft_for_ack.set(accepted.to_string());
                     dirty_for_ack.set(false);
                     error_for_ack.set(None);
@@ -3871,7 +3871,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     }
                 }
             }
-            if accepted_changed {
+            if accepted_changed && !dirty_for_ack() {
                 draft_for_ack.set(accepted.to_string());
                 dirty_for_ack.set(false);
                 error_for_ack.set(None);
@@ -4081,6 +4081,7 @@ struct TextDraftFieldProps {
 #[component]
 fn TextDraftField(props: TextDraftFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.clone());
+    let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
     let mut status = use_signal(|| None::<String>);
@@ -4088,6 +4089,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
     let accepted = props.value.clone();
     let feedback_entries = props.feedback.clone();
     let mut draft_for_ack = draft;
+    let mut dirty_for_ack = dirty;
     let mut error_for_ack = error;
     let mut submitted_for_ack = submitted;
     let mut status_for_ack = status;
@@ -4100,8 +4102,9 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 previous_accepted.set(accepted.clone());
             }
             let Some(request) = submitted_copy.read().clone() else {
-                if accepted_changed {
+                if accepted_changed && !dirty_for_ack() {
                     draft_for_ack.set(accepted);
+                    dirty_for_ack.set(false);
                     error_for_ack.set(None);
                     status_for_ack.set(None);
                 }
@@ -4118,20 +4121,23 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 }
                 Some((MechanicalSettingsFeedbackState::Saved, _)) => {
                     draft_for_ack.set(accepted);
+                    dirty_for_ack.set(false);
                     error_for_ack.set(None);
                     status_for_ack.set(Some("Saved".to_owned()));
                     submitted_for_ack.set(None);
                 }
                 Some((MechanicalSettingsFeedbackState::Failed, message)) => {
                     draft_for_ack.set(accepted);
+                    dirty_for_ack.set(false);
                     error_for_ack.set(Some(message.clone().unwrap_or_else(|| {
                         "This setting was not saved. Review the value and retry.".to_owned()
                     })));
                     status_for_ack.set(None);
                     submitted_for_ack.set(None);
                 }
-                None if accepted_changed => {
+                None if accepted_changed && !dirty_for_ack() => {
                     draft_for_ack.set(accepted);
+                    dirty_for_ack.set(false);
                     error_for_ack.set(None);
                     status_for_ack.set(None);
                     submitted_for_ack.set(None);
@@ -4153,7 +4159,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
             let mut submitted = submitted;
             let draft = draft;
             let value = draft();
-            if submitted().is_some() {
+            if submitted().is_some() || !dirty() {
                 return;
             }
             let patch = match intent.patch(value) {
@@ -4198,6 +4204,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                     rows: 2,
                     oninput: move |event: FormEvent| {
                         draft.set(event.value());
+                        dirty.set(true);
                         error.set(None);
                         status.set(None);
                         submitted.set(None);
@@ -4213,6 +4220,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                             if key == "Escape" {
                                 event.prevent_default();
                                 draft.set(accepted.clone());
+                                dirty.set(false);
                                 error.set(None);
                                 submitted.set(None);
                                 status.set(None);
@@ -4229,6 +4237,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                     "aria-invalid": error_text.is_some(),
                     oninput: move |event: FormEvent| {
                         draft.set(event.value());
+                        dirty.set(true);
                         error.set(None);
                         status.set(None);
                         submitted.set(None);
@@ -4254,6 +4263,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                             } else if key == "Escape" {
                                 event.prevent_default();
                                 draft.set(accepted.clone());
+                                dirty.set(false);
                                 error.set(None);
                                 submitted.set(None);
                                 status.set(None);
@@ -5190,6 +5200,92 @@ mod contextual_layer_tests {
                 .text_content()
                 .unwrap(),
             ""
+        );
+        root.remove();
+    }
+
+    fn text_commit_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut count = use_signal(|| 0_u32);
+        let mut accepted = use_signal(|| "M2".to_owned());
+        rsx! {
+            TextDraftField {
+                identity: test_identity(), request_sequence, feedback: Rc::from([]),
+                label: "Thread", value: accepted(), intent: MechanicalTextIntent::ClosureThread,
+                editable: true, on_request: move |_| count += 1,
+            }
+            output { "{count}" }
+            button { onclick: move |_| accepted.set("M4".into()), "Land previous edit" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn text_escape_discards_and_new_drafts_queue_before_acknowledgment() {
+        mount_battery_test_page("case-text-commit-root", text_commit_test_page);
+        rendered().await;
+        let root = element("#case-text-commit-root");
+        let input = root
+            .query_selector("input")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let input_value = |value: &str| {
+            input.focus().unwrap();
+            input.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+                .unwrap();
+        };
+        input_value("M3");
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape)
+                    .unwrap(),
+            )
+            .unwrap();
+        input.blur().unwrap();
+        rendered().await;
+        assert_eq!(
+            root.query_selector("output")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap(),
+            "0",
+            "Escape must not submit on blur"
+        );
+        for value in ["M3", "M4"] {
+            input_value(value);
+            input.blur().unwrap();
+            rendered().await;
+        }
+        assert_eq!(
+            root.query_selector("output")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap(),
+            "2"
+        );
+        assert_eq!(input.value(), "M4");
+        input_value("M5");
+        root.query_selector("button")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        rendered().await;
+        assert_eq!(
+            input.value(),
+            "M5",
+            "landing an earlier edit must preserve active typing"
         );
         root.remove();
     }

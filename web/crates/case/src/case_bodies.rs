@@ -36,10 +36,10 @@ pub struct CaseBodyRequest {
 impl CaseBodyEdit {
     pub(crate) fn action_id(&self) -> Option<String> {
         match self {
-            Self::AddBody => Some("add-body".into()),
-            Self::AddMount { body_id } => Some(format!("body:{body_id}:add-mount")),
+            Self::AddBody => Some("action:add-body".into()),
+            Self::AddMount { body_id } => Some(format!("action:body:{body_id}:add-mount")),
             Self::RemoveMount { body_id, mount_id } => {
-                Some(format!("body:{body_id}:mount:{mount_id}:remove"))
+                Some(format!("action:body:{body_id}:mount:{mount_id}:remove"))
             }
             _ => None,
         }
@@ -288,7 +288,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     }
 
     let can_edit = props.editable;
-    let can_add = can_edit && !action_pending("add-body") && board.is_some();
+    let can_add = can_edit && !action_pending("action:add-body") && board.is_some();
     let body_id = active_body.map(|body| body.id.clone());
     let editor_key = body_id
         .as_ref()
@@ -328,8 +328,13 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
     let emit_edit = emit_edit.clone();
     let global_feedback = feedback
         .iter()
-        .rev()
-        .find(|feedback| feedback.field_id.is_none());
+        .filter(|feedback| {
+            feedback
+                .field_id
+                .as_deref()
+                .is_none_or(|id| id.starts_with("action:"))
+        })
+        .max_by_key(|feedback| feedback.request_id);
     let global_feedback_saved =
         global_feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
     let global_feedback_error = global_feedback
@@ -466,7 +471,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             }
                             div { class: "m1-case-subsection-content",
                                 button {
-                                    r#type: "button", disabled: !can_edit || action_pending(&format!("body:{body_id}:add-mount")),
+                                    r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:add-mount")),
                                     onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::AddMount { body_id: body_id.clone() }) },
                                     "+ Add mount"
                                 }
@@ -481,7 +486,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                         fieldset { key: "{mount_id}", class: "m1-case-mount-editor",
                                             legend { "{mount_label}" }
                                             button {
-                                                r#type: "button", disabled: !can_edit || action_pending(&format!("body:{body_id}:mount:{mount_id}:remove")),
+                                                r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:mount:{mount_id}:remove")),
                                                 "aria-label": "Remove {mount_label}",
                                                 onclick: { let submit = submit_remove.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |_| submit(CaseBodyEdit::RemoveMount { body_id: body_id.clone(), mount_id: mount_id.clone() }) },
                                                 "Remove"
