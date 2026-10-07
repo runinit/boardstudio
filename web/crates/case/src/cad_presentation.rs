@@ -265,14 +265,14 @@ pub fn CasePanel(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
+    use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
     use boardstudio_application::{
-        AcceptedSnapshot, Event as AppEvent, GenerationStatus, JobId, Scope, SessionEpoch,
-        SnapshotToken,
+        Completion, Effect, Event as AppEvent, GenerationStatus, JobId, Scope,
     };
     use boardstudio_core::model::{
-        Board, BoardReadiness, MechanicalAssembly, ProjectDoc, Readiness, SceneDelta,
+        Board, EditCommand, EditOperation, EditPhase, MechanicalAssembly, Operation,
+        OutlineFeature, ProjectDoc, Vec2,
     };
-    use std::sync::Arc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
     use web_sys::HtmlInputElement;
@@ -308,48 +308,128 @@ mod mounted_tests {
         }
     }
 
-    fn exportable_model(runtime: &Runtime) -> boardstudio_application::ReadModel {
-        let mut model = runtime.model();
-        let revision = model
-            .accepted
-            .as_ref()
-            .expect("accepted fixture")
-            .document
-            .revision;
-        model.lifecycle = boardstudio_application::Lifecycle::Ready;
-        model.durability = boardstudio_application::Durability::Saved { revision };
-        model
+    /// A one-board project with a rectangular outline, so Core reports the board outline-ready
+    /// and the mounted Case panel can admit generation and export.
+    fn outlined_board_document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("case-live-test", "Case live preview test");
+        document.boards.push(Board {
+            id: "board-left".into(),
+            name: "Left".into(),
+            outline_ids: vec!["outline-left".into()],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.outline.push(OutlineFeature::Polygon {
+            anchor_part_id: None,
+            id: "outline-left".into(),
+            points: vec![
+                Vec2 { x: 0.0, y: 0.0 },
+                Vec2 { x: 60.0, y: 0.0 },
+                Vec2 { x: 60.0, y: 40.0 },
+                Vec2 { x: 0.0, y: 40.0 },
+            ],
+            operation: Operation::Add,
+        });
+        document
     }
 
-    fn configured_exact_mechanical_runtime() -> (Rc<Runtime>, Scope) {
-        let runtime = Runtime::new().expect("browser runtime fixture initializes");
-        let (session, opened, scope) =
-            crate::runtime::firmware_export_test_support::opened_session();
-        let mut document = (*opened.document).clone();
+    /// Start generation through the real Session and return the job it started. Generation
+    /// workers are outside the in-process adapter, so the job's effect is taken, not run.
+    fn start_generation(runtime: &Rc<Runtime>, scope: &Scope) -> JobId {
+        runtime.submit(AppEvent::StartGeneration {
+            operation_id: runtime.operation(),
+            scope: scope.clone(),
+        });
+        support::take_held_effects(runtime)
+            .into_iter()
+            .find_map(|effect| match effect {
+                Effect::RunGeneration { job_id, .. } => Some(job_id),
+                _ => None,
+            })
+            .expect("Session starts the requested generation job")
+    }
+
+    /// Run a generation to completion: Session starts the job and the test delivers the
+    /// completion the worker would have.
+    fn finish_generation(runtime: &Rc<Runtime>, scope: &Scope, exact: bool) {
+        let job_id = start_generation(runtime, scope);
+        support::complete(
+            runtime,
+            Completion::GenerationFinished {
+                job_id,
+                scope: scope.clone(),
+                exact,
+            },
+        );
+        let _ = support::take_held_effects(runtime);
+    }
+
+    /// Run a generation to its failure: Session starts the job and the test delivers the
+    /// failure the worker would have.
+    fn fail_generation(runtime: &Rc<Runtime>, scope: &Scope, reason: &str) {
+        let job_id = start_generation(runtime, scope);
+        support::complete(
+            runtime,
+            Completion::GenerationFailed {
+                job_id,
+                scope: scope.clone(),
+                reason: reason.into(),
+            },
+        );
+        let _ = support::take_held_effects(runtime);
+    }
+
+    /// The job effects Session emitted, in order. Settlements are bookkeeping this test does
+    /// not inspect.
+    fn job_effects(effects: &[Effect]) -> Vec<&'static str> {
+        effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Effect::RunGeneration { .. } => Some("run-generation"),
+                Effect::CancelJob { .. } => Some("cancel-job"),
+                Effect::RunExport { .. } => Some("run-export"),
+                Effect::CancelExport { .. } => Some("cancel-export"),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn started_generations(effects: &[Effect]) -> Vec<Scope> {
+        effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Effect::RunGeneration { scope, .. } => Some(scope.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn started_exports(effects: &[Effect]) -> Vec<Scope> {
+        effects
+            .iter()
+            .filter_map(|effect| match effect {
+                Effect::RunExport { scope, .. } => Some(scope.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// An exact Case project: a real accepted board with mechanical settings, a finished exact
+    /// generation, and the completed geometry the CAD worker would have produced.
+    async fn configured_exact_mechanical_runtime() -> (Rc<Runtime>, Scope) {
+        let runtime = support::new_runtime();
+        let mut document = outlined_board_document();
         document.mechanical = Some(
-            boardstudio_web_host::case_settings::initial_settings(&document, &scope.board_id)
+            boardstudio_web_host::case_settings::initial_settings(&document, "board-left")
                 .expect("test board has initial mechanical settings"),
         );
-        let mut delta = (*opened.scene).clone();
-        delta.readiness.outline = true;
-        delta.board_readiness = vec![BoardReadiness {
-            board_id: scope.board_id.clone(),
-            outline: true,
-            pcb: true,
-            case_ready: true,
-        }];
-        let accepted = AcceptedSnapshot {
-            token: opened.token,
-            session_epoch: opened.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(delta),
-        };
-        let _ = session;
-        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
-        runtime.set_definition_name_test_generation(GenerationStatus::Ready {
-            job_id: JobId(1),
-            exact: true,
-        });
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("exact fixture accepted");
+        let scope = runtime.scope().expect("exact fixture scope");
+        finish_generation(&runtime, &scope, true);
         let mechanical = serde_json::from_value::<MechanicalAssembly>(serde_json::json!({
             "suggestedMounts": [],
             "nominalPlateContours": [],
@@ -392,71 +472,11 @@ mod mounted_tests {
             exact: true,
             contours: Vec::new(),
         })));
-        runtime.set_definition_name_test_model(exportable_model(&runtime));
         (runtime, scope)
-    }
-
-    fn accepted(token: u64) -> (AcceptedSnapshot, Scope) {
-        let mut document = ProjectDoc::empty("case-live-test", "Case live preview test");
-        document.boards.push(Board {
-            id: "board-left".into(),
-            name: "Left".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        let revision = document.revision;
-        let epoch = SessionEpoch(7);
-        let scope = Scope {
-            session_epoch: epoch,
-            document_id: document.id.clone(),
-            board_id: "board-left".into(),
-            instance_id: None,
-        };
-        let scene = SceneDelta {
-            module_scenes: vec![],
-            revision,
-            transaction_id: "case-live-test".into(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![],
-            board_readiness: vec![],
-            board_outline_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: false,
-                pcb: true,
-                case_ready: true,
-            },
-        };
-        (
-            AcceptedSnapshot {
-                token: SnapshotToken(token),
-                session_epoch: epoch,
-                document: Arc::new(document),
-                scene: Arc::new(scene),
-            },
-            scope,
-        )
     }
 
     async fn settle() {
         gloo_timers::future::TimeoutFuture::new(100).await;
-    }
-
-    fn take_events(runtime: &Runtime) -> Vec<AppEvent> {
-        let mut events = Vec::new();
-        while let Some(event) = runtime.take_definition_name_test_event() {
-            events.push(event);
-        }
-        events
     }
 
     fn live_preview_toggle() -> HtmlInputElement {
@@ -503,21 +523,6 @@ mod mounted_tests {
         }
     }
 
-    fn accepted_after_revision(original: &AcceptedSnapshot) -> AcceptedSnapshot {
-        let revision = original.document.revision + 1;
-        let mut document = (*original.document).clone();
-        document.revision = revision;
-        document.name.push_str(" updated");
-        let mut scene = (*original.scene).clone();
-        scene.revision = revision;
-        AcceptedSnapshot {
-            token: SnapshotToken(original.token.0 + 1),
-            session_epoch: original.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        }
-    }
-
     fn export_geometry_button() -> web_sys::HtmlElement {
         let buttons = web_sys::window()
             .unwrap()
@@ -535,7 +540,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_case_local_export_uses_current_exact_mechanical_scope() {
-        let (runtime, scope) = configured_exact_mechanical_runtime();
+        let (runtime, scope) = configured_exact_mechanical_runtime().await;
         let root = web_sys::window()
             .unwrap()
             .document()
@@ -564,28 +569,24 @@ mod mounted_tests {
             !export.has_attribute("disabled"),
             "current exact geometry is exportable"
         );
+        let _ = support::take_held_effects(&runtime);
         export.click();
         settle().await;
-        assert!(matches!(
-            take_events(&runtime).as_slice(),
-            [AppEvent::StartExport { scope: actual, .. }] if actual == &scope
-        ));
+        let effects = support::take_held_effects(&runtime);
+        assert_eq!(job_effects(&effects), ["run-export"]);
+        assert_eq!(started_exports(&effects), [scope.clone()]);
 
-        runtime.set_definition_name_test_generation(GenerationStatus::Ready {
-            job_id: JobId(2),
-            exact: false,
-        });
-        let mut preview_model = exportable_model(&runtime);
-        preview_model.generation = GenerationStatus::Ready {
-            job_id: JobId(2),
-            exact: false,
-        };
-        runtime.set_definition_name_test_model(preview_model);
+        // A preview-quality generation replaces the exact one and drops the exact geometry.
+        finish_generation(&runtime, &scope, false);
+        assert!(matches!(
+            runtime.model().generation,
+            GenerationStatus::Ready { exact: false, .. }
+        ));
         runtime.set_cad_scene_test(None);
         refresh_case_in("case-local-export-mounted");
         settle().await;
         let blocked_export = export_geometry_button();
-        let _ = take_events(&runtime);
+        let _ = support::take_held_effects(&runtime);
         assert!(
             blocked_export.has_attribute("disabled"),
             "preview geometry cannot be exported"
@@ -593,9 +594,7 @@ mod mounted_tests {
         blocked_export.click();
         settle().await;
         assert!(
-            !take_events(&runtime)
-                .iter()
-                .any(|event| matches!(event, AppEvent::StartExport { .. })),
+            started_exports(&support::take_held_effects(&runtime)).is_empty(),
             "preview geometry must not start a mechanical export"
         );
         remove_case_root("case-local-export-mounted");
@@ -603,7 +602,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_failed_current_generation_keeps_previous_geometry_and_retries_owner() {
-        let (runtime, scope) = configured_exact_mechanical_runtime();
+        let (runtime, scope) = configured_exact_mechanical_runtime().await;
         let previous = runtime.model().accepted.expect("exact fixture accepted");
         let previous_scene = runtime.cad_scene().expect("exact fixture geometry");
         let root_id = "case-failed-current-export-mounted";
@@ -633,7 +632,7 @@ mod mounted_tests {
             !export_geometry_button_in(root_id).has_attribute("disabled"),
             "fixture first proves exact current readiness through the real owner hook"
         );
-        let _ = take_events(&runtime);
+        let _ = support::take_held_effects(&runtime);
 
         // Disable automatic generation before changing the owner; explicit retry is asserted below.
         let live = web_sys::window()
@@ -648,24 +647,15 @@ mod mounted_tests {
         live.click();
         settle().await;
         assert!(!live.checked());
-        let _ = take_events(&runtime);
+        let _ = support::take_held_effects(&runtime);
 
-        let current = accepted_after_revision(&previous);
-        runtime.set_definition_name_test_state(current.clone(), Some(scope.clone()));
-        runtime.set_definition_name_test_generation(GenerationStatus::Failed {
-            job_id: JobId(2),
-            reason: "controlled current generation failure".into(),
-        });
-        let mut failed = exportable_model(&runtime);
-        failed.accepted = Some(current.clone());
-        failed.durability = boardstudio_application::Durability::Saved {
-            revision: current.document.revision,
-        };
-        failed.generation = GenerationStatus::Failed {
-            job_id: JobId(2),
-            reason: "controlled current generation failure".into(),
-        };
-        runtime.set_definition_name_test_model(failed);
+        let mut edited = previous.document.as_ref().clone();
+        edited.name.push_str(" updated");
+        let current =
+            support::replace_document(&runtime, "case-current-owner-edit", &scope.board_id, edited)
+                .await;
+        assert!(current.document.revision > previous.document.revision);
+        fail_generation(&runtime, &scope, "controlled current generation failure");
         refresh_case_in(root_id);
         settle().await;
         let text = web_sys::window()
@@ -698,14 +688,10 @@ mod mounted_tests {
         assert_ne!(retained.token, current.token);
         let export = export_geometry_button_in(root_id);
         assert!(export.has_attribute("disabled"));
-        let _ = take_events(&runtime);
+        let _ = support::take_held_effects(&runtime);
         export.click();
         settle().await;
-        assert!(
-            !take_events(&runtime)
-                .iter()
-                .any(|event| matches!(event, AppEvent::StartExport { .. }))
-        );
+        assert!(started_exports(&support::take_held_effects(&runtime)).is_empty());
 
         case_button(root_id, "Update preview").click();
         settle().await;
@@ -715,14 +701,17 @@ mod mounted_tests {
             model.accepted.as_ref().unwrap().document.revision,
             current.document.revision
         );
-        assert!(matches!(take_events(&runtime).as_slice(),
-            [AppEvent::StartGeneration { scope: actual, .. }] if actual == &scope));
+        assert_eq!(
+            started_generations(&support::take_held_effects(&runtime)),
+            [scope.clone()],
+            "Update preview retries generation for the current owner"
+        );
         remove_case_root(root_id);
     }
 
     #[wasm_bindgen_test]
     async fn mounted_read_model_preview_and_session_gesture_block_export_until_cancelled() {
-        let (runtime, _) = configured_exact_mechanical_runtime();
+        let (runtime, scope) = configured_exact_mechanical_runtime().await;
         let accepted = runtime.model().accepted.expect("exact fixture accepted");
         let root_id = "case-session-draft-export-mounted";
         let root = web_sys::window()
@@ -748,73 +737,85 @@ mod mounted_tests {
         );
         settle().await;
         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
+        let _ = support::take_held_effects(&runtime);
 
-        // Seed the real transient ReadModel field at the mounted owner seam; this does not run a preview worker.
-        let mut preview = exportable_model(&runtime);
-        preview.display_preview = Some(accepted.scene.clone());
-        runtime.set_definition_name_test_model(preview);
+        // A transient Core preview of an edit becomes the Session's display preview.
+        let mut previewed = accepted.document.as_ref().clone();
+        previewed.name.push_str(" preview");
+        runtime.submit(AppEvent::Edit {
+            operation_id: runtime.operation(),
+            command: EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: "case-export-draft-preview".into(),
+                phase: EditPhase::Preview,
+                target_ids: vec![scope.board_id.clone()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(previewed),
+                },
+            },
+        });
+        support::run_pending(&runtime).await;
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "Session accepted the Core preview"
+        );
         refresh_case_in(root_id);
         settle().await;
         assert!(export_geometry_button_in(root_id).has_attribute("disabled"));
-        let _ = take_events(&runtime);
+        let _ = support::take_held_effects(&runtime);
         export_geometry_button_in(root_id).click();
         settle().await;
-        assert!(
-            !take_events(&runtime)
-                .iter()
-                .any(|event| matches!(event, AppEvent::StartExport { .. }))
-        );
+        assert!(started_exports(&support::take_held_effects(&runtime)).is_empty());
 
-        let mut settled_model = exportable_model(&runtime);
-        settled_model.display_preview = None;
-        runtime.set_definition_name_test_model(settled_model);
+        runtime.submit(AppEvent::ClearPreview {
+            operation_id: runtime.operation(),
+            token: accepted.token,
+            revision: accepted.document.revision,
+            board_id: scope.board_id.clone(),
+            transaction_id: "case-export-draft-preview".into(),
+        });
+        support::run_pending(&runtime).await;
+        assert!(
+            runtime.model().display_preview.is_none(),
+            "Session retired the preview"
+        );
         refresh_case_in(root_id);
         settle().await;
         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
 
-        // Use the real Session reducer for GestureBegin/Cancel, then mount its resulting state.
-        // This does not claim browser pointer capture or movement was exercised.
-        let (mut session, _, _) = crate::runtime::firmware_export_test_support::opened_session();
+        // The real Session reducer owns GestureBegin/Cancel. This does not claim browser
+        // pointer capture or movement was exercised.
         let pointer_id = 41;
-        let _ = session.submit(AppEvent::GestureBegin {
+        runtime.submit(AppEvent::GestureBegin {
             operation_id: runtime.operation(),
             pointer_id,
             target_ids: vec![],
             transaction_id: "case-export-session-gesture".into(),
             start: vec![],
-            pitch: boardstudio_core::model::Vec2 { x: 1.0, y: 1.0 },
+            pitch: Vec2 { x: 1.0, y: 1.0 },
             snap_fraction: 1.0,
             geometry_snap: false,
             gap: None,
             alt: false,
         });
-        let mut gesture = exportable_model(&runtime);
-        gesture.gesture = session.read_model().gesture.clone();
         assert!(
-            gesture.gesture.is_some(),
+            runtime.model().gesture.is_some(),
             "Session reducer accepted GestureBegin"
         );
-        runtime.set_definition_name_test_model(gesture);
         refresh_case_in(root_id);
         settle().await;
         assert!(export_geometry_button_in(root_id).has_attribute("disabled"));
-        let _ = take_events(&runtime);
+        let _ = support::take_held_effects(&runtime);
         export_geometry_button_in(root_id).click();
         settle().await;
-        assert!(
-            !take_events(&runtime)
-                .iter()
-                .any(|event| matches!(event, AppEvent::StartExport { .. }))
-        );
+        assert!(started_exports(&support::take_held_effects(&runtime)).is_empty());
 
-        let _ = session.submit(AppEvent::GestureCancel { pointer_id });
-        let mut settled = exportable_model(&runtime);
-        settled.gesture = session.read_model().gesture.clone();
+        runtime.submit(AppEvent::GestureCancel { pointer_id });
         assert!(
-            settled.gesture.is_none(),
+            runtime.model().gesture.is_none(),
             "Session reducer accepted GestureCancel"
         );
-        runtime.set_definition_name_test_model(settled);
+        let _ = support::take_held_effects(&runtime);
         refresh_case_in(root_id);
         settle().await;
         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
@@ -823,9 +824,8 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_case_panel_starts_once_pauses_and_resumes_for_current_context() {
-        let runtime = Runtime::new().unwrap();
-        let (snapshot, scope) = accepted(1);
-        runtime.set_definition_name_test_state(snapshot.clone(), Some(scope.clone()));
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, firmware_export_test_support::board_document()).await;
         let root = web_sys::window()
             .unwrap()
             .document()
@@ -848,13 +848,16 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.into()),
         );
         settle().await;
+        assert_eq!(
+            job_effects(&support::take_held_effects(&runtime)),
+            ["run-generation"],
+            "mounting Case starts one generation"
+        );
         assert!(matches!(
-            take_events(&runtime).as_slice(),
-            [AppEvent::StartGeneration { .. }]
+            runtime.model().generation,
+            GenerationStatus::Preparing { .. }
         ));
 
-        runtime
-            .set_definition_name_test_generation(GenerationStatus::Preparing { job_id: JobId(1) });
         web_sys::window()
             .unwrap()
             .document()
@@ -876,16 +879,19 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        assert!(matches!(
-            take_events(&runtime).as_slice(),
-            [AppEvent::CancelGeneration { .. }]
-        ));
+        assert_eq!(
+            job_effects(&support::take_held_effects(&runtime)),
+            ["cancel-job"],
+            "Cancel stops the running generation"
+        );
         assert!(
             !live_preview_toggle().checked(),
             "Cancel also pauses Live preview"
         );
-        runtime
-            .set_definition_name_test_generation(GenerationStatus::Cancelled { job_id: JobId(1) });
+        assert!(matches!(
+            runtime.model().generation,
+            GenerationStatus::Cancelled { .. }
+        ));
         web_sys::window()
             .unwrap()
             .document()
@@ -899,7 +905,7 @@ mod mounted_tests {
 
         assert!(!live_preview_toggle().checked());
         assert!(
-            take_events(&runtime).is_empty(),
+            job_effects(&support::take_held_effects(&runtime)).is_empty(),
             "Cancel leaves automatic generation paused"
         );
 
@@ -927,18 +933,21 @@ mod mounted_tests {
             !live_preview_toggle().checked(),
             "workspace remount keeps the app-level pause"
         );
-        assert!(take_events(&runtime).is_empty());
+        assert!(job_effects(&support::take_held_effects(&runtime)).is_empty());
 
         live_preview_toggle().click();
         settle().await;
         assert!(live_preview_toggle().checked());
+        assert_eq!(
+            job_effects(&support::take_held_effects(&runtime)),
+            ["run-generation"],
+            "resuming Live preview starts a generation"
+        );
         assert!(matches!(
-            take_events(&runtime).as_slice(),
-            [AppEvent::StartGeneration { .. }]
+            runtime.model().generation,
+            GenerationStatus::Preparing { .. }
         ));
 
-        runtime
-            .set_definition_name_test_generation(GenerationStatus::Preparing { job_id: JobId(2) });
         web_sys::window()
             .unwrap()
             .document()
@@ -951,10 +960,11 @@ mod mounted_tests {
         settle().await;
         live_preview_toggle().click();
         settle().await;
-        assert!(matches!(
-            take_events(&runtime).as_slice(),
-            [AppEvent::CancelGeneration { .. }]
-        ));
+        assert_eq!(
+            job_effects(&support::take_held_effects(&runtime)),
+            ["cancel-job"],
+            "pausing Live preview cancels the running generation"
+        );
         assert!(!live_preview_toggle().checked());
     }
 }

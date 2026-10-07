@@ -6603,13 +6603,22 @@ mod case_preview_source_tests {
     #[wasm_bindgen_test]
     async fn imported_capture_failure_is_visible_only_to_its_current_case_owner() {
         let runtime = project_name_test_support::new_runtime();
-        let (_, mut accepted, scope) = firmware_export_test_support::opened_session();
-        let document = std::sync::Arc::make_mut(&mut accepted.document);
+        let mut document = firmware_export_test_support::board_document();
+        document.boards.push(Board {
+            id: "another-board".into(),
+            name: "Another board".into(),
+            outline_ids: Vec::new(),
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
         document
             .board_references
             .push(boardstudio_core::model::BoardReference {
                 id: "missing-routed-source".into(),
-                board_id: scope.board_id.clone(),
+                board_id: document.boards[0].id.clone(),
                 asset_id: "missing-asset".into(),
                 enabled: true,
                 pose: boardstudio_core::model::Pose2 {
@@ -6619,7 +6628,9 @@ mod case_preview_source_tests {
                 elevation: 0.0,
                 model_assets: Default::default(),
             });
-        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        project_name_test_support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("the Case project is accepted");
+        let scope = runtime.scope().expect("the accepted Case project has a scope");
         let error = runtime
             .prepare_native_case_preview(scope.clone(), accepted.token, accepted.document.revision)
             .await
@@ -6628,9 +6639,7 @@ mod case_preview_source_tests {
         assert_eq!(runtime.native_case_preview_error().as_ref(), Some(&error));
         assert!(!runtime.native_case_preview_pending());
         assert!(runtime.native_case_preview().is_none());
-        let mut other = scope;
-        other.board_id = "another-board".into();
-        runtime.set_definition_name_test_state(accepted, Some(other));
+        project_name_test_support::navigate(&runtime, "another-board").await;
         assert!(
             runtime.native_case_preview_error().is_none(),
             "old capture failures cannot follow another owner"
@@ -8269,35 +8278,24 @@ mod firmware_export_tests {
 mod cad_scene_rebind_tests {
     use super::*;
     use crate::case_generation_lifecycle::physical_case_fingerprint;
-    use std::sync::Arc;
     use wasm_bindgen_test::wasm_bindgen_test;
 
-    fn accepted_after_edit(
-        original: &AcceptedSnapshot,
-        token: u64,
-        revision: u64,
-        board_thickness: Option<f64>,
-    ) -> AcceptedSnapshot {
-        let mut document = (*original.document).clone();
-        document.revision = revision;
-        document.name.push_str(" updated");
-        if let Some(thickness) = board_thickness {
-            document.boards[0].thickness = thickness;
-        }
-        let mut scene = (*original.scene).clone();
-        scene.revision = revision;
-        AcceptedSnapshot {
-            token: SnapshotToken(token),
-            session_epoch: original.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        }
-    }
-
-    fn runtime_with_scene(exact: bool) -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
-        let runtime = Runtime::new().expect("browser runtime fixture initializes");
-        let (_, accepted, scope) = firmware_export_test_support::opened_session();
-        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+    async fn runtime_with_scene(exact: bool) -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
+        let runtime = project_name_test_support::new_runtime();
+        let mut document = firmware_export_test_support::board_document();
+        document.boards.push(Board {
+            id: "other-board".into(),
+            name: "Other board".into(),
+            outline_ids: Vec::new(),
+            part_ids: Vec::new(),
+            net_ids: Vec::new(),
+            thickness: 1.6,
+            traces: Vec::new(),
+            vias: Vec::new(),
+        });
+        project_name_test_support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("the Case project is accepted");
+        let scope = runtime.scope().expect("the accepted Case project has a scope");
         let fingerprint = physical_case_fingerprint(&accepted, &scope)
             .expect("the accepted board fixture has physical inputs");
         *runtime.cad_scene.borrow_mut() = Some(Rc::new(CadScene {
@@ -8320,16 +8318,36 @@ mod cad_scene_rebind_tests {
         (runtime, accepted, scope)
     }
 
+    /// Land an edit through the real Session: the project name changes and, when given, so
+    /// does the first board's thickness (a physical Case input).
+    async fn edited(
+        runtime: &Rc<Runtime>,
+        scope: &Scope,
+        board_thickness: Option<f64>,
+    ) -> AcceptedSnapshot {
+        let mut document = (*runtime
+            .model()
+            .accepted
+            .expect("the Case project is accepted")
+            .document)
+            .clone();
+        document.name.push_str(" updated");
+        if let Some(thickness) = board_thickness {
+            document.boards[0].thickness = thickness;
+        }
+        project_name_test_support::replace_document(
+            runtime,
+            "cad-scene-rebind-edit",
+            &scope.board_id,
+            document,
+        )
+        .await
+    }
+
     #[wasm_bindgen_test]
-    fn cad_scene_rebinds_only_exact_output_with_matching_physical_inputs() {
-        let (exact_runtime, original, scope) = runtime_with_scene(true);
-        let current = accepted_after_edit(
-            &original,
-            original.token.0 + 1,
-            original.document.revision + 1,
-            None,
-        );
-        exact_runtime.set_definition_name_test_state(current.clone(), Some(scope.clone()));
+    async fn cad_scene_rebinds_only_exact_output_with_matching_physical_inputs() {
+        let (exact_runtime, _original, scope) = runtime_with_scene(true).await;
+        let current = edited(&exact_runtime, &scope, None).await;
         let rebound = exact_runtime
             .cad_scene()
             .expect("same-scope completed output remains available");
@@ -8341,14 +8359,8 @@ mod cad_scene_rebind_tests {
         assert_eq!(rebound.result.revision, current.document.revision);
         assert_eq!(rebound.prepared.revision, current.document.revision);
 
-        let (preview_runtime, original, scope) = runtime_with_scene(false);
-        let current = accepted_after_edit(
-            &original,
-            original.token.0 + 1,
-            original.document.revision + 1,
-            None,
-        );
-        preview_runtime.set_definition_name_test_state(current, Some(scope));
+        let (preview_runtime, original, scope) = runtime_with_scene(false).await;
+        edited(&preview_runtime, &scope, None).await;
         let preview = preview_runtime
             .cad_scene()
             .expect("captured in-flight output remains inspectable");
@@ -8362,14 +8374,8 @@ mod cad_scene_rebind_tests {
             original.document.revision
         );
 
-        let (changed_runtime, original, scope) = runtime_with_scene(true);
-        let current = accepted_after_edit(
-            &original,
-            original.token.0 + 1,
-            original.document.revision + 1,
-            Some(2.0),
-        );
-        changed_runtime.set_definition_name_test_state(current, Some(scope));
+        let (changed_runtime, original, scope) = runtime_with_scene(true).await;
+        edited(&changed_runtime, &scope, Some(2.0)).await;
         let previous = changed_runtime
             .cad_scene()
             .expect("same-scope old output remains available for stale display");
@@ -8381,17 +8387,14 @@ mod cad_scene_rebind_tests {
     }
 
     #[wasm_bindgen_test]
-    fn cad_scene_retires_old_scope_instead_of_rebinding_across_physical_owner() {
-        let (runtime, original, scope) = runtime_with_scene(true);
-        let mut alternate_scope = scope.clone();
-        alternate_scope.board_id = "other-board".into();
-        let current = accepted_after_edit(
-            &original,
-            original.token.0 + 1,
-            original.document.revision + 1,
-            None,
-        );
-        runtime.set_definition_name_test_state(current, Some(alternate_scope));
+    async fn cad_scene_retires_old_scope_instead_of_rebinding_across_physical_owner() {
+        let (runtime, _original, scope) = runtime_with_scene(true).await;
+        edited(&runtime, &scope, None).await;
+        let old_owner_scene = runtime.cad_scene.borrow().clone();
+        // Navigating retires the cached scene on its own; put the old board's scene back so the
+        // accessor itself has to refuse it for the new physical owner.
+        project_name_test_support::navigate(&runtime, "other-board").await;
+        *runtime.cad_scene.borrow_mut() = old_owner_scene;
         assert!(runtime.cad_scene().is_none());
     }
 }

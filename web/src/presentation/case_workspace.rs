@@ -1217,33 +1217,31 @@ fn toggle_tree(mut expanded: Signal<BTreeSet<String>>, id: &str) {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_live_scene_tests {
     use super::*;
+    use crate::runtime::{firmware_export_test_support, project_name_test_support as support};
     use boardstudio_application::AcceptedSnapshot;
     use boardstudio_core::model::{
         Board, Finding, MechanicalAssembly, Scope as FindingScope, Severity,
     };
-    use std::sync::Arc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    fn accepted_fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
-        let runtime = Runtime::new().expect("browser runtime fixture initializes");
-        let (_, opened, scope) = crate::runtime::firmware_export_test_support::opened_session();
-        let mut document = (*opened.document).clone();
+    async fn accepted_fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
+        let runtime = support::new_runtime();
+        let mut document = firmware_export_test_support::board_document();
         document.mechanical = Some(
-            boardstudio_web_host::case_settings::initial_settings(&document, &scope.board_id)
+            boardstudio_web_host::case_settings::initial_settings(&document, "main-board")
                 .expect("test board has initial mechanical settings"),
         );
-        let mut scene = (*opened.scene).clone();
-        scene.revision = document.revision;
-        let accepted = AcceptedSnapshot {
-            token: opened.token,
-            session_epoch: opened.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        };
-        runtime.set_definition_name_test_state(accepted.clone(), Some(scope.clone()));
+        support::open_document(&runtime, document).await;
+        let accepted = runtime
+            .model()
+            .accepted
+            .expect("the Case workspace project is accepted");
+        let scope = runtime
+            .scope()
+            .expect("the accepted Case workspace project has a scope");
         let mechanical = serde_json::from_value::<MechanicalAssembly>(serde_json::json!({
             "suggestedMounts": [],
             "nominalPlateContours": [],
@@ -1294,41 +1292,6 @@ mod mounted_live_scene_tests {
             contours: Vec::new(),
         })));
         (runtime, accepted, scope)
-    }
-
-    fn accepted_after_edit(
-        original: &AcceptedSnapshot,
-        token: u64,
-        revision: u64,
-        include_other_board: bool,
-    ) -> AcceptedSnapshot {
-        let mut document = (*original.document).clone();
-        document.revision = revision;
-        document.name.push_str(" updated");
-        if include_other_board {
-            document.boards.push(Board {
-                id: "other-board".into(),
-                name: "Other board".into(),
-                outline_ids: vec![],
-                part_ids: vec![],
-                net_ids: vec![],
-                thickness: 1.6,
-                traces: vec![],
-                vias: vec![],
-            });
-            document.mechanical = Some(
-                boardstudio_web_host::case_settings::initial_settings(&document, "other-board")
-                    .expect("replacement board has initial mechanical settings"),
-            );
-        }
-        let mut scene = (*original.scene).clone();
-        scene.revision = revision;
-        AcceptedSnapshot {
-            token: boardstudio_application::SnapshotToken(token),
-            session_epoch: original.session_epoch,
-            document: Arc::new(document),
-            scene: Arc::new(scene),
-        }
     }
 
     fn scene_with_current_finding(
@@ -1477,7 +1440,7 @@ mod mounted_live_scene_tests {
     // The Objects tree retains and labels the stale same-scope scene. The Inspector
     // independently prefers an exact current mechanical resolution when it settles.
     async fn production_workspace_keeps_same_scope_layer_context_then_retires_it_on_owner_change() {
-        let (runtime, original, scope) = accepted_fixture();
+        let (runtime, original, scope) = accepted_fixture().await;
         let root = web_sys::window()
             .unwrap()
             .document()
@@ -1501,13 +1464,15 @@ mod mounted_live_scene_tests {
         );
         settle().await;
 
-        let updated = accepted_after_edit(
-            &original,
-            original.token.0 + 1,
-            original.document.revision + 1,
-            false,
-        );
-        runtime.set_definition_name_test_state(updated.clone(), Some(scope.clone()));
+        let mut edited = original.document.as_ref().clone();
+        edited.name.push_str(" updated");
+        let updated = support::replace_document(
+            &runtime,
+            "case-workspace-accepted-edit",
+            &scope.board_id,
+            edited,
+        )
+        .await;
         web_sys::window()
             .unwrap()
             .document()
@@ -1517,6 +1482,9 @@ mod mounted_live_scene_tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
+        // The opened project already resolved its settings once, so the Inspector text is
+        // present before the accepted-owner render lands; let that render finish first.
+        settle().await;
 
         let document = web_sys::window().unwrap().document().unwrap();
         let text = wait_for_current_resolution_inspector_text(&document).await;
@@ -1534,7 +1502,9 @@ mod mounted_live_scene_tests {
             plate
                 .text_content()
                 .unwrap_or_default()
-                .contains("Previous geometry")
+                .contains("Previous geometry"),
+            "the same-scope plate row is labelled previous; plate={:?}; root={root_text:?}",
+            plate.text_content()
         );
         let row = plate.closest(".m1-tree-row").unwrap().unwrap();
         assert_eq!(row.get_attribute("aria-selected").as_deref(), Some("true"));
@@ -1625,15 +1595,44 @@ mod mounted_live_scene_tests {
             Some(current_finding.id.as_str())
         );
 
-        let replacement = accepted_after_edit(
-            &original,
-            original.token.0 + 2,
-            original.document.revision + 2,
-            true,
+        // The accepted owner moves to another board: a real edit adds it and its mechanical
+        // settings, then the Session navigates there. Navigating retires the cached geometry, so
+        // the old board's scene is put back to show the display projection still ignores it.
+        let mut with_other_board = runtime
+            .model()
+            .accepted
+            .expect("the Case workspace project stays accepted")
+            .document
+            .as_ref()
+            .clone();
+        with_other_board.boards.push(Board {
+            id: "other-board".into(),
+            name: "Other board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        with_other_board.mechanical = Some(
+            boardstudio_web_host::case_settings::initial_settings(&with_other_board, "other-board")
+                .expect("replacement board has initial mechanical settings"),
         );
-        let mut replacement_scope = scope;
-        replacement_scope.board_id = "other-board".into();
-        runtime.set_definition_name_test_state(replacement, Some(replacement_scope));
+        support::replace_document(
+            &runtime,
+            "case-workspace-other-board",
+            &scope.board_id,
+            with_other_board,
+        )
+        .await;
+        let previous_board_scene = runtime.cad_scene();
+        support::navigate(&runtime, "other-board").await;
+        assert_eq!(
+            runtime.scope().map(|scope| scope.board_id),
+            Some("other-board".to_owned())
+        );
+        runtime.set_cad_scene_test(previous_board_scene);
         document
             .get_element_by_id("case11-accepted-transition")
             .unwrap()
