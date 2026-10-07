@@ -7312,6 +7312,7 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 pub mod project_name_test_support {
     use super::*;
     use crate::runtime::in_process_support::InProcessAdapters;
+    use boardstudio_application::{EditResolver, Resolution};
 
     pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
