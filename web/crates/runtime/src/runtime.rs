@@ -615,6 +615,16 @@ impl Runtime {
             )),
         }
     }
+    /// Observe an operation's terminal outcome and where it landed; edit tickets use this.
+    pub(crate) fn observe_operation_with_landing(
+        &self,
+        operation: OperationId,
+    ) -> (
+        crate::operation_outcomes::OutcomeSlot,
+        crate::operation_outcomes::LandingSlot,
+    ) {
+        self.operation_outcomes.observe_with_landing(operation)
+    }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();
         self.next_operation

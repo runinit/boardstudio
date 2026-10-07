@@ -170,6 +170,9 @@ pub enum SelectionMode {
     Range,
 }
 
+/// The reason Session reports when an intent's document session changed before it ran.
+pub const DOCUMENT_SESSION_CHANGED: &str = "document session changed before command began";
+
 /// What a resolver answers when Session hands it the accepted snapshot at execution time.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Resolution {
@@ -1423,7 +1426,7 @@ impl Session {
                 self.settle(
                     intent.operation_id,
                     TerminalOutcome::Rejected(
-                        "document session changed before command began".into(),
+                        DOCUMENT_SESSION_CHANGED.into(),
                     ),
                     effects,
                 );
