@@ -649,6 +649,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         let revision = props.revision;
         let on_edit = props.on_edit;
         let accepted_display = props.value.clone();
+        let accepted_baseline_now = props.baseline.clone();
         move |replacement_text: Option<String>| {
             if !editable || submitted_request_id().is_some() {
                 return;
@@ -714,9 +715,10 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 },
             };
             let baseline = draft_baseline();
+            let accepted_now = accepted_baseline_now.clone();
             let displayed_name_is_unchanged = field == MatrixEditField::Name
                 && matches!(&value, MatrixEditValue::Name(Some(name)) if name == accepted_display.trim());
-            if value == baseline || displayed_name_is_unchanged {
+            if value == accepted_now || displayed_name_is_unchanged {
                 draft.set(accepted_display.clone());
                 dirty.set(false);
                 error.set(None);

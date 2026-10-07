@@ -416,7 +416,7 @@ fn NumericTransformField(props: NumericTransformFieldProps) -> Element {
                 }
             };
             let accepted_baseline = baseline();
-            if next == accepted_baseline {
+            if next == accepted_value {
                 draft.set(accepted_value.to_string());
                 baseline.set(accepted_value);
                 dirty.set(false);

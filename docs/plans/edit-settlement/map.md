@@ -59,6 +59,10 @@ which remaining whole-document replacements become typed Core edits.
 - 10 Layout objects (align, placement, apply-to-key, mirrored pair, existing half, board,
   keycap size) submit intent through the edit ticket; one-shot controls disable while
   pending; their `Pending*` heuristics are deleted: [issues/10-objects.md](issues/10-objects.md).
+- 11 Matrix setup, placement, Matrix Inspector and Transform Inspector, drag commit and handle
+  nudges submit intent through the edit ticket; the baseline rejections are gone; the
+  transform Inspector tests run on the real Session and Core:
+  [issues/11-matrix-and-transform.md](issues/11-matrix-and-transform.md).
 
 ## Not yet specified
 

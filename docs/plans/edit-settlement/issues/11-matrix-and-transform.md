@@ -1,6 +1,6 @@
 # 11: Matrix setup, Matrix Inspector and transform edits land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -134,3 +134,53 @@ wasm-pack test --headless --chrome web/crates/layout --locked --lib
 
 - Merging held-key nudges or drag previews into one edit (map: out of scope).
 - Stale previews drawn after a queued commit (`docs/backlog.md`).
+
+## Outcome
+
+Commits: claim; "Land matrix setup, placement and Matrix Inspector edits through
+resolution"; "Land Matrix Transform Inspector, drag commit and handle nudges through
+resolution" (plus the review fix folded into the resolve commit).
+
+- Resolvers (all pure, reading the matrix, layout and scene from the accepted snapshot):
+  `create_matrix_resolver`, `place_matrix_resolver` (only definitions the accepted document
+  lacks), `matrix_field_resolver` (every Inspector field; rebuilds the operation from the
+  accepted matrix, resolves Unchanged on an equal value, retires with "The selected matrix
+  no longer exists."), `matrix_preset_resolver` (applies the prepared template to the accepted
+  matrix; retires if its size changed), `matrix_delete_resolver`, `unlink_layout_resolver`,
+  the duplicate-variant preset edit, `transform_edit_resolver` (recomputes the field
+  projection from the accepted snapshot via the new `transform_fields`), `transform_drag_resolver`
+  (net delta for stagger and splay angle, the dropped point for a splay origin) and
+  `transform_nudge_resolver` (delta intent against the accepted offset or column basis).
+- Deleted: `PendingMatrixEdit`/`Preset`/`Delete` heuristics and content checks, `PendingSetup`,
+  `PendingPlacement` landing checks, `PendingTransformEdit`, `AcceptedIdentity`,
+  `PendingSettlement`/`pending_settlement` and their native tests, `wait_for_variant_edit`'s
+  revision/content checks, `exact_variant_snapshot`'s token/revision equality. The
+  "Wait for the current matrix change to finish", "The accepted value changed" and
+  "The accepted document changed" rejections are gone; both Inspectors keep a dirty draft
+  and let the committed value win. The Matrix Transform Inspector lost its `busy` flag
+  entirely (every control there is a field edit).
+- Field edits queue (Inspectors stay editable while an edit is applying or saving); one-shot
+  controls (setup, placement, preset, delete, unlink, duplicate) disable while their ticket
+  is pending, and Add row / Add column disable while a rows/columns edit is pending.
+- Nudge admission (`transform_nudge_admitted`) checks selection, scope, workspace and a live
+  session but not token/revision, so queued presses compose.
+- `matrix_transform_inspector_tests.rs` now opens its fixtures through the real Session and
+  Core and asserts accepted results (the matrix cell offsets, assembly replacement). The
+  layout-inspector interception is **not** deleted here: `outline_lifecycle_browser_tests.rs`
+  still uses it; ticket 12 deletes it.
+- New tests (real Session/Core, gated reply): rows then pitch survive and Undo removes pitch
+  then rows; editing a deleted matrix retires with a reason; one-shot ticket stays pending;
+  two transform fields back-to-back survive and a committed value wins; three queued
+  nudges move the matrix three steps; a drag commit composes with an intervening edit.
+
+Checks: `cargo test -p boardstudio-web-runtime --locked` 103 passed; `cargo test -p
+boardstudio-web-layout --locked` 50 passed; `python3 scripts/check.py typecheck`;
+`python3 scripts/check-wasm-tests.py`; `python3 scripts/check-doc-links.py`;
+`wasm-pack test --headless --chrome web/crates/layout --locked --lib` — 88 passed.
+`check.py test` fails only on the missing `step-oracle/` in this worktree; workspace
+clippy fails on a pre-existing `chunks_exact` lint in `boardstudio-renderer`.
+
+Follow-ups: the Matrix Inspector and Matrix Transform controllers keep an unused
+`last_request_id` ordering guard that no longer serves settlement; drag stagger/angle deltas
+use the drag's start offsets, so a drag over a concurrently re-staggered column composes
+rather than snaps.
