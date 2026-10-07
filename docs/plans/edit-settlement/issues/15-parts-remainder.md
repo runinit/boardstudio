@@ -112,3 +112,10 @@ wasm-pack test --headless --chrome web/crates/parts --locked --lib
 
 - Custom definition fields and definition name (ticket 08).
 - Cleaning up unreferenced asset bytes.
+
+## Comments
+
+2026-10-07: User authorized takeover after inspection found only the claim commit
+and four partial uncommitted files in `edit-settlement-agent-a`. Their patch was
+preserved and carried into `edit-settlement-b`; the original worktree is untouched.
+Complete this ticket and its checks/review before ticket 17.
