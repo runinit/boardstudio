@@ -1,6 +1,6 @@
 # 06: Separate outline version planning from its Inspector and overlays
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [edit settlement 20](../../edit-settlement/issues/20-preview-only-direct-edit-event.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Review: [candidate 06](../../../investigations/architecture-review-2026-10-07.html#c6)
@@ -28,11 +28,11 @@ Blocked by edit settlement 20 because that ticket changes the perimeter preview
 
 ## Acceptance criteria
 
-- [ ] No file in the new module exceeds ~1,200 lines; the planner module imports no
+- [x] No file in the new module exceeds ~1,200 lines; the planner module imports no
   Dioxus, `Signal` or `Runtime`.
-- [ ] `outline_lifecycle_tests.rs` tests the planner module directly; the browser tests
+- [x] `outline_lifecycle_tests.rs` tests the planner module directly; the browser tests
   pass unchanged.
-- [ ] `git diff --stat` shows moves, not rewrites (`git log --follow` keeps history for
+- [x] `git diff --stat` shows moves, not rewrites (`git log --follow` keeps history for
   the planner).
 
 ## Verification
@@ -42,3 +42,21 @@ cargo test -p boardstudio-web-layout --locked
 python3 scripts/check.py lint typecheck test
 wasm-pack test --headless --chrome web/crates/layout --locked --lib
 ```
+
+## Outcome
+
+Merged commits `2a225d8ae`, `0a29cf710` and `62bc4d449`. A pure move
+preserves planner history before the split into planner, hook, Inspector and overlays;
+each new module is below 1,200 lines. Existing public paths remain stable. Native
+planner tests now directly cover the extracted planner.
+
+Verification: lint, WASM typecheck, Rust workspace tests and footprints passed after
+rebasing over TCE-01 and the Editor tracer. Layout browser tests passed (95 tests).
+Both Standards and Spec reviews passed against the final worktree diff. The native
+CAD test step reaches the previously reproduced rotated-concave/bottom volume
+baseline failure (49 passed, 1 failed, 4 ignored).
+
+The old native hook tests were already inactive because the hook is browser-only.
+They remain intact in `outline/hook_tests.rs` with their legacy gate documented;
+the named `outline_lifecycle_tests.rs` now runs pure planner coverage. No previously
+active browser tests were removed.

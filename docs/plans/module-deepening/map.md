@@ -74,6 +74,9 @@ unblocked.
 - TCE-01 Core owns wiring-mode defaults and mutation; the PCB resolver uses the typed
   intent: [Outcome](../typed-core-edits/issues/01-set-wiring-mode.md#outcome).
 
+- 06 Outline planning is independent of its hook, Inspector and overlays; native
+  planner coverage runs directly: [Outcome](issues/06-split-outline-lifecycle.md#outcome).
+
 ## Tickets
 
 - [01 Decide the pending-edit settlement rules and module shape](issues/01-decide-pending-edit-settlement.md) (resolved)
