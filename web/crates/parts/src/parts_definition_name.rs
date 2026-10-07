@@ -14,7 +14,7 @@ mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::edit_ticket::EditTicket;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use std::rc::Rc;
@@ -33,6 +33,11 @@ mod ui {
         let mut draft = use_signal(|| definition.name.clone());
         let mut error = use_signal(String::new);
         let mut pending = use_signal(|| None::<EditTicket>);
+        // Subscribe to the workspace's runtime-change version: outcomes settle outside
+        // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
+        // even when the accepted document did not change (for example a failed save).
+        let version = use_context::<Signal<u64>>();
+        let _ = version();
         let pad_count = definition.pads.len();
         let mut section_open = use_signal(|| pad_count == 0);
         let mut section_chosen = use_signal(|| false);
@@ -101,7 +106,7 @@ mod ui {
                 let Some(current) = model.accepted else {
                     return;
                 };
-                if !capture.owner_is_live(current, runtime.scope(), selection()) {
+                if !capture.owner_is_live(&current, runtime.scope(), selection()) {
                     return;
                 }
                 let name = draft();
@@ -606,6 +611,7 @@ mod mounted_tests {
         scope: Signal<Option<Scope>>,
         selection: Signal<Option<(Option<Scope>, String)>>,
         definition: Signal<PartDefinition>,
+        version: Signal<u64>,
     }
 
     struct Seed {
@@ -633,11 +639,14 @@ mod mounted_tests {
         let scope = use_signal(|| seed.scope.clone());
         let selection = use_signal(|| seed.selection.clone());
         let definition = use_signal(|| seed.definition.clone());
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
         *seed.state.borrow_mut() = Some(State {
             snapshot,
             scope,
             selection,
             definition,
+            version,
         });
         rsx! {
             div { "data-snapshot-revision": "{snapshot().document.revision}",
@@ -676,95 +685,63 @@ mod mounted_tests {
         (runtime, snapshot, scope)
     }
 
-    fn input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Definition name']")
+    fn input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Definition name']")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap()
     }
 
-    fn section_is_open() -> bool {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression details")
+    fn section_is_open(root: &web_sys::Element) -> bool {
+        root.query_selector("details")
             .unwrap()
             .unwrap()
             .has_attribute("open")
     }
 
-    fn pad_id_input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 ID']")
+    fn pad_id_input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Pad 1 ID']")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap()
     }
 
-    fn pad_number_input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 number']")
+    fn pad_number_input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Pad 1 number']")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap()
     }
 
-    fn courtyard_width_input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Courtyard width']")
+    fn courtyard_width_input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Courtyard width']")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap()
     }
 
-    fn courtyard_height_input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Courtyard height']")
+    fn courtyard_height_input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Courtyard height']")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap()
     }
 
-    fn pad_x_input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 X']")
+    fn pad_x_input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Pad 1 X']")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap()
     }
 
-    fn pad_y_input() -> HtmlInputElement {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#parts-name-mounted-regression input[aria-label='Pad 1 Y']")
+    fn pad_y_input(root: &web_sys::Element) -> HtmlInputElement {
+        root.query_selector("input[aria-label='Pad 1 Y']")
             .unwrap()
             .unwrap()
             .dyn_into()
@@ -804,7 +781,8 @@ mod mounted_tests {
             .unwrap()
             .create_element("div")
             .unwrap();
-        root.set_id("parts-name-mounted-regression");
+        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
+        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
         web_sys::window()
             .unwrap()
             .document()
@@ -828,10 +806,10 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        let pad_id = pad_id_input();
+        let pad_id = pad_id_input(&root);
         type_value(&pad_id, "");
         settle().await;
-        let _ = input().focus();
+        let _ = input(&root).focus();
         settle().await;
         assert!(root.query_selector("[role='alert']").unwrap().is_some());
 
@@ -851,14 +829,14 @@ mod mounted_tests {
             .click();
         settle().await;
 
-        assert_eq!(pad_id_input().value(), "shared-pad");
+        assert_eq!(pad_id_input(&root).value(), "shared-pad");
         assert!(root.query_selector("[role='alert']").unwrap().is_none());
 
         // A real accepted pad-ID and Y-coordinate update must preserve a dirty
         // number draft in the same row. This catches rows keyed by mutable ID.
         assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("7"));
         settle().await;
-        assert_eq!(pad_number_input().value(), "7");
+        assert_eq!(pad_number_input(&root).value(), "7");
         let mut refreshed_doc = runtime
             .model()
             .accepted
@@ -881,10 +859,10 @@ mod mounted_tests {
             .definition
             .set(refreshed.document.definitions[1].clone());
         settle().await;
-        assert_eq!(pad_y_input().value(), "4");
-        assert_eq!(pad_id_input().value(), "renamed-pad");
-        assert_eq!(pad_number_input().value(), "7");
-        let _ = pad_number_input().focus();
+        assert_eq!(pad_y_input(&root).value(), "4");
+        assert_eq!(pad_id_input(&root).value(), "renamed-pad");
+        assert_eq!(pad_number_input(&root).value(), "7");
+        let _ = pad_number_input(&root).focus();
         settle().await;
         assert!(
             web_sys::window()
@@ -893,9 +871,9 @@ mod mounted_tests {
                 .unwrap()
                 .active_element()
                 .unwrap()
-                .is_same_node(Some(&pad_number_input()))
+                .is_same_node(Some(&pad_number_input(&root)))
         );
-        let _ = pad_number_input().blur();
+        let _ = pad_number_input(&root).blur();
         settle().await;
         support::run_pending(&runtime).await;
         let accepted = runtime.model().accepted.as_ref().unwrap().clone();
@@ -928,7 +906,7 @@ mod mounted_tests {
         settle().await;
         assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("9"));
         settle().await;
-        assert_eq!(pad_number_input().value(), "9");
+        assert_eq!(pad_number_input(&root).value(), "9");
         root.query_selector(".m1-definition-remove-pad")
             .unwrap()
             .unwrap()
@@ -950,9 +928,9 @@ mod mounted_tests {
             .definition
             .set(accepted.document.definitions[1].clone());
         settle().await;
-        assert_eq!(pad_id_input().value(), "surviving-pad");
+        assert_eq!(pad_id_input(&root).value(), "surviving-pad");
         assert_eq!(
-            pad_number_input().value(),
+            pad_number_input(&root).value(),
             "7",
             "a removed pad's dirty draft cannot move into the surviving pad"
         );
@@ -965,9 +943,9 @@ mod mounted_tests {
             .set(accepted.document.definitions[0].clone());
         controls.snapshot.set(accepted.clone());
         settle().await;
-        assert_eq!(pad_id_input().value(), "shared-pad");
-        assert_eq!(pad_number_input().value(), "1");
-        let _ = pad_number_input().blur();
+        assert_eq!(pad_id_input(&root).value(), "shared-pad");
+        assert_eq!(pad_number_input(&root).value(), "1");
+        let _ = pad_number_input(&root).blur();
         settle().await;
         assert!(
             support::take_held_effects(&runtime).is_empty(),
@@ -1013,7 +991,8 @@ mod mounted_tests {
             .unwrap()
             .create_element("div")
             .unwrap();
-        root.set_id("parts-name-mounted-regression");
+        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
+        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
         web_sys::window()
             .unwrap()
             .document()
@@ -1037,13 +1016,13 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        let pad_id = pad_id_input();
+        let pad_id = pad_id_input(&root);
         type_value(&pad_id, "");
         settle().await;
-        let _ = courtyard_width_input().focus();
+        let _ = courtyard_width_input(&root).focus();
         settle().await;
         assert!(root.query_selector("[role='alert']").unwrap().is_some());
-        type_value(&courtyard_width_input(), "12");
+        type_value(&courtyard_width_input(&root), "12");
         settle().await;
 
         let mut controls = state.borrow().as_ref().unwrap().clone();
@@ -1055,12 +1034,12 @@ mod mounted_tests {
             .set(snapshot.document.definitions[1].clone());
         settle().await;
 
-        assert_eq!(courtyard_width_input().value(), "10");
+        assert_eq!(courtyard_width_input(&root).value(), "10");
         assert!(root.query_selector("[role='alert']").unwrap().is_none());
 
         // Accepted sibling fields synchronize independently. A refreshed
         // height must not discard the local width draft.
-        type_value(&courtyard_width_input(), "12");
+        type_value(&courtyard_width_input(&root), "12");
         settle().await;
         let mut refreshed_doc = runtime
             .model()
@@ -1088,13 +1067,13 @@ mod mounted_tests {
             .definition
             .set(refreshed.document.definitions[1].clone());
         settle().await;
-        assert_eq!(courtyard_width_input().value(), "12");
-        assert_eq!(courtyard_height_input().value(), "8");
+        assert_eq!(courtyard_width_input(&root).value(), "12");
+        assert_eq!(courtyard_height_input(&root).value(), "8");
 
         // A different definition may reuse the same pad ID. Its local draft
         // must reset when the owner changes, even though the pad identity is
         // otherwise identical.
-        type_value(&pad_x_input(), "9");
+        type_value(&pad_x_input(&root), "9");
         settle().await;
         // Anything the focus change submitted lands before the next accepted refresh, so the
         // refresh below is built on the Session's latest accepted document.
@@ -1114,8 +1093,8 @@ mod mounted_tests {
             .definition
             .set(refreshed_pad.document.definitions[1].clone());
         settle().await;
-        assert_eq!(pad_x_input().value(), "9");
-        assert_eq!(pad_y_input().value(), "4");
+        assert_eq!(pad_x_input(&root).value(), "9");
+        assert_eq!(pad_y_input(&root).value(), "4");
 
         controls
             .selection
@@ -1124,10 +1103,10 @@ mod mounted_tests {
             .definition
             .set(refreshed_pad.document.definitions[0].clone());
         settle().await;
-        assert_eq!(courtyard_width_input().value(), "10");
-        assert_eq!(pad_x_input().value(), "0");
-        let _ = courtyard_width_input().blur();
-        let _ = pad_x_input().blur();
+        assert_eq!(courtyard_width_input(&root).value(), "10");
+        assert_eq!(pad_x_input(&root).value(), "0");
+        let _ = courtyard_width_input(&root).blur();
+        let _ = pad_x_input(&root).blur();
         settle().await;
         assert!(
             support::take_held_effects(&runtime).is_empty(),
@@ -1159,7 +1138,8 @@ mod mounted_tests {
             .unwrap()
             .create_element("div")
             .unwrap();
-        root.set_id("parts-name-mounted-regression");
+        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
+        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
         web_sys::window()
             .unwrap()
             .document()
@@ -1183,7 +1163,7 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        let width = courtyard_width_input();
+        let width = courtyard_width_input(&root);
         assert_eq!(width.value(), "10");
         let _ = width.focus();
         let _ = width.blur();
@@ -1233,7 +1213,8 @@ mod mounted_tests {
             .unwrap()
             .create_element("div")
             .unwrap();
-        root.set_id("parts-name-mounted-regression");
+        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
+        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
         web_sys::window()
             .unwrap()
             .document()
@@ -1257,7 +1238,7 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        let field = pad_id_input();
+        let field = pad_id_input(&root);
         type_value(&field, "renamed");
         let _ = field.blur();
         settle().await;
@@ -1305,15 +1286,17 @@ mod mounted_tests {
         let init = web_sys::KeyboardEventInit::new();
         init.set_key("Enter");
         init.set_bubbles(true);
-        input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict(
-            "keydown",
-            &init,
-        ))
-        .unwrap();
+        let keydown = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+            .expect("keydown event");
+        input.dispatch_event(&keydown).unwrap();
     }
 
-    /// Mount the definition panel over `document` and return the live host controls.
-    /// The root keeps the shared regression id so the input selectors below find it.
+    thread_local! {
+        static NEXT_ROOT: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
+    }
+
+    /// Mount the definition panel over `document` under its own root element, so one
+    /// test's leftovers cannot satisfy another test's selectors.
     async fn mount_panel(
         document: ProjectDoc,
         open_section: bool,
@@ -1339,7 +1322,8 @@ mod mounted_tests {
             .unwrap()
             .create_element("div")
             .unwrap();
-        root.set_id("parts-name-mounted-regression");
+        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
+        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
         web_sys::window()
             .unwrap()
             .document()
@@ -1368,16 +1352,20 @@ mod mounted_tests {
         (runtime, snapshot, scope, state, root)
     }
 
-    /// Drive pending effects, then push the accepted snapshot and definition back into
-    /// the mounted host so the panel settles its tickets against them.
+    /// Drive a released gate's continuation and every pending effect to completion, then
+    /// push the accepted snapshot and definition back into the mounted host so the panel
+    /// settles its tickets against the final document.
     async fn accept_edits(runtime: &Rc<Runtime>, controls: &State) {
+        settle().await;
         support::run_pending(runtime).await;
         refresh_host(runtime, controls).await;
     }
 
     async fn refresh_host(runtime: &Rc<Runtime>, controls: &State) {
         let accepted = runtime.model().accepted.clone().unwrap();
-        controls.snapshot.set(accepted.clone());
+        let mut snapshot = controls.snapshot;
+        let mut definition_signal = controls.definition;
+        snapshot.set(accepted.clone());
         if let Some(definition) = accepted
             .document
             .definitions
@@ -1385,8 +1373,12 @@ mod mounted_tests {
             .find(|definition| definition.id == "selected")
             .cloned()
         {
-            controls.definition.set(definition);
+            definition_signal.set(definition);
         }
+        // Wake the panel's settle pass the way the production workspace's runtime-change
+        // version does, even when the accepted content did not change.
+        let mut version = controls.version;
+        version += 1;
         settle().await;
     }
 
@@ -1410,12 +1402,40 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_dirty_courtyard_width_commits_when_focus_moves_away() {
+        // Ticket 07 saw a dirty courtyard width submit nothing when focus moved away.
+        // The cause was the harness: a pad-less definition's custom section defaults
+        // open, so the old test's summary click closed it and focus/blur no-opped on
+        // hidden inputs. With the section open the blur commits and lands.
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Courtyard"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        assert!(
+            section_is_open(&root),
+            "a pad-less definition's custom section defaults open"
+        );
+
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.revision,
+            snapshot.document.revision + 1,
+            "a dirty courtyard width must commit when focus moves away"
+        );
+        assert_eq!(definition_bounds(&accepted.document), (12.0, 6.0));
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn mounted_rapid_width_height_keeps_both_and_undo_reverts_only_height() {
         let (runtime, snapshot, _scope, state, root) =
             mount_panel(courtyard_document("Courtyard"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
-        let width = courtyard_width_input();
-        let height = courtyard_height_input();
+        let width = courtyard_width_input(&root);
+        let height = courtyard_height_input(&root);
 
         // Hold the width edit's Core reply so the height edit queues behind it, exactly
         // as rapid Tab-entry does when the engine is busy.
@@ -1446,8 +1466,8 @@ mod mounted_tests {
             (12.0, 8.0),
             "width, Tab, height keeps both values"
         );
-        assert_eq!(courtyard_width_input().value(), "12");
-        assert_eq!(courtyard_height_input().value(), "8");
+        assert_eq!(courtyard_width_input(&root).value(), "12");
+        assert_eq!(courtyard_height_input(&root).value(), "8");
 
         runtime.submit(AppEvent::Undo {
             operation_id: runtime.operation(),
@@ -1459,7 +1479,7 @@ mod mounted_tests {
             (12.0, 6.0),
             "one Undo reverts only the height change"
         );
-        assert_eq!(courtyard_height_input().value(), "6");
+        assert_eq!(courtyard_height_input(&root).value(), "6");
         root.remove();
     }
 
@@ -1470,16 +1490,16 @@ mod mounted_tests {
         let controls = state.borrow().as_ref().unwrap().clone();
 
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        type_value(&input(), "Renamed");
-        let _ = courtyard_width_input().focus();
+        type_value(&input(&root), "Renamed");
+        let _ = courtyard_width_input(&root).focus();
         settle().await;
         support::drive_pending(&runtime);
         entered
             .await
             .expect("the rename reached the in-process Core");
 
-        type_value(&courtyard_width_input(), "12");
-        let _ = courtyard_width_input().blur();
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
         settle().await;
 
         release.send(()).expect("release the held rename reply");
@@ -1515,10 +1535,20 @@ mod mounted_tests {
         let controls = state.borrow().as_ref().unwrap().clone();
         support::fail_next_persist(&runtime, "injected durable write failure");
 
-        type_value(&courtyard_width_input(), "12");
-        let _ = courtyard_width_input().blur();
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
         settle().await;
         support::run_pending(&runtime).await;
+        let probed = runtime.model().clone();
+        web_sys::console::log_1(
+            &format!(
+                "after run_pending: revision={} durability={:?} lifecycle={:?}",
+                probed.accepted.as_ref().map(|s| s.document.revision).unwrap_or(999),
+                probed.durability,
+                probed.lifecycle
+            )
+            .into(),
+        );
         refresh_host(&runtime, &controls).await;
 
         let accepted = runtime.model().accepted.unwrap();
@@ -1528,7 +1558,7 @@ mod mounted_tests {
             "a failed save does not move the accepted document"
         );
         assert_eq!(
-            courtyard_width_input().value(),
+            courtyard_width_input(&root).value(),
             "10",
             "the failed field shows the accepted value again"
         );
@@ -1572,8 +1602,8 @@ mod mounted_tests {
             .await
             .expect("the deletion reached the in-process Core");
 
-        type_value(&courtyard_width_input(), "12");
-        let _ = courtyard_width_input().blur();
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
         settle().await;
 
         release.send(()).expect("release the held deletion reply");
@@ -1590,7 +1620,7 @@ mod mounted_tests {
             "the deletion is accepted"
         );
         assert_eq!(
-            courtyard_width_input().value(),
+            courtyard_width_input(&root).value(),
             "10",
             "the retired field shows the accepted value again"
         );
@@ -1633,7 +1663,8 @@ mod mounted_tests {
             .unwrap()
             .create_element("div")
             .unwrap();
-        root.set_id("parts-name-mounted-regression");
+        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
+        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
         web_sys::window()
             .unwrap()
             .document()
@@ -1651,10 +1682,10 @@ mod mounted_tests {
         );
         settle().await;
 
-        let field = input();
+        let field = input(&root);
         type_value(&field, "Dirty name draft");
         settle().await;
-        assert_eq!(input().value(), "Dirty name draft");
+        assert_eq!(input(&root).value(), "Dirty name draft");
 
         let mut controls = state.borrow().as_ref().unwrap().clone();
         let initial_revision = snapshot.document.revision;
@@ -1669,12 +1700,12 @@ mod mounted_tests {
         controls.snapshot.set(latest.clone());
         settle().await;
         assert_eq!(
-            input().value(),
+            input(&root).value(),
             "Dirty name draft",
             "an unrelated accepted revision must refresh admission capture without clearing the local field draft"
         );
 
-        let _ = input().blur();
+        let _ = input(&root).blur();
         support::run_pending(&runtime).await;
         let committed = runtime.model().accepted.as_ref().unwrap().clone();
         assert_eq!(
@@ -1703,24 +1734,24 @@ mod mounted_tests {
             .set(latest.document.definitions[0].clone());
         settle().await;
         assert_eq!(
-            input().value(),
+            input(&root).value(),
             "Accepted external name",
             "an accepted Name change must synchronize the draft"
         );
 
-        assert!(section_is_open());
+        assert!(section_is_open(&root));
         web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#parts-name-mounted-regression details summary")
+            .query_selector("details summary")
             .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
         settle().await;
-        assert!(!section_is_open());
+        assert!(!section_is_open(&root));
 
         controls
             .selection
@@ -1729,9 +1760,9 @@ mod mounted_tests {
             .definition
             .set(latest.document.definitions[1].clone());
         settle().await;
-        assert_eq!(input().value(), "Other definition");
+        assert_eq!(input(&root).value(), "Other definition");
         assert!(
-            section_is_open(),
+            section_is_open(&root),
             "a newly selected empty definition uses its own default-open state"
         );
 
@@ -1749,7 +1780,7 @@ mod mounted_tests {
             .definition
             .set(definition("selected", "Scoped target"));
         settle().await;
-        assert_eq!(input().value(), "Scoped target");
+        assert_eq!(input(&root).value(), "Scoped target");
         root.remove();
     }
 }

@@ -282,6 +282,11 @@ pub(crate) mod ui {
         let owner_key = format!("{:?}:{}", scope, definition.id);
         let pad_rows = use_hook(|| Rc::new(std::cell::RefCell::new(PadRowKeys::default())));
         let row_keys = pad_rows.borrow_mut().for_pads(&owner_key, &definition.pads);
+        // Subscribe to the workspace's runtime-change version: outcomes settle outside
+        // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
+        // even when the accepted document did not change (for example a failed save).
+        let version = use_context::<Signal<u64>>();
+        let _ = version();
         let owner_live = owner_is_live(&runtime, &capture, selection);
         {
             let mut edits = pending.peek().clone();
@@ -496,7 +501,7 @@ pub(crate) mod ui {
                 (None, DefinitionEdit::AddPad) => Self::AddPad,
                 (None, _) => unreachable!("pad edits carry their row key"),
                 (Some(row), edit) => Self::Pad {
-                    row: *row,
+                    row,
                     field: PadField::of(edit),
                 },
             }
@@ -625,10 +630,11 @@ pub(crate) mod ui {
 
         let submit_id = submit;
         let old_id = pad.id.clone();
+        let blur_committed_id = pad.id.clone();
         let committed_id = pad.id.clone();
         let on_id_blur = move |_| {
             let draft = id().trim().to_owned();
-            if draft != committed_id {
+            if draft != blur_committed_id.as_str() {
                 submit_id.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadId {
@@ -641,10 +647,11 @@ pub(crate) mod ui {
         let id_keydown = move |event| draft_keydown(event, id, committed_id.clone());
         let submit_number = submit;
         let old_id = pad.id.clone();
+        let blur_committed_number = pad.number.clone();
         let committed_number = pad.number.clone();
         let on_number_blur = move |_| {
             let draft = number().trim().to_owned();
-            if draft != committed_number {
+            if draft != blur_committed_number.as_str() {
                 submit_number.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadNumber {
@@ -657,9 +664,10 @@ pub(crate) mod ui {
         let number_keydown = move |event| draft_keydown(event, number, committed_number.clone());
         let submit_x = submit;
         let old_id = pad.id.clone();
+        let blur_committed_x = pad.at.x.to_string();
         let committed_x = pad.at.x.to_string();
         let on_x_blur = move |_| {
-            if x() != committed_x {
+            if x() != blur_committed_x.as_str() {
                 submit_x.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadCoordinate {
@@ -673,9 +681,10 @@ pub(crate) mod ui {
         let x_keydown = move |event| draft_keydown(event, x, committed_x.clone());
         let submit_y = submit;
         let old_id = pad.id.clone();
+        let blur_committed_y = pad.at.y.to_string();
         let committed_y = pad.at.y.to_string();
         let on_y_blur = move |_| {
-            if y() != committed_y {
+            if y() != blur_committed_y.as_str() {
                 submit_y.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadCoordinate {
@@ -689,9 +698,10 @@ pub(crate) mod ui {
         let y_keydown = move |event| draft_keydown(event, y, committed_y.clone());
         let submit_width = submit;
         let old_id = pad.id.clone();
+        let blur_committed_width = pad.size.x.to_string();
         let committed_width = pad.size.x.to_string();
         let on_width_blur = move |_| {
-            if size_x() != committed_width {
+            if size_x() != blur_committed_width.as_str() {
                 submit_width.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadSize {
@@ -705,9 +715,10 @@ pub(crate) mod ui {
         let width_keydown = move |event| draft_keydown(event, size_x, committed_width.clone());
         let submit_height = submit;
         let old_id = pad.id.clone();
+        let blur_committed_height = pad.size.y.to_string();
         let committed_height = pad.size.y.to_string();
         let on_height_blur = move |_| {
-            if size_y() != committed_height {
+            if size_y() != blur_committed_height.as_str() {
                 submit_height.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadSize {
@@ -721,12 +732,16 @@ pub(crate) mod ui {
         let height_keydown = move |event| draft_keydown(event, size_y, committed_height.clone());
         let submit_drill = submit;
         let old_id = pad.id.clone();
+        let blur_committed_drill = pad
+            .drill
+            .map(|number| number.to_string())
+            .unwrap_or_default();
         let committed_drill = pad
             .drill
             .map(|number| number.to_string())
             .unwrap_or_default();
         let on_drill_blur = move |_| {
-            if drill() != committed_drill {
+            if drill() != blur_committed_drill.as_str() {
                 submit_drill.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadDrill {
@@ -1318,7 +1333,7 @@ fn parse_number(value: &str, positive: bool, message: &str) -> Result<f64, Strin
         Ok(number)
     }
 }
-fn courtyard_bounds(points: &[Vec2]) -> (f64, f64, Vec2) {
+pub(crate) fn courtyard_bounds(points: &[Vec2]) -> (f64, f64, Vec2) {
     if points.is_empty() {
         return (10.0, 6.0, Vec2 { x: 0.0, y: 0.0 });
     }
