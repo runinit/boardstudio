@@ -41,6 +41,9 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
+  Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+
 ## Not yet specified
 
 From the [resolver inventory](../edit-settlement/replace-document-resolvers.md). Each

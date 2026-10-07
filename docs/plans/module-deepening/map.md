@@ -71,6 +71,9 @@ unblocked.
 - 11 Editor composes private-state canvas navigation and Layout findings handles;
   their owned behaviour has mounted interface coverage: [Outcome](issues/11-editor-state-tracer.md#outcome).
 
+- TCE-01 Core owns wiring-mode defaults and mutation; the PCB resolver uses the typed
+  intent: [Outcome](../typed-core-edits/issues/01-set-wiring-mode.md#outcome).
+
 ## Tickets
 
 - [01 Decide the pending-edit settlement rules and module shape](issues/01-decide-pending-edit-settlement.md) (resolved)
