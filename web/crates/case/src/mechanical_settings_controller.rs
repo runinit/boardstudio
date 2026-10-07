@@ -127,6 +127,7 @@ impl MechanicalSettingsController {
         {
             return false;
         }
+        let opening_guard = opening_target_guard(&current, &request.patch, &self.requests.borrow());
         self.requests.borrow_mut().push(SettingsEdit {
             request: request.clone(),
             phase: SettingsPhase::Preparing,
@@ -154,20 +155,27 @@ impl MechanicalSettingsController {
                     let intent = request.clone();
                     let resolver = EditResolver::new(
                         "mechanical-settings",
-                        move |accepted: &AcceptedSnapshot| match prepare_document(
-                            accepted, &intent, &template,
-                        ) {
-                            Ok(document) if document == *accepted.document => Resolution::Unchanged,
-                            Ok(document) => Resolution::Submit(EditCommand {
-                                base_revision: 0,
-                                transaction_id: String::new(),
-                                phase: EditPhase::Commit,
-                                target_ids: vec![intent.identity.active_board_id.clone()],
-                                operation: EditOperation::ReplaceDocument {
-                                    document: Box::new(document),
-                                },
-                            }),
-                            Err(message) => Resolution::Retire(message),
+                        move |accepted: &AcceptedSnapshot| {
+                            if let Some(guard) = &opening_guard
+                                && let Err(reason) = guard.check(accepted, &intent.identity.scope)
+                            {
+                                return Resolution::Retire(reason);
+                            }
+                            match prepare_document(accepted, &intent, &template) {
+                                Ok(document) if document == *accepted.document => {
+                                    Resolution::Unchanged
+                                }
+                                Ok(document) => Resolution::Submit(EditCommand {
+                                    base_revision: 0,
+                                    transaction_id: String::new(),
+                                    phase: EditPhase::Commit,
+                                    target_ids: vec![intent.identity.active_board_id.clone()],
+                                    operation: EditOperation::ReplaceDocument {
+                                        document: Box::new(document),
+                                    },
+                                }),
+                                Err(message) => Resolution::Retire(message),
+                            }
                         },
                     );
                     if let Some(pending) = owner
@@ -273,10 +281,107 @@ impl MechanicalSettingsController {
     }
 }
 
+// Openings and vertices currently have positional identities. Capture destructive
+// predecessors from this owner so their later fields cannot retarget a shifted row.
+// One-shot structural requests share a guard; a failed predecessor changes no count.
+struct OpeningTargetGuard {
+    opening_index: usize,
+    point_index: Option<usize>,
+    opening_count: usize,
+    point_count: usize,
+    removals: Vec<(usize, Option<usize>)>,
+}
+
+impl OpeningTargetGuard {
+    fn check(&self, accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
+        let effective = boardstudio_web_host::cad_jobs::captured_case_document(accepted, scope)
+            .map_err(|_| "The selected access opening is no longer available.".to_owned())?;
+        let openings = effective
+            .mechanical
+            .as_ref()
+            .and_then(|configuration| configuration.openings.as_ref());
+        let opening_count = openings.map_or(0, Vec::len);
+        let point_count = openings
+            .and_then(|openings| openings.get(self.opening_index))
+            .map_or(0, |opening| opening.points.len());
+        let shifted = self.removals.iter().any(|(opening, point)| match point {
+            None => *opening <= self.opening_index && opening_count < self.opening_count,
+            Some(removed) => {
+                *opening == self.opening_index
+                    && self.point_index.is_some_and(|target| *removed <= target)
+                    && point_count < self.point_count
+            }
+        });
+        if shifted {
+            Err("The selected opening or vertex was removed before this edit could run.".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn opening_target_guard(
+    current: &MechanicalSettingsCurrent,
+    patch: &MechanicalSettingsPatch,
+    earlier: &[SettingsEdit],
+) -> Option<OpeningTargetGuard> {
+    let (opening_index, point_index) = match patch {
+        MechanicalSettingsPatch::SetOpeningDimension {
+            opening_index,
+            point_index,
+            ..
+        } => (*opening_index, *point_index),
+        MechanicalSettingsPatch::RemoveOpening { opening_index }
+        | MechanicalSettingsPatch::AddOpeningVertex { opening_index } => (*opening_index, None),
+        MechanicalSettingsPatch::RemoveOpeningVertex {
+            opening_index,
+            point_index,
+        } => (*opening_index, Some(*point_index)),
+        _ => return None,
+    };
+    let removals = earlier
+        .iter()
+        .filter_map(|entry| match &entry.request.patch {
+            MechanicalSettingsPatch::RemoveOpening { opening_index } => {
+                Some((*opening_index, None))
+            }
+            MechanicalSettingsPatch::RemoveOpeningVertex {
+                opening_index,
+                point_index,
+            } => Some((*opening_index, Some(*point_index))),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if removals.is_empty() {
+        return None;
+    }
+    let openings = current
+        .configuration
+        .as_ref()
+        .and_then(|configuration| configuration.openings.as_ref());
+    Some(OpeningTargetGuard {
+        opening_index,
+        point_index,
+        opening_count: openings.map_or(0, Vec::len),
+        point_count: openings
+            .and_then(|openings| openings.get(opening_index))
+            .map_or(0, |opening| opening.points.len()),
+        removals,
+    })
+}
+
 fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
     matches!(
         patch,
-        MechanicalSettingsPatch::InitializeClosures
+        MechanicalSettingsPatch::AddOpening
+            | MechanicalSettingsPatch::RemoveOpening { .. }
+            | MechanicalSettingsPatch::AddOpeningVertex { .. }
+            | MechanicalSettingsPatch::RemoveOpeningVertex { .. }
+            | MechanicalSettingsPatch::AddMount { .. }
+            | MechanicalSettingsPatch::AddSuggestedClosureMounts(_)
+            | MechanicalSettingsPatch::SetMountCollection { .. }
+            | MechanicalSettingsPatch::AdoptClosurePositions(_)
+            | MechanicalSettingsPatch::InitializeClosures
             | MechanicalSettingsPatch::ResetGasketPlacement
             | MechanicalSettingsPatch::AddHardware { .. }
             | MechanicalSettingsPatch::RemoveHardware { .. }
@@ -932,9 +1037,57 @@ fn apply_patch(
                 _ => return Err("The selected hardware dimension is unavailable.".into()),
             }
         }
-        MechanicalSettingsPatch::SetOpenings(openings) => {
-            validate_openings(openings)?;
-            configuration.openings = Some(openings.clone());
+        MechanicalSettingsPatch::AddOpening => {
+            configuration
+                .openings
+                .get_or_insert_with(Vec::new)
+                .push(CaseOpening {
+                    points: vec![
+                        Vec2 { x: -2.5, y: -2.5 },
+                        Vec2 { x: 2.5, y: -2.5 },
+                        Vec2 { x: 2.5, y: 2.5 },
+                        Vec2 { x: -2.5, y: 2.5 },
+                    ],
+                    z: 0.0,
+                    height: 10.0,
+                });
+        }
+        MechanicalSettingsPatch::RemoveOpening { opening_index } => {
+            let openings = configuration
+                .openings
+                .as_mut()
+                .ok_or("The selected access opening is no longer available.")?;
+            if *opening_index >= openings.len() {
+                return Err("The selected access opening is no longer available.".into());
+            }
+            openings.remove(*opening_index);
+        }
+        MechanicalSettingsPatch::AddOpeningVertex { opening_index } => {
+            let opening = configuration
+                .openings
+                .as_mut()
+                .and_then(|openings| openings.get_mut(*opening_index))
+                .ok_or("The selected access opening is no longer available.")?;
+            opening.points.push(Vec2 { x: 0.0, y: 0.0 });
+            validate_openings(configuration.openings.as_ref().unwrap())?;
+        }
+        MechanicalSettingsPatch::RemoveOpeningVertex {
+            opening_index,
+            point_index,
+        } => {
+            let opening = configuration
+                .openings
+                .as_mut()
+                .and_then(|openings| openings.get_mut(*opening_index))
+                .ok_or("The selected access opening is no longer available.")?;
+            if opening.points.len() <= 3 {
+                return Err("An opening footprint needs at least three vertices.".into());
+            }
+            if *point_index >= opening.points.len() {
+                return Err("The selected opening vertex is no longer available.".into());
+            }
+            opening.points.remove(*point_index);
+            validate_openings(configuration.openings.as_ref().unwrap())?;
         }
         MechanicalSettingsPatch::SetOpeningDimension {
             opening_index,
@@ -1000,6 +1153,64 @@ fn apply_patch(
                 configuration.bottom_style = Some(MechanicalBottomStyle::Shell);
                 configuration.middle_frame = Some(false);
             }
+        }
+        MechanicalSettingsPatch::AddMount { collection } => {
+            if *collection == MechanicalMountCollection::Closure
+                && configuration.internal_gasket.is_some()
+            {
+                return Err("Adding closure screws is unavailable with an internal gasket.".into());
+            }
+            let mut ordinal = 1usize;
+            let id = loop {
+                let candidate = format!("case-mechanical-mount-{ordinal}");
+                let used = configuration
+                    .mounts
+                    .iter()
+                    .chain(configuration.closure_mounts.iter().flatten())
+                    .any(|mount| mount.id == candidate)
+                    || document.parts.iter().any(|part| part.id == candidate)
+                    || document
+                        .case_bodies
+                        .iter()
+                        .flat_map(|body| body.mounts.iter().flatten())
+                        .any(|mount| mount.id == candidate);
+                if !used {
+                    break candidate;
+                }
+                ordinal += 1;
+            };
+            mount_collection_mut(configuration, *collection).push(Mount {
+                id,
+                at: Vec2 { x: 0.0, y: 0.0 },
+                kind: MountKind::Hole,
+                hole_diameter: 2.5,
+                boss_diameter: Some(5.0),
+                height: Some(5.0),
+            });
+        }
+        MechanicalSettingsPatch::AddSuggestedClosureMounts(suggestions) => {
+            if configuration.internal_gasket.is_some() {
+                return Err("Adding closure screws is unavailable with an internal gasket.".into());
+            }
+            let height = configuration.plate_to_pcb
+                + configuration.pcb_thickness
+                + configuration
+                    .bottom_foam_thickness
+                    .max(configuration.battery_height);
+            let mounts = configuration.closure_mounts.get_or_insert_with(Vec::new);
+            for suggestion in suggestions {
+                let id = format!("auto-closure/{}", suggestion.id);
+                if mounts.iter().any(|mount| mount.id == id) {
+                    continue;
+                }
+                let mut mount = suggestion.clone();
+                mount.id = id;
+                mount.kind = MountKind::Boss;
+                mount.hole_diameter = 2.2;
+                mount.height = Some(height);
+                mounts.push(mount);
+            }
+            validate_mounts(mounts)?;
         }
         MechanicalSettingsPatch::SetMountCollection { collection, mounts } => {
             validate_mounts(mounts)?;
@@ -1555,7 +1766,10 @@ fn apply_patch(
             | MechanicalSettingsPatch::SetHardwareMount { .. }
             | MechanicalSettingsPatch::SetHardwareText { .. }
             | MechanicalSettingsPatch::SetHardwareDimension { .. }
-            | MechanicalSettingsPatch::SetOpenings(_)
+            | MechanicalSettingsPatch::AddOpening
+            | MechanicalSettingsPatch::RemoveOpening { .. }
+            | MechanicalSettingsPatch::AddOpeningVertex { .. }
+            | MechanicalSettingsPatch::RemoveOpeningVertex { .. }
             | MechanicalSettingsPatch::SetOpeningDimension { .. }
             | MechanicalSettingsPatch::SetStabilizerKind(_)
     ) || matches!(
@@ -2392,6 +2606,398 @@ mod battery_patch_tests {
                 .wall_thickness,
             2.0
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn opening_action_preserves_queued_dimension_and_undo() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_application::Event;
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("opening-queue", "Mechanical");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        let mut config = configuration();
+        config.closure_mounts = Some(vec![]);
+        config.openings = Some(vec![CaseOpening {
+            points: vec![
+                Vec2 { x: -2.5, y: -2.5 },
+                Vec2 { x: 2.5, y: -2.5 },
+                Vec2 { x: 2.5, y: 2.5 },
+                Vec2 { x: -2.5, y: 2.5 },
+            ],
+            z: 0.0,
+            height: 10.0,
+        }]);
+        document.mechanical = Some(config);
+        support::open_document(&runtime, document).await;
+        let current_runtime = runtime.clone();
+        let current = Rc::new(move || {
+            let model = current_runtime.model();
+            let accepted = model.accepted?;
+            let scope = current_runtime.scope()?;
+            Some(MechanicalSettingsCurrent {
+                identity: MechanicalSettingsIdentity {
+                    editor_instance_id: 1,
+                    scope_generation: 1,
+                    presentation_generation: 1,
+                    scope,
+                    snapshot_token: accepted.token,
+                    revision: accepted.document.revision,
+                    active_board_id: "board".into(),
+                    configuration_board_id: "board".into(),
+                },
+                configuration: accepted.document.mechanical.clone().map(Rc::new),
+                accepted,
+                editable: true,
+                lifecycle: model.lifecycle,
+                durability: model.durability,
+            })
+        });
+        let template = Rc::new(
+            serde_json::from_value::<PartDefinition>(serde_json::json!({
+                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let submit_runtime = runtime.clone();
+        let controller = MechanicalSettingsController::new(MechanicalSettingsPorts {
+            current: current.clone(),
+            load_mounting_hole: Rc::new(move || {
+                let template = template.clone();
+                Box::pin(async move { Ok(template) })
+            }),
+            begin_edit: Rc::new(move |resolver| {
+                EditTicket::begin(
+                    &submit_runtime,
+                    "mechanical-settings",
+                    Some("mechanical settings".into()),
+                    resolver,
+                )
+            }),
+            publish: Rc::new(|_| {}),
+        });
+        let request = |request_id, patch: MechanicalSettingsPatch| MechanicalSettingsRequest {
+            identity: current().unwrap().identity,
+            request_id,
+            field_id: patch_field_id(&patch),
+            patch,
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        assert!(controller.submit(request(
+            1,
+            MechanicalSettingsPatch::SetOpeningDimension {
+                opening_index: 0,
+                point_index: None,
+                field: MechanicalDimension::OpeningHeight,
+                value: 12.0
+            }
+        )));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let second_admitted = controller.submit(request(2, MechanicalSettingsPatch::AddOpening));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            controller.settle();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            second_admitted,
+            "field edits must queue while a prior field is pending"
+        );
+        let accepted = runtime.model().accepted.unwrap();
+        let mechanical = accepted.document.mechanical.as_ref().unwrap();
+        assert_eq!(mechanical.openings.as_ref().unwrap()[0].height, 12.0);
+        assert_eq!(mechanical.openings.as_ref().unwrap().len(), 2);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let mechanical = accepted.document.mechanical.as_ref().unwrap();
+        assert_eq!(mechanical.openings.as_ref().unwrap()[0].height, 12.0);
+        assert_eq!(mechanical.openings.as_ref().unwrap().len(), 1);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .openings
+                .as_ref()
+                .unwrap()[0]
+                .height,
+            10.0
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn mount_action_preserves_queued_dimension_and_undo() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_application::Event;
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("mount-queue", "Mechanical");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        let mut config = configuration();
+        config.closure_mounts = Some(vec![]);
+        config.mounts = vec![Mount { id: "existing".into(), at: Vec2 { x: 0.0, y: 0.0 }, kind: MountKind::Hole, hole_diameter: 2.5, boss_diameter: Some(5.0), height: Some(5.0) }];
+        document.mechanical = Some(config);
+        support::open_document(&runtime, document).await;
+        let current_runtime = runtime.clone();
+        let current = Rc::new(move || {
+            let model = current_runtime.model();
+            let accepted = model.accepted?;
+            let scope = current_runtime.scope()?;
+            Some(MechanicalSettingsCurrent {
+                identity: MechanicalSettingsIdentity {
+                    editor_instance_id: 1,
+                    scope_generation: 1,
+                    presentation_generation: 1,
+                    scope,
+                    snapshot_token: accepted.token,
+                    revision: accepted.document.revision,
+                    active_board_id: "board".into(),
+                    configuration_board_id: "board".into(),
+                },
+                configuration: accepted.document.mechanical.clone().map(Rc::new),
+                accepted,
+                editable: true,
+                lifecycle: model.lifecycle,
+                durability: model.durability,
+            })
+        });
+        let template = Rc::new(
+            serde_json::from_value::<PartDefinition>(serde_json::json!({
+                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let submit_runtime = runtime.clone();
+        let controller = MechanicalSettingsController::new(MechanicalSettingsPorts {
+            current: current.clone(),
+            load_mounting_hole: Rc::new(move || {
+                let template = template.clone();
+                Box::pin(async move { Ok(template) })
+            }),
+            begin_edit: Rc::new(move |resolver| {
+                EditTicket::begin(
+                    &submit_runtime,
+                    "mechanical-settings",
+                    Some("mechanical settings".into()),
+                    resolver,
+                )
+            }),
+            publish: Rc::new(|_| {}),
+        });
+        let request = |request_id, patch: MechanicalSettingsPatch| MechanicalSettingsRequest {
+            identity: current().unwrap().identity,
+            request_id,
+            field_id: patch_field_id(&patch),
+            patch,
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        assert!(controller.submit(request(
+            1,
+            MechanicalSettingsPatch::SetMountDimension { collection: MechanicalMountCollection::Suspension, mount_id: "existing".into(), field: MechanicalDimension::MountPositionX, value: 7.0 }
+        )));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let second_admitted = controller.submit(request(2, MechanicalSettingsPatch::AddMount { collection: MechanicalMountCollection::Suspension }));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            controller.settle();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            second_admitted,
+            "field edits must queue while a prior field is pending"
+        );
+        let accepted = runtime.model().accepted.unwrap();
+        let mechanical = accepted.document.mechanical.as_ref().unwrap();
+        assert_eq!(mechanical.mounts[0].at.x, 7.0);
+        assert_eq!(mechanical.mounts.len(), 2);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let mechanical = accepted.document.mechanical.as_ref().unwrap();
+        assert_eq!(mechanical.mounts[0].at.x, 7.0);
+        assert_eq!(mechanical.mounts.len(), 1);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(runtime.model().accepted.unwrap().document.mechanical.as_ref().unwrap().mounts[0].at.x, 0.0);
+
+    }
+
+    #[wasm_bindgen_test]
+    async fn opening_removal_retires_queued_dimension() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_application::Event;
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("opening-remove-queue", "Mechanical");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        let mut config = configuration();
+        config.closure_mounts = Some(vec![]);
+        config.openings = Some(vec![CaseOpening {
+            points: vec![
+                Vec2 { x: -2.5, y: -2.5 },
+                Vec2 { x: 2.5, y: -2.5 },
+                Vec2 { x: 2.5, y: 2.5 },
+                Vec2 { x: -2.5, y: 2.5 },
+            ],
+            z: 0.0,
+            height: 10.0,
+        }]);
+        let mut surviving = config.openings.as_ref().unwrap()[0].clone();
+        surviving.height = 20.0;
+        config.openings.as_mut().unwrap().push(surviving);
+        document.mechanical = Some(config);
+        support::open_document(&runtime, document).await;
+        let current_runtime = runtime.clone();
+        let current = Rc::new(move || {
+            let model = current_runtime.model();
+            let accepted = model.accepted?;
+            let scope = current_runtime.scope()?;
+            Some(MechanicalSettingsCurrent {
+                identity: MechanicalSettingsIdentity {
+                    editor_instance_id: 1,
+                    scope_generation: 1,
+                    presentation_generation: 1,
+                    scope,
+                    snapshot_token: accepted.token,
+                    revision: accepted.document.revision,
+                    active_board_id: "board".into(),
+                    configuration_board_id: "board".into(),
+                },
+                configuration: accepted.document.mechanical.clone().map(Rc::new),
+                accepted,
+                editable: true,
+                lifecycle: model.lifecycle,
+                durability: model.durability,
+            })
+        });
+        let template = Rc::new(
+            serde_json::from_value::<PartDefinition>(serde_json::json!({
+                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let submit_runtime = runtime.clone();
+        let controller = MechanicalSettingsController::new(MechanicalSettingsPorts {
+            current: current.clone(),
+            load_mounting_hole: Rc::new(move || {
+                let template = template.clone();
+                Box::pin(async move { Ok(template) })
+            }),
+            begin_edit: Rc::new(move |resolver| {
+                EditTicket::begin(
+                    &submit_runtime,
+                    "mechanical-settings",
+                    Some("mechanical settings".into()),
+                    resolver,
+                )
+            }),
+            publish: Rc::new(|_| {}),
+        });
+        let request = |request_id, patch: MechanicalSettingsPatch| MechanicalSettingsRequest {
+            identity: current().unwrap().identity,
+            request_id,
+            field_id: patch_field_id(&patch),
+            patch,
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        assert!(controller.submit(request(
+            1,
+            MechanicalSettingsPatch::RemoveOpening { opening_index: 0 }
+        )));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let second_admitted = controller.submit(request(
+            2,
+            MechanicalSettingsPatch::SetOpeningDimension {
+                opening_index: 0,
+                point_index: None,
+                field: MechanicalDimension::OpeningHeight,
+                value: 12.0,
+            },
+        ));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            controller.settle();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            second_admitted,
+            "field edits must queue while a prior field is pending"
+        );
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .openings
+                .as_ref()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            accepted
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .openings
+                .as_ref()
+                .unwrap()[0]
+                .height,
+            20.0,
+            "queued field must not retarget the surviving opening"
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.unwrap();
+        let openings = accepted
+            .document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .openings
+            .as_ref()
+            .unwrap();
+        assert_eq!(openings.len(), 2);
+        assert_eq!(openings[0].height, 10.0);
+        assert_eq!(openings[1].height, 20.0);
     }
 
     #[wasm_bindgen_test]

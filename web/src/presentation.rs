@@ -2746,6 +2746,245 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
     });
 }
 
+struct SetupProjectNameEdit {
+    draft: Signal<Option<(String, String)>>,
+    failure: Signal<Option<String>>,
+    on_change: Callback<String>,
+    on_commit: Callback<()>,
+}
+
+fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    let accepted = runtime.model().accepted;
+    let owner = accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.session_epoch, snapshot.document.id.clone()));
+    let accepted_name = accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
+    let mut draft = use_signal(|| accepted_name.clone());
+    let mut dirty = use_signal(|| false);
+    let mut failure = use_signal(|| None::<String>);
+    let mut tickets =
+        use_signal(Vec::<((boardstudio_application::SessionEpoch, String), EditTicket)>::new);
+    let mut latest = use_signal(|| None::<boardstudio_application::OperationId>);
+    let mut previous_owner = use_signal(|| owner.clone());
+    let mut previous_name = use_signal(|| accepted_name.clone());
+    let version = use_context::<Signal<u64>>()();
+    let operations = tickets
+        .read()
+        .iter()
+        .map(|(_, ticket)| ticket.operation())
+        .collect::<Vec<_>>();
+    use_effect(use_reactive(
+        (&owner, &accepted_name, &version, &operations),
+        move |(owner, accepted_name, _, _)| {
+            let owner_changed = *previous_owner.peek() != owner;
+            let name_changed = *previous_name.peek() != accepted_name;
+            previous_owner.set(owner.clone());
+            previous_name.set(accepted_name.clone());
+            let mut pending = tickets.peek().clone();
+            let had_tickets = !pending.is_empty();
+            pending.retain(|(ticket_owner, ticket)| {
+                match ticket.settlement(owner.as_ref() == Some(ticket_owner)) {
+                    Settlement::Pending => true,
+                    settlement => {
+                        if *latest.peek() == Some(ticket.operation()) {
+                            failure.set(match settlement {
+                                Settlement::Failed { message } => Some(message),
+                                _ => None,
+                            });
+                        }
+                        false
+                    }
+                }
+            });
+            if owner_changed
+                || (pending.is_empty() && !*dirty.peek() && (name_changed || had_tickets))
+            {
+                draft.set(accepted_name);
+                dirty.set(false);
+            }
+            if owner_changed {
+                failure.set(None);
+            }
+            if pending.len() != tickets.peek().len() {
+                tickets.set(pending);
+            }
+        },
+    ));
+    let on_change = use_callback({
+        let owner = owner.clone();
+        move |name: String| {
+            if let Some((_, id)) = &owner {
+                failure.set(None);
+                dirty.set(true);
+                draft.set(Some((id.clone(), name)));
+            }
+        }
+    });
+    let on_commit = use_callback(move |_| {
+        if !dirty() {
+            return;
+        }
+        dirty.set(false);
+        let Some((epoch, id)) = owner.as_ref() else {
+            return;
+        };
+        let Some(current) = runtime.model().accepted else {
+            return;
+        };
+        if current.session_epoch != *epoch || current.document.id != *id {
+            return;
+        }
+        let proposed = draft()
+            .filter(|(project_id, _)| project_id == id)
+            .map(|(_, name)| name.trim().to_owned())
+            .unwrap_or_default();
+        if proposed.is_empty() {
+            draft.set(Some((id.clone(), current.document.name.clone())));
+            return;
+        }
+        let expected_epoch = *epoch;
+        let target_document_id = id.clone();
+        let resolver = boardstudio_application::EditResolver::new(
+            "setup-project-name",
+            move |accepted: &boardstudio_application::AcceptedSnapshot| {
+                if accepted.session_epoch != expected_epoch
+                    || accepted.document.id != target_document_id
+                {
+                    return boardstudio_application::Resolution::Retire(
+                        boardstudio_application::DOCUMENT_SESSION_CHANGED.into(),
+                    );
+                }
+                if accepted.document.name == proposed {
+                    return boardstudio_application::Resolution::Unchanged;
+                }
+                let mut document = accepted.document.as_ref().clone();
+                document.name = proposed.clone();
+                boardstudio_application::Resolution::Submit(EditCommand {
+                    base_revision: accepted.document.revision,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![document.id.clone()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(document),
+                    },
+                })
+            },
+        );
+        let ticket = EditTicket::begin(
+            &runtime,
+            "setup-project-name",
+            Some("project name".into()),
+            resolver,
+        );
+        latest.set(Some(ticket.operation()));
+        failure.set(None);
+        tickets.write().push(((*epoch, id.clone()), ticket));
+    });
+    SetupProjectNameEdit {
+        draft,
+        failure,
+        on_change,
+        on_commit,
+    }
+}
+
+#[cfg(test)]
+mod setup_project_name_queue_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as support;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        use_hook(|| {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }))
+        });
+        let _ = version();
+        let name = use_setup_project_name(runtime);
+        let value = (name.draft)().map(|(_, name)| name).unwrap_or_default();
+        rsx! { input { id: "setup-name-queue", value, oninput: move |event: FormEvent| name.on_change.call(event.value()), onblur: move |_| name.on_commit.call(()) } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn older_setup_name_landing_preserves_active_typing() {
+        let runtime = support::new_runtime();
+        support::open_document(
+            &runtime,
+            boardstudio_core::model::ProjectDoc::empty("setup-name-typing", "Original"),
+        )
+        .await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        let input = root
+            .query_selector("input")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let type_name = |value: &str| {
+            let _ = input.focus();
+            input.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+                .unwrap();
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_name("Committed");
+        let _ = input.blur();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_name("Still typing");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        release.send(()).unwrap();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(30).await;
+        }
+        assert_eq!(runtime.model().accepted.unwrap().document.name, "Committed");
+        assert_eq!(
+            input.value(),
+            "Still typing",
+            "older setup name landing must preserve active draft"
+        );
+        let _ = input.blur();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(30).await;
+        }
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Still typing"
+        );
+        runtime.unsubscribe();
+        runtime
+            .store
+            .delete_project("setup-name-typing".into())
+            .await
+            .unwrap();
+        root.remove();
+    }
+}
+
 #[component]
 fn Editor() -> Element {
     let mut workspace_callbacks = use_hook(|| WorkspaceCallbackSlots {
@@ -2795,10 +3034,9 @@ fn Editor() -> Element {
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
     let created_request = created_request_signal();
     let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
-    let mut guide_name_draft = use_signal(|| None::<(String, String)>);
-    let mut guide_name_tickets =
-        use_signal(Vec::<boardstudio_web_runtime::edit_ticket::EditTicket>::new);
-    let mut guide_name_failure = use_signal(|| None::<String>);
+    let guide_name_edit = use_setup_project_name(runtime.clone());
+    let guide_name_draft = guide_name_edit.draft;
+    let guide_name_failure = guide_name_edit.failure;
     let consumed_guide_requests = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
     let accepted_project_id = runtime
         .model()
@@ -2871,55 +3109,10 @@ fn Editor() -> Element {
             setup_guide::write_preferences(preferences);
         }
     }));
-    let last_accepted_name = use_hook(|| Rc::new(RefCell::new(None::<(String, String)>)));
-    let project_name_for_draft = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
-    use_effect(use_reactive!(|project_name_for_draft| {
-        if let Some(current) = project_name_for_draft {
-            let changed = crate::setup_guide_state::accepted_name_change(
-                last_accepted_name.borrow().as_ref(),
-                &current,
-            );
-            *last_accepted_name.borrow_mut() = Some(current);
-            if let Some(value) = changed
-                && guide_name_tickets.peek().is_empty()
-            {
-                guide_name_draft.set(Some(value));
-            }
-        }
-    }));
     let adapter = use_context::<SelectionAdapter>();
     let layout_component_inspector_lifetime =
         use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
     let version = use_context::<Signal<u64>>();
-    use_effect(use_reactive((&version(),), {
-        let runtime = runtime.clone();
-        move |_| {
-            use boardstudio_web_runtime::edit_ticket::Settlement;
-            let mut pending = guide_name_tickets.peek().clone();
-            let had_tickets = !pending.is_empty();
-            pending.retain(|ticket| match ticket.settlement(true) {
-                Settlement::Pending => true,
-                Settlement::Failed { message } => {
-                    guide_name_failure.set(Some(message));
-                    false
-                }
-                Settlement::Landed { .. } | Settlement::Retired => false,
-            });
-            if had_tickets && pending.is_empty() {
-                guide_name_draft.set(runtime.model().accepted.as_ref().map(|snapshot| {
-                    (snapshot.document.id.clone(), snapshot.document.name.clone())
-                }));
-            }
-            if pending.len() != guide_name_tickets.peek().len() {
-                guide_name_tickets.set(pending);
-            }
-        }
-    }));
-
     let observed_version = version();
     let instance_preference = use_signal(|| {
         runtime.scope().and_then(|scope| {
@@ -8148,69 +8341,8 @@ fn Editor() -> Element {
         .filter(|(project_id, _)| project_id == &document.id)
         .map(|(_, name)| name)
         .unwrap_or_else(|| document.name.clone());
-    let name_project_id = document.id.clone();
-    let on_name_change = move |name: String| {
-        guide_name_failure.set(None);
-        guide_name_draft.set(Some((name_project_id.clone(), name)));
-    };
-    let name_runtime = runtime.clone();
-    let mut name_draft = guide_name_draft;
-    let expected_document_id = document.id.clone();
-    let expected_epoch = snapshot.session_epoch;
-    let on_name_commit = move |_| {
-        let Some(current) = name_runtime.model().accepted else {
-            return;
-        };
-        if current.session_epoch != expected_epoch || current.document.id != expected_document_id {
-            return;
-        }
-        let proposed = name_draft()
-            .filter(|(id, _)| id == &expected_document_id)
-            .map(|(_, value)| value.trim().to_owned())
-            .unwrap_or_default();
-        if proposed.is_empty() {
-            name_draft.set(Some((
-                current.document.id.clone(),
-                current.document.name.clone(),
-            )));
-            return;
-        }
-        let target_document_id = expected_document_id.clone();
-        let resolver = boardstudio_application::EditResolver::new(
-            "setup-project-name",
-            move |accepted: &boardstudio_application::AcceptedSnapshot| {
-                if accepted.session_epoch != expected_epoch
-                    || accepted.document.id != target_document_id
-                {
-                    return boardstudio_application::Resolution::Retire(
-                        "The project is no longer open.".into(),
-                    );
-                }
-                if accepted.document.name == proposed {
-                    return boardstudio_application::Resolution::Unchanged;
-                }
-                let mut document = accepted.document.as_ref().clone();
-                document.name = proposed.clone();
-                boardstudio_application::Resolution::Submit(EditCommand {
-                    base_revision: 0,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![document.id.clone()],
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(document),
-                    },
-                })
-            },
-        );
-        guide_name_tickets
-            .write()
-            .push(boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-                &name_runtime,
-                "setup-project-name",
-                Some("project name".into()),
-                resolver,
-            ));
-    };
+    let on_name_change = guide_name_edit.on_change;
+    let on_name_commit = guide_name_edit.on_commit;
     let guide_runtime = runtime.clone();
     let mut guide_adapter = adapter.clone();
     let mut guide_preferences_for_stage = guide_preferences;

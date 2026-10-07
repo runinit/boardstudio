@@ -505,7 +505,17 @@ pub enum MechanicalSettingsPatch {
         field: MechanicalDimension,
         value: f64,
     },
-    SetOpenings(Vec<CaseOpening>),
+    AddOpening,
+    RemoveOpening {
+        opening_index: usize,
+    },
+    AddOpeningVertex {
+        opening_index: usize,
+    },
+    RemoveOpeningVertex {
+        opening_index: usize,
+        point_index: usize,
+    },
     SetOpeningDimension {
         opening_index: usize,
         point_index: Option<usize>,
@@ -514,6 +524,10 @@ pub enum MechanicalSettingsPatch {
     },
     SetMethod(PlateMethod),
     SetMount(MechanicalMount),
+    AddMount {
+        collection: MechanicalMountCollection,
+    },
+    AddSuggestedClosureMounts(Vec<Mount>),
     SetMountCollection {
         collection: MechanicalMountCollection,
         mounts: Vec<Mount>,
@@ -649,7 +663,10 @@ impl MechanicalSettingsPatch {
             Self::SetHardwareDimension {
                 hardware_id, field, ..
             } => format!("hardware:{hardware_id}:{}", field.field_id()),
-            Self::SetOpenings(_) => "case-openings".to_owned(),
+            Self::AddOpening
+            | Self::RemoveOpening { .. }
+            | Self::AddOpeningVertex { .. }
+            | Self::RemoveOpeningVertex { .. } => "case-openings".to_owned(),
             Self::SetOpeningDimension {
                 opening_index,
                 point_index,
@@ -662,10 +679,13 @@ impl MechanicalSettingsPatch {
             ),
             Self::SetMethod(_) => "method".to_owned(),
             Self::SetMount(_) => "mount".to_owned(),
-            Self::SetMountCollection { collection, .. } => match collection {
-                MechanicalMountCollection::Suspension => "suspension-mounts".to_owned(),
-                MechanicalMountCollection::Closure => "closure-mounts".to_owned(),
-            },
+            Self::AddSuggestedClosureMounts(_) => "closure-mounts".to_owned(),
+            Self::AddMount { collection } | Self::SetMountCollection { collection, .. } => {
+                match collection {
+                    MechanicalMountCollection::Suspension => "suspension-mounts".to_owned(),
+                    MechanicalMountCollection::Closure => "closure-mounts".to_owned(),
+                }
+            }
             Self::SetMountDimension {
                 collection,
                 mount_id,
@@ -1958,17 +1978,8 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                             let mut sequence = props.request_sequence;
                             let identity = props.identity.clone();
                             let callback = props.on_request;
-                            let mut mounts = closure_mounts.to_vec();
-                            let height = values.plate_to_pcb + values.pcb_thickness + values.bottom_foam_thickness.max(values.battery_height);
-                            let additions = suggestions.iter().cloned().map(|mut mount| {
-                                mount.id = format!("auto-closure/{}", mount.id);
-                                mount.kind = MountKind::Boss;
-                                mount.hole_diameter = 2.2;
-                                mount.height = Some(height);
-                                mount
-                            }).collect::<Vec<_>>();
-                            mounts.extend(additions);
-                            move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountCollection { collection: MechanicalMountCollection::Closure, mounts: mounts.clone() })
+                            let suggestions = suggestions.to_vec();
+                            move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::AddSuggestedClosureMounts(suggestions.clone()))
                         },
                         "Add suggested closure screws"
                     }
@@ -1995,7 +2006,6 @@ struct MountCollectionControlsProps {
 #[component]
 fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
     let mounts = props.mounts.clone();
-    let reserved_mount_ids = props.reserved_mount_ids.clone();
     rsx! {
         details { class: "m1-mechanical-group", aria_label: "{props.label}",
             summary { "{props.label} · {mounts.len()}" }
@@ -2023,23 +2033,7 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                         let identity = props.identity.clone();
                         let callback = props.on_request;
                         let collection = props.collection;
-                        let mut next_mounts = mounts.clone();
-                        let all = reserved_mount_ids.iter().cloned().collect::<std::collections::HashSet<_>>();
-                        let mut ordinal = 1usize;
-                        let id = loop {
-                            let candidate = format!("case-mechanical-mount-{ordinal}");
-                            if !all.contains(&candidate) { break candidate; }
-                            ordinal += 1;
-                        };
-                        next_mounts.push(Mount {
-                            id,
-                            at: Vec2 { x: 0.0, y: 0.0 },
-                            kind: MountKind::Hole,
-                            hole_diameter: 2.5,
-                            boss_diameter: Some(5.0),
-                            height: Some(5.0),
-                        });
-                        move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountCollection { collection, mounts: next_mounts.clone() })
+                        move |_| send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::AddMount { collection })
                     },
                     "Add {props.label.trim_end_matches('s').to_lowercase()}"
                 }
@@ -2295,7 +2289,6 @@ struct OpeningControlsProps {
 #[component]
 fn OpeningControls(props: OpeningControlsProps) -> Element {
     let openings = &props.values.openings;
-    let add_openings = props.values.openings.clone();
     let identity = props.identity.clone();
     let request_sequence = props.request_sequence;
     let on_request = props.on_request;
@@ -2314,18 +2307,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
                             move |_| {
-                                let mut next = add_openings.clone();
-                                next.push(CaseOpening {
-                                    points: vec![
-                                        Vec2 { x: -2.5, y: -2.5 },
-                                        Vec2 { x: 2.5, y: -2.5 },
-                                        Vec2 { x: 2.5, y: 2.5 },
-                                        Vec2 { x: -2.5, y: 2.5 },
-                                    ],
-                                    z: 0.0,
-                                    height: 10.0,
-                                });
-                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetOpenings(next));
+                                send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddOpening);
                             }
                         },
                         "Add volume"
@@ -2336,8 +2318,6 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                 }
                 for (opening_index, opening) in openings.iter().enumerate() {
                     {
-                        let mut next = props.values.openings.clone();
-                        next.remove(opening_index);
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         let remove_identity = identity.clone();
@@ -2350,7 +2330,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                         r#type: "button",
                                         class: "m1-mechanical-quiet",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
-                                        onclick: move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone())),
+                                        onclick: move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::RemoveOpening { opening_index }),
                                         "Remove"
                                     }
                                 }
@@ -2396,9 +2376,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                             onclick: {
                                                 let mut sequence = request_sequence;
                                                 let identity = identity.clone();
-                                                let mut next = props.values.openings.clone();
-                                                next[opening_index].points.remove(point_index);
-                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone()))
+                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveOpeningVertex { opening_index, point_index })
                                             },
                                             "×"
                                         }
@@ -2411,9 +2389,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                     onclick: {
                                         let mut sequence = request_sequence;
                                         let identity = identity.clone();
-                                        let mut next = props.values.openings.clone();
-                                        next[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 });
-                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetOpenings(next.clone()))
+                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddOpeningVertex { opening_index })
                                     },
                                     "Add vertex"
                                 }

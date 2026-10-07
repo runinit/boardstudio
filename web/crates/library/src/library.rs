@@ -503,6 +503,7 @@ pub fn Library(
         .map(|document| document.name.clone())
         .unwrap_or_default();
     let mut project_name = use_signal(|| current_name.clone());
+    let mut name_dirty = use_signal(|| false);
     let name_tickets = use_signal(Vec::<(ProjectNameOwner, EditTicket)>::new);
     let mut name_failure = use_signal(|| None::<String>);
     let name_version = version();
@@ -512,6 +513,10 @@ pub fn Library(
         move |(owner, current_name, _)| {
             let observed = (owner.clone(), current_name.clone());
             let changed = observed_name.borrow().as_ref() != Some(&observed);
+            let owner_changed = observed_name
+                .borrow()
+                .as_ref()
+                .is_some_and(|(previous, _)| previous != &owner);
             *observed_name.borrow_mut() = Some(observed);
             let mut pending = name_tickets.peek().clone();
             let had_tickets = !pending.is_empty();
@@ -525,8 +530,14 @@ pub fn Library(
                     Settlement::Landed { .. } | Settlement::Retired => false,
                 }
             });
-            if pending.is_empty() && (changed || had_tickets) {
+            if owner_changed
+                || (pending.is_empty() && !*name_dirty.peek() && (changed || had_tickets))
+            {
                 project_name.set(current_name);
+                name_dirty.set(false);
+            }
+            if owner_changed {
+                name_failure.set(None);
             }
             if pending.len() != name_tickets.peek().len() {
                 name_tickets.set(pending);
@@ -725,7 +736,7 @@ pub fn Library(
                             "aria-label": "Project name",
                             title: "Rename project",
                             value: "{project_name}",
-                            oninput: move |event: FormEvent| { name_failure.set(None); project_name.set(event.value()); },
+                            oninput: move |event: FormEvent| { name_failure.set(None); name_dirty.set(true); project_name.set(event.value()); },
                             onkeydown: {
                                 let accepted_name = current_name.clone();
                                 move |event: KeyboardEvent| {
@@ -741,12 +752,14 @@ pub fn Library(
                                                 let _ = input.blur();
                                             }
                                         }
-                                        "Escape" => project_name.set(accepted_name.clone()),
+                                        "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); },
                                         _ => {}
                                     }
                                 }
                             },
                             onblur: move |_| {
+                                if !name_dirty() { return; }
+                                name_dirty.set(false);
                                 let draft = project_name();
                                 if draft.trim().is_empty() {
                                     project_name.set(current_name_for_blur.clone());
@@ -2284,6 +2297,96 @@ mod mounted_tests {
             .body()
             .unwrap()
             .remove_child(&root);
+    }
+
+    #[wasm_bindgen_test]
+    async fn pending_project_rename_preserves_typing_and_escape_does_not_commit() {
+        let (session, core) = accepted(ProjectDoc::empty("menu-name-typing", "Original"));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        root.set_id("project-name-typing-regression");
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .body()
+            .unwrap()
+            .append_child(&root)
+            .unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+
+        use crate::runtime::project_name_test_support as support;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&field(), "Committed");
+        let _ = field().blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_value(&field(), "Canceled");
+        settle().await;
+        press(&field(), "Escape");
+        settle().await;
+        let _ = field().blur();
+        release.send(()).unwrap();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            settle().await;
+        }
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Committed",
+            "Escape and blur must not queue a rename of the old accepted name"
+        );
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&field(), "Next committed");
+        let _ = field().blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_value(&field(), "Still typing");
+        settle().await;
+        release.send(()).unwrap();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            settle().await;
+        }
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Next committed"
+        );
+        assert_eq!(
+            field().value(),
+            "Still typing",
+            "older landing preserves the newer uncommitted draft"
+        );
+        let _ = field().blur();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            settle().await;
+        }
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Still typing"
+        );
+        runtime.store.delete_project("menu-name-typing".into()).await.unwrap();
+        root.remove();
     }
 
     #[wasm_bindgen_test]

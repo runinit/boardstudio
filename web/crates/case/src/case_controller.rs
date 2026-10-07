@@ -578,6 +578,27 @@ fn apply_body_edit(
                 return Err("Mount is no longer available.".into());
             }
         }
+        Edit::SetGasketInset { body_id, value } if body.id == *body_id => {
+            require_nonnegative(*value, "Gasket inset")?;
+            body.gasket
+                .as_mut()
+                .ok_or("Gasket is no longer available.")?
+                .inset = *value;
+        }
+        Edit::SetGasketWidth { body_id, value } if body.id == *body_id => {
+            require_positive(*value, "Gasket width")?;
+            body.gasket
+                .as_mut()
+                .ok_or("Gasket is no longer available.")?
+                .width = *value;
+        }
+        Edit::SetGasketDepth { body_id, value } if body.id == *body_id => {
+            require_positive(*value, "Gasket depth")?;
+            body.gasket
+                .as_mut()
+                .ok_or("Gasket is no longer available.")?
+                .depth = *value;
+        }
         Edit::SetGasket { body_id, gasket } if body.id == *body_id => {
             if let Some(gasket) = gasket {
                 require_nonnegative(gasket.inset, "Gasket inset")?;
@@ -647,6 +668,9 @@ impl CaseBodyEdit {
             | Edit::SetMountBossDiameter { body_id, .. }
             | Edit::SetMountHeight { body_id, .. }
             | Edit::RemoveMount { body_id, .. }
+            | Edit::SetGasketInset { body_id, .. }
+            | Edit::SetGasketWidth { body_id, .. }
+            | Edit::SetGasketDepth { body_id, .. }
             | Edit::SetGasket { body_id, .. } => Some(body_id),
         }
     }
@@ -756,6 +780,141 @@ mod queued_body_tests {
         assert_eq!(
             runtime.model().accepted.unwrap().document.case_bodies[0].thickness,
             3.0
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_gasket_fields_queue_and_undo_independently() {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("queued-gaskets", "Bodies");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .unwrap(),
+        );
+        document
+            .case_bodies
+            .push(new_case_body(1, &document, "board").unwrap());
+        document.case_bodies[0].gasket = Some(boardstudio_core::model::Gasket {
+            inset: 2.0,
+            width: 2.0,
+            depth: 1.5,
+        });
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let commit = |index, value: &str| {
+            let input = root
+                .query_selector_all(".m1-case-gasket-measures input")
+                .unwrap()
+                .item(index)
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
+            input.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+                .unwrap();
+            let enter = web_sys::KeyboardEventInit::new();
+            enter.set_key("Enter");
+            enter.set_bubbles(true);
+            input
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        commit(0, "3");
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let inset = root
+            .query_selector(".m1-case-gasket-measures input")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        inset.set_value("5");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        inset
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        commit(1, "4");
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted.document.case_bodies[0]
+                .gasket
+                .as_ref()
+                .unwrap()
+                .inset,
+            3.0
+        );
+        assert_eq!(
+            accepted.document.case_bodies[0]
+                .gasket
+                .as_ref()
+                .unwrap()
+                .width,
+            4.0
+        );
+        assert_eq!(
+            inset.value(),
+            "5",
+            "older gasket landing preserves newer active typing"
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.case_bodies[0]
+                .gasket
+                .as_ref()
+                .unwrap()
+                .inset,
+            3.0
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.case_bodies[0]
+                .gasket
+                .as_ref()
+                .unwrap()
+                .width,
+            2.0
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.case_bodies[0]
+                .gasket
+                .as_ref()
+                .unwrap()
+                .inset,
+            2.0
         );
         runtime.unsubscribe();
         root.remove();

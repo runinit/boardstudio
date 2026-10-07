@@ -38,6 +38,7 @@ impl CaseBodyEdit {
         match self {
             Self::AddBody => Some("action:add-body".into()),
             Self::AddMount { body_id } => Some(format!("action:body:{body_id}:add-mount")),
+            Self::SetGasket { body_id, .. } => Some(format!("action:body:{body_id}:gasket")),
             Self::RemoveMount { body_id, mount_id } => {
                 Some(format!("action:body:{body_id}:mount:{mount_id}:remove"))
             }
@@ -147,6 +148,18 @@ pub enum CaseBodyEdit {
     RemoveMount {
         body_id: String,
         mount_id: String,
+    },
+    SetGasketInset {
+        body_id: String,
+        value: f64,
+    },
+    SetGasketWidth {
+        body_id: String,
+        value: f64,
+    },
+    SetGasketDepth {
+        body_id: String,
+        value: f64,
     },
     SetGasket {
         body_id: String,
@@ -558,12 +571,12 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             }
                             div { class: "m1-case-subsection-content",
                                 if body.gasket.is_some() {
-                                    button { r#type: "button", disabled: !can_edit,
+                                    button { r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: None }) },
                                         "Remove"
                                     }
                                 } else {
-                                    button { r#type: "button", disabled: !can_edit,
+                                    button { r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { inset: 2.0, width: 2.0, depth: 1.5 }) }) },
                                         "+ Add gasket"
                                     }
@@ -573,17 +586,17 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     CaseNumberField {
                                         label: "Inset", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-inset"), value: gasket.inset, unit: "mm", rule: NumberRule::Nonnegative,
                                         editable: can_edit, feedback: feedback.clone(),
-                                        on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let gasket = gasket.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { inset: change.value, ..gasket.clone() }) }, Some(change.field_id)) }
+                                        on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasketInset { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                     }
                                     CaseNumberField {
                                         label: "Width", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-width"), value: gasket.width, unit: "mm", rule: NumberRule::Positive,
                                         editable: can_edit, feedback: feedback.clone(),
-                                        on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let gasket = gasket.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { width: change.value, ..gasket.clone() }) }, Some(change.field_id)) }
+                                        on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasketWidth { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                     }
                                     CaseNumberField {
                                         label: "Depth", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-depth"), value: gasket.depth, unit: "mm", rule: NumberRule::Positive,
                                         editable: can_edit, feedback: feedback.clone(),
-                                        on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let gasket = gasket.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: Some(Gasket { depth: change.value, ..gasket.clone() }) }, Some(change.field_id)) }
+                                        on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasketDepth { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                     }
                                 }
                             }
@@ -632,12 +645,12 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         .feedback
         .iter()
         .rev()
-        .find(|feedback| {
-            feedback.field_id.as_deref() == Some(props.field_id.as_str())
-                && matches!(
-                    feedback.state,
-                    CaseBodyEditState::Saved | CaseBodyEditState::Failed
-                )
+        .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()))
+        .filter(|feedback| {
+            matches!(
+                feedback.state,
+                CaseBodyEditState::Saved | CaseBodyEditState::Failed
+            )
         })
         .map(request_identity);
     let consumed_saved_ack = use_signal(|| None::<RequestIdentity>);
@@ -656,10 +669,14 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 if let Some(identity) = ack {
                     consumed_ack_for_effect.set(Some(identity.clone()));
                 }
-                draft_for_effect.set(value.to_string());
-                error_for_effect.set(None);
-                submitted_for_effect.set(None);
-                dirty_for_effect.set(false);
+                if submitted_for_effect.peek().as_ref() == Some(&*draft_for_effect.peek())
+                    || !*dirty_for_effect.peek()
+                {
+                    draft_for_effect.set(value.to_string());
+                    error_for_effect.set(None);
+                    submitted_for_effect.set(None);
+                    dirty_for_effect.set(false);
+                }
             } else if !dirty_for_effect() {
                 draft_for_effect.set(value.to_string());
                 error_for_effect.set(None);
