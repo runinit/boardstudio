@@ -50,6 +50,10 @@ which remaining whole-document replacements become typed Core edits.
 - 05 Layout Inspector mounted tests reach the real Session and Core; the rapid queued X/Y
   regression is a known failure until 06; interception deletion deferred to 11/12:
   [issues/05-layout-inspector-tests-reach-core.md](issues/05-layout-inspector-tests-reach-core.md).
+- 06 Tracer bullet landed: the Layout Inspector submits intent through the edit ticket,
+  resolvers resolve at execution, rapid X/Y keeps both coordinates and Undo removes only
+  Y; the investigation and backlog entry are closed:
+  [issues/06-layout-inspector-tracer-bullet.md](issues/06-layout-inspector-tracer-bullet.md).
 - 07 Definition-name and generator tests reach the real Session and Core; the definition-name
   interception is gone from Runtime: [issues/07-definition-name-tests-reach-core.md](issues/07-definition-name-tests-reach-core.md).
 

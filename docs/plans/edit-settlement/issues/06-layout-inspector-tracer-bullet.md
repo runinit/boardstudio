@@ -1,6 +1,6 @@
 # 06: Tracer bullet: Layout Inspector edits land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 04, 05
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -54,11 +54,11 @@ well commented.
 
 ## Acceptance criteria
 
-- [ ] The rapid X/Y plus Undo mounted test passes and is no longer a known failure.
-- [ ] Revert-on-failure and retire-on-vanished-target mounted tests pass.
-- [ ] All other Inspector tests from ticket 05 still pass.
-- [ ] The Inspector no longer sends `Event::Edit` or `ReplaceDocument`. Every Inspector edit is an intent.
-- [ ] Investigation and backlog entries are updated. Doc links pass (`python3 scripts/check-doc-links.py`).
+- [x] The rapid X/Y plus Undo mounted test passes and is no longer a known failure.
+- [x] Revert-on-failure and retire-on-vanished-target mounted tests pass.
+- [x] All other Inspector tests from ticket 05 still pass.
+- [x] The Inspector no longer sends `Event::Edit` or `ReplaceDocument` at dispatch. Every Inspector edit is an intent.
+- [x] Investigation and backlog entries are updated. Doc links pass.
 
 ## Verification
 
@@ -80,3 +80,47 @@ python3 scripts/check-wasm-tests.py
   commit on blur.
 - Don't let the draft become a second document store. Once a ticket settles, the
   field shows the accepted document again.
+
+## Outcome
+
+Commits: claim; "Land Layout Inspector edits through resolution".
+
+- `web/src/presentation/layout_component_edits.rs` is the pattern the cluster tickets
+  copy: pure resolver builders for position (single anchor axis + group delta
+  translation), assign-layout, outline, constraint and constraint removal — each
+  capturing only ids and the user's value, re-checking existence/anchor/eligibility
+  against the accepted snapshot at execution, resolving `Unchanged` when the value
+  already equals the accepted one, and retiring vanished or ineligible targets with a
+  user-readable reason ("The selected part no longer exists.", "This part is locked.",
+  "This part is driven by a relationship.", …). It also holds one `EditTicket` per
+  committed field and the settle helper: pending keeps the draft, failure restores the
+  accepted value with the standard message inline, landed/retired drop the ticket.
+- `dispatch_layout_component_inspector_action` keeps every admission check (owner
+  currency, board membership, anchor first-selected, finite values) and now begins a
+  ticket per action instead of building commands from the render-time snapshot. The
+  assign-layout and outline resolvers build `ReplaceDocument` from the snapshot they are
+  handed at execution — explicitly allowed by this ticket's scope note.
+- The form (`layout_component_inspector.rs`) gains the `pending_edits` signal prop and
+  settles tickets each render; drafts and Enter/blur/Escape/precision behaviour are
+  untouched. The production host, workspace input and test host thread the signal.
+- Tests: the ticket-05 known failure is removed from `scripts/wasm-known-failures.json`
+  and `mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_only_y`
+  passes — both coordinates survive and one Undo removes only Y. New:
+  `mounted_failed_save_reverts_the_field_with_an_inline_message` (adapter save failure →
+  field reverts, inline message names the reason) and
+  `mounted_edit_retires_when_the_part_becomes_locked_before_execution` (a lock edit
+  queued ahead retires the position edit with "locked" explained inline).
+- The investigation doc is marked resolved with links to ADR-0005, the map and the new
+  module; the "Layout queued coordinate edits" backlog entry is removed.
+
+Checks (all pass): `python3 scripts/run-wasm-tests.py --files
+web/src/presentation/layout_component_inspector_tests.rs` — 20 executed, 0 failed;
+`python3 scripts/check.py typecheck`; `python3 scripts/check-wasm-tests.py`;
+`wasm-pack test --headless --chrome web/crates/runtime --locked --lib` — 33 passed;
+`wasm-pack test --headless --chrome web/crates/layout --locked --lib` — 82 passed;
+`python3 scripts/check-doc-links.py`.
+
+Follow-ups for the cluster tickets: one-shot Inspector controls do not yet disable while
+pending (no one-shot control exists in this panel; the amendment applies where they do),
+and the settle helper currently answers owner-liveness `true` (a departed owner unmounts
+the Inspector).
