@@ -21,11 +21,9 @@
 //! }
 //! ```
 use crate::operation_outcomes::{LandingSlot, OutcomeSlot};
-use boardstudio_application::{EditResolver, Event, Landing, OperationId, TerminalOutcome};
-
-/// The reason Session rejects intents whose document session changed before they ran.
-/// Such a rejection means the session moved on, so the ticket retires instead of failing.
-pub const DOCUMENT_SESSION_CHANGED: &str = "document session changed before command began";
+use boardstudio_application::{
+    DOCUMENT_SESSION_CHANGED, EditResolver, Event, Landing, OperationId, TerminalOutcome,
+};
 
 /// How a pending edit settled, as the controller should present it.
 #[derive(Clone, Debug, PartialEq)]
@@ -353,44 +351,10 @@ mod tests {
             self.saves.borrow().get(id).cloned()
         }
 
-        fn open_fixture(&self, name: &str) {
-            let mut document = ProjectDoc::empty("ticket-test", name);
-            document.definitions.push(PartDefinition {
-                mechanical_profile: None,
-                id: "key".into(),
-                name: "Key".into(),
-                kind: PartKind::Switch,
-                courtyard: vec![],
-                pads: vec![],
-                models: None,
-                hardware_profile: None,
-                input_profile: None,
-                keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
-                envelope_source: None,
-                kicad_source: None,
-                terminals: Default::default(),
-                matrix_terminals: None,
-                envelope_notice: None,
-                generator: None,
-            });
-            document.parts.push(Part {
-                id: "key".into(),
-                definition_id: "key".into(),
-                reference: "SW1".into(),
-                pose: Pose2 {
-                    at: Vec2 { x: 0.0, y: 0.0 },
-                    rotation: 0.0,
-                },
-                side: Side::Front,
-                locked: None,
-                keycap: None,
-                outline: None,
-                properties: None,
-                generator_parameters: None,
-            });
+        fn open_fixture(&self, id: &str, name: &str) {
             self.submit(Event::Open {
                 operation_id: self.allocate_operation(),
-                document,
+                document: fixture_document(id, name),
             });
         }
     }
@@ -410,6 +374,44 @@ mod tests {
             let effects = self.session.borrow_mut().submit(event);
             self.drive(effects.into());
         }
+    }
+
+    fn fixture_document(id: &str, name: &str) -> ProjectDoc {
+        let mut document = ProjectDoc::empty(id, name);
+        document.definitions.push(PartDefinition {
+            mechanical_profile: None,
+            id: "key".into(),
+            name: "Key".into(),
+            kind: PartKind::Switch,
+            courtyard: vec![],
+            pads: vec![],
+            models: None,
+            hardware_profile: None,
+            input_profile: None,
+            keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
+            envelope_source: None,
+            kicad_source: None,
+            terminals: Default::default(),
+            matrix_terminals: None,
+            envelope_notice: None,
+            generator: None,
+        });
+        document.parts.push(Part {
+            id: "key".into(),
+            definition_id: "key".into(),
+            reference: "SW1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            keycap: None,
+            outline: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document
     }
 
     fn rename_resolver(name: &'static str) -> EditResolver {
@@ -434,7 +436,7 @@ mod tests {
     #[test]
     fn an_edit_lands_at_the_revision_it_produced_and_saves_into_memory() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         let ticket = EditTicket::begin(
             &driver,
             "layout-inspector",
@@ -455,7 +457,7 @@ mod tests {
     #[test]
     fn a_held_core_reply_keeps_the_ticket_pending_until_released() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.hold_next_core();
         let ticket = EditTicket::begin(
             &driver,
@@ -472,7 +474,7 @@ mod tests {
     #[test]
     fn a_held_save_keeps_the_ticket_pending_until_released() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.hold_next_save();
         let ticket = EditTicket::begin(
             &driver,
@@ -488,7 +490,7 @@ mod tests {
     #[test]
     fn an_unchanged_resolution_lands_at_the_current_revision_without_a_core_request() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         let before = driver.read_model().accepted.clone().unwrap();
         let ticket = EditTicket::begin(
             &driver,
@@ -510,7 +512,7 @@ mod tests {
     #[test]
     fn a_retired_target_fails_with_the_resolvers_reason() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         let ticket = EditTicket::begin(
             &driver,
             "layout-inspector",
@@ -530,7 +532,7 @@ mod tests {
     #[test]
     fn a_departed_owner_retires_whatever_the_outcome() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.hold_next_core();
         let ticket = EditTicket::begin(
             &driver,
@@ -550,7 +552,7 @@ mod tests {
     #[test]
     fn a_session_reopen_retires_the_queued_ticket() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.hold_next_core();
         let first = EditTicket::begin(
             &driver,
@@ -558,28 +560,9 @@ mod tests {
             Some("layout".into()),
             rename_resolver("Renamed"),
         );
-        let mut second_document = ProjectDoc::empty("ticket-test-2", "Second");
-        second_document.definitions.push(PartDefinition {
-            mechanical_profile: None,
-            id: "key".into(),
-            name: "Key".into(),
-            kind: PartKind::Switch,
-            courtyard: vec![],
-            pads: vec![],
-            models: None,
-            hardware_profile: None,
-            input_profile: None,
-            keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
-            envelope_source: None,
-            kicad_source: None,
-            terminals: Default::default(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            generator: None,
-        });
         driver.submit(Event::Open {
             operation_id: driver.allocate_operation(),
-            document: second_document,
+            document: fixture_document("ticket-test-2", "Second"),
         });
         let second = EditTicket::begin(
             &driver,
@@ -599,7 +582,7 @@ mod tests {
     #[test]
     fn a_save_failure_fails_the_ticket_with_the_recovery_wording() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.fail_next_save("quota exceeded");
         let ticket = EditTicket::begin(
             &driver,
@@ -618,7 +601,7 @@ mod tests {
     #[test]
     fn a_refusal_during_recovery_fails_with_the_recovery_reason() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.fail_next_save("quota exceeded");
         let failed = EditTicket::begin(
             &driver,
@@ -645,7 +628,7 @@ mod tests {
     #[test]
     fn an_executor_failure_fails_the_ticket() {
         let driver = NativeEditDriver::new();
-        driver.open_fixture("Ticket test");
+        driver.open_fixture("ticket-test", "Ticket test");
         driver.fail_next_core("engine died");
         let ticket = EditTicket::begin(
             &driver,
