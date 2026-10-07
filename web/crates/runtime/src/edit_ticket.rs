@@ -548,6 +548,37 @@ mod tests {
     }
 
     #[test]
+    fn close_drains_held_core_work_while_the_accepted_scope_remains_current() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        let captured_scope = runtime.scope();
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Complete before close"),
+        );
+
+        runtime.submit(Event::Close {
+            operation_id: runtime.operation(),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        assert_eq!(runtime.scope(), captured_scope);
+        assert_eq!(
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Closing
+        );
+
+        runtime.release_core();
+        assert_eq!(
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Closed
+        );
+        assert_eq!(runtime.scope(), captured_scope);
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+    }
+
+    #[test]
     fn same_scope_revision_changes_and_owner_departure_have_separate_lifetimes() {
         let runtime = runtime_with_project("ticket-test", "Ticket test");
         let ticket = EditTicket::begin(
