@@ -356,7 +356,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::Name,
                     label: projection.name_label, value: projection.name_value.clone(),
                     baseline: projection.name_baseline.clone(), kind: MatrixFieldKind::Name,
-                    request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                    request_sequence: props.request_sequence, editable: props.editable, 
                     feedback: name_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -367,7 +367,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::Rows,
                     label: "Rows", value: projection.rows.to_string(),
                     baseline: MatrixEditValue::Rows(projection.rows), kind: MatrixFieldKind::PositiveInteger,
-                    request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                    request_sequence: props.request_sequence, editable: props.editable, 
                     feedback: rows_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -378,7 +378,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::Columns,
                     label: "Columns", value: projection.columns.to_string(),
                     baseline: MatrixEditValue::Columns(projection.columns), kind: MatrixFieldKind::PositiveInteger,
-                    request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                    request_sequence: props.request_sequence, editable: props.editable, 
                     feedback: columns_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -389,7 +389,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::PitchX,
                     label: "Pitch X", value: projection.pitch_x.to_string(),
                     baseline: MatrixEditValue::PitchX(projection.pitch_x), kind: MatrixFieldKind::PositiveNumber,
-                    request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                    request_sequence: props.request_sequence, editable: props.editable, 
                     feedback: pitch_x_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -400,7 +400,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     revision: projection.revision, field: MatrixEditField::PitchY,
                     label: "Pitch Y", value: projection.pitch_y.to_string(),
                     baseline: MatrixEditValue::PitchY(projection.pitch_y), kind: MatrixFieldKind::PositiveNumber,
-                    request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                    request_sequence: props.request_sequence, editable: props.editable, 
                     feedback: pitch_y_feedback, on_edit: props.on_edit,
                 }
                 }}
@@ -477,7 +477,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Switch footprint", value: projection.definition_id.clone(),
                         baseline: MatrixEditValue::SwitchDefinition(projection.definition_id.clone()), kind: MatrixFieldKind::Choice,
                         choices: projection.switch_choices.clone(),
-                        request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                        request_sequence: props.request_sequence, editable: props.editable, 
                         feedback: switch_feedback, on_edit: props.on_edit,
                     }
                 }}
@@ -488,7 +488,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Diode direction", value: diode_direction_value(projection.diode_direction),
                         baseline: MatrixEditValue::DiodeDirection(projection.diode_direction), kind: MatrixFieldKind::Choice,
                         choices: vec![("row2col".to_owned(), "Rows to columns".to_owned()), ("col2row".to_owned(), "Columns to rows".to_owned())],
-                        request_sequence: props.request_sequence, editable: props.editable, busy: props.busy,
+                        request_sequence: props.request_sequence, editable: props.editable, 
                         feedback: diode_feedback, on_edit: props.on_edit,
                     }
                 }}
@@ -511,7 +511,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Edge gap X", value: projection.edge_gap_x.to_string(),
                         baseline: MatrixEditValue::EdgeGapX(projection.edge_gap_x), kind: MatrixFieldKind::NonnegativeNumber,
                         choices: Vec::new(), request_sequence: props.request_sequence,
-                        editable: props.editable, busy: props.busy, feedback: edge_gap_x_feedback, on_edit: props.on_edit,
+                        editable: props.editable,  feedback: edge_gap_x_feedback, on_edit: props.on_edit,
                     }
                 }}
                 {rsx! {
@@ -521,7 +521,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         label: "Edge gap Y", value: projection.edge_gap_y.to_string(),
                         baseline: MatrixEditValue::EdgeGapY(projection.edge_gap_y), kind: MatrixFieldKind::NonnegativeNumber,
                         choices: Vec::new(), request_sequence: props.request_sequence,
-                        editable: props.editable, busy: props.busy, feedback: edge_gap_y_feedback, on_edit: props.on_edit,
+                        editable: props.editable,  feedback: edge_gap_y_feedback, on_edit: props.on_edit,
                     }
                 }}
             }
@@ -566,7 +566,6 @@ struct MatrixFieldEditorProps {
     choices: Vec<(String, String)>,
     request_sequence: Signal<u64>,
     editable: bool,
-    busy: bool,
     feedback: Vec<MatrixEditFeedback>,
     on_edit: EventHandler<MatrixEditRequest>,
 }
@@ -576,7 +575,6 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
     let mut draft = use_signal(|| props.value.clone());
     let mut draft_baseline = use_signal(|| props.baseline.clone());
     let mut dirty = use_signal(|| false);
-    let mut stale = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitted_request_id = use_signal(|| None::<u64>);
     let mut status = use_signal(|| None::<String>);
@@ -586,11 +584,9 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
     let field = props.field;
     let feedback = props.feedback.clone();
     let editable = props.editable;
-    let busy = props.busy;
     let mut draft_for_effect = draft;
     let mut baseline_for_effect = draft_baseline;
     let mut dirty_for_effect = dirty;
-    let mut stale_for_effect = stale;
     let mut error_for_effect = error;
     let mut submitted_for_effect = submitted_request_id;
     let mut status_for_effect = status;
@@ -612,7 +608,6 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                     draft_for_effect.set(value.clone());
                     baseline_for_effect.set(baseline.clone());
                     dirty_for_effect.set(false);
-                    stale_for_effect.set(false);
                     error_for_effect.set(None);
                     submitted_for_effect.set(None);
                     status_for_effect.set(Some("Saved".to_owned()));
@@ -634,17 +629,13 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 None => {}
             }
 
-            if baseline_for_effect() != baseline {
-                if dirty_for_effect() {
-                    stale_for_effect.set(true);
-                } else {
-                    draft_for_effect.set(value.clone());
-                    baseline_for_effect.set(baseline.clone());
-                    stale_for_effect.set(false);
-                    error_for_effect.set(None);
-                    status_for_effect.set(None);
-                    submitted_for_effect.set(None);
-                }
+            // A dirty draft keeps the user's value: the latest committed value wins.
+            if baseline_for_effect() != baseline && !dirty_for_effect() {
+                draft_for_effect.set(value.clone());
+                baseline_for_effect.set(baseline.clone());
+                error_for_effect.set(None);
+                status_for_effect.set(None);
+                submitted_for_effect.set(None);
             }
         },
     ));
@@ -659,14 +650,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         let on_edit = props.on_edit;
         let accepted_display = props.value.clone();
         move |replacement_text: Option<String>| {
-            if busy || !editable || submitted_request_id().is_some() {
-                return;
-            }
-            if stale() {
-                error.set(Some(
-                    "The accepted value changed. Press Escape to reload it before editing."
-                        .to_owned(),
-                ));
+            if !editable || submitted_request_id().is_some() {
                 return;
             }
             let text = match replacement_text {
@@ -735,7 +719,6 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
             if value == baseline || displayed_name_is_unchanged {
                 draft.set(accepted_display.clone());
                 dirty.set(false);
-                stale.set(false);
                 error.set(None);
                 status.set(None);
                 submitted_request_id.set(None);
@@ -779,7 +762,6 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 draft.set(props.value.clone());
                 draft_baseline.set(accepted_baseline.clone());
                 dirty.set(false);
-                stale.set(false);
                 error.set(None);
                 status.set(None);
                 submitted_request_id.set(None);
@@ -823,15 +805,15 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
     let choices = props.choices.clone();
     let is_select = props.kind == MatrixFieldKind::Choice;
     rsx! {
-        label { class: if error_text.is_some() || stale() { "m1-matrix-field has-error" } else { "m1-matrix-field" },
+        label { class: if error_text.is_some() { "m1-matrix-field has-error" } else { "m1-matrix-field" },
             span { "{props.label}" }
             span { class: "m1-matrix-field-input",
                 if is_select {
                     select {
                         value: "{input_value}",
-                        disabled: !props.editable || props.busy || stale(),
+                        disabled: !props.editable,
                         "aria-label": if props.field == MatrixEditField::SwitchDefinition { "Matrix part definition" } else { props.label },
-                        "aria-invalid": error_text.is_some() || stale(),
+                        "aria-invalid": error_text.is_some(),
                         onchange: move |event: FormEvent| {
                             let value = event.value();
                             draft.set(value.clone());
@@ -850,9 +832,9 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                     step: step,
                     min: min,
                     value: "{input_value}",
-                    readonly: !props.editable || props.busy || stale(),
+                    readonly: !props.editable,
                     "aria-label": if props.field == MatrixEditField::SwitchDefinition { "Matrix part definition" } else { props.label },
-                    "aria-invalid": error_text.is_some() || stale(),
+                    "aria-invalid": error_text.is_some(),
                     oninput: move |event: FormEvent| {
                         if !dirty() {
                             draft_baseline.set(current_baseline.clone());
@@ -872,9 +854,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                 }
                 if matches!(props.kind, MatrixFieldKind::PositiveNumber | MatrixFieldKind::NonnegativeNumber) { small { "mm" } }
             }
-            if stale() {
-                small { role: "alert", "The accepted value changed. Press Escape to reload it." }
-            } else if let Some(message) = error_text.as_deref() {
+            if let Some(message) = error_text.as_deref() {
                 small { role: "alert", "{message}" }
             }
             if let Some(message) = current_status.as_deref() {

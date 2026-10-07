@@ -530,6 +530,7 @@ fn AddObjectEntry(
                     mount.on_add_row,
                     mount.on_add_column,
                     None,
+                    (mount.add_row_pending, mount.add_column_pending),
                 )
             })
         })
@@ -541,6 +542,7 @@ fn AddObjectEntry(
                 mount.on_add_row,
                 mount.on_add_column,
                 Some((scope, matrix_id)),
+                (mount.add_row_pending, mount.add_column_pending),
             ))
         });
     rsx! {
@@ -610,7 +612,7 @@ fn AddObjectEntry(
                             }
                         }
                     }
-                    if let Some((matrix_label, on_add_row, on_add_column, selection)) = matrix_actions {
+                    if let Some((matrix_label, on_add_row, on_add_column, selection, (add_row_pending, add_column_pending))) = matrix_actions {
                         {
                             let add_row_selection = selection.clone();
                             let add_column_selection = selection.clone();
@@ -621,6 +623,7 @@ fn AddObjectEntry(
                                     h3 { "{matrix_label}" }
                                     button {
                                         r#type: "button",
+                                        disabled: add_row_pending,
                                         onclick: move |_| {
                                             menu_open.set(false);
                                             if let Some((scope, matrix_id)) = add_row_selection.clone() {
@@ -637,6 +640,7 @@ fn AddObjectEntry(
                                     }
                                     button {
                                         r#type: "button",
+                                        disabled: add_column_pending,
                                         onclick: move |_| {
                                             menu_open.set(false);
                                             if let Some((scope, matrix_id)) = add_column_selection.clone() {

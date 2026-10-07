@@ -5,14 +5,14 @@ use super::matrix_setup::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::{
     matrix_setup_operation::{next_matrix_id, prepare_matrix},
-    operation_outcomes::OutcomeSlot,
     runtime::Runtime,
 };
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, OperationId, Scope, SelectionMode,
-    TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
+    SelectionMode,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Matrix, PartDefinition};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -20,9 +20,50 @@ use wasm_bindgen_futures::spawn_local;
 #[derive(Clone)]
 struct PendingSetup {
     owner: MatrixSetupOwner,
-    operation_id: OperationId,
-    outcome: OutcomeSlot,
+    ticket: EditTicket,
     matrix_id: String,
+}
+
+/// Resolve creating a prepared matrix against the accepted document at execution time: the
+/// board must still exist and neither the matrix nor its definitions may already be taken.
+fn create_matrix_resolver(
+    board_id: String,
+    matrix: Matrix,
+    definitions: Vec<PartDefinition>,
+) -> EditResolver {
+    EditResolver::new("layout-matrix-setup", move |accepted: &AcceptedSnapshot| {
+        let document = &accepted.document;
+        if !document.boards.iter().any(|board| board.id == board_id) {
+            return Resolution::Retire("The board no longer exists.".into());
+        }
+        if document
+            .matrices
+            .iter()
+            .any(|existing| existing.id == matrix.id)
+        {
+            return Resolution::Retire("The new matrix identity is already in use.".into());
+        }
+        if definitions.iter().any(|definition| {
+            document
+                .definitions
+                .iter()
+                .any(|existing| existing.id == definition.id)
+        }) {
+            return Resolution::Retire(
+                "The prepared matrix definitions conflict with the accepted document.".into(),
+            );
+        }
+        Resolution::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids: vec![matrix.id.clone()],
+            operation: EditOperation::SetMatrix {
+                matrix: matrix.clone(),
+                definitions: Some(definitions.clone()),
+            },
+        })
+    })
 }
 
 /// Called once for the Editor lifetime. The form may be hidden while its admitted SetMatrix
@@ -313,39 +354,20 @@ pub fn use_matrix_setup(
                     status.set(None);
                     return;
                 }
-                let operation_id = runtime.operation();
-                let outcome = runtime.observe_operation(operation_id);
-                let target_ids = vec![matrix.id.clone()];
-                let transaction_id = format!(
-                    "matrix-setup-{}-{}-{}",
-                    editor_instance_id, owner.open_id, operation_id.0
+                let matrix_id = matrix.id.clone();
+                let ticket = EditTicket::begin(
+                    &runtime,
+                    "layout-matrix-setup",
+                    Some("matrix".into()),
+                    create_matrix_resolver(current_board.clone(), matrix, definitions),
                 );
                 pending.set(Some(PendingSetup {
                     owner: owner.clone(),
-                    operation_id,
-                    outcome: outcome.clone(),
-                    matrix_id: matrix.id.clone(),
+                    ticket,
+                    matrix_id,
                 }));
                 preparing.set(None);
                 status.set(Some("Creating matrix…".into()));
-                runtime.submit(Event::Edit {
-                    operation_id,
-                    command: EditCommand {
-                        base_revision: current.document.revision,
-                        transaction_id,
-                        phase: EditPhase::Commit,
-                        target_ids,
-                        operation: EditOperation::SetMatrix {
-                            matrix,
-                            definitions: Some(definitions),
-                        },
-                    },
-                });
-                // The exact observer outlives the Editor signals until its terminal result.
-                // Settlement may update the mounted owner; this retention never accesses it.
-                while outcome.borrow().is_none() {
-                    gloo_timers::future::TimeoutFuture::new(16).await;
-                }
             });
         }
     });
@@ -461,101 +483,53 @@ fn settle_pending(
     let Some(waiting) = signals.pending.read().clone() else {
         return;
     };
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
     let model = runtime.model();
-    // Terminal ownership is resolved before inspecting a replacement snapshot's revision.
-    // A hidden or departed owner cannot reconcile selection or publish feedback there.
-    if workspace != "Layout"
-        || scope_generation != waiting.owner.scope_generation
-        || runtime.scope().as_ref() != Some(&waiting.owner.scope)
-        || model.accepted.as_ref().is_none_or(|snapshot| {
-            snapshot.session_epoch != waiting.owner.scope.session_epoch
-                || snapshot.document.id != waiting.owner.scope.document_id
-        })
-    {
-        finish_pending(signals.pending, signals.status, &waiting);
-        signals.open.set(None);
-        signals.error.set(None);
-        return;
-    }
-    match outcome {
-        TerminalOutcome::Completed => {
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if matches!(model.durability, Durability::Failed { .. })
-                || matches!(
-                    model.lifecycle,
-                    Lifecycle::RecoveryRequired | Lifecycle::Closed
-                )
-            {
-                finish_pending(signals.pending, signals.status, &waiting);
-                signals.error.set(Some("The matrix operation completed, but the accepted document did not save. Retry after recovery.".into()));
-                return;
-            }
-            if snapshot.token == waiting.owner.snapshot_token
-                || snapshot.document.revision <= waiting.owner.revision
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-            {
-                return;
-            }
-            let created = snapshot
-                .document
-                .matrices
-                .iter()
-                .any(|matrix| matrix.id == waiting.matrix_id);
+    // A hidden or departed owner cannot reconcile selection or publish feedback.
+    let owner_is_live = workspace == "Layout"
+        && scope_generation == waiting.owner.scope_generation
+        && runtime.scope().as_ref() == Some(&waiting.owner.scope)
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.session_epoch == waiting.owner.scope.session_epoch
+                && snapshot.document.id == waiting.owner.scope.document_id
+        });
+    let settlement = waiting.ticket.settlement(owner_is_live);
+    match settlement {
+        Settlement::Pending => {}
+        Settlement::Retired => {
             finish_pending(signals.pending, signals.status, &waiting);
-            if created {
-                signals.open.set(None);
-                signals.error.set(None);
-                if workspace == "Layout"
-                    && scope_generation == waiting.owner.scope_generation
-                    && runtime.scope().as_ref() == Some(&waiting.owner.scope)
-                    && model.active_board_id == waiting.owner.board_id
-                {
-                    let context = TreeContext::Matrix {
-                        matrix_id: waiting.matrix_id,
-                    };
-                    let Some(ids) = super::resolve_selection(&model, &context) else {
-                        signals.error.set(Some(
-                            "The new matrix could not be selected from the saved board.".into(),
-                        ));
-                        return;
-                    };
-                    signals.selected_context.set(Some(ScopedTreeContext {
-                        scope: waiting.owner.scope.clone(),
-                        context,
-                    }));
-                    signals.anchor_scope.set(None);
-                    runtime.submit(Event::SelectParts {
-                        operation_id: runtime.operation(),
-                        part_ids: ids,
-                        range_part_ids: Vec::new(),
-                        mode: SelectionMode::Replace,
-                    });
-                }
-            } else {
-                signals.error.set(Some("The saved document does not contain the new matrix. Review the board and retry.".into()));
+            signals.open.set(None);
+            signals.error.set(None);
+        }
+        Settlement::Landed { .. } => {
+            finish_pending(signals.pending, signals.status, &waiting);
+            signals.open.set(None);
+            signals.error.set(None);
+            if model.active_board_id == waiting.owner.board_id {
+                let context = TreeContext::Matrix {
+                    matrix_id: waiting.matrix_id,
+                };
+                let Some(ids) = super::resolve_selection(&model, &context) else {
+                    signals.error.set(Some(
+                        "The new matrix could not be selected from the saved board.".into(),
+                    ));
+                    return;
+                };
+                signals.selected_context.set(Some(ScopedTreeContext {
+                    scope: waiting.owner.scope.clone(),
+                    context,
+                }));
+                signals.anchor_scope.set(None);
+                runtime.submit(Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: ids,
+                    range_part_ids: Vec::new(),
+                    mode: SelectionMode::Replace,
+                });
             }
         }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => {
+        Settlement::Failed { message } => {
             finish_pending(signals.pending, signals.status, &waiting);
             signals.error.set(Some(message));
-        }
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
-            finish_pending(signals.pending, signals.status, &waiting);
-            signals.error.set(Some(
-                "Matrix creation did not complete in the active session.".into(),
-            ));
         }
     }
 }
@@ -568,7 +542,7 @@ fn finish_pending(
     if pending
         .read()
         .as_ref()
-        .is_some_and(|current| current.operation_id == waiting.operation_id)
+        .is_some_and(|current| current.ticket.operation() == waiting.ticket.operation())
     {
         pending.set(None);
         status.set(None);

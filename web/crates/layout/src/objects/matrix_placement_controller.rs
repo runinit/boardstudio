@@ -6,14 +6,14 @@ use super::matrix_setup::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::{
     matrix_setup_operation::{MatrixSetupRequest, next_matrix_id, prepare_matrix},
-    operation_outcomes::OutcomeSlot,
     presentation::canvas_interaction::CanvasInteractionOwner,
     runtime::Runtime,
 };
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, Event, Lifecycle, Scope, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Matrix, PartDefinition};
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -21,10 +21,56 @@ use wasm_bindgen_futures::spawn_local;
 #[derive(Clone)]
 struct PendingPlacement {
     owner: MatrixPlacementOwner,
-    outcome: OutcomeSlot,
+    ticket: EditTicket,
     matrix_id: String,
     selected_context: Option<ScopedTreeContext>,
     selected_part_ids: Vec<String>,
+}
+
+/// Resolve placing a prepared matrix against the accepted document at execution time. Only
+/// the definitions the accepted document does not yet have are sent, so a placement queued
+/// behind an edit that already added one still lands.
+fn place_matrix_resolver(matrix: Matrix, definitions: Vec<PartDefinition>) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-placement",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            if matrix
+                .board_id
+                .as_deref()
+                .is_some_and(|board_id| !document.boards.iter().any(|board| board.id == board_id))
+            {
+                return Resolution::Retire("The board no longer exists.".into());
+            }
+            if document
+                .matrices
+                .iter()
+                .any(|existing| existing.id == matrix.id)
+            {
+                return Resolution::Retire("The matrix identity is already in use.".into());
+            }
+            let required = definitions
+                .iter()
+                .filter(|definition| {
+                    !document
+                        .definitions
+                        .iter()
+                        .any(|existing| existing.id == definition.id)
+                })
+                .cloned()
+                .collect();
+            Resolution::Submit(EditCommand {
+                base_revision: 0,
+                transaction_id: String::new(),
+                phase: EditPhase::Commit,
+                target_ids: vec![matrix.id.clone()],
+                operation: EditOperation::SetMatrix {
+                    matrix: matrix.clone(),
+                    definitions: Some(required),
+                },
+            })
+        },
+    )
 }
 
 pub fn use_matrix_placement(
@@ -73,104 +119,54 @@ pub fn use_matrix_placement(
             move |(_, current_workspace, current_generation)| {
                 let waiting = pending.read().clone();
                 if let Some(waiting) = waiting {
-                    let Some(outcome) = waiting.outcome.borrow().clone() else {
-                        return;
-                    };
-                    if !same_session_scope(&runtime, &waiting.owner) {
-                        pending.set(None);
-                        error.set(None);
-                        return;
-                    }
-                    match outcome {
-                        TerminalOutcome::Completed => {
-                            let model = runtime.model();
-                            let Some(snapshot) = model.accepted.as_ref() else {
-                                return;
-                            };
-                            if snapshot.token == waiting.owner.snapshot_token
-                                || snapshot.document.revision <= waiting.owner.revision
-                                || model.lifecycle != Lifecycle::Ready
-                                || model.durability
-                                    != (Durability::Saved {
-                                        revision: snapshot.document.revision,
-                                    })
-                            {
-                                return;
-                            }
-                            let created = snapshot
-                                .document
-                                .matrices
-                                .iter()
-                                .any(|matrix| matrix.id == waiting.matrix_id);
+                    let owner_is_live = same_session_scope(&runtime, &waiting.owner);
+                    let visible = current_workspace == "Layout"
+                        && current_generation == waiting.owner.scope_generation
+                        && placement_selection_is_current(&runtime, &selected_context, &waiting);
+                    match waiting.ticket.settlement(owner_is_live) {
+                        Settlement::Pending => return,
+                        Settlement::Retired => {
                             pending.set(None);
-                            let selection_is_current = model.selected_part_ids
-                                == waiting.selected_part_ids
-                                && selected_context.peek().as_ref()
-                                    == waiting.selected_context.as_ref();
-                            if !created
-                                || current_workspace != "Layout"
-                                || current_generation != waiting.owner.scope_generation
-                                || !selection_is_current
-                            {
-                                error.set(None);
-                                return;
-                            }
-                            let context = TreeContext::Matrix {
-                                matrix_id: waiting.matrix_id,
-                            };
-                            let Some(part_ids) = super::resolve_selection(&model, &context) else {
-                                error.set(Some("The matrix was saved, but its Layout selection could not be restored.".into()));
-                                return;
-                            };
-                            selected_context.set(Some(ScopedTreeContext {
-                                scope: waiting.owner.scope.clone(),
-                                context,
-                            }));
-                            anchor_scope.set(None);
-                            runtime.submit(Event::SelectParts {
-                                operation_id: runtime.operation(),
-                                part_ids,
-                                range_part_ids: Vec::new(),
-                                mode: boardstudio_application::SelectionMode::Replace,
-                            });
                             error.set(None);
                         }
-                        TerminalOutcome::Rejected(message)
-                        | TerminalOutcome::PersistenceFailed(message)
-                        | TerminalOutcome::BlockedByRecovery(message)
-                        | TerminalOutcome::ExecutorFailed(message) => {
+                        Settlement::Landed { .. } => {
+                            let model = runtime.model();
                             pending.set(None);
-                            if current_workspace == "Layout"
-                                && current_generation == waiting.owner.scope_generation
-                                && placement_selection_is_current(
-                                    &runtime,
-                                    &selected_context,
-                                    &waiting,
-                                )
-                            {
-                                error.set(Some(message));
-                            } else {
+                            let created = model.accepted.as_ref().is_some_and(|snapshot| {
+                                snapshot
+                                    .document
+                                    .matrices
+                                    .iter()
+                                    .any(|matrix| matrix.id == waiting.matrix_id)
+                            });
+                            if !created || !visible {
                                 error.set(None);
+                            } else {
+                                let context = TreeContext::Matrix {
+                                    matrix_id: waiting.matrix_id,
+                                };
+                                match super::resolve_selection(&model, &context) {
+                                    None => error.set(Some("The matrix was saved, but its Layout selection could not be restored.".into())),
+                                    Some(part_ids) => {
+                                        selected_context.set(Some(ScopedTreeContext {
+                                            scope: waiting.owner.scope.clone(),
+                                            context,
+                                        }));
+                                        anchor_scope.set(None);
+                                        runtime.submit(Event::SelectParts {
+                                            operation_id: runtime.operation(),
+                                            part_ids,
+                                            range_part_ids: Vec::new(),
+                                            mode: boardstudio_application::SelectionMode::Replace,
+                                        });
+                                        error.set(None);
+                                    }
+                                }
                             }
                         }
-                        TerminalOutcome::Superseded
-                        | TerminalOutcome::Cancelled
-                        | TerminalOutcome::Closed => {
+                        Settlement::Failed { message } => {
                             pending.set(None);
-                            if current_workspace == "Layout"
-                                && current_generation == waiting.owner.scope_generation
-                                && placement_selection_is_current(
-                                    &runtime,
-                                    &selected_context,
-                                    &waiting,
-                                )
-                            {
-                                error.set(Some(
-                                    "Matrix placement was superseded before it was saved.".into(),
-                                ));
-                            } else {
-                                error.set(None);
-                            }
+                            error.set(visible.then_some(message));
                         }
                     }
                 }
@@ -460,10 +456,8 @@ pub fn use_matrix_placement(
             };
             active.matrix.origin = movement.center;
             let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if model.lifecycle != Lifecycle::Ready
+            if model.accepted.is_none()
+                || model.lifecycle != Lifecycle::Ready
                 || model.durability
                     != (Durability::Saved {
                         revision: movement.owner.revision,
@@ -471,46 +465,23 @@ pub fn use_matrix_placement(
             {
                 return;
             }
-            let required = active
-                .definitions
-                .into_iter()
-                .filter(|definition| {
-                    !snapshot
-                        .document
-                        .definitions
-                        .iter()
-                        .any(|existing| existing.id == definition.id)
-                })
-                .collect();
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let model = runtime.model();
+            let matrix_id = active.matrix.id.clone();
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-matrix-placement",
+                Some("matrix placement".into()),
+                place_matrix_resolver(active.matrix, active.definitions),
+            );
             pending.set(Some(PendingPlacement {
                 owner: movement.owner.clone(),
-                outcome,
-                matrix_id: active.matrix.id.clone(),
+                ticket,
+                matrix_id,
                 selected_context: selected_context.peek().clone(),
                 selected_part_ids: model.selected_part_ids.clone(),
             }));
             placement.set(None);
             error.set(None);
             canvas_interaction.release(CanvasInteractionOwner::MatrixPlacement);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: movement.owner.revision,
-                    transaction_id: format!(
-                        "matrix-placement-{}-{}-{}",
-                        editor_instance_id, movement.owner.request_id, operation_id.0
-                    ),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![active.matrix.id.clone()],
-                    operation: EditOperation::SetMatrix {
-                        matrix: active.matrix,
-                        definitions: Some(required),
-                    },
-                },
-            });
         }
     });
 

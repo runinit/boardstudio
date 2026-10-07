@@ -8,8 +8,10 @@ use super::matrix_inspector::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::{operation_outcomes::OutcomeSlot, runtime::Runtime};
 use boardstudio_application::{
-    Durability, Event, Lifecycle, OperationId, Scope, SnapshotToken, TerminalOutcome,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
+    SnapshotToken, TerminalOutcome,
 };
+use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use boardstudio_core::model::{
     DiodeDirection, EditCommand, EditOperation, EditPhase, Matrix, MatrixAssembly, MatrixCell,
     PartDefinition, ProjectDoc, Side, Vec2,
@@ -21,31 +23,181 @@ use std::{
 };
 use wasm_bindgen_futures::spawn_local;
 
+/// A committed Matrix Inspector field edit. Field edits queue freely, so several can be
+/// in flight; each keeps its own ticket and settles into its own feedback entry.
 #[derive(Clone)]
 struct PendingMatrixEdit {
     request: MatrixEditRequest,
-    operation_id: OperationId,
-    outcome: OutcomeSlot,
-    base_token: SnapshotToken,
-    base_revision: u64,
+    ticket: EditTicket,
 }
 
+/// The preset action: one-shot, disabled while its ticket is pending.
 #[derive(Clone)]
 struct PendingMatrixPreset {
     request: MatrixPresetRequest,
-    operation_id: OperationId,
-    outcome: OutcomeSlot,
-    base_token: SnapshotToken,
-    base_revision: u64,
-    expected_variant: String,
+    ticket: EditTicket,
 }
 
 #[derive(Clone)]
 struct PendingMatrixDelete {
     request: MatrixDeleteRequest,
-    outcome: OutcomeSlot,
-    base_token: SnapshotToken,
-    base_revision: u64,
+    ticket: EditTicket,
+}
+
+/// A matrix preset prepared from the Parts catalogue: the template matrix and the
+/// definitions it needs. The edit applies it to whatever matrix is accepted at execution.
+#[derive(Clone)]
+struct PreparedPreset {
+    matrix: Matrix,
+    definitions: Vec<PartDefinition>,
+    variant: String,
+    orientation: SwitchOrientation,
+}
+
+fn ticket_is_pending(ticket: Option<&EditTicket>) -> bool {
+    ticket.is_some_and(EditTicket::is_pending)
+}
+
+fn matrix_of<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a Matrix> {
+    document.matrices.iter().find(|matrix| matrix.id == matrix_id)
+}
+
+fn commit(operation: EditOperation, target_ids: Vec<String>) -> Resolution {
+    Resolution::Submit(EditCommand {
+        base_revision: 0,
+        transaction_id: String::new(),
+        phase: EditPhase::Commit,
+        target_ids,
+        operation,
+    })
+}
+
+/// Resolve one field edit against the accepted document at execution time: the matrix (or
+/// layout) is read from the accepted document and only the user's value is applied.
+fn matrix_field_resolver(
+    matrix_id: String,
+    name_target: MatrixNameTarget,
+    field: MatrixEditField,
+    value: MatrixEditValue,
+    catalogue_definition: Option<PartDefinition>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-inspector",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Some(matrix) = matrix_of(document, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if field_value(document, &matrix_id, &name_target, field).as_ref() == Some(&value) {
+                return Resolution::Unchanged;
+            }
+            let mut operation =
+                match build_operation(document, matrix, &name_target, field, value.clone()) {
+                    Ok(operation) => operation,
+                    Err(message) => return Resolution::Retire(message),
+                };
+            if let (
+                MatrixEditField::SwitchDefinition,
+                MatrixEditValue::SwitchDefinition(definition_id),
+                EditOperation::SetMatrix { definitions, .. },
+            ) = (&field, &value, &mut operation)
+                && !document
+                    .definitions
+                    .iter()
+                    .any(|definition| definition.id == *definition_id)
+            {
+                let Some(definition) = catalogue_definition.clone() else {
+                    return Resolution::Retire(
+                        "The selected switch footprint is not available in the loaded catalogue."
+                            .into(),
+                    );
+                };
+                *definitions = Some(vec![definition]);
+            }
+            let target_id = match &name_target {
+                MatrixNameTarget::Layout { id } if field == MatrixEditField::Name => id.clone(),
+                _ => matrix_id.clone(),
+            };
+            commit(operation, vec![target_id])
+        },
+    )
+}
+
+/// Resolve applying a prepared preset to the accepted matrix.
+fn matrix_preset_resolver(matrix_id: String, prepared: PreparedPreset) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-preset",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = matrix_of(&accepted.document, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if matrix.rows != prepared.matrix.rows || matrix.columns != prepared.matrix.columns {
+                return Resolution::Retire(
+                    "The matrix size changed before the preset was applied. Apply the preset again."
+                        .into(),
+                );
+            }
+            let replacement = matrix_with_preset(
+                matrix,
+                &prepared.matrix,
+                &prepared.variant,
+                prepared.orientation,
+            );
+            if &replacement == matrix {
+                return Resolution::Unchanged;
+            }
+            commit(
+                EditOperation::SetMatrix {
+                    matrix: replacement,
+                    definitions: Some(prepared.definitions.clone()),
+                },
+                vec![matrix_id.clone()],
+            )
+        },
+    )
+}
+
+/// Resolve deleting a matrix that must still exist when the edit runs.
+fn matrix_delete_resolver(matrix_id: String) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-delete",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = matrix_of(&accepted.document, &matrix_id) else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            let mut target_ids = vec![matrix.id.clone()];
+            target_ids.extend(matrix.part_ids.iter().cloned());
+            commit(
+                EditOperation::RemoveMatrix {
+                    id: matrix.id.clone(),
+                },
+                target_ids,
+            )
+        },
+    )
+}
+
+/// Resolve unlinking mirrored halves: the layout must still exist and still be linked.
+fn unlink_layout_resolver(board_id: String, layout_id: String) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-unlink",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(mut layout) = accepted
+                .document
+                .layouts
+                .iter()
+                .find(|layout| layout.id == layout_id && layout.board_id == board_id)
+                .cloned()
+            else {
+                return Resolution::Retire("The selected layout no longer exists.".into());
+            };
+            if layout.mirror_link.is_none() {
+                return Resolution::Unchanged;
+            }
+            layout.mirror_link = None;
+            commit(EditOperation::SetLayout { layout }, vec![layout_id.clone()])
+        },
+    )
 }
 
 #[derive(Clone)]
@@ -76,7 +228,11 @@ pub struct MatrixInspectorMount {
     pub projection: Option<MatrixInspectorProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
+    /// A one-shot action (preset, delete, unlink, duplicate) is pending or preparing.
+    /// Field edits never read this: they queue freely.
     pub busy: bool,
+    pub add_row_pending: bool,
+    pub add_column_pending: bool,
     pub feedback: Vec<MatrixEditFeedback>,
     pub on_edit: EventHandler<MatrixEditRequest>,
     pub on_add_row: EventHandler<()>,
@@ -130,9 +286,21 @@ pub fn use_matrix_inspector(
 
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_signal(|| None::<PendingMatrixEdit>);
+    let pending = use_signal(Vec::<PendingMatrixEdit>::new);
     let pending_preset = use_signal(|| None::<PendingMatrixPreset>);
     let pending_delete = use_signal(|| None::<PendingMatrixDelete>);
+    let pending_unlink = use_signal(|| None::<EditTicket>);
+    let one_shot_busy = move || {
+        ticket_is_pending(pending_preset.read().as_ref().map(|p| &p.ticket))
+            || ticket_is_pending(pending_delete.read().as_ref().map(|p| &p.ticket))
+            || ticket_is_pending(pending_unlink.read().as_ref())
+    };
+    let field_pending = move |field: MatrixEditField| {
+        pending
+            .read()
+            .iter()
+            .any(|edit| edit.request.field == field && edit.ticket.is_pending())
+    };
     let preparing_preset = use_signal(|| false);
     let duplicating = use_signal(|| false);
     let feedback = use_signal(Vec::<MatrixEditFeedback>::new);
@@ -178,8 +346,10 @@ pub fn use_matrix_inspector(
             let mut pending = pending;
             let mut pending_preset = pending_preset;
             let mut pending_delete = pending_delete;
+            let mut pending_unlink = pending_unlink;
             let mut feedback = feedback;
             move |(_, _, scope_generation, _)| {
+                settle_pending_unlink(&runtime, scope_generation, &mut pending_unlink);
                 settle_pending(&runtime, scope_generation, &mut pending, &mut feedback);
                 settle_pending_preset(
                     &runtime,
@@ -216,22 +386,6 @@ pub fn use_matrix_inspector(
                 return;
             }
             last_request_id.set(request.request_id);
-            if pending.read().is_some()
-                || pending_preset.read().is_some()
-                || pending_delete.read().is_some()
-                || preparing_preset()
-                || duplicating()
-            {
-                // Keep the active request's exact feedback, but settle this distinct rejected
-                // attempt so its field draft cannot remain visually pending forever.
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixEditState::Failed,
-                    Some("Wait for the current matrix change to finish, then retry.".into()),
-                );
-                return;
-            }
             let Some(selected) = selected_context.read().clone() else {
                 return;
             };
@@ -266,30 +420,6 @@ pub fn use_matrix_inspector(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            let Some(current_baseline) = field_value(
-                &snapshot.document,
-                &request.owner.matrix_id,
-                &request.owner.name_target,
-                request.field,
-            ) else {
-                return;
-            };
-            if current_baseline != request.baseline {
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixEditState::Failed,
-                    Some(
-                        "The accepted value changed. Press Escape to reload it before editing."
-                            .into(),
-                    ),
-                );
-                return;
-            }
-            if request.value == request.baseline {
-                publish_feedback(&mut feedback, &request, MatrixEditState::Saved, None);
-                return;
-            }
             let Some(matrix) = snapshot
                 .document
                 .matrices
@@ -298,80 +428,66 @@ pub fn use_matrix_inspector(
             else {
                 return;
             };
-            let mut operation = match build_operation(
+            // Validate the typed value now so a bad entry is explained inline; the resolver
+            // repeats the build against whatever is accepted when the edit runs.
+            if let Err(message) = build_operation(
                 &snapshot.document,
                 matrix,
                 &request.owner.name_target,
                 request.field,
                 request.value.clone(),
             ) {
-                Ok(operation) => operation,
-                Err(message) => {
-                    publish_feedback(
-                        &mut feedback,
-                        &request,
-                        MatrixEditState::Failed,
-                        Some(message),
-                    );
-                    return;
-                }
-            };
-            if let (
-                MatrixEditField::SwitchDefinition,
-                MatrixEditValue::SwitchDefinition(definition_id),
-                EditOperation::SetMatrix { definitions, .. },
-            ) = (&request.field, &request.value, &mut operation)
-                && !snapshot
-                    .document
-                    .definitions
-                    .iter()
-                    .any(|definition| definition.id == *definition_id)
-            {
-                let Some(definition) = switch_catalog()
-                    .into_iter()
-                    .find(|definition| definition.id == *definition_id)
-                else {
-                    publish_feedback(
-                        &mut feedback,
-                        &request,
-                        MatrixEditState::Failed,
-                        Some("The selected switch footprint is not available in the loaded catalogue.".into()),
-                    );
-                    return;
-                };
-                *definitions = Some(vec![definition]);
+                publish_feedback(
+                    &mut feedback,
+                    &request,
+                    MatrixEditState::Failed,
+                    Some(message),
+                );
+                return;
             }
-            let target_id = match &request.owner.name_target {
-                MatrixNameTarget::Matrix => request.owner.matrix_id.clone(),
-                MatrixNameTarget::Layout { id } if request.field == MatrixEditField::Name => {
-                    id.clone()
+            let catalogue_definition = match &request.value {
+                MatrixEditValue::SwitchDefinition(definition_id)
+                    if request.field == MatrixEditField::SwitchDefinition =>
+                {
+                    let catalogue = switch_catalog()
+                        .into_iter()
+                        .find(|definition| definition.id == *definition_id);
+                    if catalogue.is_none()
+                        && !snapshot
+                            .document
+                            .definitions
+                            .iter()
+                            .any(|definition| definition.id == *definition_id)
+                    {
+                        publish_feedback(
+                            &mut feedback,
+                            &request,
+                            MatrixEditState::Failed,
+                            Some("The selected switch footprint is not available in the loaded catalogue.".into()),
+                        );
+                        return;
+                    }
+                    catalogue
                 }
-                MatrixNameTarget::Layout { .. } => request.owner.matrix_id.clone(),
+                _ => None,
             };
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            let transaction_id = format!(
-                "matrix-inspector-{}-{}-{}",
-                editor_instance_id, request.request_id, operation_id.0
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-matrix-inspector",
+                Some("matrix".into()),
+                matrix_field_resolver(
+                    request.owner.matrix_id.clone(),
+                    request.owner.name_target.clone(),
+                    request.field,
+                    request.value.clone(),
+                    catalogue_definition,
+                ),
             );
-            pending.set(Some(PendingMatrixEdit {
+            pending.write().push(PendingMatrixEdit {
                 request: request.clone(),
-                operation_id,
-                outcome,
-                base_token: snapshot.token,
-                base_revision: snapshot.document.revision,
-            }));
-            publish_feedback(&mut feedback, &request, MatrixEditState::Pending, None);
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id,
-                    phase: EditPhase::Commit,
-                    target_ids: vec![target_id],
-                    operation,
-                },
+                ticket,
             });
+            publish_feedback(&mut feedback, &request, MatrixEditState::Pending, None);
         }
     });
 
@@ -393,20 +509,7 @@ pub fn use_matrix_inspector(
                 return;
             }
             last_request_id.set(request.request_id);
-            if pending.read().is_some()
-                || pending_preset.read().is_some()
-                || pending_delete.read().is_some()
-                || preparing_preset()
-                || duplicating()
-            {
-                publish_action_feedback(
-                    &mut feedback,
-                    &request.owner,
-                    request.request_id,
-                    MatrixEditField::ApplyPreset,
-                    MatrixEditState::Failed,
-                    Some("Wait for the current matrix change to finish, then retry.".into()),
-                );
+            if one_shot_busy() || preparing_preset() || duplicating() {
                 return;
             }
             let selected = selected_context.read().clone();
@@ -432,18 +535,14 @@ pub fn use_matrix_inspector(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            if !editable
-                || snapshot.token != request.snapshot_token
-                || snapshot.document.revision != request.revision
-                || projection.baseline_variant != request.baseline_variant
-            {
+            if !editable {
                 publish_action_feedback(
                     &mut feedback,
                     &request.owner,
                     request.request_id,
                     MatrixEditField::ApplyPreset,
                     MatrixEditState::Failed,
-                    Some("The accepted matrix changed. Reopen the inspector before applying the preset.".into()),
+                    Some("The matrix is not ready to edit. Wait for the current operation to finish, then retry.".into()),
                 );
                 return;
             }
@@ -457,8 +556,6 @@ pub fn use_matrix_inspector(
                 return;
             };
             let document = (*snapshot.document).clone();
-            let base_token = snapshot.token;
-            let base_revision = snapshot.document.revision;
             let reversible = is_reversible(&document);
             preparing_preset.set(true);
             publish_action_feedback(
@@ -492,7 +589,7 @@ pub fn use_matrix_inspector(
                     return;
                 }
                 preparing.set(false);
-                let (replacement, definitions) = match result {
+                let prepared = match result {
                     Ok(prepared) => prepared,
                     Err(message) => {
                         publish_action_feedback(
@@ -531,61 +628,30 @@ pub fn use_matrix_inspector(
                     );
                     return;
                 };
-                let Some(snapshot) = model.accepted.as_ref() else {
-                    return;
-                };
-                if current.owner != request.owner
-                    || !editable
-                    || snapshot.token != base_token
-                    || snapshot.document.revision != base_revision
-                    || current.baseline_variant != request.baseline_variant
-                {
+                if current.owner != request.owner || !editable {
                     publish_action_feedback(
                         &mut feedback,
                         &request.owner,
                         request.request_id,
                         MatrixEditField::ApplyPreset,
                         MatrixEditState::Failed,
-                        Some("The accepted matrix changed before the preset was ready. Review it and try again.".into()),
+                        Some("The matrix selection changed before the preset was ready.".into()),
                     );
                     return;
                 }
                 if !alive.get() {
                     return;
                 }
-                let operation_id = runtime.operation();
-                let outcome = runtime.observe_operation(operation_id);
+                let ticket = EditTicket::begin(
+                    &runtime,
+                    "layout-matrix-preset",
+                    Some("matrix preset".into()),
+                    matrix_preset_resolver(request.owner.matrix_id.clone(), prepared),
+                );
                 pending.set(Some(PendingMatrixPreset {
                     request: request.clone(),
-                    operation_id,
-                    outcome: outcome.clone(),
-                    base_token,
-                    base_revision,
-                    expected_variant: preset_variant(
-                        request.preset,
-                        request.orientation,
-                        reversible,
-                    ),
+                    ticket,
                 }));
-                runtime.submit(Event::Edit {
-                    operation_id,
-                    command: EditCommand {
-                        base_revision,
-                        transaction_id: format!(
-                            "matrix-inspector-preset-{}-{}-{}",
-                            editor_instance_id, request.request_id, operation_id.0
-                        ),
-                        phase: EditPhase::Commit,
-                        target_ids: vec![request.owner.matrix_id.clone()],
-                        operation: EditOperation::SetMatrix {
-                            matrix: replacement,
-                            definitions: Some(definitions),
-                        },
-                    },
-                });
-                while alive.get() && outcome.borrow().is_none() {
-                    gloo_timers::future::TimeoutFuture::new(16).await;
-                }
             });
         }
     });
@@ -599,9 +665,7 @@ pub fn use_matrix_inspector(
                 || request.owner.context_generation != context_generation.borrow().value
                 || request.owner.scope_generation != scope_generation()
                 || workspace() != "Layout"
-                || pending.read().is_some()
-                || pending_preset.read().is_some()
-                || pending_delete.read().is_some()
+                || one_shot_busy()
                 || preparing_preset()
                 || duplicating()
             {
@@ -624,49 +688,19 @@ pub fn use_matrix_inspector(
             ) else {
                 return;
             };
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if projection.owner != request.owner
-                || !editable
-                || snapshot.token != request.snapshot_token
-                || snapshot.document.revision != request.revision
-            {
+            if projection.owner != request.owner || !editable {
                 runtime.report(
                     "The selected matrix changed. Reopen the inspector before deleting it.",
                 );
                 return;
             }
-            let Some(matrix) = snapshot
-                .document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == request.owner.matrix_id)
-            else {
-                return;
-            };
-            let operation_id = runtime.operation();
-            let outcome = runtime.observe_operation(operation_id);
-            pending_delete.set(Some(PendingMatrixDelete {
-                request: request.clone(),
-                outcome,
-                base_token: snapshot.token,
-                base_revision: snapshot.document.revision,
-            }));
-            let mut target_ids = vec![matrix.id.clone()];
-            target_ids.extend(matrix.part_ids.iter().cloned());
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id: format!("matrix-inspector-delete-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids,
-                    operation: EditOperation::RemoveMatrix {
-                        id: matrix.id.clone(),
-                    },
-                },
-            });
+            let ticket = EditTicket::begin(
+                &runtime,
+                "layout-matrix-delete",
+                Some("matrix delete".into()),
+                matrix_delete_resolver(request.owner.matrix_id.clone()),
+            );
+            pending_delete.set(Some(PendingMatrixDelete { request, ticket }));
         }
     });
 
@@ -681,9 +715,7 @@ pub fn use_matrix_inspector(
                 || request.owner.context_generation != context_generation.borrow().value
                 || request.owner.scope_generation != scope_generation()
                 || workspace() != "Layout"
-                || pending.read().is_some()
-                || pending_preset.read().is_some()
-                || pending_delete.read().is_some()
+                || one_shot_busy()
                 || preparing_preset()
                 || duplicating()
             {
@@ -709,11 +741,7 @@ pub fn use_matrix_inspector(
             let Some(snapshot) = model.accepted.as_ref() else {
                 return;
             };
-            if projection.owner != request.owner
-                || !editable
-                || snapshot.token != request.snapshot_token
-                || snapshot.document.revision != request.revision
-            {
+            if projection.owner != request.owner || !editable {
                 runtime.report("The selected matrix changed. Reopen the inspector before duplicating the design.");
                 return;
             }
@@ -786,7 +814,7 @@ pub fn use_matrix_inspector(
             ) else {
                 return;
             };
-            if !editable || projection.rows == u32::MAX {
+            if !editable || projection.rows == u32::MAX || field_pending(MatrixEditField::Rows) {
                 return;
             }
             let Some(snapshot) = model.accepted.as_ref() else {
@@ -831,7 +859,10 @@ pub fn use_matrix_inspector(
             ) else {
                 return;
             };
-            if !editable || projection.columns == u32::MAX {
+            if !editable
+                || projection.columns == u32::MAX
+                || field_pending(MatrixEditField::Columns)
+            {
                 return;
             }
             let Some(snapshot) = model.accepted.as_ref() else {
@@ -857,14 +888,13 @@ pub fn use_matrix_inspector(
     let on_unlink = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
+        let mut pending_unlink = pending_unlink;
         move |request: MatrixUnlinkRequest| {
             if request.owner.editor_instance_id != editor_instance_id
                 || request.owner.context_generation != context_generation.borrow().value
                 || request.owner.scope_generation != scope_generation()
                 || workspace() != "Layout"
-                || pending.read().is_some()
-                || pending_preset.read().is_some()
-                || pending_delete.read().is_some()
+                || one_shot_busy()
                 || preparing_preset()
                 || duplicating()
             {
@@ -887,13 +917,8 @@ pub fn use_matrix_inspector(
             ) else {
                 return;
             };
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
             if projection.owner != request.owner
                 || !editable
-                || snapshot.token != request.snapshot_token
-                || snapshot.document.revision != request.revision
                 || projection
                     .layout_relation
                     .as_ref()
@@ -905,33 +930,12 @@ pub fn use_matrix_inspector(
                 );
                 return;
             }
-            let Some(mut layout) = snapshot
-                .document
-                .layouts
-                .iter()
-                .find(|layout| {
-                    layout.id == request.layout_id
-                        && layout.board_id == request.owner.scope.board_id
-                })
-                .cloned()
-            else {
-                return;
-            };
-            if layout.mirror_link.is_none() {
-                return;
-            }
-            layout.mirror_link = None;
-            let operation_id = runtime.operation();
-            runtime.submit(Event::Edit {
-                operation_id,
-                command: EditCommand {
-                    base_revision: snapshot.document.revision,
-                    transaction_id: format!("matrix-inspector-unlink-{}", operation_id.0),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![layout.id.clone()],
-                    operation: EditOperation::SetLayout { layout },
-                },
-            });
+            pending_unlink.set(Some(EditTicket::begin(
+                &runtime,
+                "layout-matrix-unlink",
+                Some("unlink".into()),
+                unlink_layout_resolver(request.owner.scope.board_id.clone(), request.layout_id),
+            )));
         }
     });
 
@@ -939,11 +943,9 @@ pub fn use_matrix_inspector(
         projection,
         request_sequence,
         editable,
-        busy: pending.read().is_some()
-            || pending_preset.read().is_some()
-            || pending_delete.read().is_some()
-            || preparing_preset()
-            || duplicating(),
+        busy: one_shot_busy() || preparing_preset() || duplicating(),
+        add_row_pending: field_pending(MatrixEditField::Rows),
+        add_column_pending: field_pending(MatrixEditField::Columns),
         feedback: feedback.read().clone(),
         on_edit,
         on_add_row,
@@ -1247,11 +1249,15 @@ fn project_current_for(
             MatrixEditValue::Name(name),
         )
     };
-    let saved = model.lifecycle == Lifecycle::Ready
-        && model.durability
-            == (Durability::Saved {
-                revision: snapshot.document.revision,
-            });
+    // Matrix edits queue behind each other, so the inspector stays editable while an earlier
+    // edit is applying or saving; only an unopened or unrecoverable session blocks it.
+    let saved = matches!(
+        model.lifecycle,
+        Lifecycle::Ready | Lifecycle::Applying | Lifecycle::Saving
+    ) && matches!(
+        model.durability,
+        Durability::Saved { .. } | Durability::Saving { .. }
+    );
     let editable = saved && model.display_preview.is_none() && model.gesture.is_none();
     let baseline_variant = matrix
         .cells
@@ -1327,91 +1333,51 @@ fn project_current_for(
 fn settle_pending(
     runtime: &Runtime,
     scope_generation: u64,
-    pending: &mut Signal<Option<PendingMatrixEdit>>,
+    pending: &mut Signal<Vec<PendingMatrixEdit>>,
     feedback: &mut Signal<Vec<MatrixEditFeedback>>,
 ) {
-    let Some(waiting) = pending.read().clone() else {
-        return;
-    };
-    let model = runtime.model();
-    let scope = runtime.scope();
-    if scope.as_ref() != Some(&waiting.request.owner.scope)
-        || scope_generation != waiting.request.owner.scope_generation
-    {
-        pending.set(None);
-        feedback.set(Vec::new());
+    let waiting = pending.read().clone();
+    if waiting.is_empty() {
         return;
     }
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
-    match outcome {
-        TerminalOutcome::Completed => {
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if matches!(model.durability, Durability::Failed { .. })
-                || matches!(
-                    model.lifecycle,
-                    Lifecycle::RecoveryRequired | Lifecycle::Closed
-                )
-            {
-                finish_pending(
-                    pending,
-                    feedback,
-                    &waiting,
-                    MatrixEditState::Failed,
-                    Some("The matrix operation completed, but the accepted document did not save. Retry after recovery.".into()),
-                );
-                return;
+    let scope = runtime.scope();
+    let mut remaining = Vec::with_capacity(waiting.len());
+    let mut changed = false;
+    for edit in waiting {
+        let live = scope.as_ref() == Some(&edit.request.owner.scope)
+            && scope_generation == edit.request.owner.scope_generation;
+        match edit.ticket.settlement(live) {
+            Settlement::Pending => remaining.push(edit),
+            Settlement::Landed { .. } => {
+                changed = true;
+                publish_feedback(feedback, &edit.request, MatrixEditState::Saved, None);
             }
-            if snapshot.token == waiting.base_token
-                || snapshot.document.revision <= waiting.base_revision
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-            {
-                return;
-            }
-            let value = field_value(
-                &snapshot.document,
-                &waiting.request.owner.matrix_id,
-                &waiting.request.owner.name_target,
-                waiting.request.field,
-            );
-            if value.as_ref() == Some(&waiting.request.value) {
-                finish_pending(pending, feedback, &waiting, MatrixEditState::Saved, None);
-            } else {
-                finish_pending(
-                    pending,
+            Settlement::Failed { message } => {
+                changed = true;
+                publish_feedback(
                     feedback,
-                    &waiting,
+                    &edit.request,
                     MatrixEditState::Failed,
-                    Some("The saved matrix does not contain the requested value. Review the current field and retry.".into()),
+                    Some(message),
                 );
             }
+            Settlement::Retired => {
+                changed = true;
+                if live {
+                    publish_feedback(
+                        feedback,
+                        &edit.request,
+                        MatrixEditState::Failed,
+                        Some("The matrix edit did not complete in the active session. Review the current value and retry.".into()),
+                    );
+                } else {
+                    feedback.set(Vec::new());
+                }
+            }
         }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => finish_pending(
-            pending,
-            feedback,
-            &waiting,
-            MatrixEditState::Failed,
-            Some(message),
-        ),
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
-            finish_pending(
-                pending,
-                feedback,
-                &waiting,
-                MatrixEditState::Failed,
-                Some("The matrix edit did not complete in the active session. Review the current value and retry.".into()),
-            );
-        }
+    }
+    if changed {
+        pending.set(remaining);
     }
 }
 
@@ -1424,84 +1390,22 @@ fn settle_pending_preset(
     let Some(waiting) = pending.read().clone() else {
         return;
     };
-    if runtime.scope().as_ref() != Some(&waiting.request.owner.scope)
-        || scope_generation != waiting.request.owner.scope_generation
-    {
-        pending.set(None);
-        return;
-    }
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
-    match outcome {
-        TerminalOutcome::Completed => {
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if matches!(model.durability, Durability::Failed { .. })
-                || matches!(
-                    model.lifecycle,
-                    Lifecycle::RecoveryRequired | Lifecycle::Closed
-                )
-            {
-                finish_action(
-                    pending,
-                    feedback,
-                    &waiting,
-                    MatrixEditState::Failed,
-                    Some("The preset edit completed, but the project did not save. Recover the project and retry.".into()),
-                );
-                return;
-            }
-            if snapshot.token == waiting.base_token
-                || snapshot.document.revision <= waiting.base_revision
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-            {
-                return;
-            }
-            let actual = snapshot
-                .document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == waiting.request.owner.matrix_id)
-                .and_then(matrix_preset_variant);
-            if actual.as_deref() == Some(waiting.expected_variant.as_str()) {
-                finish_action(pending, feedback, &waiting, MatrixEditState::Saved, None);
-            } else {
-                finish_action(
-                    pending,
-                    feedback,
-                    &waiting,
-                    MatrixEditState::Failed,
-                    Some("The saved matrix does not contain the requested preset. Review it and retry.".into()),
-                );
-            }
+    let live = runtime.scope().as_ref() == Some(&waiting.request.owner.scope)
+        && scope_generation == waiting.request.owner.scope_generation;
+    let (state, message) = match waiting.ticket.settlement(live) {
+        Settlement::Pending => return,
+        Settlement::Landed { .. } => (MatrixEditState::Saved, None),
+        Settlement::Failed { message } => (MatrixEditState::Failed, Some(message)),
+        Settlement::Retired if !live => {
+            pending.set(None);
+            return;
         }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => finish_action(
-            pending,
-            feedback,
-            &waiting,
+        Settlement::Retired => (
             MatrixEditState::Failed,
-            Some(message),
+            Some("The preset edit did not complete in the active session.".into()),
         ),
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
-            finish_action(
-                pending,
-                feedback,
-                &waiting,
-                MatrixEditState::Failed,
-                Some("The preset edit did not complete in the active session.".into()),
-            )
-        }
-    }
+    };
+    finish_action(pending, feedback, &waiting, state, message);
 }
 
 fn settle_pending_delete(
@@ -1513,41 +1417,11 @@ fn settle_pending_delete(
     let Some(waiting) = pending.read().clone() else {
         return;
     };
-    if runtime.scope().as_ref() != Some(&waiting.request.owner.scope)
-        || scope_generation != waiting.request.owner.scope_generation
-    {
-        pending.set(None);
-        return;
-    }
-    let Some(outcome) = waiting.outcome.borrow().clone() else {
-        return;
-    };
-    match outcome {
-        TerminalOutcome::Completed => {
-            let model = runtime.model();
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if snapshot.token == waiting.base_token
-                || snapshot.document.revision <= waiting.base_revision
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: snapshot.document.revision,
-                    })
-            {
-                return;
-            }
-            if snapshot
-                .document
-                .matrices
-                .iter()
-                .any(|matrix| matrix.id == waiting.request.owner.matrix_id)
-            {
-                pending.set(None);
-                runtime.report("The matrix delete completed without removing the selected matrix.");
-                return;
-            }
+    let live = runtime.scope().as_ref() == Some(&waiting.request.owner.scope)
+        && scope_generation == waiting.request.owner.scope_generation;
+    match waiting.ticket.settlement(live) {
+        Settlement::Pending => {}
+        Settlement::Landed { .. } => {
             let mut selected_context = selected_context;
             if selected_context.read().as_ref().is_some_and(|selected| {
                 selected.scope == waiting.request.owner.scope
@@ -1567,16 +1441,35 @@ fn settle_pending_delete(
             }
             pending.set(None);
         }
-        TerminalOutcome::Rejected(message)
-        | TerminalOutcome::PersistenceFailed(message)
-        | TerminalOutcome::BlockedByRecovery(message)
-        | TerminalOutcome::ExecutorFailed(message) => {
+        Settlement::Failed { message } => {
             pending.set(None);
             runtime.report(format!("Could not delete matrix: {message}"));
         }
-        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
+        Settlement::Retired => {
             pending.set(None);
-            runtime.report("The matrix delete did not complete in the active project.");
+            if live {
+                runtime.report("The matrix delete did not complete in the active project.");
+            }
+        }
+    }
+}
+
+fn settle_pending_unlink(
+    runtime: &Rc<Runtime>,
+    scope_generation: u64,
+    pending: &mut Signal<Option<EditTicket>>,
+) {
+    let Some(ticket) = pending.read().clone() else {
+        return;
+    };
+    // The unlink keeps no owner beyond its ticket: the Inspector unmounts with its selection.
+    let _ = scope_generation;
+    match ticket.settlement(true) {
+        Settlement::Pending => {}
+        Settlement::Landed { .. } | Settlement::Retired => pending.set(None),
+        Settlement::Failed { message } => {
+            pending.set(None);
+            runtime.report(format!("Could not unlink the halves: {message}"));
         }
     }
 }
@@ -1591,7 +1484,7 @@ fn finish_action(
     if pending
         .read()
         .as_ref()
-        .is_some_and(|current| current.operation_id == waiting.operation_id)
+        .is_some_and(|current| current.ticket.operation() == waiting.ticket.operation())
     {
         pending.set(None);
         publish_action_feedback(
@@ -1639,23 +1532,6 @@ fn publish_action_feedback(
         entries.remove(index);
     }
     feedback.set(entries);
-}
-
-fn finish_pending(
-    pending: &mut Signal<Option<PendingMatrixEdit>>,
-    feedback: &mut Signal<Vec<MatrixEditFeedback>>,
-    waiting: &PendingMatrixEdit,
-    state: MatrixEditState,
-    message: Option<String>,
-) {
-    if pending
-        .read()
-        .as_ref()
-        .is_some_and(|current| current.operation_id == waiting.operation_id)
-    {
-        pending.set(None);
-        publish_feedback(feedback, &waiting.request, state, message);
-    }
 }
 
 fn publish_feedback(
@@ -1943,7 +1819,7 @@ async fn prepare_preset_matrix(
     preset: MatrixPreset,
     orientation: SwitchOrientation,
     reversible: bool,
-) -> Result<(Matrix, Vec<PartDefinition>), String> {
+) -> Result<PreparedPreset, String> {
     let templates = crate::presentation::parts::load_matrix_templates(reversible).await?;
     let setup_preset = matrix_setup_preset(preset);
     let mut prepared = crate::matrix_setup_operation::prepare_matrix(
@@ -1971,9 +1847,12 @@ async fn prepare_preset_matrix(
             ));
         }
     }
-    let variant = preset_variant(preset, orientation, reversible);
-    let replacement = matrix_with_preset(matrix, &prepared.matrix, &variant, orientation);
-    Ok((replacement, prepared.definitions))
+    Ok(PreparedPreset {
+        matrix: prepared.matrix,
+        definitions: prepared.definitions,
+        variant: preset_variant(preset, orientation, reversible),
+        orientation,
+    })
 }
 
 /// Clone the whole accepted project, open it through the Session lifecycle, and apply the chosen
@@ -2126,7 +2005,7 @@ async fn duplicate_design_variant(
             .ok_or_else(|| {
                 "The copied project no longer contains the selected matrix.".to_owned()
             })?;
-        let (replacement, definitions) = prepare_preset_matrix(
+        let prepared = prepare_preset_matrix(
             &accepted.document,
             &matrix,
             &request.owner.scope.board_id,
@@ -2139,32 +2018,20 @@ async fn duplicate_design_variant(
             return Err("The matrix design variant owner closed.".into());
         }
         // Preparing the catalogue can take long enough for the user to open another project.
-        // Re-read the exact accepted clone before submitting any operation into Session.
-        let current =
-            exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
-        let operation_id = runtime.operation();
-        let outcome = runtime.observe_operation(operation_id);
-        runtime.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: current.document.revision,
-                transaction_id: format!("matrix-duplicate-variant-{}", operation_id.0),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix.id.clone()],
-                operation: EditOperation::SetMatrix {
-                    matrix: replacement,
-                    definitions: Some(definitions),
-                },
-            },
-        });
+        // Confirm the clone is still the active project before submitting any intent.
+        exact_variant_snapshot(&runtime, &accepted, &variant_id, &request.owner.scope)?;
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-matrix-variant",
+            Some("matrix variant".into()),
+            matrix_preset_resolver(matrix.id.clone(), prepared),
+        );
         wait_for_variant_edit(
             &runtime,
-            outcome,
-            &current,
+            &ticket,
+            &accepted,
             &variant_id,
             &request.owner.scope,
-            &matrix.id,
-            &preset_variant(request.preset, request.orientation, reversible),
             &alive,
         )
         .await?;
@@ -2224,8 +2091,6 @@ fn exact_variant_snapshot(
             current.session_epoch,
             &current.document.id,
         )
-        || current.token != expected.token
-        || current.document.revision != expected.document.revision
         || !current_scope.is_some_and(|scope| {
             scope.session_epoch == expected.session_epoch
                 && scope.document_id == variant_id
@@ -2238,15 +2103,12 @@ fn exact_variant_snapshot(
     Ok(current)
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn wait_for_variant_edit(
     runtime: &Rc<Runtime>,
-    outcome: OutcomeSlot,
+    ticket: &EditTicket,
     before: &boardstudio_application::AcceptedSnapshot,
     variant_id: &str,
     source_scope: &Scope,
-    matrix_id: &str,
-    expected_variant: &str,
     alive: &Rc<Cell<bool>>,
 ) -> Result<(), String> {
     for _ in 0..1_200 {
@@ -2271,33 +2133,13 @@ async fn wait_for_variant_edit(
         }) {
             return Err("A newer project open superseded the matrix design variant.".into());
         }
-        if let Some(outcome) = outcome.borrow_mut().take() {
-            if outcome != TerminalOutcome::Completed {
-                return Err(format!(
-                    "The matrix preset edit did not complete: {outcome:?}"
-                ));
+        match ticket.settlement(true) {
+            Settlement::Pending => {}
+            Settlement::Landed { .. } => return Ok(()),
+            Settlement::Failed { message } => return Err(message),
+            Settlement::Retired => {
+                return Err("The matrix preset edit did not complete for the copied project.".into());
             }
-            if model.lifecycle != Lifecycle::Ready
-                || current.document.revision <= before.document.revision
-                || model.durability
-                    != (Durability::Saved {
-                        revision: current.document.revision,
-                    })
-            {
-                return Err("The copied matrix preset was not durably saved.".into());
-            }
-            if !current.document.matrices.iter().any(|matrix| {
-                matrix.id == matrix_id
-                    && matrix.cells.iter().any(|cell| {
-                        cell.definition_id.as_deref() == Some(matrix.definition_id.as_str())
-                            && cell.variant.as_deref() == Some(expected_variant)
-                    })
-            }) {
-                return Err(
-                    "The copied matrix did not retain the requested assembly preset.".into(),
-                );
-            }
-            return Ok(());
         }
         gloo_timers::future::TimeoutFuture::new(25).await;
     }
