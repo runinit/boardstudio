@@ -2673,7 +2673,8 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let parts_assembly_orientation = use_signal(|| parts::SwitchOrientation::South);
+    let parts_state = parts_workspace::use_parts_workspace_state();
+    let parts_assembly_orientation = parts_state.assembly_orientation();
     let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
     let matrix_placement = objects::use_matrix_placement(
         runtime.clone(),
@@ -2820,17 +2821,9 @@ fn Editor() -> Element {
         adapter.generation,
     );
     let layer_visibility = use_context::<LayerVisibility>();
-    let parts_query: PartsQuery = use_signal(String::new);
-    let parts_selection: PartsSelection = use_signal(|| None);
-    let parts_assembly_selection = use_signal(|| None);
-    use_context_provider(|| parts::PartsAssemblySelection(parts_assembly_selection));
-    use_context_provider(|| parts::PartsAssemblyOrientation(parts_assembly_orientation));
-    let parts_selection_generation = use_signal(|| 0u64);
-    use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
-    let parts_preview_activation = use_signal(|| 0u64);
-    use_context_provider(|| parts::PartsPreviewActivation(parts_preview_activation));
-    let parts_generator_draft = use_signal(|| None::<parts::GeneratorPreviewDraft>);
-    use_context_provider(|| parts::GeneratorDraftStore(parts_generator_draft));
+    let parts_query: PartsQuery = parts_state.query();
+    let parts_selection: PartsSelection = parts_state.selected();
+    let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
     let mut keymap_layer_id = use_signal(|| "base".to_owned());
     let has_inspector = matches!(
@@ -3878,9 +3871,7 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let mut parts_selection = parts_selection;
-        let mut parts_selection_generation = parts_selection_generation;
-        let mut parts_preview_activation = parts_preview_activation;
+        let parts_state = parts_state;
         let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |module_id: String| {
@@ -3936,12 +3927,7 @@ fn Editor() -> Element {
                 range_part_ids: Vec::new(),
                 mode: SelectionMode::Replace,
             });
-            parts_selection.set(Some((
-                Some(scope.clone()),
-                format!("module:{module_definition_id}"),
-            )));
-            parts_selection_generation.with_mut(|value| *value = value.wrapping_add(1));
-            parts_preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+            parts_state.select_mounted_module(scope.clone(), &module_definition_id);
             browse_parts_workspace(
                 workspace,
                 objects_open,
