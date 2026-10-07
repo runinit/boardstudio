@@ -3,6 +3,8 @@ use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
+#[cfg(test)]
+use boardstudio_core::model::{EditCommand, EditPhase};
 use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc};
 use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
