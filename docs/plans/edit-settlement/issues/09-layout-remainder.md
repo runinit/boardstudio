@@ -1,6 +1,6 @@
 # 09: Layout remainder: constraints, old position Inspector, nudges and geometry scripts
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
