@@ -218,7 +218,7 @@ fn part_reference(document: &ProjectDoc, part_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
 
     fn document() -> ProjectDoc {
