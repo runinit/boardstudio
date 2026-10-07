@@ -48,14 +48,14 @@ the removed event.
 
 ## Acceptance criteria
 
-- [ ] No `Event` variant can carry a commit-phase command; `Event::Edit` is gone.
-- [ ] The three production preview paths still show and clear their previews (existing
+- [x] No `Event` variant can carry a commit-phase command; `Event::Edit` is gone.
+- [x] The three production preview paths still show and clear their previews (existing
   mounted tests pass; add one Session test that a preview edit displays and does not
   change the accepted document or history).
-- [ ] Every former direct test commit goes through `ResolveEdit`; no escape hatch exists.
-- [ ] Gesture commit, export and remap strictness are unchanged (their tests pass
+- [x] Every former direct test commit goes through `ResolveEdit`; no escape hatch exists.
+- [x] Gesture commit, export and remap strictness are unchanged (their tests pass
   untouched).
-- [ ] `CONTEXT.md` and `docs/architecture.md` describe the preview event and that
+- [x] `CONTEXT.md` and `docs/architecture.md` describe the preview event and that
   commits are intents.
 
 ## Verification
