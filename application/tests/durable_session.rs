@@ -4,7 +4,9 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::{CoreEngine, model::*};
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 fn fixture() -> ProjectDoc {
     let mut document = ProjectDoc::empty("project", "Project");
@@ -1925,9 +1927,6 @@ fn rejections_and_closing_carry_no_landing() {
     assert_eq!(outcome, TerminalOutcome::Completed);
     assert!(landing.is_none(), "closing is not a document landing");
 }
-
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 fn positioned_fixture(x: f64, y: f64) -> ProjectDoc {
     let mut document = fixture();

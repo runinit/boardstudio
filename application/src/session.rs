@@ -1472,14 +1472,14 @@ impl Session {
                 continue;
             }
             if let IntentKind::ResolveEdit { label, resolver } = &intent.kind {
-                let Some(accepted_snapshot) = self.model.accepted.as_ref().cloned() else {
-                    self.settle(
-                        intent.operation_id,
-                        TerminalOutcome::Rejected("no accepted document is open".into()),
-                        effects,
-                    );
-                    continue;
-                };
+                // Enqueue refuses edits without an accepted document, and nothing clears
+                // one afterwards, so the resolver always has the snapshot to read.
+                let accepted_snapshot = self
+                    .model
+                    .accepted
+                    .as_ref()
+                    .expect("queued edits always have an accepted document")
+                    .clone();
                 let landing = Landing {
                     revision: accepted_snapshot.document.revision,
                     token: accepted_snapshot.token,
