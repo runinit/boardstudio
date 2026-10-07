@@ -7766,6 +7766,11 @@ pub mod project_name_test_support {
             .observe(OperationId(runtime.next_operation.get()))
     }
 
+    /// Drive one real effect, returning its continuations so a test can pause between them.
+    pub async fn run_effect(runtime: &Rc<Runtime>, effect: Effect) -> Vec<Effect> {
+        runtime.run(effect).await
+    }
+
     pub async fn run_pending(runtime: &Rc<Runtime>) {
         let mut pending = VecDeque::from(std::mem::take(&mut *runtime.held_effects.borrow_mut()));
         while let Some(effect) = pending.pop_front() {
