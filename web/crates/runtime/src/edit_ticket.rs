@@ -42,10 +42,14 @@ pub enum Settlement {
     Retired,
 }
 
-/// The submit/observe port a ticket drives. Two adapters exist: the browser Runtime
-/// (wasm) and, for native tests, the in-process driver in [`tests`].
+/// The submit/observe port a ticket drives. Its read-only scope source retains Runtime
+/// access for the observation lifetime. Scope contains session epoch, document, board and
+/// instance identity; revisions and tokens do not affect ticket liveness. A mismatch
+/// retires observation permanently without cancelling the Session operation.
 pub trait EditTicketPort {
     fn allocate_operation(&self) -> OperationId;
+    /// Return a reader that remains valid after `begin` returns.
+    fn scope_source(&self) -> std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>>;
     fn observe(&self, operation: OperationId) -> (OutcomeSlot, LandingSlot);
     fn submit(&self, event: Event);
 }
@@ -55,6 +59,9 @@ pub struct EditTicket {
     outcome: OutcomeSlot,
     landing: LandingSlot,
     feature: Option<String>,
+    captured_scope: Option<boardstudio_application::Scope>,
+    current_scope: std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>>,
+    retired: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
 impl Clone for EditTicket {
@@ -65,20 +72,26 @@ impl Clone for EditTicket {
             outcome: self.outcome.clone(),
             landing: self.landing.clone(),
             feature: self.feature.clone(),
+            captured_scope: self.captured_scope.clone(),
+            current_scope: self.current_scope.clone(),
+            retired: self.retired.clone(),
         }
     }
 }
 
 impl EditTicket {
-    /// Begin a pending edit for `resolver`. The outcome and landing are observed before
-    /// the event is submitted, so a synchronous settlement cannot be missed. `feature` is
-    /// the noun used in failure wording (for example `"layout"`).
+    /// Begin a pending edit for `resolver`. Scope is captured before submission and the
+    /// outcome and landing are observed before the event is submitted, so a synchronous
+    /// settlement cannot be missed. Clones share the latched retirement state. `feature`
+    /// is the noun used in failure wording (for example `"layout"`).
     pub fn begin(
         port: &dyn EditTicketPort,
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
     ) -> Self {
+        let current_scope = port.scope_source();
+        let captured_scope = current_scope();
         let operation = port.allocate_operation();
         let (outcome, landing) = port.observe(operation);
         port.submit(Event::ResolveEdit {
@@ -91,6 +104,9 @@ impl EditTicket {
             outcome,
             landing,
             feature,
+            captured_scope,
+            current_scope,
+            retired: std::rc::Rc::new(std::cell::Cell::new(false)),
         }
     }
 
@@ -102,14 +118,18 @@ impl EditTicket {
     /// Whether the edit has not settled yet. One-shot actions disable their control while
     /// this answers true.
     pub fn is_pending(&self) -> bool {
-        self.outcome.borrow().is_none()
+        self.is_live() && self.outcome.borrow().is_none()
     }
 
-    /// Read the settlement. `owner_is_live` answers whether the ticket's owner (the
-    /// selection, panel or project the edit belongs to) is still current; a departed owner
-    /// retires the ticket whatever the outcome.
+    /// Read the settlement. `owner_is_live` answers only whether the panel's selection or
+    /// mounted target still owns this observation; Scope lineage is checked by the ticket.
+    /// A departed owner permanently retires the ticket whatever the outcome.
     pub fn settlement(&self, owner_is_live: bool) -> Settlement {
         if !owner_is_live {
+            self.retired.set(true);
+            return Settlement::Retired;
+        }
+        if !self.is_live() {
             return Settlement::Retired;
         }
         let Some(outcome) = self.outcome.borrow().clone() else {
@@ -117,6 +137,17 @@ impl EditTicket {
         };
         let landing = *self.landing.borrow();
         settlement_of(outcome, landing, self.feature.as_deref())
+    }
+
+    fn is_live(&self) -> bool {
+        if self.retired.get() {
+            return false;
+        }
+        if (self.current_scope)() != self.captured_scope {
+            self.retired.set(true);
+            return false;
+        }
+        true
     }
 }
 
@@ -185,6 +216,11 @@ mod runtime_port {
             }
         }
 
+        fn scope_source(&self) -> std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>> {
+            let runtime = self.clone();
+            std::rc::Rc::new(move || Runtime::scope(&runtime))
+        }
+
         fn submit(&self, event: Event) {
             Runtime::submit(self, event)
         }
@@ -196,7 +232,8 @@ mod tests {
     use super::*;
     use boardstudio_application::{EditResolver, Event, Landing, Resolution, SnapshotToken};
     use boardstudio_core::model::{
-        EditOperation, EditPhase, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
+        Board, EditOperation, EditPhase, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side,
+        Vec2,
     };
     use std::rc::Rc;
 
@@ -243,6 +280,29 @@ mod tests {
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
             document: fixture_document(id, name),
+        });
+        runtime
+    }
+
+    fn runtime_with_two_boards() -> Rc<crate::runtime::Runtime> {
+        let mut document = fixture_document("two-board-project", "Two board project");
+        document.boards = ["board-1", "board-2"]
+            .into_iter()
+            .map(|id| Board {
+                id: id.into(),
+                name: id.into(),
+                outline_ids: vec![],
+                part_ids: vec![],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            })
+            .collect();
+        let runtime = crate::runtime::Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document,
         });
         runtime
     }
@@ -400,8 +460,144 @@ mod tests {
             rename_resolver("Queued edit"),
         );
         runtime.release_core();
-        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
         assert_eq!(queued.settlement(true), Settlement::Retired);
+    }
+
+    #[test]
+    fn a_scope_departure_retires_every_ticket_clone_permanently() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Old project edit"),
+        );
+        let clone = ticket.clone();
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test-2", "Second project"),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        runtime.release_core();
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(clone.settlement(true), Settlement::Retired);
+
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test", "Ticket test again"),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(clone.settlement(true), Settlement::Retired);
+    }
+
+    #[test]
+    fn returning_to_the_captured_board_scope_does_not_revive_observation() {
+        let runtime = runtime_with_two_boards();
+        let captured_scope = runtime.scope().unwrap();
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Edit while navigating"),
+        );
+        let unobserved_clone = ticket.clone();
+
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: "board-2".into(),
+            instance_id: None,
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: "board-1".into(),
+            instance_id: None,
+        });
+        assert_eq!(runtime.scope(), Some(captured_scope));
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(unobserved_clone.settlement(true), Settlement::Retired);
+        runtime.release_core();
+    }
+
+    #[test]
+    fn open_waits_for_a_held_save_then_retires_the_landed_ticket() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.hold_next_save();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Saved before open"),
+        );
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        assert!(runtime.save_entered());
+
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test-2", "Second project"),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        runtime.release_save();
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+    }
+
+    #[test]
+    fn close_drains_held_core_work_while_the_accepted_scope_remains_current() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        let captured_scope = runtime.scope();
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Complete before close"),
+        );
+
+        runtime.submit(Event::Close {
+            operation_id: runtime.operation(),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        assert_eq!(runtime.scope(), captured_scope);
+        assert_eq!(
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Closing
+        );
+
+        runtime.release_core();
+        assert_eq!(
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Closed
+        );
+        assert_eq!(runtime.scope(), captured_scope);
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+    }
+
+    #[test]
+    fn same_scope_revision_changes_and_owner_departure_have_separate_lifetimes() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("First revision"),
+        );
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        let newer = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("A later revision"),
+        );
+        assert_eq!(newer.settlement(true), Settlement::Landed { revision: 2 });
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        assert_eq!(ticket.settlement(false), Settlement::Retired);
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
     }
 
     #[test]
