@@ -36,6 +36,10 @@ plan and completion criteria. It is an assessment, not a completed migration.
 - [Fixed edited outlines](adr/0001-fixed-edited-outlines.md) and
   [linked outline refinements](adr/0002-linked-outline-refinements.md) are accepted
   domain decisions. Their acceptance does not establish implementation completion.
+- Edits: [queued edits resolve at execution](adr/0005-resolve-queued-edits-at-execution.md)
+  (commits are intents; the direct event carries previews only) and
+  [whole-document replacement is for import and recovery](adr/0006-replace-document-for-import-and-recovery.md),
+  the direction of the [typed Core edits](plans/typed-core-edits/map.md) effort.
 - [Mirrored layout pairs](design/mirrored-layout-pair.md) describes the interaction
   and ownership contract.
 - [Gasket case redesign](design/gasket-case-redesign.md) preserves the agreed

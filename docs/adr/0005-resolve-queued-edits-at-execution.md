@@ -37,6 +37,34 @@ Once an edit has landed, panels do not re-check the accepted document for their
 requested value: the field shows the accepted value, including any value Core
 normalised.
 
+## Amendment: commits are intents; the direct edit event carries previews only (2026-10-07)
+
+After the migration every product commit is submitted as intent and settles through
+an edit ticket. Only three production paths still use the direct edit event, all for
+[edit previews](../../CONTEXT.md): the old position Inspector, the outline perimeter
+and the Layout transform toolbar. The direct event refreshes its base revision, so a
+commit sent through it with a whole-document payload would silently restore values
+that landed after the payload was built.
+
+On 2026-10-07 the user chose to make that unrepresentable
+([ticket 18](../plans/edit-settlement/issues/18-decide-restrict-event-edit.md)).
+The direct edit event becomes preview-only at the type level: it carries no phase,
+and Session builds the preview command itself. Commits, in product code and tests
+alike, go through `ResolveEdit`. There is no test-only escape hatch; test helpers
+wrap a fixed command in a resolver, so tests exercise the route production uses.
+Session's captured gesture commit, export commits and protected electrical remap
+review are separate events and keep their strict captured-revision checks.
+
+This guards the direct path only. A resolver can still return a whole-document
+replacement built from state it captured outside its snapshot argument; narrowing
+what resolvers return is the direction recorded in
+[ADR-0006](0006-replace-document-for-import-and-recovery.md).
+
+Rejected for this question: keeping the rule as a documented convention (no
+enforcement), and rejecting commits at runtime while the type still allows them (the
+mistake surfaces in tests or use, not at compile time). Removing the revision refresh
+from the direct event was not needed once it carries previews only.
+
 ## Considered Options
 
 - **Reject stale edits** (strict base revision): simple, but rapid entry across

@@ -1,5 +1,10 @@
 # Edit settlement: review and decision brief
 
+> **Answered 2026-10-07.** The user decided tickets 18 and 19; see their `## Answer`
+> sections, the [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-commits-are-intents-the-direct-edit-event-carries-previews-only-2026-10-07)
+> and [ADR-0006](../../adr/0006-replace-document-for-import-and-recovery.md). The brief
+> below is kept as the evidence those decisions used.
+
 Updated on 2026-10-07 after ticket 15 merged (`d13f0dd1`) and ticket 17's source
 cleanup. The ticket Outcomes carry final checks and reviews. No decisions in
 tickets 18 or 19 are resolved here.

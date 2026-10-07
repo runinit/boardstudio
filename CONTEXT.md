@@ -112,3 +112,9 @@ always queue; the latest committed value wins.
 An edit that creates, removes, imports, uploads or applies something. Committing
 it again does it again, so its control is unavailable while it is pending.
 _Avoid_: command, button edit
+
+**Edit preview**:
+A transient display of what a drag or typed value would change, shown before the
+user commits. It never becomes part of the accepted document or Undo history;
+committing submits a pending edit instead.
+_Avoid_: live edit, uncommitted edit

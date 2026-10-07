@@ -1,6 +1,6 @@
 # 19: Which remaining whole-document resolvers become typed Core edits first?
 
-Status: ready-for-human
+Status: resolved
 Type: grilling
 Blocked by: 17
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [architecture review, candidate 2](../../../investigations/architecture-review-2026-10-06.html)
@@ -26,6 +26,29 @@ Using ticket 17's `replace-document-resolvers.md`, decide:
 Call the `grilling` and `domain-modeling` skills. Resolve with `## Answer`; if a new
 effort is chosen, its map is the destination of that effort, not this one.
 
+
+
+## Answer
+
+Decided with the user on 2026-10-07 (grilling session), recorded as
+[ADR-0006](../../../adr/0006-replace-document-for-import-and-recovery.md).
+
+- **Priority for the first slice:** the smallest bounded demonstration, so the pattern
+  (operation shape, precise changed IDs, outline-affecting classification, Session/Core
+  contract tests, resolver migration) is settled before larger concepts copy it.
+  Frequency-first and domain-rule-first were considered; both are larger first designs
+  and usage frequency is not measured.
+- **First concept:** `SetWiringMode { board_id, mode }`, replacing the PCB wiring-mode
+  resolver. Project and board renames are the likely next ticket.
+- **New effort:** yes, [typed Core edits](../../typed-core-edits/map.md). Its map
+  specifies only the `SetWiringMode` ticket; the other inventory groups are unspecified
+  frontier. It starts after [ticket 20](20-preview-only-direct-edit-event.md).
+- **`ReplaceDocument`:** reserved for import and recovery as the long-term direction,
+  with no enforcement date. Archive open/import and recovery reopen, footprint import and
+  routed-board reference upload are permitted by name; every other remaining
+  replacement (physical setup, script apply, generator apply and model upload, assembly
+  placement, reviewed wiring plan, matrix and mirrored-half creation, and the rest of the
+  inventory) becomes a typed intent or gets its own decision to join the permitted list.
 
 ## Comments
 
