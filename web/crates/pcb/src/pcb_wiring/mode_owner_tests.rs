@@ -1267,3 +1267,56 @@ fn queued_pin_choice_keeps_the_prior_edit_and_retires_with_its_board() {
         }
     }
 }
+
+#[test]
+fn queued_apply_keeps_the_prior_edit_and_retires_when_its_target_changes_first() {
+    type Change = fn(&mut ProjectDoc);
+    fn set_direct_mode(document: &mut ProjectDoc) {
+        let hardware = document.hardware.get_or_insert_with(Default::default);
+        match hardware
+            .boards
+            .iter_mut()
+            .find(|configuration| configuration.board_id == "left")
+        {
+            Some(configuration) => configuration.mode = ElectricalMode::Direct,
+            None => hardware.boards.push(ElectricalBoardConfiguration {
+                board_id: "left".into(),
+                mode: ElectricalMode::Direct,
+                ..Default::default()
+            }),
+        }
+    }
+    let cases: [(Change, Option<&str>); 3] = [
+        (mark_unrelated, None),
+        (remove_left_board, Some("The board was deleted.")),
+        (
+            set_direct_mode,
+            Some("The board wiring mode changed. Resolve the plan again."),
+        ),
+    ];
+    for (first_edit, retired_reason) in cases {
+        let (probe, _dom) = mounted();
+        let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
+        assert!(actions.editable);
+
+        probe.runtime.hold_next_core();
+        let first = queue_document_edit(&probe.runtime, first_edit);
+        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
+        actions.on_apply.call(actions.identity.clone().unwrap());
+        let apply = latest_edit_slot(&probe.runtime);
+        assert!(apply.borrow().is_none(), "the apply waits for Core");
+
+        probe.runtime.release_core();
+        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
+        match retired_reason {
+            Some(reason) => assert_eq!(
+                *apply.borrow(),
+                Some(TerminalOutcome::Rejected(reason.into()))
+            ),
+            None => {
+                assert_eq!(*apply.borrow(), Some(TerminalOutcome::Completed));
+                assert!(has_unrelated_edit(&probe.runtime));
+            }
+        }
+    }
+}
