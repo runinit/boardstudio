@@ -28,6 +28,6 @@
 
 ## Tooling
 
-- Code questions and before edits: `codegraph_explore` before grep or reading files; name symbols or files in the query.
+- Code questions, call paths and blast radius: GitNexus (indexed as `boardstudio`). Use `query` for concepts and flows, `context` for a named symbol, and `impact` (upstream) before changing a shared symbol's signature or behaviour; the `gitnexus-*` skills cover each workflow. A `risk: UNKNOWN` or empty caller set is unanswered, not safe: confirm with a text search before changing or deleting. Rename symbols with GitNexus `rename`, not find-and-replace.
 - Library, framework, or API docs (Rust crates, wasm-bindgen, web-sys, browser APIs): Context7 (`resolve-library-id`, then `query-docs`) rather than memory or web search.
 - Past decisions, "why did we do X", prior debugging: `memsearch:memory-recall` before re-deriving. Skip it for questions about current code state. Where memory disagrees with `CONTEXT.md`, ADRs, or `docs/plans/`, the docs win.
