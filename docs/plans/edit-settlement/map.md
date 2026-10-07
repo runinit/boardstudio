@@ -70,6 +70,11 @@ which remaining whole-document replacements become typed Core edits.
   New/Apply submit intent through the edit ticket; constraint set/remove covered by
   queued tests: [issues/09-layout-remainder.md](issues/09-layout-remainder.md).
 
+- 16 Case bodies, mechanical settings and project/board names resolve against accepted
+  state and settle through edit tickets; fields queue freely, action guards are scoped
+  to their controls, and the mechanical closure landing comparison is removed:
+  [issues/16-case-and-metadata.md](issues/16-case-and-metadata.md).
+
 ## Not yet specified
 
 Nothing. The cluster migrations are now tickets, sliced from the

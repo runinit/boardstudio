@@ -1,6 +1,6 @@
 # 16: Case, mechanical settings and project/board names land through resolution
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)
@@ -91,11 +91,11 @@ From [inventory.md](../inventory.md) (line numbers at `3368825`, orientation onl
 
 ## Acceptance criteria
 
-- [ ] Rapid test: board rename then an unrelated Layout edit queued behind it; both survive.
-- [ ] Rapid test: library rename while a Parts edit is queued keeps the Parts edit.
-- [ ] Two case body field edits committed back-to-back both survive; Undo removes them in order.
-- [ ] The mechanical closure check is either deleted or moved to a resolver precondition or independent status, with the reasoning in the Outcome.
-- [ ] `PendingBodyEdit` and `expected_matches` (as a landing check) are gone; no action sends `Event::Edit` commits directly.
+- [x] Rapid test: board rename then an unrelated Layout edit queued behind it; both survive.
+- [x] Rapid test: library rename while a Parts edit is queued keeps the Parts edit.
+- [x] Two case body field edits committed back-to-back both survive; Undo removes them in order.
+- [x] The mechanical closure check is either deleted or moved to a resolver precondition or independent status, with the reasoning in the Outcome.
+- [x] `PendingBodyEdit` and `expected_matches` (as a landing check) are gone; no action sends `Event::Edit` commits directly.
 
 ## Verification
 
@@ -110,3 +110,57 @@ wasm-pack test --headless --chrome web/crates/layout --locked --lib
 ## Out of scope
 
 - A case plan module or typed mechanical edits (review candidates 4 and 2).
+
+
+## Outcome
+
+Implemented in `3e4f898b9`, `1813508fe` and `171f9f8f9`. Case bodies, mechanical settings, setup-guide project rename, library
+project rename and board rename now submit accepted-snapshot resolvers through
+`EditTicket`. Scope and target checks retire ineligible work. Field commits remain
+editable during Applying/Saving, retain separate tickets, and preserve unrelated
+accepted changes. One-shot controls use action-specific pending feedback. Case
+mount previews and gesture ownership remain unchanged.
+
+`PendingBodyEdit`, mechanical `ExpectedCommit`/`ExpectedSettings`/`ClosureEvidence`
+and `expected_matches` are deleted. The old mechanical check compared the requested
+settings and generated closure-part rows/membership with the landed document. It
+was an equality-based landing check, not a test that the physical design could
+satisfy clearance constraints. Removing it needs no product decision. Mechanical
+planning now projects the proposed accepted-based document with Core's pure
+mechanical functions and the accepted scene's contours before submission; Core
+findings remain independent accepted-design feedback. Catalogue loading remains
+asynchronous, with requests dispatched in commit order after loading completes.
+
+Regression evidence: library rename first overwrote the earlier Parts definition
+name; queued board rename was ignored during Applying; the second authored body
+field stayed at its old value; the mechanical controller rejected its second
+field. Each failed for that expected reason before the migration, then passed
+against real Session/Core with accepted values and ordered Undo verified. A mounted
+pending-action test also failed when unrelated buttons were disabled, then passed
+with control-specific guards. Numeric and text Escape/blur regressions were corrected without preventing
+another edited draft from committing; the text test confirms same-field commits
+before acknowledgment. A further regression first showed an older landing replacing
+active text (`M5` became `M4`); accepted-value synchronization now preserves dirty
+numeric and text drafts, and the mounted test passes.
+
+Review: Standards — no documented breaches or required changes, including the
+follow-up. Spec — the remaining mounted mechanical global busy guard was removed,
+and pending action guards were narrowed. Project rename resolvers explicitly check
+session/document identity. No remaining clear spec violations on rereview. The
+same-field duplicate guard is cleared by input; it does not prevent newer commits.
+
+Verification: application 29 passed; runtime 103 passed; Case 56 passed; library 12
+passed; Layout 93 passed; presentation Component Inspector 20 and Layout remainder
+6 passed. `check.py typecheck repo`, `check-wasm-tests.py` and `git diff --check`
+passed. After rebasing onto agent A's Parts repair (`7e520799d`), typecheck and repo
+checks pass with no temporary Parts overrides; those overrides were never staged.
+
+Blocked environment/baseline gates: `check.py test` reaches the missing
+`step-oracle/Cargo.toml` fixture and fails there. This checkout has no `check.py lint`
+step; targeted WASM Clippy with `-D warnings` stops at the pre-existing Application
+`Resolution` large-enum-variant warning. These blockers were not changed by this
+ticket. The affected browser subsets of `check.py browser` were run as listed above.
+
+Follow-up: ticket 17 remains gated on all cluster tickets 08–16 being resolved.
+The array-valued mechanical adapters remain as specified; typed Core mechanical
+commands are outside this ticket.
