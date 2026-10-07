@@ -1,8 +1,6 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
 use crate::pcb_wiring_mode_operation::electrical_preview_request;
-#[cfg(any(test, feature = "test-support"))]
-use boardstudio_application::GenerationStatus;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
     ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
@@ -442,15 +440,6 @@ pub struct Runtime {
     native_model_jobs: RefCell<BTreeSet<String>>,
     archive_export_options: ArchiveExportOptions,
     #[cfg(any(test, feature = "test-support"))]
-    definition_name_test_state: RefCell<Option<(AcceptedSnapshot, Option<Scope>)>>,
-    // Preserve accepted scope/event fixtures while mounting transient ReadModel states.
-    #[cfg(any(test, feature = "test-support"))]
-    definition_name_test_model: RefCell<Option<ReadModel>>,
-    #[cfg(any(test, feature = "test-support"))]
-    definition_name_test_events: RefCell<Vec<Event>>,
-    #[cfg(any(test, feature = "test-support"))]
-    definition_name_test_generation: RefCell<Option<GenerationStatus>>,
-    #[cfg(any(test, feature = "test-support"))]
     firmware_export_test_context: RefCell<Option<FirmwareExportTestContext>>,
     #[cfg(any(test, feature = "test-support"))]
     firmware_export_test_effects: RefCell<Vec<Effect>>,
@@ -551,14 +540,6 @@ impl Runtime {
             native_model_jobs: RefCell::new(BTreeSet::new()),
             archive_export_options: ArchiveExportOptions::default(),
             #[cfg(any(test, feature = "test-support"))]
-            definition_name_test_state: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            definition_name_test_model: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
-            definition_name_test_events: RefCell::new(Vec::new()),
-            #[cfg(any(test, feature = "test-support"))]
-            definition_name_test_generation: RefCell::new(None),
-            #[cfg(any(test, feature = "test-support"))]
             firmware_export_test_context: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
             firmware_export_test_effects: RefCell::new(Vec::new()),
@@ -637,10 +618,6 @@ impl Runtime {
             return context.scope.clone();
         }
         #[cfg(any(test, feature = "test-support"))]
-        if let Some((_, scope)) = self.definition_name_test_state.borrow().as_ref() {
-            return scope.clone();
-        }
-        #[cfg(any(test, feature = "test-support"))]
         if let Some((_, scope)) = self
             .layout_component_inspector_test_state
             .borrow()
@@ -659,10 +636,6 @@ impl Runtime {
     }
     pub fn model(&self) -> ReadModel {
         #[cfg(any(test, feature = "test-support"))]
-        if let Some(model) = self.definition_name_test_model.borrow().as_ref() {
-            return model.clone();
-        }
-        #[cfg(any(test, feature = "test-support"))]
         if let Some(context) = self.firmware_export_test_context.borrow().as_ref() {
             return ReadModel {
                 accepted: Some(context.accepted.clone()),
@@ -675,23 +648,6 @@ impl Runtime {
                     .scope
                     .as_ref()
                     .and_then(|scope| scope.instance_id.clone()),
-                ..ReadModel::default()
-            };
-        }
-        #[cfg(any(test, feature = "test-support"))]
-        if let Some((snapshot, scope)) = self.definition_name_test_state.borrow().as_ref() {
-            return ReadModel {
-                accepted: Some(snapshot.clone()),
-                active_board_id: scope
-                    .as_ref()
-                    .map(|scope| scope.board_id.clone())
-                    .unwrap_or_default(),
-                active_instance_id: scope.as_ref().and_then(|scope| scope.instance_id.clone()),
-                generation: self
-                    .definition_name_test_generation
-                    .borrow()
-                    .clone()
-                    .unwrap_or(GenerationStatus::Idle),
                 ..ReadModel::default()
             };
         }
@@ -1841,11 +1797,6 @@ impl Runtime {
                 .push(event);
             return;
         }
-        #[cfg(any(test, feature = "test-support"))]
-        if self.definition_name_test_state.borrow().is_some() {
-            self.definition_name_test_events.borrow_mut().push(event);
-            return;
-        }
         if matches!(&event, Event::StartGeneration { .. })
             && self.mechanical_mount_initialization_pending()
         {
@@ -1894,16 +1845,6 @@ impl Runtime {
             return;
         }
         self.drive(effects);
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn set_definition_name_test_state(&self, snapshot: AcceptedSnapshot, scope: Option<Scope>) {
-        *self.definition_name_test_state.borrow_mut() = Some((snapshot, scope));
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn set_definition_name_test_model(&self, model: ReadModel) {
-        *self.definition_name_test_model.borrow_mut() = Some(model);
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -1991,11 +1932,6 @@ impl Runtime {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn set_definition_name_test_generation(&self, generation: GenerationStatus) {
-        *self.definition_name_test_generation.borrow_mut() = Some(generation);
-    }
-
-    #[cfg(any(test, feature = "test-support"))]
     fn set_firmware_export_test_context(
         &self,
         accepted: AcceptedSnapshot,
@@ -2052,15 +1988,6 @@ impl Runtime {
         std::mem::take(&mut *self.firmware_export_test_deliveries.borrow_mut())
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn take_definition_name_test_event(&self) -> Option<Event> {
-        let mut events = self.definition_name_test_events.borrow_mut();
-        if events.is_empty() {
-            None
-        } else {
-            Some(events.remove(0))
-        }
-    }
     fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
         let previous_scope = self.scope();
         let previous_snapshot = self
