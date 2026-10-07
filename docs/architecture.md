@@ -30,6 +30,10 @@ second writable document store. Worker replies, saves and exports retain their
 captured project, board and revision identities so stale operations cannot replace
 the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
 
+Product edits submit accepted-state intents through `EditTicket`; previews and
+strict captured operations keep their existing routes (see the
+[edit-settlement contract and resolver inventory](plans/edit-settlement/map.md)).
+
 The page is split into crates by workspace so each stays a manageable size. Lower
 crates never depend on higher ones:
 

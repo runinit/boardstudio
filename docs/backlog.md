@@ -9,6 +9,10 @@ For new work, record the observed problem, affected behavior and completion
 condition. Update the entry when the behavior is verified. Ordinary development
 uses the commands in the root README.
 
+Layout queued coordinate edits are resolved by the
+[edit-settlement tracer bullet](plans/edit-settlement/issues/06-layout-inspector-tracer-bullet.md)
+and subsequent cluster migrations; they are no longer deferred work.
+
 - **Stale edit previews:** an `Event::Edit` preview queued behind a commit is rebased by Session but keeps its old payload, so it is drawn over the newly accepted document until the next commit or a matching clear (`application/src/session.rs`, preview handling). It never changes the accepted document. Affects the old position Inspector, transform drag and outline perimeter previews. The [edit settlement plan](plans/edit-settlement/map.md) leaves previews unchanged; reproduce before repairing.
 
 - **Undo/Redo:** investigate outstanding history behavior separately. Existing controls and tests remain; earlier qualification was deferred.

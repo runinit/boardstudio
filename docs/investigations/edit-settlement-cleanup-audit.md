@@ -1,44 +1,82 @@
-# Edit-settlement cleanup audit (provisional)
+# Edit-settlement cleanup audit
 
-Audited revision: `e877dc11532573675d7b2be6dbe0af739b0432ba` (worktree `edit-settlement-b`, 2026-10-07). This is a source audit only. Ticket 15 is still owned by the user's separate worktree, so the Parts remainder findings below are provisional and must be refreshed after that ticket lands. Ticket 17 explicitly depends on tickets 08–16 and asks to use their Outcomes as migration evidence; this report distinguishes those claims from what this checkout currently contains ([ticket 17](../plans/edit-settlement/issues/17-cleanup.md), line 8).
+Source refreshed on 2026-10-07 after ticket 15 merged (`d13f0dd1`), during
+[ticket 17](../plans/edit-settlement/issues/17-cleanup.md). The ticket Outcome records
+final checks and reviews; this report classifies retained source responsibilities.
 
-## Remaining `Pending` names
+## One settlement path
 
-A broad `struct Pending` search is not a deletion list. The inspected declarations below are in production module scope, not stale test-only code. For layout objects, matrix and outline, these are ticket-backed pending UI state. Parts entries remain provisional under ticket 15; their exact state semantics are not audited here.
+All product commits use accepted-state resolvers and `EditTicket`; no product
+`Event::Edit` commit remains. Direct web calls are preview paths or deliberate
+Session/Core test fixtures. In particular:
 
-| Area | Remaining `Pending` declaration(s) | Source |
-|---|---|---|
-| Layout objects | `PendingAlign`, `PendingPair`, `PendingResize`, `PendingExistingHalf`, `PendingPlacement`, `PendingBoard` | [layout align](../../web/crates/layout/src/objects/layout_align_controller.rs#L23), [mirrored pair](../../web/crates/layout/src/objects/mirrored_pair_controller.rs#L23), [key size](../../web/crates/layout/src/objects/keycap_size_controller.rs#L81), [existing half](../../web/crates/layout/src/objects/existing_half.rs#L58), [matrix placement](../../web/crates/layout/src/objects/matrix_placement_controller.rs#L22), [board setup](../../web/crates/layout/src/objects/board_setup_controller.rs#L29) |
-| Matrix and outline | `PendingTransformEdit`, `PendingSetup`, `PendingMatrixEdit`, `PendingMatrixPreset`, `PendingMatrixDelete`, outline `Pending` | [transform](../../web/crates/layout/src/objects/matrix_transform_controller.rs#L25), [setup](../../web/crates/layout/src/objects/matrix_setup_controller.rs#L21), [inspector](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L29), [outline](../../web/crates/layout/src/outline_lifecycle.rs#L301) |
-| Parts, ticket 15 | `PendingCreate`, `PendingImport`, `PendingModelEdit`, `PendingModuleProfile`, `PendingSave`, `PendingProfileEdit`, `PendingApply` | [new component](../../web/crates/parts/src/parts_new_component.rs#L17), [footprint import](../../web/crates/parts/src/parts_import_footprint.rs#L228), [model editor](../../web/crates/parts/src/parts/component_model_editor.rs#L37), [module profile](../../web/crates/parts/src/parts/module_profile_editor.rs#L105), [assembly editor](../../web/crates/parts/src/parts/assembly_editor.rs#L28), [mechanical profile](../../web/crates/parts/src/parts/mechanical_profile.rs#L207), [generator settings](../../web/crates/parts/src/parts/generator_settings.rs#L68) |
+- The old position Inspector's preview helper receives Preview; Apply/Enter use
+  the resolver in `layout_component_edits.rs`.
+- Transform toolbar preview calls pass Preview. Gesture-end commits use
+  `commit_transform_drag`, which submits an accepted-state resolver.
+- Outline perimeter preview dispatch is explicitly separated from
+  `action_resolver` commits.
+- Parts create/import/models/generators/profiles/module attach/assembly commits
+  were migrated by ticket 15; none is a remaining direct-event exception.
 
-The non-Parts declarations were verified in production module scope, before test-only modules (the matrix-inspector tests begin at [matrix_inspector_controller.rs](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L2425)). The matrix/object/outline owners store `EditTicket` values and align with migrated per-action pending controls. Ticket 11 and 12 report removal of old snapshots, outcomes and content checks; the ticket-backed UI wrappers here do not establish a source/Outcome discrepancy ([ticket 11](../plans/edit-settlement/issues/11-matrix-and-transform.md), lines 138; [ticket 12](../plans/edit-settlement/issues/12-outline.md), line 119). Parts entries, including `PendingModuleProfile` which stores an `OutcomeSlot`, remain unverified under ticket 15.
+Session's captured gesture route, export capture/identity checks and protected
+remap keep their strict semantics. Ticket 18 will decide whether to restrict the
+public direct-event API; source migration does not itself enforce that restriction.
 
-Ticket 15's still-open Parts remainder explicitly owns `PendingCreate`, `PendingImport`, `PendingModelEdit`, `PendingApply`, `PendingProfileEdit`, `PendingSave` and the related direct product commits; do not edit those during this audit. Its inventory maps the affected actions to ticket items 59, 62–68 and 71–73 ([ticket 15](../plans/edit-settlement/issues/15-parts-remainder.md), line 63). Some named pending values can also represent required state (for example draft/task state) rather than settlement; inspect field usage before removal.
+## Retained state is not a second settlement implementation
 
-Protected/unrelated `Pending` structures confirmed by source and ticket 17: Core and CAD-worker request maps ([core_client.rs](../../web/crates/host/src/host/core_client.rs#L108), [cad_worker.rs](../../web/crates/host/src/cad_worker.rs#L78)); keycaps navigation `PendingLayoutFit` ([keycaps_navigation.rs](../../web/crates/keycaps/src/keycaps_navigation.rs#L104)); layout-viewer `PendingPreview` ([layout_viewer.rs](../../web/crates/layout/src/layout_viewer.rs#L484)); UI model `PendingNewKeyboard` ([state.rs](../../web/crates/ui-model/src/state.rs#L146)); and strict electrical `PendingProtectedRemap` ([remap.rs](../../web/crates/pcb/src/pcb_wiring/remap.rs#L43)). Ticket 14 explicitly excludes remap and preserves its captured-revision check ([ticket 14](../plans/edit-settlement/issues/14-pcb-wiring-modules-physical-setup.md), line 16). `PendingPart` in [part_placement.rs](../../web/crates/layout/src/part_placement.rs#L163) is placement-domain data, not one of the old commit settlement owners; check its uses independently.
+Layout's ticket-backed action records now have descriptive `*Submission` names:
+board, alignment, mirrored pair, existing half, placement, keycap size, matrix
+setup/edit/preset/delete/transform and outline actions. Apply-to-key retains a
+`KeyEditOwner`. These records carry owner identity, tickets or post-landing UI
+state; they do not infer success from revision/content equality.
 
-## `Event::Edit` commit, preview, and strict-path audit
+The remaining `Pending*` declarations have different responsibilities and stay:
+Core/CAD worker request maps; `PendingLayoutFit` for navigation;
+`PendingNewKeyboard` for project creation UI; `PendingProtectedRemap` for strict
+reviewed wiring; and `PendingPart`, which holds the part being positioned before
+commit, not an edit settlement. Preview/domain pending states are also retained.
 
-In [inspector.rs](../../web/src/presentation/inspector.rs#L199), `submit_position` is called only with `EditPhase::Preview` (drag/input, selection cleanup, cancel and drop paths at lines 57, 99–105, 131 and 180–190). Apply and Enter go through `commit_numeric` at lines 115 and 163, which begins an `EditTicket` at lines 269–280. No product commit migration remains at this call site; keep the preview events. The `Event::Edit` call sites in [layout_component_inspector_tests.rs](../../web/src/presentation/layout_component_inspector_tests.rs#L432) (also line 1667) and [layout_remainder_tests.rs](../../web/src/presentation/layout_remainder_tests.rs#L137) (also line 253) are test setup/probes, not product commits; preserve the stale/recovery fixture in the inspector test when adapting tests.
+No `pending_settlement_gate`, `StdLanded` or `Std-landed` helper remains.
+`matrix_transform_lifecycle` still supplies live selection-retention and membership
+logic; its Session tests exercise that behavior. `settle_edit_on_submit` remains
+used by the placement probe tests. Neither module is dead merely because its name
+contains settlement-related vocabulary. Generic failure wording is defined by
+`edit_ticket.rs`; other copies are test assertions of that contract.
 
-Direct product commit builders in Parts remain, and are ticket-15 work: new definition ([parts_new_component.rs](../../web/crates/parts/src/parts_new_component.rs#L271)), imported footprint ([parts_import_footprint.rs](../../web/crates/parts/src/parts_import_footprint.rs#L137)), component-model edit ([component_model_editor.rs](../../web/crates/parts/src/parts/component_model_editor.rs#L154)), generator settings ([generator_settings.rs](../../web/crates/parts/src/parts/generator_settings.rs#L532)), assembly save/place/apply ([assembly_editor.rs](../../web/crates/parts/src/parts/assembly_editor.rs#L448) (also lines 712, 853)), mechanical-profile operation ([mechanical_profile.rs](../../web/crates/parts/src/parts/mechanical_profile.rs#L295)), module profile ([module_profile_editor.rs](../../web/crates/parts/src/parts/module_profile_editor.rs#L263)) and module attachment ([module_attachment.rs](../../web/crates/parts/src/parts/modules_catalogue/module_attachment.rs#L254)). The corresponding ticket 15 items cover these actions; do not migrate them until its owner finishes.
+## Test adapter cleanup
 
-Other `Event::Edit` hits classify by caller: [outline_lifecycle.rs](../../web/crates/layout/src/outline_lifecycle.rs#L1313) is explicitly the perimeter Preview branch; [geometry_scripts.rs](../../web/crates/ui-shared/src/geometry_scripts.rs#L403) is a test fixture that submits a board-rename Commit; and [layout_transform_toolbar.rs](../../web/crates/layout/src/objects/layout_transform_toolbar.rs#L1364) is called only with Preview for pointer movement/release (call sites at lines 457–462 and 536–541). The drag commit goes through `commit_transform_drag` at line 545 and uses the edit-ticket path. [cad_presentation.rs](../../web/crates/case/src/cad_presentation.rs#L745) is a test fixture injecting a Preview to exercise the case export host. Physical setup/wiring previews are explicitly preserved (ticket 14, lines 123–138); case mount preview and gesture ownership are preserved (ticket 16, lines 115–124). Strict export commits are runtime-owned (`Event::ExportCommit`, [runtime.rs](../../web/crates/runtime/src/runtime.rs#L5039)); strict electrical remap remains protected. Direct Session submits in [firmware_position_projection.rs](../../web/crates/runtime/src/firmware_position_projection.rs#L469), [matrix_transform_lifecycle.rs](../../web/crates/layout/src/matrix_transform_lifecycle.rs#L397) (also line 456), and [runtime.rs](../../web/crates/runtime/src/runtime.rs#L7605) (also line 8491) are test harnesses. Library test events are at [library.rs](../../web/crates/library/src/library.rs#L1747) (also lines 2035 and 2437); classify them in their test context.
+The four `firmware_export_test_*` Runtime fields and fabricated scope/model/epoch,
+submit, export-current and delivery branches are deleted. Firmware tests open a
+real electrical document through the shared in-process adapter. Core resolves the
+wiring, a fixture scripts only the generation-provider reply, and Core's archive
+code builds the real ZIP. Request-selective and archive gates/failures live on the
+adapter. A generic artifact sink captures final deliveries after Runtime's normal
+identity checks. Tests replace owners through real Open and replace executors
+through a real Session Core failure/restart, including stale-output suppression at
+each provider await and concurrent export reporting.
 
-Concrete tests to preserve or update: `web/crates/parts/src/parts_new_component.rs` tests exercise create/reconciliation; [parts_import_footprint.rs](../../web/crates/parts/src/parts_import_footprint.rs) tests cover import; [component_model_editor.rs](../../web/crates/parts/src/parts/component_model_editor.rs) and [generator_settings.rs](../../web/crates/parts/src/parts/generator_settings.rs) cover model and generator actions; [assembly_editor.rs](../../web/crates/parts/src/parts/assembly_editor.rs) covers assembly save/place/matrix apply; module-profile and mechanical-profile tests cover their actions. Module attachment [module_attachment.rs](../../web/crates/parts/src/parts/modules_catalogue/module_attachment.rs#L254) is also explicitly item 70 in ticket 15; do not edit it while that ticket is owned elsewhere. For non-Parts paths, retain the mounted tests named by tickets 09–14 and 16 for queued edits, retirement and one-shot pending behavior. Ticket 14 specifically requires remap tests to remain unchanged/green ([ticket 14](../plans/edit-settlement/issues/14-pcb-wiring-modules-physical-setup.md), lines 99–106).
+The archive-import reply override also moved from Runtime into the Core archive
+adapter. Saved-project tests gate observation of an actual store result; generic
+adapter observers follow each async opening task independently. They do not
+fabricate accepted state. Runtime no longer stores feature-specific import/open
+completion channels or load gates.
 
-## Runtime test interception and shared cleanup
+Case-gesture and Keycaps preview executor injection remain leaf provider ports
+for strict preview tests. They do not intercept Session submission, accepted state
+or edit settlement; changing those provider contracts is outside this cleanup.
+The shared `in_process_adapters` and held-effect queue remain the intended test
+ports introduced by ticket 01. Neutral board/opened-session fixtures now live in
+`in_process_support`, rather than firmware support.
 
-The old project-name and definition-name event interception is absent: ticket 07 says those tests now use the in-process adapter and Runtime has no definition-name interception ([ticket 07](../plans/edit-settlement/issues/07-definition-name-tests-reach-core.md), lines 91–104). Layout-inspector interception is also reported removed by ticket 12 ([ticket 12](../plans/edit-settlement/issues/12-outline.md), lines 145–147). The current source still has a distinct firmware-export feature-named mode in `runtime.rs`: four gated fields at lines 442–449; field initialization; an early `submit` interception that captures events/effects and returns at 1797–1805; export-current/executor/delivery overrides at 5297–5353; and a support module plus dependent tests at 6544 onward. This mode also models executor identity, accepted snapshot/scope and artifact delivery, which are strict export lifecycle concerns. Ticket 17 explicitly permits retaining it if removing it requires export-path changes, with the reason recorded; migrate the export tests onto the ticket-01 in-process adapter only if that avoids changing strict export semantics ([ticket 17](../plans/edit-settlement/issues/17-cleanup.md), lines 25–32). Current dependent test groups include firmware export tests around [runtime.rs](../../web/crates/runtime/src/runtime.rs#L7782), project-name tests around 8157–8278 that reuse the export support, and PCB handoff tests at [pcb_handoff.rs](../../web/crates/runtime/src/pcb_handoff.rs#L572).
+## Decision evidence
 
-No remaining `pending_settlement_gate` symbol or `StdLanded`/`Std-landed` type use was found. `matrix_transform_lifecycle` remains imported by presentation for selection retention/membership ([main.rs](../../web/src/main.rs#L14), [presentation.rs](../../web/src/presentation.rs#L244) (also lines 249, 345, 373)), so the module is not wholly dead; its native test-only settlement examples use direct Session `Event::Edit` at [matrix_transform_lifecycle.rs](../../web/crates/layout/src/matrix_transform_lifecycle.rs#L397) (also line 456). Remove or rewrite only those obsolete settlement helpers/tests after verifying remaining selection helpers and consumers. The generic failure copy now has one production definition in [edit_ticket.rs](../../web/crates/runtime/src/edit_ticket.rs#L154) (`did not save … Retry after recovery`) and repeated expected literals in its tests at lines 645 and 732; other matches are assertions in mounted tests ([layout_component_inspector_tests.rs](../../web/src/presentation/layout_component_inspector_tests.rs#L1641), [parts_definition_name.rs](../../web/crates/parts/src/parts_definition_name.rs#L1574)). These are contract/test evidence, not duplicate shared helper strings to delete.
+The [replacement resolver inventory](../plans/edit-settlement/replace-document-resolvers.md)
+is refreshed after ticket 15, with one row per resolver rather than per helper or
+textual `ReplaceDocument` hit. Generator Apply and upload are separate resolvers;
+model transforms/removal/upload share one. Assembly matrix, module-profile and
+module-attach actions use existing typed operations and are excluded.
 
-## Remaining gates
-
-1. Ticket 15 must finish in its separate worktree; then repeat the Pending and direct-commit searches against the merged revision and reconcile its listed Outcomes with source.
-2. Confirm ticket 17 acceptance semantics for ticket-backed per-action pending wrappers; source inspection shows these are production UI state, not old settlement heuristics.
-3. Decide whether firmware-export test support can be ported to the ticket-01 adapter without modifying strict export capture/commit behavior. Keep the interception and document the exception if not.
-4. Refresh the `ReplaceDocument` resolver inventory after ticket 15; this audit intentionally does not invent resolver counts or frequency estimates. Ticket 17 asks for one row per remaining resolver and separate architecture/backlog/map updates ([ticket 17](../plans/edit-settlement/issues/17-cleanup.md), lines 35–48).
-
-This report does not authorize deletion of strict export/remap/gesture code and does not close ticket 17's verification gates. Relevant concrete gates from ticket 17 are application/runtime tests, repo/typecheck/test checks, WASM tests, browser checks and doc-link checks ([ticket 17](../plans/edit-settlement/issues/17-cleanup.md), lines 58–71).
+Architecture now names the intent/EditTicket path. The backlog records queued
+coordinates as resolved and retains the distinct stale-preview issue. Tickets 18
+and 19 remain human decisions; no API restriction or new Core operation is imposed.

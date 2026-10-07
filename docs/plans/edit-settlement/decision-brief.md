@@ -1,6 +1,8 @@
 # Edit settlement: review and decision brief
 
-Prepared on 2026-10-07 from `0cbab30a7` (corrections to tickets 14 and 16) plus checked-opening validation in `5d3bce3f`, with the remaining-work inventories initially taken from `e877dc115`. Ticket 15 is owned by the user's separate worktree and was not merged into `origin/dev` at the latest fetch. The inventories must be refreshed after it lands. No decisions in tickets 18 or 19 are resolved here.
+Updated on 2026-10-07 after ticket 15 merged (`d13f0dd1`) and ticket 17's source
+cleanup. The ticket Outcomes carry final checks and reviews. No decisions in
+tickets 18 or 19 are resolved here.
 
 ## Completed work and review corrections
 
@@ -17,11 +19,20 @@ Verification after correction: PCB browser **38**, Case browser **60**, Library 
 
 Astra/high Standards and Spec rereviews found no remaining concrete findings after the checked-binding correction in `5d3bce3f`. A separate Astra/high review corrected caller classification, direct-event strictness, typed-operation/Undo cost and the provisional ranking in the decision evidence below.
 
-## Ticket 17: finish the migration contract after 15
+## Tickets 15 and 17: completed migration evidence
 
-This is an agent build ticket, blocked on the cluster tickets, rather than a product decision. The [cleanup audit](../../investigations/edit-settlement-cleanup-audit.md) identifies the remaining work and protected paths. A `Pending*` name alone is insufficient evidence for deletion: migrated wrappers carrying `EditTicket` support transient UI state, whereas old outcome/content comparisons are settlement duplication. Preserve Core/CAD request maps, navigation/preview state and strict electrical remap.
+Ticket 15 moved the remaining Parts actions onto accepted-state resolvers and edit
+tickets. Its final Parts browser suite passed 50 tests; Astra high Standards and
+Spec reviews found no remaining actionable findings after fixes. The native CAD
+volume failure was reproduced unchanged on pre-ticket dev and is recorded in the
+[ticket Outcome](issues/15-parts-remainder.md#outcome).
 
-The final audit must classify actual callers of `Event::Edit`, rather than a helper accepting an `EditPhase`. For example, the old position Inspector's helper only receives Preview in production; Apply/Enter already use an intent. Firmware export test interception is a concrete remaining cleanup candidate; its removal must preserve strict export identity and capture semantics, or ticket 17 must record the permitted exception. The final architecture/backlog/map updates and acceptance checks remain ticket-17 work.
+The [cleanup audit](../../investigations/edit-settlement-cleanup-audit.md) now
+classifies the final direct-event callers and retained state. Firmware tests use
+real Session/Core state through the common adapter, and Runtime's fabricated
+feature interception is removed. The replacement inventory distinguishes current
+resolvers from command-building helpers and typed operations. Consult
+[ticket 17](issues/17-cleanup.md) for its final validation status.
 
 ## Ticket 18: choose the enforcement boundary
 
@@ -45,4 +56,4 @@ The first human question is **which priority wins**: the smallest bounded demons
 
 ## Next discussion
 
-Refresh ticket-15/17 evidence first, then use the frontier questions above to run the grilling round with the human. Record an Answer only after the choices are made; write an ADR only if the resulting tradeoff warrants one. The investigations are preparation, not authorization to widen APIs or impose the proposed restrictions.
+Use the refreshed ticket-15/17 evidence and the frontier questions above for the next discussion with the human. Record an Answer only after the choices are made; write an ADR only if the resulting tradeoff warrants one. The investigations are preparation, not authorization to widen APIs or impose the proposed restrictions.
