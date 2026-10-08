@@ -46,10 +46,12 @@ pub fn forward_angle(mapping: Pose2, angle: f64) -> f64 {
     mapping.rotation - angle
 }
 
-/// The second member's orientation expressed back in the reflected frame:
-/// `angle - rotation`, the sign-flipped counterpart of [`forward_angle`].
+/// The second member's orientation expressed back in the reflected frame.
+///
+/// Reflection makes the orientation map an involution modulo 180 degrees, so
+/// recovering the source orientation uses the same rule as [`forward_angle`].
 pub fn inverse_angle(mapping: Pose2, angle: f64) -> f64 {
-    angle - mapping.rotation
+    mapping.rotation - angle
 }
 
 /// Maps a direction vector with the reflection and rotation only, ignoring the
@@ -250,9 +252,9 @@ mod tests {
             rotation: 30.0,
         };
         // Known values: a 100 degree feature becomes 30 - 100 = -70, and the
-        // inverse direction expresses that reflected orientation as -70 - 30 = -100.
+        // reflected orientation recovers its source by the same rule, 30 - (-70) = 100.
         assert!((forward_angle(mapping, 100.0) - (-70.0)).abs() < 1e-12);
-        assert!((inverse_angle(mapping, -70.0) - (-100.0)).abs() < 1e-12);
+        assert!((inverse_angle(mapping, -70.0) - 100.0).abs() < 1e-12);
         // Orientation ignores the mapping translation, so the reflection/rotation
         // composition is its own inverse and the forward pass round-trips.
         for angle in [0.0, 45.0, -12.5, 200.0, 137.5] {
@@ -261,9 +263,8 @@ mod tests {
                 "forward angle {angle} must round-trip"
             );
         }
-        // Crossing the reflection negates orientation: forward then inverse leaves
-        // the mirrored angle, the same sign flip the reflection applies to a vector.
-        assert!((inverse_angle(mapping, forward_angle(mapping, 42.0)) + 42.0).abs() < 1e-12);
+        // Recovering a source orientation from its reflection uses the same rule.
+        assert!((inverse_angle(mapping, forward_angle(mapping, 42.0)) - 42.0).abs() < 1e-12);
     }
 
     #[test]
