@@ -521,7 +521,7 @@ impl CoreEngine {
         if let Err(message) = layout::validate(&next) {
             return self.error(id, &message);
         }
-        match constraints::resolve(&mut next) {
+        match constraints::resolve_edit(&mut next, &command.operation) {
             Ok(ids) => changed.extend(ids),
             Err(message) => return self.error(id, &message),
         }
@@ -529,7 +529,7 @@ impl CoreEngine {
             Ok(ids) => changed.extend(ids),
             Err(message) => return self.error(id, &message),
         }
-        match constraints::resolve(&mut next) {
+        match constraints::resolve_edit(&mut next, &command.operation) {
             Ok(ids) => changed.extend(ids),
             Err(message) => return self.error(id, &message),
         }
@@ -595,9 +595,15 @@ impl CoreEngine {
         let attachments = outline_controls::attached_parts(&self.document);
         let result = apply(&mut self.document, &command.operation).and_then(|mut changed| {
             layout::validate(&self.document)?;
-            changed.extend(constraints::resolve(&mut self.document)?);
+            changed.extend(constraints::resolve_edit(
+                &mut self.document,
+                &command.operation,
+            )?);
             changed.extend(layout::sync_components(&mut self.document)?);
-            changed.extend(constraints::resolve(&mut self.document)?);
+            changed.extend(constraints::resolve_edit(
+                &mut self.document,
+                &command.operation,
+            )?);
             changed.extend(layout::sync_components(&mut self.document)?);
             outline_controls::detach_removed(&attachments, &mut self.document);
             changed.sort();

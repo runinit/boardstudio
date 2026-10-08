@@ -870,12 +870,26 @@ fn primary_member<'a>(doc: &'a ProjectDoc, id: &str) -> Option<(&'a Matrix, u32,
 }
 
 pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> bool {
-    if doc.layouts.is_empty() {
-        return false;
+    let mut affected: BTreeSet<_> = positions
+        .iter()
+        .map(|position| position.id.as_str())
+        .collect();
+    loop {
+        let previous = affected.len();
+        for constraint in &doc.constraints {
+            if affected.contains(constraint.source()) {
+                affected.insert(constraint.target());
+            }
+        }
+        if affected.len() == previous {
+            break;
+        }
+    }
+    if affected.iter().any(|id| primary_member(doc, id).is_some()) {
+        return true;
     }
     positions.iter().any(|position| {
-        primary_member(doc, &position.id)
-            .is_some_and(|(matrix, _, _)| partner(doc, &matrix.id).is_some())
+        primary_member(doc, &position.id).is_some()
             || doc.parts.iter().any(|part| {
                 part.id == position.id
                     && part.properties.as_ref().is_some_and(|properties| {
@@ -903,18 +917,14 @@ pub(crate) fn move_keys(
     doc: &mut ProjectDoc,
     positions: &[Position],
 ) -> Result<(Vec<String>, BTreeSet<String>), String> {
-    if doc.layouts.is_empty() {
-        return Ok((vec![], BTreeSet::new()));
-    }
     let mut matrices = BTreeMap::new();
     let mut handled = BTreeSet::new();
+    let mut carried = Vec::new();
+    let mut constrained = Vec::new();
     for position in positions {
         let Some((source, row, column)) = primary_member(doc, &position.id) else {
             continue;
         };
-        if partner(doc, &source.id).is_none() {
-            continue;
-        }
         let part = doc
             .parts
             .iter()
@@ -926,32 +936,62 @@ pub(crate) fn move_keys(
         if !position.at.x.is_finite() || !position.at.y.is_finite() {
             return Err("Position must be finite".into());
         }
+        if let Some(constraint) = doc
+            .constraints
+            .iter()
+            .find(|constraint| constraint.target() == position.id)
+        {
+            if matches!(constraint, Constraint::Mirror { .. }) {
+                return Err(format!(
+                    "Part {} is controlled by a mirror constraint and cannot be dragged",
+                    position.id
+                ));
+            }
+            let mut pose = part.pose;
+            pose.at = position.at;
+            constrained.push((position.id.clone(), pose));
+        }
         let matrix = matrices
             .entry(source.id.clone())
             .or_insert_with(|| source.clone());
-        let delta = Vec2 {
+        let displacement = Vec2 {
             x: position.at.x - part.pose.at.x,
             y: position.at.y - part.pose.at.y,
         };
-        let rotate = |point: Vec2, angle: f64| {
-            let (sin, cos) = angle.to_radians().sin_cos();
-            Vec2 {
-                x: point.x * cos - point.y * sin,
-                y: point.x * sin + point.y * cos,
+        let cell = source
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column);
+        if let Some(cell) = cell {
+            for assembly in &cell.assemblies {
+                let id = format!("{}/{}", position.id, assembly.id);
+                if positions.iter().any(|position| position.id == id)
+                    || doc
+                        .constraints
+                        .iter()
+                        .any(|constraint| constraint.target() == id)
+                {
+                    continue;
+                }
+                if let Some(companion) = doc.parts.iter().find(|part| part.id == id)
+                    && companion.properties.as_ref().is_some_and(|properties| {
+                        properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
+                    })
+                {
+                    let mut pose = companion.pose;
+                    pose.at.x += displacement.x;
+                    pose.at.y += displacement.y;
+                    carried.push((id, pose));
+                }
             }
-        };
-        let mut local = rotate(delta, -source.rotation.unwrap_or(0.0));
-        if source.mirror == Some(Mirror::X) {
-            local.x = -local.x;
         }
-        local = rotate(
-            local,
-            -source
-                .column_splays
-                .iter()
-                .take(column as usize + 1)
-                .sum::<f64>(),
-        );
+        // Older absolute key moves are absorbed into the cell's parametric offset.
+        let generated = matrix::location(source, row, column, cell);
+        let delta = Vec2 {
+            x: position.at.x - generated.x,
+            y: position.at.y - generated.y,
+        };
+        let local = local_displacement(source, column, delta);
         let index = matrix
             .cells
             .iter()
@@ -988,11 +1028,189 @@ pub(crate) fn move_keys(
         return Err("Move one linked half at a time".into());
     }
     let mut changed = vec![];
+    for part in &mut doc.parts {
+        if handled.contains(&part.id)
+            && let Some(properties) = &mut part.properties
+        {
+            properties.remove(matrix::OVERRIDE);
+        }
+    }
+    for (id, pose) in constrained.into_iter().chain(carried) {
+        set_component_pose(doc, &id, pose)?;
+        changed.push(id);
+    }
     for matrix in matrices.values() {
         changed.extend(matrix::set_matrix(doc, matrix)?);
         changed.extend(sync(doc, &matrix.id)?);
     }
     Ok((changed, handled))
+}
+
+fn local_displacement(matrix: &Matrix, column: u32, delta: Vec2) -> Vec2 {
+    let rotate = |point: Vec2, angle: f64| {
+        let (sin, cos) = angle.to_radians().sin_cos();
+        Vec2 {
+            x: point.x * cos - point.y * sin,
+            y: point.x * sin + point.y * cos,
+        }
+    };
+    let mut local = rotate(delta, -matrix.rotation.unwrap_or(0.0));
+    match matrix.mirror.unwrap_or(Mirror::None) {
+        Mirror::X => local.x = -local.x,
+        Mirror::Y => local.y = -local.y,
+        Mirror::None => {}
+    }
+    rotate(
+        local,
+        -matrix
+            .column_splays
+            .iter()
+            .take(column as usize + 1)
+            .sum::<f64>(),
+    )
+}
+
+pub(crate) struct AssemblyPlacement {
+    pub(crate) parent_id: String,
+    pub(crate) local_pose: Pose2,
+    pub(crate) authored_pose: Option<Pose2>,
+}
+
+pub(crate) fn assembly_placements(
+    doc: &ProjectDoc,
+    explicit: &[Position],
+) -> BTreeMap<String, AssemblyPlacement> {
+    let parts: BTreeMap<_, _> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.as_str(), part))
+        .collect();
+    let mut placements = BTreeMap::new();
+    for matrix in &doc.matrices {
+        for cell in &matrix.cells {
+            if !cell.enabled || cell.deleted {
+                continue;
+            }
+            let parent_id = matrix::member_id(&matrix.id, cell.row, cell.column);
+            let Some(parent) = parts.get(parent_id.as_str()) else {
+                continue;
+            };
+            for assembly in &cell.assemblies {
+                let id = format!("{parent_id}/{}", assembly.id);
+                if explicit.iter().any(|position| position.id == id) {
+                    continue;
+                }
+                let Some(companion) = parts.get(id.as_str()) else {
+                    continue;
+                };
+                let authored = companion.properties.as_ref().is_some_and(|properties| {
+                    properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
+                });
+                let local_pose = if authored {
+                    let (sin, cos) = parent.pose.rotation.to_radians().sin_cos();
+                    let dx = companion.pose.at.x - parent.pose.at.x;
+                    let dy = companion.pose.at.y - parent.pose.at.y;
+                    Pose2 {
+                        at: Vec2 {
+                            x: dx * cos + dy * sin,
+                            y: -dx * sin + dy * cos,
+                        },
+                        rotation: companion.pose.rotation - parent.pose.rotation,
+                    }
+                } else {
+                    Pose2 {
+                        at: assembly.offset,
+                        rotation: assembly.rotation.unwrap_or(0.0),
+                    }
+                };
+                placements.insert(
+                    id,
+                    AssemblyPlacement {
+                        parent_id: parent_id.clone(),
+                        local_pose,
+                        authored_pose: authored.then_some(companion.pose),
+                    },
+                );
+            }
+        }
+    }
+    placements
+}
+
+pub(crate) fn reconcile_constraint_keys(
+    doc: &mut ProjectDoc,
+    moves: &BTreeMap<String, (Pose2, Pose2)>,
+    solved: &BTreeMap<String, Pose2>,
+) -> Result<Vec<String>, String> {
+    let mut matrices = BTreeMap::new();
+    for (id, (_, next)) in moves {
+        let Some((source, row, column)) = primary_member(doc, id) else {
+            continue;
+        };
+        let cell = source
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column);
+        let generated = matrix::location(source, row, column, cell);
+        let local = local_displacement(
+            source,
+            column,
+            Vec2 {
+                x: next.at.x - generated.x,
+                y: next.at.y - generated.y,
+            },
+        );
+        let matrix = matrices
+            .entry(source.id.clone())
+            .or_insert_with(|| source.clone());
+        let index = matrix
+            .cells
+            .iter()
+            .position(|cell| cell.row == row && cell.column == column)
+            .unwrap_or_else(|| {
+                matrix.cells.push(MatrixCell {
+                    deleted: false,
+                    row,
+                    column,
+                    enabled: true,
+                    definition_id: None,
+                    variant: None,
+                    offset: None,
+                    rotation: None,
+                    assemblies: vec![],
+                    assemblies_local: None,
+                });
+                matrix.cells.len() - 1
+            });
+        let cell = &mut matrix.cells[index];
+        let offset = cell.offset.unwrap_or_default();
+        cell.offset = Some(Vec2 {
+            x: offset.x + local.x,
+            y: offset.y + local.y,
+        });
+        cell.rotation = Some(
+            next.rotation
+                - source.rotation.unwrap_or(0.0)
+                - source
+                    .column_splays
+                    .iter()
+                    .take(column as usize + 1)
+                    .sum::<f64>(),
+        );
+    }
+    let mut changed = Vec::new();
+    for matrix in matrices.values() {
+        changed.extend(matrix::set_matrix(doc, matrix)?);
+        changed.extend(sync(doc, &matrix.id)?);
+    }
+    // The combined dependency solver owns final poses, including independently
+    // constrained and explicitly positioned companions overwritten by generation.
+    for part in &mut doc.parts {
+        if let Some(pose) = solved.get(&part.id) {
+            part.pose = *pose;
+        }
+    }
+    Ok(changed)
 }
 
 #[cfg(test)]

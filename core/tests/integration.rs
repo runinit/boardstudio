@@ -73,3 +73,6 @@ mod outlines;
 mod splay_reconciliation;
 #[path = "thqwgd001_library.rs"]
 mod thqwgd001_library;
+
+#[path = "key_move_assemblies.rs"]
+mod key_move_assemblies;

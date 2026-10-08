@@ -2215,10 +2215,17 @@ fn matrix_edit_preserves_moved_member_and_prunes_removed() {
         },
     )));
     assert_eq!(
-        moved.parts[0].properties.as_ref().unwrap()["layoutOverride"],
-        1
+        moved.matrices[0].cells[0].offset,
+        Some(Vec2 { x: 5.0, y: 7.0 })
     );
-    let mut changed = matrix(1, 2);
+    assert!(
+        !moved.parts[0]
+            .properties
+            .as_ref()
+            .is_some_and(|properties| properties.contains_key("layoutOverride"))
+    );
+    let mut changed = moved.matrices[0].clone();
+    changed.rows = 1;
     changed.origin = Vec2 { x: 100.0, y: 50.0 };
     let (_, doc) = scene(engine.handle(edit(
         2,
@@ -2236,7 +2243,7 @@ fn matrix_edit_preserves_moved_member_and_prunes_removed() {
             .unwrap()
             .pose
             .at,
-        Vec2 { x: 5.0, y: 7.0 }
+        Vec2 { x: 105.0, y: 57.0 }
     );
     assert_eq!(
         doc.parts

@@ -1,7 +1,26 @@
-use crate::model::{Constraint, MirrorAxis, Pose2, ProjectDoc, Vec2};
+use crate::matrix::layout::AssemblyPlacement;
+use crate::model::{Constraint, EditOperation, MirrorAxis, Pose2, Position, ProjectDoc, Vec2};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
+    resolve_with_positions(doc, &[])
+}
+
+pub(crate) fn resolve_edit(
+    doc: &mut ProjectDoc,
+    operation: &EditOperation,
+) -> Result<Vec<String>, String> {
+    let positions = match operation {
+        EditOperation::MoveParts { positions } => positions.as_slice(),
+        _ => &[],
+    };
+    resolve_with_positions(doc, positions)
+}
+
+fn resolve_with_positions(
+    doc: &mut ProjectDoc,
+    positions: &[Position],
+) -> Result<Vec<String>, String> {
     let parts: BTreeMap<_, _> = doc
         .parts
         .iter()
@@ -45,21 +64,40 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
         }
     }
 
-    // Resolve sources before targets, regardless of document order.
+    // Assemblies are implicit local placements; explicit constraints take priority.
+    let assemblies = crate::matrix::layout::assembly_placements(doc, positions);
+    // Resolve the combined graph source-first instead of relying on repeated passes.
     let mut resolved = BTreeMap::new();
     let mut visiting = BTreeSet::new();
-    for target in by_target.keys() {
-        pose(target, &parts, &by_target, &mut resolved, &mut visiting)?;
+    for target in by_target.keys().chain(assemblies.keys()) {
+        pose(
+            target,
+            &parts,
+            &by_target,
+            &assemblies,
+            &mut resolved,
+            &mut visiting,
+        )?;
+    }
+    // Unrelated free parts keep their existing poses without acquiring placement
+    // validation semantics from the constraint solver.
+    for (id, current) in &parts {
+        resolved.entry(id.clone()).or_insert(*current);
     }
     let mut changed = vec![];
+    let mut key_moves = BTreeMap::new();
     for part in &mut doc.parts {
         if let Some(next) = resolved.get(&part.id)
             && part.pose != *next
         {
+            key_moves.insert(part.id.clone(), (part.pose, *next));
             part.pose = *next;
             changed.push(part.id.clone());
         }
     }
+    changed.extend(crate::matrix::layout::reconcile_constraint_keys(
+        doc, &key_moves, &resolved,
+    )?);
     Ok(changed)
 }
 
@@ -67,6 +105,7 @@ fn pose(
     id: &str,
     parts: &BTreeMap<String, Pose2>,
     constraints: &BTreeMap<String, &Constraint>,
+    assemblies: &BTreeMap<String, AssemblyPlacement>,
     resolved: &mut BTreeMap<String, Pose2>,
     visiting: &mut BTreeSet<String>,
 ) -> Result<Pose2, String> {
@@ -77,7 +116,14 @@ fn pose(
         return Err(format!("Constraint cycle includes part {id}"));
     }
     let next = if let Some(constraint) = constraints.get(id) {
-        let source = pose(constraint.source(), parts, constraints, resolved, visiting)?;
+        let source = pose(
+            constraint.source(),
+            parts,
+            constraints,
+            assemblies,
+            resolved,
+            visiting,
+        )?;
         match constraint {
             Constraint::Offset {
                 offset, rotation, ..
@@ -108,10 +154,36 @@ fn pose(
                 },
             },
         }
+    } else if let Some(assembly) = assemblies.get(id) {
+        let source = pose(
+            &assembly.parent_id,
+            parts,
+            constraints,
+            assemblies,
+            resolved,
+            visiting,
+        )?;
+        if let Some(authored) = assembly.authored_pose
+            && parts.get(&assembly.parent_id) == Some(&source)
+        {
+            authored
+        } else {
+            let (sin, cos) = source.rotation.to_radians().sin_cos();
+            Pose2 {
+                at: Vec2 {
+                    x: source.at.x + assembly.local_pose.at.x * cos
+                        - assembly.local_pose.at.y * sin,
+                    y: source.at.y
+                        + assembly.local_pose.at.x * sin
+                        + assembly.local_pose.at.y * cos,
+                },
+                rotation: source.rotation + assembly.local_pose.rotation,
+            }
+        }
     } else {
         *parts
             .get(id)
-            .expect("all constraint references were checked")
+            .expect("all placement references were checked")
     };
     if !next.at.x.is_finite() || !next.at.y.is_finite() || !next.rotation.is_finite() {
         return Err(format!("Constraint target {id} has a non-finite pose"));
