@@ -6,6 +6,16 @@ Worktree: `/home/chris/.codex/worktrees/boardstudio-module-deepening/09-case-key
 Branch: `deepening/09-case-keymap-keycaps-library-pending-edits`  
 Starting dev commit: `8ce860a0950304ddfae34f12d5891b8c6f267f2f`
 
+## Current hold
+
+The completion pass is committed at `72ba713b7`, with a clean worktree confirmed
+by root. The user asked to wait until PCB is done before deciding whether to change
+the spec or shared contract. Preserve the branch and hold further work on this
+assignment. The instructions below are historical and apply only after root resumes
+the stream. The ticket's [latest checkpoint](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#2026-10-08-completion-pass-held-until-pcb-finishes)
+records the reported checks and unresolved review findings. No additional helper
+API is approved, and root's browser-test pause remains in effect.
+
 ## Work
 
 1. Confirm the worktree branch, HEAD and clean starting state. Read the current root `AGENTS.md`, the worktree `AGENTS.md`, [parallel-run rules](handoff.md#rules-every-agent-follows), your ticket, and its decision links. Your branch starts after the PendingEdits tracer gate; the gate is the prerequisite for source changes.

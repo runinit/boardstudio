@@ -51,7 +51,7 @@ cargo test -p boardstudio-web-case -p boardstudio-web-keymap -p boardstudio-web-
 python3 scripts/check.py lint typecheck test browser
 ```
 
-## Orchestrator checkpoint: final reported branch
+## Orchestrator checkpoint: f8f684959 (superseded)
 
 Reviewed base `8ce860a0950304ddfae34f12d5891b8c6f267f2f` through
 `f8f684959b592d819796056444f6cc2a4e94e88c`. The branch is clean and the migration
@@ -84,3 +84,37 @@ The root worktree compare found 29 changed files, 201 indexed symbols and 28 flo
 with critical aggregate risk; no partial/truncated flags were reported. New branch
 symbols still require current-source confirmation because the canonical graph is
 indexed from dev. Root owns the final integrated-tree analysis.
+
+## Comments
+
+### 2026-10-08: completion pass held until PCB finishes
+
+The agent's latest report is pinned to `72ba713b7` on
+`deepening/09-case-keymap-keycaps-library-pending-edits`. Root confirmed that HEAD
+and a clean worktree. The user asked to hold this stream and defer any spec decision
+until the PCB work is done. Status remains claimed; this is not an accepted Outcome.
+
+The agent reports the macro inline-failure fixes, a held-Core mechanical same-field
+queue regression, stronger one-shot unbind regressions, and additional mounted
+consumer coverage as committed. It reports a complete `check.py browser` pass at
+the final HEAD and release of its Chrome lease, plus passing lint/typecheck. These
+are reported results, not checks rerun by root. Keymap's 29 tests took about 28
+seconds, exceeding the old 20-second default; the report's "under" wording is a typo.
+
+The final reported Standards review found no hard violations. The Spec review still
+flags Case's local submitted-draft/saved-ack layer, Keycaps' retry drafts/dirty state,
+and Library's submitted owner/dirty state. The agent proposed an `is_awaiting` query
+or settlement callback for Case but made neither change. After PCB, review these
+remaining responsibilities together and decide whether the implementation, shared
+contract or spec needs changing. This checkpoint authorizes no new helper API.
+
+Native evidence remains limited: the CAD volume failure was reproduced at
+`0a66f7172`, a workspace rerun reported no failures, and an isolated invocation
+produced no output. The CAD gate is unresolved. Typecheck reported an unused Case
+`is_pending` warning; Library's latest-per-key coverage remains partial. Final-HEAD
+GitNexus analysis was not run by the agent; root still owns the integrated-tree gate.
+
+The agent's timeout commit `72ba713b7` overlaps root's already reviewed fix
+`f837bc82a`. Reconcile the overlap during integration and retain both branches'
+useful verification. Leave source, history and acceptance criteria unchanged while
+waiting for PCB. Root's browser-test pause remains in effect.
