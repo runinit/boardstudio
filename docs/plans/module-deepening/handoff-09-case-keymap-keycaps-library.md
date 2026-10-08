@@ -47,9 +47,8 @@ A single liveness boolean applies to one helper's owner domain. Use independentl
 owned helper instances where fields have genuinely independent owner lifetimes; do
 not collapse per-request selection checks into one global true flag. If preserving
 existing ownership cannot be expressed with the published contract, report one
-concrete failing scenario and the smallest proposed shared extension. Root owns any
-shared implementation/commit; this stream remains inside its four crates. A small
-extension may be considered, but no shared API change is approved by this note.
+concrete failing scenario and the smallest proposed shared extension. Shared extensions require explicit coordination; the approved lifecycle exception
+below now applies. Other shared API changes remain outside this stream.
 
 Bind actual field Signals at the component that owns them, or lift stable Signals to
 the appropriate lifetime and pass them through component props. Retire observations
@@ -62,3 +61,28 @@ failure, latest-per-key replacement and real owner departure in mounted Runtime 
 Then rerun affected checks and both reviews pinned to final HEAD. Record the reported
 Keymap ChromeDriver SIGKILL on branch and clean base as a reproduced baseline;
 remaining browser suites are still unexecuted until run under an exclusive lease.
+
+## Approved lifecycle extension
+
+The reported child-owned Signal unmount scenario justifies adding
+`unbind_field(&key)` and `unbind_one_shot(&key)` to PendingEditSignals. The second
+app may implement this exception in a separate commit limited to
+`web/crates/ui-shared/src/pending_edit_helpers.rs` and its tests, then bind Case
+and macro child fields. Coordinate the shared-file baseline with Layout first;
+preserve its separately committed same-key field/one-shot disable behavior.
+Runtime changes require a further concrete contract proposal.
+
+Unbinding must be idempotent, avoid accessing dropped Signals, and prevent an old
+component observation from writing draft, failure or disabled state into a replacement
+component bound under the same logical key. Preserve Session execution: retiring UI
+observation does not cancel a queued edit. Document behavior for composite field and
+one-shot bindings and drain/follow-up ownership. Test real child unmount while Core
+is held, same-key remount before release, and ordinary settlement. Observe a valid
+behavioral RED, then GREEN, and rerun both UI-shared browser groups under the lease.
+
+Start final pinned reviews once source is ready; read-only review may run while waiting
+for Chrome. The lease remains with Layout until explicitly released. A skipped
+Keymap case plus an isolated passing run is partial coverage, not a full-suite pass.
+For graph checks, pass the absolute branch worktree to detect_changes (scope all)
+and use a pinned-base compare for committed work. Zero indexed symbols is unresolved
+coverage; retain current-source/diff evidence and root's integrated-tree graph gate.
