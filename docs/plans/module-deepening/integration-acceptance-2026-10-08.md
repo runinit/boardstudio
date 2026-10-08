@@ -1,8 +1,9 @@
 # Module deepening integration acceptance — 2026-10-08
 
-Final source: `eebc703d3f1530c654f82fe92fa282c9617fe378` on
+Final panel/Rust/fixture source: `eebc703d3f1530c654f82fe92fa282c9617fe378` on
 `codex/module-deepening-integration`, compared with local dev `30e922ac6`.
-Documentation-only acceptance commits follow this source pin.
+CAD container tooling is committed separately at `bf3e26af`; documentation-only
+acceptance commits follow these source pins.
 
 ## Preserved history and behavior
 
@@ -18,7 +19,17 @@ historical bisectability limitation. Protected electrical remap is unchanged.
 Root ran `python3 scripts/check.py lint typecheck test browser build` on the final
 source with `CARGO_BUILD_JOBS=2` and the toolchain shim. Repo and tooling steps
 passed separately; repo/doc-links are checked again after documentation changes.
-The production-build result is recorded when it finishes below.
+The initial production build failed at the CAD container boundary: contracts
+inherits workspace lints, but the mounted container tree had no workspace manifest.
+Commit `bf3e26af` repairs that boundary with a temporary contracts-only workspace
+manifest retaining root lints/resolver and excluding independent CAD crates. Its
+Python regression reproduced the missing-root failure; all 17 CAD tooling tests
+and the full tooling step pass. Root Cargo.toml/build script changes invalidate
+the cache, and explicit job limits reach the container. Independent incremental
+Standards/Spec review reports no blockers. The real CAD container and complete production site build pass.
+Root executed `python3 scripts/check.py tooling build` with exit 0; the Dioxus
+client bundle and final site were generated successfully. Logs are preserved as
+`cad-container-build-check.log`.
 
 - Lint and WASM typecheck pass.
 - Full native test step passes, including KiCad and CAD: CAD 51 passed / 4 ignored,
@@ -43,6 +54,8 @@ Core regression proves adopted mount positions survive adjacent outline floats.
 It does not claim fresh automatic placement is float-invariant. Production
 selection, kernel code and the geometry assertion are unchanged. The original
 failure was reproduced before the fix; the original CAD volume test passes now.
+Exploratory standalone CAD Clippy still reports eight pre-existing lints outside
+the added regression; the required workspace lint step passes.
 
 ## Reviews and graph coverage
 
@@ -54,12 +67,16 @@ An independent CAD review finds no blockers. Review agents did not run checks;
 the executed gate evidence above belongs to root.
 
 The worktree index includes Parts via the tracked `.gitnexusignore` exception.
-The complete final-source comparison covers 42 files, 461 symbols and 56 flows,
+The complete panel-source comparison at `eebc703d` covers 42 files, 461 symbols and 56 flows,
 aggregate CRITICAL risk, with full arrays and no partial/truncated flags.
 Risk was reported and reviewed; it was not waived. Static graph analysis still
 cannot prove every RSX/dynamic dispatch path, so unresolved callers were verified
 against current source. Published flow analysis has analyzer limits; this is not
-a claim that every execution path was indexed. Use the
+a claim that every execution path was indexed. The refreshed analyzer reports
+570 flows but omits 3,204 candidate entry points and 2,075 callees under global
+budgets, with 24 cut walks. The later source-plus-docs/build comparison covers
+52 files, 506 symbols and 56 flows (CRITICAL), again with complete returned arrays.
+Use the
 [worktree CLI workflow](gitnexus-worktree-coverage.md) for new branch symbols.
 
 ## Evidence and retained work

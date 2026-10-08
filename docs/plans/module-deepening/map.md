@@ -56,7 +56,9 @@ the native Runtime, resolution constructors, outline split, typed wiring, export
 and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers,
 Matrix actions and Matrix fields are merged and resolved. The complete tracer gate
 is resolved; all three panel migrations, including both Parts/PCB halves, are
-accepted. Root has claimed the final cleanup and record task.
+accepted and integrated. Cleanup and recording are resolved, including fresh full
+native/browser/build gates and the CAD volume/container repairs. Earlier baseline
+notes below describe historical checkpoints.
 Mechanical patch and outline intent proposals await human approval.
 
 ## Decisions so far
@@ -79,6 +81,10 @@ Mechanical patch and outline intent proposals await human approval.
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [Cleanup and record](issues/13-cleanup.md#outcome):
+  ownership/audit and helper contract are recorded; all required gates pass, CAD
+  repairs are separate, and the next review is Runtime previews/project lifecycle.
 
 - [Case, Keymap, Keycaps and Library settlement](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#outcome):
   all consumers use shared settlement and real field bindings; final native/browser
@@ -173,9 +179,9 @@ Mechanical patch and outline intent proposals await human approval.
 
 ## Integration frontier
 
-All panel streams are accepted on the root integration branch, including the
-external Parts and Layout work. Cleanup and recording are claimed by root;
-root owns dev, tracker, canonical indexing and serial Chrome execution.
+All panel streams, including external Parts and Layout, and cleanup are accepted
+for integration into local dev. Root owns dev, tracker, canonical indexing and
+serial Chrome execution. There are no open module-deepening tickets.
 The original external worktrees remain intact. Separate typed Core proposals
 still require their human decisions.
 
