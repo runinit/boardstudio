@@ -12,6 +12,7 @@ ticket's pinned base; do not substitute a moving `dev` ref for that base.
 
 | Stream | Index alias | Pinned base |
 | --- | --- | --- |
+| Layout 07 | `boardstudio-07-layout` | `8ce860a09` |
 | PCB 08 | `boardstudio-08-pcb` | `8ce860a09` |
 | Parts 08 | `boardstudio-08-parts` | `8ce860a09` |
 | Case / Keymap / Keycaps / Library 09 | `boardstudio-09-panels` | `8ce860a09` |

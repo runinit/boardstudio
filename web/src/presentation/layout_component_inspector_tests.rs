@@ -1706,12 +1706,37 @@ async fn queued_y_edit_waits_for_recovery_after_x_save_failure() {
     y.set_value("9");
     y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
         .unwrap();
+    let y_outcome = crate::runtime::project_name_test_support::observe_next(&probe.runtime);
     y.dispatch_event(
         &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
     )
     .unwrap();
     crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    assert!(
+        probe
+            .pending_edits
+            .borrow()
+            .expect("the mounted Layout Inspector owns pending edits")
+            .peek()
+            .is_pending(&layout_component_edits::InspectorField::Y),
+        "the Y edit is admitted while the X reply is held"
+    );
     release.send(()).expect("release the held X reply");
+    // The held X reply resumes a spawned task. Refresh this manually driven host
+    // only after that task has published the queued Y edit's terminal outcome.
+    for _ in 0..100 {
+        if y_outcome.borrow().is_some() {
+            break;
+        }
+        gloo_timers::future::TimeoutFuture::new(1).await;
+    }
+    assert_eq!(
+        *y_outcome.borrow(),
+        Some(boardstudio_application::TerminalOutcome::BlockedByRecovery(
+            "injected X write failure".into()
+        )),
+        "the admitted Y edit fails because the X save requires recovery"
+    );
     accept_pending(&probe).await;
 
     assert_eq!(

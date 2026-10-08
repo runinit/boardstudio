@@ -365,7 +365,7 @@ pub fn use_matrix_setup(
                     create_matrix_resolver(current_board.clone(), matrix, definitions),
                 );
                 preparing.set(None);
-                status.set(Some("Creating matrix…".into()));
+                status.set(None);
             });
         }
     });
