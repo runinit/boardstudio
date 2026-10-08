@@ -27,19 +27,14 @@ pub use crate::firmware_position_projection::{
     FirmwarePlanIdentity as WiringPlanIdentity, FirmwarePositionFeedbackTarget,
     FirmwarePositionIdentity, FirmwarePositionProjection, PlanLifecycle,
 };
-pub use apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
+pub use apply::{BoardWiringApplyActions, use_board_wiring_apply};
 pub use controller::{
     WiringResolutionNotice, use_firmware_position_edits, use_pcb_part_net_edits,
     use_pcb_wiring_controller, wiring_resolution_notice,
 };
-pub use mode::{
-    BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
-    use_board_wiring_mode_edits,
-};
+pub use mode::{BoardWiringModeActions, BoardWiringModeEditRequest, use_board_wiring_mode_edits};
 pub use part_input_settings::PartInputActions;
-pub use pins::{
-    PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
-};
+pub use pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 pub use remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -70,22 +65,17 @@ pub struct PartNetEditRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PartNetFeedbackState {
-    Saved,
-    Failed,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartNetFeedback {
     pub identity: PartNetEditIdentity,
-    pub message: String,
-    pub state: PartNetFeedbackState,
+    pub failure: String,
 }
 
 #[derive(Clone, PartialEq)]
 pub struct PartNetActions {
     pub identity: Option<PartNetEditIdentity>,
     pub editable: bool,
+    /// The one-shot "Add net" action is queued or pending for the current part.
+    pub create_pending: bool,
     pub feedback: Option<PartNetFeedback>,
     pub on_edit: EventHandler<PartNetEditRequest>,
 }
@@ -175,7 +165,6 @@ pub struct FirmwarePositionEditRequest {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FirmwarePositionFeedbackState {
     Pending,
-    Saved,
     Failed(String),
 }
 
@@ -598,7 +587,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                     disabled: !actions.editable || identity.is_none(),
                     oninput: move |event| new_net_name.set(event.value()),
                 }
-                button { r#type: "submit", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || controller::create_net_pending(), "Add net" }
+                button { r#type: "submit", disabled: !actions.editable || identity.is_none() || new_net_name().trim().is_empty() || actions.create_pending, "Add net" }
             }
             details { class: "m1-pcb-wiring-section",
                 summary { "Electrical nets ({nets.len()})" }
@@ -610,7 +599,7 @@ fn generic_part_wiring(input: GenericPartWiringProps<'_>) -> Element {
                 }
             }
             if let Some(feedback) = actions.feedback {
-                p { role: if matches!(feedback.state, PartNetFeedbackState::Failed) { "alert" } else { "status" }, "{feedback.message}" }
+                p { role: "alert", "{feedback.failure}" }
             }
         }
     }
@@ -715,21 +704,19 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let on_resolve = props.on_resolve;
     let on_choose_controller = props.on_choose_controller;
     let mode_actions = props.mode_actions.clone();
-    let selected_mode = match mode_actions
-        .identity
-        .as_ref()
-        .and_then(mode::pending_mode)
-        .unwrap_or(display.mode)
-    {
-        ElectricalMode::Matrix => "matrix",
-        ElectricalMode::Direct => "direct",
-    };
+    let selected_mode = (mode_actions.draft)();
+    let mode_pending = mode_actions.pending;
+    let mode_failure = (mode_actions.failure)();
     let change_mode = mode_actions.on_change;
     let mode_identity = mode_actions.identity.clone();
     let apply_actions = props.apply_actions.clone();
     let apply_identity = apply_actions.identity.clone();
+    let apply_failure = (apply_actions.failure)();
+    let release_pending = apply_actions.release_pending;
     let on_apply = apply_actions.on_apply;
     let pin_actions = props.pin_actions.clone();
+    let pin_pending = pin_actions.pending;
+    let pin_failure = (pin_actions.failure)();
     let pin_identity = pin_actions.identity.clone();
     let on_pin_change = pin_actions.on_change;
     let mut pin_rows = matching_plan
@@ -787,21 +774,17 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                 p { "Place a controller from Parts to assign this board’s wiring." }
                 button { type: "button", onclick: move |_| on_choose_controller.call(()), "Add controller" }
             }
-            if let Some(feedback) = &mode_actions.feedback {
-                if matches!(feedback.state, BoardWiringModeFeedback::Pending) {
-                    p { role: "status", "Saving wiring mode…" }
-                } else if matches!(feedback.state, BoardWiringModeFeedback::Saved) {
-                    p { role: "status", "Wiring mode saved." }
-                } else if let BoardWiringModeFeedback::Failed(message) = &feedback.state {
-                    p { role: "alert", "{message}" }
-                }
+            if mode_pending {
+                p { role: "status", "Saving wiring mode…" }
             }
-            if let Some(feedback) = &pin_actions.feedback {
-                match &feedback.state {
-                    PcbWiringPinFeedback::Pending => rsx! { p { role: "status", "Saving wiring pin…" } },
-                    PcbWiringPinFeedback::Saved => rsx! { p { role: "status", "Wiring pin saved." } },
-                    PcbWiringPinFeedback::Failed(message) => rsx! { p { role: "alert", "{message}" } },
-                }
+            if let Some(message) = &mode_failure {
+                p { role: "alert", "{message}" }
+            }
+            if pin_pending {
+                p { role: "status", "Saving wiring pin…" }
+            }
+            if let Some(message) = &pin_failure {
+                p { role: "alert", "{message}" }
             }
             if protected_remap_actions.handoff_revision.is_some()
                 || protected_remap_actions.feedback.is_some()
@@ -862,14 +845,8 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     on_apply.call(identity);
                 }, "Apply wiring" }
             }
-            if let Some(feedback) = &apply_actions.feedback {
-                if matches!(feedback.state, BoardWiringApplyFeedback::Pending) {
-                    p { role: "status", "Applying wiring plan…" }
-                } else if matches!(feedback.state, BoardWiringApplyFeedback::Saved) {
-                    p { role: "status", "Wiring plan applied and saved." }
-                } else if let BoardWiringApplyFeedback::Failed(message) = &feedback.state {
-                    p { role: "alert", "{message}" }
-                }
+            if let Some(message) = &apply_failure {
+                p { role: "alert", "{message}" }
             }
             if let Some(plan) = matching_plan.filter(|plan| !plan.diagnostics.is_empty()) {
                 div { class: "m1-pcb-wiring-findings", role: "alert",
@@ -885,7 +862,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     button {
                         type: "button",
-                        disabled: !mode_actions.editable || review_connections_identity.is_none() || apply::release_pending(),
+                        disabled: !mode_actions.editable || review_connections_identity.is_none() || release_pending,
                         onclick: move |_| {
                             let Some(identity) = review_connections_identity.clone() else { return; };
                             on_release_reviewed_connections.call(identity);

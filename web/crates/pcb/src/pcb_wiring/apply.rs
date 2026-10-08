@@ -8,44 +8,31 @@ use boardstudio_core::{
     electrical::{self, ElectricalPlan},
     model::{EditOperation, ProjectDoc},
 };
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BoardWiringApplyFeedback {
-    Pending,
-    Saved,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BoardWiringApplyFeedbackView {
-    pub target: crate::pcb_wiring_mode_operation::BoardWiringModeFeedbackTarget,
-    pub request_plan: WiringPlanIdentity,
-    pub state: BoardWiringApplyFeedback,
+/// The two one-shot action kinds this panel runs. Their controls disable while the
+/// matching edit is pending, so a double click cannot apply or release twice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoardWiringApplyKey {
+    Apply,
+    ReleaseReviewedConnections,
 }
 
 #[derive(Clone, PartialEq)]
 pub struct BoardWiringApplyActions {
     pub identity: Option<BoardWiringModeIdentity>,
+    /// The Apply control is available: no apply edit is pending and the current plan
+    /// still matches the accepted document.
     pub editable: bool,
-    pub feedback: Option<BoardWiringApplyFeedbackView>,
+    /// The reviewed-connection release control is available.
+    pub release_pending: bool,
+    /// The latest action's failure; landing and retirement are silent.
+    pub failure: Signal<Option<String>>,
     pub on_apply: EventHandler<BoardWiringModeIdentity>,
     pub on_release_reviewed_connections: EventHandler<BoardWiringModeIdentity>,
-}
-
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
-#[derive(Clone, Copy)]
-struct ApplyTickets(Signal<Vec<(BoardWiringModeIdentity, EditTicket, bool)>>);
-
-pub(super) fn release_pending() -> bool {
-    try_consume_context::<ApplyTickets>().is_some_and(|tickets| {
-        tickets
-            .0
-            .read()
-            .iter()
-            .any(|(_, ticket, release)| *release && ticket.is_pending())
-    })
 }
 
 pub fn use_board_wiring_apply(
@@ -57,63 +44,56 @@ pub fn use_board_wiring_apply(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringApplyActions {
-    let tickets = use_signal(Vec::<(BoardWiringModeIdentity, EditTicket, bool)>::new);
-    use_context_provider(|| ApplyTickets(tickets));
-    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let feedback = use_signal(|| None::<BoardWiringApplyFeedbackView>);
+    let edits = use_hook(|| PendingEditSignals::<BoardWiringApplyKey>::new());
+    let apply_disabled = use_signal(|| false);
+    let release_disabled = use_signal(|| false);
+    edits.bind_one_shot(BoardWiringApplyKey::Apply, apply_disabled);
+    edits.bind_one_shot(
+        BoardWiringApplyKey::ReleaseReviewedConnections,
+        release_disabled,
+    );
+    let latest = use_signal(|| None::<BoardWiringApplyKey>);
+    let failure = use_signal(|| None::<String>);
+    let settlement_tick = use_signal(|| 0u64);
+    let _ = settlement_tick();
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
-        let runtime = runtime.clone();
-        let mut tickets = tickets;
-        let mut feedback = feedback;
+        let edits = edits.clone();
+        let latest = latest;
+        let mut failure = failure;
+        let mut settlement_tick = settlement_tick;
         move |_| {
-            let mut entries = tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(identity, ticket, _)| {
-                let live = workspace() == "PCB"
-                    && identity.feedback_target().is_visible(
-                        runtime.scope().as_ref(),
-                        runtime
-                            .model()
-                            .selected_part_ids
-                            .first()
-                            .map(String::as_str),
-                        scope_generation(),
-                    );
-                let state = match ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(BoardWiringApplyFeedback::Saved),
-                    Settlement::Failed { message } => {
-                        Some(BoardWiringApplyFeedback::Failed(message))
-                    }
-                    Settlement::Retired => None,
-                };
-                if *latest.peek() == Some(ticket.operation()) {
-                    feedback.set(state.map(|state| BoardWiringApplyFeedbackView {
-                        target: identity.feedback_target(),
-                        request_plan: identity.plan.clone(),
-                        state,
-                    }));
-                }
-                false
-            });
-            if before != entries.len() {
-                tickets.set(entries);
+            // No field binds to these one-shot keys, so the drained results are placed here.
+            let results = edits.settle(workspace() == "PCB", |_| String::new());
+            if results.is_empty() {
+                return;
             }
+            for result in results {
+                let (key, message) = match result {
+                    PendingEditResult::Failed { key, message } => (key, Some(message)),
+                    PendingEditResult::Landed { key, .. }
+                    | PendingEditResult::Retired { key } => (key, None),
+                };
+                if latest.peek().as_ref() == Some(&key) {
+                    failure.set(message);
+                }
+            }
+            settlement_tick.set(settlement_tick().wrapping_add(1));
         }
     }));
     let submit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut tickets = tickets;
+        let edits = edits.clone();
         let mut latest = latest;
-        let mut feedback = feedback;
+        let mut failure = failure;
         move |(identity, release): (BoardWiringModeIdentity, bool)| {
-            if tickets
-                .peek()
-                .iter()
-                .any(|(_, ticket, kind)| *kind == release && ticket.is_pending())
-            {
+            let key = if release {
+                BoardWiringApplyKey::ReleaseReviewedConnections
+            } else {
+                BoardWiringApplyKey::Apply
+            };
+            if edits.is_pending(&key) {
                 return;
             }
             let Some(snapshot) = current_edit_snapshot(
@@ -141,25 +121,23 @@ pub fn use_board_wiring_apply(
             if release && review.is_none() {
                 return;
             }
-            let ticket = EditTicket::begin(
+            latest.set(Some(key));
+            // One-shot actions stay quiet while their own ticket is pending.
+            failure.set(None);
+            edits.begin_one_shot(
                 &runtime,
+                key,
                 "pcb-wiring-apply",
                 Some("wiring plan".into()),
-                apply_resolver(identity.clone(), (*plan).clone(), review),
+                apply_resolver(identity, (*plan).clone(), review),
             );
-            latest.set(Some(ticket.operation()));
-            // One-shot actions stay quiet while their own ticket is pending.
-            feedback.set(None);
-            tickets.write().push((identity, ticket, release));
         }
     });
     let on_apply = use_callback(move |identity| submit.call((identity, false)));
     let on_release_reviewed_connections =
         use_callback(move |identity| submit.call((identity, true)));
     let identity = source.as_ref().map(mode_identity);
-    let editable = !tickets()
-        .iter()
-        .any(|(_, ticket, release)| !release && ticket.is_pending())
+    let editable = !apply_disabled()
         && identity.as_ref().is_some_and(|identity| {
             current_edit_snapshot(
                 &runtime,
@@ -172,14 +150,11 @@ pub fn use_board_wiring_apply(
                 current_plan(&identity.plan, &resolution.read(), &snapshot.document).is_some()
             })
         });
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let feedback = feedback().filter(|item| target.as_ref() == Some(&item.target));
     BoardWiringApplyActions {
         identity,
         editable,
-        feedback,
+        release_pending: release_disabled(),
+        failure,
         on_apply,
         on_release_reviewed_connections,
     }

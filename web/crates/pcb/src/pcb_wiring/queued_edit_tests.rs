@@ -141,16 +141,7 @@ fn host() -> Element {
         }),
     ));
     let actions = probe.mode.borrow().as_ref().unwrap().clone();
-    let shown_mode = actions
-        .identity
-        .as_ref()
-        .and_then(mode::pending_mode)
-        .unwrap_or_else(|| plan(&accepted.document).mode);
-    let mode_value = if shown_mode == ElectricalMode::Direct {
-        "direct"
-    } else {
-        "matrix"
-    };
+    let mode_value = (actions.draft)();
     rsx! { div { select { id: "queued-mode", value: mode_value, disabled: !actions.editable,
         option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
     } } }
@@ -457,8 +448,9 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
             .any(|part| part.id == "mcu-left")
     );
     assert!(
-        matches!(&probe.apply.borrow().as_ref().unwrap().feedback.as_ref().unwrap().state,
-        BoardWiringApplyFeedback::Failed(message) if message.contains("deleted"))
+        (probe.apply.borrow().as_ref().unwrap().failure)()
+            .is_some_and(|message| message.contains("deleted")),
+        "the refused apply reports its failure inline"
     );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
@@ -498,9 +490,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             .as_ref()
             .is_none_or(|hardware| hardware.boards.is_empty())
     );
-    assert!(
-        matches!(&probe.mode.borrow().as_ref().unwrap().feedback.as_ref().unwrap().state,
-        BoardWiringModeFeedback::Failed(message) if message == "The wiring mode change could not be applied: injected wiring refusal")
+    assert_eq!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().as_deref(),
+        Some("The wiring mode change could not be applied: injected wiring refusal"),
+        "the failure stays inline"
     );
     runtime.submit(Event::ResolveEdit {
         operation_id: runtime.operation(),
@@ -520,18 +513,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         ),
     });
     settle(runtime).await;
-    assert!(matches!(
-        &probe
-            .mode
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .feedback
-            .as_ref()
-            .unwrap()
-            .state,
-        BoardWiringModeFeedback::Failed(_)
-    ));
+    assert!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_some(),
+        "an unrelated edit must not clear the field's failure"
+    );
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: vec!["connector".into()],
@@ -539,7 +524,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         mode: boardstudio_application::SelectionMode::Replace,
     });
     settle(runtime).await;
-    assert!(probe.mode.borrow().as_ref().unwrap().feedback.is_none());
+    assert!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_none(),
+        "a different target shows only its own failure"
+    );
     root.remove();
 }
 
