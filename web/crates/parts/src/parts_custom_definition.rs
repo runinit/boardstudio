@@ -316,6 +316,19 @@ pub(crate) mod ui {
                     return;
                 }
                 let key = DefinitionFieldKey::of(request.row, &edit);
+                let one_shot = matches!(
+                    key,
+                    DefinitionFieldKey::AddPad
+                        | DefinitionFieldKey::Pad {
+                            field: PadField::Remove,
+                            ..
+                        }
+                );
+                // A retained handler can run again before its disabled render.
+                // Only one-shot actions refuse another pending submission.
+                if one_shot && pending.is_pending(&key) {
+                    return;
+                }
                 // The helper remembers the draft each field edit was submitted with, so
                 // an older outcome can never clobber a newer draft.
                 let submitted = match key {
@@ -366,14 +379,7 @@ pub(crate) mod ui {
                     _ => 0,
                 };
                 let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
-                if matches!(
-                    key,
-                    DefinitionFieldKey::AddPad
-                        | DefinitionFieldKey::Pad {
-                            field: PadField::Remove,
-                            ..
-                        }
-                ) {
+                if one_shot {
                     // One-shot controls stay quiet while their edit is queued.
                     pending.begin_one_shot(
                         &runtime,

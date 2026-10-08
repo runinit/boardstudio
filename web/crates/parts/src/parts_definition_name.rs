@@ -1604,6 +1604,70 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_pad_actions_refuse_retained_double_clicks_while_core_is_held() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Pad actions"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let add = root
+            .query_selector(".m1-definition-pad-heading button")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        // Both events reach the same retained handler before a disabled render.
+        add.click();
+        add.click();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the first add reaches Core");
+        assert!(add.has_attribute("disabled"));
+        release.send(()).expect("release the held add reply");
+        accept_edits(&runtime, &controls).await;
+        let added = runtime.model().accepted.unwrap();
+        assert_eq!(
+            added.document.definitions[0].pads.len(),
+            1,
+            "the retained second click cannot add another pad"
+        );
+        assert_eq!(added.document.revision, snapshot.document.revision + 1);
+
+        if !section_is_open(&root) {
+            root.query_selector("details summary")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click();
+            settle().await;
+        }
+        let remove = root
+            .query_selector(".m1-definition-remove-pad")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        remove.click();
+        remove.click();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the first removal reaches Core");
+        assert!(remove.has_attribute("disabled"));
+        release.send(()).expect("release the held removal reply");
+        accept_edits(&runtime, &controls).await;
+        let removed = runtime.model().accepted.unwrap();
+        assert!(removed.document.definitions[0].pads.is_empty());
+        assert_eq!(removed.document.revision, snapshot.document.revision + 2);
+        assert!(
+            root.query_selector("[role='alert']").unwrap().is_none(),
+            "the retained second removal must not queue a missing-pad failure"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn mounted_rejected_pad_number_keeps_newer_text_beside_the_failure() {
         let mut document = courtyard_document("Pad failure");
         document.definitions[0].pads = serde_json::from_value(serde_json::json!([

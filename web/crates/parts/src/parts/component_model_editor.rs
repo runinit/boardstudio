@@ -33,6 +33,9 @@ struct ModelEditorMessage {
     text: String,
 }
 
+#[cfg(test)]
+type UploadHandlerProbe = Rc<std::cell::RefCell<Option<Callback<FormEvent>>>>;
+
 /// This editor's bounded keys: the two one-shot actions plus one key per vector axis
 /// field, so each axis observes its own edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -394,7 +397,7 @@ pub fn ComponentModelEditor(
         };
         input.set_value("");
         if uploading()
-            || upload_pending
+            || upload_pending_edits.is_pending(&ModelKey::Upload)
             || current_snapshot(
                 &runtime_for_upload,
                 &owner_for_upload,
@@ -558,6 +561,15 @@ pub fn ComponentModelEditor(
             submit_owner.set(Some(owner));
         });
     };
+
+    // Mounted tests retain the first real handler to exercise admission after rerenders.
+    #[cfg(test)]
+    if let Some(probe) = try_use_context::<UploadHandlerProbe>() {
+        let mut retained = probe.borrow_mut();
+        if retained.is_none() {
+            *retained = Some(Callback::new(upload_model.clone()));
+        }
+    }
 
     let cancel_upload = {
         let request_generation = request_generation.clone();
@@ -940,6 +952,140 @@ mod settlement_tests {
     async fn tick() {
         gloo_timers::future::TimeoutFuture::new(30).await;
     }
+
+    type UploadEventProbe = Rc<std::cell::RefCell<Option<FormEvent>>>;
+
+    fn upload_host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let event_probe = use_context::<UploadEventProbe>();
+        let selected = use_signal(|| Some((runtime.scope(), "component".into())));
+        let selection_generation = use_signal(|| 1_u64);
+        use_context_provider(|| PartsSelectionGeneration(selection_generation));
+        let scope_generation = use_signal(|| 1_u64);
+        let selected_context = use_signal(|| None);
+        let anchor_scope = use_signal(|| runtime.scope());
+        use_context_provider(|| {
+            SelectionAdapter::new(selected_context, anchor_scope, scope_generation)
+        });
+        let workspace = use_signal(|| "Parts");
+        use_context_provider(|| WorkspaceState(workspace));
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let _ = version();
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let snapshot = runtime.model().accepted.unwrap();
+        let definition = snapshot.document.definitions[0].clone();
+        rsx! {
+            div {
+                onchange: move |event| *event_probe.borrow_mut() = Some(event),
+                ComponentModelEditor {
+                    snapshot,
+                    scope: runtime.scope(),
+                    selected,
+                    definition,
+                    project_owned: true,
+                }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_model_upload_rejects_a_retained_handler_while_pending() {
+        let runtime = opened().await;
+        let handler_probe: UploadHandlerProbe = Rc::new(std::cell::RefCell::new(None));
+        let event_probe: UploadEventProbe = Rc::new(std::cell::RefCell::new(None));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(upload_host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(handler_probe.clone());
+        dom.provide_root_context(event_probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        tick().await;
+        let input = root
+            .query_selector("input[type=file]")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        let file = web_sys::File::new_with_str_sequence(
+            &js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(
+                "solid test\nendsolid test\n",
+            )),
+            "retained-model.stl",
+        )
+        .unwrap();
+        let descriptor = js_sys::Object::new();
+        js_sys::Reflect::set(&descriptor, &"value".into(), &js_sys::Array::of1(&file)).unwrap();
+        js_sys::Object::define_property(
+            input.unchecked_ref::<js_sys::Object>(),
+            &"files".into(),
+            &descriptor,
+        );
+        let (mut entered, release) = support::gate_next_core_reply(&runtime);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+            .unwrap();
+        let mut held = false;
+        for _ in 0..100 {
+            support::drive_pending(&runtime);
+            tick().await;
+            if entered.try_recv().unwrap().is_some() {
+                held = true;
+                break;
+            }
+        }
+        assert!(held, "the real uploaded model reaches the Core gate");
+        assert!(input.disabled(), "the pending upload disables its control");
+        assert!(
+            !root
+                .text_content()
+                .unwrap_or_default()
+                .contains("Reading and saving model file"),
+            "file preparation has finished while the upload edit is held"
+        );
+        let retained = handler_probe.borrow().as_ref().copied().unwrap();
+        let event = event_probe.borrow().clone().unwrap();
+        retained.call(event);
+        for _ in 0..10 {
+            tick().await;
+        }
+        release.send(()).unwrap();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            tick().await;
+        }
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .assets
+                .iter()
+                .filter(|asset| asset.name == "retained-model.stl")
+                .count(),
+            1,
+            "a retained upload handler cannot admit a second model while the first is pending"
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
     fn input(root: &web_sys::Element, axis: &str) -> HtmlInputElement {
         root.query_selector(&format!("input[aria-label='Offset {axis} mm']"))
             .unwrap()
