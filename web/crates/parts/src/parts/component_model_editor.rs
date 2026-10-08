@@ -8,7 +8,8 @@ use crate::{
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
@@ -32,28 +33,38 @@ struct ModelEditorMessage {
     text: String,
 }
 
-#[derive(Clone)]
-struct ModelSubmission {
-    owner: ModelEditorOwner,
-    ticket: EditTicket,
-    action: ModelAction,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ModelAction {
-    Transform,
-    Remove,
+/// This editor's bounded keys: the two one-shot actions plus one key per vector axis
+/// field, so each axis observes its own edit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModelKey {
     Upload,
+    Remove,
+    Transform { field: VectorField, axis: Axis },
 }
 
-#[derive(Clone, Copy)]
+/// The accepted text of one model vector axis, for settlement draft restoration.
+fn model_axis_text(model: &PartModel, field: VectorField, axis: Axis) -> String {
+    let vector = match field {
+        VectorField::Offset => &model.offset,
+        VectorField::Rotation => &model.rotation,
+        VectorField::Scale => &model.scale,
+    };
+    match axis {
+        Axis::X => vector.x,
+        Axis::Y => vector.y,
+        Axis::Z => vector.z,
+    }
+    .to_string()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum VectorField {
     Offset,
     Rotation,
     Scale,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Axis {
     X,
     Y,
@@ -190,7 +201,7 @@ fn submit_model_transform(
     field: VectorField,
     axis: Axis,
     value: f64,
-) -> Result<EditTicket, String> {
+) -> Result<EditResolver, String> {
     current_snapshot(
         runtime,
         owner,
@@ -228,12 +239,7 @@ fn submit_model_transform(
             Ok(())
         },
     );
-    Ok(EditTicket::begin(
-        runtime,
-        "parts-component-model",
-        Some("component model".into()),
-        resolver,
-    ))
+    Ok(resolver)
 }
 
 fn submit_remove_model(
@@ -246,7 +252,7 @@ fn submit_remove_model(
     original: &PartDefinition,
     project_owned_at_start: bool,
     asset_id: &str,
-) -> Result<EditTicket, String> {
+) -> Result<EditResolver, String> {
     current_snapshot(
         runtime,
         owner,
@@ -282,12 +288,7 @@ fn submit_remove_model(
             Ok(())
         },
     );
-    Ok(EditTicket::begin(
-        runtime,
-        "parts-component-model",
-        Some("component model".into()),
-        resolver,
-    ))
+    Ok(resolver)
 }
 
 #[component]
@@ -316,7 +317,9 @@ pub fn ComponentModelEditor(
     let mut error = use_signal(|| None::<ModelEditorMessage>);
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
-    let pending = use_signal(Vec::<ModelSubmission>::new);
+    let pending_edits = use_hook(|| PendingEditSignals::<ModelKey>::new());
+    let submit_owner = use_signal(|| None::<ModelEditorOwner>);
+    use_context_provider(|| pending_edits.clone());
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     use_drop({
@@ -341,35 +344,39 @@ pub fn ComponentModelEditor(
     }));
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let pending_edits = pending_edits.clone();
+        let binding_for_settle = binding.clone();
+        let submit_owner = submit_owner;
+        let mut error = error;
+        let mut notice = notice;
         move |_| {
-            let submissions = pending.peek().clone();
-            let mut retained = Vec::new();
-            for waiting in &submissions {
-                let live = current_snapshot(
-                    &runtime,
-                    &waiting.owner,
-                    &selected,
-                    selection_generation(),
-                    scope_generation(),
-                    &workspace,
-                )
-                .is_some();
-                match waiting.ticket.settlement(live) {
-                    Settlement::Pending => retained.push(waiting.clone()),
-                    Settlement::Landed { .. } => {}
-                    Settlement::Failed { message } => {
-                        error.set(Some(ModelEditorMessage {
-                            owner: waiting.owner.clone(),
-                            text: message,
-                        }));
-                        notice.set(None);
-                    }
-                    Settlement::Retired => {}
+            let Some(owner) = submit_owner.peek().clone() else {
+                return;
+            };
+            let live = current_snapshot(
+                &runtime,
+                &owner,
+                &selected,
+                selection_generation(),
+                scope_generation(),
+                &workspace,
+            )
+            .is_some();
+            let results = pending_edits.settle(live, |key| match key {
+                ModelKey::Transform { field, axis } => binding_for_settle
+                    .as_ref()
+                    .map(|model| model_axis_text(model, *field, *axis))
+                    .unwrap_or_default(),
+                ModelKey::Upload | ModelKey::Remove => String::new(),
+            });
+            for result in results {
+                if let PendingEditResult::Failed { message, .. } = result {
+                    error.set(Some(ModelEditorMessage {
+                        owner: owner.clone(),
+                        text: message,
+                    }));
+                    notice.set(None);
                 }
-            }
-            if retained.len() != submissions.len() {
-                pending.set(retained);
             }
         }
     }));
@@ -388,17 +395,14 @@ pub fn ComponentModelEditor(
     let visible_notice = notice()
         .filter(|message| message.owner == owner && current_owner.is_some())
         .map(|message| message.text);
-    let upload_pending = pending()
-        .iter()
-        .any(|s| s.action == ModelAction::Upload && s.ticket.is_pending());
-    let remove_pending = pending()
-        .iter()
-        .any(|s| s.action == ModelAction::Remove && s.ticket.is_pending());
+    let upload_pending = pending_edits.is_pending(&ModelKey::Upload);
+    let remove_pending = pending_edits.is_pending(&ModelKey::Remove);
     let base_definition = definition.clone();
     let selected_for_upload = selected;
     let runtime_for_upload = runtime.clone();
     let owner_for_upload = owner.clone();
     let upload_generation = request_generation.clone();
+    let upload_pending_edits = pending_edits.clone();
     let upload_model = move |event: FormEvent| {
         let Some(input) = event
             .data()
@@ -442,7 +446,8 @@ pub fn ComponentModelEditor(
         let original = base_definition.clone();
         let project_owned_at_start = project_owned;
         let mut uploading = uploading;
-        let mut pending = pending;
+        let pending_edits = upload_pending_edits.clone();
+        let mut submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
         spawn_local(async move {
@@ -566,17 +571,14 @@ pub fn ComponentModelEditor(
             uploading.set(false);
             error.set(None);
             notice.set(None);
-            let ticket = EditTicket::begin(
+            pending_edits.begin_one_shot(
                 &runtime,
+                ModelKey::Upload,
                 "parts-component-model",
                 Some("component model".into()),
                 resolver,
             );
-            pending.write().push(ModelSubmission {
-                owner,
-                ticket,
-                action: ModelAction::Upload,
-            });
+            submit_owner.set(Some(owner));
         });
     };
 
@@ -596,12 +598,13 @@ pub fn ComponentModelEditor(
         let selected = selected;
         let workspace = workspace;
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
-        let mut pending = pending;
+        let pending_edits = pending_edits.clone();
+        let mut submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
-        move |(field, axis, value): (VectorField, Axis, f64)| {
+        move |(field, axis, submitted, value): (VectorField, Axis, String, f64)| {
             let Some(asset_id) = asset_id.as_deref() else {
-                return None;
+                return false;
             };
             match submit_model_transform(
                 &runtime_for_transform,
@@ -617,22 +620,28 @@ pub fn ComponentModelEditor(
                 axis,
                 value,
             ) {
-                Ok(ticket) => {
+                Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    pending.write().push(ModelSubmission {
-                        owner: owner.clone(),
-                        ticket: ticket.clone(),
-                        action: ModelAction::Transform,
-                    });
-                    Some(ticket)
+                    // The helper remembers the submitted axis text, so an older outcome
+                    // can never clobber a newer draft.
+                    pending_edits.begin_field(
+                        &runtime_for_transform,
+                        ModelKey::Transform { field, axis },
+                        "parts-component-model",
+                        Some("component model".into()),
+                        resolver,
+                        &submitted,
+                    );
+                    submit_owner.set(Some(owner.clone()));
+                    true
                 }
                 Err(message) => {
                     error.set(Some(ModelEditorMessage {
                         owner: owner.clone(),
                         text: message,
                     }));
-                    None
+                    false
                 }
             }
         }
@@ -644,17 +653,15 @@ pub fn ComponentModelEditor(
         let selected = selected;
         let workspace = workspace;
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
-        let mut pending = pending;
+        let pending_edits = pending_edits.clone();
+        let mut submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
         move |_| {
             let Some(asset_id) = asset_id.as_deref() else {
                 return;
             };
-            if pending()
-                .iter()
-                .any(|s| s.action == ModelAction::Remove && s.ticket.is_pending())
-            {
+            if pending_edits.is_pending(&ModelKey::Remove) {
                 return;
             }
             match submit_remove_model(
@@ -668,14 +675,17 @@ pub fn ComponentModelEditor(
                 project_owned,
                 asset_id,
             ) {
-                Ok(ticket) => {
+                Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    pending.write().push(ModelSubmission {
-                        owner: owner.clone(),
-                        ticket,
-                        action: ModelAction::Remove,
-                    });
+                    pending_edits.begin_one_shot(
+                        &runtime,
+                        ModelKey::Remove,
+                        "parts-component-model",
+                        Some("component model".into()),
+                        resolver,
+                    );
+                    submit_owner.set(Some(owner.clone()));
                 }
                 Err(message) => error.set(Some(ModelEditorMessage {
                     owner: owner.clone(),
@@ -707,9 +717,12 @@ pub fn ComponentModelEditor(
                 }
                 fieldset {
                     legend { "Model alignment" }
-                    ModelVectorEditor { key: "{owner:?}-Offset", title: "Offset", value: model.offset, unit: "mm", positive: false, on_commit: move |(axis, value)| transform_commit.call((VectorField::Offset, axis, value)) }
-                    ModelVectorEditor { key: "{owner:?}-Rotation", title: "Rotation", value: model.rotation, unit: "°", positive: false, on_commit: move |(axis, value)| transform_commit.call((VectorField::Rotation, axis, value)) }
-                    ModelVectorEditor { key: "{owner:?}-Scale", title: "Scale", value: model.scale, unit: "×", positive: true, on_commit: move |(axis, value)| transform_commit.call((VectorField::Scale, axis, value)) }
+                    ModelVectorEditor { key: "{owner:?}-Offset", title: "Offset", value: model.offset, unit: "mm", positive: false,
+                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) }
+                    ModelVectorEditor { key: "{owner:?}-Rotation", title: "Rotation", value: model.rotation, unit: "°", positive: false,
+                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) }
+                    ModelVectorEditor { key: "{owner:?}-Scale", title: "Scale", value: model.scale, unit: "×", positive: true,
+                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) }
                 }
                 button { r#type: "button", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
             } else {
@@ -735,39 +748,48 @@ fn ModelVectorEditor(
     value: Vec3,
     unit: &'static str,
     positive: bool,
-    on_commit: Callback<(Axis, f64), Option<EditTicket>>,
+    on_commit: Callback<(Axis, String, f64), bool>,
 ) -> Element {
     let version = use_context::<Signal<u64>>();
     let _ = version();
+    let pending = use_context::<PendingEditSignals<ModelKey>>();
+    let field = match title {
+        "Offset" => VectorField::Offset,
+        "Rotation" => VectorField::Rotation,
+        _ => VectorField::Scale,
+    };
+    let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
-    let mut submissions = use_signal(|| [None::<(String, EditTicket)>, None, None]);
-    let mut draft = use_signal(|| current.map(|coordinate| coordinate.to_string()));
+    let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
     let mut synced = use_signal(|| current);
     let mut error = use_signal(|| None::<String>);
+    let failure = use_signal(|| None::<String>);
+    // Admission memory: the text each axis edit was submitted with, so a blur on an
+    // untouched draft does not resubmit while the edit is pending.
+    let mut submitted = use_signal(|| [None::<String>, None, None]);
+    for index in 0..3 {
+        pending.bind_field(
+            ModelKey::Transform {
+                field,
+                axis: axes[index],
+            },
+            drafts[index],
+            failure,
+        );
+    }
     {
         let previous = synced();
-        let mut next_draft = draft.peek().clone();
-        let mut next_submissions = submissions.peek().clone();
-        let mut changed = false;
         for index in 0..3 {
-            if let Some((submitted, ticket)) = &next_submissions[index] {
-                if !matches!(ticket.settlement(true), Settlement::Pending) {
-                    if next_draft[index] == *submitted {
-                        next_draft[index] = current[index].to_string();
-                    }
-                    next_submissions[index] = None;
-                    changed = true;
-                }
-            } else if current[index] != previous[index]
-                && next_draft[index] == previous[index].to_string()
+            let key = ModelKey::Transform {
+                field,
+                axis: axes[index],
+            };
+            if !pending.is_pending(&key)
+                && current[index] != previous[index]
+                && drafts[index].peek().as_str() == previous[index].to_string()
             {
-                next_draft[index] = current[index].to_string();
-                changed = true;
+                drafts[index].set(current[index].to_string());
             }
-        }
-        if changed {
-            draft.set(next_draft);
-            submissions.set(next_submissions);
         }
         if previous != current {
             synced.set(current);
@@ -777,17 +799,20 @@ fn ModelVectorEditor(
         fieldset { class: "m1-model-vector",
             legend { "{title} · {unit}" }
             for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
-                label { class: "m1-generator-field", "{label}",
+                {
+                    let pending = pending.clone();
+                    rsx! {
+                    label { class: "m1-generator-field", "{label}",
                     input {
                         r#type: "number",
                         step: "0.1",
                         min: if positive { "0.001" } else { "" },
-                        value: "{draft()[index]}",
+                        value: "{drafts[index]()}",
                         aria_label: "{title} {label} {unit}",
                         aria_invalid: error().is_some(),
-                        oninput: move |event| draft.with_mut(|values| values[index] = event.value()),
+                        oninput: move |event| drafts[index].set(event.value()),
                         onblur: move |_| {
-                            let raw = draft()[index].clone();
+                            let raw = drafts[index]().clone();
                             let parsed = raw.trim().parse::<f64>().ok();
                             let valid = parsed.is_some_and(|number| number.is_finite() && (!positive || number > 0.0));
                             if !valid {
@@ -796,11 +821,11 @@ fn ModelVectorEditor(
                             }
                             let number = parsed.unwrap_or_default();
                             error.set(None);
-                            let already_submitted = submissions.peek()[index].as_ref().is_some_and(|(text, _)| text == &raw);
-                            if !already_submitted && (number != current[index] || submissions.peek()[index].is_some()) {
-                                if let Some(ticket) = on_commit.call((axis, number)) {
-                                    submissions.write()[index] = Some((raw, ticket));
-                                }
+                            let already_submitted = submitted.peek()[index].as_deref() == Some(raw.as_str());
+                            let axis_pending = pending.is_pending(&ModelKey::Transform { field, axis });
+                            if !already_submitted && (number != current[index] || axis_pending) {
+                                submitted.write()[index] = Some(raw.clone());
+                                on_commit.call((axis, raw, number));
                             }
                         },
                         onkeydown: move |event: KeyboardEvent| {
@@ -810,12 +835,14 @@ fn ModelVectorEditor(
                             {
                                 let _ = input.blur();
                             } else if key == "Escape" {
-                                let restored = submissions.peek()[index].as_ref().map(|(submitted, _)| submitted.clone()).unwrap_or_else(|| current[index].to_string());
-                                draft.with_mut(|values| values[index] = restored);
+                                let restored = submitted.peek()[index].clone().unwrap_or_else(|| current[index].to_string());
+                                drafts[index].set(restored);
                                 error.set(None);
                             }
                         }
                     }
+                    }
+                }
                 }
             }
             if let Some(message) = error() { small { role: "alert", "{message}" } }
@@ -827,6 +854,7 @@ fn ModelVectorEditor(
 mod settlement_tests {
     use super::*;
     use boardstudio_core::model::ProjectDoc;
+    use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use wasm_bindgen_test::*;
 
@@ -879,10 +907,16 @@ mod settlement_tests {
                 }))
             }
         });
+        let edits = use_hook(|| PendingEditSignals::<ModelKey>::new());
+        use_context_provider(|| edits.clone());
         let accepted = runtime.model().accepted.unwrap();
         let model = initial_model(&accepted.document.definitions[0]).unwrap();
         rsx! { ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false,
-            on_commit: move |(axis, value)| Some(EditTicket::begin(&runtime, "model-test", Some("component model".into()), offset_edit(axis, value)))
+            on_commit: move |(axis, submitted, value)| {
+                edits.begin_field(&runtime, ModelKey::Transform { field: VectorField::Offset, axis },
+                    "model-test", Some("component model".into()), offset_edit(axis, value), &submitted);
+                true
+            }
         } }
     }
 
@@ -1028,8 +1062,10 @@ mod settlement_tests {
     async fn model_edit_retires_if_definition_deleted_before_execution() {
         let runtime = opened().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let remove = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "delete-definition-test",
             None,
             EditResolver::new("delete-definition-test", |accepted: &AcceptedSnapshot| {
@@ -1045,8 +1081,9 @@ mod settlement_tests {
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let edit = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "model-test",
             Some("component model".into()),
             offset_edit(Axis::X, 4.0),
@@ -1054,9 +1091,10 @@ mod settlement_tests {
         release.send(()).unwrap();
         tick().await;
         support::run_pending(&runtime).await;
-        assert!(matches!(remove.settlement(true), Settlement::Landed { .. }));
+        let results = edits.settle(true);
         assert!(
-            matches!(edit.settlement(true), Settlement::Failed { message } if message.contains("removed"))
+            matches!(&results[..], [PendingEditResult::Landed { .. }, PendingEditResult::Failed { message, .. }] if message.contains("removed")),
+            "the deletion lands and the queued model edit fails against the removed definition"
         );
         assert!(
             runtime
