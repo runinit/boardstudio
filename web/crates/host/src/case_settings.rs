@@ -1,9 +1,16 @@
 //! Defaults for supported mechanical presets.
 use boardstudio_core::model::{
-    MechanicalConfiguration, MechanicalConstructionOwnership, Part, PartDefinition, ProjectDoc,
+    Board, MechanicalConfiguration, MechanicalSwitchFamily, Part, PartDefinition, PlateMethod,
+    ProjectDoc,
 };
 
 /// Existing configuration keeps all extension settings; a new board uses reference defaults.
+///
+/// The numeric defaults (plate thickness, mounting datum, plate-foam thickness and
+/// the standard layer processes/materials) come from Core's public mechanical
+/// helpers, so this adapter only assembles a fresh configuration. Core's canonical
+/// full builder, `mechanical::edit::default_configuration`, is private; exposing it
+/// would let this function disappear entirely.
 pub fn initial_settings(
     document: &ProjectDoc,
     board_id: &str,
@@ -20,60 +27,74 @@ pub fn initial_settings(
         .iter()
         .find(|b| b.id == board_id)
         .ok_or("Board is unavailable")?;
-    let families: Vec<_> = document
-        .parts
-        .iter()
-        .filter(|p| board.part_ids.contains(&p.id))
-        .filter_map(|part| {
-            let definition = document
-                .definitions
-                .iter()
-                .find(|d| d.id == part.definition_id)?;
-            let family = switch_family(definition, part);
-            if definition.kind == boardstudio_core::model::PartKind::Switch
-                || family.is_some()
-                || definition
-                    .generator
-                    .as_ref()
-                    .is_some_and(|g| g.source.ends_with("/switch_choc_v1_v2"))
-            {
-                Some(family)
-            } else {
-                None
-            }
-        })
-        .collect();
-    let family = families
-        .first()
-        .copied()
-        .flatten()
-        .filter(|family| families.iter().all(|candidate| *candidate == Some(*family)))
-        .unwrap_or("mx");
-    let plate: f64 = if family == "choc-v1" { 1.3 } else { 1.5 };
-    let gap: f64 = if family == "choc-v1" { 3.5 } else { 5.0 } - plate;
-    let foam = ((gap - 0.2).min(3.0) * 10.0 + 0.00001_f64).floor().max(0.0) / 10.0;
-    let pcb = if board.thickness.is_finite() && board.thickness > 0.0 {
+    let family = inferred_family(document, board);
+    let plate_thickness = boardstudio_core::mechanical::default_plate_thickness(family);
+    let plate_to_pcb = boardstudio_core::mechanical::mounting_datum(family) - plate_thickness;
+    let plate_foam_thickness =
+        boardstudio_core::mechanical::default_plate_foam_thickness(plate_to_pcb);
+    let pcb_thickness = if board.thickness.is_finite() && board.thickness > 0.0 {
         board.thickness
     } else {
         1.6
     };
-    let processes: Vec<_> = [("plate",plate),("plate-foam",foam),("bottom-foam",2.0),("bottom",3.0)].into_iter().map(|(id,thickness)| {
-        let foam = id.ends_with("foam");
-        serde_json::json!({"partId":id,"method":if foam {"cut-sheet"} else {"printed"},"material":if foam {"EVA"} else {"PLA"},"thickness":thickness,"constraintsVersion":"2026-09-24"})
-    }).collect();
+    let bottom_foam_thickness = 2.0;
+    let bottom_thickness = 3.0;
+    let processes: Vec<_> = [
+        ("plate", plate_thickness),
+        ("plate-foam", plate_foam_thickness),
+        ("bottom-foam", bottom_foam_thickness),
+        ("bottom", bottom_thickness),
+    ]
+    .into_iter()
+    .map(|(id, thickness)| {
+        boardstudio_core::mechanical::default_layer_process(id, PlateMethod::Printed, thickness)
+    })
+    .collect();
     serde_json::from_value(serde_json::json!({
         "boardId":board_id,"method":"printed","mount":"tray","integratedPlateFrame":false,
-        "bottomStyle":"shell","middleFrame":false,"plateThickness":plate,"plateFoamThickness":foam,
-        "pcbThickness":pcb,"bottomFoamThickness":2.0,"batteryHeight":0.0,"bottomThickness":3.0,
-        "plateToPcb":gap,"wallThickness":2.0,"clearance":0.3,"mounts":[],"partProcesses":processes,"profiles":[]
-    })).map_err(|error| error.to_string())
+        "bottomStyle":"shell","middleFrame":false,"plateThickness":plate_thickness,"plateFoamThickness":plate_foam_thickness,
+        "pcbThickness":pcb_thickness,"bottomFoamThickness":bottom_foam_thickness,"batteryHeight":0.0,"bottomThickness":bottom_thickness,
+        "plateToPcb":plate_to_pcb,"wallThickness":2.0,"clearance":0.3,"mounts":[],"partProcesses":processes,"profiles":[]
+    }))
+    .map_err(|error| error.to_string())
 }
 
-fn switch_family(definition: &PartDefinition, part: &Part) -> Option<&'static str> {
+/// The board's shared switch family, or MX when the placed switches disagree.
+fn inferred_family(document: &ProjectDoc, board: &Board) -> MechanicalSwitchFamily {
+    let families: Vec<_> = document
+        .parts
+        .iter()
+        .filter(|part| board.part_ids.contains(&part.id))
+        .filter_map(|part| {
+            let definition = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)?;
+            is_switch_position(definition, part).then_some(switch_family(definition, part))
+        })
+        .collect();
+    families
+        .first()
+        .copied()
+        .flatten()
+        .filter(|family| families.iter().all(|candidate| *candidate == Some(*family)))
+        .unwrap_or(MechanicalSwitchFamily::Mx)
+}
+
+fn is_switch_position(definition: &PartDefinition, part: &Part) -> bool {
+    matches!(definition.kind, boardstudio_core::model::PartKind::Switch)
+        || switch_family(definition, part).is_some()
+        || definition
+            .generator
+            .as_ref()
+            .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2"))
+}
+
+fn switch_family(definition: &PartDefinition, part: &Part) -> Option<MechanicalSwitchFamily> {
     let generator = definition.generator.as_ref()?;
     let source = generator.source.to_lowercase();
     if source == "ceoloide/switch_mx" {
-        return Some("mx");
+        return Some(MechanicalSwitchFamily::Mx);
     }
     if !source.ends_with("/switch_choc_v1_v2") {
         return None;
@@ -92,8 +113,8 @@ fn switch_family(definition: &PartDefinition, part: &Part) -> Option<&'static st
             .unwrap_or(true)
     };
     match (enabled("choc_v1_support"), enabled("choc_v2_support")) {
-        (true, false) => Some("choc-v1"),
-        (false, true) => Some("choc-v2"),
+        (true, false) => Some(MechanicalSwitchFamily::ChocV1),
+        (false, true) => Some(MechanicalSwitchFamily::ChocV2),
         _ => None,
     }
 }
@@ -113,43 +134,4 @@ pub fn update_bottom_thickness(
         }
     }
     Ok(())
-}
-
-/// Preserve per-instance features while changing the reference shared construction policy.
-pub fn update_instance_settings(
-    document: &ProjectDoc,
-    instance_id: &str,
-    configuration: Option<MechanicalConfiguration>,
-) -> Result<ProjectDoc, String> {
-    let mut updated = document.clone();
-    let hardware = updated
-        .hardware
-        .as_mut()
-        .ok_or("Physical instances are unavailable")?;
-    if !hardware
-        .instances
-        .iter()
-        .any(|instance| instance.id == instance_id)
-    {
-        return Err("Selected physical instance is unavailable".into());
-    }
-    let mut common = configuration.clone();
-    if let Some(layout) = common
-        .as_mut()
-        .and_then(|config| config.gasket_layout.as_mut())
-    {
-        layout.supports.clear();
-    }
-    hardware.shared_construction = common;
-    for instance in &mut hardware.instances {
-        instance.construction_ownership = if configuration.is_some() {
-            MechanicalConstructionOwnership::Legacy
-        } else {
-            MechanicalConstructionOwnership::Local
-        };
-        if configuration.is_none() || instance.id == instance_id {
-            instance.mechanical = configuration.clone();
-        }
-    }
-    Ok(updated)
 }
