@@ -14,6 +14,19 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 - `docs/backlog.md`: update "Testing" (native harness) and "Feature ownership".
 - Map: confirm every ticket's Progress line; record what the next review should look
   at (preview pipelines and project lifecycle in `runtime.rs`).
+- After the panel migrations integrate, inspect the duplicated Case/Keymap
+  OwnedEdits holder and the similar Keycaps owner/binding mechanism. Consolidate
+  shared lifecycle mechanics only when the existing helper can absorb them behind
+  a small interface; keep domain metadata and projections with their callers.
+  Any new or widened public helper API needs approval. Do not add unbind_all or a
+  second draft/failure pair type speculatively; FieldView already represents the pair.
+- Record the helper's binding epochs, composite unbind behavior and K: Clone
+  submission requirement in the shared contract after integrated checks. Replace
+  unexplained owner-generation sentinels only after verifying the owner semantics.
+- Keep baseline repairs separate from the panel acceptance fixes: root owns the
+  browser-runner diagnosis and complete test-list coverage under one Chrome lease;
+  investigate the CAD gasket volume mismatch through its existing domain test.
+  Do not weaken the geometry assertion or exclude a mounted test to claim a pass.
 
 ## Verification
 

@@ -81,8 +81,61 @@ is held, same-key remount before release, and ordinary settlement. Observe a val
 behavioral RED, then GREEN, and rerun both UI-shared browser groups under the lease.
 
 Start final pinned reviews once source is ready; read-only review may run while waiting
-for Chrome. The lease remains with Layout until explicitly released. A skipped
+for Chrome. Confirm the current lease with root; ownership in earlier reports is
+historical. A skipped
 Keymap case plus an isolated passing run is partial coverage, not a full-suite pass.
 For graph checks, pass the absolute branch worktree to detect_changes (scope all)
 and use a pinned-base compare for committed work. Zero indexed symbols is unresolved
 coverage; retain current-source/diff evidence and root's integrated-tree graph gate.
+
+## Final completion pass
+
+Resume from the actual branch HEAD, preserving `f8f684959` and all prior work. Root
+reviewed that checkpoint against base `8ce860a09`; the remaining work is bounded.
+Do not rewrite history, consolidate the shared wrapper, or add helper APIs in this
+pass. Keep source ownership and the approved lifecycle exception above.
+
+1. Fix macro failure placement. The controller currently copies a bound field's
+   failure to MacroEditStatus while the field also renders the helper Signal.
+   Report bound-field failures at that field; retain appropriate panel feedback
+   for actions without a bound field and admission failures. TextDraft and
+   NumberDraft must show the older failure even while a newer draft remains dirty.
+   First prove both behaviors through the actual mounted fields with held Runtime
+   results, observe behavioral RED, then fix and rerun those tests.
+2. Protect mechanical queue order with a native Runtime regression: hold Core,
+   submit two edits to the same field, and release it. Both accepted edits and
+   their Undo steps must remain; only the latest observation reports for that
+   field. Preserve the existing out-of-order catalogue-preparation coverage and
+   check the new per-field Submitted dedup, not merely the final value.
+3. Strengthen the one-shot unbind test. Its current remount starts enabled and
+   remains enabled, so releasing an old outcome can write false and still pass.
+   Prove unmount without remount avoids a dropped-Signal write, and prove an old
+   outcome cannot re-enable a replacement whose disabled state must remain true.
+   Observe RED without the lifecycle protection and GREEN with it; keep the
+   queued Session execution and caller-follow-up assertions.
+4. Supply a coverage table of actual panel test names for unchanged-submitted
+   failure restore, newer draft with inline older failure, latest-per-key
+   replacement and owner departure. Reuse sufficient existing tests; add missing
+   cases through real inputs/controllers for distinct field ownership paths,
+   especially Case and macro child fields. Repeating a generic helper fixture in
+   each crate does not verify consumer wiring. Binding resolver native extraction
+   is a later seam decision; existing mounted binding coverage remains required.
+5. Rerun affected native tests, lint/typecheck and mounted groups under an explicit
+   Chrome lease. Pin both final reviews to the new HEAD. Report test commands,
+   tested commits and any unexecuted or failing gates; explicitly release the
+   lease after the browser runner exits. Root handles integration with current dev.
+
+The remaining feedback type names do not decide compliance by themselves. Domain
+projection, request metadata, error placement and precise follow-ups may remain.
+Delete duplicated ticket/terminal policy and bound-field draft restoration wherever
+they still exist. The shared helper remains the settlement authority.
+
+The new `begin_one_shot` K: Clone bound must be recorded as a contract change and
+checked against all consumers during integration. It is not a reason to start a
+broader helper redesign. FieldView already bundles draft/failure Signals; prefer
+it over introducing another public pair type. Call both existing unbind methods
+for a composite control rather than adding unbind_all here.
+
+Root's native-check AppImage fix is committed at `5a26e50ca`. An older worktree can
+run `env -u APPDIR CARGO_BUILD_JOBS=2 python3 scripts/check.py test` without rebasing
+or reinstalling KiCad. The remaining CAD volume failure is a separate failing gate.
