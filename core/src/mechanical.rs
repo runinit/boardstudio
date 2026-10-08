@@ -1,6 +1,7 @@
 //! Stateless mechanical assembly resolution. Explicit profiles are the geometry authority.
 use crate::model::*;
 pub mod change;
+pub mod clearance;
 pub mod edit;
 mod gasket;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
