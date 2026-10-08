@@ -785,9 +785,6 @@ pub fn Editor(
         let owner = owner.clone();
         let action_edits = action_edits.clone();
         let actions = actions.clone();
-        let action_submissions = action_submissions;
-        let action_latest = action_latest;
-        let error = error;
         move |_| {
             // The lineage check already answers for the panel's workspace.
             let panel_is_live = super::board_reference_owner_lineage_is_current(

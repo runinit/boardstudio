@@ -19,11 +19,12 @@ use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    task::Poll,
 };
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+type ProposalReply = Result<boardstudio_core::model::ProjectDoc, String>;
 
 #[derive(Clone)]
 struct Probe {
@@ -32,8 +33,10 @@ struct Probe {
     active: Rc<Cell<bool>>,
     /// The generation the owner check and the rendered source answer for.
     generation: Rc<Cell<u64>>,
-    /// The queued preparation reply; `None` keeps preparation pending.
-    reply: Rc<RefCell<Option<Result<boardstudio_core::model::ProjectDoc, String>>>>,
+    /// The reply queued before the preparation call that will consume it.
+    reply: Rc<RefCell<Option<ProposalReply>>>,
+    /// The sender of the preparation call currently parked on a later reply.
+    prepare_sender: Rc<RefCell<Option<futures_channel::oneshot::Sender<ProposalReply>>>>,
     /// The mount the host rendered last.
     mount: Rc<RefCell<Option<PhysicalSetupMount>>>,
     /// Bumped by the test to force a host render without a runtime change.
@@ -82,16 +85,26 @@ fn host() -> Element {
         })
     };
     let prepare = {
-        let reply = probe.reply.clone();
+        let probe = probe.clone();
         Rc::new(
             move |_: boardstudio_core::model::ProjectDoc, _: crate::physical_setup::SetupIntent| {
-                let reply = reply.clone();
-                Box::pin(std::future::poll_fn(move |_| {
-                    match reply.borrow_mut().take() {
-                        Some(value) => Poll::Ready(value),
-                        None => Poll::Pending,
+                let probe = probe.clone();
+                // A channel so a reply queued after the task parks still wakes it; a
+                // poll_fn alone would leave the parked task waiting forever.
+                Box::pin(async move {
+                    let (sender, receiver) = futures_channel::oneshot::channel();
+                    match probe.reply.borrow_mut().take() {
+                        Some(value) => {
+                            let _ = sender.send(value);
+                        }
+                        None => {
+                            *probe.prepare_sender.borrow_mut() = Some(sender);
+                        }
                     }
-                })) as super::controller::ProposalFuture
+                    receiver
+                        .await
+                        .unwrap_or_else(|_| Err("the preparation gate was dropped".into()))
+                }) as super::controller::ProposalFuture
             },
         )
     };
@@ -129,6 +142,7 @@ async fn mounted(id: &str) -> (Probe, web_sys::Element) {
         active: Rc::new(Cell::new(true)),
         generation: Rc::new(Cell::new(0)),
         reply: Rc::new(RefCell::new(None)),
+        prepare_sender: Rc::new(RefCell::new(None)),
         mount: Rc::new(RefCell::new(None)),
         poke: Rc::new(RefCell::new(None)),
     };
@@ -191,9 +205,20 @@ fn accepted_reversible(runtime: &Runtime) -> Option<serde_json::Value> {
         .cloned()
 }
 
+/// Queue a preparation reply. Before the controller asks for preparation it is consumed
+/// by the next call; afterwards it wakes the parked preparation task.
+fn queue_reply(probe: &Probe, value: ProposalReply) {
+    match probe.prepare_sender.borrow_mut().take() {
+        Some(sender) => {
+            let _ = sender.send(value);
+        }
+        None => *probe.reply.borrow_mut() = Some(value),
+    }
+}
+
 /// Hold the next Core reply, submit a reversible-layout setup, and observe it in flight.
 async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
-    *probe.reply.borrow_mut() = Some(Ok(reversible(probe)));
+    queue_reply(probe, Ok(reversible(probe)));
     let (entered, release) = support::gate_next_core_reply(&probe.runtime);
     mount(probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     support::drive_pending(&probe.runtime);
@@ -294,7 +319,7 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
         "preparation holds the busy gate"
     );
     probe.active.set(false);
-    *probe.reply.borrow_mut() = Some(Ok(reversible(&probe)));
+    queue_reply(&probe, Ok(reversible(&probe)));
     settle(&runtime).await;
     let projection = mount(&probe).projection;
     assert!(
@@ -325,7 +350,7 @@ async fn retained_rendered_controls_cannot_retarget_another_project() {
     });
     settle(&runtime).await;
     support::take_held_effects(&runtime);
-    *probe.reply.borrow_mut() = Some(Ok(reversible(&probe)));
+    queue_reply(&probe, Ok(reversible(&probe)));
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
     assert!(
@@ -349,7 +374,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     });
     settle(&runtime).await;
     support::take_held_effects(&runtime);
-    *probe.reply.borrow_mut() = Some(Ok(reversible(&probe)));
+    queue_reply(&probe, Ok(reversible(&probe)));
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
     assert!(
@@ -365,7 +390,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     probe.generation.set(1);
     poke(&probe);
     rendered().await;
-    *probe.reply.borrow_mut() = Some(Ok(reversible(&probe)));
+    queue_reply(&probe, Ok(reversible(&probe)));
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
     assert!(
@@ -380,7 +405,7 @@ async fn a_failed_save_reports_once_for_its_exact_owner() {
     let (probe, root) = mounted("setup-failure").await;
     let runtime = probe.runtime.clone();
     support::fail_next_persist(&runtime, "disk");
-    *probe.reply.borrow_mut() = Some(Ok(reversible(&probe)));
+    queue_reply(&probe, Ok(reversible(&probe)));
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     settle(&runtime).await;
     let projection = mount(&probe).projection;
