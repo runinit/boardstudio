@@ -96,9 +96,11 @@ pub(crate) mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::{Pad, PadShape, PartDefinition, PartKind};
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
+    use std::cell::RefCell;
     use std::collections::BTreeMap;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
@@ -125,75 +127,93 @@ pub(crate) mod ui {
         PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| *draft.borrow_mut() = None);
     }
 
-    /// One ticket per committed field, mirroring the Layout Inspector's pending edits.
-    /// A new commit for a field replaces its ticket; a terminal settlement drops it so
-    /// the field follows the accepted document again.
-    #[derive(Clone, Default)]
-    pub struct DefinitionPanelEdits {
-        pub kind: Option<EditTicket>,
-        pub courtyard_width: Option<EditTicket>,
-        pub courtyard_height: Option<EditTicket>,
-        pub add_pad: Option<EditTicket>,
-        pub pads: BTreeMap<u64, PadRowEdits>,
+    /// The draft Signals of one pad row, owned by the panel so a settlement can never
+    /// write Signals whose row component has already unmounted.
+    #[derive(Clone, Copy, PartialEq)]
+    struct RowDrafts {
+        drafts: [Signal<String>; PadField::TEXT_FIELDS],
     }
 
-    /// The pending tickets of one pad row, keyed by the row's stable key.
-    #[derive(Clone, Default)]
-    pub struct PadRowEdits {
-        pub id: Option<EditTicket>,
-        pub number: Option<EditTicket>,
-        pub x: Option<EditTicket>,
-        pub y: Option<EditTicket>,
-        pub size_x: Option<EditTicket>,
-        pub size_y: Option<EditTicket>,
-        pub drill: Option<EditTicket>,
-        pub shape: Option<EditTicket>,
-        pub remove: Option<EditTicket>,
+    impl RowDrafts {
+        fn new(pad: &Pad) -> Self {
+            Self {
+                drafts: [
+                    Signal::new(pad.id.clone()),
+                    Signal::new(pad.number.clone()),
+                    Signal::new(pad.at.x.to_string()),
+                    Signal::new(pad.at.y.to_string()),
+                    Signal::new(pad.size.x.to_string()),
+                    Signal::new(pad.size.y.to_string()),
+                    Signal::new(pad.drill.map(|value| value.to_string()).unwrap_or_default()),
+                ],
+            }
+        }
+
+        fn accepted_texts(pad: &Pad) -> [String; PadField::TEXT_FIELDS] {
+            [
+                pad.id.clone(),
+                pad.number.clone(),
+                pad.at.x.to_string(),
+                pad.at.y.to_string(),
+                pad.size.x.to_string(),
+                pad.size.y.to_string(),
+                pad.drill.map(|value| value.to_string()).unwrap_or_default(),
+            ]
+        }
     }
 
-    /// A committed field edit, addressed to the panel that owns the tickets. Top-level
+    /// Every pad row's drafts plus the accepted text each draft was last refreshed
+    /// from, so a draft follows only its own accepted value and unrelated accepted
+    /// changes leave dirty drafts alone.
+    #[derive(Default)]
+    struct PanelRows {
+        drafts: BTreeMap<u64, RowDrafts>,
+        accepted: BTreeMap<u64, [String; PadField::TEXT_FIELDS]>,
+    }
+
+    impl PanelRows {
+        /// The draft Signals of one row, created from the accepted pad on first sight.
+        fn row(&mut self, row: u64, pad: &Pad) -> RowDrafts {
+            *self
+                .drafts
+                .entry(row)
+                .or_insert_with(|| RowDrafts::new(pad))
+        }
+
+        /// Refresh one field's draft when its own accepted text changed. Dirty drafts
+        /// follow their accepted value exactly like the per-field refresh they replace.
+        fn refresh(&mut self, row: u64, field: PadField, pad: &Pad) {
+            let Some(index) = field.text_index() else {
+                return;
+            };
+            let accepted = RowDrafts::accepted_texts(pad);
+            let entry = self.accepted.entry(row).or_insert_with(|| accepted.clone());
+            if entry[index] != accepted[index] {
+                if let Some(mut drafts) = self.drafts.get(&row).copied() {
+                    drafts.drafts[index].set(accepted[index].clone());
+                }
+                *entry = accepted;
+            }
+        }
+    }
+
+    /// One panel edit per bounded logical field. Rows carry their stable row key, so a
+    /// landed pad edit never settles into another row's inputs.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum DefinitionFieldKey {
+        Kind,
+        CourtyardWidth,
+        CourtyardHeight,
+        AddPad,
+        Pad { row: u64, field: PadField },
+    }
+
+    /// A committed field edit, addressed to the panel that owns the edits. Top-level
     /// fields carry no row; pad-row fields carry their row's stable key.
     #[derive(Clone, Debug, PartialEq)]
     pub struct DefinitionFieldEdit {
         pub row: Option<u64>,
         pub edit: DefinitionEdit,
-    }
-
-    /// Read a field's settlement; a terminal settlement drops the ticket so the field
-    /// shows the accepted document again. Returns the settlement to render.
-    pub fn settle_ticket(
-        ticket: &mut Option<EditTicket>,
-        owner_is_live: bool,
-    ) -> Option<Settlement> {
-        let pending = ticket.as_ref()?;
-        let settlement = pending.settlement(owner_is_live);
-        if settlement != Settlement::Pending {
-            ticket.take();
-        }
-        (settlement != Settlement::Pending).then_some(settlement)
-    }
-
-    /// A text field's terminal settlement: failures restore the accepted value and
-    /// report the message inline; landed and retired tickets just drop.
-    pub fn apply_text_settlement(
-        settlement: Settlement,
-        accepted: &str,
-        draft: &mut Signal<String>,
-        error: &mut Signal<String>,
-    ) {
-        if let Settlement::Failed { message } = settlement {
-            error.set(message);
-        }
-        if draft.peek().as_str() != accepted {
-            draft.set(accepted.to_owned());
-        }
-    }
-
-    /// A one-shot control's terminal settlement: only the failure needs words.
-    pub fn apply_plain_settlement(settlement: Settlement, error: &mut Signal<String>) {
-        if let Settlement::Failed { message } = settlement {
-            error.set(message);
-        }
     }
 
     #[component]
@@ -204,10 +224,18 @@ pub(crate) mod ui {
         definition: PartDefinition,
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
-        let mut error = use_signal(String::new);
+        let mut failure = use_signal(|| None::<String>);
         let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
         let owner_identity = (scope.clone(), selection(), definition.id.clone());
-        let mut pending = use_signal(DefinitionPanelEdits::default);
+        let pending = use_hook(|| PendingEditSignals::<DefinitionFieldKey>::new());
+        // Pad-row drafts live here so a settlement can never write a Signal whose row
+        // component already unmounted; the helper's bindings point at these Signals.
+        let row_drafts = use_hook(|| Rc::new(RefCell::new(PanelRows::default())));
+        let courtyard = courtyard_size(&definition);
+        let initial_width = courtyard.0.clone();
+        let initial_height = courtyard.1.clone();
+        let mut width = use_signal(move || initial_width);
+        let mut height = use_signal(move || initial_height);
 
         // Begin a pending edit for a committed field. Admission keeps stale callbacks
         // out early; value validation explains itself inline; the resolver owns every
@@ -216,44 +244,78 @@ pub(crate) mod ui {
             let runtime = runtime.clone();
             let selection = selection;
             let capture = capture.clone();
-            let mut pending = pending;
-            let mut error = error;
+            let pending = pending.clone();
+            let row_drafts = row_drafts.clone();
+            let width = width;
+            let height = height;
+            let mut failure = failure;
             move |request: DefinitionFieldEdit| {
                 let model = runtime.model();
                 let Some(current) = model.accepted.as_ref() else {
                     return;
                 };
-                if !capture.owner_is_live(current, runtime.scope(), selection()) {
+                if !capture.owner_matches(current, runtime.scope(), selection()) {
                     return;
                 }
                 let edit = request.edit;
                 if let Err(message) = validate_definition_edit(&edit) {
-                    error.set(message);
+                    failure.set(Some(message));
                     return;
                 }
                 let seed = match edit {
                     DefinitionEdit::AddPad => runtime.operation().0,
                     _ => 0,
                 };
-                let slot = DefinitionEditSlot::of(request.row, &edit);
+                let key = DefinitionFieldKey::of(request.row, &edit);
                 let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
-                let ticket = EditTicket::begin(
-                    &runtime,
-                    "parts-definition-field",
-                    Some("part definition".into()),
-                    resolver,
-                );
-                pending.write().park(slot, ticket);
-                error.set(String::new());
+                // The helper remembers the draft each field edit was submitted with, so
+                // an older outcome can never clobber a newer draft.
+                let submitted = match key {
+                    DefinitionFieldKey::CourtyardWidth => width.peek().clone(),
+                    DefinitionFieldKey::CourtyardHeight => height.peek().clone(),
+                    DefinitionFieldKey::Pad { row, field } => row_drafts
+                        .borrow()
+                        .drafts
+                        .get(&row)
+                        .and_then(|drafts| {
+                            field
+                                .text_index()
+                                .map(|index| drafts.drafts[index].peek().clone())
+                        })
+                        .unwrap_or_default(),
+                    DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => String::new(),
+                };
+                if matches!(
+                    key,
+                    DefinitionFieldKey::AddPad
+                        | DefinitionFieldKey::Pad {
+                            field: PadField::Remove,
+                            ..
+                        }
+                ) {
+                    // One-shot controls stay quiet while their edit is queued.
+                    pending.begin_one_shot(
+                        &runtime,
+                        key,
+                        "parts-definition-field",
+                        Some("part definition".into()),
+                        resolver,
+                    );
+                } else {
+                    pending.begin_field(
+                        &runtime,
+                        key,
+                        "parts-definition-field",
+                        Some("part definition".into()),
+                        resolver,
+                        &submitted,
+                    );
+                }
+                failure.set(None);
             }
         });
 
-        let courtyard = courtyard_size(&definition);
         let kicad_locked = definition.kicad_source.is_some();
-        let initial_width = courtyard.0.clone();
-        let initial_height = courtyard.1.clone();
-        let mut width = use_signal(move || initial_width);
-        let mut height = use_signal(move || initial_height);
         let accepted_width = courtyard.0.clone();
         use_effect(use_reactive((&accepted_width,), move |(value,)| {
             width.set(value.clone());
@@ -265,66 +327,68 @@ pub(crate) mod ui {
         use_effect(use_reactive((&owner_identity,), {
             let accepted_width = courtyard.0.clone();
             let accepted_height = courtyard.1.clone();
-            let mut error = error;
+            let mut failure = failure;
+            let row_drafts = row_drafts.clone();
             move |_| {
                 width.set(accepted_width.clone());
                 height.set(accepted_height.clone());
-                error.set(String::new());
+                let mut rows = row_drafts.borrow_mut();
+                rows.drafts.clear();
+                rows.accepted.clear();
+                drop(rows);
+                failure.set(None);
             }
         }));
 
-        // Settle the pending tickets before rendering: pending fields keep their
-        // drafts, failures restore the accepted value with the message inline, and
-        // landed or retired tickets drop so the fields follow the accepted document
-        // again. The panel outlives selection changes, so owner liveness is a real
-        // answer read from the accepted model each render.
+        // The selection, document session and scope this panel's edits belong to are
+        // still current; a departed owner retires its edits.
+        let owner_live =
+            runtime.model().accepted.as_ref().is_some_and(|current| {
+                capture.owner_matches(current, runtime.scope(), selection())
+            });
         let owner_key = format!("{:?}:{}", scope, definition.id);
-        let pad_rows = use_hook(|| Rc::new(std::cell::RefCell::new(PadRowKeys::default())));
+        let pad_rows = use_hook(|| Rc::new(RefCell::new(PadRowKeys::default())));
         let row_keys = pad_rows.borrow_mut().for_pads(&owner_key, &definition.pads);
         // Subscribe to the workspace's runtime-change version: outcomes settle outside
         // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
         // even when the accepted document did not change (for example a failed save).
         let version = use_context::<Signal<u64>>();
         let _ = version();
-        let owner_live = owner_is_live(&runtime, &capture, selection);
+
+        // Refresh each visible row's drafts from its accepted text and keep the
+        // helper's bindings pointed at the live Signals. A new row key starts from the
+        // accepted document; a dirty draft follows only its own accepted value.
         {
-            let mut edits = pending.peek().clone();
-            let mut changed = false;
-            if let Some(settlement) = settle_ticket(&mut edits.courtyard_width, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, &courtyard.0, &mut width, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut edits.courtyard_height, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, &courtyard.1, &mut height, &mut error);
-            }
-            for ticket in [&mut edits.kind, &mut edits.add_pad] {
-                if let Some(settlement) = settle_ticket(ticket, owner_live) {
-                    changed = true;
-                    apply_plain_settlement(settlement, &mut error);
+            let mut rows = row_drafts.borrow_mut();
+            for (pad, row_key) in definition.pads.iter().zip(row_keys.iter().copied()) {
+                let row_drafts = rows.row(row_key, pad);
+                for field in PadField::text_fields() {
+                    rows.refresh(row_key, field, pad);
+                    pending.bind_field(
+                        DefinitionFieldKey::Pad {
+                            row: row_key,
+                            field,
+                        },
+                        row_drafts.drafts[field.text_index().unwrap_or_default()],
+                        failure,
+                    );
                 }
             }
-            // A row whose pad vanished (an accepted edit removed it) still owes its
-            // queued tickets a settlement: surface the failure reason before the row's
-            // drafts disappear with it.
-            let vanished: Vec<u64> = edits
-                .pads
-                .keys()
-                .copied()
-                .filter(|row| !row_keys.contains(row))
-                .collect();
-            for row in vanished {
-                if let Some(mut row_edits) = edits.pads.remove(&row) {
-                    for ticket in row_edits.tickets_mut() {
-                        if let Some(settlement) = settle_ticket(ticket, owner_live) {
-                            changed = true;
-                            apply_plain_settlement(settlement, &mut error);
-                        }
-                    }
-                }
-            }
-            if changed {
-                pending.set(edits);
+        }
+        pending.bind_field(DefinitionFieldKey::CourtyardWidth, width, failure);
+        pending.bind_field(DefinitionFieldKey::CourtyardHeight, height, failure);
+
+        // Settle the pending edits before rendering: pending fields keep their drafts,
+        // failures restore the accepted value with the message inline, and landed or
+        // retired edits drop so the fields follow the accepted document again. A row
+        // whose pad vanished still settles: the failure surfaces before the row's
+        // drafts disappear with it.
+        let results = pending.settle(owner_live, |key| {
+            accepted_field_text(key, &definition, &row_keys, &row_drafts, &courtyard)
+        });
+        for result in &results {
+            if let PendingEditResult::Failed { message, .. } = result {
+                failure.set(Some(message.clone()));
             }
         }
 
@@ -379,11 +443,7 @@ pub(crate) mod ui {
         let width_keydown = move |event| draft_keydown(event, width, committed_width.clone());
         let committed_height = courtyard.1.clone();
         let height_keydown = move |event| draft_keydown(event, height, committed_height.clone());
-        let add_pad_pending = pending
-            .peek()
-            .add_pad
-            .as_ref()
-            .is_some_and(EditTicket::is_pending);
+        let add_pad_pending = pending.is_pending(&DefinitionFieldKey::AddPad);
 
         rsx! {
             div { class: "m1-definition-fields",
@@ -428,88 +488,55 @@ pub(crate) mod ui {
                 for (index, (pad, row_key)) in definition.pads.iter().zip(row_keys.iter().copied()).enumerate() {
                     PadFields {
                         key: "{owner_key}:{row_key}", index, row: row_key, pad: pad.clone(),
-                        locked: kicad_locked, owner_live, pending, error,
+                        locked: kicad_locked,
+                        drafts: row_drafts.borrow_mut().drafts.get(&row_key).copied(),
+                        remove_pending: pending.is_pending(&DefinitionFieldKey::Pad {
+                            row: row_key,
+                            field: PadField::Remove,
+                        }),
+                        failure,
                         submit,
                     }
                 }
                 ul { class: "m1-definition-validation", "aria-live": "polite",
                     for issue in definition_issues(&definition) { li { "{issue}" } }
                 }
-                if !error().is_empty() {
-                    p { class: "m1-definition-error", role: "alert", "{error()}" }
+                if let Some(message) = failure() {
+                    p { class: "m1-definition-error", role: "alert", "{message}" }
                 }
             }
         }
     }
 
-    /// The selection, document session and scope this panel's tickets belong to are
-    /// still current; a departed owner retires its tickets.
-    fn owner_is_live(
-        runtime: &Rc<Runtime>,
-        capture: &DefinitionPanelCapture,
-        selection: Signal<Option<(Option<Scope>, String)>>,
-    ) -> bool {
-        runtime
-            .model()
-            .accepted
-            .as_ref()
-            .is_some_and(|current| capture.owner_is_live(current, runtime.scope(), selection()))
-    }
-
-    impl DefinitionPanelEdits {
-        fn park(&mut self, slot: DefinitionEditSlot, ticket: EditTicket) {
-            match slot {
-                DefinitionEditSlot::Kind => self.kind = Some(ticket),
-                DefinitionEditSlot::CourtyardWidth => self.courtyard_width = Some(ticket),
-                DefinitionEditSlot::CourtyardHeight => self.courtyard_height = Some(ticket),
-                DefinitionEditSlot::AddPad => self.add_pad = Some(ticket),
-                DefinitionEditSlot::Pad { row, field } => {
-                    self.pads.entry(row).or_default().park(field, ticket);
+    /// The accepted text one committed field settles back to. A vanished row keeps its
+    /// current draft text, so the settlement cannot invent a value for a pad that is
+    /// gone; the failure message still surfaces through the shared placement.
+    fn accepted_field_text(
+        key: &DefinitionFieldKey,
+        definition: &PartDefinition,
+        row_keys: &[u64],
+        row_drafts: &Rc<RefCell<PanelRows>>,
+        courtyard: &(String, String),
+    ) -> String {
+        match *key {
+            DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => String::new(),
+            DefinitionFieldKey::CourtyardWidth => courtyard.0.clone(),
+            DefinitionFieldKey::CourtyardHeight => courtyard.1.clone(),
+            DefinitionFieldKey::Pad { row, field } => {
+                let index = field.text_index().unwrap_or_default();
+                match row_keys.iter().position(|existing| *existing == row) {
+                    Some(position) => {
+                        RowDrafts::accepted_texts(&definition.pads[position])[index].clone()
+                    }
+                    None => row_drafts
+                        .borrow()
+                        .drafts
+                        .get(&row)
+                        .map(|drafts| drafts.drafts[index].peek().clone())
+                        .unwrap_or_default(),
                 }
             }
         }
-    }
-
-    impl PadRowEdits {
-        /// Every ticket slot, for settle passes that have no draft to restore.
-        fn tickets_mut(&mut self) -> [&mut Option<EditTicket>; 9] {
-            let PadRowEdits {
-                id,
-                number,
-                x,
-                y,
-                size_x,
-                size_y,
-                drill,
-                shape,
-                remove,
-            } = self;
-            [id, number, x, y, size_x, size_y, drill, shape, remove]
-        }
-
-        fn park(&mut self, field: PadField, ticket: EditTicket) {
-            match field {
-                PadField::Id => self.id = Some(ticket),
-                PadField::Number => self.number = Some(ticket),
-                PadField::X => self.x = Some(ticket),
-                PadField::Y => self.y = Some(ticket),
-                PadField::SizeX => self.size_x = Some(ticket),
-                PadField::SizeY => self.size_y = Some(ticket),
-                PadField::Drill => self.drill = Some(ticket),
-                PadField::Shape => self.shape = Some(ticket),
-                PadField::Remove => self.remove = Some(ticket),
-            }
-        }
-    }
-
-    /// Where a committed edit's ticket parks.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum DefinitionEditSlot {
-        Kind,
-        CourtyardWidth,
-        CourtyardHeight,
-        AddPad,
-        Pad { row: u64, field: PadField },
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -525,35 +552,59 @@ pub(crate) mod ui {
         Remove,
     }
 
-    impl DefinitionEditSlot {
-        fn of(row: Option<u64>, edit: &DefinitionEdit) -> Self {
-            match (row, edit) {
-                (None, DefinitionEdit::Kind(_)) => Self::Kind,
-                (None, DefinitionEdit::CourtyardWidth(_)) => Self::CourtyardWidth,
-                (None, DefinitionEdit::CourtyardHeight(_)) => Self::CourtyardHeight,
-                (None, DefinitionEdit::AddPad) => Self::AddPad,
-                (None, _) => unreachable!("pad edits carry their row key"),
-                (Some(row), edit) => Self::Pad {
-                    row,
-                    field: PadField::of(edit),
-                },
+    impl PadField {
+        /// The seven text inputs; the shape select and remove button settle through
+        /// the same collection but carry no draft text.
+        const TEXT_FIELDS: usize = 7;
+
+        fn text_fields() -> [PadField; PadField::TEXT_FIELDS] {
+            [
+                PadField::Id,
+                PadField::Number,
+                PadField::X,
+                PadField::Y,
+                PadField::SizeX,
+                PadField::SizeY,
+                PadField::Drill,
+            ]
+        }
+
+        fn text_index(&self) -> Option<usize> {
+            match self {
+                PadField::Id => Some(0),
+                PadField::Number => Some(1),
+                PadField::X => Some(2),
+                PadField::Y => Some(3),
+                PadField::SizeX => Some(4),
+                PadField::SizeY => Some(5),
+                PadField::Drill => Some(6),
+                PadField::Shape | PadField::Remove => None,
             }
         }
     }
 
-    impl PadField {
-        fn of(edit: &DefinitionEdit) -> Self {
-            match edit {
-                DefinitionEdit::PadId { .. } => Self::Id,
-                DefinitionEdit::PadNumber { .. } => Self::Number,
-                DefinitionEdit::PadCoordinate { axis: Axis::X, .. } => Self::X,
-                DefinitionEdit::PadCoordinate { axis: Axis::Y, .. } => Self::Y,
-                DefinitionEdit::PadSize { axis: Axis::X, .. } => Self::SizeX,
-                DefinitionEdit::PadSize { axis: Axis::Y, .. } => Self::SizeY,
-                DefinitionEdit::PadDrill { .. } => Self::Drill,
-                DefinitionEdit::PadShape { .. } => Self::Shape,
-                DefinitionEdit::RemovePad { .. } => Self::Remove,
-                _ => unreachable!("definition fields carry no row key"),
+    impl DefinitionFieldKey {
+        /// The key a committed edit settles under: top-level fields carry no row,
+        /// pad-row fields carry their row's stable key.
+        fn of(row: Option<u64>, edit: &DefinitionEdit) -> Self {
+            let field = match edit {
+                DefinitionEdit::PadId { .. } => PadField::Id,
+                DefinitionEdit::PadNumber { .. } => PadField::Number,
+                DefinitionEdit::PadCoordinate { axis: Axis::X, .. } => PadField::X,
+                DefinitionEdit::PadCoordinate { axis: Axis::Y, .. } => PadField::Y,
+                DefinitionEdit::PadSize { axis: Axis::X, .. } => PadField::SizeX,
+                DefinitionEdit::PadSize { axis: Axis::Y, .. } => PadField::SizeY,
+                DefinitionEdit::PadDrill { .. } => PadField::Drill,
+                DefinitionEdit::PadShape { .. } => PadField::Shape,
+                DefinitionEdit::RemovePad { .. } => PadField::Remove,
+                DefinitionEdit::Kind(_) => return Self::Kind,
+                DefinitionEdit::CourtyardWidth(_) => return Self::CourtyardWidth,
+                DefinitionEdit::CourtyardHeight(_) => return Self::CourtyardHeight,
+                DefinitionEdit::AddPad => return Self::AddPad,
+            };
+            match (row, edit) {
+                (Some(row), _) => Self::Pad { row, field },
+                _ => unreachable!("pad edits carry their row key"),
             }
         }
     }
@@ -564,100 +615,28 @@ pub(crate) mod ui {
         row: u64,
         pad: Pad,
         locked: bool,
-        owner_live: bool,
-        pending: Signal<DefinitionPanelEdits>,
-        error: Signal<String>,
+        drafts: Option<RowDrafts>,
+        remove_pending: bool,
+        failure: Signal<Option<String>>,
         submit: EventHandler<DefinitionFieldEdit>,
     ) -> Element {
-        let mut id = use_signal(|| pad.id.clone());
-        let mut number = use_signal(|| pad.number.clone());
+        let Some(drafts) = drafts else {
+            return rsx! {};
+        };
         #[cfg(test)]
         if index == 0 {
-            PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| *draft.borrow_mut() = Some(number));
+            PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| {
+                *draft.borrow_mut() =
+                    Some(drafts.drafts[PadField::Number.text_index().unwrap_or_default()]);
+            });
         }
-        let mut x = use_signal(|| pad.at.x.to_string());
-        let mut y = use_signal(|| pad.at.y.to_string());
-        let mut size_x = use_signal(|| pad.size.x.to_string());
-        let mut size_y = use_signal(|| pad.size.y.to_string());
-        let mut drill = use_signal(|| pad.drill.map(|value| value.to_string()).unwrap_or_default());
-        let mut error = error;
-        let accepted_id = pad.id.clone();
-        use_effect(use_reactive((&accepted_id,), move |(value,)| {
-            id.set(value.clone())
-        }));
-        let accepted_number = pad.number.clone();
-        use_effect(use_reactive((&accepted_number,), move |(value,)| {
-            number.set(value.clone())
-        }));
-        let accepted_x = pad.at.x;
-        use_effect(use_reactive((&accepted_x,), move |(value,)| {
-            x.set(value.to_string())
-        }));
-        let accepted_y = pad.at.y;
-        use_effect(use_reactive((&accepted_y,), move |(value,)| {
-            y.set(value.to_string())
-        }));
-        let accepted_size_x = pad.size.x;
-        use_effect(use_reactive((&accepted_size_x,), move |(value,)| {
-            size_x.set(value.to_string())
-        }));
-        let accepted_size_y = pad.size.y;
-        use_effect(use_reactive((&accepted_size_y,), move |(value,)| {
-            size_y.set(value.to_string())
-        }));
-        let accepted_drill = pad.drill;
-        use_effect(use_reactive((&accepted_drill,), move |(value,)| {
-            drill.set(value.map(|number| number.to_string()).unwrap_or_default())
-        }));
-
-        // Settle this row's tickets like the panel's own fields: pending keeps the
-        // draft, a failure restores the accepted value with the message inline.
-        {
-            let mut row_edits = pending.peek().pads.get(&row).cloned().unwrap_or_default();
-            let mut changed = false;
-            if let Some(settlement) = settle_ticket(&mut row_edits.id, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, pad.id.as_str(), &mut id, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut row_edits.number, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, pad.number.as_str(), &mut number, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut row_edits.x, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, &pad.at.x.to_string(), &mut x, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut row_edits.y, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, &pad.at.y.to_string(), &mut y, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut row_edits.size_x, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, &pad.size.x.to_string(), &mut size_x, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut row_edits.size_y, owner_live) {
-                changed = true;
-                apply_text_settlement(settlement, &pad.size.y.to_string(), &mut size_y, &mut error);
-            }
-            if let Some(settlement) = settle_ticket(&mut row_edits.drill, owner_live) {
-                changed = true;
-                apply_text_settlement(
-                    settlement,
-                    &pad.drill.map(|value| value.to_string()).unwrap_or_default(),
-                    &mut drill,
-                    &mut error,
-                );
-            }
-            for ticket in [&mut row_edits.shape, &mut row_edits.remove] {
-                if let Some(settlement) = settle_ticket(ticket, owner_live) {
-                    changed = true;
-                    apply_plain_settlement(settlement, &mut error);
-                }
-            }
-            if changed {
-                pending.write().pads.insert(row, row_edits);
-            }
-        }
+        let mut id = drafts.drafts[0];
+        let mut number = drafts.drafts[1];
+        let mut x = drafts.drafts[2];
+        let mut y = drafts.drafts[3];
+        let mut size_x = drafts.drafts[4];
+        let mut size_y = drafts.drafts[5];
+        let mut drill = drafts.drafts[6];
 
         let submit_id = submit;
         let old_id = pad.id.clone();
@@ -801,11 +780,6 @@ pub(crate) mod ui {
         };
         let submit_remove = submit;
         let remove_id = pad.id.clone();
-        let remove_pending = pending
-            .peek()
-            .pads
-            .get(&row)
-            .is_some_and(|edits| edits.remove.as_ref().is_some_and(EditTicket::is_pending));
         let on_remove = move |_| {
             submit_remove.call(DefinitionFieldEdit {
                 row: Some(row),
@@ -995,7 +969,7 @@ impl DefinitionPanelCapture {
     /// session and selected definition, so a stale callback is ignored early. A newer
     /// accepted revision is not a liveness answer — the resolver re-checks the target
     /// at execution.
-    pub fn owner_is_live(
+    pub fn owner_matches(
         &self,
         current: &AcceptedSnapshot,
         current_scope: Option<Scope>,
@@ -1512,9 +1486,9 @@ mod tests {
             &current.document.definitions[0],
         );
         let selected = Some((Some(owner_scope.clone()), "custom".into()));
-        assert!(capture.owner_is_live(&current, Some(owner_scope.clone()), selected.clone()));
+        assert!(capture.owner_matches(&current, Some(owner_scope.clone()), selected.clone()));
         assert!(
-            !capture.owner_is_live(
+            !capture.owner_matches(
                 &current,
                 Some(owner_scope.clone()),
                 Some((Some(owner_scope.clone()), "other".into()))
@@ -1522,7 +1496,7 @@ mod tests {
             "a stale selection cannot commit field drafts"
         );
         assert!(
-            !capture.owner_is_live(&current, None, selected.clone()),
+            !capture.owner_matches(&current, None, selected.clone()),
             "a lost scope cannot commit field drafts"
         );
 
@@ -1535,7 +1509,7 @@ mod tests {
             document: Arc::new(newer_document),
             ..current.clone()
         };
-        assert!(capture.owner_is_live(&newer, Some(owner_scope), selected));
+        assert!(capture.owner_matches(&newer, Some(owner_scope), selected));
     }
 
     #[cfg(not(target_arch = "wasm32"))]

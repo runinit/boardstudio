@@ -8,16 +8,23 @@ use crate::parts_custom_definition::{DEFINITION_GONE, GENERATOR_LOCKED, replacem
 mod ui {
     use super::definition_name_resolver;
     use crate::parts_custom_definition::DefinitionPanelCapture;
-    use crate::parts_custom_definition::ui::{apply_text_settlement, settle_ticket};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
-    use boardstudio_web_runtime::edit_ticket::EditTicket;
+    use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlInputElement;
+
+    /// This panel's one committed field. A bounded logical key: the helper keeps one
+    /// observation for the name field, whatever definition the panel currently shows.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum NameFieldKey {
+        Name,
+    }
 
     #[component]
     pub fn DefinitionNameEditor(
@@ -29,8 +36,9 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let mut draft = use_signal(|| definition.name.clone());
-        let mut error = use_signal(String::new);
-        let mut pending = use_signal(|| None::<EditTicket>);
+        let mut failure = use_signal(|| None::<String>);
+        let pending = use_hook(|| PendingEditSignals::<NameFieldKey>::new());
+        pending.bind_field(NameFieldKey::Name, draft, failure);
         // Subscribe to the workspace's runtime-change version: outcomes settle outside
         // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
         // even when the accepted document did not change (for example a failed save).
@@ -74,17 +82,18 @@ mod ui {
 
         // Settle the pending name edit before rendering: pending keeps the draft, a
         // failure restores the accepted value with the message inline, and a landed or
-        // retired ticket drops so the field follows the accepted document again. The
+        // retired edit drops so the field follows the accepted document again. The
         // editor outlives selection changes, so owner liveness is a real answer.
         {
             let model = runtime.model();
             let owner_live = model.accepted.as_ref().is_some_and(|current| {
-                capture.owner_is_live(current, runtime.scope(), selection())
+                capture.owner_matches(current, runtime.scope(), selection())
             });
-            let mut edits = pending.peek().clone();
-            if let Some(settlement) = settle_ticket(&mut edits, owner_live) {
-                pending.set(edits);
-                apply_text_settlement(settlement, definition.name.as_str(), &mut draft, &mut error);
+            let results = pending.settle(owner_live, |_| definition.name.clone());
+            for result in &results {
+                if let PendingEditResult::Failed { message, .. } = result {
+                    failure.set(Some(message.clone()));
+                }
             }
         }
 
@@ -99,7 +108,7 @@ mod ui {
                 let Some(current) = model.accepted else {
                     return;
                 };
-                if !capture.owner_is_live(&current, runtime.scope(), selection()) {
+                if !capture.owner_matches(&current, runtime.scope(), selection()) {
                     return;
                 }
                 let name = draft();
@@ -107,14 +116,15 @@ mod ui {
                     return;
                 }
                 let resolver = definition_name_resolver(capture.definition_id.clone(), name);
-                let ticket = EditTicket::begin(
+                pending.begin_field(
                     &runtime,
+                    NameFieldKey::Name,
                     "parts-definition-name",
                     Some("part definition".into()),
                     resolver,
+                    &draft.peek().clone(),
                 );
-                pending.set(Some(ticket));
-                error.set(String::new());
+                failure.set(None);
             }
         };
         let on_keydown = {
@@ -161,8 +171,8 @@ mod ui {
                                 onkeydown: on_keydown,
                             }
                         }
-                        if !error().is_empty() {
-                            p { class: "m1-definition-error", role: "alert", "{error()}" }
+                        if let Some(message) = failure() {
+                            p { class: "m1-definition-error", role: "alert", "{message}" }
                         }
                     }
                     {children}
@@ -417,8 +427,8 @@ mod tests {
             &snapshot.document.definitions[0],
         );
 
-        assert!(capture.owner_is_live(&snapshot, scope.clone(), selected.clone()));
-        assert!(!capture.owner_is_live(
+        assert!(capture.owner_matches(&snapshot, scope.clone(), selected.clone()));
+        assert!(!capture.owner_matches(
             &snapshot,
             scope.clone(),
             Some((scope.clone(), "other".into()))
@@ -428,7 +438,7 @@ mod tests {
             changed.instance_id = Some("other-instance".into());
             changed
         });
-        assert!(!capture.owner_is_live(&snapshot, other_scope, selected.clone()));
+        assert!(!capture.owner_matches(&snapshot, other_scope, selected.clone()));
 
         let mut changed_identity_doc = snapshot.document.as_ref().clone();
         changed_identity_doc.id = "another-project".into();
@@ -436,7 +446,7 @@ mod tests {
             document: std::sync::Arc::new(changed_identity_doc),
             ..snapshot.clone()
         };
-        assert!(!capture.owner_is_live(&changed_identity_snapshot, scope.clone(), selected));
+        assert!(!capture.owner_matches(&changed_identity_snapshot, scope.clone(), selected));
 
         // A newer accepted revision is not a departed owner: field edits queue freely
         // and resolve against the document accepted when they run (ADR-0005).
@@ -447,7 +457,7 @@ mod tests {
             document: std::sync::Arc::new(newer_doc),
             ..snapshot.clone()
         };
-        assert!(capture.owner_is_live(
+        assert!(capture.owner_matches(
             &newer,
             runtime.scope(),
             Some((runtime.scope().clone(), "selected".into()))
