@@ -7,7 +7,8 @@ use boardstudio_core::model::{
     AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartKind,
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Date, Function, Reflect};
@@ -26,14 +27,42 @@ struct AssemblyDraft {
     scope: Option<Scope>,
 }
 
-#[derive(Clone)]
-struct AssemblySubmission {
-    target: AssemblyAction,
-    ticket: EditTicket,
+/// This panel's three bounded one-shot keys, one per action kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AssemblyKey {
+    Save,
+    Place,
+    Matrix,
+}
+
+impl AssemblyKey {
+    fn of(target: &AssemblyAction) -> Self {
+        match target {
+            AssemblyAction::Assembly { .. } => Self::Save,
+            AssemblyAction::BoardAssembly { .. } => Self::Place,
+            AssemblyAction::Matrix(_) => Self::Matrix,
+        }
+    }
+}
+
+/// The editor lifetime every observed action shares: a change retires all
+/// observations before the next action begins under the fresh owner.
+#[derive(Clone, PartialEq)]
+struct AssemblyOwner {
     view_generation: u64,
     scope: Option<Scope>,
-    document_id: String,
-    session_epoch: boardstudio_application::SessionEpoch,
+    project: Option<(String, boardstudio_application::SessionEpoch)>,
+}
+
+/// Remember the latest action per kind for the Landed follow-ups; the shared helper
+/// owns the observation, and a new action of the same kind replaces the memory (its
+/// Session edit still runs).
+fn observe_intent(pending: &mut Signal<Vec<AssemblyAction>>, target: AssemblyAction) {
+    let key = AssemblyKey::of(&target);
+    pending
+        .write()
+        .retain(|existing| AssemblyKey::of(existing) != key);
+    pending.write().push(target);
 }
 
 #[derive(Clone)]
@@ -306,37 +335,75 @@ pub fn SavedAssembliesEditor(
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
     let mut editor_generation = use_signal(|| 0_u64);
-    let mut pending = use_signal(Vec::<AssemblySubmission>::new);
+    let pending_edits = use_hook(|| PendingEditSignals::<AssemblyKey>::new());
+    let mut pending = use_signal(Vec::<AssemblyAction>::new);
+    let owner_seen = use_signal(|| None::<AssemblyOwner>);
     let preparing_apply = use_signal(|| false);
     let preparing_place = use_signal(|| false);
     let mut feedback = use_signal(|| None::<String>);
 
     use_effect({
         let runtime = runtime.clone();
+        let pending_edits = pending_edits.clone();
         let mut workspace = workspace;
         let mut selected_context = selected_context;
+        let mut pending = pending;
+        let mut owner_seen = owner_seen;
         move || {
             let _ = runtime_version();
-            let submissions = pending.peek().clone();
-            let mut retained = Vec::new();
-            for waiting in &submissions {
-                let model = runtime.model();
-                let live = editor_generation() == waiting.view_generation
-                    && workspace() == "Parts"
-                    && runtime.scope() == waiting.scope
-                    && model.accepted.as_ref().is_some_and(|accepted| {
-                        accepted.document.id == waiting.document_id
-                            && accepted.session_epoch == waiting.session_epoch
-                    });
-                match waiting.ticket.settlement(live) {
-                    Settlement::Pending => retained.push(waiting.clone()),
-                    Settlement::Retired => {}
-                    Settlement::Failed { message } => feedback.set(Some(message)),
-                    Settlement::Landed { .. } => {
+            let accepted = runtime.model().accepted;
+            let current_owner = AssemblyOwner {
+                view_generation: editor_generation(),
+                scope: runtime.scope(),
+                project: accepted
+                    .as_ref()
+                    .map(|accepted| (accepted.document.id.clone(), accepted.session_epoch)),
+            };
+            if owner_seen.read().as_ref() != Some(&current_owner) {
+                if owner_seen.read().is_some() {
+                    // The editor lifetime moved on: retire every observation silently
+                    // before any new action begins under the fresh owner.
+                    let _ = pending_edits.settle(false, |_| String::new());
+                    pending.set(Vec::new());
+                }
+                owner_seen.set(Some(current_owner));
+                return;
+            }
+            if pending.peek().is_empty() {
+                return;
+            }
+            // The owner identity above already covers generation, scope and project,
+            // so liveness is the workspace plus the accepted project still matching.
+            let live = workspace() == "Parts"
+                && accepted.is_some_and(|accepted| {
+                    Some((accepted.document.id.clone(), accepted.session_epoch))
+                        == current_owner.project
+                });
+            let model = runtime.model();
+            let mut intents = pending.peek().clone();
+            for result in pending_edits.settle(live, |_| String::new()) {
+                let key = match &result {
+                    PendingEditResult::Landed { key, .. }
+                    | PendingEditResult::Failed { key, .. }
+                    | PendingEditResult::Retired { key } => *key,
+                };
+                let Some(position) = intents
+                    .iter()
+                    .position(|intent| AssemblyKey::of(intent) == key)
+                else {
+                    continue;
+                };
+                let waiting = intents.remove(position);
+                match &result {
+                    PendingEditResult::Retired { .. } => {}
+                    PendingEditResult::Failed { message, .. } => {
+                        feedback.set(Some(message.clone()))
+                    }
+                    PendingEditResult::Landed { .. } => {
                         let Some(accepted) = model.accepted.as_ref() else {
                             continue;
                         };
-                        match &waiting.target {
+                        match &waiting {
                             AssemblyAction::Assembly { id, created } => {
                                 if let Some(saved) = saved_assembly_for_submission(&accepted.document, id, *created) {
                                     editing.with_mut(|draft| {
@@ -368,8 +435,8 @@ pub fn SavedAssembliesEditor(
                     }
                 }
             }
-            if retained.len() != submissions.len() {
-                pending.set(retained);
+            if intents.len() != pending.peek().len() {
+                pending.set(intents);
             }
         }
     });
@@ -418,11 +485,9 @@ pub fn SavedAssembliesEditor(
         let workspace = workspace;
         let snapshot = snapshot.clone();
         let scope = scope.clone();
+        let pending_edits = pending_edits.clone();
         move |_| {
-            if pending.read().iter().any(|edit| {
-                matches!(edit.target, AssemblyAction::Assembly { .. }) && edit.ticket.is_pending()
-            }) || workspace() != "Parts"
-            {
+            if pending_edits.is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
                 return;
             }
             let Some(preset) = assembly_selection.peek().as_ref().copied() else {
@@ -520,6 +585,7 @@ pub fn SavedAssembliesEditor(
         let selected_context = selected_context;
         let definitions = definitions.clone();
         let preparing_apply = preparing_apply;
+        let pending_edits = pending_edits.clone();
         let pending = pending;
         let feedback = feedback;
         move |assembly| {
@@ -532,6 +598,7 @@ pub fn SavedAssembliesEditor(
                 definitions.clone(),
                 assembly,
                 preparing_apply,
+                pending_edits.clone(),
                 pending,
                 editor_generation,
                 feedback,
@@ -546,6 +613,7 @@ pub fn SavedAssembliesEditor(
         let snapshot = snapshot.clone();
         let definitions = definitions.clone();
         let preparing = preparing_place;
+        let pending_edits = pending_edits.clone();
         let pending = pending;
         let feedback = feedback;
         move |(draft, origin_x, origin_y): (AssemblyDraft, String, String)| {
@@ -559,6 +627,7 @@ pub fn SavedAssembliesEditor(
                 origin_x,
                 origin_y,
                 preparing,
+                pending_edits.clone(),
                 pending,
                 editor_generation,
                 feedback,
@@ -570,11 +639,9 @@ pub fn SavedAssembliesEditor(
         let runtime = runtime.clone();
         let scope = scope.clone();
         let definitions = definitions.clone();
+        let pending_edits = pending_edits.clone();
         move |_| {
-            if pending.read().iter().any(|edit| {
-                matches!(edit.target, AssemblyAction::Assembly { .. }) && edit.ticket.is_pending()
-            }) || workspace() != "Parts"
-            {
+            if pending_edits.is_pending(&AssemblyKey::Save) || workspace() != "Parts" {
                 return;
             }
             let Some(draft) = editing.read().clone() else {
@@ -593,23 +660,20 @@ pub fn SavedAssembliesEditor(
                 feedback.set(Some("The project or Parts scope changed while this assembly draft was open. Reopen it before saving.".into()));
                 return;
             }
-            let ticket = EditTicket::begin(
+            pending_edits.begin_one_shot(
                 &runtime,
+                AssemblyKey::Save,
                 "parts-assembly-editor",
                 Some("assembly".into()),
                 assembly_save_resolver(draft.clone(), definitions.clone()),
             );
-            pending.write().push(AssemblySubmission {
-                target: AssemblyAction::Assembly {
+            observe_intent(
+                &mut pending,
+                AssemblyAction::Assembly {
                     id: draft.value.id.clone(),
                     created: draft.base.is_none(),
                 },
-                ticket,
-                view_generation: editor_generation(),
-                scope: draft.scope.clone(),
-                document_id: draft.document_id.clone(),
-                session_epoch: draft.session_epoch,
-            });
+            );
             feedback.set(None);
         }
     };
@@ -659,9 +723,9 @@ pub fn SavedAssembliesEditor(
                     snapshot: snapshot.clone(),
                     draft,
                     definitions: definitions.clone(),
-                    save_pending: pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Assembly { .. }) && edit.ticket.is_pending()),
-                    place_pending: preparing_place() || pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::BoardAssembly { .. }) && edit.ticket.is_pending()),
-                    matrix_pending: preparing_apply() || pending.read().iter().any(|edit| matches!(edit.target, AssemblyAction::Matrix(_)) && edit.ticket.is_pending()),
+                    save_pending: pending_edits.is_pending(&AssemblyKey::Save),
+                    place_pending: preparing_place() || pending_edits.is_pending(&AssemblyKey::Place),
+                    matrix_pending: preparing_apply() || pending_edits.is_pending(&AssemblyKey::Matrix),
                     selected_context,
                     on_place: on_place.clone(),
                     on_place_board: place_on_board,
@@ -686,17 +750,13 @@ fn begin_place_assembly_on_board(
     origin_x: String,
     origin_y: String,
     mut preparing: Signal<bool>,
-    mut pending: Signal<Vec<AssemblySubmission>>,
+    pending_edits: PendingEditSignals<AssemblyKey>,
+    mut pending: Signal<Vec<AssemblyAction>>,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing()
-        || pending.read().iter().any(|edit| {
-            matches!(edit.target, AssemblyAction::BoardAssembly { .. }) && edit.ticket.is_pending()
-        })
-        || workspace() != "Parts"
-    {
+    if preparing() || pending_edits.is_pending(&AssemblyKey::Place) || workspace() != "Parts" {
         return;
     }
     let Some(scope) = scope else {
@@ -809,8 +869,9 @@ fn begin_place_assembly_on_board(
             ));
             return;
         }
-        let ticket = EditTicket::begin(
+        pending_edits.begin_one_shot(
             &runtime,
+            AssemblyKey::Place,
             "parts-assembly-place",
             Some("assembly placement".into()),
             assembly_place_resolver(
@@ -821,19 +882,16 @@ fn begin_place_assembly_on_board(
                 part_ids,
             ),
         );
-        pending.write().push(AssemblySubmission {
-            target: AssemblyAction::BoardAssembly {
+        let _ = (view_generation, project_id, session_epoch);
+        observe_intent(
+            &mut pending,
+            AssemblyAction::BoardAssembly {
                 scope: scope.clone(),
                 board_id: scope.board_id.clone(),
                 assembly_id: draft.value.id,
                 placement_seed: placement_id,
             },
-            ticket,
-            view_generation,
-            scope: Some(scope),
-            document_id: project_id,
-            session_epoch,
-        });
+        );
     });
 }
 
@@ -847,17 +905,13 @@ fn begin_apply_assembly_to_matrix(
     catalogue_definitions: Vec<PartDefinition>,
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
-    mut pending: Signal<Vec<AssemblySubmission>>,
+    pending_edits: PendingEditSignals<AssemblyKey>,
+    mut pending: Signal<Vec<AssemblyAction>>,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing()
-        || pending.read().iter().any(|edit| {
-            matches!(edit.target, AssemblyAction::Matrix(_)) && edit.ticket.is_pending()
-        })
-        || workspace() != "Parts"
-    {
+    if preparing() || pending_edits.is_pending(&AssemblyKey::Matrix) || workspace() != "Parts" {
         return;
     }
     let Some(scope) = scope else {
@@ -956,8 +1010,9 @@ fn begin_apply_assembly_to_matrix(
             feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
             return;
         }
-        let ticket = EditTicket::begin(
+        pending_edits.begin_one_shot(
             &runtime,
+            AssemblyKey::Matrix,
             "parts-assembly-matrix-apply",
             Some("matrix assembly".into()),
             assembly_matrix_resolver(
@@ -968,14 +1023,7 @@ fn begin_apply_assembly_to_matrix(
                 operation_id.0.to_string(),
             ),
         );
-        pending.write().push(AssemblySubmission {
-            target: AssemblyAction::Matrix(matrix_id),
-            ticket,
-            view_generation,
-            scope: Some(scope),
-            document_id,
-            session_epoch,
-        });
+        observe_intent(&mut pending, AssemblyAction::Matrix(matrix_id));
     });
 }
 
@@ -2299,6 +2347,7 @@ mod assembly_selector_tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod resolution_tests {
     use super::*;
+    use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use wasm_bindgen_test::*;
 
@@ -2446,8 +2495,10 @@ mod resolution_tests {
         let scope = runtime.scope().unwrap();
         let mut value = recipe.clone();
         value.name = "Updated".into();
-        let save = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "save-identity-test",
             None,
             assembly_save_resolver(
@@ -2463,7 +2514,10 @@ mod resolution_tests {
             ),
         );
         support::run_pending(&runtime).await;
-        assert!(matches!(save.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [PendingEditResult::Landed { .. }]
+        ));
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             saved_assembly_for_submission(&accepted.document, "assembly", false)
@@ -2472,14 +2526,18 @@ mod resolution_tests {
             "assembly"
         );
         assert_eq!(accepted.document.assemblies[1], sibling);
-        let place = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "place-identity-test",
             None,
             assembly_place_resolver(scope, proposal, Vec::new(), "placement".into(), ids.clone()),
         );
         support::run_pending(&runtime).await;
-        assert!(matches!(place.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [PendingEditResult::Landed { .. }]
+        ));
         let accepted = runtime.model().accepted.unwrap();
         let selected = placed_parts_for_submission(&accepted.document, "board", "placement");
         assert_eq!(selected, vec!["placement-1/primary".to_string()]);
@@ -2501,8 +2559,10 @@ mod resolution_tests {
         )
         .unwrap();
         let (entered, gate) = support::gate_next_core_reply(&runtime);
-        let first = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "matrix-position-test",
             None,
             EditResolver::new("matrix-position-test", |accepted: &AcceptedSnapshot| {
@@ -2519,8 +2579,9 @@ mod resolution_tests {
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let second = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "matrix-recipe-test",
             None,
             assembly_matrix_resolver(
@@ -2532,8 +2593,14 @@ mod resolution_tests {
             ),
         );
         release(&runtime, gate).await;
-        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
-        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [
+                PendingEditResult::Landed { .. },
+                PendingEditResult::Landed { .. }
+            ],
+            "the queued recipe edit runs behind the held position edit"
+        ));
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.matrices[0].origin.x, 42.0);
         assert!(
@@ -2574,31 +2641,44 @@ mod resolution_tests {
         )
         .unwrap();
         let (entered, gate) = support::gate_next_core_reply(&runtime);
-        let rename = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "rename-test",
             None,
             crate::parts_definition_name::definition_name_resolver("part".into(), "Renamed".into()),
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let save = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "assembly-save-test",
             None,
             assembly_save_resolver(draft, Vec::new()),
         );
-        let place = EditTicket::begin(
+        edits.begin(
             &runtime,
+            2_u64,
             "assembly-place-test",
             None,
             assembly_place_resolver(scope, proposal, Vec::new(), "placement".into(), ids.clone()),
         );
-        assert!(matches!(place.settlement(true), Settlement::Pending));
+        assert!(
+            edits.is_pending(&2_u64),
+            "the placement queues behind the held rename"
+        );
         release(&runtime, gate).await;
-        for ticket in [rename, save, place] {
-            assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
-        }
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [
+                PendingEditResult::Landed { .. },
+                PendingEditResult::Landed { .. },
+                PendingEditResult::Landed { .. }
+            ],
+            "rename, save and place all land in queue order"
+        ));
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.definitions[0].name, "Renamed");
         assert_eq!(accepted.document.assemblies.len(), 1);
