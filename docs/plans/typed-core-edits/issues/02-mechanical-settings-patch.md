@@ -585,3 +585,30 @@ integrated verification) per this ticket.
 
 Note: the GitNexus MCP server is now configured for pi (`/home/chris/01_Projects/ts-boardstudio2/.pi/mcp.json`,
 project scope, direct exposure, `cwd` = this worktree); it serves the worktree index.
+
+### Progress — slices charted and two parallel slices landed
+
+Split the remaining build into child tickets (05-10) with blocking edges:
+05 Core effective inputs, 06 Core apply settings, 07 Core closure-mount
+initialization and clearance projection, 08 Core mirror pairs and linked
+features, 09 Case adapter and setup, 10 integrated verification and reviews.
+
+Landed so far on `typed-core-edits/mechanical`:
+
+- `c77ab3a6f` identified openings, pair/construction ownership and the 2-to-3 migration.
+- `7e1ec0e04` moved the `MechanicalSettingsPatch` vocabulary into
+  `core::mechanical::change` behind `EditOperation::ApplyMechanicalEdit`.
+- `043a0604e` moved the mechanical defaults into Core and deleted the Case copies.
+- Parallel slice (branch merged): `925f0083a` moved the closure-clearance projection
+  into `core::mechanical::clearance`, with the Case file now a thin adapter.
+- Parallel slice (branch merged): `4bde2993f` added the pair geometry helpers in
+  `core::mechanical::pair` (forward/inverse map, orientation involution, opening
+  reflection with preserved vertex ids and reversed winding).
+- `8aa0423ba` corrected pair orientation recovery to the reflection involution.
+
+Verification: `cargo test -p boardstudio_core` 192 unit + 349 integration,
+`wasm-pack test web/crates/case` 77, WASM `typecheck`, `fmt`, `clippy`, and
+GitNexus `detect-changes` (5 files, 67 symbols, medium risk, 2 mechanical flows).
+
+Next: slice 05 (`effective_inputs`) and slice 06 (`apply` settings families),
+then 07-10.
