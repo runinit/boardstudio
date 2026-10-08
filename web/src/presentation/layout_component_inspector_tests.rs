@@ -180,6 +180,7 @@ fn matrix_primary_fixture() -> (ReadModel, objects::ScopedTreeContext) {
                 },
             }],
             columns: vec![],
+            companions: vec![],
         }],
         ..(*snapshot.scene).clone()
     });

@@ -856,7 +856,12 @@ impl CoreEngine {
                     if matrix::valid_matrix(matrix, doc).is_err() {
                         return None;
                     }
-                    matrix::project_matrix(matrix, &doc.parts, matrix::ProjectionMode::Actual).ok()
+                    matrix::project_matrix(matrix, &doc.parts, matrix::ProjectionMode::Actual)
+                        .map(|mut scene| {
+                            scene.companions = matrix::scene_companions(matrix, doc);
+                            scene
+                        })
+                        .ok()
                 })
                 .collect(),
             contours: contours.to_vec(),

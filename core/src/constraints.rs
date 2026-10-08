@@ -1,5 +1,7 @@
 use crate::matrix::layout::AssemblyPlacement;
-use crate::model::{Constraint, EditOperation, MirrorAxis, Pose2, Position, ProjectDoc, Vec2};
+use crate::model::{
+    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, Pose2, Position, ProjectDoc, Vec2,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
@@ -163,7 +165,8 @@ fn pose(
             resolved,
             visiting,
         )?;
-        if let Some(authored) = assembly.authored_pose
+        if matches!(assembly.mode, MatrixCompanionMode::Authored)
+            && let Some(authored) = assembly.authored_pose
             && parts.get(&assembly.parent_id) == Some(&source)
         {
             authored

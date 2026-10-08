@@ -542,7 +542,35 @@ pub(crate) fn project_matrix(
         columns: (0..matrix.columns)
             .map(|column| column_basis(matrix, column))
             .collect(),
+        companions: vec![],
     })
+}
+
+/// The companions this matrix generates, with the placement mode Core uses for
+/// each. Only enabled, non-deleted cells whose companion part exists are listed.
+pub(crate) fn scene_companions(
+    matrix: &Matrix,
+    doc: &ProjectDoc,
+) -> Vec<crate::model::MatrixCompanionPlacement> {
+    let mut companions = Vec::new();
+    for cell in &matrix.cells {
+        if !cell.enabled || cell.deleted {
+            continue;
+        }
+        let key_id = member_id(&matrix.id, cell.row, cell.column);
+        for assembly in &cell.assemblies {
+            let part_id = format!("{key_id}/{}", assembly.id);
+            if !doc.parts.iter().any(|part| part.id == part_id) {
+                continue;
+            }
+            companions.push(crate::model::MatrixCompanionPlacement {
+                part_id: part_id.clone(),
+                key_id: key_id.clone(),
+                mode: layout::companion_mode(doc, &part_id),
+            });
+        }
+    }
+    companions
 }
 
 pub fn mark_override(part: &mut Part) {

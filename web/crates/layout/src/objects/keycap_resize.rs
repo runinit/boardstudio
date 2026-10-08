@@ -726,6 +726,7 @@ mod tests {
                     stagger_axis: point(0.0, 1.0),
                 })
                 .collect(),
+            companions: vec![],
         }
     }
 
@@ -948,6 +949,7 @@ mod tests {
                 axis_y: point(0.0, 1.0),
                 stagger_axis: point(0.0, 1.0),
             }],
+            companions: vec![],
         };
         let placements: Vec<_> = ["a", "b", "c"]
             .into_iter()
@@ -1047,6 +1049,7 @@ mod tests {
                 axis_y: point(0.0, 1.0),
                 stagger_axis: point(0.0, 1.0),
             }],
+            companions: vec![],
         };
         let placements: Vec<_> = ["a", "b", "c"]
             .into_iter()

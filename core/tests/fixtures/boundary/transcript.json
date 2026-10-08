@@ -10646,6 +10646,1507 @@
           }
         ]
       }
+    },
+    {
+      "document": {
+        "assets": [],
+        "boards": [
+          {
+            "id": "board",
+            "name": "Boundary board",
+            "netIds": [],
+            "outlineIds": [],
+            "partIds": [
+              "matrix/matrix/r0c0",
+              "matrix/matrix/r0c1",
+              "matrix/matrix/r0c2",
+              "matrix/matrix/r2c0",
+              "matrix/matrix/r2c1",
+              "matrix/matrix/r2c2",
+              "matrix/matrix/r0c0/diode",
+              "matrix/matrix/r1c0",
+              "matrix/matrix/r1c1",
+              "matrix/matrix/r1c2"
+            ],
+            "thickness": 1.6
+          }
+        ],
+        "caseBodies": [],
+        "constraints": [],
+        "definitions": [
+          {
+            "courtyard": [],
+            "id": "switch",
+            "kind": "switch",
+            "name": "Switch",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "diode",
+            "kind": "passive",
+            "name": "Diode",
+            "pads": []
+          }
+        ],
+        "format": "boardstudio/v2",
+        "formatVersion": 2,
+        "hardware": {
+          "boards": [
+            {
+              "assignments": {},
+              "boardId": "board",
+              "controllerPartId": null,
+              "jumperStates": {},
+              "keyBindings": {
+                "matrix/matrix/r0c0": "&kp A"
+              },
+              "locks": {},
+              "mode": "matrix",
+              "protectedHandoff": null
+            }
+          ],
+          "instances": [],
+          "sharedConstruction": null,
+          "topology": "unibody",
+          "transport": "none"
+        },
+        "id": "boundary-fixture",
+        "keycaps": {
+          "boards": {
+            "board": {
+              "clearance": 0.5,
+              "color": "#123456",
+              "legendColor": "#202630"
+            }
+          },
+          "keys": {
+            "matrix/matrix/r0c0": {
+              "color": null,
+              "legend": "",
+              "mount": null,
+              "profile": null,
+              "row": null,
+              "units": null
+            }
+          },
+          "matrices": {
+            "matrix": {
+              "firstRow": 1,
+              "mount": null,
+              "profile": "dsa",
+              "wallThickness": 1.2
+            }
+          }
+        },
+        "materials": [],
+        "matrices": [
+          {
+            "boardId": "board",
+            "cells": [
+              {
+                "assemblies": [
+                  {
+                    "definitionId": "diode",
+                    "id": "diode",
+                    "offset": {
+                      "x": 2.0,
+                      "y": 5.0
+                    }
+                  }
+                ],
+                "column": 0,
+                "enabled": true,
+                "row": 0
+              }
+            ],
+            "columnOrigins": [
+              null,
+              {
+                "x": 4.0,
+                "y": -20.0
+              }
+            ],
+            "columnSplays": [
+              0.0,
+              15.0,
+              -8.0
+            ],
+            "columnStaggers": [
+              0.0,
+              2.0,
+              -1.0
+            ],
+            "columns": 3,
+            "definitionId": "switch",
+            "edgeGap": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "id": "matrix",
+            "origin": {
+              "x": 7.0,
+              "y": -3.0
+            },
+            "partIds": [
+              "matrix/matrix/r0c0",
+              "matrix/matrix/r0c0/diode",
+              "matrix/matrix/r0c1",
+              "matrix/matrix/r0c2",
+              "matrix/matrix/r1c0",
+              "matrix/matrix/r1c1",
+              "matrix/matrix/r1c2",
+              "matrix/matrix/r2c0",
+              "matrix/matrix/r2c1",
+              "matrix/matrix/r2c2"
+            ],
+            "pitch": {
+              "x": 19.0,
+              "y": 19.0
+            },
+            "rows": 3
+          }
+        ],
+        "name": "Boundary fixture",
+        "nets": [],
+        "outline": [],
+        "parameters": {},
+        "parts": [
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r0c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": -3.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "S1",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r0c1",
+            "pose": {
+              "at": {
+                "x": 19.794868402080567,
+                "y": 2.1326538548973133
+              },
+              "rotation": 15.0
+            },
+            "reference": "S2",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r0c2",
+            "pose": {
+              "at": {
+                "x": 38.40627814667539,
+                "y": 6.0842898855561405
+              },
+              "rotation": 7.0
+            },
+            "reference": "S3",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r2c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 35.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "S4",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r2c1",
+            "pose": {
+              "at": {
+                "x": 9.95974468818478,
+                "y": 38.83783525388191
+              },
+              "rotation": 15.0
+            },
+            "reference": "S5",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r2c2",
+            "pose": {
+              "at": {
+                "x": 33.775243097279784,
+                "y": 43.80104364792638
+              },
+              "rotation": 7.0
+            },
+            "reference": "S6",
+            "side": "front"
+          },
+          {
+            "definitionId": "diode",
+            "id": "matrix/matrix/r0c0/diode",
+            "pose": {
+              "at": {
+                "x": 9.0,
+                "y": 2.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "SW1",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r1c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 16.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "SW2",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r1c1",
+            "pose": {
+              "at": {
+                "x": 14.877306545132676,
+                "y": 20.48524455438961
+              },
+              "rotation": 15.0
+            },
+            "reference": "SW3",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r1c2",
+            "pose": {
+              "at": {
+                "x": 36.09076062197759,
+                "y": 24.942666766741258
+              },
+              "rotation": 7.0
+            },
+            "reference": "SW4",
+            "side": "front"
+          }
+        ],
+        "revision": 12,
+        "scripts": []
+      },
+      "id": "companion-matrix",
+      "kind": "scene",
+      "scene": {
+        "boardContours": [
+          {
+            "boardId": "board",
+            "contours": []
+          }
+        ],
+        "boardOutlineScenes": [
+          {
+            "boardId": "board",
+            "bridges": [],
+            "gaps": [],
+            "sourceContours": []
+          }
+        ],
+        "boardReadiness": [
+          {
+            "boardId": "board",
+            "case": false,
+            "outline": false,
+            "pcb": false
+          }
+        ],
+        "changedIds": [
+          "diode",
+          "matrix",
+          "matrix/matrix/r0c0",
+          "matrix/matrix/r0c0/diode",
+          "matrix/matrix/r0c1",
+          "matrix/matrix/r0c2",
+          "matrix/matrix/r1c0",
+          "matrix/matrix/r1c1",
+          "matrix/matrix/r1c2",
+          "matrix/matrix/r2c0",
+          "matrix/matrix/r2c1",
+          "matrix/matrix/r2c2"
+        ],
+        "contours": [],
+        "findings": [
+          {
+            "id": "keycaps/matrix/matrix/r0c0/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r0c0"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r0c1/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r0c1"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r0c2/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r0c2"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r2c0/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r2c0"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r2c1/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r2c1"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r2c2/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r2c2"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r0c0/diode/unsupported-input",
+            "message": "SW1: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.",
+            "scope": "case",
+            "severity": "warning",
+            "targetIds": [
+              "matrix/matrix/r0c0/diode"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r1c0/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r1c0"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r1c1/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r1c1"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r1c2/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r1c2"
+            ]
+          },
+          {
+            "id": "board:board:outline",
+            "message": "Board has no outline feature",
+            "scope": "pcb",
+            "severity": "error",
+            "targetIds": [
+              "board"
+            ]
+          },
+          {
+            "id": "board:board:empty-outline",
+            "message": "Board outline resolves to no area",
+            "scope": "pcb",
+            "severity": "error",
+            "targetIds": [
+              "board"
+            ]
+          }
+        ],
+        "matrixScenes": [
+          {
+            "cells": [
+              {
+                "column": 0,
+                "enabled": true,
+                "memberId": "matrix/matrix/r0c0",
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": -3.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 0
+              },
+              {
+                "column": 1,
+                "enabled": true,
+                "memberId": "matrix/matrix/r0c1",
+                "pose": {
+                  "at": {
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
+                  },
+                  "rotation": 15.0
+                },
+                "row": 0
+              },
+              {
+                "column": 2,
+                "enabled": true,
+                "memberId": "matrix/matrix/r0c2",
+                "pose": {
+                  "at": {
+                    "x": 38.40627814667539,
+                    "y": 6.0842898855561405
+                  },
+                  "rotation": 7.0
+                },
+                "row": 0
+              },
+              {
+                "column": 0,
+                "enabled": true,
+                "memberId": "matrix/matrix/r1c0",
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": 16.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 1
+              },
+              {
+                "column": 1,
+                "enabled": true,
+                "memberId": "matrix/matrix/r1c1",
+                "pose": {
+                  "at": {
+                    "x": 14.877306545132676,
+                    "y": 20.48524455438961
+                  },
+                  "rotation": 15.0
+                },
+                "row": 1
+              },
+              {
+                "column": 2,
+                "enabled": true,
+                "memberId": "matrix/matrix/r1c2",
+                "pose": {
+                  "at": {
+                    "x": 36.09076062197759,
+                    "y": 24.942666766741258
+                  },
+                  "rotation": 7.0
+                },
+                "row": 1
+              },
+              {
+                "column": 0,
+                "enabled": true,
+                "memberId": "matrix/matrix/r2c0",
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": 35.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 2
+              },
+              {
+                "column": 1,
+                "enabled": true,
+                "memberId": "matrix/matrix/r2c1",
+                "pose": {
+                  "at": {
+                    "x": 9.95974468818478,
+                    "y": 38.83783525388191
+                  },
+                  "rotation": 15.0
+                },
+                "row": 2
+              },
+              {
+                "column": 2,
+                "enabled": true,
+                "memberId": "matrix/matrix/r2c2",
+                "pose": {
+                  "at": {
+                    "x": 33.775243097279784,
+                    "y": 43.80104364792638
+                  },
+                  "rotation": 7.0
+                },
+                "row": 2
+              }
+            ],
+            "columns": [
+              {
+                "axisX": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "axisY": {
+                  "x": -0.0,
+                  "y": 1.0
+                },
+                "column": 0,
+                "customOrigin": false,
+                "splayAngle": 0.0,
+                "splayOrigin": {
+                  "x": 7.0,
+                  "y": -3.0
+                },
+                "staggerAxis": {
+                  "x": 0.0,
+                  "y": 1.0
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
+                },
+                "axisY": {
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
+                },
+                "column": 1,
+                "customOrigin": true,
+                "splayAngle": 15.0,
+                "splayOrigin": {
+                  "x": 11.0,
+                  "y": -23.0
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.992546151641322,
+                  "y": 0.12186934340514748
+                },
+                "axisY": {
+                  "x": -0.12186934340514748,
+                  "y": 0.992546151641322
+                },
+                "column": 2,
+                "customOrigin": false,
+                "splayAngle": -8.0,
+                "splayOrigin": {
+                  "x": 38.40627814667539,
+                  "y": 6.0842898855561405
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510252696,
+                  "y": 0.965925826289066
+                }
+              }
+            ],
+            "companions": [
+              {
+                "keyId": "matrix/matrix/r0c0",
+                "mode": "follows",
+                "partId": "matrix/matrix/r0c0/diode"
+              }
+            ],
+            "matrixId": "matrix"
+          }
+        ],
+        "readiness": {
+          "case": false,
+          "layout": true,
+          "outline": false,
+          "pcb": false
+        },
+        "revision": 12,
+        "transactionId": "companion",
+        "transforms": [
+          {
+            "id": "matrix/matrix/r0c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": -3.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r0c1",
+            "pose": {
+              "at": {
+                "x": 19.794868402080567,
+                "y": 2.1326538548973133
+              },
+              "rotation": 15.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r0c2",
+            "pose": {
+              "at": {
+                "x": 38.40627814667539,
+                "y": 6.0842898855561405
+              },
+              "rotation": 7.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r2c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 35.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r2c1",
+            "pose": {
+              "at": {
+                "x": 9.95974468818478,
+                "y": 38.83783525388191
+              },
+              "rotation": 15.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r2c2",
+            "pose": {
+              "at": {
+                "x": 33.775243097279784,
+                "y": 43.80104364792638
+              },
+              "rotation": 7.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r0c0/diode",
+            "pose": {
+              "at": {
+                "x": 9.0,
+                "y": 2.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r1c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 16.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r1c1",
+            "pose": {
+              "at": {
+                "x": 14.877306545132676,
+                "y": 20.48524455438961
+              },
+              "rotation": 15.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r1c2",
+            "pose": {
+              "at": {
+                "x": 36.09076062197759,
+                "y": 24.942666766741258
+              },
+              "rotation": 7.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "document": {
+        "assets": [],
+        "boards": [
+          {
+            "id": "board",
+            "name": "Boundary board",
+            "netIds": [],
+            "outlineIds": [],
+            "partIds": [
+              "matrix/matrix/r0c0",
+              "matrix/matrix/r0c1",
+              "matrix/matrix/r0c2",
+              "matrix/matrix/r2c0",
+              "matrix/matrix/r2c1",
+              "matrix/matrix/r2c2",
+              "matrix/matrix/r0c0/diode",
+              "matrix/matrix/r1c0",
+              "matrix/matrix/r1c1",
+              "matrix/matrix/r1c2"
+            ],
+            "thickness": 1.6
+          }
+        ],
+        "caseBodies": [],
+        "constraints": [],
+        "definitions": [
+          {
+            "courtyard": [],
+            "id": "switch",
+            "kind": "switch",
+            "name": "Switch",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "diode",
+            "kind": "passive",
+            "name": "Diode",
+            "pads": []
+          }
+        ],
+        "format": "boardstudio/v2",
+        "formatVersion": 2,
+        "hardware": {
+          "boards": [
+            {
+              "assignments": {},
+              "boardId": "board",
+              "controllerPartId": null,
+              "jumperStates": {},
+              "keyBindings": {
+                "matrix/matrix/r0c0": "&kp A"
+              },
+              "locks": {},
+              "mode": "matrix",
+              "protectedHandoff": null
+            }
+          ],
+          "instances": [],
+          "sharedConstruction": null,
+          "topology": "unibody",
+          "transport": "none"
+        },
+        "id": "boundary-fixture",
+        "keycaps": {
+          "boards": {
+            "board": {
+              "clearance": 0.5,
+              "color": "#123456",
+              "legendColor": "#202630"
+            }
+          },
+          "keys": {
+            "matrix/matrix/r0c0": {
+              "color": null,
+              "legend": "",
+              "mount": null,
+              "profile": null,
+              "row": null,
+              "units": null
+            }
+          },
+          "matrices": {
+            "matrix": {
+              "firstRow": 1,
+              "mount": null,
+              "profile": "dsa",
+              "wallThickness": 1.2
+            }
+          }
+        },
+        "materials": [],
+        "matrices": [
+          {
+            "boardId": "board",
+            "cells": [
+              {
+                "assemblies": [
+                  {
+                    "definitionId": "diode",
+                    "id": "diode",
+                    "offset": {
+                      "x": 2.0,
+                      "y": 5.0
+                    }
+                  }
+                ],
+                "column": 0,
+                "enabled": true,
+                "row": 0
+              }
+            ],
+            "columnOrigins": [
+              null,
+              {
+                "x": 4.0,
+                "y": -20.0
+              }
+            ],
+            "columnSplays": [
+              0.0,
+              15.0,
+              -8.0
+            ],
+            "columnStaggers": [
+              0.0,
+              2.0,
+              -1.0
+            ],
+            "columns": 3,
+            "definitionId": "switch",
+            "edgeGap": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "id": "matrix",
+            "origin": {
+              "x": 7.0,
+              "y": -3.0
+            },
+            "partIds": [
+              "matrix/matrix/r0c0",
+              "matrix/matrix/r0c0/diode",
+              "matrix/matrix/r0c1",
+              "matrix/matrix/r0c2",
+              "matrix/matrix/r1c0",
+              "matrix/matrix/r1c1",
+              "matrix/matrix/r1c2",
+              "matrix/matrix/r2c0",
+              "matrix/matrix/r2c1",
+              "matrix/matrix/r2c2"
+            ],
+            "pitch": {
+              "x": 19.0,
+              "y": 19.0
+            },
+            "rows": 3
+          }
+        ],
+        "name": "Boundary fixture",
+        "nets": [],
+        "outline": [],
+        "parameters": {},
+        "parts": [
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r0c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": -3.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "S1",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r0c1",
+            "pose": {
+              "at": {
+                "x": 19.794868402080567,
+                "y": 2.1326538548973133
+              },
+              "rotation": 15.0
+            },
+            "reference": "S2",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r0c2",
+            "pose": {
+              "at": {
+                "x": 38.40627814667539,
+                "y": 6.0842898855561405
+              },
+              "rotation": 7.0
+            },
+            "reference": "S3",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r2c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 35.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "S4",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r2c1",
+            "pose": {
+              "at": {
+                "x": 9.95974468818478,
+                "y": 38.83783525388191
+              },
+              "rotation": 15.0
+            },
+            "reference": "S5",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r2c2",
+            "pose": {
+              "at": {
+                "x": 33.775243097279784,
+                "y": 43.80104364792638
+              },
+              "rotation": 7.0
+            },
+            "reference": "S6",
+            "side": "front"
+          },
+          {
+            "definitionId": "diode",
+            "id": "matrix/matrix/r0c0/diode",
+            "pose": {
+              "at": {
+                "x": 9.0,
+                "y": 2.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "SW1",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r1c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 16.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "SW2",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r1c1",
+            "pose": {
+              "at": {
+                "x": 14.877306545132676,
+                "y": 20.48524455438961
+              },
+              "rotation": 15.0
+            },
+            "reference": "SW3",
+            "side": "front"
+          },
+          {
+            "definitionId": "switch",
+            "id": "matrix/matrix/r1c2",
+            "pose": {
+              "at": {
+                "x": 36.09076062197759,
+                "y": 24.942666766741258
+              },
+              "rotation": 7.0
+            },
+            "reference": "SW4",
+            "side": "front"
+          }
+        ],
+        "revision": 12,
+        "scripts": []
+      },
+      "id": "companion-snapshot",
+      "kind": "scene",
+      "scene": {
+        "boardContours": [
+          {
+            "boardId": "board",
+            "contours": []
+          }
+        ],
+        "boardOutlineScenes": [
+          {
+            "boardId": "board",
+            "bridges": [],
+            "gaps": [],
+            "sourceContours": []
+          }
+        ],
+        "boardReadiness": [
+          {
+            "boardId": "board",
+            "case": false,
+            "outline": false,
+            "pcb": false
+          }
+        ],
+        "changedIds": [],
+        "contours": [],
+        "findings": [
+          {
+            "id": "keycaps/matrix/matrix/r0c0/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r0c0"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r0c1/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r0c1"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r0c2/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r0c2"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r2c0/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r2c0"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r2c1/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r2c1"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r2c2/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r2c2"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r0c0/diode/unsupported-input",
+            "message": "SW1: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.",
+            "scope": "case",
+            "severity": "warning",
+            "targetIds": [
+              "matrix/matrix/r0c0/diode"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r1c0/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r1c0"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r1c1/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r1c1"
+            ]
+          },
+          {
+            "id": "keycaps/matrix/matrix/r1c2/socket",
+            "message": "Choose a keycap socket or assign the switch a fit family",
+            "scope": "case",
+            "severity": "error",
+            "targetIds": [
+              "matrix/matrix/r1c2"
+            ]
+          },
+          {
+            "id": "board:board:outline",
+            "message": "Board has no outline feature",
+            "scope": "pcb",
+            "severity": "error",
+            "targetIds": [
+              "board"
+            ]
+          },
+          {
+            "id": "board:board:empty-outline",
+            "message": "Board outline resolves to no area",
+            "scope": "pcb",
+            "severity": "error",
+            "targetIds": [
+              "board"
+            ]
+          }
+        ],
+        "matrixScenes": [
+          {
+            "cells": [
+              {
+                "column": 0,
+                "enabled": true,
+                "memberId": "matrix/matrix/r0c0",
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": -3.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 0
+              },
+              {
+                "column": 1,
+                "enabled": true,
+                "memberId": "matrix/matrix/r0c1",
+                "pose": {
+                  "at": {
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
+                  },
+                  "rotation": 15.0
+                },
+                "row": 0
+              },
+              {
+                "column": 2,
+                "enabled": true,
+                "memberId": "matrix/matrix/r0c2",
+                "pose": {
+                  "at": {
+                    "x": 38.40627814667539,
+                    "y": 6.0842898855561405
+                  },
+                  "rotation": 7.0
+                },
+                "row": 0
+              },
+              {
+                "column": 0,
+                "enabled": true,
+                "memberId": "matrix/matrix/r1c0",
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": 16.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 1
+              },
+              {
+                "column": 1,
+                "enabled": true,
+                "memberId": "matrix/matrix/r1c1",
+                "pose": {
+                  "at": {
+                    "x": 14.877306545132676,
+                    "y": 20.48524455438961
+                  },
+                  "rotation": 15.0
+                },
+                "row": 1
+              },
+              {
+                "column": 2,
+                "enabled": true,
+                "memberId": "matrix/matrix/r1c2",
+                "pose": {
+                  "at": {
+                    "x": 36.09076062197759,
+                    "y": 24.942666766741258
+                  },
+                  "rotation": 7.0
+                },
+                "row": 1
+              },
+              {
+                "column": 0,
+                "enabled": true,
+                "memberId": "matrix/matrix/r2c0",
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": 35.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 2
+              },
+              {
+                "column": 1,
+                "enabled": true,
+                "memberId": "matrix/matrix/r2c1",
+                "pose": {
+                  "at": {
+                    "x": 9.95974468818478,
+                    "y": 38.83783525388191
+                  },
+                  "rotation": 15.0
+                },
+                "row": 2
+              },
+              {
+                "column": 2,
+                "enabled": true,
+                "memberId": "matrix/matrix/r2c2",
+                "pose": {
+                  "at": {
+                    "x": 33.775243097279784,
+                    "y": 43.80104364792638
+                  },
+                  "rotation": 7.0
+                },
+                "row": 2
+              }
+            ],
+            "columns": [
+              {
+                "axisX": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "axisY": {
+                  "x": -0.0,
+                  "y": 1.0
+                },
+                "column": 0,
+                "customOrigin": false,
+                "splayAngle": 0.0,
+                "splayOrigin": {
+                  "x": 7.0,
+                  "y": -3.0
+                },
+                "staggerAxis": {
+                  "x": 0.0,
+                  "y": 1.0
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
+                },
+                "axisY": {
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
+                },
+                "column": 1,
+                "customOrigin": true,
+                "splayAngle": 15.0,
+                "splayOrigin": {
+                  "x": 11.0,
+                  "y": -23.0
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.992546151641322,
+                  "y": 0.12186934340514748
+                },
+                "axisY": {
+                  "x": -0.12186934340514748,
+                  "y": 0.992546151641322
+                },
+                "column": 2,
+                "customOrigin": false,
+                "splayAngle": -8.0,
+                "splayOrigin": {
+                  "x": 38.40627814667539,
+                  "y": 6.0842898855561405
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510252696,
+                  "y": 0.965925826289066
+                }
+              }
+            ],
+            "companions": [
+              {
+                "keyId": "matrix/matrix/r0c0",
+                "mode": "follows",
+                "partId": "matrix/matrix/r0c0/diode"
+              }
+            ],
+            "matrixId": "matrix"
+          }
+        ],
+        "readiness": {
+          "case": false,
+          "layout": true,
+          "outline": false,
+          "pcb": false
+        },
+        "revision": 12,
+        "transactionId": "snapshot",
+        "transforms": [
+          {
+            "id": "matrix/matrix/r0c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": -3.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r0c1",
+            "pose": {
+              "at": {
+                "x": 19.794868402080567,
+                "y": 2.1326538548973133
+              },
+              "rotation": 15.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r0c2",
+            "pose": {
+              "at": {
+                "x": 38.40627814667539,
+                "y": 6.0842898855561405
+              },
+              "rotation": 7.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r2c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 35.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r2c1",
+            "pose": {
+              "at": {
+                "x": 9.95974468818478,
+                "y": 38.83783525388191
+              },
+              "rotation": 15.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r2c2",
+            "pose": {
+              "at": {
+                "x": 33.775243097279784,
+                "y": 43.80104364792638
+              },
+              "rotation": 7.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r0c0/diode",
+            "pose": {
+              "at": {
+                "x": 9.0,
+                "y": 2.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r1c0",
+            "pose": {
+              "at": {
+                "x": 7.0,
+                "y": 16.0
+              },
+              "rotation": 0.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r1c1",
+            "pose": {
+              "at": {
+                "x": 14.877306545132676,
+                "y": 20.48524455438961
+              },
+              "rotation": 15.0
+            }
+          },
+          {
+            "id": "matrix/matrix/r1c2",
+            "pose": {
+              "at": {
+                "x": 36.09076062197759,
+                "y": 24.942666766741258
+              },
+              "rotation": 7.0
+            }
+          }
+        ]
+      }
     }
   ]
 }

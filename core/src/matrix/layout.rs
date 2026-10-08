@@ -1074,6 +1074,38 @@ pub(crate) struct AssemblyPlacement {
     pub(crate) parent_id: String,
     pub(crate) local_pose: Pose2,
     pub(crate) authored_pose: Option<Pose2>,
+    pub(crate) mode: MatrixCompanionMode,
+}
+
+/// Classify a generated companion the same way the solver places it: an explicit
+/// constraint wins, then an authored pose, otherwise the companion follows its
+/// key. The placement solver and the scene projection both read this mode, so the
+/// precedence rule has one source.
+pub(crate) fn companion_mode(doc: &ProjectDoc, companion_id: &str) -> MatrixCompanionMode {
+    if let Some(constraint) = doc
+        .constraints
+        .iter()
+        .find(|constraint| constraint.target() == companion_id)
+    {
+        return MatrixCompanionMode::Constrained {
+            constraint_id: constraint.id().to_string(),
+            source_part_id: constraint.source().to_string(),
+        };
+    }
+    let authored = doc
+        .parts
+        .iter()
+        .find(|part| part.id == companion_id)
+        .is_some_and(|part| {
+            part.properties.as_ref().is_some_and(|properties| {
+                properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
+            })
+        });
+    if authored {
+        MatrixCompanionMode::Authored
+    } else {
+        MatrixCompanionMode::Follows
+    }
 }
 
 pub(crate) fn assembly_placements(
@@ -1103,9 +1135,8 @@ pub(crate) fn assembly_placements(
                 let Some(companion) = parts.get(id.as_str()) else {
                     continue;
                 };
-                let authored = companion.properties.as_ref().is_some_and(|properties| {
-                    properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
-                });
+                let mode = companion_mode(doc, &id);
+                let authored = matches!(mode, MatrixCompanionMode::Authored);
                 let local_pose = if authored {
                     let (sin, cos) = parent.pose.rotation.to_radians().sin_cos();
                     let dx = companion.pose.at.x - parent.pose.at.x;
@@ -1129,6 +1160,7 @@ pub(crate) fn assembly_placements(
                         parent_id: parent_id.clone(),
                         local_pose,
                         authored_pose: authored.then_some(companion.pose),
+                        mode,
                     },
                 );
             }

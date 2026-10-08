@@ -137,6 +137,20 @@ pub fn core_requests() -> Vec<Value> {
         }
         revision += 1;
     }
+    // A generated companion crosses the seam with its placement mode.
+    requests.push(json!({
+        "id": "companion-matrix", "kind": "edit",
+        "command": { "baseRevision": revision, "transactionId": "companion", "phase": "commit", "targetIds": ["matrix"],
+            "operation": { "kind": "set-matrix",
+                "matrix": with(json!({
+                    "id": "matrix",
+                    "cells": [{ "row": 0, "column": 0, "enabled": true,
+                        "assemblies": [{ "id": "diode", "definitionId": "diode", "offset": { "x": 2, "y": 5 } }] }],
+                    "partIds": [],
+                })),
+                "definitions": [{ "id": "diode", "name": "Diode", "kind": "passive", "pads": [], "courtyard": [] }] } },
+    }));
+    requests.push(json!({ "id": "companion-snapshot", "kind": "snapshot" }));
     requests
 }
 
@@ -266,6 +280,14 @@ fn check_core(replies: &[Value]) {
     assert_eq!(
         replies[16]["document"]["keycaps"]["keys"]["matrix/matrix/r0c0"]["legend"],
         ""
+    );
+    assert_eq!(
+        replies[23]["scene"]["matrixScenes"][0]["companions"][0],
+        json!({ "keyId": "matrix/matrix/r0c0", "mode": "follows", "partId": "matrix/matrix/r0c0/diode" })
+    );
+    assert_eq!(
+        replies[24]["scene"]["matrixScenes"][0]["companions"],
+        replies[23]["scene"]["matrixScenes"][0]["companions"]
     );
 }
 

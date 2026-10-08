@@ -79,3 +79,6 @@ mod key_move_assemblies;
 
 #[path = "matrix_placement.rs"]
 mod matrix_placement;
+
+#[path = "matrix_companions.rs"]
+mod matrix_companions;

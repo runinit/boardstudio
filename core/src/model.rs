@@ -1313,6 +1313,33 @@ pub struct MatrixScene {
     pub matrix_id: String,
     pub cells: Vec<MatrixSceneCell>,
     pub columns: Vec<MatrixColumnBasis>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub companions: Vec<MatrixCompanionPlacement>,
+}
+
+/// How Core places a generated companion relative to its matrix key. The mode is
+/// derived from the same rules the placement solver uses, so presentation never
+/// re-derives precedence. `Constrained` names the explicit constraint that wins.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MatrixCompanionMode {
+    Follows,
+    Authored,
+    Constrained {
+        #[serde(rename = "constraintId")]
+        constraint_id: String,
+        #[serde(rename = "sourcePartId")]
+        source_part_id: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MatrixCompanionPlacement {
+    #[serde(rename = "partId")]
+    pub part_id: String,
+    #[serde(rename = "keyId")]
+    pub key_id: String,
+    pub mode: MatrixCompanionMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
