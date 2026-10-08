@@ -1547,9 +1547,12 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let accepted_mount = settings.mount;
     let accepted_row = settings.row;
     let accepted_units = settings.units;
-    let edits_context = use_context::<KeycapsEditsContext>();
-    let mut legend_draft = edits_context.legend_draft;
-    let mut legend_failure = edits_context.legend_failure;
+    // The controller provides the legend Signals; an editor mounted without one keeps its own.
+    let own_draft = use_signal(String::new);
+    let own_failure = use_signal(|| None::<String>);
+    let edits_context = try_consume_context::<KeycapsEditsContext>();
+    let mut legend_draft = edits_context.map_or(own_draft, |context| context.legend_draft);
+    let mut legend_failure = edits_context.map_or(own_failure, |context| context.legend_failure);
     let mut legend_dirty = use_signal(|| false);
     let legend_pending = field_pending(
         &actions,
