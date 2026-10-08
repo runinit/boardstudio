@@ -188,11 +188,13 @@ pub(crate) mod ui {
             };
             let accepted = RowDrafts::accepted_texts(pad);
             let entry = self.accepted.entry(row).or_insert_with(|| accepted.clone());
+            // Update only this field's entry so the remaining fields of the same pass
+            // still see their own accepted changes.
             if entry[index] != accepted[index] {
+                entry[index] = accepted[index].clone();
                 if let Some(mut drafts) = self.drafts.get(&row).copied() {
-                    drafts.drafts[index].set(accepted[index].clone());
+                    drafts.drafts[index].set(entry[index].clone());
                 }
-                *entry = accepted;
             }
         }
     }

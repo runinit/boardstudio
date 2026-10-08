@@ -42,21 +42,6 @@ enum ModelKey {
     Transform { field: VectorField, axis: Axis },
 }
 
-/// The accepted text of one model vector axis, for settlement draft restoration.
-fn model_axis_text(model: &PartModel, field: VectorField, axis: Axis) -> String {
-    let vector = match field {
-        VectorField::Offset => &model.offset,
-        VectorField::Rotation => &model.rotation,
-        VectorField::Scale => &model.scale,
-    };
-    match axis {
-        Axis::X => vector.x,
-        Axis::Y => vector.y,
-        Axis::Z => vector.z,
-    }
-    .to_string()
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum VectorField {
     Offset,
@@ -319,7 +304,6 @@ pub fn ComponentModelEditor(
     let mut uploading = use_signal(|| false);
     let pending_edits = use_hook(|| PendingEditSignals::<ModelKey>::new());
     let submit_owner = use_signal(|| None::<ModelEditorOwner>);
-    use_context_provider(|| pending_edits.clone());
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     use_drop({
@@ -345,7 +329,6 @@ pub fn ComponentModelEditor(
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.clone();
         let pending_edits = pending_edits.clone();
-        let binding_for_settle = binding.clone();
         let submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
@@ -362,13 +345,7 @@ pub fn ComponentModelEditor(
                 &workspace,
             )
             .is_some();
-            let results = pending_edits.settle(live, |key| match key {
-                ModelKey::Transform { field, axis } => binding_for_settle
-                    .as_ref()
-                    .map(|model| model_axis_text(model, *field, *axis))
-                    .unwrap_or_default(),
-                ModelKey::Upload | ModelKey::Remove => String::new(),
-            });
+            let results = pending_edits.settle(live, |_| String::new());
             for result in results {
                 if let PendingEditResult::Failed { message, .. } = result {
                     error.set(Some(ModelEditorMessage {
@@ -592,22 +569,20 @@ pub fn ComponentModelEditor(
     };
     let binding = initial_model(&definition);
     let transform_commit = use_callback({
-        let runtime_for_transform = runtime.clone();
+        let runtime = runtime.clone();
         let owner = owner.clone();
         let original = definition.clone();
         let selected = selected;
         let workspace = workspace;
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
-        let pending_edits = pending_edits.clone();
-        let mut submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
-        move |(field, axis, submitted, value): (VectorField, Axis, String, f64)| {
+        move |(field, axis, _submitted, value): (VectorField, Axis, String, f64)| {
             let Some(asset_id) = asset_id.as_deref() else {
-                return false;
+                return None;
             };
             match submit_model_transform(
-                &runtime_for_transform,
+                &runtime,
                 &owner,
                 &selected,
                 selection_generation(),
@@ -623,25 +598,14 @@ pub fn ComponentModelEditor(
                 Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    // The helper remembers the submitted axis text, so an older outcome
-                    // can never clobber a newer draft.
-                    pending_edits.begin_field(
-                        &runtime_for_transform,
-                        ModelKey::Transform { field, axis },
-                        "parts-component-model",
-                        Some("component model".into()),
-                        resolver,
-                        &submitted,
-                    );
-                    submit_owner.set(Some(owner.clone()));
-                    true
+                    Some(resolver)
                 }
                 Err(message) => {
                     error.set(Some(ModelEditorMessage {
                         owner: owner.clone(),
                         text: message,
                     }));
-                    false
+                    None
                 }
             }
         }
@@ -748,11 +712,15 @@ fn ModelVectorEditor(
     value: Vec3,
     unit: &'static str,
     positive: bool,
-    on_commit: Callback<(Axis, String, f64), bool>,
+    on_commit: Callback<(Axis, String, f64), Option<EditResolver>>,
 ) -> Element {
     let version = use_context::<Signal<u64>>();
     let _ = version();
-    let pending = use_context::<PendingEditSignals<ModelKey>>();
+    let runtime = use_context::<Rc<Runtime>>();
+    // This editor's own collection: the editor is remounted per owner (its parent keys
+    // it by the model owner), so its lifetime is the owner lifetime and it settles its
+    // own axes here, like the render-body settlement it replaces.
+    let pending = use_hook(|| PendingEditSignals::<ModelKey>::new());
     let field = match title {
         "Offset" => VectorField::Offset,
         "Rotation" => VectorField::Rotation,
@@ -795,12 +763,24 @@ fn ModelVectorEditor(
             synced.set(current);
         }
     }
+    // Settle this editor's axes before rendering: a failure restores the accepted
+    // value and reports inline; landed and retired edits drop silently.
+    pending.settle(true, |key| match key {
+        ModelKey::Transform { axis, .. } => match axis {
+            Axis::X => value.x,
+            Axis::Y => value.y,
+            Axis::Z => value.z,
+        }
+        .to_string(),
+        _ => String::new(),
+    });
     rsx! {
         fieldset { class: "m1-model-vector",
             legend { "{title} · {unit}" }
             for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
                 {
                     let pending = pending.clone();
+                    let runtime = runtime.clone();
                     rsx! {
                     label { class: "m1-generator-field", "{label}",
                     input {
@@ -824,8 +804,19 @@ fn ModelVectorEditor(
                             let already_submitted = submitted.peek()[index].as_deref() == Some(raw.as_str());
                             let axis_pending = pending.is_pending(&ModelKey::Transform { field, axis });
                             if !already_submitted && (number != current[index] || axis_pending) {
-                                submitted.write()[index] = Some(raw.clone());
-                                on_commit.call((axis, raw, number));
+                                if let Some(resolver) = on_commit.call((axis, raw.clone(), number)) {
+                                    // The helper remembers the submitted axis text, so an
+                                    // older outcome can never clobber a newer draft.
+                                    pending.begin_field(
+                                        &runtime,
+                                        ModelKey::Transform { field, axis },
+                                        "parts-component-model",
+                                        Some("component model".into()),
+                                        resolver,
+                                        &raw,
+                                    );
+                                }
+                                submitted.write()[index] = Some(raw);
                             }
                         },
                         onkeydown: move |event: KeyboardEvent| {
@@ -846,6 +837,7 @@ fn ModelVectorEditor(
                 }
             }
             if let Some(message) = error() { small { role: "alert", "{message}" } }
+            if let Some(message) = failure() { small { role: "alert", "{message}" } }
         }
     }
 }
@@ -907,16 +899,10 @@ mod settlement_tests {
                 }))
             }
         });
-        let edits = use_hook(|| PendingEditSignals::<ModelKey>::new());
-        use_context_provider(|| edits.clone());
         let accepted = runtime.model().accepted.unwrap();
         let model = initial_model(&accepted.document.definitions[0]).unwrap();
         rsx! { ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false,
-            on_commit: move |(axis, submitted, value): (Axis, String, f64)| {
-                edits.begin_field(&runtime, ModelKey::Transform { field: VectorField::Offset, axis },
-                    "model-test", Some("component model".into()), offset_edit(axis, value), &submitted);
-                true
-            }
+            on_commit: move |(axis, _submitted, value)| Some(offset_edit(axis, value))
         } }
     }
 
