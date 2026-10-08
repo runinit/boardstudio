@@ -145,6 +145,18 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
     ) where
         K: Clone,
     {
+        // A composite field action may also bind the same logical key as a one-shot
+        // control. Keep its disabling lifetime inside the collection as well.
+        let disabled = self
+            .shared
+            .one_shots
+            .borrow()
+            .iter()
+            .find(|binding| binding.key == key)
+            .map(|binding| binding.view.disabled);
+        if let Some(mut disabled) = disabled {
+            disabled.set(true);
+        }
         self.shared
             .edits
             .borrow_mut()
@@ -418,10 +430,12 @@ mod mounted_tests {
         let mut draft = use_signal(|| "Zephyr".to_string());
         let failure = use_signal(|| None::<String>);
         let disabled = use_signal(|| false);
+        let name_disabled = use_signal(|| false);
         use_hook({
             let helpers = helpers.clone();
             move || {
                 helpers.bind_field(Field::Name, draft, failure);
+                helpers.bind_one_shot(Field::Name, name_disabled);
                 helpers.bind_one_shot(Field::Other, disabled);
             }
         });
@@ -434,6 +448,8 @@ mod mounted_tests {
             }
             button { id: "one-shot-control", disabled: disabled(),
                 "one-shot control" }
+            button { id: "composite-control", disabled: name_disabled(),
+                "composite control" }
             button { id: "begin-field", onclick: {
                     let helpers = helpers.clone();
                     let runtime = runtime.clone();
@@ -593,6 +609,7 @@ mod mounted_tests {
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         click("#begin-field");
+        rendered().await;
         support::drive_pending(&runtime);
         entered.await.unwrap();
         assert!(
@@ -628,6 +645,37 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn field_action_disables_and_releases_its_bound_composite_control() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-field");
+        rendered().await;
+        assert!(
+            element("#composite-control").has_attribute("disabled"),
+            "begin_field disables the one-shot bound to the same logical key"
+        );
+        support::drive_pending(&runtime);
+        entered.await.expect("the field action reached Core");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle");
+        rendered().await;
+        assert!(
+            !element("#composite-control").has_attribute("disabled"),
+            "terminal settlement re-enables the composite control"
+        );
+        assert_eq!(draft_value(), "PROJECTED");
+        assert!(probe.results.borrow().iter().any(|result| matches!(
+            result,
+            PendingEditResult::Landed {
+                key: Field::Name,
+                ..
+            }
+        )));
+    }
+
+    #[wasm_bindgen_test]
     async fn a_failed_edit_restores_the_accepted_value_and_reports_inline() {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
@@ -659,7 +707,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn a_newer_draft_is_never_replaced_by_an_older_outcome() {
         let runtime = opened_runtime("Original").await;
-        let probe = mount_fixture(runtime.clone()).await;
+        let _probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         click("#begin-field");
         support::drive_pending(&runtime);
