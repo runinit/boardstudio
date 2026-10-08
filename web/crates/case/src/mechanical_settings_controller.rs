@@ -2772,7 +2772,11 @@ mod battery_patch_tests {
                 operation_id: runtime.operation(),
             });
             support::run_pending(&runtime).await;
-            assert_eq!(wall(&runtime), expected, "each accepted edit has an Undo step");
+            assert_eq!(
+                wall(&runtime),
+                expected,
+                "each accepted edit has an Undo step"
+            );
         }
     }
 

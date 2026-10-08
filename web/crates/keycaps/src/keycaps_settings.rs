@@ -2468,7 +2468,11 @@ mod queued_settings_tests {
             support::run_pending(&runtime).await;
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
-        assert_eq!(input.value(), "", "the unchanged draft restores the accepted text");
+        assert_eq!(
+            input.value(),
+            "",
+            "the unchanged draft restores the accepted text"
+        );
         assert!(
             root.text_content()
                 .unwrap()

@@ -2396,7 +2396,9 @@ mod mounted_tests {
             .remove_child(&root);
     }
 
-    async fn mounted_name_field(project_id: &str) -> (Rc<crate::runtime::Runtime>, web_sys::Element) {
+    async fn mounted_name_field(
+        project_id: &str,
+    ) -> (Rc<crate::runtime::Runtime>, web_sys::Element) {
         let (session, core) = accepted(ProjectDoc::empty(project_id, "Original"));
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::install(&runtime, session, core);

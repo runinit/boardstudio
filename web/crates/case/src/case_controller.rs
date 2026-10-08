@@ -1195,7 +1195,11 @@ mod queued_body_tests {
         // The older edit has not settled when the user types the next draft.
         type_into(&input, "5");
         settle_body(&runtime).await;
-        assert_eq!(thickness_input(&root).value(), "5", "a newer draft survives");
+        assert_eq!(
+            thickness_input(&root).value(),
+            "5",
+            "a newer draft survives"
+        );
         assert!(
             inline_failure(&root).is_some_and(|message| message.contains("body executor failed")),
             "the older failure still reports inline beside the newer text"

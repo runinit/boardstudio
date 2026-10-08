@@ -961,7 +961,12 @@ async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &
         .query_selector("label small[role='alert']")
         .unwrap()
         .expect("the older failure reports inline beside the newer draft");
-    assert!(alert.text_content().unwrap().contains("macro executor failed"));
+    assert!(
+        alert
+            .text_content()
+            .unwrap()
+            .contains("macro executor failed")
+    );
     assert!(
         root.query_selector("p.m1-keymap-macro-status")
             .unwrap()
@@ -997,7 +1002,12 @@ async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inl
         .query_selector("label small[role='alert']")
         .unwrap()
         .expect("the failure reports inline");
-    assert!(alert.text_content().unwrap().contains("macro executor failed"));
+    assert!(
+        alert
+            .text_content()
+            .unwrap()
+            .contains("macro executor failed")
+    );
     root.remove();
 }
 
@@ -1057,7 +1067,11 @@ async fn a_failed_unchanged_layer_name_restores_the_accepted_name_with_an_inline
     support::fail_next_core_reply(&runtime, "layer executor failed");
     rename_base(&probe, "A");
     settle(&runtime).await;
-    assert_eq!(draft(), "Base", "the unchanged draft restores the accepted name");
+    assert_eq!(
+        draft(),
+        "Base",
+        "the unchanged draft restores the accepted name"
+    );
     assert!(failure().is_some_and(|message| message.contains("layer executor failed")));
     root.remove();
 }

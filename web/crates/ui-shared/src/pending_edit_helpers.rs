@@ -1266,7 +1266,10 @@ mod mounted_tests {
         entered.await.expect("the one-shot reached Core");
         click("#unmount");
         rendered().await;
-        assert!(!exists("#child-other"), "the control is gone and not remounted");
+        assert!(
+            !exists("#child-other"),
+            "the control is gone and not remounted"
+        );
         release.send(()).unwrap();
         settle(&runtime).await;
         // Releasing a control through its dropped Signal would panic here.
