@@ -1,6 +1,6 @@
 # 02: Core `SetMatrixPlacement` and the stagger axis
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 01
 Spec: [spec.md](../spec.md#core-owns-the-parameter-rules) · Map: [map.md](../map.md) · Decision: [ADR-0007](../../../adr/0007-matrix-gestures-edit-named-parameters.md)
