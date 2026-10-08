@@ -6,12 +6,19 @@ use boardstudio_core::model::{
     EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::Cell, collections::BTreeMap, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 const AUTOMATIC_CONNECTOR_SELECTION: &str = "__automatic_vik_host_connector__";
+
+/// This action's one bounded key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AttachKey {
+    Attach,
+}
 
 #[derive(Clone)]
 pub struct AttachedModuleNavigation {
@@ -35,6 +42,10 @@ pub fn ModuleAttachment(
     let workspace = use_context::<crate::presentation::WorkspaceState>().0;
     let selection_generation = use_context::<super::super::PartsSelectionGeneration>().0;
     let mut pending = use_signal(|| false);
+    let pending_edits = use_hook(|| PendingEditSignals::<AttachKey>::new());
+    // The mounted-module identity this panel's attachment was submitted with; the
+    // Landed follow-up selects exactly that module.
+    let attached_module_id = use_signal(|| None::<String>);
     let mut feedback = use_signal(String::new);
     let connectors = eligible_host_connectors(
         &snapshot,
@@ -63,6 +74,77 @@ pub fn ModuleAttachment(
     let expected_selection = (scope.clone(), format!("module:{definition_id}"));
     let owner_scope = scope.clone();
     let initial_generation = selection_generation();
+
+    // The attachment settles outside Dioxus (Core replies, saves), so the workspace
+    // version wakes the settle pass below even when nothing else changed.
+    let version = use_context::<Signal<u64>>();
+    let observed_version = version();
+    use_effect(use_reactive((&observed_version,), {
+        let runtime = runtime.clone();
+        let pending_edits = pending_edits.clone();
+        let mut pending = pending;
+        let mut feedback = feedback;
+        let selected = selected;
+        let mut attached_module_id = attached_module_id;
+        let on_attached = on_attached.clone();
+        let scope = owner_scope.clone();
+        let definition = definition.clone();
+        let expected_selection = expected_selection.clone();
+        move |_| {
+            let (Some(attach_scope), Some(module_id)) =
+                (scope.clone(), attached_module_id.peek().clone())
+            else {
+                return;
+            };
+            if !pending_edits.is_pending(&AttachKey::Attach) {
+                return;
+            }
+            let live = attachment_selection_current(
+                &runtime,
+                &attach_scope,
+                selected,
+                selection_generation,
+                &expected_selection,
+                initial_generation,
+                workspace,
+            );
+            for result in pending_edits.settle(live, |_| String::new()) {
+                pending.set(false);
+                attached_module_id.take();
+                match result {
+                    PendingEditResult::Landed { .. } => {
+                        let model = runtime.model();
+                        let Some(accepted) = model.accepted.as_ref() else {
+                            return;
+                        };
+                        let Some(mounted) =
+                            accepted.document.modules.iter().rev().find(|mounted| {
+                                mounted.id == module_id
+                                    || mounted
+                                        .id
+                                        .strip_prefix(&format!("{module_id}-"))
+                                        .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
+                            })
+                        else {
+                            return;
+                        };
+                        let navigation = AttachedModuleNavigation {
+                            scope: attach_scope.clone(),
+                            snapshot_token: accepted.token,
+                            revision: accepted.document.revision,
+                            module_id: mounted.id.clone(),
+                            definition_id: definition.id.clone(),
+                            selection_generation: initial_generation,
+                        };
+                        feedback.set("Module attached.".into());
+                        on_attached.call(navigation);
+                    }
+                    PendingEditResult::Failed { message, .. } => feedback.set(message),
+                    PendingEditResult::Retired { .. } => {}
+                }
+            }
+        }
+    }));
     let can_attach = scope.as_ref().is_some_and(|scope| {
         snapshot
             .document
@@ -83,9 +165,11 @@ pub fn ModuleAttachment(
         .unwrap_or_else(|| "selected board".into());
 
     let attachment_port_id = module_port_id.clone();
+    let attach_pending_edits = pending_edits.clone();
     let attach = move |_| {
+        let pending_edits = attach_pending_edits.clone();
         let module_port_id = &attachment_port_id;
-        if pending() {
+        if pending() || pending_edits.is_pending(&AttachKey::Attach) {
             return;
         }
         let Some(scope) = owner_scope.clone() else {
@@ -194,8 +278,9 @@ pub fn ModuleAttachment(
         let selection_generation = selection_generation;
         let expected_selection = expected_selection.clone();
         let workspace = workspace;
-        let on_attached = on_attached.clone();
         let alive = alive.clone();
+        let pending_edits = pending_edits.clone();
+        let mut attached_module_id = attached_module_id;
         let mut pending = pending;
         let mut feedback = feedback;
         spawn_local(async move {
@@ -243,8 +328,9 @@ pub fn ModuleAttachment(
                 }
                 None => None,
             };
-            let ticket = EditTicket::begin(
+            pending_edits.begin_one_shot(
                 &runtime,
+                AttachKey::Attach,
                 "attach-mounted-module",
                 Some("module attachment".into()),
                 attachment_resolver(
@@ -254,61 +340,9 @@ pub fn ModuleAttachment(
                     connector_definition,
                 ),
             );
+            attached_module_id.set(Some(module_id));
             feedback.set(String::new());
-            while ticket.is_pending() {
-                gloo_timers::future::TimeoutFuture::new(16).await;
-                if !alive.get() {
-                    return;
-                }
-            }
-            if !alive.get() {
-                return;
-            }
-            if !attachment_selection_current(
-                &runtime,
-                &scope,
-                selected,
-                selection_generation,
-                &expected_selection,
-                initial_generation,
-                workspace,
-            ) {
-                pending.set(false);
-                return;
-            }
-            match ticket.settlement(true) {
-                Settlement::Landed { .. } => {
-                    let model = runtime.model();
-                    let Some(accepted) = model.accepted.as_ref() else {
-                        pending.set(false);
-                        return;
-                    };
-                    let Some(mounted) = accepted.document.modules.iter().rev().find(|mounted| {
-                        mounted.id == module_id
-                            || mounted
-                                .id
-                                .strip_prefix(&format!("{module_id}-"))
-                                .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
-                    }) else {
-                        pending.set(false);
-                        return;
-                    };
-                    let navigation = AttachedModuleNavigation {
-                        scope: scope.clone(),
-                        snapshot_token: accepted.token,
-                        revision: accepted.document.revision,
-                        module_id: mounted.id.clone(),
-                        definition_id: definition.id.clone(),
-                        selection_generation: initial_generation,
-                    };
-                    feedback.set("Module attached.".into());
-                    pending.set(false);
-                    on_attached.call(navigation);
-                    return;
-                }
-                Settlement::Failed { message } => feedback.set(message),
-                Settlement::Retired | Settlement::Pending => {}
-            }
+            // Preparation is over: the settle pass observes the edit's terminal.
             pending.set(false);
         });
     };
@@ -318,7 +352,7 @@ pub fn ModuleAttachment(
             button {
                 class: "m1-primary-button",
                 r#type: "button",
-                disabled: pending() || !can_attach,
+                disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || !can_attach,
                 onclick: attach,
                 "Attach module to {board_name}"
             }
@@ -326,7 +360,7 @@ pub fn ModuleAttachment(
                 input {
                     r#type: "checkbox",
                     checked: host_connection_enabled(),
-                    disabled: pending() || module_port_id.is_none(),
+                    disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || module_port_id.is_none(),
                     onchange: move |event| {
                         host_connection_enabled.set(event.checked());
                         if event.checked() && connector_selection().is_empty() {
