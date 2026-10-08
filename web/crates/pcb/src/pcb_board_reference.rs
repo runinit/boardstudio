@@ -1,6 +1,7 @@
 //! Scoped controls and file-backed editing for routed-board references.
 use boardstudio_core::model::{Asset, BoardReference};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
@@ -75,8 +76,28 @@ pub enum Action {
     Remove,
 }
 
-fn removal_pending(edits: &RefCell<PendingEdits<BoardReferenceKey>>) -> bool {
-    edits.borrow().is_pending(&BoardReferenceKey::Remove)
+/// Apply drained reference results the same way wherever they settled: drop the key's
+/// submission so the accepted value shows again, and let only the latest key place a
+/// failure message.
+fn place_reference_results(
+    results: Vec<PendingEditResult<BoardReferenceKey>>,
+    submissions: &mut Signal<Vec<(BoardReferenceKey, Action)>>,
+    latest: &Signal<Option<BoardReferenceKey>>,
+    error: &mut Signal<Option<String>>,
+) {
+    for result in results {
+        let (key, message) = match result {
+            PendingEditResult::Failed { key, message } => (key, Some(message)),
+            PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                (key, None)
+            }
+        };
+        submissions.write().retain(|(existing, _)| existing != &key);
+        if latest.peek().as_ref() == Some(&key) {
+            // Landing and retirement show nothing; failures keep their message.
+            error.set(message);
+        }
+    }
 }
 
 /// The reference the form shows: the accepted one with every still-pending submission
@@ -748,9 +769,13 @@ pub fn Editor(
 
     // One keyed collection owns every reference-control ticket; keys are action kinds
     // (plus the model path for model-asset controls). The submissions memory keeps the
-    // latest submitted action per key, so the form shows the pending value.
+    // latest submitted action per key, so the form shows the pending value. Removal is
+    // a one-shot: its control disables through the shared helper instead.
     let action_edits =
         use_hook(|| Rc::new(RefCell::new(PendingEdits::<BoardReferenceKey>::default())));
+    let actions = use_hook(PendingEditSignals::<BoardReferenceKey>::new);
+    let removal_disabled = use_signal(|| false);
+    actions.bind_one_shot(BoardReferenceKey::Remove, removal_disabled);
     let action_submissions = use_signal(Vec::<(BoardReferenceKey, Action)>::new);
     let action_latest = use_signal(|| None::<BoardReferenceKey>);
     let version = use_context::<Signal<u64>>()();
@@ -759,6 +784,7 @@ pub fn Editor(
         let adapter = adapter.clone();
         let owner = owner.clone();
         let action_edits = action_edits.clone();
+        let actions = actions.clone();
         let mut action_submissions = action_submissions;
         let action_latest = action_latest;
         let mut error = error;
@@ -767,22 +793,18 @@ pub fn Editor(
             let panel_is_live = super::board_reference_owner_lineage_is_current(
                 &runtime, workspace, &adapter, &owner,
             );
-            let results = action_edits.borrow_mut().settle(panel_is_live);
-            for result in results {
-                let (key, message) = match result {
-                    PendingEditResult::Failed { key, message } => (key, Some(message)),
-                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                        (key, None)
-                    }
-                };
-                action_submissions
-                    .write()
-                    .retain(|(existing, _)| existing != &key);
-                if action_latest.peek().as_ref() == Some(&key) {
-                    // Landing and retirement show nothing; failures keep their message.
-                    error.set(message);
-                }
-            }
+            place_reference_results(
+                action_edits.borrow_mut().settle(panel_is_live),
+                &mut action_submissions,
+                &action_latest,
+                &mut error,
+            );
+            place_reference_results(
+                actions.settle(panel_is_live, |_| String::new()),
+                &mut action_submissions,
+                &action_latest,
+                &mut error,
+            );
         }
     }));
     let on_action = use_callback({
@@ -790,6 +812,7 @@ pub fn Editor(
         let adapter = adapter.clone();
         let owner = owner.clone();
         let action_edits = action_edits.clone();
+        let removal_actions = actions.clone();
         let reference_id = reference.as_ref().map(|reference| reference.id.clone());
         let mut action_submissions = action_submissions;
         let mut action_latest = action_latest;
@@ -798,7 +821,29 @@ pub fn Editor(
             let Some(reference_id) = reference_id.as_deref() else {
                 return;
             };
-            if action == Action::Remove && removal_pending(&action_edits) {
+            if action == Action::Remove {
+                // Removal is a one-shot: its helper-bound control already shows the
+                // pending state, so a second click has nothing to submit.
+                if removal_actions.is_pending(&BoardReferenceKey::Remove) {
+                    return;
+                }
+                if let Some(resolver) = super::board_reference_removal(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    reference_id,
+                ) {
+                    removal_actions.begin_one_shot(
+                        &runtime,
+                        BoardReferenceKey::Remove,
+                        "board-reference",
+                        Some("board reference".into()),
+                        resolver,
+                    );
+                    action_latest.set(Some(BoardReferenceKey::Remove));
+                    error.set(None);
+                }
                 return;
             }
             if let Some(key) = super::dispatch_board_reference_action(
@@ -1059,7 +1104,7 @@ pub fn Editor(
                 }
                 button {
                     r#type: "button",
-                    disabled: disabled || busy || removal_pending(&action_edits),
+                    disabled: disabled || busy || removal_disabled(),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }

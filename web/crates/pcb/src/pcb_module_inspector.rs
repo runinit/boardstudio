@@ -9,6 +9,7 @@ use boardstudio_core::model::{
     VikRole, VikSignal,
 };
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
 use std::{
@@ -32,6 +33,18 @@ struct RuntimeHandle(Rc<Runtime>);
 impl PartialEq for RuntimeHandle {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// The panel's shared one-shot helpers, passed to a circuit row component. The shared
+/// collection exposes no comparable identity, so equality never short-circuits a row
+/// render; the row's bound Signals still drive its updates.
+#[derive(Clone)]
+struct CircuitRowHelpers(PendingEditSignals<ModuleEditKey>);
+
+impl PartialEq for CircuitRowHelpers {
+    fn eq(&self, _other: &Self) -> bool {
+        false
     }
 }
 
@@ -114,7 +127,15 @@ fn PcbMountedModuleInspector(
     let mut support_draft = use_signal(SupportDraft::default);
     let mut joins = use_signal(BTreeMap::<String, String>::new);
     // One keyed collection owns every placement and action ticket; keys are action kinds.
+    // Placement keeps the raw collection: its typed draft does not fit the helper's
+    // String field binding. The action kinds share the helper's one-shot policy — a begin
+    // disables their bound control, any terminal re-enables it.
     let edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<ModuleEditKey>::default())));
+    let actions = use_hook(PendingEditSignals::<ModuleEditKey>::new);
+    let remove_disabled = use_signal(|| false);
+    let embed_disabled = use_signal(|| false);
+    actions.bind_one_shot(ModuleEditKey::RemoveModule, remove_disabled);
+    actions.bind_one_shot(ModuleEditKey::Embed, embed_disabled);
     let latest = use_signal(|| None::<ModuleEditKey>);
     let committed_draft = use_signal(|| None::<boardstudio_core::model::MountedModule>);
     let previous_accepted = use_signal(|| instance.clone());
@@ -137,6 +158,7 @@ fn PcbMountedModuleInspector(
         let module_id = input.module_id.clone();
         let selected_context = input.selected_context;
         let edits = edits.clone();
+        let actions = actions.clone();
         let mut feedback = feedback;
         let latest = latest;
         let committed_draft = committed_draft;
@@ -144,8 +166,20 @@ fn PcbMountedModuleInspector(
         move |_| {
             let panel_is_live =
                 mounted_selection_current(&runtime, selected_context, &scope, &module_id);
-            let results = edits.borrow_mut().settle(panel_is_live);
-            for result in results {
+            // Action keys bind no field, so the helper leaves their results here: only the
+            // latest key's failure shows, landing and retirement clear it.
+            for result in actions.settle(panel_is_live, |_| String::new()) {
+                let (key, message) = match result {
+                    PendingEditResult::Failed { key, message } => (key, Some(message)),
+                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                        (key, None)
+                    }
+                };
+                if latest.peek().as_ref() == Some(&key) {
+                    feedback.set(message.unwrap_or_default());
+                }
+            }
+            for result in edits.borrow_mut().settle(panel_is_live) {
                 match result {
                     PendingEditResult::Failed { key, message } => {
                         if key == ModuleEditKey::Placement
@@ -294,9 +328,9 @@ fn PcbMountedModuleInspector(
     let owner_revision = input.snapshot.document.revision;
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
-    let remove_edits = edits.clone();
+    let remove_actions = actions.clone();
     let remove = move |_| {
-        if module_action_pending(&remove_edits, &ModuleEditKey::RemoveModule)
+        if remove_actions.is_pending(&ModuleEditKey::RemoveModule)
             || mounted_owner_current(
                 &runtime,
                 selected_context,
@@ -313,7 +347,7 @@ fn PcbMountedModuleInspector(
         let mut latest = latest;
         latest.set(Some(key.clone()));
         feedback.set(String::new());
-        remove_edits.borrow_mut().begin(
+        remove_actions.begin_one_shot(
             &runtime,
             key,
             "remove-mounted-module",
@@ -449,7 +483,7 @@ fn PcbMountedModuleInspector(
     let embed_token = input.snapshot.token;
     let embed_revision = input.snapshot.document.revision;
     let embed_joins = joins;
-    let embed_edits = edits.clone();
+    let embed_actions = actions.clone();
     let embed = move |_| {
         let Some(_snapshot) = mounted_owner_current(
             &embed_runtime,
@@ -466,7 +500,7 @@ fn PcbMountedModuleInspector(
             feedback.set("This module has no editable circuit source.".into());
             return;
         }
-        if module_action_pending(&embed_edits, &ModuleEditKey::Embed) {
+        if embed_actions.is_pending(&ModuleEditKey::Embed) {
             return;
         }
         let seed = embed_runtime.operation().0;
@@ -476,7 +510,7 @@ fn PcbMountedModuleInspector(
         let mut latest = latest;
         latest.set(Some(key.clone()));
         feedback.set(String::new());
-        embed_edits.borrow_mut().begin(
+        embed_actions.begin_one_shot(
             &embed_runtime,
             key,
             "embed-module-circuit",
@@ -817,32 +851,26 @@ fn PcbMountedModuleInspector(
                             }
                         }
                     }
-                    button { class: "m1-primary-button", r#type: "button", disabled: !editable || module_action_pending(&edits, &ModuleEditKey::Embed), onclick: embed, "Copy circuit to PCB" }
+                    button { class: "m1-primary-button", r#type: "button", disabled: !editable || embed_disabled(), onclick: embed, "Copy circuit to PCB" }
                     for circuit in &embedded_circuits {
-                        div { class: "m1-pcb-module-circuit-copy", key: "{circuit.id}",
-                            span { "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}" }
-                            button { r#type: "button", disabled: !editable || module_action_pending(&edits, &ModuleEditKey::RemoveCircuit(circuit.id.clone())), onclick: {
-                                let circuit_id = circuit.id.clone();
-                                let remove_runtime = input.runtime.clone();
-                                let remove_scope = input.scope.clone();
-                                let remove_module_id = input.module_id.clone();
-                                let remove_context = input.selected_context;
-                                let remove_token = input.snapshot.token;
-                                let remove_revision = input.snapshot.document.revision;
-                                let remove_edits = edits.clone();
-                                move |_| {
-                                    let Some(_snapshot) = mounted_owner_current(&remove_runtime, remove_context, &remove_scope, &remove_module_id, remove_token, remove_revision) else {
-                                        feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
-                                        return;
-                                    };
-                                    let key = ModuleEditKey::RemoveCircuit(circuit_id.clone());
-                                    if module_action_pending(&remove_edits, &key) { return; }
-                                    let mut latest = latest;
-                                    latest.set(Some(key.clone()));
-                                    feedback.set(String::new());
-                                    remove_edits.borrow_mut().begin(&remove_runtime, key, "remove-embedded-circuit", Some("circuit".into()), module_resolver(remove_scope.clone(), remove_module_id.clone(), Ok(EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() })));
-                                }
-                            }, "Remove copy" }
+                        CircuitCopyRow {
+                            key: "{circuit.id}",
+                            helpers: CircuitRowHelpers(actions.clone()),
+                            circuit_id: circuit.id.clone(),
+                            label: format!(
+                                "{} components · {}",
+                                circuit.part_ids.len(),
+                                circuit.id.rsplit('/').next().unwrap_or(&circuit.id)
+                            ),
+                            editable,
+                            runtime: RuntimeHandle(input.runtime.clone()),
+                            scope: input.scope.clone(),
+                            module_id: input.module_id.clone(),
+                            selected_context: input.selected_context,
+                            token: input.snapshot.token,
+                            revision: input.snapshot.document.revision,
+                            latest,
+                            feedback,
                         }
                     }
                 }
@@ -870,7 +898,7 @@ fn PcbMountedModuleInspector(
             }
             div { class: "m1-pcb-module-actions",
                 button { class: "m1-primary-button", r#type: "button", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
-                button { class: "m1-danger-button", r#type: "button", disabled: !editable || module_action_pending(&edits, &ModuleEditKey::RemoveModule), onclick: remove, "Remove module" }
+                button { class: "m1-danger-button", r#type: "button", disabled: !editable || remove_disabled(), onclick: remove, "Remove module" }
             }
             if !feedback().is_empty() { p { role: "status", "{feedback()}" } }
         }
@@ -1005,11 +1033,64 @@ fn mounted_selection_current(
         })
 }
 
-fn module_action_pending(
-    edits: &RefCell<PendingEdits<ModuleEditKey>>,
-    key: &ModuleEditKey,
-) -> bool {
-    edits.borrow().is_pending(key)
+/// One embedded circuit copy's row. Its removal is the row's own one-shot key: the
+/// helper disables the button while that removal is pending and re-enables it at the
+/// terminal, so two copies can be removed concurrently without blocking each other.
+#[component]
+fn CircuitCopyRow(
+    helpers: CircuitRowHelpers,
+    circuit_id: String,
+    label: String,
+    editable: bool,
+    runtime: RuntimeHandle,
+    scope: Scope,
+    module_id: String,
+    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
+    token: boardstudio_application::SnapshotToken,
+    revision: u64,
+    latest: Signal<Option<ModuleEditKey>>,
+    feedback: Signal<String>,
+) -> Element {
+    let actions = helpers.0;
+    let runtime = runtime.0;
+    let removal_disabled = use_signal(|| false);
+    actions.bind_one_shot(
+        ModuleEditKey::RemoveCircuit(circuit_id.clone()),
+        removal_disabled,
+    );
+    let on_remove = move |_| {
+        let Some(_snapshot) = mounted_owner_current(
+            &runtime, selected_context, &scope, &module_id, token, revision,
+        ) else {
+            feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
+            return;
+        };
+        let key = ModuleEditKey::RemoveCircuit(circuit_id.clone());
+        if actions.is_pending(&key) {
+            return;
+        }
+        latest.set(Some(key.clone()));
+        feedback.set(String::new());
+        actions.begin_one_shot(
+            &runtime,
+            key,
+            "remove-embedded-circuit",
+            Some("circuit".into()),
+            module_resolver(
+                scope.clone(),
+                module_id.clone(),
+                Ok(EditOperation::RemoveEmbeddedCircuit {
+                    id: circuit_id.clone(),
+                }),
+            ),
+        );
+    };
+    rsx! {
+        div { class: "m1-pcb-module-circuit-copy",
+            span { "{label}" }
+            button { r#type: "button", disabled: !editable || removal_disabled(), onclick: on_remove, "Remove copy" }
+        }
+    }
 }
 
 fn module_resolver(

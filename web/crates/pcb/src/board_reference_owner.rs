@@ -253,6 +253,54 @@ pub fn submit_board_reference_document(
     Ok(Some(key))
 }
 
+/// The routed-board removal proposal: drop the reference from its board, retiring when
+/// it is already gone.
+fn board_reference_removal_resolver(
+    scope_board_id: String,
+    reference_id: String,
+) -> EditResolver {
+    EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
+        let mut proposed = accepted.document.as_ref().clone();
+        let count = proposed.board_references.len();
+        proposed.board_references.retain(|reference| {
+            reference.id != reference_id || reference.board_id != scope_board_id
+        });
+        if proposed.board_references.len() == count {
+            return Resolution::Retire(
+                "The reference or model asset is no longer available.".into(),
+            );
+        }
+        if proposed == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![scope_board_id.clone()],
+            EditOperation::ReplaceDocument {
+                document: Box::new(proposed),
+            },
+        )
+    })
+}
+
+/// The removal edit for the panel's one-shot helper: `None` when the owner is no longer
+/// current or the active board is unavailable.
+pub fn board_reference_removal(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    reference_id: &str,
+) -> Option<EditResolver> {
+    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+        return None;
+    }
+    let scope = owner.scope.clone()?;
+    Some(board_reference_removal_resolver(
+        scope.board_id,
+        reference_id.to_owned(),
+    ))
+}
+
 pub fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
@@ -268,66 +316,66 @@ pub fn dispatch_board_reference_action(
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
     let key = BoardReferenceKey::of(&action);
+    if matches!(action, pcb_board_reference::Action::Remove) {
+        edits.begin(
+            runtime,
+            key.clone(),
+            "board-reference",
+            Some("board reference".into()),
+            board_reference_removal_resolver(scope.board_id, reference_id),
+        );
+        return Some(key);
+    }
     let resolver = EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
         let mut proposed = accepted.document.as_ref().clone();
-        if matches!(&action, pcb_board_reference::Action::Remove) {
-            let count = proposed.board_references.len();
-            proposed.board_references.retain(|reference| {
-                reference.id != reference_id || reference.board_id != scope.board_id
-            });
-            if proposed.board_references.len() == count {
-                return Resolution::Retire(
-                    "The reference or model asset is no longer available.".into(),
-                );
+        let Some(reference) = proposed.board_references.iter_mut().find(|reference| {
+            reference.id == reference_id && reference.board_id == scope.board_id
+        }) else {
+            return Resolution::Retire(
+                "The reference or model asset is no longer available.".into(),
+            );
+        };
+        match action.clone() {
+            pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
+            pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
+                reference.pose.at.x = value;
             }
-        } else {
-            let Some(reference) = proposed.board_references.iter_mut().find(|reference| {
-                reference.id == reference_id && reference.board_id == scope.board_id
-            }) else {
-                return Resolution::Retire(
-                    "The reference or model asset is no longer available.".into(),
-                );
-            };
-            match action.clone() {
-                pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
-                pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
-                    reference.pose.at.x = value;
+            pcb_board_reference::Action::SetPositionY(value) if value.is_finite() => {
+                reference.pose.at.y = value;
+            }
+            pcb_board_reference::Action::SetRotation(value) if value.is_finite() => {
+                reference.pose.rotation = value;
+            }
+            pcb_board_reference::Action::SetElevation(value) if value.is_finite() => {
+                reference.elevation = value;
+            }
+            pcb_board_reference::Action::SetModelAsset { path, asset_id } => {
+                if asset_id.as_ref().is_some_and(|asset_id| {
+                    !proposed.assets.iter().any(|asset| {
+                        asset.id == *asset_id
+                            && [".step", ".stp", ".stl", ".wrl"].iter().any(|extension| {
+                                asset.name.to_ascii_lowercase().ends_with(extension)
+                            })
+                    })
+                }) {
+                    return Resolution::Retire(
+                        "The reference or model asset is no longer available.".into(),
+                    );
                 }
-                pcb_board_reference::Action::SetPositionY(value) if value.is_finite() => {
-                    reference.pose.at.y = value;
+                if let Some(asset_id) = asset_id {
+                    reference.model_assets.insert(path, asset_id);
+                } else {
+                    reference.model_assets.remove(&path);
                 }
-                pcb_board_reference::Action::SetRotation(value) if value.is_finite() => {
-                    reference.pose.rotation = value;
-                }
-                pcb_board_reference::Action::SetElevation(value) if value.is_finite() => {
-                    reference.elevation = value;
-                }
-                pcb_board_reference::Action::SetModelAsset { path, asset_id } => {
-                    if asset_id.as_ref().is_some_and(|asset_id| {
-                        !proposed.assets.iter().any(|asset| {
-                            asset.id == *asset_id
-                                && [".step", ".stp", ".stl", ".wrl"].iter().any(|extension| {
-                                    asset.name.to_ascii_lowercase().ends_with(extension)
-                                })
-                        })
-                    }) {
-                        return Resolution::Retire(
-                            "The reference or model asset is no longer available.".into(),
-                        );
-                    }
-                    if let Some(asset_id) = asset_id {
-                        reference.model_assets.insert(path, asset_id);
-                    } else {
-                        reference.model_assets.remove(&path);
-                    }
-                }
-                pcb_board_reference::Action::Remove
-                | pcb_board_reference::Action::SetPositionX(_)
-                | pcb_board_reference::Action::SetPositionY(_)
-                | pcb_board_reference::Action::SetRotation(_)
-                | pcb_board_reference::Action::SetElevation(_) => {
-                    return Resolution::Retire("Enter a finite reference position.".into());
-                }
+            }
+            // Unreachable through this dispatcher: removal begins above and non-finite
+            // positions fall through their guards. The arm keeps the match total.
+            pcb_board_reference::Action::Remove
+            | pcb_board_reference::Action::SetPositionX(_)
+            | pcb_board_reference::Action::SetPositionY(_)
+            | pcb_board_reference::Action::SetRotation(_)
+            | pcb_board_reference::Action::SetElevation(_) => {
+                return Resolution::Retire("Enter a finite reference position.".into());
             }
         }
         if proposed == *accepted.document {
