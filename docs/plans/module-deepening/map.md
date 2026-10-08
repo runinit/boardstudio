@@ -160,25 +160,21 @@ Mechanical patch and outline intent proposals await human approval.
 
 ## Parallel frontier after the Matrix tracer
 
-The complete tracer opens three independent migrations: Layout panels here,
-Case/Keymap/Keycaps/Library in the second app, and Parts/PCB in the third app. Each
-receives an isolated worktree from the integrated tracer, owns its ticket paths,
-uses the published contracts, and runs pinned reviews. Root owns dev/tracker/index
-and serializes Chrome leases. Cleanup follows all three merged migrations.
+The complete tracer opens Layout, Case/Keymap/Keycaps/Library, and Parts/PCB
+migrations. Parts and PCB now have separate crate owners and worktrees under the
+same parent ticket. Root owns dev/tracker/index and serializes Chrome leases.
+Cleanup follows all reviewed, merged migrations, including both Parts/PCB halves.
 
-## Three-app allocation
+## Parallel app allocation
 
-- This chat completed the tracer integration and now owns Layout panels.
-- The user's second app completed the shared helpers and now owns
+- This chat owns Layout panels and integration.
+- The user's second app owns
   [Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md).
-- The user's third app completed
-  [Parts and PCB native test preparation](issues/19-parts-pcb-native-test-preparation.md)
-  and now owns [Parts/PCB settlement](handoff-08-parts-pcb.md).
+- The existing third-app worktree now owns [Parts settlement](handoff-08-parts-pcb.md).
+- The separate PCB app owns [PCB settlement](handoff-08-pcb.md).
 
-All three migration worktrees start at the same integrated-tracer claim commit.
-Each app owns a distinct source area; root integrates their reviewed branches and
-serializes Chrome leases. The handoffs name the exact branch, worktree and starting
-commit, and retain the shared contracts and domain assertions.
+The handoffs name exact branches, worktrees and starting commits. Preserve ongoing
+work when resuming; each stream reports final pinned reviews and verification.
 
 ## Out of scope
 

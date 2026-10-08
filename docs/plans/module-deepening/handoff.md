@@ -88,14 +88,15 @@ work and the second app's UI helpers, then merges before Parts/PCB panel settlem
 Use the same separate worktree, single orchestrator, explicit file ownership and Chrome
 lease rules above. Do not dispatch this assignment to agents here concurrently.
 
-## Three-app panel migration
+## Parallel panel migration
 
-The complete tracer gate is resolved. Layout panels run here; the second app receives
-[Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md),
-and the third app receives [Parts/PCB settlement](handoff-08-parts-pcb.md). Both
-external handoffs include dedicated clean worktrees from the same integrated-tracer
-claim commit. They own separate ticket paths and report to this orchestrator for merge
-and resolution. Keep Chrome leased to one app at a time.
+The complete tracer gate is resolved. Layout panels run here; the second app owns
+[Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md).
+The Parts/PCB assignment now runs as two disjoint streams:
+[Parts settlement](handoff-08-parts-pcb.md) in its existing worktree and
+[PCB settlement](handoff-08-pcb.md) in the user's dedicated PCB worktree.
+The parent ticket remains claimed until both halves are reviewed and integrated.
+Root owns integration and tracker updates. Keep Chrome leased to one app at a time.
 
 Within a shared ticket worktree, one integration owner stages/commits and runs compiler
 and browser pipelines. Subagents may edit disjoint paths and submit diffs/evidence;
@@ -113,11 +114,11 @@ The orchestrator, not the agents, writes ticket status on `dev`, so claims never
 
 ## Worktrees and branches
 
-- One worktree per ticket, under `.worktrees/<ticket-slug>` (gitignored) or outside the
+- One worktree per independently owned stream, under `.worktrees/<ticket-slug>` (gitignored) or outside the
   repo. Branch name `deepening/<NN>-<slug>` (`edit-settlement/20-…`, `typed-core-edits/01-…`
   for the other efforts).
 - The old `.claude/worktrees/*` are stale copies of earlier work; ignore them.
-- Before reporting back, the agent rebases on `dev` and reruns its verification.
+- Root coordinates integration with `dev` and any approved history operation; rerun affected verification after integration changes.
 - Merge with `--no-ff` in wave order; within a wave, critical-path tickets first.
 
 ## Rules every agent follows
@@ -136,8 +137,10 @@ Give each agent its ticket path plus this list.
   choices; `code-review` on the branch before reporting; `grilling` and
   `domain-modeling` only when the orchestrator relays a decision to the user.
 - Git: stage explicit paths only; never `git add -A`, `git add .` or `git stash`.
-- GitNexus: `impact` (upstream) before changing a shared symbol, `detect_changes`
-  before each commit, `rename` for renames (the `gitnexus-*` skills). An empty or
+- GitNexus: `impact` (upstream) before editing any function, class or method; report
+  HIGH/CRITICAL risk before editing. Run `detect_changes` with `scope: all` in the
+  correct worktree before each commit. Partial/truncated results require a rerun or
+  complete fallback. Use `rename` for renames (the `gitnexus-*` skills). An empty or
   `UNKNOWN` result is unanswered, not safe: confirm with `rg`. The index is shared by
   all worktrees and lags their edits; the orchestrator reindexes `dev` after each merge
   (`node .gitnexus/run.cjs analyze --index-only`).
@@ -157,9 +160,9 @@ You are implementing ticket <path> in the BoardStudio repo, in worktree <dir> on
 branch <branch>, branched from dev at <sha>. Read AGENTS.md and
 docs/plans/module-deepening/handoff.md ("Rules every agent follows") first, then the
 ticket and every document it links as a decision. Implement the acceptance criteria
-with the tdd skill, run GitNexus impact before shared-symbol edits and detect_changes
-before each commit, and code-review the branch. Run the ticket's verification, rebase
-on dev, rerun verification, and report commits, checks and follow-ups. Do not edit ticket status or the map.
+with the tdd skill, run GitNexus impact before function edits and complete detect_changes
+(scope all, correct worktree) before each commit, and code-review the branch. Run the ticket's verification, coordinate integration
+with the orchestrator, and report commits, checks and follow-ups. Do not edit ticket status or the map.
 ```
 
 ## Human checkpoints

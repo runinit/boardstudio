@@ -5,6 +5,13 @@ Type: build
 Blocked by: 05, 19
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 
+## Execution split
+
+Run the [Parts half](../handoff-08-parts-pcb.md) and
+[PCB half](../handoff-08-pcb.md) concurrently with disjoint crate ownership.
+Acceptance criteria remain shared; close this parent only after both halves are
+reviewed and integrated.
+
 ## What to build
 
 Move Parts and PCB settlement sites onto `PendingEdits` and delete the per-panel

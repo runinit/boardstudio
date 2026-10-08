@@ -23,8 +23,42 @@ For text-field migrations, bind the actual stable draft/failure Signals before s
 
 ## Ownership and coordination
 
-This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev`, ticket claims/resolutions and the canonical GitNexus index. Use upstream impact before shared-symbol changes and detect_changes before each commit; stale, empty or UNKNOWN graph results require source confirmation. Reindexing belongs to the orchestrator. Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
+This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev`, ticket claims/resolutions and the canonical GitNexus index. Follow the current [GitNexus rules](handoff.md#rules-every-agent-follows), including impact before function edits and complete change analysis before commits. Reindexing belongs to the orchestrator. Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
 
 ## Known verification limits
 
 The documented native CAD failure is `core_internal_gasket_fixtures_export_connected_positive_regions` (rotated-concave/bottom volume). Treat that gate as failing if reproduced; list the actual result. AppImage-hosted KiCad failures reported by the helper app are a separate environment issue, not the CAD failure. Run the current tree and report what actually happens. Browser presentation compiles only for WASM; native tests alone do not verify it.
+
+## Review follow-up after the lint fix
+
+Resume the existing branch at its actual HEAD; retain the lint fix `8a5f167bc` and
+all existing work. The remaining blocking Spec finding is that Case, Keymap and
+Keycaps still retain local observation/settlement layers instead of using
+`PendingEditSignals`. The requirement is explicit in the parent ticket's migration
+rules and acceptance criteria; passing browser tests does not close that finding.
+
+Start with Keycaps, then Keymap, then Case. Preserve request-specific owner semantics,
+domain payloads and follow-ups. Metadata can remain in bounded request-bearing keys
+with equality by logical field/action, or bounded caller projection memory; operation
+ids must not create an unbounded key or binding history. Preserve the latest-per-key
+observation rule and authoritative queued Session work.
+
+A single liveness boolean applies to one helper's owner domain. Use independently
+owned helper instances where fields have genuinely independent owner lifetimes; do
+not collapse per-request selection checks into one global true flag. If preserving
+existing ownership cannot be expressed with the published contract, report one
+concrete failing scenario and the smallest proposed shared extension. Root owns any
+shared implementation/commit; this stream remains inside its four crates. A small
+extension may be considered, but no shared API change is approved by this note.
+
+Bind actual field Signals at the component that owns them, or lift stable Signals to
+the appropriate lifetime and pass them through component props. Retire observations
+before bound Signals are disposed. Child ownership is a lifecycle design constraint,
+not a reason to keep local submitted-text/restoration policy. Preserve domain retry
+intent without reintroducing a second copy of helper draft bookkeeping.
+
+Prove unchanged-submitted failure restore, newer-draft protection with inline older
+failure, latest-per-key replacement and real owner departure in mounted Runtime tests.
+Then rerun affected checks and both reviews pinned to final HEAD. Record the reported
+Keymap ChromeDriver SIGKILL on branch and clean base as a reproduced baseline;
+remaining browser suites are still unexecuted until run under an exclusive lease.
