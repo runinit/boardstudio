@@ -17,6 +17,7 @@ use super::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
 };
+use super::features;
 use super::inputs::{effective_document, effective_inputs};
 
 const GENERATED_PART_PREFIX: &str = "case-closure/";
@@ -49,6 +50,11 @@ fn apply_staged(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<Strin
         MechanicalChange::InitializeClosures => {
             initialize_closures(doc, &edit.target, &board_id, edit)
         }
+        MechanicalChange::LinkMirrorPair { .. } => link_mirror_pair(doc, &board_id, edit),
+        MechanicalChange::UnlinkMirrorPair { .. } => unlink_mirror_pair(doc, &board_id, edit),
+        MechanicalChange::MakeFeatureLocal { .. }
+        | MechanicalChange::OmitFeatureMember { .. }
+        | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
         change => apply_settings(doc, edit, change, &board_id),
     }
 }
@@ -66,6 +72,13 @@ fn apply_staged(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<Strin
 /// projection derives. Pure settings edits (battery, closure hardware, critical
 /// fits, hardware text/quantity, process overrides, method/style switches, mount
 /// type) leave every generated hole untouched.
+///
+/// The pair lifecycle belongs on the projection side too: linking, unlinking and
+/// the per-feature localize/omit/rejoin actions move mounts, closure mounts,
+/// openings and gasket supports into and out of each half's ordinary
+/// configuration, so the generated holes derived from those features can appear,
+/// disappear or move. Projection therefore always runs for them and the caller
+/// must supply the mounting-hole template.
 pub fn requires_projection(change: &MechanicalChange) -> bool {
     match change {
         MechanicalChange::Enable
@@ -92,6 +105,14 @@ pub fn requires_projection(change: &MechanicalChange) -> bool {
         | MechanicalChange::UpdateProfile(_)
         | MechanicalChange::RemoveProfile { .. }
         | MechanicalChange::SetSwitchFamily { .. } => true,
+        // Linking, unlinking and the feature lifecycle rewrite each half's
+        // ordinary mounts/openings/supports, so generated closure clearance can
+        // change shape even though no settings field was edited.
+        MechanicalChange::LinkMirrorPair { .. }
+        | MechanicalChange::UnlinkMirrorPair { .. }
+        | MechanicalChange::MakeFeatureLocal { .. }
+        | MechanicalChange::OmitFeatureMember { .. }
+        | MechanicalChange::RejoinFeatureMember { .. } => true,
         MechanicalChange::SetDimension { field, .. } => {
             // Only the clearance changes a generated closure-hole diameter.
             matches!(field, MechanicalDimension::Clearance)
@@ -110,6 +131,11 @@ pub fn requires_projection(change: &MechanicalChange) -> bool {
 /// profiles - feed the outline composer and must recompute. This is exactly the
 /// projection classification: those are the changes that can alter the generated
 /// clearances the composer reads.
+///
+/// The pair lifecycle shares that classification: it changes the ordinary
+/// mounts/openings/supports the generated clearance geometry is derived from, so
+/// the composer's generated parts/definitions can change and the outline cache
+/// must recompute.
 pub fn affects_outline(change: &MechanicalChange) -> bool {
     requires_projection(change)
 }
@@ -454,6 +480,723 @@ fn initialize_closures(
     Ok(changed)
 }
 
+/// Establishes an explicit mechanical mirror pair between two physical halves.
+///
+/// Both members must exist on the target's board and must not already belong to
+/// a pair, the mapping must be finite, the construction source must be one of
+/// the members and the pair id must be new. The pair takes the source's shared
+/// construction and one linked feature per reviewed correspondence, authored by
+/// the first member. Both members become `Pair`-owned; a missing stored
+/// configuration is materialized first so pair ownership always has a valid
+/// local base for the fields the pair does not own.
+fn link_mirror_pair(
+    doc: &mut ProjectDoc,
+    board_id: &str,
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
+    let MechanicalChange::LinkMirrorPair {
+        pair_id,
+        members,
+        mapping,
+        construction_source,
+        correspondences,
+    } = &edit.change
+    else {
+        return Err("The link operation was dispatched with another change.".into());
+    };
+    let hardware = doc
+        .hardware
+        .as_ref()
+        .ok_or("Physical instances are unavailable")?;
+    if hardware.pairs.iter().any(|pair| pair.id == *pair_id) {
+        return Err(format!(
+            "A mechanical pair named {pair_id:?} already exists."
+        ));
+    }
+    let [first, second] = members;
+    if first == second {
+        return Err("A mechanical pair requires two distinct physical instances.".into());
+    }
+    for member in members {
+        let Some(instance) = hardware.instances.iter().find(|entry| entry.id == *member) else {
+            return Err(format!("Physical instance {member:?} is unavailable."));
+        };
+        if instance.board_id != board_id {
+            return Err(format!(
+                "Physical instance {member:?} belongs to another board."
+            ));
+        }
+        if hardware
+            .pairs
+            .iter()
+            .any(|pair| pair.members.iter().any(|candidate| candidate == member))
+        {
+            return Err(format!(
+                "Physical instance {member:?} already belongs to a mechanical pair."
+            ));
+        }
+    }
+    if !mapping.at.x.is_finite() || !mapping.at.y.is_finite() || !mapping.rotation.is_finite() {
+        return Err("The mechanical pair mapping must be finite.".into());
+    }
+    if !members.contains(construction_source) {
+        return Err(format!(
+            "The construction source {construction_source:?} is not a pair member."
+        ));
+    }
+
+    // Resolve both halves before anything mutates: their effective
+    // configurations give the source's shared construction and each half's
+    // local features.
+    let configurations = [
+        effective_inputs(
+            doc,
+            &MechanicalTarget::Instance {
+                instance_id: members[0].clone(),
+            },
+        )?
+        .configuration,
+        effective_inputs(
+            doc,
+            &MechanicalTarget::Instance {
+                instance_id: members[1].clone(),
+            },
+        )?
+        .configuration,
+    ];
+    let source_index = usize::from(construction_source != first);
+    let construction = features::shared_construction(&configurations[source_index]);
+
+    let mut pair = MechanicalMirrorPair {
+        id: pair_id.clone(),
+        members: members.clone(),
+        mapping: *mapping,
+        construction,
+        features: Vec::new(),
+    };
+    for correspondence in correspondences {
+        let value = find_feature_value(
+            &configurations[0],
+            correspondence.kind,
+            &correspondence.first_feature_id,
+        )
+        .ok_or_else(|| {
+            format!(
+                "Physical instance {first:?} has no {:?} feature {:?}.",
+                correspondence.kind, correspondence.first_feature_id
+            )
+        })?;
+        if find_feature_value(
+            &configurations[1],
+            correspondence.kind,
+            &correspondence.second_feature_id,
+        )
+        .is_none()
+        {
+            return Err(format!(
+                "Physical instance {second:?} has no {:?} feature {:?}.",
+                correspondence.kind, correspondence.second_feature_id
+            ));
+        }
+        features::add_linked_feature(
+            &mut pair,
+            MechanicalFeature {
+                id: correspondence.first_feature_id.clone(),
+                kind: correspondence.kind,
+                author: first.clone(),
+                value,
+                members: Vec::new(),
+            },
+        )?;
+    }
+
+    // The second half shows the reflected counterpart of the reviewed source
+    // geometry; the first half keeps its authored value in place.
+    let mut second_installs = Vec::new();
+    for feature in &pair.features {
+        if let Some(derived) = features::counterpart(&pair, feature, first)? {
+            second_installs.push((feature.kind, derived.feature_id, derived.value));
+        }
+    }
+
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    for (index, member) in members.iter().enumerate() {
+        let instance = hardware
+            .instances
+            .iter_mut()
+            .find(|entry| entry.id == *member)
+            .ok_or("Physical instance is unavailable")?;
+        if instance.mechanical.is_none() {
+            instance.mechanical = Some(configurations[index].clone());
+        }
+        instance.construction_ownership = MechanicalConstructionOwnership::Pair;
+    }
+    {
+        let second_configuration = hardware
+            .instances
+            .iter_mut()
+            .find(|entry| entry.id == *second)
+            .and_then(|instance| instance.mechanical.as_mut())
+            .ok_or("Physical instance is unavailable")?;
+        for correspondence in correspondences {
+            remove_feature(
+                second_configuration,
+                correspondence.kind,
+                &correspondence.second_feature_id,
+            );
+        }
+        for (kind, feature_id, value) in second_installs {
+            install_feature(second_configuration, kind, &feature_id, &value)?;
+        }
+    }
+    hardware.pairs.push(pair);
+    // The document's own rules decide whether the reviewed link is consistent.
+    features::validate(doc)?;
+
+    let mut changed = vec![pair_id.clone(), members[0].clone(), members[1].clone()];
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
+/// Dissolves the mechanical pair that owns `instance_id`.
+///
+/// Before the pair is removed each member's effective configuration (including
+/// the pair's shared construction) is written to its own slot and every linked
+/// feature's visible geometry is materialized, so the halves keep exactly the
+/// geometry they showed while paired. Both members become `Local`-owned, which
+/// is what keeps their shared subset authoritative after the pair is gone.
+fn unlink_mirror_pair(
+    doc: &mut ProjectDoc,
+    _board_id: &str,
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
+    let MechanicalChange::UnlinkMirrorPair { instance_id } = &edit.change else {
+        return Err("The unlink operation was dispatched with another change.".into());
+    };
+    let pair_index = doc
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .pairs
+                .iter()
+                .position(|pair| pair.members.contains(instance_id))
+        })
+        .ok_or_else(|| {
+            format!("Physical instance {instance_id:?} is not part of a mechanical pair.")
+        })?;
+    let pair = doc.hardware.as_ref().unwrap().pairs[pair_index].clone();
+    for member in &pair.members {
+        let target = MechanicalTarget::Instance {
+            instance_id: member.clone(),
+        };
+        let mut configuration = effective_inputs(doc, &target)?.configuration;
+        for feature in &pair.features {
+            let Some(member_feature_id) = feature_member_id(feature, member) else {
+                continue;
+            };
+            if features::member_state(&pair, member, member_feature_id)
+                == Some(MechanicalFeatureState::Linked)
+                && let Some(value) = feature_visible_value(&pair, feature, member)?
+            {
+                install_feature(&mut configuration, feature.kind, member_feature_id, &value)?;
+            }
+        }
+        persist(doc, &target, configuration)?;
+        let hardware = doc.hardware.as_mut().unwrap();
+        let instance = hardware
+            .instances
+            .iter_mut()
+            .find(|entry| entry.id == *member)
+            .ok_or("Physical instance is unavailable")?;
+        instance.construction_ownership = MechanicalConstructionOwnership::Local;
+    }
+    doc.hardware.as_mut().unwrap().pairs.remove(pair_index);
+
+    let mut changed = vec![
+        pair.id.clone(),
+        pair.members[0].clone(),
+        pair.members[1].clone(),
+    ];
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
+/// Applies one per-feature lifecycle action and projects the result.
+fn apply_feature_lifecycle(
+    doc: &mut ProjectDoc,
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
+    let changed = match &edit.change {
+        MechanicalChange::MakeFeatureLocal {
+            feature_id,
+            instance_id,
+        } => make_feature_local(doc, feature_id, instance_id)?,
+        MechanicalChange::OmitFeatureMember {
+            feature_id,
+            instance_id,
+        } => omit_feature_member(doc, feature_id, instance_id)?,
+        MechanicalChange::RejoinFeatureMember {
+            feature_id,
+            instance_id,
+            source_instance_id,
+        } => rejoin_feature_member(doc, feature_id, instance_id, source_instance_id)?,
+        _ => return Err("The feature lifecycle was dispatched with another change.".into()),
+    };
+    if changed.is_empty() {
+        return Ok(changed);
+    }
+    let mut changed = changed;
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
+/// Where a linked feature lives and the state of one half.
+struct PairFeatureLocation {
+    pair_index: usize,
+    feature_index: usize,
+    state: MechanicalFeatureState,
+}
+
+fn locate_pair_feature(
+    doc: &ProjectDoc,
+    instance_id: &str,
+    feature_id: &str,
+) -> Result<PairFeatureLocation, String> {
+    let hardware = doc
+        .hardware
+        .as_ref()
+        .ok_or("Physical instances are unavailable")?;
+    let pair_index = hardware
+        .pairs
+        .iter()
+        .position(|pair| features::member_state(pair, instance_id, feature_id).is_some())
+        .ok_or_else(|| {
+            format!("Physical instance {instance_id:?} has no linked feature {feature_id:?}.")
+        })?;
+    let pair = &hardware.pairs[pair_index];
+    let feature_index = pair
+        .features
+        .iter()
+        .position(|feature| feature_member_id(feature, instance_id) == Some(feature_id))
+        .ok_or_else(|| {
+            format!(
+                "Mechanical pair {:?} has no feature {feature_id:?}.",
+                pair.id
+            )
+        })?;
+    let state = features::member_state(pair, instance_id, feature_id)
+        .ok_or("Mechanical feature state is unavailable")?;
+    Ok(PairFeatureLocation {
+        pair_index,
+        feature_index,
+        state,
+    })
+}
+
+/// Materializes one half's visible geometry and makes it local.
+///
+/// A half that is already local is unchanged. The other half and every other
+/// feature keep their state; the copied geometry replaces the same member
+/// feature id in the half's ordinary configuration, so nothing moves. When the
+/// selected half is the author, authorship moves to the other linked half with
+/// the stored value re-expressed in that half's frame, so the pair keeps exactly
+/// one linked author and the other half still derives the same geometry.
+fn make_feature_local(
+    doc: &mut ProjectDoc,
+    feature_id: &str,
+    instance_id: &str,
+) -> Result<Vec<String>, String> {
+    let location = locate_pair_feature(doc, instance_id, feature_id)?;
+    match location.state {
+        MechanicalFeatureState::Local => return Ok(Vec::new()),
+        MechanicalFeatureState::Omitted => {
+            return Err(format!(
+                "Feature {feature_id:?} is omitted on {instance_id:?}; rejoin it before making it local."
+            ));
+        }
+        MechanicalFeatureState::Linked => {}
+    }
+    let (kind, visible) = {
+        let pair = doc.hardware.as_ref().unwrap().pairs[location.pair_index].clone();
+        let feature = &pair.features[location.feature_index];
+        (
+            feature.kind,
+            feature_visible_value(&pair, feature, instance_id)?,
+        )
+    };
+    if let Some(value) = visible {
+        let configuration = instance_configuration_mut(doc, instance_id)?;
+        install_feature(configuration, kind, feature_id, &value)?;
+    }
+    transfer_authorship(doc, &location, instance_id)?;
+    features::make_local(
+        &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index],
+        instance_id,
+        feature_id,
+    )?;
+    Ok(vec![feature_id.to_string(), instance_id.to_string()])
+}
+
+/// Removes one half's geometry and records a local omission.
+///
+/// The other half and every other feature keep their state. An already omitted
+/// half is unchanged. When the selected half is the author, authorship moves to
+/// the other linked half first, so the surviving half still derives the same
+/// geometry with no second authored value.
+fn omit_feature_member(
+    doc: &mut ProjectDoc,
+    feature_id: &str,
+    instance_id: &str,
+) -> Result<Vec<String>, String> {
+    let location = locate_pair_feature(doc, instance_id, feature_id)?;
+    if location.state == MechanicalFeatureState::Omitted {
+        return Ok(Vec::new());
+    }
+    let kind = doc.hardware.as_ref().unwrap().pairs[location.pair_index].features
+        [location.feature_index]
+        .kind;
+    remove_feature(
+        instance_configuration_mut(doc, instance_id)?,
+        kind,
+        feature_id,
+    );
+    transfer_authorship(doc, &location, instance_id)?;
+    features::omit_member(
+        &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index],
+        instance_id,
+        feature_id,
+    )?;
+    Ok(vec![feature_id.to_string(), instance_id.to_string()])
+}
+
+/// Moves a feature's authorship off `instance_id` when that half was the author.
+///
+/// The stored value is rewritten in the other linked half's frame, so that half
+/// derives exactly the geometry it showed before and the pair keeps its single
+/// authored value. A no-op when `instance_id` is not the author.
+fn transfer_authorship(
+    doc: &mut ProjectDoc,
+    location: &PairFeatureLocation,
+    instance_id: &str,
+) -> Result<(), String> {
+    let pair = doc.hardware.as_ref().unwrap().pairs[location.pair_index].clone();
+    let feature = &pair.features[location.feature_index];
+    if feature.author != instance_id {
+        return Ok(());
+    }
+    let other = pair
+        .members
+        .iter()
+        .find(|member| member.as_str() != instance_id)
+        .cloned()
+        .ok_or("The mechanical pair has no other member.")?;
+    let other_visible = feature_visible_value(&pair, feature, &other)?.ok_or_else(|| {
+        format!("Physical instance {other:?} has no linked geometry to author the feature.")
+    })?;
+    let pair = &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index];
+    let feature = &mut pair.features[location.feature_index];
+    feature.value = other_visible;
+    feature.author = other;
+    Ok(())
+}
+
+/// Clears one half's exception, adopting the chosen source's geometry.
+///
+/// The chosen source's visible (or local) geometry becomes the shared authored
+/// value, the counterpart is derived from it through the pair map, and that
+/// reflected geometry is installed on the rejoined half so it shows the reviewed
+/// result immediately. The other half and every other feature keep their state.
+fn rejoin_feature_member(
+    doc: &mut ProjectDoc,
+    feature_id: &str,
+    instance_id: &str,
+    source_instance_id: &str,
+) -> Result<Vec<String>, String> {
+    let location = locate_pair_feature(doc, instance_id, feature_id)?;
+    if location.state == MechanicalFeatureState::Linked {
+        return Ok(Vec::new());
+    }
+    let pair = doc.hardware.as_ref().unwrap().pairs[location.pair_index].clone();
+    if !pair
+        .members
+        .iter()
+        .any(|member| member == source_instance_id)
+    {
+        return Err(format!(
+            "Physical instance {source_instance_id:?} is not a member of mechanical pair {:?}.",
+            pair.id
+        ));
+    }
+    if source_instance_id == instance_id {
+        return Err("A feature can only be rejoined from the other pair member.".into());
+    }
+    let kind = pair.features[location.feature_index].kind;
+    let source_state =
+        features::member_state(&pair, source_instance_id, feature_id).ok_or_else(|| {
+            format!(
+                "Physical instance {source_instance_id:?} has no linked feature {feature_id:?}."
+            )
+        })?;
+    let source_value = match source_state {
+        MechanicalFeatureState::Omitted => {
+            return Err(format!(
+                "Physical instance {source_instance_id:?} has no geometry for feature {feature_id:?}."
+            ));
+        }
+        MechanicalFeatureState::Linked => {
+            feature_visible_value(&pair, &pair.features[location.feature_index], source_instance_id)?
+                .ok_or_else(|| {
+                    format!(
+                        "Physical instance {source_instance_id:?} has no visible geometry for feature {feature_id:?}."
+                    )
+                })?
+        }
+        MechanicalFeatureState::Local => find_feature_value(
+            &effective_inputs(
+                doc,
+                &MechanicalTarget::Instance {
+                    instance_id: source_instance_id.into(),
+                },
+            )?
+            .configuration,
+            kind,
+            feature_id,
+        )
+        .ok_or_else(|| {
+            format!(
+                "Physical instance {source_instance_id:?} has no local geometry for feature {feature_id:?}."
+            )
+        })?,
+    };
+    {
+        let pair = &mut doc.hardware.as_mut().unwrap().pairs[location.pair_index];
+        let feature = &mut pair.features[location.feature_index];
+        feature.value = source_value;
+        feature.author = source_instance_id.to_string();
+        features::rejoin_member(pair, instance_id, feature_id)?;
+    }
+    let derived = {
+        let pair = &doc.hardware.as_ref().unwrap().pairs[location.pair_index];
+        let feature = &pair.features[location.feature_index];
+        if let Some(derived) = features::counterpart(pair, feature, source_instance_id)? {
+            Some(derived)
+        } else {
+            // The chosen source may itself be a local exception. Its geometry is
+            // now the shared authored value, so derive the counterpart from a
+            // linked view without clearing the source's own exception.
+            let mut probe = pair.clone();
+            for member in &mut probe.features[location.feature_index].members {
+                member.state = MechanicalFeatureState::Linked;
+            }
+            features::counterpart(
+                &probe,
+                &probe.features[location.feature_index],
+                source_instance_id,
+            )?
+        }
+    };
+    if let Some(derived) = derived {
+        if derived.instance_id != instance_id {
+            return Err("The rejoin source did not derive the selected half.".into());
+        }
+        let member_feature_id = derived.feature_id.clone();
+        let configuration = instance_configuration_mut(doc, instance_id)?;
+        install_feature(configuration, kind, &member_feature_id, &derived.value)?;
+    }
+    Ok(vec![
+        feature_id.to_string(),
+        instance_id.to_string(),
+        source_instance_id.to_string(),
+    ])
+}
+
+fn feature_member_id<'a>(feature: &'a MechanicalFeature, instance_id: &str) -> Option<&'a str> {
+    feature
+        .members
+        .iter()
+        .find(|member| member.instance_id == instance_id)
+        .map(|member| member.feature_id.as_str())
+}
+
+/// One half's visible geometry for a linked feature, or `None` when that half
+/// owns its geometry locally or is omitted.
+fn feature_visible_value(
+    pair: &MechanicalMirrorPair,
+    feature: &MechanicalFeature,
+    instance_id: &str,
+) -> Result<Option<MechanicalFeatureValue>, String> {
+    let member = feature
+        .members
+        .iter()
+        .find(|member| member.instance_id == instance_id)
+        .ok_or_else(|| {
+            format!(
+                "Mechanical feature {:?} has no record for {instance_id:?}.",
+                feature.id
+            )
+        })?;
+    match member.state {
+        MechanicalFeatureState::Linked => {
+            if feature.author == instance_id {
+                Ok(Some(feature.value.clone()))
+            } else {
+                Ok(features::counterpart(pair, feature, &feature.author)?
+                    .map(|derived| derived.value))
+            }
+        }
+        MechanicalFeatureState::Local | MechanicalFeatureState::Omitted => Ok(None),
+    }
+}
+
+fn find_feature_value(
+    configuration: &MechanicalConfiguration,
+    kind: MechanicalFeatureKind,
+    feature_id: &str,
+) -> Option<MechanicalFeatureValue> {
+    match kind {
+        MechanicalFeatureKind::Mount => configuration
+            .mounts
+            .iter()
+            .find(|mount| mount.id == feature_id)
+            .cloned()
+            .map(|mount| MechanicalFeatureValue::Mount { mount }),
+        MechanicalFeatureKind::ClosureMount => configuration
+            .closure_mounts
+            .as_ref()?
+            .iter()
+            .find(|mount| mount.id == feature_id)
+            .cloned()
+            .map(|mount| MechanicalFeatureValue::Mount { mount }),
+        MechanicalFeatureKind::Opening => configuration
+            .openings
+            .as_ref()?
+            .iter()
+            .find(|opening| opening.id == feature_id)
+            .cloned()
+            .map(|opening| MechanicalFeatureValue::Opening { opening }),
+        MechanicalFeatureKind::GasketSupport => configuration
+            .gasket_layout
+            .as_ref()?
+            .supports
+            .iter()
+            .find(|anchor| anchor.id == feature_id)
+            .cloned()
+            .map(|anchor| MechanicalFeatureValue::GasketSupport { anchor }),
+    }
+}
+
+fn install_feature(
+    configuration: &mut MechanicalConfiguration,
+    kind: MechanicalFeatureKind,
+    feature_id: &str,
+    value: &MechanicalFeatureValue,
+) -> Result<(), String> {
+    match (kind, value) {
+        (MechanicalFeatureKind::Mount, MechanicalFeatureValue::Mount { mount }) => {
+            replace_mount(&mut configuration.mounts, feature_id, mount.clone());
+        }
+        (MechanicalFeatureKind::ClosureMount, MechanicalFeatureValue::Mount { mount }) => {
+            let mounts = configuration.closure_mounts.get_or_insert_with(Vec::new);
+            replace_mount(mounts, feature_id, mount.clone());
+        }
+        (MechanicalFeatureKind::Opening, MechanicalFeatureValue::Opening { opening }) => {
+            let openings = configuration.openings.get_or_insert_with(Vec::new);
+            if let Some(existing) = openings
+                .iter_mut()
+                .find(|existing| existing.id == feature_id)
+            {
+                *existing = opening.clone();
+            } else {
+                openings.push(opening.clone());
+            }
+        }
+        (
+            MechanicalFeatureKind::GasketSupport,
+            MechanicalFeatureValue::GasketSupport { anchor },
+        ) => {
+            let layout = configuration
+                .gasket_layout
+                .get_or_insert_with(crate::mechanical::default_gasket_layout);
+            if let Some(existing) = layout
+                .supports
+                .iter_mut()
+                .find(|existing| existing.id == feature_id)
+            {
+                *existing = anchor.clone();
+            } else {
+                layout.supports.push(anchor.clone());
+            }
+        }
+        _ => {
+            return Err(format!(
+                "Mechanical feature {feature_id:?} has a value that does not match its kind."
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn replace_mount(mounts: &mut Vec<Mount>, id: &str, mount: Mount) {
+    if let Some(existing) = mounts.iter_mut().find(|existing| existing.id == id) {
+        *existing = mount;
+    } else {
+        mounts.push(mount);
+    }
+}
+
+fn remove_feature(
+    configuration: &mut MechanicalConfiguration,
+    kind: MechanicalFeatureKind,
+    feature_id: &str,
+) {
+    match kind {
+        MechanicalFeatureKind::Mount => {
+            configuration.mounts.retain(|mount| mount.id != feature_id);
+        }
+        MechanicalFeatureKind::ClosureMount => {
+            if let Some(mounts) = configuration.closure_mounts.as_mut() {
+                mounts.retain(|mount| mount.id != feature_id);
+            }
+        }
+        MechanicalFeatureKind::Opening => {
+            if let Some(openings) = configuration.openings.as_mut() {
+                openings.retain(|opening| opening.id != feature_id);
+            }
+        }
+        MechanicalFeatureKind::GasketSupport => {
+            if let Some(layout) = configuration.gasket_layout.as_mut() {
+                layout.supports.retain(|anchor| anchor.id != feature_id);
+            }
+        }
+    }
+}
+
+/// The mutable stored configuration of one physical instance.
+fn instance_configuration_mut<'a>(
+    doc: &'a mut ProjectDoc,
+    instance_id: &str,
+) -> Result<&'a mut MechanicalConfiguration, String> {
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    let instance = hardware
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == instance_id)
+        .ok_or_else(|| format!("Physical instance {instance_id:?} is unavailable."))?;
+    instance.mechanical.as_mut().ok_or_else(|| {
+        format!("Physical instance {instance_id:?} has no stored mechanical configuration.")
+    })
+}
+
 /// Reference defaults for a board that has no stored configuration.
 ///
 /// Ports the adapter's `case_settings::initial_settings` family selection, plate
@@ -538,9 +1281,14 @@ fn apply_change(
     match change {
         MechanicalChange::Enable
         | MechanicalChange::Disable
-        | MechanicalChange::InitializeClosures => {
+        | MechanicalChange::InitializeClosures
+        | MechanicalChange::LinkMirrorPair { .. }
+        | MechanicalChange::UnlinkMirrorPair { .. }
+        | MechanicalChange::MakeFeatureLocal { .. }
+        | MechanicalChange::OmitFeatureMember { .. }
+        | MechanicalChange::RejoinFeatureMember { .. } => {
             return Err(
-                "Configure, Disable and closure initialization are handled by the operation."
+                "Configure, Disable, closure initialization and the pair lifecycle are handled by the operation."
                     .into(),
             );
         }
@@ -2389,12 +3137,14 @@ mod tests {
     use super::*;
     use crate::mechanical::change::{
         MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension,
-        MechanicalMountCollection,
+        MechanicalFeatureCorrespondence, MechanicalMountCollection,
     };
     use crate::model::{
-        HardwareConfiguration, HardwareTopology, HardwareTransport,
-        MechanicalConstructionOwnership, MechanicalGasketAnchor, MechanicalStabilizerOverride,
-        Part, PartDefinition, PartGenerator, PartKind, PhysicalBoardInstance, Pose2, Side, Vec2,
+        HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
+        MechanicalConstructionOwnership, MechanicalFeatureKind, MechanicalFeatureState,
+        MechanicalFeatureValue, MechanicalGasketAnchor, MechanicalMirrorPair,
+        MechanicalStabilizerOverride, Mount, MountKind, Part, PartDefinition, PartGenerator,
+        PartKind, PhysicalBoardInstance, Pose2, Side, Vec2,
     };
     use serde_json::json;
     use std::collections::BTreeMap;
@@ -3641,6 +4391,32 @@ mod tests {
                 definition_id: "switch-mx".into(),
                 family: MechanicalSwitchFamily::Mx,
             },
+            MechanicalChange::LinkMirrorPair {
+                pair_id: "pair".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction_source: "left".into(),
+                correspondences: vec![],
+            },
+            MechanicalChange::UnlinkMirrorPair {
+                instance_id: "left".into(),
+            },
+            MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+            },
+            MechanicalChange::OmitFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+            },
+            MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+                source_instance_id: "right".into(),
+            },
         ];
         for change in projection {
             assert!(
@@ -3649,5 +4425,516 @@ mod tests {
             );
             assert_eq!(affects_outline(&change), requires_projection(&change));
         }
+    }
+
+    fn mirror_instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
+        let mut mechanical = configuration();
+        mechanical.mounts = mounts;
+        PhysicalBoardInstance {
+            id: id.into(),
+            name: id.into(),
+            board_id: "board".into(),
+            half: id.into(),
+            role: "controller".into(),
+            flipped: false,
+            controller_part_id: None,
+            mechanical: Some(mechanical),
+            construction_ownership: MechanicalConstructionOwnership::Local,
+        }
+    }
+
+    fn mount(id: &str, x: f64, y: f64) -> Mount {
+        Mount {
+            id: id.into(),
+            at: Vec2 { x, y },
+            kind: MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        }
+    }
+
+    /// Two physical halves on one board, each with its own local mount geometry.
+    fn mirror_document() -> ProjectDoc {
+        let mut doc = ProjectDoc::empty("doc", "Fixture");
+        doc.boards.push(board("board", vec![]));
+        doc.mechanical = Some(configuration());
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![
+                mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
+                mirror_instance("right", vec![mount("mount-1", 7.0, 3.0)]),
+            ],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+        doc
+    }
+
+    fn correspondence() -> MechanicalFeatureCorrespondence {
+        MechanicalFeatureCorrespondence {
+            kind: MechanicalFeatureKind::Mount,
+            first_feature_id: "mount-1".into(),
+            second_feature_id: "mount-1".into(),
+        }
+    }
+
+    fn link_edit(target: MechanicalTarget, pair_id: &str, source: &str) -> MechanicalEdit {
+        MechanicalEdit {
+            target,
+            change: MechanicalChange::LinkMirrorPair {
+                pair_id: pair_id.into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction_source: source.into(),
+                correspondences: vec![correspondence()],
+            },
+            mounting_hole: Some(Box::new(template())),
+        }
+    }
+
+    fn lifecycle_edit(change: MechanicalChange) -> MechanicalEdit {
+        MechanicalEdit {
+            target: instance_target(),
+            change,
+            mounting_hole: Some(Box::new(template())),
+        }
+    }
+
+    fn pairs(doc: &ProjectDoc) -> &[MechanicalMirrorPair] {
+        &doc.hardware.as_ref().unwrap().pairs
+    }
+
+    fn stored_instance<'a>(doc: &'a ProjectDoc, id: &str) -> &'a MechanicalConfiguration {
+        doc.hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == id)
+            .unwrap()
+            .mechanical
+            .as_ref()
+            .unwrap()
+    }
+
+    fn ownership(doc: &ProjectDoc, id: &str) -> MechanicalConstructionOwnership {
+        doc.hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == id)
+            .unwrap()
+            .construction_ownership
+    }
+
+    fn mount_at(configuration: &MechanicalConfiguration, id: &str) -> Vec2 {
+        configuration
+            .mounts
+            .iter()
+            .find(|mount| mount.id == id)
+            .unwrap()
+            .at
+    }
+
+    fn assert_point(actual: Vec2, expected: Vec2) {
+        assert!(
+            (actual.x - expected.x).abs() < 1e-9 && (actual.y - expected.y).abs() < 1e-9,
+            "expected {expected:?}, got {actual:?}"
+        );
+    }
+
+    fn linked_document() -> ProjectDoc {
+        let mut doc = mirror_document();
+        apply(
+            &mut doc,
+            &link_edit(board_target(), "pair-left-right", "left"),
+        )
+        .unwrap();
+        doc
+    }
+
+    #[test]
+    fn linking_a_pair_shares_construction_and_sets_both_ownerships() {
+        let mut doc = mirror_document();
+        let changed = apply(
+            &mut doc,
+            &link_edit(board_target(), "pair-left-right", "left"),
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["pair-left-right", "left", "right"]);
+        let pair = &pairs(&doc)[0];
+        assert_eq!(pair.members, ["left".to_string(), "right".to_string()]);
+        // The source's shared construction excludes its board-local mounts.
+        assert_eq!(
+            pair.construction,
+            features::shared_construction(&configuration())
+        );
+        assert_eq!(pair.features.len(), 1);
+        assert_eq!(pair.features[0].author, "left");
+        assert_eq!(
+            features::member_state(pair, "left", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+        assert_eq!(
+            features::member_state(pair, "right", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+        assert_eq!(
+            ownership(&doc, "left"),
+            MechanicalConstructionOwnership::Pair
+        );
+        assert_eq!(
+            ownership(&doc, "right"),
+            MechanicalConstructionOwnership::Pair
+        );
+        // The source keeps its authored geometry and the second half shows the
+        // reflected counterpart immediately.
+        assert_point(
+            mount_at(stored_instance(&doc, "left"), "mount-1"),
+            Vec2 { x: 2.0, y: 3.0 },
+        );
+        assert_point(
+            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            Vec2 { x: -2.0, y: 3.0 },
+        );
+    }
+
+    #[test]
+    fn linking_an_already_paired_instance_errors_and_mutates_nothing() {
+        let mut doc = linked_document();
+        let before = doc.clone();
+        let error = apply(&mut doc, &link_edit(board_target(), "pair-second", "left")).unwrap_err();
+        assert!(
+            error.contains("already belongs to a mechanical pair"),
+            "{error}"
+        );
+        assert_eq!(doc, before);
+    }
+
+    #[test]
+    fn unlinking_keeps_geometry_and_localizes_ownership() {
+        let mut doc = linked_document();
+        // A pair-shared construction edit, as a linked settings change produces.
+        doc.hardware.as_mut().unwrap().pairs[0]
+            .construction
+            .plate_thickness = 2.5;
+        let before_right = mount_at(stored_instance(&doc, "right"), "mount-1");
+        let before_left = mount_at(stored_instance(&doc, "left"), "mount-1");
+        let changed = apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::UnlinkMirrorPair {
+                instance_id: "right".into(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["pair-left-right", "left", "right"]);
+        assert!(pairs(&doc).is_empty());
+        assert_eq!(
+            ownership(&doc, "left"),
+            MechanicalConstructionOwnership::Local
+        );
+        assert_eq!(
+            ownership(&doc, "right"),
+            MechanicalConstructionOwnership::Local
+        );
+        // The pair construction is materialized, and neither mount moved.
+        assert_eq!(stored_instance(&doc, "left").plate_thickness, 2.5);
+        assert_eq!(stored_instance(&doc, "right").plate_thickness, 2.5);
+        assert_point(
+            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            before_right,
+        );
+        assert_point(
+            mount_at(stored_instance(&doc, "left"), "mount-1"),
+            before_left,
+        );
+    }
+
+    #[test]
+    fn make_local_keeps_visible_geometry_and_leaves_the_other_half_linked() {
+        let mut doc = linked_document();
+        let changed = apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["mount-1", "right"]);
+        // The reflected counterpart is materialized on the localized half.
+        assert_point(
+            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            Vec2 { x: -2.0, y: 3.0 },
+        );
+        let pair = &pairs(&doc)[0];
+        assert_eq!(
+            features::member_state(pair, "right", "mount-1"),
+            Some(MechanicalFeatureState::Local)
+        );
+        assert_eq!(
+            features::member_state(pair, "left", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+        assert_eq!(pair.features[0].author, "left");
+    }
+
+    #[test]
+    fn make_local_on_the_author_moves_authorship_to_the_linked_half() {
+        let mut doc = linked_document();
+        let changed = apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["mount-1", "left"]);
+        // The author keeps its own visible geometry locally.
+        assert_point(
+            mount_at(stored_instance(&doc, "left"), "mount-1"),
+            Vec2 { x: 2.0, y: 3.0 },
+        );
+        let pair = &pairs(&doc)[0];
+        assert_eq!(
+            features::member_state(pair, "left", "mount-1"),
+            Some(MechanicalFeatureState::Local)
+        );
+        assert_eq!(
+            features::member_state(pair, "right", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+        // Authorship moved, and the stored value is now in the other frame:
+        // the reflection of the author's (2, 3) about X at the identity map.
+        assert_eq!(pair.features[0].author, "right");
+        let MechanicalFeatureValue::Mount { mount } = &pair.features[0].value else {
+            panic!("a linked mount stores a mount");
+        };
+        assert_point(mount.at, Vec2 { x: -2.0, y: 3.0 });
+        features::validate(&doc).unwrap();
+        // The surviving linked half keeps the geometry it showed.
+        assert_point(
+            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            Vec2 { x: -2.0, y: 3.0 },
+        );
+    }
+
+    #[test]
+    fn omit_removes_only_that_half_and_keeps_the_other_linked() {
+        let mut doc = linked_document();
+        let changed = apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::OmitFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["mount-1", "right"]);
+        assert!(stored_instance(&doc, "right").mounts.is_empty());
+        assert_eq!(stored_instance(&doc, "left").mounts.len(), 1);
+        let pair = &pairs(&doc)[0];
+        assert_eq!(
+            features::member_state(pair, "right", "mount-1"),
+            Some(MechanicalFeatureState::Omitted)
+        );
+        assert_eq!(
+            features::member_state(pair, "left", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+    }
+
+    #[test]
+    fn omit_on_the_author_keeps_the_other_half_deriving_its_geometry() {
+        let mut doc = linked_document();
+        apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::OmitFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+            }),
+        )
+        .unwrap();
+        assert!(stored_instance(&doc, "left").mounts.is_empty());
+        assert_eq!(stored_instance(&doc, "right").mounts.len(), 1);
+        let pair = &pairs(&doc)[0];
+        assert_eq!(
+            features::member_state(pair, "left", "mount-1"),
+            Some(MechanicalFeatureState::Omitted)
+        );
+        assert_eq!(
+            features::member_state(pair, "right", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+        assert_eq!(pair.features[0].author, "right");
+        features::validate(&doc).unwrap();
+    }
+
+    #[test]
+    fn rejoin_restores_the_link_and_derives_the_reflected_counterpart() {
+        let mut doc = linked_document();
+        apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            }),
+        )
+        .unwrap();
+        // The localized half has drifted to its own authored position.
+        doc.hardware
+            .as_mut()
+            .unwrap()
+            .instances
+            .iter_mut()
+            .find(|instance| instance.id == "right")
+            .unwrap()
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .mounts[0]
+            .at = Vec2 { x: 100.0, y: 100.0 };
+
+        let changed = apply(
+            &mut doc,
+            &lifecycle_edit(MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+                source_instance_id: "left".into(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["mount-1", "right", "left"]);
+        let pair = &pairs(&doc)[0];
+        assert_eq!(pair.features[0].author, "left");
+        let MechanicalFeatureValue::Mount { mount } = &pair.features[0].value else {
+            panic!("a linked mount stores a mount");
+        };
+        assert_point(mount.at, Vec2 { x: 2.0, y: 3.0 });
+        assert_eq!(
+            features::member_state(pair, "right", "mount-1"),
+            Some(MechanicalFeatureState::Linked)
+        );
+        // The reflected counterpart replaced the drifted local geometry.
+        assert_point(
+            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            Vec2 { x: -2.0, y: 3.0 },
+        );
+    }
+
+    #[test]
+    fn a_no_op_lifecycle_action_returns_an_empty_id_list() {
+        let mut doc = linked_document();
+        let before = doc.clone();
+        assert!(
+            apply(
+                &mut doc,
+                &lifecycle_edit(MechanicalChange::RejoinFeatureMember {
+                    feature_id: "mount-1".into(),
+                    instance_id: "right".into(),
+                    source_instance_id: "left".into(),
+                }),
+            )
+            .unwrap()
+            .is_empty(),
+            "an already linked half is unchanged"
+        );
+        assert_eq!(doc, before);
+        doc.hardware.as_mut().unwrap().pairs[0].features[0].members[1].state =
+            MechanicalFeatureState::Omitted;
+        assert!(
+            apply(
+                &mut doc,
+                &lifecycle_edit(MechanicalChange::OmitFeatureMember {
+                    feature_id: "mount-1".into(),
+                    instance_id: "right".into(),
+                }),
+            )
+            .unwrap()
+            .is_empty(),
+            "an already omitted half is unchanged"
+        );
+    }
+
+    #[test]
+    fn unknown_pair_feature_and_instance_ids_error_and_mutate_nothing() {
+        let mut doc = linked_document();
+        let before = doc.clone();
+        for change in [
+            MechanicalChange::UnlinkMirrorPair {
+                instance_id: "ghost".into(),
+            },
+            MechanicalChange::MakeFeatureLocal {
+                feature_id: "ghost".into(),
+                instance_id: "right".into(),
+            },
+            MechanicalChange::OmitFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "ghost".into(),
+            },
+            MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "ghost".into(),
+                source_instance_id: "left".into(),
+            },
+        ] {
+            assert!(
+                apply(&mut doc, &lifecycle_edit(change.clone())).is_err(),
+                "{change:?} must error"
+            );
+            assert_eq!(doc, before, "{change:?} must mutate nothing");
+        }
+        let mut missing_template = link_edit(board_target(), "pair-left-right", "left");
+        missing_template.mounting_hole = None;
+        assert!(
+            apply(&mut doc, &missing_template).is_err(),
+            "the projection template is required"
+        );
+        assert_eq!(doc, before);
+    }
+
+    #[test]
+    fn an_end_to_end_link_commits_and_one_undo_restores_the_document() {
+        use crate::CoreEngine;
+        use crate::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+        let mut engine = CoreEngine::new();
+        let before = mirror_document();
+        let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document: before.clone(),
+        }) else {
+            panic!("open must succeed");
+        };
+        let revision = document.revision;
+        let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Edit {
+            id: "link".into(),
+            command: EditCommand {
+                base_revision: revision,
+                transaction_id: "link".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation: EditOperation::ApplyMechanicalEdit {
+                    edit: Box::new(link_edit(board_target(), "pair-left-right", "left")),
+                },
+            },
+        }) else {
+            panic!("the link must commit");
+        };
+        assert_eq!(document.hardware.as_ref().unwrap().pairs.len(), 1);
+        let CoreReply::Scene { document, .. } =
+            engine.handle(CoreRequest::Undo { id: "undo".into() })
+        else {
+            panic!("undo must succeed");
+        };
+        assert_eq!(document.hardware, before.hardware);
+        assert_eq!(document.mechanical, before.mechanical);
     }
 }

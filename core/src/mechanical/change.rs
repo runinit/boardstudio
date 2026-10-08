@@ -85,6 +85,21 @@ pub enum MechanicalHardwareTextField {
     Notes,
 }
 
+/// One reviewed match between the two members of a mechanical mirror pair.
+///
+/// `first_feature_id` names the feature on `members[0]` and is the durable id
+/// the linked feature keeps on both halves; `second_feature_id` names the
+/// matching feature on `members[1]` that the link replaces. Both must exist with
+/// the given kind. Linking consolidates the two local features into one shared
+/// value authored by `members[0]`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalFeatureCorrespondence {
+    pub kind: MechanicalFeatureKind,
+    pub first_feature_id: String,
+    pub second_feature_id: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MechanicalChange {
@@ -251,6 +266,40 @@ pub enum MechanicalChange {
         thickness: f64,
     },
     SetStabilizerKind(MechanicalStabilizerOverride),
+    /// Establishes an explicit mechanical mirror pair between two physical
+    /// halves: the shared construction comes from `construction_source`, and
+    /// each correspondence becomes one linked feature authored by `members[0]`.
+    LinkMirrorPair {
+        pair_id: String,
+        members: [String; 2],
+        mapping: Pose2,
+        construction_source: String,
+        correspondences: Vec<MechanicalFeatureCorrespondence>,
+    },
+    /// Dissolves the pair that owns `instance_id`, materializing the pair's
+    /// construction and linked geometry locally so nothing moves.
+    UnlinkMirrorPair {
+        instance_id: String,
+    },
+    /// Makes one linked feature local on one half without moving its visible
+    /// geometry; the other half and every other feature keep their link.
+    MakeFeatureLocal {
+        feature_id: String,
+        instance_id: String,
+    },
+    /// Removes one linked feature from one half only (a local omission); the
+    /// other half and every other feature keep their link.
+    OmitFeatureMember {
+        feature_id: String,
+        instance_id: String,
+    },
+    /// Clears one half's local/omitted exception, taking `source_instance_id`'s
+    /// geometry as the authored value and re-deriving the counterpart.
+    RejoinFeatureMember {
+        feature_id: String,
+        instance_id: String,
+        source_instance_id: String,
+    },
 }
 
 /// The board or physical half a mechanical edit targets.
@@ -332,6 +381,75 @@ mod tests {
         );
         let parsed: crate::model::EditOperation = serde_json::from_value(value).unwrap();
         assert_eq!(parsed, operation);
+    }
+
+    #[test]
+    fn the_link_lifecycle_vocabulary_round_trips_through_its_wire_shape() {
+        let correspondence = MechanicalFeatureCorrespondence {
+            kind: MechanicalFeatureKind::Mount,
+            first_feature_id: "mount-1".into(),
+            second_feature_id: "mount-1".into(),
+        };
+        let link = MechanicalChange::LinkMirrorPair {
+            pair_id: "pair-left-right".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2 { x: 10.0, y: 5.0 },
+                rotation: 90.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![correspondence],
+        };
+        let value = serde_json::to_value(&link).unwrap();
+        // Externally tagged and kebab-case, like every other change.
+        let payload = &value["link-mirror-pair"];
+        assert_eq!(payload["pair_id"], json!("pair-left-right"));
+        assert_eq!(payload["members"], json!(["left", "right"]));
+        assert_eq!(payload["mapping"]["rotation"], json!(90.0));
+        assert_eq!(payload["construction_source"], json!("left"));
+        // The correspondence is a standalone struct, so its own fields are camelCase.
+        assert_eq!(payload["correspondences"][0]["kind"], json!("mount"));
+        assert_eq!(
+            payload["correspondences"][0]["firstFeatureId"],
+            json!("mount-1")
+        );
+        assert_eq!(
+            payload["correspondences"][0]["secondFeatureId"],
+            json!("mount-1")
+        );
+        let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, link);
+
+        let lifecycle = vec![
+            MechanicalChange::UnlinkMirrorPair {
+                instance_id: "left".into(),
+            },
+            MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+            },
+            MechanicalChange::OmitFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+            },
+            MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "left".into(),
+                source_instance_id: "right".into(),
+            },
+        ];
+        let keys = [
+            "unlink-mirror-pair",
+            "make-feature-local",
+            "omit-feature-member",
+            "rejoin-feature-member",
+        ];
+        for (change, key) in lifecycle.into_iter().zip(keys) {
+            let value = serde_json::to_value(&change).unwrap();
+            assert!(value.get(key).is_some(), "{key} tags {change:?}");
+            let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
+            assert_eq!(parsed, change);
+        }
     }
 
     #[test]

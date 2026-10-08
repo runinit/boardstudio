@@ -532,6 +532,25 @@ impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
             Self::SetStabilizerKind(stabilizer) => {
                 format!("stabilizer:{}", stabilizer.part_id)
             }
+            // The pair lifecycle is applied through the Core mechanical
+            // operation; these field ids are the adapter's stable keys for it.
+            Self::LinkMirrorPair { pair_id, .. } => format!("mechanical-pair:{pair_id}:link"),
+            Self::UnlinkMirrorPair { instance_id } => {
+                format!("mechanical-pair:{instance_id}:unlink")
+            }
+            Self::MakeFeatureLocal {
+                feature_id,
+                instance_id,
+            } => format!("mechanical-feature:{instance_id}:{feature_id}:make-local"),
+            Self::OmitFeatureMember {
+                feature_id,
+                instance_id,
+            } => format!("mechanical-feature:{instance_id}:{feature_id}:omit"),
+            Self::RejoinFeatureMember {
+                feature_id,
+                instance_id,
+                ..
+            } => format!("mechanical-feature:{instance_id}:{feature_id}:rejoin"),
         }
     }
 }

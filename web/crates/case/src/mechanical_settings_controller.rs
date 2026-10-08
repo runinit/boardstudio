@@ -1988,6 +1988,18 @@ fn apply_patch(
                 values.push(stabilizer.clone());
             }
         }
+        // The pair lifecycle is applied through the Core mechanical operation,
+        // not through the legacy configuration patch path.
+        MechanicalSettingsPatch::LinkMirrorPair { .. }
+        | MechanicalSettingsPatch::UnlinkMirrorPair { .. }
+        | MechanicalSettingsPatch::MakeFeatureLocal { .. }
+        | MechanicalSettingsPatch::OmitFeatureMember { .. }
+        | MechanicalSettingsPatch::RejoinFeatureMember { .. } => {
+            return Err(
+                "The mechanical pair lifecycle is applied through the Core mechanical operation."
+                    .into(),
+            );
+        }
     }
 
     let family =
