@@ -36,3 +36,11 @@ This app owns this assignment’s source and tests in its isolated worktree. The
 ## Known verification limits
 
 The documented native CAD failure is `core_internal_gasket_fixtures_export_connected_positive_regions` (rotated-concave/bottom volume). Treat that gate as failing if reproduced; list the actual result. AppImage-hosted KiCad failures reported by the helper app are a separate environment issue, not the CAD failure. Run the current tree and report what actually happens. Browser presentation compiles only for WASM; native tests alone do not verify it.
+
+## Worktree GitNexus commands
+
+When root dev cannot resolve new branch symbols, use the
+[separately named worktree index and CLI checks](gitnexus-worktree-coverage.md).
+Run from this assigned checkout, use its stream alias and pinned base, and refresh
+that index before final change analysis. Root keeps ownership of `boardstudio`.
+Report graph coverage separately from executed tests and pinned reviews.

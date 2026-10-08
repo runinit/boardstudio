@@ -187,3 +187,11 @@ Make PCB-only additive fixes, rerun affected native/lint/typecheck checks and bo
 reviews pinned to the resulting HEAD, and explicitly release the Chrome lease.
 Other browser streams remain paused. The shared-contract decision and integration
 remain with root; do not claim the parent ticket is resolved.
+
+## Worktree GitNexus commands
+
+When root dev cannot resolve new branch symbols, use the
+[separately named worktree index and CLI checks](gitnexus-worktree-coverage.md).
+Run from this assigned checkout, use its stream alias and pinned base, and refresh
+that index before final change analysis. Root keeps ownership of `boardstudio`.
+Report graph coverage separately from executed tests and pinned reviews.

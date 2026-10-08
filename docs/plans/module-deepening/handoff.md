@@ -149,7 +149,9 @@ Give each agent its ticket path plus this list.
   complete fallback. Use `rename` for renames (the `gitnexus-*` skills). An empty or
   `UNKNOWN` result is unanswered, not safe: confirm with `rg`. The index is shared by
   all worktrees and lags their edits; the orchestrator reindexes `dev` after each merge
-  (`node .gitnexus/run.cjs analyze --index-only`).
+  (`node .gitnexus/run.cjs analyze --index-only`). Agents may refresh only their
+  separately named worktree index using the [worktree coverage workflow](gitnexus-worktree-coverage.md);
+  root retains the canonical `boardstudio` index.
 - Context7 for crate and browser API docs; `memsearch:memory-recall` for why an earlier
   ticket chose something. Ticket text and ADRs win over memory.
 - Verification: the ticket's commands, then `python3 scripts/check.py` steps `lint`,
