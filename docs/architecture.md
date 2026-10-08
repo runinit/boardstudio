@@ -14,7 +14,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
 | `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, geometry scripts, model import |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization and physical setup proposals; no Dioxus |
-| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical settings, closure clearance and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
+| `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical-settings and closure-clearance adapters over Core's mechanical operation, and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
 | `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
@@ -26,7 +26,10 @@ preparation and checks; the CAD provider is Rust/WASM.
 
 The document engine owns durable state. Presentation submits edits through existing
 application/runtime boundaries and displays accepted state; it does not create a
-second writable document store. Worker replies, saves and exports retain their
+second writable document store. Core's typed `ApplyMechanicalEdit` operation owns
+the mechanical settings rules and closure-clearance projection; the Case adapter is
+being reduced to a thin client that submits that intent and keeps drafts, catalogue
+preparation, ports and presentation. Worker replies, saves and exports retain their
 captured project, board and revision identities so stale operations cannot replace
 the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
 
