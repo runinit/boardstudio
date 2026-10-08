@@ -16,6 +16,8 @@ and for any bulk action a recorded decision permits.
 - Skills: `tdd` for build tickets, `codebase-design` for operation and seam shape,
   `grilling` + `domain-modeling` for decisions, `code-review` before resolving.
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
+- For implementation handoff, use [handoff.md](handoff.md): complete matrix Core
+  02/03 first, then the approved mechanical ticket 02.
 - Starts after edit settlement's
   [ticket 20](../edit-settlement/issues/20-preview-only-direct-edit-event.md), which
   also edits Session's event types.

@@ -1,5 +1,10 @@
 # Handoff to Opus: matrix transforms and visible relationships
 
+> Historical planning brief. The decisions below have been settled in ticket 01
+> and the current spec. For implementation, use the
+> [updated matrix-to-mechanical handoff](../typed-core-edits/handoff.md): read the
+> resolved ticket 01 Answer, implement matrix Core 02/03, then mechanical 02.
+
 ## Task and deliverable
 
 Plan a coherent fix for BoardStudio's matrix editing semantics and Relations
