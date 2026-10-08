@@ -3,6 +3,7 @@ use crate::model::*;
 pub mod change;
 pub mod clearance;
 pub mod edit;
+pub mod pair;
 mod gasket;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
