@@ -693,13 +693,18 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             expected
         );
         let eligible = removed.is_none_or(|index| index > 1);
-        assert_eq!(
+        assert!(
             probe.macros.borrow().as_ref().unwrap().feedback.is_none(),
-            eligible,
-            "a landed edit leaves no status; an ineligible one reports its failure"
+            "a bound step field reports at the field, never in the panel status"
         );
         if !eligible {
-            assert!(root.text_content().unwrap().contains("macro step"));
+            assert!(
+                root.query_selector("label small[role='alert']")
+                    .unwrap()
+                    .and_then(|alert| alert.text_content())
+                    .is_some_and(|message| message.contains("macro step")),
+                "an ineligible step edit reports its failure at the step field"
+            );
         }
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
@@ -974,4 +979,85 @@ async fn a_newer_macro_text_draft_keeps_an_older_failure_inline_only() {
 #[wasm_bindgen_test]
 async fn a_newer_macro_number_draft_keeps_an_older_failure_inline_only() {
     newer_macro_draft_with_older_failure("Original tapMs", "55", "66").await;
+}
+
+#[wasm_bindgen_test]
+async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inline_failure() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_doc()).await;
+    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    support::fail_next_core_reply(&runtime, "macro executor failed");
+    let input = macro_input(&root, "Original tapMs");
+    input.focus().unwrap();
+    type_value(&input, "55");
+    input.blur().unwrap();
+    settle(&runtime).await;
+    assert_eq!(macro_input(&root, "Original tapMs").value(), "30");
+    let alert = root
+        .query_selector("label small[role='alert']")
+        .unwrap()
+        .expect("the failure reports inline");
+    assert!(alert.text_content().unwrap().contains("macro executor failed"));
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_doc()).await;
+    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    let tap_ms = |runtime: &Rc<Runtime>| {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .keymap
+            .as_ref()
+            .unwrap()
+            .macros[0]
+            .tap_ms
+    };
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let input = macro_input(&root, "Original tapMs");
+    input.focus().unwrap();
+    type_value(&input, "55");
+    input.blur().unwrap();
+    support::drive_pending(&runtime);
+    entered.await.unwrap();
+    input.focus().unwrap();
+    type_value(&input, "66");
+    input.blur().unwrap();
+    support::drive_pending(&runtime);
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    assert_eq!(tap_ms(&runtime), 66);
+    assert_eq!(macro_input(&root, "Original tapMs").value(), "66");
+    assert!(
+        root.query_selector("label small[role='alert']")
+            .unwrap()
+            .is_none()
+    );
+    for expected in [55, 30] {
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        settle(&runtime).await;
+        assert_eq!(tap_ms(&runtime), expected, "each edit has an Undo step");
+    }
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_failed_unchanged_layer_name_restores_the_accepted_name_with_an_inline_failure() {
+    let (probe, root) = mounted().await;
+    let runtime = probe.runtime.clone();
+    let (mut draft, failure) = probe.layer_name.borrow().unwrap();
+    draft.set("A".into());
+    support::fail_next_core_reply(&runtime, "layer executor failed");
+    rename_base(&probe, "A");
+    settle(&runtime).await;
+    assert_eq!(draft(), "Base", "the unchanged draft restores the accepted name");
+    assert!(failure().is_some_and(|message| message.contains("layer executor failed")));
+    root.remove();
 }
