@@ -59,6 +59,11 @@ fn member_id(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
 }
 
+/// The generated part ID of one assembly on a matrix key.
+pub(crate) fn companion_id(key_id: &str, assembly_id: &str) -> String {
+    format!("{key_id}/{assembly_id}")
+}
+
 fn cell_members(matrix: &Matrix) -> BTreeMap<(u32, u32), String> {
     let cells: BTreeMap<_, _> = matrix
         .cells
@@ -132,7 +137,7 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
                     );
                 } else {
                     cell.assemblies
-                        .retain(|assembly| !requested.contains(&format!("{id}/{}", assembly.id)));
+                        .retain(|assembly| !requested.contains(&companion_id(&id, &assembly.id)));
                 }
             }
         }
@@ -559,7 +564,7 @@ pub(crate) fn scene_companions(
         }
         let key_id = member_id(&matrix.id, cell.row, cell.column);
         for assembly in &cell.assemblies {
-            let part_id = format!("{key_id}/{}", assembly.id);
+            let part_id = companion_id(&key_id, &assembly.id);
             if !doc.parts.iter().any(|part| part.id == part_id) {
                 continue;
             }
@@ -803,7 +808,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                     .unwrap_or(&incoming.definition_id)
                     .clone();
                 for assembly in &cell.assemblies {
-                    let id = format!("{}/{}", members[0].0, assembly.id);
+                    let id = companion_id(&members[0].0, &assembly.id);
                     let rotation = pose.rotation.to_radians();
                     let (sin, cos) = rotation.sin_cos();
                     let at = Vec2 {

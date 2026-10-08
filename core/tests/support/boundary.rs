@@ -137,7 +137,7 @@ pub fn core_requests() -> Vec<Value> {
         }
         revision += 1;
     }
-    // A generated companion crosses the seam with its placement mode.
+    // Generated companions cross the seam with each placement mode.
     requests.push(json!({
         "id": "companion-matrix", "kind": "edit",
         "command": { "baseRevision": revision, "transactionId": "companion", "phase": "commit", "targetIds": ["matrix"],
@@ -145,10 +145,30 @@ pub fn core_requests() -> Vec<Value> {
                 "matrix": with(json!({
                     "id": "matrix",
                     "cells": [{ "row": 0, "column": 0, "enabled": true,
-                        "assemblies": [{ "id": "diode", "definitionId": "diode", "offset": { "x": 2, "y": 5 } }] }],
+                        "assemblies": [
+                            { "id": "diode", "definitionId": "diode", "offset": { "x": 2, "y": 5 } },
+                            { "id": "led", "definitionId": "led", "offset": { "x": -3, "y": 6 } },
+                            { "id": "sensor", "definitionId": "sensor", "offset": { "x": 1, "y": -4 } }
+                        ] }],
                     "partIds": [],
                 })),
-                "definitions": [{ "id": "diode", "name": "Diode", "kind": "passive", "pads": [], "courtyard": [] }] } },
+                "definitions": [
+                    { "id": "diode", "name": "Diode", "kind": "passive", "pads": [], "courtyard": [] },
+                    { "id": "led", "name": "LED", "kind": "passive", "pads": [], "courtyard": [] },
+                    { "id": "sensor", "name": "Sensor", "kind": "passive", "pads": [], "courtyard": [] }
+                ] } },
+    }));
+    requests.push(json!({
+        "id": "companion-constraint", "kind": "edit",
+        "command": { "baseRevision": revision + 1, "transactionId": "companion-constraint", "phase": "commit", "targetIds": [],
+            "operation": { "kind": "set-constraint",
+                "constraint": { "kind": "offset", "id": "sensor-key", "sourcePartId": "matrix/matrix/r0c0",
+                    "targetPartId": "matrix/matrix/r0c0/sensor", "offset": { "x": 1, "y": -4 }, "rotation": 0 } } },
+    }));
+    requests.push(json!({
+        "id": "companion-author", "kind": "edit",
+        "command": { "baseRevision": revision + 2, "transactionId": "companion-author", "phase": "commit", "targetIds": [],
+            "operation": { "kind": "move-parts", "positions": [{ "id": "matrix/matrix/r0c0/led", "at": { "x": -10, "y": 8 } }] } },
     }));
     requests.push(json!({ "id": "companion-snapshot", "kind": "snapshot" }));
     requests
@@ -281,14 +301,17 @@ fn check_core(replies: &[Value]) {
         replies[16]["document"]["keycaps"]["keys"]["matrix/matrix/r0c0"]["legend"],
         ""
     );
-    assert_eq!(
-        replies[23]["scene"]["matrixScenes"][0]["companions"][0],
-        json!({ "keyId": "matrix/matrix/r0c0", "mode": "follows", "partId": "matrix/matrix/r0c0/diode" })
-    );
-    assert_eq!(
-        replies[24]["scene"]["matrixScenes"][0]["companions"],
-        replies[23]["scene"]["matrixScenes"][0]["companions"]
-    );
+    let companions = replies[26]["scene"]["matrixScenes"][0]["companions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(companions.len(), 3);
+    assert!(companions.iter().any(|item| item["mode"] == "follows"));
+    assert!(companions.iter().any(|item| item["mode"] == "authored"));
+    assert!(companions.contains(&json!({
+        "keyId": "matrix/matrix/r0c0",
+        "mode": { "constrained": { "constraintId": "sensor-key", "sourcePartId": "matrix/matrix/r0c0" } },
+        "partId": "matrix/matrix/r0c0/sensor"
+    })));
 }
 
 fn compact(replies: &mut [Value]) {

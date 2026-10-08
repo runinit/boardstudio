@@ -286,14 +286,11 @@ fn scene_modes_match_the_solver() {
 
 #[test]
 fn disabled_deleted_cells_and_removed_constraints() {
-    for (label, seal) in [("disabled", Some(false)), ("deleted", Some(true))] {
+    for deleted in [false, true] {
         let (mut engine, _, doc) = companion_fixture();
         let mut matrix = doc.matrices[0].clone();
-        if seal == Some(true) {
-            matrix.cells[0].deleted = true;
-        } else {
-            matrix.cells[0].enabled = false;
-        }
+        matrix.cells[0].enabled = false;
+        matrix.cells[0].deleted = deleted;
         let (scene, _) = edit(
             &mut engine,
             &doc,
@@ -304,7 +301,8 @@ fn disabled_deleted_cells_and_removed_constraints() {
         );
         assert!(
             piece(&scene, "main").companions.is_empty(),
-            "{label} cell must list no companions"
+            "{} cell must list no companions",
+            if deleted { "deleted" } else { "disabled" }
         );
     }
 

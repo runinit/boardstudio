@@ -964,7 +964,7 @@ pub(crate) fn move_keys(
             .find(|cell| cell.row == row && cell.column == column);
         if let Some(cell) = cell {
             for assembly in &cell.assemblies {
-                let id = format!("{}/{}", position.id, assembly.id);
+                let id = matrix::companion_id(&position.id, &assembly.id);
                 if positions.iter().any(|position| position.id == id)
                     || doc
                         .constraints
@@ -1128,7 +1128,7 @@ pub(crate) fn assembly_placements(
                 continue;
             };
             for assembly in &cell.assemblies {
-                let id = format!("{parent_id}/{}", assembly.id);
+                let id = matrix::companion_id(&parent_id, &assembly.id);
                 if explicit.iter().any(|position| position.id == id) {
                     continue;
                 }
