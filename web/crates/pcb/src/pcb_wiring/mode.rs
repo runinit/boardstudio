@@ -67,7 +67,7 @@ pub fn use_board_wiring_mode_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    let edits = use_hook(|| PendingEditSignals::<BoardWiringModeFeedbackTarget>::new());
+    let edits = use_hook(PendingEditSignals::<BoardWiringModeFeedbackTarget>::new);
     let mut draft = use_signal(String::new);
     let mut failure = use_signal(|| None::<String>);
     // Views bound to a target that is no longer rendered: their settlement writes are

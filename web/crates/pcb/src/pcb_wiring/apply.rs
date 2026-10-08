@@ -44,7 +44,7 @@ pub fn use_board_wiring_apply(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringApplyActions {
-    let edits = use_hook(|| PendingEditSignals::<BoardWiringApplyKey>::new());
+    let edits = use_hook(PendingEditSignals::<BoardWiringApplyKey>::new);
     let apply_disabled = use_signal(|| false);
     let release_disabled = use_signal(|| false);
     edits.bind_one_shot(BoardWiringApplyKey::Apply, apply_disabled);
@@ -59,7 +59,6 @@ pub fn use_board_wiring_apply(
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
         let edits = edits.clone();
-        let latest = latest;
         let mut failure = failure;
         let mut settlement_tick = settlement_tick;
         move |_| {

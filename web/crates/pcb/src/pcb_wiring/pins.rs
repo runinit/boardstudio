@@ -105,7 +105,6 @@ pub fn use_pcb_wiring_pin_edits(
     use_effect(use_reactive((&observed_version,), {
         let edits = edits.clone();
         let mut submissions = submissions;
-        let latest = latest;
         let mut failure = failure;
         let mut settlement_tick = settlement_tick;
         move |_| {
