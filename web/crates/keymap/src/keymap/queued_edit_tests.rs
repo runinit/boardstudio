@@ -19,6 +19,8 @@ struct Probe {
     layers: Rc<RefCell<Option<LayerActions>>>,
     macros: Rc<RefCell<Option<MacroActions>>>,
     active_layer: Rc<RefCell<Option<Signal<String>>>>,
+    generation: Rc<RefCell<Option<Signal<u64>>>>,
+    layer_name: Rc<RefCell<Option<(Signal<String>, Signal<Option<String>>)>>>,
 }
 
 fn host() -> Element {
@@ -38,6 +40,7 @@ fn host() -> Element {
     *probe.active_layer.borrow_mut() = Some(active_layer);
     let workspace = use_signal(|| "Keymap");
     let generation = use_signal(|| 0u64);
+    *probe.generation.borrow_mut() = Some(generation);
     let accepted = runtime.model().accepted.unwrap();
     let scope = runtime.scope().unwrap();
     let source = Some(LayerSource {
@@ -55,6 +58,8 @@ fn host() -> Element {
         generation,
         Rc::new(|| true),
     ));
+    let layer_edits = use_context::<super::layer_controller::LayerEditsContext>();
+    *probe.layer_name.borrow_mut() = Some((layer_edits.name_draft, layer_edits.name_failure));
     let macro_actions = use_macro_operations(
         runtime.clone(),
         source.clone(),
@@ -130,6 +135,8 @@ async fn mount_runtime(runtime: Rc<Runtime>) -> (Probe, web_sys::Element) {
         layers: Rc::new(RefCell::new(None)),
         macros: Rc::new(RefCell::new(None)),
         active_layer: Rc::new(RefCell::new(None)),
+        generation: Rc::new(RefCell::new(None)),
+        layer_name: Rc::new(RefCell::new(None)),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -732,4 +739,61 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
         );
         root.remove();
     }
+}
+
+fn rename_base(probe: &Probe, name: &str) {
+    probe
+        .layers
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_operation
+        .call(KeymapLayerOperation::Rename {
+            layer_id: "base".into(),
+            name: name.into(),
+        });
+}
+
+#[wasm_bindgen_test]
+async fn a_newer_layer_name_survives_an_older_failure_that_reports_inline() {
+    let (probe, root) = mounted().await;
+    let runtime = probe.runtime.clone();
+    let (mut draft, failure) = probe.layer_name.borrow().unwrap();
+    draft.set("A".into());
+    support::fail_next_core_reply(&runtime, "layer executor failed");
+    rename_base(&probe, "A");
+    // The older rename has not settled when the user types the next draft.
+    draft.set("AB".into());
+    settle(&runtime).await;
+    assert_eq!(draft(), "AB", "a newer draft is never overwritten");
+    assert!(
+        failure().is_some_and(|message| message.contains("layer executor failed")),
+        "the older failure reports inline at the name field"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
+    let (probe, root) = mounted().await;
+    let runtime = probe.runtime.clone();
+    let (mut draft, failure) = probe.layer_name.borrow().unwrap();
+    draft.set("Gone".into());
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    rename_base(&probe, "Gone");
+    support::drive_pending(&runtime);
+    entered.await.unwrap();
+    let mut generation = probe.generation.borrow().unwrap();
+    generation.set(generation() + 1);
+    rendered().await;
+    support::fail_next_core_reply(&runtime, "never reported");
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    assert_eq!(draft(), "Gone", "a departed owner leaves the draft alone");
+    assert!(failure().is_none(), "retirement is silent");
+    assert!(
+        probe.layers.borrow().as_ref().unwrap().feedback.is_none(),
+        "no status survives the owner"
+    );
+    root.remove();
 }

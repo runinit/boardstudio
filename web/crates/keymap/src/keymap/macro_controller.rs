@@ -4,7 +4,7 @@ use super::macro_editor::{
     MacroEditChange, MacroEditFeedback, MacroEditRequest, MacroEditStatus, MacroEditTarget,
     MacroReadSource, MacroStepSequence,
 };
-use super::observed_edits::ObservedEdits;
+use super::owned_edits::OwnedEdits;
 use crate::macro_edit::{PrecedingStructure, macro_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
@@ -13,17 +13,36 @@ use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-/// A macro edit's logical identity: the latest edit for it replaces the earlier one.
-type MacroKey = (Option<String>, MacroEditTarget);
+/// A macro edit's logical identity: the latest edit for it replaces the earlier one. The
+/// key carries its request for follow-ups and draft projection; keys compare by macro and
+/// target only.
+#[derive(Clone)]
+struct MacroKey {
+    macro_id: Option<String>,
+    target: MacroEditTarget,
+    request: Option<Rc<MacroEditRequest>>,
+}
 
-type MacroPending = ObservedEdits<MacroKey, MacroEditRequest>;
+impl PartialEq for MacroKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.macro_id == other.macro_id && self.target == other.target
+    }
+}
+
+impl MacroKey {
+    fn of(request: &MacroEditRequest) -> Self {
+        Self {
+            macro_id: request.macro_id.clone(),
+            target: request.target,
+            request: Some(Rc::new(request.clone())),
+        }
+    }
+}
+
+type MacroPending = OwnedEdits<MacroKey>;
 
 #[derive(Clone, Copy)]
 struct MacroTickets(Signal<MacroPending>);
-
-fn macro_key(request: &MacroEditRequest) -> MacroKey {
-    (request.macro_id.clone(), request.target)
-}
 
 fn is_action(target: MacroEditTarget) -> bool {
     matches!(
@@ -48,9 +67,11 @@ fn same_action(left: MacroEditTarget, right: MacroEditTarget) -> bool {
 
 pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) -> bool {
     try_consume_context::<MacroTickets>().is_some_and(|tickets| {
-        tickets.0.read().pending().any(|entry| {
-            entry.meta.macro_id.as_deref() == macro_id && same_action(entry.meta.target, target)
-        })
+        tickets
+            .0
+            .read()
+            .pending()
+            .any(|entry| entry.macro_id.as_deref() == macro_id && same_action(entry.target, target))
     })
 }
 
@@ -62,13 +83,19 @@ pub(super) fn draft_step(
 ) -> MacroStep {
     let mut value = accepted.clone();
     if let Some(tickets) = try_consume_context::<MacroTickets>() {
-        for entry in tickets.0.read().pending().filter(|entry| {
-            entry.meta.scope == *scope && entry.meta.macro_id.as_deref() == Some(macro_id)
-        }) {
+        for request in tickets
+            .0
+            .read()
+            .pending()
+            .filter_map(|entry| entry.request.as_deref())
+            .filter(|request| {
+                request.scope == *scope && request.macro_id.as_deref() == Some(macro_id)
+            })
+        {
             if let MacroEditChange::Change(MacroChange::Step {
                 index: changed,
                 value: draft,
-            }) = &entry.meta.change
+            }) = &request.change
                 && *changed == index
             {
                 value = draft.clone();
@@ -149,18 +176,24 @@ pub fn use_macro_operations(
             if !pending.peek().has_terminal() {
                 return;
             }
-            for (observation, result) in pending.write().settle() {
-                let request = observation.meta;
+            let results = pending.peek().helper.settle(true, |_| String::new());
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let Some(request) = key.request.as_deref() else {
+                    continue;
+                };
                 let live = runtime.scope().as_ref() == Some(&request.scope)
                     && scope_generation() == request.scope_generation;
-                match result {
+                match &result {
                     PendingEditResult::Failed { message, .. } if live => {
                         if let Some(feedback) = feedback
                             .write()
                             .iter_mut()
                             .find(|feedback| feedback.request_id == request.request_id)
                         {
-                            feedback.status = MacroEditStatus::Failed(message);
+                            feedback.status = MacroEditStatus::Failed(message.clone());
                         }
                     }
                     _ => feedback
@@ -168,6 +201,7 @@ pub fn use_macro_operations(
                         .retain(|feedback| feedback.request_id != request.request_id),
                 }
             }
+            pending.write().prune();
         }
     }));
 
@@ -290,8 +324,7 @@ pub fn use_macro_operations(
             }
             if is_action(request.target)
                 && pending.peek().pending().any(|entry| {
-                    entry.meta.macro_id == request.macro_id
-                        && same_action(entry.meta.target, request.target)
+                    entry.macro_id == request.macro_id && same_action(entry.target, request.target)
                 })
             {
                 return;
@@ -311,13 +344,11 @@ pub fn use_macro_operations(
             let preceding_structure = pending
                 .peek()
                 .pending()
-                .find(|entry| {
-                    entry.meta.macro_id == request.macro_id && structural_action(entry.meta.target)
-                })
+                .find(|entry| entry.macro_id == request.macro_id && structural_action(entry.target))
                 .and_then(|entry| {
-                    let before = entry.meta.step_sequence.as_ref()?.len();
+                    let before = entry.request.as_ref()?.step_sequence.as_ref()?.len();
                     let now = request.step_sequence.as_ref()?.len();
-                    match entry.meta.target {
+                    match entry.target {
                         MacroEditTarget::AddStep if now == before => {
                             Some(PrecedingStructure::Append)
                         }
@@ -336,14 +367,24 @@ pub fn use_macro_operations(
             feedback
                 .write()
                 .push(public_feedback(&request, MacroEditStatus::Pending));
-            pending.write().begin(
+            if pending
+                .peek()
+                .owner_changed(Some(&scope), captured_generation)
+            {
+                pending
+                    .write()
+                    .follow_owner(Some(&scope), captured_generation);
+            }
+            let key = MacroKey::of(&request);
+            pending.peek().helper.begin_field(
                 &runtime,
-                macro_key(&request),
+                key.clone(),
                 "keymap-macro",
-                "macro",
-                request.clone(),
+                Some("macro".into()),
                 macro_resolver(request.clone(), seed, preceding_structure),
+                "",
             );
+            pending.write().remember(key);
             last_admitted_request.set(request.request_id);
         }
     });

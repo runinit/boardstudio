@@ -1,5 +1,5 @@
 //! Editor-owned layer intents and ticket settlement.
-use super::observed_edits::ObservedEdits;
+use super::owned_edits::OwnedEdits;
 use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation, layer_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -35,27 +35,43 @@ impl From<&KeymapLayerOperation> for LayerKey {
     }
 }
 
-struct LayerOwner {
-    scope: Scope,
-    generation: u64,
-}
-
-type LayerPending = ObservedEdits<LayerKey, LayerOwner>;
+type LayerPending = OwnedEdits<LayerKey>;
 
 #[derive(Clone)]
 struct LayerFeedbackState {
     scope: Scope,
     generation: u64,
-    operation: boardstudio_application::OperationId,
+    key: LayerKey,
     feedback: KeymapLayerFeedback,
 }
 
+/// Controller-lifetime state: the observed edits and the layer-name field's Signals, which
+/// outlive the panel so a settlement never writes a dropped Signal.
 #[derive(Clone, Copy)]
-struct LayerTickets(Signal<LayerPending>);
+pub(super) struct LayerEditsContext {
+    edits: Signal<LayerPending>,
+    pub(super) name_draft: Signal<String>,
+    pub(super) name_failure: Signal<Option<String>>,
+}
 
 pub(super) fn action_pending(request: &KeymapLayerOperation) -> bool {
-    try_consume_context::<LayerTickets>()
-        .is_some_and(|tickets| tickets.0.read().is_pending(&LayerKey::from(request)))
+    try_consume_context::<LayerEditsContext>()
+        .is_some_and(|context| context.edits.read().is_pending(&LayerKey::from(request)))
+}
+
+/// The accepted name of the layer a rename key addresses.
+fn accepted_layer_name(runtime: &Runtime, key: &LayerKey) -> String {
+    let LayerKey::Rename(layer_id) = key else {
+        return String::new();
+    };
+    let accepted = runtime.model().accepted;
+    let map = accepted
+        .as_ref()
+        .and_then(|snapshot| snapshot.document.keymap.as_ref());
+    map.and_then(|map| map.layers.iter().find(|layer| layer.id == *layer_id))
+        .map(|layer| layer.name.clone())
+        .or_else(|| (map.is_none() && layer_id == "base").then(|| "Base".to_owned()))
+        .unwrap_or_default()
 }
 
 pub struct LayerActions {
@@ -75,8 +91,27 @@ pub fn use_layer_operations(
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
     let pending = use_signal(LayerPending::default);
-    use_context_provider(|| LayerTickets(pending));
+    let name_draft = use_signal(String::new);
+    let name_failure = use_signal(|| None::<String>);
+    use_context_provider(|| LayerEditsContext {
+        edits: pending,
+        name_draft,
+        name_failure,
+    });
     let feedback = use_signal(|| None::<LayerFeedbackState>);
+    {
+        // Bind the displayed layer's name field to this owner's helper.
+        let displayed = runtime.model().accepted.and_then(|snapshot| {
+            resolve_display_layer_id(snapshot.document.keymap.as_ref(), &active_layer())
+                .map(str::to_owned)
+        });
+        if let Some(layer_id) = displayed {
+            pending
+                .peek()
+                .helper
+                .bind_field(LayerKey::Rename(layer_id), name_draft, name_failure);
+        }
+    }
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
         let mut pending = pending;
@@ -85,29 +120,39 @@ pub fn use_layer_operations(
             if !pending.peek().has_terminal() {
                 return;
             }
-            for (observation, result) in pending.write().settle() {
-                let owner = observation.meta;
-                let live = runtime.scope().as_ref() == Some(&owner.scope)
-                    && scope_generation() == owner.generation;
-                let outcome = match result {
-                    PendingEditResult::Failed { message, .. } if live => {
-                        Some(KeymapLayerFeedback::Failed(message))
+            let results = pending
+                .peek()
+                .helper
+                .settle(true, |key| accepted_layer_name(&runtime, key));
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let outcome = match &result {
+                    PendingEditResult::Failed { message, .. } => {
+                        Some(KeymapLayerFeedback::Failed(message.clone()))
                     }
                     _ => None,
                 };
-                if feedback
+                let matches = feedback
                     .peek()
                     .as_ref()
-                    .is_some_and(|state| state.operation == observation.operation)
-                {
+                    .is_some_and(|state| state.key == *key);
+                if matches {
+                    let (scope, generation) = feedback
+                        .peek()
+                        .as_ref()
+                        .map(|state| (state.scope.clone(), state.generation))
+                        .expect("matched feedback");
                     feedback.set(outcome.map(|feedback| LayerFeedbackState {
-                        scope: owner.scope,
-                        generation: owner.generation,
-                        operation: observation.operation,
+                        scope,
+                        generation,
+                        key: key.clone(),
                         feedback,
                     }));
                 }
             }
+            pending.write().prune();
         }
     }));
     let enabled = current_source(
@@ -172,21 +217,32 @@ pub fn use_layer_operations(
                     active_layer.set(id);
                 }
             }
-            let operation = pending.write().begin(
+            if pending
+                .peek()
+                .owner_changed(Some(&source.scope), captured_generation)
+            {
+                pending
+                    .write()
+                    .follow_owner(Some(&source.scope), captured_generation);
+            }
+            let key = LayerKey::from(&request);
+            let submitted = match &request {
+                KeymapLayerOperation::Rename { name, .. } => name.clone(),
+                _ => String::new(),
+            };
+            pending.peek().helper.begin_field(
                 &runtime,
-                LayerKey::from(&request),
+                key.clone(),
                 "keymap-layer",
-                "layer",
-                LayerOwner {
-                    scope: source.scope.clone(),
-                    generation: captured_generation,
-                },
+                Some("layer".into()),
                 resolver,
+                &submitted,
             );
+            pending.write().remember(key.clone());
             feedback.set(Some(LayerFeedbackState {
                 scope: source.scope.clone(),
                 generation: captured_generation,
-                operation,
+                key,
                 feedback: KeymapLayerFeedback::Pending,
             }));
         }
