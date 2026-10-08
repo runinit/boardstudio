@@ -50,10 +50,10 @@ pub struct PartInputEditRequest {
 /// One part-input control's bounded logical key: the part target plus the field it edits.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PartInputKey {
-    pub ui_scope: Scope,
-    pub scope_generation: u64,
-    pub part_id: String,
-    pub field: PartInputField,
+    pub(crate) ui_scope: Scope,
+    pub(crate) scope_generation: u64,
+    pub(crate) part_id: String,
+    pub(crate) field: PartInputField,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -95,10 +95,10 @@ impl PartInputKey {
 /// The panel's latest failure, attributed to the part it belongs to.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PartInputFailure {
-    pub ui_scope: Scope,
-    pub scope_generation: u64,
-    pub part_id: String,
-    pub message: String,
+    pub(crate) ui_scope: Scope,
+    pub(crate) scope_generation: u64,
+    pub(crate) part_id: String,
+    pub(crate) message: String,
 }
 
 impl PartInputFailure {

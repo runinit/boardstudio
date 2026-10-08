@@ -310,19 +310,15 @@ pub(crate) fn dispatch_board_reference_action(
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return None;
     }
+    // Removal is owned by the panel's one-shot helper (board_reference_removal);
+    // beginning it here would bypass that control's disabled state and double-submit
+    // guard, so the dispatcher refuses it outright.
+    if matches!(action, pcb_board_reference::Action::Remove) {
+        return None;
+    }
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
     let key = BoardReferenceKey::of(&action);
-    if matches!(action, pcb_board_reference::Action::Remove) {
-        edits.begin(
-            runtime,
-            key.clone(),
-            "board-reference",
-            Some("board reference".into()),
-            board_reference_removal_resolver(scope.board_id, reference_id),
-        );
-        return Some(key);
-    }
     let resolver =
         EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
             let mut proposed = accepted.document.as_ref().clone();
@@ -366,7 +362,7 @@ pub(crate) fn dispatch_board_reference_action(
                         reference.model_assets.remove(&path);
                     }
                 }
-                // Unreachable through this dispatcher: removal begins above and non-finite
+                // Unreachable: the dispatcher refuses Remove above, and non-finite
                 // positions fall through their guards. The arm keeps the match total.
                 pcb_board_reference::Action::Remove
                 | pcb_board_reference::Action::SetPositionX(_)

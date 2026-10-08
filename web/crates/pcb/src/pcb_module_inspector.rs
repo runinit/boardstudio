@@ -36,18 +36,6 @@ impl PartialEq for RuntimeHandle {
     }
 }
 
-/// The panel's shared one-shot helpers, passed to a circuit row component. The shared
-/// collection exposes no comparable identity, so equality never short-circuits a row
-/// render; the row's bound Signals still drive its updates.
-#[derive(Clone)]
-struct CircuitRowHelpers(PendingEditSignals<ModuleEditKey>);
-
-impl PartialEq for CircuitRowHelpers {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
 pub struct InspectorInput {
     pub runtime: Rc<Runtime>,
     pub snapshot: AcceptedSnapshot,
@@ -134,6 +122,7 @@ fn PcbMountedModuleInspector(
     let actions = use_hook(PendingEditSignals::<ModuleEditKey>::new);
     let remove_disabled = use_signal(|| false);
     let embed_disabled = use_signal(|| false);
+    let circuit_removal_disabled = use_signal(|| false);
     actions.bind_one_shot(ModuleEditKey::RemoveModule, remove_disabled);
     actions.bind_one_shot(ModuleEditKey::Embed, embed_disabled);
     let latest = use_signal(|| None::<ModuleEditKey>);
@@ -533,6 +522,15 @@ fn PcbMountedModuleInspector(
         );
     };
 
+    // Bind every rendered copy's removal key to the shared panel-owned control signal;
+    // rebinding replaces the view and writes nothing.
+    for circuit in &embedded_circuits {
+        actions.bind_one_shot(
+            ModuleEditKey::RemoveCircuit(circuit.id.clone()),
+            circuit_removal_disabled,
+        );
+    }
+
     rsx! {
         section { class: "m1-pcb-module-inspector", "aria-label": "Mounted module placement",
             h2 { "{module_name} placement" }
@@ -852,25 +850,46 @@ fn PcbMountedModuleInspector(
                         }
                     }
                     button { class: "m1-primary-button", r#type: "button", disabled: !editable || embed_disabled(), onclick: embed, "Copy circuit to PCB" }
+                    // A copy row cannot own its disabled Signal: the row unmounts when its
+                    // removal lands, before the settlement drain releases the binding, and
+                    // the drain would write a dropped Signal. Every copy key shares this
+                    // panel-owned Signal instead, so one pending removal disables all copy
+                    // controls; the begin guard keeps a second click a no-op while a
+                    // sibling removal is still in flight.
                     for circuit in &embedded_circuits {
-                        CircuitCopyRow {
-                            key: "{circuit.id}",
-                            helpers: CircuitRowHelpers(actions.clone()),
-                            circuit_id: circuit.id.clone(),
-                            label: format!(
-                                "{} components · {}",
-                                circuit.part_ids.len(),
-                                circuit.id.rsplit('/').next().unwrap_or(&circuit.id)
-                            ),
-                            editable,
-                            runtime: RuntimeHandle(input.runtime.clone()),
-                            scope: input.scope.clone(),
-                            module_id: input.module_id.clone(),
-                            selected_context: input.selected_context,
-                            token: input.snapshot.token,
-                            revision: input.snapshot.document.revision,
-                            latest,
-                            feedback,
+                        div { class: "m1-pcb-module-circuit-copy", key: "{circuit.id}",
+                            span {
+                                "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}"
+                            }
+                            button {
+                                r#type: "button",
+                                disabled: !editable || circuit_removal_disabled(),
+                                onclick: {
+                                    let circuit_id = circuit.id.clone();
+                                    let remove_runtime = input.runtime.clone();
+                                    let remove_scope = input.scope.clone();
+                                    let remove_module_id = input.module_id.clone();
+                                    let remove_context = input.selected_context;
+                                    let remove_token = input.snapshot.token;
+                                    let remove_revision = input.snapshot.document.revision;
+                                    let remove_actions = actions.clone();
+                                    move |_| {
+                                        let Some(_snapshot) = mounted_owner_current(&remove_runtime, remove_context, &remove_scope, &remove_module_id, remove_token, remove_revision) else {
+                                            feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
+                                            return;
+                                        };
+                                        let key = ModuleEditKey::RemoveCircuit(circuit_id.clone());
+                                        if remove_actions.is_pending(&key) {
+                                            return;
+                                        }
+                                        let mut latest = latest;
+                                        latest.set(Some(key.clone()));
+                                        feedback.set(String::new());
+                                        remove_actions.begin_one_shot(&remove_runtime, key, "remove-embedded-circuit", Some("circuit".into()), module_resolver(remove_scope.clone(), remove_module_id.clone(), Ok(EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() })));
+                                    }
+                                },
+                                "Remove copy"
+                            }
                         }
                     }
                 }
@@ -1031,71 +1050,6 @@ fn mounted_selection_current(
             snapshot.document.id == scope.document_id
                 && snapshot.session_epoch == scope.session_epoch
         })
-}
-
-/// One embedded circuit copy's row. Its removal is the row's own one-shot key: the
-/// helper disables the button while that removal is pending and re-enables it at the
-/// terminal, so two copies can be removed concurrently without blocking each other.
-#[component]
-fn CircuitCopyRow(
-    helpers: CircuitRowHelpers,
-    circuit_id: String,
-    label: String,
-    editable: bool,
-    runtime: RuntimeHandle,
-    scope: Scope,
-    module_id: String,
-    selected_context: Signal<Option<super::objects::ScopedTreeContext>>,
-    token: boardstudio_application::SnapshotToken,
-    revision: u64,
-    latest: Signal<Option<ModuleEditKey>>,
-    feedback: Signal<String>,
-) -> Element {
-    let actions = helpers.0;
-    let runtime = runtime.0;
-    let removal_disabled = use_signal(|| false);
-    actions.bind_one_shot(
-        ModuleEditKey::RemoveCircuit(circuit_id.clone()),
-        removal_disabled,
-    );
-    let on_remove = move |_| {
-        let Some(_snapshot) = mounted_owner_current(
-            &runtime,
-            selected_context,
-            &scope,
-            &module_id,
-            token,
-            revision,
-        ) else {
-            feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
-            return;
-        };
-        let key = ModuleEditKey::RemoveCircuit(circuit_id.clone());
-        if actions.is_pending(&key) {
-            return;
-        }
-        latest.set(Some(key.clone()));
-        feedback.set(String::new());
-        actions.begin_one_shot(
-            &runtime,
-            key,
-            "remove-embedded-circuit",
-            Some("circuit".into()),
-            module_resolver(
-                scope.clone(),
-                module_id.clone(),
-                Ok(EditOperation::RemoveEmbeddedCircuit {
-                    id: circuit_id.clone(),
-                }),
-            ),
-        );
-    };
-    rsx! {
-        div { class: "m1-pcb-module-circuit-copy",
-            span { "{label}" }
-            button { r#type: "button", disabled: !editable || removal_disabled(), onclick: on_remove, "Remove copy" }
-        }
-    }
 }
 
 fn module_resolver(

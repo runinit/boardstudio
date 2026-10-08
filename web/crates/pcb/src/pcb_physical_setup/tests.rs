@@ -8,9 +8,10 @@
 //! owner attribution at dispatch and settlement. The scenarios that relied on the native
 //! stub's synchronous VirtualDom polling remain uncovered by any executing test:
 //! preparation results arriving after their source was replaced, unmount races, and the
-//! CasePcbDesign reassignment navigation (its scope-transition rule keeps a mounted
-//! assertion in `controller.rs`). Wiring-panel equivalents cover the topology landing
-//! and undo path in `pcb_wiring/queued_edit_tests.rs`.
+//! stale-scope CaseTransport variant. The CasePcbDesign reassignment navigation keeps a
+//! pure unit assertion in `controller.rs` (case_reassignment_scope_transition_tests),
+//! and wiring-panel equivalents cover the topology landing and undo path in
+//! `pcb_wiring/queued_edit_tests.rs`.
 use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::Event;
@@ -279,6 +280,37 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
     release.send(()).unwrap();
     settle(&probe.runtime).await;
     assert!(mount(&probe).projection.project_feedback.is_none());
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_stage_hidden_during_preparation_submits_no_edit() {
+    let (probe, root) = mounted("setup-hidden-preparation").await;
+    let runtime = probe.runtime.clone();
+    mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    rendered().await;
+    assert!(
+        mount(&probe).projection.busy,
+        "preparation holds the busy gate"
+    );
+    probe.active.set(false);
+    *probe.reply.borrow_mut() = Some(Ok(reversible(&probe)));
+    settle(&runtime).await;
+    let projection = mount(&probe).projection;
+    assert!(
+        !projection.busy,
+        "the hidden stage clears busy without an edit"
+    );
+    assert!(projection.project_feedback.is_none());
+    assert!(
+        support::take_held_effects(&runtime).is_empty(),
+        "the hidden stage fails async admission before any edit begins"
+    );
+    assert_eq!(
+        accepted_reversible(&runtime),
+        None,
+        "the abandoned preparation applied nothing"
+    );
     root.remove();
 }
 

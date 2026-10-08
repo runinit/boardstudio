@@ -47,8 +47,8 @@ pub(crate) fn board_mode(
 /// navigated-away board never shows another board's message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BoardWiringFailure {
-    pub target: BoardWiringModeFeedbackTarget,
-    pub message: String,
+    pub(crate) target: BoardWiringModeFeedbackTarget,
+    pub(crate) message: String,
 }
 
 #[derive(Clone, PartialEq)]

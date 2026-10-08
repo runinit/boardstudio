@@ -68,10 +68,10 @@ pub struct PartNetEditRequest {
 /// pending submission keeps projecting and replacing while the revision advances.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PartNetTarget {
-    pub ui_scope: Scope,
-    pub board_id: String,
-    pub part_id: String,
-    pub generation: u64,
+    pub(crate) ui_scope: Scope,
+    pub(crate) board_id: String,
+    pub(crate) part_id: String,
+    pub(crate) generation: u64,
 }
 
 impl PartNetTarget {

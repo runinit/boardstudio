@@ -81,9 +81,9 @@ pub enum Action {
 /// failure message.
 fn place_reference_results(
     results: Vec<PendingEditResult<BoardReferenceKey>>,
-    submissions: &mut Signal<Vec<(BoardReferenceKey, Action)>>,
-    latest: &Signal<Option<BoardReferenceKey>>,
-    error: &mut Signal<Option<String>>,
+    mut submissions: Signal<Vec<(BoardReferenceKey, Action)>>,
+    latest: Signal<Option<BoardReferenceKey>>,
+    mut error: Signal<Option<String>>,
 ) {
     for result in results {
         let (key, message) = match result {
@@ -785,9 +785,9 @@ pub fn Editor(
         let owner = owner.clone();
         let action_edits = action_edits.clone();
         let actions = actions.clone();
-        let mut action_submissions = action_submissions;
+        let action_submissions = action_submissions;
         let action_latest = action_latest;
-        let mut error = error;
+        let error = error;
         move |_| {
             // The lineage check already answers for the panel's workspace.
             let panel_is_live = super::board_reference_owner_lineage_is_current(
@@ -795,15 +795,15 @@ pub fn Editor(
             );
             place_reference_results(
                 action_edits.borrow_mut().settle(panel_is_live),
-                &mut action_submissions,
-                &action_latest,
-                &mut error,
+                action_submissions,
+                action_latest,
+                error,
             );
             place_reference_results(
                 actions.settle(panel_is_live, |_| String::new()),
-                &mut action_submissions,
-                &action_latest,
-                &mut error,
+                action_submissions,
+                action_latest,
+                error,
             );
         }
     }));
