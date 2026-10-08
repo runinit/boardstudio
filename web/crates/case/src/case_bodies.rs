@@ -635,6 +635,13 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     let dirty = use_signal(|| false);
     let blocked_attempt = use_signal(|| false);
 
+    let mut field_failure = use_signal(|| None::<String>);
+    super::case_controller::use_bound_case_field(
+        &props.field_id,
+        props.value.to_string(),
+        draft,
+        field_failure,
+    );
     let accepted_value = props.value;
     let saved_ack = props
         .feedback
@@ -659,10 +666,12 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 if let Some(identity) = ack {
                     consumed_ack_for_effect.set(Some(identity.clone()));
                 }
-                if submitted_for_effect.peek().as_ref() == Some(&*draft_for_effect.peek())
-                    || !*dirty_for_effect.peek()
-                {
-                    draft_for_effect.set(value.to_string());
+                // The helper has already restored a draft that was exactly the submitted
+                // text; a newer draft cleared the submission and stays untouched.
+                if submitted_for_effect.peek().is_some() || !*dirty_for_effect.peek() {
+                    if !*dirty_for_effect.peek() {
+                        draft_for_effect.set(value.to_string());
+                    }
                     error_for_effect.set(None);
                     submitted_for_effect.set(None);
                     dirty_for_effect.set(false);
@@ -744,9 +753,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         .iter()
         .rev()
         .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()));
-    let feedback_error = feedback
-        .filter(|feedback| ignored_feedback_request().as_ref() != Some(&request_identity(feedback)))
-        .and_then(|feedback| feedback.failure.clone());
+    let feedback_error = field_failure();
     let feedback_pending = feedback.is_some_and(|feedback| feedback.pending);
     let input_feedback_identity = feedback.map(request_identity);
     let escape_feedback_identity = input_feedback_identity.clone();
@@ -769,6 +776,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                         let mut submitted_draft = submitted_draft;
                         let mut error = error;
                         let mut ignored_feedback_request = ignored_feedback_request;
+                        field_failure.set(None);
                         draft.set(event.value());
                         dirty.set(true);
                         blocked_attempt.set(false);
