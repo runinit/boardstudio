@@ -65,6 +65,9 @@ Saved projects keep their geometry.
 
 <!-- one line per resolved build ticket -->
 
+- 02 `SetMatrixPlacement` and the published stagger axis:
+  [Outcome](issues/02-core-set-matrix-placement.md#outcome).
+
 ## Still open
 
 - Ticket 07 exports `convert_offset_available` from Core so the UI and Core share the
