@@ -108,16 +108,17 @@ pub(crate) mod ui {
 
     #[cfg(test)]
     thread_local! {
-        static PAD_NUMBER_DRAFT_FOR_TEST: std::cell::RefCell<Option<Signal<String>>> = const { std::cell::RefCell::new(None) };
+        static PAD_NUMBER_DRAFT_FOR_TEST: std::cell::RefCell<Option<(Signal<String>, Signal<bool>)>> = const { std::cell::RefCell::new(None) };
     }
 
     #[cfg(test)]
     pub fn set_pad_number_draft_for_test(value: &str) -> bool {
         PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| {
-            let Some(mut draft) = *draft.borrow() else {
+            let Some((mut draft, mut dirty)) = *draft.borrow() else {
                 return false;
             };
             draft.set(value.to_owned());
+            dirty.set(true);
             true
         })
     }
@@ -132,6 +133,7 @@ pub(crate) mod ui {
     #[derive(Clone, Copy, PartialEq)]
     struct RowDrafts {
         drafts: [Signal<String>; PadField::TEXT_FIELDS],
+        dirty: [Signal<bool>; PadField::TEXT_FIELDS],
     }
 
     impl RowDrafts {
@@ -146,6 +148,7 @@ pub(crate) mod ui {
                     Signal::new(pad.size.y.to_string()),
                     Signal::new(pad.drill.map(|value| value.to_string()).unwrap_or_default()),
                 ],
+                dirty: std::array::from_fn(|_| Signal::new(false)),
             }
         }
 
@@ -172,6 +175,24 @@ pub(crate) mod ui {
     }
 
     impl PanelRows {
+        /// Release departed row bindings before discarding their projection handles.
+        fn retain_rows(&mut self, live: &[u64], pending: &PendingEditSignals<DefinitionFieldKey>) {
+            self.drafts.retain(|row, _| {
+                if live.contains(row) {
+                    return true;
+                }
+                for field in PadField::text_fields() {
+                    pending.unbind_field(&DefinitionFieldKey::Pad { row: *row, field });
+                }
+                pending.unbind_one_shot(&DefinitionFieldKey::Pad {
+                    row: *row,
+                    field: PadField::Remove,
+                });
+                false
+            });
+            self.accepted.retain(|row, _| live.contains(row));
+        }
+
         /// The draft Signals of one row, created from the accepted pad on first sight.
         fn row(&mut self, row: u64, pad: &Pad) -> RowDrafts {
             *self
@@ -180,8 +201,8 @@ pub(crate) mod ui {
                 .or_insert_with(|| RowDrafts::new(pad))
         }
 
-        /// Refresh one field's draft when its own accepted text changed. Dirty drafts
-        /// follow their accepted value exactly like the per-field refresh they replace.
+        /// Refresh clean fields while preserving user input, including a newer draft
+        /// that returned to the previous accepted value while an edit waited.
         fn refresh(&mut self, row: u64, field: PadField, pad: &Pad) {
             let Some(index) = field.text_index() else {
                 return;
@@ -192,7 +213,9 @@ pub(crate) mod ui {
             // still see their own accepted changes.
             if entry[index] != accepted[index] {
                 entry[index] = accepted[index].clone();
-                if let Some(mut drafts) = self.drafts.get(&row).copied() {
+                if let Some(mut drafts) = self.drafts.get(&row).copied()
+                    && !*drafts.dirty[index].peek()
+                {
                     drafts.drafts[index].set(entry[index].clone());
                 }
             }
@@ -238,6 +261,34 @@ pub(crate) mod ui {
         let initial_height = courtyard.1.clone();
         let mut width = use_signal(move || initial_width);
         let mut height = use_signal(move || initial_height);
+        let mut width_dirty = use_signal(|| false);
+        let mut height_dirty = use_signal(|| false);
+        let observation_owner = use_hook(|| Rc::new(RefCell::new(capture.clone())));
+        if *observation_owner.borrow() != capture {
+            // A replacement definition takes fresh bindings. Old observations retire
+            // before the replacement can receive their terminal feedback.
+            pending.unbind_field(&DefinitionFieldKey::CourtyardWidth);
+            pending.unbind_field(&DefinitionFieldKey::CourtyardHeight);
+            let mut rows = row_drafts.borrow_mut();
+            rows.retain_rows(&[], &pending);
+            pending.settle(false, |_| String::new());
+            *observation_owner.borrow_mut() = capture.clone();
+            width.set(courtyard.0.clone());
+            height.set(courtyard.1.clone());
+            width_dirty.set(false);
+            height_dirty.set(false);
+            failure.set(None);
+        }
+        use_drop({
+            let pending = pending.clone();
+            let row_drafts = row_drafts.clone();
+            move || {
+                pending.unbind_field(&DefinitionFieldKey::CourtyardWidth);
+                pending.unbind_field(&DefinitionFieldKey::CourtyardHeight);
+                row_drafts.borrow_mut().retain_rows(&[], &pending);
+                pending.settle(false, |_| String::new());
+            }
+        });
 
         // Begin a pending edit for a committed field. Admission keeps stale callbacks
         // out early; value validation explains itself inline; the resolver owns every
@@ -264,12 +315,7 @@ pub(crate) mod ui {
                     failure.set(Some(message));
                     return;
                 }
-                let seed = match edit {
-                    DefinitionEdit::AddPad => runtime.operation().0,
-                    _ => 0,
-                };
                 let key = DefinitionFieldKey::of(request.row, &edit);
-                let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
                 // The helper remembers the draft each field edit was submitted with, so
                 // an older outcome can never clobber a newer draft.
                 let submitted = match key {
@@ -287,6 +333,39 @@ pub(crate) mod ui {
                         .unwrap_or_default(),
                     DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => String::new(),
                 };
+                // A baseline value is a real new intent while an older edit waits.
+                // Otherwise compare with fresh accepted state, so retained callbacks
+                // cannot mistake a stale prop value for the accepted value.
+                if !pending.is_pending(&key)
+                    && current
+                        .document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == capture.definition_id)
+                        .is_some_and(|definition| {
+                            field_matches_accepted(&key, &edit, &submitted, definition)
+                        })
+                {
+                    match key {
+                        DefinitionFieldKey::CourtyardWidth => width_dirty.set(false),
+                        DefinitionFieldKey::CourtyardHeight => height_dirty.set(false),
+                        DefinitionFieldKey::Pad { row, field } => {
+                            if let Some(index) = field.text_index()
+                                && let Some(mut drafts) =
+                                    row_drafts.borrow().drafts.get(&row).copied()
+                            {
+                                drafts.dirty[index].set(false);
+                            }
+                        }
+                        DefinitionFieldKey::Kind | DefinitionFieldKey::AddPad => {}
+                    }
+                    return;
+                }
+                let seed = match edit {
+                    DefinitionEdit::AddPad => runtime.operation().0,
+                    _ => 0,
+                };
+                let resolver = definition_field_resolver(capture.definition_id.clone(), edit, seed);
                 if matches!(
                     key,
                     DefinitionFieldKey::AddPad
@@ -320,24 +399,25 @@ pub(crate) mod ui {
         let kicad_locked = definition.kicad_source.is_some();
         let accepted_width = courtyard.0.clone();
         use_effect(use_reactive((&accepted_width,), move |(value,)| {
-            width.set(value.clone());
+            if !width_dirty() {
+                width.set(value);
+            }
         }));
         let accepted_height = courtyard.1.clone();
         use_effect(use_reactive((&accepted_height,), move |(value,)| {
-            height.set(value.clone());
+            if !height_dirty() {
+                height.set(value);
+            }
         }));
         use_effect(use_reactive((&owner_identity,), {
             let accepted_width = courtyard.0.clone();
             let accepted_height = courtyard.1.clone();
             let mut failure = failure;
-            let row_drafts = row_drafts.clone();
             move |_| {
                 width.set(accepted_width.clone());
                 height.set(accepted_height.clone());
-                let mut rows = row_drafts.borrow_mut();
-                rows.drafts.clear();
-                rows.accepted.clear();
-                drop(rows);
+                width_dirty.set(false);
+                height_dirty.set(false);
                 failure.set(None);
             }
         }));
@@ -383,16 +463,50 @@ pub(crate) mod ui {
         // Settle the pending edits before rendering: pending fields keep their drafts,
         // failures restore the accepted value with the message inline, and landed or
         // retired edits drop so the fields follow the accepted document again. A row
-        // whose pad vanished still settles: the failure surfaces before the row's
-        // drafts disappear with it.
+        // whose pad vanished can still report its failure at the shared placement,
+        // even after its field bindings and draft handles have been pruned.
         let results = pending.settle(owner_live, |key| {
             accepted_field_text(key, &definition, &row_keys, &row_drafts, &courtyard)
         });
         for result in &results {
+            let key = match result {
+                PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key } => key,
+            };
+            if !pending.is_pending(key) {
+                match key {
+                    DefinitionFieldKey::CourtyardWidth if *width.peek() == courtyard.0 => {
+                        width_dirty.set(false);
+                    }
+                    DefinitionFieldKey::CourtyardHeight if *height.peek() == courtyard.1 => {
+                        height_dirty.set(false);
+                    }
+                    DefinitionFieldKey::Pad { row, field } => {
+                        if let Some(index) = field.text_index()
+                            && let Some(mut drafts) = row_drafts.borrow().drafts.get(row).copied()
+                            && *drafts.drafts[index].peek()
+                                == accepted_field_text(
+                                    key,
+                                    &definition,
+                                    &row_keys,
+                                    &row_drafts,
+                                    &courtyard,
+                                )
+                        {
+                            drafts.dirty[index].set(false);
+                        }
+                    }
+                    _ => {}
+                }
+            }
             if let PendingEditResult::Failed { message, .. } = result {
                 failure.set(Some(message.clone()));
             }
         }
+        // A missing row can still report its terminal failure above, but must not
+        // retain draft handles or helper bindings after leaving the accepted list.
+        row_drafts.borrow_mut().retain_rows(&row_keys, &pending);
 
         let kind = kind_name(&definition.kind);
         let on_kind = {
@@ -415,36 +529,32 @@ pub(crate) mod ui {
                 })
             }
         };
-        let committed_width = courtyard.0.clone();
         let on_width_blur = {
             let begin_width = submit;
             move |_| {
                 let draft = width();
-                if draft != committed_width {
-                    begin_width.call(DefinitionFieldEdit {
-                        row: None,
-                        edit: DefinitionEdit::CourtyardWidth(draft),
-                    });
-                }
+                begin_width.call(DefinitionFieldEdit {
+                    row: None,
+                    edit: DefinitionEdit::CourtyardWidth(draft),
+                });
             }
         };
-        let committed_height = courtyard.1.clone();
         let on_height_blur = {
             let begin_height = submit;
             move |_| {
                 let draft = height();
-                if draft != committed_height {
-                    begin_height.call(DefinitionFieldEdit {
-                        row: None,
-                        edit: DefinitionEdit::CourtyardHeight(draft),
-                    });
-                }
+                begin_height.call(DefinitionFieldEdit {
+                    row: None,
+                    edit: DefinitionEdit::CourtyardHeight(draft),
+                });
             }
         };
         let committed_width = courtyard.0.clone();
-        let width_keydown = move |event| draft_keydown(event, width, committed_width.clone());
+        let width_keydown =
+            move |event| draft_keydown(event, width, width_dirty, committed_width.clone());
         let committed_height = courtyard.1.clone();
-        let height_keydown = move |event| draft_keydown(event, height, committed_height.clone());
+        let height_keydown =
+            move |event| draft_keydown(event, height, height_dirty, committed_height.clone());
         let add_pad_pending = pending.is_pending(&DefinitionFieldKey::AddPad);
 
         rsx! {
@@ -468,14 +578,14 @@ pub(crate) mod ui {
                     label { "Width", input {
                         aria_label: "Courtyard width",
                         r#type: "number", min: "0.01", step: "0.1", value: "{width()}",
-                        oninput: move |event| width.set(event.value()),
+                        oninput: move |event| { width.set(event.value()); width_dirty.set(true); },
                         onblur: on_width_blur,
                         onkeydown: width_keydown,
                     } }
                     label { "Height", input {
                         aria_label: "Courtyard height",
                         r#type: "number", min: "0.01", step: "0.1", value: "{height()}",
-                        oninput: move |event| height.set(event.value()),
+                        oninput: move |event| { height.set(event.value()); height_dirty.set(true); },
                         onblur: on_height_blur,
                         onkeydown: height_keydown,
                     } }
@@ -508,6 +618,40 @@ pub(crate) mod ui {
                 }
             }
         }
+    }
+
+    /// Admission compares only fresh accepted projection. Submitted-draft memory and
+    /// terminal restoration remain in the helper.
+    fn field_matches_accepted(
+        key: &DefinitionFieldKey,
+        edit: &DefinitionEdit,
+        submitted: &str,
+        definition: &PartDefinition,
+    ) -> bool {
+        match edit {
+            DefinitionEdit::Kind(kind) => return *kind == definition.kind,
+            DefinitionEdit::CourtyardWidth(_) => return submitted == courtyard_size(definition).0,
+            DefinitionEdit::CourtyardHeight(_) => return submitted == courtyard_size(definition).1,
+            DefinitionEdit::AddPad | DefinitionEdit::RemovePad { .. } => return false,
+            _ => {}
+        }
+        let pad_id = match edit {
+            DefinitionEdit::PadId { pad_id, .. }
+            | DefinitionEdit::PadNumber { pad_id, .. }
+            | DefinitionEdit::PadCoordinate { pad_id, .. }
+            | DefinitionEdit::PadSize { pad_id, .. }
+            | DefinitionEdit::PadDrill { pad_id, .. }
+            | DefinitionEdit::PadShape { pad_id, .. } => pad_id,
+            _ => return false,
+        };
+        let Some(pad) = definition.pads.iter().find(|pad| &pad.id == pad_id) else {
+            return false;
+        };
+        if let DefinitionEdit::PadShape { shape, .. } = edit {
+            return *shape == pad.shape;
+        }
+        matches!(key, DefinitionFieldKey::Pad { field, .. }
+            if field.text_index().is_some_and(|index| RowDrafts::accepted_texts(pad)[index] == submitted))
     }
 
     /// The accepted text one committed field settles back to. A vanished row keeps its
@@ -628,8 +772,8 @@ pub(crate) mod ui {
         #[cfg(test)]
         if index == 0 {
             PAD_NUMBER_DRAFT_FOR_TEST.with(|draft| {
-                *draft.borrow_mut() =
-                    Some(drafts.drafts[PadField::Number.text_index().unwrap_or_default()]);
+                let index = PadField::Number.text_index().unwrap_or_default();
+                *draft.borrow_mut() = Some((drafts.drafts[index], drafts.dirty[index]));
             });
         }
         let mut id = drafts.drafts[0];
@@ -639,138 +783,124 @@ pub(crate) mod ui {
         let mut size_x = drafts.drafts[4];
         let mut size_y = drafts.drafts[5];
         let mut drill = drafts.drafts[6];
+        let [
+            mut id_dirty,
+            mut number_dirty,
+            mut x_dirty,
+            mut y_dirty,
+            mut size_x_dirty,
+            mut size_y_dirty,
+            mut drill_dirty,
+        ] = drafts.dirty;
 
         let submit_id = submit;
         let old_id = pad.id.clone();
-        let blur_committed_id = pad.id.clone();
         let committed_id = pad.id.clone();
         let on_id_blur = move |_| {
             let draft = id().trim().to_owned();
-            if draft != blur_committed_id.as_str() {
-                submit_id.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadId {
-                        pad_id: old_id.clone(),
-                        value: draft,
-                    },
-                });
-            }
+            submit_id.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadId {
+                    pad_id: old_id.clone(),
+                    value: draft,
+                },
+            });
         };
-        let id_keydown = move |event| draft_keydown(event, id, committed_id.clone());
+        let id_keydown = move |event| draft_keydown(event, id, id_dirty, committed_id.clone());
         let submit_number = submit;
         let old_id = pad.id.clone();
-        let blur_committed_number = pad.number.clone();
         let committed_number = pad.number.clone();
         let on_number_blur = move |_| {
             let draft = number().trim().to_owned();
-            if draft != blur_committed_number.as_str() {
-                submit_number.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadNumber {
-                        pad_id: old_id.clone(),
-                        value: draft,
-                    },
-                });
-            }
+            submit_number.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadNumber {
+                    pad_id: old_id.clone(),
+                    value: draft,
+                },
+            });
         };
-        let number_keydown = move |event| draft_keydown(event, number, committed_number.clone());
+        let number_keydown =
+            move |event| draft_keydown(event, number, number_dirty, committed_number.clone());
         let submit_x = submit;
         let old_id = pad.id.clone();
-        let blur_committed_x = pad.at.x.to_string();
         let committed_x = pad.at.x.to_string();
         let on_x_blur = move |_| {
-            if x() != blur_committed_x.as_str() {
-                submit_x.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadCoordinate {
-                        pad_id: old_id.clone(),
-                        axis: Axis::X,
-                        value: x(),
-                    },
-                });
-            }
+            submit_x.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadCoordinate {
+                    pad_id: old_id.clone(),
+                    axis: Axis::X,
+                    value: x(),
+                },
+            });
         };
-        let x_keydown = move |event| draft_keydown(event, x, committed_x.clone());
+        let x_keydown = move |event| draft_keydown(event, x, x_dirty, committed_x.clone());
         let submit_y = submit;
         let old_id = pad.id.clone();
-        let blur_committed_y = pad.at.y.to_string();
         let committed_y = pad.at.y.to_string();
         let on_y_blur = move |_| {
-            if y() != blur_committed_y.as_str() {
-                submit_y.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadCoordinate {
-                        pad_id: old_id.clone(),
-                        axis: Axis::Y,
-                        value: y(),
-                    },
-                });
-            }
+            submit_y.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadCoordinate {
+                    pad_id: old_id.clone(),
+                    axis: Axis::Y,
+                    value: y(),
+                },
+            });
         };
-        let y_keydown = move |event| draft_keydown(event, y, committed_y.clone());
+        let y_keydown = move |event| draft_keydown(event, y, y_dirty, committed_y.clone());
         let submit_width = submit;
         let old_id = pad.id.clone();
-        let blur_committed_width = pad.size.x.to_string();
         let committed_width = pad.size.x.to_string();
         let on_width_blur = move |_| {
-            if size_x() != blur_committed_width.as_str() {
-                submit_width.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadSize {
-                        pad_id: old_id.clone(),
-                        axis: Axis::X,
-                        value: size_x(),
-                    },
-                });
-            }
+            submit_width.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadSize {
+                    pad_id: old_id.clone(),
+                    axis: Axis::X,
+                    value: size_x(),
+                },
+            });
         };
-        let width_keydown = move |event| draft_keydown(event, size_x, committed_width.clone());
+        let width_keydown =
+            move |event| draft_keydown(event, size_x, size_x_dirty, committed_width.clone());
         let submit_height = submit;
         let old_id = pad.id.clone();
-        let blur_committed_height = pad.size.y.to_string();
         let committed_height = pad.size.y.to_string();
         let on_height_blur = move |_| {
-            if size_y() != blur_committed_height.as_str() {
-                submit_height.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadSize {
-                        pad_id: old_id.clone(),
-                        axis: Axis::Y,
-                        value: size_y(),
-                    },
-                });
-            }
+            submit_height.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadSize {
+                    pad_id: old_id.clone(),
+                    axis: Axis::Y,
+                    value: size_y(),
+                },
+            });
         };
-        let height_keydown = move |event| draft_keydown(event, size_y, committed_height.clone());
+        let height_keydown =
+            move |event| draft_keydown(event, size_y, size_y_dirty, committed_height.clone());
         let submit_drill = submit;
         let old_id = pad.id.clone();
-        let blur_committed_drill = pad
-            .drill
-            .map(|number| number.to_string())
-            .unwrap_or_default();
         let committed_drill = pad
             .drill
             .map(|number| number.to_string())
             .unwrap_or_default();
         let on_drill_blur = move |_| {
-            if drill() != blur_committed_drill.as_str() {
-                submit_drill.call(DefinitionFieldEdit {
-                    row: Some(row),
-                    edit: DefinitionEdit::PadDrill {
-                        pad_id: old_id.clone(),
-                        value: drill(),
-                    },
-                });
-            }
+            submit_drill.call(DefinitionFieldEdit {
+                row: Some(row),
+                edit: DefinitionEdit::PadDrill {
+                    pad_id: old_id.clone(),
+                    value: drill(),
+                },
+            });
         };
-        let drill_keydown = move |event| draft_keydown(event, drill, committed_drill.clone());
+        let drill_keydown =
+            move |event| draft_keydown(event, drill, drill_dirty, committed_drill.clone());
         let submit_shape = submit;
         let old_id = pad.id.clone();
-        let committed_shape = shape_name(&pad.shape).to_owned();
         let on_shape = move |event: FormEvent| {
-            if let Some(shape) = parse_shape(&event.value())
-                && committed_shape != event.value()
-            {
+            if let Some(shape) = parse_shape(&event.value()) {
                 submit_shape.call(DefinitionFieldEdit {
                     row: Some(row),
                     edit: DefinitionEdit::PadShape {
@@ -795,17 +925,17 @@ pub(crate) mod ui {
             fieldset { class: "m1-definition-pad", disabled: locked,
                 legend { "Pad {index + 1}" }
                 div { class: "m1-definition-pad-grid",
-                    label { "ID", input { aria_label: "Pad {index + 1} ID", value: "{id()}", oninput: move |event| id.set(event.value()), onblur: on_id_blur, onkeydown: id_keydown } }
-                    label { "Number", input { aria_label: "Pad {index + 1} number", value: "{number()}", oninput: move |event| number.set(event.value()), onblur: on_number_blur, onkeydown: number_keydown } }
-                    label { "X", input { aria_label: "Pad {index + 1} X", r#type: "number", step: "0.1", value: "{x()}", oninput: move |event| x.set(event.value()), onblur: on_x_blur, onkeydown: x_keydown } }
-                    label { "Y", input { aria_label: "Pad {index + 1} Y", r#type: "number", step: "0.1", value: "{y()}", oninput: move |event| y.set(event.value()), onblur: on_y_blur, onkeydown: y_keydown } }
-                    label { "Width", input { aria_label: "Pad {index + 1} width", r#type: "number", min: "0.01", step: "0.1", value: "{size_x()}", oninput: move |event| size_x.set(event.value()), onblur: on_width_blur, onkeydown: width_keydown } }
-                    label { "Height", input { aria_label: "Pad {index + 1} height", r#type: "number", min: "0.01", step: "0.1", value: "{size_y()}", oninput: move |event| size_y.set(event.value()), onblur: on_height_blur, onkeydown: height_keydown } }
+                    label { "ID", input { aria_label: "Pad {index + 1} ID", value: "{id()}", oninput: move |event| { id.set(event.value()); id_dirty.set(true); }, onblur: on_id_blur, onkeydown: id_keydown } }
+                    label { "Number", input { aria_label: "Pad {index + 1} number", value: "{number()}", oninput: move |event| { number.set(event.value()); number_dirty.set(true); }, onblur: on_number_blur, onkeydown: number_keydown } }
+                    label { "X", input { aria_label: "Pad {index + 1} X", r#type: "number", step: "0.1", value: "{x()}", oninput: move |event| { x.set(event.value()); x_dirty.set(true); }, onblur: on_x_blur, onkeydown: x_keydown } }
+                    label { "Y", input { aria_label: "Pad {index + 1} Y", r#type: "number", step: "0.1", value: "{y()}", oninput: move |event| { y.set(event.value()); y_dirty.set(true); }, onblur: on_y_blur, onkeydown: y_keydown } }
+                    label { "Width", input { aria_label: "Pad {index + 1} width", r#type: "number", min: "0.01", step: "0.1", value: "{size_x()}", oninput: move |event| { size_x.set(event.value()); size_x_dirty.set(true); }, onblur: on_width_blur, onkeydown: width_keydown } }
+                    label { "Height", input { aria_label: "Pad {index + 1} height", r#type: "number", min: "0.01", step: "0.1", value: "{size_y()}", oninput: move |event| { size_y.set(event.value()); size_y_dirty.set(true); }, onblur: on_height_blur, onkeydown: height_keydown } }
                     label { "Shape", select { aria_label: "Pad {index + 1} shape", value: "{shape_name(&pad.shape)}", onchange: on_shape,
                         option { value: "circle", "Circle" } option { value: "oval", "Oval" }
                         option { value: "rect", "Rectangle" } option { value: "roundrect", "Rounded rectangle" }
                     } }
-                    label { "Drill", input { aria_label: "Pad {index + 1} drill", r#type: "number", min: "0.01", step: "0.1", placeholder: "None", value: "{drill()}", oninput: move |event| drill.set(event.value()), onblur: on_drill_blur, onkeydown: drill_keydown } }
+                    label { "Drill", input { aria_label: "Pad {index + 1} drill", r#type: "number", min: "0.01", step: "0.1", placeholder: "None", value: "{drill()}", oninput: move |event| { drill.set(event.value()); drill_dirty.set(true); }, onblur: on_drill_blur, onkeydown: drill_keydown } }
                 }
                 button { class: "m1-definition-remove-pad", r#type: "button", disabled: remove_pending, onclick: on_remove, "Remove pad" }
             }
@@ -871,10 +1001,16 @@ pub(crate) mod ui {
             _ => None,
         }
     }
-    fn draft_keydown(event: KeyboardEvent, mut draft: Signal<String>, accepted: String) {
+    fn draft_keydown(
+        event: KeyboardEvent,
+        mut draft: Signal<String>,
+        mut dirty: Signal<bool>,
+        accepted: String,
+    ) {
         if event.key() == Key::Escape {
             event.prevent_default();
             draft.set(accepted);
+            dirty.set(false);
         } else if event.key() == Key::Enter
             && let Some(input) = event
                 .data()

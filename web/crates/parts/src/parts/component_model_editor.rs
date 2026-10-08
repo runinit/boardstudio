@@ -681,11 +681,11 @@ pub fn ComponentModelEditor(
                 }
                 fieldset {
                     legend { "Model alignment" }
-                    ModelVectorEditor { key: "{owner:?}-Offset", title: "Offset", value: model.offset, unit: "mm", positive: false,
+                    ModelVectorEditor { key: "{owner:?}-Offset", field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
                         on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) }
-                    ModelVectorEditor { key: "{owner:?}-Rotation", title: "Rotation", value: model.rotation, unit: "°", positive: false,
+                    ModelVectorEditor { key: "{owner:?}-Rotation", field: VectorField::Rotation, title: "Rotation", value: model.rotation, unit: "°", positive: false,
                         on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) }
-                    ModelVectorEditor { key: "{owner:?}-Scale", title: "Scale", value: model.scale, unit: "×", positive: true,
+                    ModelVectorEditor { key: "{owner:?}-Scale", field: VectorField::Scale, title: "Scale", value: model.scale, unit: "×", positive: true,
                         on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) }
                 }
                 button { r#type: "button", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
@@ -708,6 +708,7 @@ pub fn ComponentModelEditor(
 
 #[component]
 fn ModelVectorEditor(
+    field: VectorField,
     title: &'static str,
     value: Vec3,
     unit: &'static str,
@@ -721,11 +722,6 @@ fn ModelVectorEditor(
     // it by the model owner), so its lifetime is the owner lifetime and it settles its
     // own axes here, like the render-body settlement it replaces.
     let pending = use_hook(|| PendingEditSignals::<ModelKey>::new());
-    let field = match title {
-        "Offset" => VectorField::Offset,
-        "Rotation" => VectorField::Rotation,
-        _ => VectorField::Scale,
-    };
     let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
@@ -765,7 +761,7 @@ fn ModelVectorEditor(
     }
     // Settle this editor's axes before rendering: a failure restores the accepted
     // value and reports inline; landed and retired edits drop silently.
-    pending.settle(true, |key| match key {
+    let settled = pending.settle(true, |key| match key {
         ModelKey::Transform { axis, .. } => match axis {
             Axis::X => value.x,
             Axis::Y => value.y,
@@ -774,12 +770,29 @@ fn ModelVectorEditor(
         .to_string(),
         _ => String::new(),
     });
+    for result in settled {
+        let key = match result {
+            PendingEditResult::Landed { key, .. }
+            | PendingEditResult::Failed { key, .. }
+            | PendingEditResult::Retired { key } => key,
+        };
+        if let ModelKey::Transform { axis, .. } = key {
+            let index = match axis {
+                Axis::X => 0,
+                Axis::Y => 1,
+                Axis::Z => 2,
+            };
+            // Blur admission lasts only as long as the latest axis edit is pending.
+            submitted.write()[index] = None;
+        }
+    }
     rsx! {
         fieldset { class: "m1-model-vector",
             legend { "{title} · {unit}" }
             for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
                 {
                     let pending = pending.clone();
+                    let pending_for_escape = pending.clone();
                     let runtime = runtime.clone();
                     rsx! {
                     label { class: "m1-generator-field", "{label}",
@@ -815,8 +828,8 @@ fn ModelVectorEditor(
                                         resolver,
                                         &raw,
                                     );
+                                    submitted.write()[index] = Some(raw);
                                 }
-                                submitted.write()[index] = Some(raw);
                             }
                         },
                         onkeydown: move |event: KeyboardEvent| {
@@ -826,7 +839,11 @@ fn ModelVectorEditor(
                             {
                                 let _ = input.blur();
                             } else if key == "Escape" {
-                                let restored = submitted.peek()[index].clone().unwrap_or_else(|| current[index].to_string());
+                                let restored = if pending_for_escape.is_pending(&ModelKey::Transform { field, axis }) {
+                                    submitted.peek()[index].clone().unwrap_or_else(|| current[index].to_string())
+                                } else {
+                                    current[index].to_string()
+                                };
                                 drafts[index].set(restored);
                                 error.set(None);
                             }
@@ -901,7 +918,7 @@ mod settlement_tests {
         });
         let accepted = runtime.model().accepted.unwrap();
         let model = initial_model(&accepted.document.definitions[0]).unwrap();
-        rsx! { ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false,
+        rsx! { ModelVectorEditor { field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
             on_commit: move |(axis, _submitted, value)| Some(offset_edit(axis, value))
         } }
     }
@@ -930,6 +947,53 @@ mod settlement_tests {
         tick().await;
         input.blur().unwrap();
         tick().await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_model_axis_can_commit_the_same_text_after_undo() {
+        let runtime = opened().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        tick().await;
+        let x = input(&root, "X");
+        commit(&x, "4").await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x,
+            4.0,
+            "the first model alignment edit lands"
+        );
+        runtime.submit(boardstudio_application::Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(x.value(), "0", "Undo restores the accepted axis value");
+
+        commit(&x, "4").await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x,
+            4.0,
+            "the same typed text can land again after Undo"
+        );
+        runtime.unsubscribe();
+        root.remove();
     }
 
     #[wasm_bindgen_test]

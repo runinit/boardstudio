@@ -363,7 +363,7 @@ where
     ///   field's draft while that draft still is the submitted value; retirement is
     ///   silent. *Failed* additionally reports the message inline. A newer draft is
     ///   never overwritten; its field still receives the failure message.
-    /// - Any terminal re-enables a bound one-shot control.
+    /// - Any terminal re-enables a bound one-shot control and releases its submitted value.
     ///
     /// Every drained result is returned in drain order for caller follow-ups — Landed
     /// revisions, failure placement beyond the field, and domain projection the
@@ -382,6 +382,11 @@ where
                 | PendingEditResult::Retired { key } => {
                     self.apply_to_field(key, result, &accepted);
                     self.release_one_shot(key);
+                    // Both consumers need the captured epochs before releasing this record.
+                    self.shared
+                        .submitted
+                        .borrow_mut()
+                        .retain(|submission| submission.key != *key);
                 }
             }
         }
@@ -1287,6 +1292,142 @@ mod mounted_tests {
                 key: Field::Name,
                 revision: 0
             }]
+        );
+    }
+
+    #[derive(Clone, PartialEq)]
+    struct RetainedDraft {
+        text: String,
+        marker: Option<Rc<()>>,
+    }
+
+    #[derive(Clone)]
+    struct RetentionProbe {
+        runtime: TestRuntime,
+        initial: Rc<RefCell<Option<RetainedDraft>>>,
+        results: Rc<RefCell<Vec<PendingEditResult<Field>>>>,
+    }
+
+    fn retention_host() -> Element {
+        let probe = use_context::<RetentionProbe>();
+        let helpers = use_hook(PendingEditSignals::<Field, RetainedDraft>::new);
+        let draft = use_signal(|| probe.initial.borrow_mut().take().expect("initial draft"));
+        let failure = use_signal(|| None::<String>);
+        let disabled = use_signal(|| false);
+        use_hook({
+            let helpers = helpers.clone();
+            move || {
+                helpers.bind_field(Field::Name, draft, failure);
+                helpers.bind_one_shot(Field::Name, disabled);
+            }
+        });
+        use_drop({
+            let helpers = helpers.clone();
+            move || {
+                helpers.unbind_field(&Field::Name);
+                helpers.unbind_one_shot(&Field::Name);
+            }
+        });
+        rsx! {
+            input { id: "retention-draft", value: "{draft().text}" }
+            if let Some(message) = failure() {
+                p { id: "retention-failure", "{message}" }
+            }
+            button { id: "begin-retention", disabled: disabled(), onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = probe.runtime.clone();
+                    move |_| helpers.begin_value(&runtime, Field::Name, "retained-draft",
+                        Some("name".into()), rename_resolver("Retained"), &draft.peek().clone())
+                }, "begin retained draft" }
+            button { id: "settle-retention", onclick: {
+                    let helpers = helpers.clone();
+                    let results = probe.results.clone();
+                    move |_| {
+                        *results.borrow_mut() = helpers.settle(true, |_| RetainedDraft {
+                            text: "PROJECTED".into(),
+                            marker: None,
+                        });
+                    }
+                }, "settle retained draft" }
+        }
+    }
+
+    async fn mount_retention_fixture(
+        runtime: TestRuntime,
+        initial: RetainedDraft,
+    ) -> RetentionProbe {
+        let probe = RetentionProbe {
+            runtime,
+            initial: Rc::new(RefCell::new(Some(initial))),
+            results: Default::default(),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        if let Some(previous) = document.get_element_by_id(root_id()) {
+            previous.remove();
+        }
+        let root = document.create_element("div").unwrap();
+        root.set_id(root_id());
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(retention_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        rendered().await;
+        rendered().await;
+        probe
+    }
+
+    #[wasm_bindgen_test]
+    async fn terminal_settlement_releases_submitted_typed_draft() {
+        let runtime = opened_runtime("Original").await;
+        let marker = Rc::new(());
+        let retained = Rc::downgrade(&marker);
+        let probe = mount_retention_fixture(
+            runtime.clone(),
+            RetainedDraft {
+                text: "Submitted".into(),
+                marker: Some(marker),
+            },
+        )
+        .await;
+        assert!(
+            probe.initial.borrow().is_none(),
+            "the caller drops its initial draft"
+        );
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-retention");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the real name edit reached Core");
+        assert!(element("#begin-retention").has_attribute("disabled"));
+        assert!(
+            retained.upgrade().is_some(),
+            "the pending draft remains live"
+        );
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-retention");
+        rendered().await;
+        assert!(matches!(
+            probe.results.borrow().as_slice(),
+            [PendingEditResult::Landed {
+                key: Field::Name,
+                revision: 1
+            }]
+        ));
+        assert_eq!(
+            element("#retention-draft")
+                .dyn_into::<HtmlInputElement>()
+                .unwrap()
+                .value(),
+            "PROJECTED"
+        );
+        assert!(!element("#begin-retention").has_attribute("disabled"));
+        assert!(
+            retained.upgrade().is_none(),
+            "a drained terminal releases the submitted draft while the helper stays mounted"
         );
     }
 

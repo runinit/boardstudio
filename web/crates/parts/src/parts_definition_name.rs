@@ -15,6 +15,7 @@ mod ui {
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
+    use std::cell::RefCell;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlInputElement;
@@ -36,9 +37,9 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let mut draft = use_signal(|| definition.name.clone());
+        let mut draft_dirty = use_signal(|| false);
         let mut failure = use_signal(|| None::<String>);
         let pending = use_hook(|| PendingEditSignals::<NameFieldKey>::new());
-        pending.bind_field(NameFieldKey::Name, draft, failure);
         // Subscribe to the workspace's runtime-change version: outcomes settle outside
         // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
         // even when the accepted document did not change (for example a failed save).
@@ -49,20 +50,44 @@ mod ui {
         let mut section_chosen = use_signal(|| false);
         let section_owner = (scope.clone(), definition.id.clone());
         let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
+        let observation_owner = use_hook(|| Rc::new(RefCell::new(capture.clone())));
+        if *observation_owner.borrow() != capture {
+            // Detach the old owner's Signals before silently retiring its observations.
+            // The Session still owns and executes the already committed edits.
+            pending.unbind_field(&NameFieldKey::Name);
+            pending.settle(false, |_| String::new());
+            *observation_owner.borrow_mut() = capture.clone();
+            draft.set(definition.name.clone());
+            draft_dirty.set(false);
+            failure.set(None);
+        }
+        pending.bind_field(NameFieldKey::Name, draft, failure);
+        use_drop({
+            let pending = pending.clone();
+            move || {
+                pending.unbind_field(&NameFieldKey::Name);
+                pending.settle(false, |_| String::new());
+            }
+        });
         // A fresh accepted snapshot is required at commit time, but it is not
         // a reason to discard a dirty field draft. React DraftInput keys its
         // reset to the accepted field value; keep this target identity
         // independent from the snapshot capture that protects submission.
-        let draft_identity = (
-            scope.clone(),
-            selection(),
-            definition.id.clone(),
-            definition.name.clone(),
-        );
+        let draft_identity = (scope.clone(), selection(), definition.id.clone());
         use_effect(use_reactive((&draft_identity,), {
             let definition = definition.clone();
             move |(_identity,)| {
                 draft.set(definition.name.clone());
+                draft_dirty.set(false);
+                failure.set(None);
+            }
+        }));
+        let accepted_name = definition.name.clone();
+        use_effect(use_reactive((&accepted_name,), move |(value,)| {
+            // A newer user draft may equal the previous accepted name. Its dirty
+            // marker, rather than value equality, protects it when an older edit lands.
+            if !draft_dirty() {
+                draft.set(value);
             }
         }));
         use_effect(use_reactive((&pad_count,), move |(pad_count,)| {
@@ -90,6 +115,12 @@ mod ui {
                 capture.owner_matches(current, runtime.scope(), selection())
             });
             let results = pending.settle(owner_live, |_| definition.name.clone());
+            if !results.is_empty()
+                && !pending.is_pending(&NameFieldKey::Name)
+                && *draft.peek() == definition.name
+            {
+                draft_dirty.set(false);
+            }
             for result in &results {
                 if let PendingEditResult::Failed { message, .. } = result {
                     failure.set(Some(message.clone()));
@@ -102,7 +133,6 @@ mod ui {
             let runtime = runtime.clone();
             let capture = capture.clone();
             let selection = selection;
-            let accepted_name = accepted_name.clone();
             move |_| {
                 let model = runtime.model();
                 let Some(current) = model.accepted else {
@@ -112,7 +142,15 @@ mod ui {
                     return;
                 }
                 let name = draft();
-                if name == accepted_name {
+                if !pending.is_pending(&NameFieldKey::Name)
+                    && current
+                        .document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == capture.definition_id)
+                        .is_some_and(|definition| definition.name == name)
+                {
+                    draft_dirty.set(false);
                     return;
                 }
                 let resolver = definition_name_resolver(capture.definition_id.clone(), name);
@@ -134,6 +172,7 @@ mod ui {
                 if event.key() == Key::Escape {
                     event.prevent_default();
                     keydown_draft.set(value.clone());
+                    draft_dirty.set(false);
                 } else if event.key() == Key::Enter
                     && let Some(input) = event
                         .data()
@@ -166,7 +205,10 @@ mod ui {
                             input {
                                 aria_label: "Definition name",
                                 value: "{draft()}",
-                                oninput: move |event| draft.set(event.value()),
+                                oninput: move |event| {
+                                    draft.set(event.value());
+                                    draft_dirty.set(true);
+                                },
                                 onblur: on_blur,
                                 onkeydown: on_keydown,
                             }
@@ -1562,6 +1604,271 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_rejected_pad_number_keeps_newer_text_beside_the_failure() {
+        let mut document = courtyard_document("Pad failure");
+        document.definitions[0].pads = serde_json::from_value(serde_json::json!([
+            {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"},
+            {"id":"b","number":"2","at":{"x":3.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+        ])).unwrap();
+        let (runtime, snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the width edit reaches Core");
+
+        // Duplicate numbers are rejected by the resolver, without making the
+        // Session enter persistence or Core recovery.
+        type_value(&pad_number_input(&root), "2");
+        let _ = pad_number_input(&root).blur();
+        settle().await;
+        type_value(&pad_number_input(&root), "9");
+        settle().await;
+        release.send(()).expect("release the held width reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.revision, snapshot.document.revision + 1);
+        assert_eq!(accepted.document.definitions[0].pads[0].number, "1");
+        assert_eq!(pad_number_input(&root).value(), "9");
+        let alert = root
+            .query_selector("[role='alert']")
+            .unwrap()
+            .expect("the older failure remains inline")
+            .text_content()
+            .unwrap();
+        assert!(
+            alert.contains("Pad numbers must be unique"),
+            "the failure explains duplicate numbers: {alert}"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_recommitted_name_and_width_baselines_win_over_pending_values() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Original name"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&input(&root), "Renamed");
+        let _ = input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the initial rename reaches Core");
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+
+        // These are committed values, even though the accepted document still has
+        // them: their earlier edits are waiting and must not become the final values.
+        type_value(&input(&root), "Original name");
+        let _ = input(&root).blur();
+        settle().await;
+        type_value(&courtyard_width_input(&root), "10");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        release.send(()).expect("release the held rename reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            (
+                accepted.document.definitions[0].name.as_str(),
+                definition_bounds(&accepted.document).0
+            ),
+            ("Original name", 10.0),
+            "the latest committed values win for both fields"
+        );
+        assert_eq!(accepted.document.revision, snapshot.document.revision + 4);
+        assert_eq!(input(&root).value(), "Original name");
+        assert_eq!(courtyard_width_input(&root).value(), "10");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_landed_pad_number_keeps_a_newer_draft_returning_to_baseline() {
+        let mut document = courtyard_document("Pad draft");
+        document.definitions[0].pads = serde_json::from_value(serde_json::json!([
+            {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+        ]))
+        .unwrap();
+        let (runtime, _snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&pad_number_input(&root), "7");
+        let _ = pad_number_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the pad number edit reaches Core");
+
+        type_value(&pad_number_input(&root), "1");
+        settle().await;
+        release.send(()).expect("release the held pad number reply");
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].pads[0].number,
+            "7"
+        );
+        assert_eq!(
+            pad_number_input(&root).value(),
+            "1",
+            "the newer pad draft survives its accepted refresh"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_landed_courtyard_keeps_a_newer_draft_then_clean_undo_redo_syncs() {
+        let (runtime, _snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Courtyard"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the width edit reaches Core");
+        type_value(&courtyard_width_input(&root), "10");
+        settle().await;
+        release.send(()).expect("release the held width reply");
+        accept_edits(&runtime, &controls).await;
+
+        assert_eq!(
+            definition_bounds(&runtime.model().accepted.unwrap().document).0,
+            12.0
+        );
+        assert_eq!(
+            courtyard_width_input(&root).value(),
+            "10",
+            "the newer baseline draft survives landing"
+        );
+
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Escape");
+        init.set_bubbles(true);
+        courtyard_width_input(&root)
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        settle().await;
+        assert_eq!(courtyard_width_input(&root).value(), "12");
+        runtime.submit(AppEvent::Undo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            courtyard_width_input(&root).value(),
+            "10",
+            "a clean field follows Undo"
+        );
+        runtime.submit(AppEvent::Redo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            courtyard_width_input(&root).value(),
+            "12",
+            "a clean field follows Redo"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_definition_switch_retires_old_name_and_courtyard_observations() {
+        let mut document = courtyard_document("Original name");
+        let mut other = document.definitions[0].clone();
+        other.id = "other".into();
+        other.name = "Other definition".into();
+        document.definitions.push(other);
+        let (runtime, snapshot, scope, state, root) = mount_panel(document, false).await;
+        let mut controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        // Target departure is a resolver rejection, so the Session remains usable.
+        let mut removed = snapshot.document.as_ref().clone();
+        removed.definitions.remove(0);
+        support::submit_fixed_command(
+            &runtime,
+            boardstudio_core::model::EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: "definition-departs-before-owner-switch".into(),
+                phase: boardstudio_core::model::EditPhase::Commit,
+                target_ids: vec!["selected".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(removed),
+                },
+            },
+        );
+        support::drive_pending(&runtime);
+        entered.await.expect("the departure reaches Core");
+
+        type_value(&input(&root), "Too late");
+        let _ = input(&root).blur();
+        settle().await;
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        controls.selection.set(Some((scope, "other".into())));
+        controls
+            .definition
+            .set(snapshot.document.definitions[1].clone());
+        settle().await;
+
+        release.send(()).expect("release the held departure reply");
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].id,
+            "other"
+        );
+        assert_eq!(input(&root).value(), "Other definition");
+        assert_eq!(courtyard_width_input(&root).value(), "10");
+        assert!(
+            root.query_selector("[role='alert']").unwrap().is_none(),
+            "old owner failures never reach the replacement definition"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_landed_name_keeps_a_newer_draft_returning_to_the_original_name() {
+        let (runtime, _snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Original name"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&input(&root), "Renamed");
+        let _ = input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the rename reaches Core before the newer draft");
+
+        // Returning to the old accepted text is still a newer user draft.
+        type_value(&input(&root), "Original name");
+        settle().await;
+        release.send(()).expect("release the held rename reply");
+        accept_edits(&runtime, &controls).await;
+
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].name,
+            "Renamed"
+        );
+        assert_eq!(
+            input(&root).value(),
+            "Original name",
+            "the accepted refresh preserves the newer draft"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn mounted_failed_save_returns_the_field_to_the_accepted_value_with_a_message() {
         let (runtime, snapshot, _scope, state, root) =
             mount_panel(courtyard_document("Courtyard"), false).await;
@@ -1766,11 +2073,7 @@ mod mounted_tests {
         );
 
         assert!(section_is_open(&root));
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("details summary")
+        root.query_selector("details summary")
             .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()

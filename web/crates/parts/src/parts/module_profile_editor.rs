@@ -7,7 +7,7 @@ use boardstudio_core::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -103,21 +103,10 @@ impl ModuleRotaryDraft {
     }
 }
 
-/// This panel's one bounded key: a module profile save covers the profile and rotary
-/// drafts together.
+/// Each typed field observes its latest save under one bounded key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ModuleProfileKey {
     Save,
-}
-
-/// The drafts the latest save was submitted with. The drafts are structured values, so
-/// the panel keeps this submitted-draft memory itself and settles through the raw
-/// [`PendingEdits`] collection (the shared Signal helper binds text fields only).
-#[derive(Clone)]
-struct ModuleProfileSave {
-    owner: ModuleProfileOwner,
-    profile: Option<ModuleProfileDraft>,
-    rotary: Option<ModuleRotaryDraft>,
 }
 
 #[derive(Clone)]
@@ -316,15 +305,23 @@ pub fn ModuleProfileEditor(
     );
     let mut draft = use_signal(|| baseline.clone());
     let mut rotary = use_signal(|| baseline_rotary.clone());
-    let synced = use_signal(|| (baseline.clone(), baseline_rotary.clone()));
+    let mut profile_dirty = use_signal(|| false);
+    let mut rotary_dirty = use_signal(|| false);
     let mut shape = use_signal(ModuleVolumeDraft::default);
     let mut reviewed = use_signal(|| false);
-    let edits = use_hook(|| {
-        Rc::new(std::cell::RefCell::new(
-            PendingEdits::<ModuleProfileKey>::default(),
-        ))
+    let profile_edits = use_hook(PendingEditSignals::<ModuleProfileKey, ModuleProfileDraft>::new);
+    let rotary_edits = use_hook(PendingEditSignals::<ModuleProfileKey, ModuleRotaryDraft>::new);
+    let mut failure = use_signal(|| None::<String>);
+    profile_edits.bind_field(ModuleProfileKey::Save, draft, failure);
+    rotary_edits.bind_field(ModuleProfileKey::Save, rotary, failure);
+    use_drop({
+        let profile_edits = profile_edits.clone();
+        let rotary_edits = rotary_edits.clone();
+        move || {
+            profile_edits.unbind_field(&ModuleProfileKey::Save);
+            rotary_edits.unbind_field(&ModuleProfileKey::Save);
+        }
     });
-    let pending = use_signal(|| None::<ModuleProfileSave>);
     let mut error = use_signal(|| None::<ModuleProfileError>);
     let draft_owner = (
         owner.session_epoch,
@@ -333,96 +330,80 @@ pub fn ModuleProfileEditor(
         owner.definition_id.clone(),
         owner.selection_generation,
     );
+    let mut processed_owner = use_signal(|| None);
     use_effect(use_reactive((&draft_owner,), {
         let baseline = baseline.clone();
         let baseline_rotary = baseline_rotary.clone();
-        move |_| {
+        let profile_edits = profile_edits.clone();
+        let rotary_edits = rotary_edits.clone();
+        move |(next_owner,)| {
+            // Settling may read the failure Signal, so a later failure can wake this
+            // effect without changing its owner. Only a new owner resets the drafts.
+            if processed_owner.peek().as_ref() == Some(&next_owner) {
+                return;
+            }
+            processed_owner.set(Some(next_owner));
+            // A new owner retires observations before its drafts replace the old ones.
+            let _ = profile_edits.settle(false, |_| baseline.clone());
+            let _ = rotary_edits.settle(false, |_| baseline_rotary.clone());
             draft.set(baseline.clone());
             rotary.set(baseline_rotary.clone());
+            profile_dirty.set(false);
+            rotary_dirty.set(false);
             error.set(None);
+            failure.set(None);
         }
     }));
     use_effect(use_reactive((&baseline, &baseline_rotary), {
         let mut draft = draft;
         let mut rotary = rotary;
-        let mut synced = synced;
         let mut reviewed = reviewed;
         move |(next_profile, next_rotary)| {
-            let next = (next_profile.clone(), next_rotary.clone());
-            if synced() != next {
-                let previous = synced();
-                if draft() == previous.0 {
-                    draft.set(next_profile);
-                }
-                if rotary() == previous.1 {
-                    rotary.set(next_rotary);
-                }
-                synced.set(next);
-                reviewed.set(false);
+            // New typing can return to the previous accepted value while a save waits.
+            // Only a clean draft follows accepted revisions, including Undo and Redo.
+            if !profile_dirty() {
+                draft.set(next_profile);
             }
+            if !rotary_dirty() {
+                rotary.set(next_rotary);
+            }
+            reviewed.set(false);
         }
     }));
     use_effect(use_reactive((&owner, &version()), {
         let runtime = runtime.clone();
-        let edits = edits.clone();
-        let mut pending = pending;
-        let mut draft = draft;
-        let mut rotary = rotary;
-        let mut error = error;
+        let owner = owner.clone();
+        let profile_edits = profile_edits.clone();
+        let rotary_edits = rotary_edits.clone();
+        let baseline = baseline.clone();
+        let baseline_rotary = baseline_rotary.clone();
         move |_| {
-            let Some(save) = pending.peek().clone() else {
-                return;
-            };
             let live = module_profile_owner_is_current(
                 &runtime,
-                &save.owner,
+                &owner,
                 &selected,
                 selection_generation(),
                 &workspace,
             )
             .is_some();
-            // The collection keeps only the latest observation, so a restored draft
-            // never loses a newer save's submitted value.
-            for result in edits.borrow_mut().settle(live) {
-                match &result {
-                    PendingEditResult::Landed { .. } | PendingEditResult::Failed { .. } => {
-                        if let Some(accepted) =
-                            runtime.model().accepted.as_ref().and_then(|snapshot| {
-                                snapshot
-                                    .document
-                                    .module_definitions
-                                    .iter()
-                                    .find(|definition| definition.id == save.owner.definition_id)
-                                    .cloned()
-                            })
-                        {
-                            if save
-                                .profile
-                                .as_ref()
-                                .is_some_and(|submitted| *submitted == draft())
-                            {
-                                draft.set(ModuleProfileDraft::from_definition(&accepted));
-                            }
-                            if save
-                                .rotary
-                                .as_ref()
-                                .is_some_and(|submitted| *submitted == rotary())
-                            {
-                                rotary.set(ModuleRotaryDraft::from_profile(
-                                    accepted.electrical.rotary_profile.as_ref(),
-                                ));
-                            }
-                        }
-                    }
-                    PendingEditResult::Retired { .. } => {}
-                }
-                if let PendingEditResult::Failed { message, .. } = result {
-                    error.set(Some(ModuleProfileError {
-                        owner: save.owner.clone(),
-                        message,
-                    }));
-                }
-                pending.set(None);
+            let accepted = runtime.model().accepted.and_then(|snapshot| {
+                snapshot.document.module_definitions.iter()
+                    .find(|definition| definition.id == owner.definition_id).cloned()
+            });
+            let accepted_profile = accepted.as_ref()
+                .map(ModuleProfileDraft::from_definition).unwrap_or_else(|| baseline.clone());
+            let accepted_rotary = accepted.as_ref()
+                .map(|definition| ModuleRotaryDraft::from_profile(definition.electrical.rotary_profile.as_ref()))
+                .unwrap_or_else(|| baseline_rotary.clone());
+            let profile_results = profile_edits.settle(live, |_| accepted_profile.clone());
+            let rotary_results = rotary_edits.settle(live, |_| accepted_rotary.clone());
+            // The helper owns submitted-value restoration. A restored accepted draft
+            // is clean again; newer typing keeps its independent dirty marker.
+            if !profile_results.is_empty() && *draft.peek() == accepted_profile {
+                profile_dirty.set(false);
+            }
+            if !rotary_results.is_empty() && *rotary.peek() == accepted_rotary {
+                rotary_dirty.set(false);
             }
         }
     }));
@@ -443,8 +424,10 @@ pub fn ModuleProfileEditor(
                 && feedback.owner.selection_generation == owner.selection_generation
                 && current_owner.is_some()
         })
-        .map(|feedback| feedback.message);
-    let busy = pending.peek().is_some();
+        .map(|feedback| feedback.message)
+        .or_else(|| current_owner.as_ref().and_then(|_| failure()));
+    let busy = profile_edits.is_pending(&ModuleProfileKey::Save)
+        || rotary_edits.is_pending(&ModuleProfileKey::Save);
     let runtime_for_add = runtime.clone();
     let add_volume = {
         let mut draft = draft;
@@ -540,6 +523,7 @@ pub fn ModuleProfileEditor(
                 source: shape_value.source.trim().into(),
                 qualified: shape_value.qualified,
             };
+            profile_dirty.set(true);
             draft.with_mut(|draft| {
                 if volume.purpose == "opening" {
                     draft.openings.push(volume);
@@ -559,7 +543,9 @@ pub fn ModuleProfileEditor(
         let baseline = baseline.clone();
         let draft = draft;
         let rotary = rotary;
-        let mut pending = pending;
+        let profile_edits = profile_edits.clone();
+        let rotary_edits = rotary_edits.clone();
+        let mut failure = failure;
         let mut error = error;
         let selected = selected;
         let selection_generation = selection_generation;
@@ -594,8 +580,7 @@ pub fn ModuleProfileEditor(
             } else {
                 (draft(), reviewed())
             };
-            let submitted_rotary = rotary_override.as_ref().map(|_| rotary());
-            let submitted_profile = rotary_override.is_none().then(|| profile_draft.clone());
+            let rotary_save = rotary_override.is_some();
             let resolver = module_profile_resolver(
                 owner.clone(),
                 original.clone(),
@@ -603,19 +588,19 @@ pub fn ModuleProfileEditor(
                 rotary_override,
                 reviewed,
             );
-            edits.borrow_mut().begin(
-                &runtime,
-                ModuleProfileKey::Save,
-                "parts-module-profile",
-                Some("module profile".into()),
-                resolver,
-            );
+            if rotary_save {
+                rotary_edits.begin_value(
+                    &runtime, ModuleProfileKey::Save, "parts-module-profile",
+                    Some("module profile".into()), resolver, &rotary.peek().clone(),
+                );
+            } else {
+                profile_edits.begin_value(
+                    &runtime, ModuleProfileKey::Save, "parts-module-profile",
+                    Some("module profile".into()), resolver, &draft.peek().clone(),
+                );
+            }
             error.set(None);
-            pending.set(Some(ModuleProfileSave {
-                owner: owner.clone(),
-                profile: submitted_profile,
-                rotary: submitted_rotary,
-            }));
+            failure.set(None);
         }
     });
 
@@ -632,12 +617,12 @@ pub fn ModuleProfileEditor(
                     legend { "Rotary encoder profile" }
                     p { class: "m1-parts-empty", "The source identifies its terminals and EC11 driver. Enter confirmed pulses and actions per rotation before expecting firmware export to qualify this module." }
                     div { class: "m1-generator-fields",
-                        label { class: "m1-generator-field", "A terminal", input { aria_label: "Rotary A terminal", value: "{rotary().a}", oninput: move |event| rotary.with_mut(|draft| draft.a = event.value()) } }
-                        label { class: "m1-generator-field", "B terminal", input { aria_label: "Rotary B terminal", value: "{rotary().b}", oninput: move |event| rotary.with_mut(|draft| draft.b = event.value()) } }
-                        label { class: "m1-generator-field", "Common terminal", input { aria_label: "Rotary common terminal", value: "{rotary().common}", oninput: move |event| rotary.with_mut(|draft| draft.common = event.value()) } }
-                        label { class: "m1-generator-field", "Driver", select { aria_label: "Rotary driver", value: "{rotary().driver}", onchange: move |event| rotary.with_mut(|draft| draft.driver = event.value()), option { value: "", "Choose driver…" } option { value: "ec11", "EC11" } } }
-                        label { class: "m1-generator-field", "Pulses per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary pulses per rotation", value: "{rotary().steps}", oninput: move |event| rotary.with_mut(|draft| draft.steps = event.value()) } }
-                        label { class: "m1-generator-field", "Actions per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary actions per rotation", value: "{rotary().triggers_per_rotation}", oninput: move |event| rotary.with_mut(|draft| draft.triggers_per_rotation = event.value()) } }
+                        label { class: "m1-generator-field", "A terminal", input { aria_label: "Rotary A terminal", value: "{rotary().a}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.a = event.value()); } } }
+                        label { class: "m1-generator-field", "B terminal", input { aria_label: "Rotary B terminal", value: "{rotary().b}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.b = event.value()); } } }
+                        label { class: "m1-generator-field", "Common terminal", input { aria_label: "Rotary common terminal", value: "{rotary().common}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.common = event.value()); } } }
+                        label { class: "m1-generator-field", "Driver", select { aria_label: "Rotary driver", value: "{rotary().driver}", onchange: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.driver = event.value()); }, option { value: "", "Choose driver…" } option { value: "ec11", "EC11" } } }
+                        label { class: "m1-generator-field", "Pulses per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary pulses per rotation", value: "{rotary().steps}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.steps = event.value()); } } }
+                        label { class: "m1-generator-field", "Actions per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary actions per rotation", value: "{rotary().triggers_per_rotation}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.triggers_per_rotation = event.value()); } } }
                     }
                     button { r#type: "button", onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
                 }
@@ -646,6 +631,7 @@ pub fn ModuleProfileEditor(
                 div { class: "m1-module-profile-volume", key: "volume-{volume.id}",
                     span { "{volume.purpose} · {volume.geometry.height} mm · " if volume.qualified { "Reviewed" } else { "Unreviewed" } " · {volume.source}" }
                     button { r#type: "button", aria_label: "Remove measured volume {index + 1}", onclick: move |_| {
+                        profile_dirty.set(true);
                         draft.with_mut(|draft| if index < draft.volumes.len() { draft.volumes.remove(index); });
                         error.set(None);
                     }, "Remove" }
@@ -655,6 +641,7 @@ pub fn ModuleProfileEditor(
                 div { class: "m1-module-profile-volume", key: "opening-{opening.id}",
                     span { "Opening · {opening.geometry.height} mm · " if opening.qualified { "Reviewed" } else { "Unreviewed" } " · {opening.source}" }
                     button { r#type: "button", aria_label: "Remove functional opening {index + 1}", onclick: move |_| {
+                        profile_dirty.set(true);
                         draft.with_mut(|draft| if index < draft.openings.len() { draft.openings.remove(index); });
                         error.set(None);
                     }, "Remove" }
@@ -681,6 +668,7 @@ pub fn ModuleProfileEditor(
                 label { class: "m1-generator-field", "Attach candidate model", select { aria_label: "Module candidate model", value: "", onchange: move |event| {
                     let asset_id = event.value();
                     if candidate_models_for_select.iter().any(|candidate| candidate.asset_id == asset_id) {
+                        profile_dirty.set(true);
                         draft.with_mut(|draft| if !draft.models.iter().any(|model| model.asset_id == asset_id) {
                             draft.models.push(PartModel {
                                 asset_id,
@@ -705,6 +693,7 @@ pub fn ModuleProfileEditor(
                             for (axis_name, value) in [("x", vector.x), ("y", vector.y), ("z", vector.z)] {
                                 label { class: "m1-generator-field", "{vector_name} {axis_name}", input { r#type: "number", step: "0.1", aria_label: "Module model {model_index + 1} {vector_name} {axis_name}", value: "{value}", oninput: move |event| {
                                     let value = event.value().parse::<f64>().unwrap_or(f64::NAN);
+                                    profile_dirty.set(true);
                                     draft.with_mut(|draft| if let Some(model) = draft.models.get_mut(model_index) {
                                         let vector = match vector_name { "offset" => &mut model.offset, "rotation" => &mut model.rotation, _ => &mut model.scale };
                                         match axis_name { "x" => vector.x = value, "y" => vector.y = value, _ => vector.z = value }
@@ -714,6 +703,7 @@ pub fn ModuleProfileEditor(
                         }
                     }
                     button { r#type: "button", aria_label: "Remove module model {model_index + 1}", onclick: move |_| {
+                        profile_dirty.set(true);
                         draft.with_mut(|draft| if model_index < draft.models.len() { draft.models.remove(model_index); });
                         error.set(None);
                     }, "Remove model" }
@@ -732,9 +722,120 @@ pub fn ModuleProfileEditor(
 mod settlement_tests {
     use super::*;
     use boardstudio_core::model::ProjectDoc;
-    use boardstudio_web_runtime::pending_edits::PendingEdits;
+    use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
+
+    fn mounted_host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let workspace = use_signal(|| "Parts");
+        use_context_provider(|| WorkspaceState(workspace));
+        let generation = use_signal(|| 1_u64);
+        use_context_provider(|| PartsSelectionGeneration(generation));
+        let selected = use_signal(|| Some((runtime.scope(), "module:module".into())));
+        let _ = version();
+        use_hook({
+            let runtime = runtime.clone();
+            move || runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }))
+        });
+        let snapshot = runtime.model().accepted.unwrap();
+        let definition = snapshot.document.module_definitions[0].clone();
+        rsx! { ModuleProfileEditor { snapshot, definition, project_owned: true, scope: runtime.scope(), selected } }
+    }
+
+    async fn tick() {
+        gloo_timers::future::TimeoutFuture::new(30).await;
+    }
+
+    fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
+        input.set_value(value);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_rotary_save_preserves_newer_baseline_typing_and_resumes_history_projection() {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("mounted-module-profile", "Module profile");
+        document.module_definitions.push(serde_json::from_value(serde_json::json!({
+            "id":"module", "name":"Module", "family":"encoder", "variant":"test",
+            "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
+            "board":{"contours":[]}, "electrical":{"protocol":"gpio", "rotaryProfile":{"a":"A", "b":"B", "common":"C", "steps":20, "triggersPerRotation":20, "driver":"ec11"}}
+        })).unwrap());
+        support::open_document(&runtime, document).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+        tick().await;
+        let pulses: web_sys::HtmlInputElement = root.query_selector("input[aria-label='Rotary pulses per rotation']").unwrap().unwrap().dyn_into().unwrap();
+        let save: web_sys::HtmlElement = root.query_selector(".m1-module-profile-editor fieldset button").unwrap().unwrap().dyn_into().unwrap();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&pulses, "24");
+        tick().await;
+        save.click();
+        tick().await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_value(&pulses, "20");
+        tick().await;
+        release.send(()).unwrap();
+        tick().await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(runtime.model().accepted.unwrap().document.module_definitions[0].electrical.rotary_profile.as_ref().unwrap().steps, Some(24));
+        assert_eq!(pulses.value(), "20", "newer typing that returns to the original accepted value survives landing");
+        save.click();
+        tick().await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(runtime.model().accepted.unwrap().document.module_definitions[0].electrical.rotary_profile.as_ref().unwrap().steps, Some(20));
+        runtime.submit(boardstudio_application::Event::Undo { operation_id: runtime.operation() });
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(pulses.value(), "24", "a clean rotary draft follows Undo");
+        runtime.submit(boardstudio_application::Event::Redo { operation_id: runtime.operation() });
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(pulses.value(), "20", "a clean rotary draft follows Redo");
+
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let mut blocker = PendingEdits::default();
+        blocker.begin(
+            &runtime, (), "rotary-failure-blocker", None,
+            EditResolver::new("rotary-failure-blocker", |accepted: &AcceptedSnapshot| {
+                let mut document = accepted.document.as_ref().clone();
+                document.name = "Failure blocker".into();
+                replacement_commit(EditOperation::ReplaceDocument { document: Box::new(document) }, vec![])
+            }),
+        );
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        support::fail_next_core_reply(&runtime, "controlled rotary failure");
+        type_value(&pulses, "24");
+        tick().await;
+        save.click();
+        tick().await;
+        type_value(&pulses, "26");
+        tick().await;
+        release.send(()).unwrap();
+        tick().await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(pulses.value(), "26", "an older failure preserves newer rotary typing");
+        assert!(root.text_content().unwrap().contains("controlled rotary failure"));
+        runtime.unsubscribe();
+        root.remove();
+    }
 
     #[wasm_bindgen_test]
     async fn queued_rotary_save_can_return_to_the_original_value() {
