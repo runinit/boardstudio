@@ -541,3 +541,47 @@ prerequisites; implementation, source/browser checks and required reviews remain
 This reconciliation is documentation only. It does not claim implemented mirrored
 mechanical links or fresh source/browser verification. Before a PR, run the full
 `python3 scripts/check.py` on the integrated source and complete both required reviews.
+
+## Comments
+
+### Progress — step 1 complete (commit `c77ab3a6f`)
+
+Branch `typed-core-edits/mechanical`, based on the integrated matrix work at `d543201a8`
+(`typed-core-edits/matrix-core`). Matrix Core 02/03 verified present and resolved first.
+
+Implemented and verified:
+
+- `MechanicalConfiguration.openings` is `Option<Vec<MechanicalOpening>>`, where each
+  opening and vertex has a stable `id` and geometry is unchanged. `CaseOpening`
+  remains for profile/derived geometry; adapters convert at their boundary.
+- `HardwareConfiguration.pairs` (explicit `MechanicalMirrorPair`s), `MechanicalConstruction`
+  (the shared subset: method/style, dimensional/foam, gasket, processes/materials,
+  internal gasket, gasket layout), `MechanicalFeature`/`MechanicalFeatureMember` with
+  `MechanicalFeatureKind`/`MechanicalFeatureState`/`MechanicalFeatureValue`. Pair
+  mapping is a `Pose2` composed with a fixed X reflection.
+- `PhysicalBoardInstance.construction_ownership` replaces the retired
+  `construction_linked` (whose value never affected the effective overlay).
+- Ordered 2-to-3 migration (`CURRENT_VERSION = 3`): assigns deterministic
+  `opening-N`/`vertex-N` identities in the canonical, instance and legacy shared
+  configurations, preserves geometry, marks every existing instance `legacy` and
+  removes the old flag. It creates no pairs and infers no correspondences.
+
+Verification: `cargo test -p boardstudio_core` (175 unit + 349 integration),
+`-p boardstudio-application` (30), `wasm-pack test web/crates/case` (77), WASM
+`typecheck`, `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`,
+and GitNexus `detect-changes` (23 files, 117 symbols, risk medium; 4 mechanical
+generation flows). The boundary transcript, `reviung41` fixture and the demo
+baseline were updated for the version/ownership representation change.
+
+### Next — step 2
+
+Move the `MechanicalSettingsPatch` domain vocabulary and defaults into Core behind
+`EditOperation::ApplyMechanicalEdit { edit: MechanicalEdit }`, and implement
+`evaluate_edit`/`effective_inputs`/apply with validation, absent mount
+initialization, closure-clearance projection and the no-op short-circuit. The patch
+enum payload uses only Core types; `field_id()`/`NumberRule` stay in Case as a
+Case-side extension trait. Then steps 3-5 (pairs/features/findings, Case adapter,
+integrated verification) per this ticket.
+
+Note: the GitNexus MCP server is now configured for pi (`/home/chris/01_Projects/ts-boardstudio2/.pi/mcp.json`,
+project scope, direct exposure, `cwd` = this worktree); it serves the worktree index.
