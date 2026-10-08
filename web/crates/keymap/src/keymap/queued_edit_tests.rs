@@ -21,6 +21,7 @@ struct Probe {
     active_layer: Rc<RefCell<Option<Signal<String>>>>,
     generation: Rc<RefCell<Option<Signal<u64>>>>,
     layer_name: Rc<RefCell<Option<(Signal<String>, Signal<Option<String>>)>>>,
+    hide_macros: Rc<RefCell<Option<Signal<bool>>>>,
 }
 
 fn host() -> Element {
@@ -67,7 +68,9 @@ fn host() -> Element {
         generation,
         Rc::new(|| true),
     );
-    let macro_ui = macro_actions.source.as_ref().map(|source| rsx! { super::macro_editor::MacroEditor {
+    let hide_macros = use_signal(|| false);
+    *probe.hide_macros.borrow_mut() = Some(hide_macros);
+    let macro_ui = macro_actions.source.as_ref().filter(|_| !hide_macros()).map(|source| rsx! { super::macro_editor::MacroEditor {
         scope: scope.clone(), scope_generation: 0, editor_instance_id: macro_actions.editor_instance_id,
         request_sequence: macro_actions.request_sequence, source: source.clone(), sequences: macro_actions.sequences.clone(),
         enabled: macro_actions.enabled, feedback: macro_actions.feedback.clone(), on_change: macro_actions.on_change,
@@ -137,6 +140,7 @@ async fn mount_runtime(runtime: Rc<Runtime>) -> (Probe, web_sys::Element) {
         active_layer: Rc::new(RefCell::new(None)),
         generation: Rc::new(RefCell::new(None)),
         layer_name: Rc::new(RefCell::new(None)),
+        hide_macros: Rc::new(RefCell::new(None)),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -794,6 +798,71 @@ async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
     assert!(
         probe.layers.borrow().as_ref().unwrap().feedback.is_none(),
         "no status survives the owner"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_cleanly() {
+    use wasm_bindgen::JsCast;
+    let runtime = support::new_runtime();
+    let mut doc = document();
+    doc.keymap = Some(serde_json::from_value(serde_json::json!({
+        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
+        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
+    })).unwrap());
+    support::open_document(&runtime, doc).await;
+    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let tap = || {
+        root.query_selector("input[aria-label='Original tapMs']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    };
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let input = tap();
+    input.focus().unwrap();
+    input.set_value("55");
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+    input.blur().unwrap();
+    support::drive_pending(&runtime);
+    entered.await.unwrap();
+    let mut hide = probe.hide_macros.borrow().unwrap();
+    hide.set(true);
+    rendered().await;
+    assert!(
+        root.query_selector("input[aria-label='Original tapMs']")
+            .unwrap()
+            .is_none(),
+        "the macro field is unmounted while its edit is held"
+    );
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    assert_eq!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .keymap
+            .as_ref()
+            .unwrap()
+            .macros[0]
+            .tap_ms,
+        55,
+        "the queued edit kept executing"
+    );
+    hide.set(false);
+    rendered().await;
+    assert_eq!(
+        tap().value(),
+        "55",
+        "the remounted field shows the accepted value"
     );
     root.remove();
 }

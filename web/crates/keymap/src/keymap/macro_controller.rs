@@ -30,6 +30,15 @@ impl PartialEq for MacroKey {
 }
 
 impl MacroKey {
+    /// A key without a request, for binding a field's Signals.
+    fn bound(macro_id: &str, target: MacroEditTarget) -> Self {
+        Self {
+            macro_id: Some(macro_id.to_owned()),
+            target,
+            request: None,
+        }
+    }
+
     fn of(request: &MacroEditRequest) -> Self {
         Self {
             macro_id: request.macro_id.clone(),
@@ -43,6 +52,69 @@ type MacroPending = OwnedEdits<MacroKey>;
 
 #[derive(Clone, Copy)]
 struct MacroTickets(Signal<MacroPending>);
+
+/// Bind a macro text field's draft and failure Signals to the controller's helper for as
+/// long as the calling component is mounted. The component's Signals are released when it
+/// leaves, so settlement never writes them afterwards.
+pub(super) fn use_bound_macro_field(
+    macro_id: &str,
+    target: MacroEditTarget,
+    draft: Signal<String>,
+    failure: Signal<Option<String>>,
+) {
+    let edits = try_consume_context::<MacroTickets>();
+    let bound = use_hook(|| Rc::new(RefCell::new(None::<MacroKey>)));
+    if let Some(edits) = edits {
+        let key = MacroKey::bound(macro_id, target);
+        let mut previous = bound.borrow_mut();
+        if let Some(old) = previous.as_ref()
+            && *old != key
+        {
+            edits.0.peek().helper.unbind_field(old);
+        }
+        edits
+            .0
+            .peek()
+            .helper
+            .bind_field(key.clone(), draft, failure);
+        *previous = Some(key);
+    }
+    use_drop({
+        let bound = bound.clone();
+        move || {
+            if let (Some(edits), Some(key)) = (edits, bound.borrow_mut().take()) {
+                edits.0.peek().helper.unbind_field(&key);
+            }
+        }
+    });
+}
+
+/// The text a macro text field shows for the accepted document.
+fn accepted_macro_text(
+    document: Option<&boardstudio_core::model::ProjectDoc>,
+    key: &MacroKey,
+) -> String {
+    let item = document
+        .and_then(|document| document.keymap.as_ref())
+        .zip(key.macro_id.as_deref())
+        .and_then(|(map, id)| map.macros.iter().find(|item| item.id == id));
+    match (item, key.target) {
+        (Some(item), MacroEditTarget::Name) => item.name.clone(),
+        (Some(item), MacroEditTarget::TapMs) => item.tap_ms.to_string(),
+        (Some(item), MacroEditTarget::WaitMs) => item.wait_ms.to_string(),
+        _ => String::new(),
+    }
+}
+
+/// The draft text a request submits for its field.
+fn submitted_macro_text(request: &MacroEditRequest) -> String {
+    match &request.change {
+        MacroEditChange::Change(MacroChange::Name { value }) => value.clone(),
+        MacroEditChange::Change(MacroChange::TapMs { value })
+        | MacroEditChange::Change(MacroChange::WaitMs { value }) => value.to_string(),
+        _ => String::new(),
+    }
+}
 
 fn is_action(target: MacroEditTarget) -> bool {
     matches!(
@@ -176,7 +248,11 @@ pub fn use_macro_operations(
             if !pending.peek().has_terminal() {
                 return;
             }
-            let results = pending.peek().helper.settle(true, |_| String::new());
+            let document = runtime.model().accepted.map(|snapshot| snapshot.document);
+            let results = pending
+                .peek()
+                .helper
+                .settle(true, |key| accepted_macro_text(document.as_deref(), key));
             for result in results {
                 let (PendingEditResult::Landed { key, .. }
                 | PendingEditResult::Failed { key, .. }
@@ -382,7 +458,7 @@ pub fn use_macro_operations(
                 "keymap-macro",
                 Some("macro".into()),
                 macro_resolver(request.clone(), seed, preceding_structure),
-                "",
+                &submitted_macro_text(&request),
             );
             pending.write().remember(key);
             last_admitted_request.set(request.request_id);
