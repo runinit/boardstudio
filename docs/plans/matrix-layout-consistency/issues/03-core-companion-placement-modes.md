@@ -85,3 +85,10 @@ actual projections only; draft matrix projections list none.
 `core/src/matrix/layout.rs` (classification), `core/src/constraints.rs`,
 `core/src/matrix.rs` (scene), `core/src/model.rs` (scene types), the transcript
 fixture.
+
+## Comments
+
+- Post-resolution: the WASM browser half of the boundary parity check also passes
+  (`wasm-pack test --headless --chrome web/crates/host --locked --features page
+  --lib -- boundary_parity`), so the regenerated companion transcript is verified
+  through the real WASM exports, not only by `typecheck`.
