@@ -122,9 +122,6 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
             FirmwarePositionFeedbackState::Pending => rsx! {
                 p { class: "firmware-keymap-feedback", role: "status", "Saving firmware position…" }
             },
-            FirmwarePositionFeedbackState::Saved => rsx! {
-                p { class: "firmware-keymap-feedback", role: "status", "Firmware position saved." }
-            },
             FirmwarePositionFeedbackState::Failed(message) => rsx! {
                 p { class: "firmware-keymap-feedback", role: "alert", "{message}" }
             },

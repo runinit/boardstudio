@@ -4,7 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{EditOperation, PressScanMode};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use serde_json::Value;
 use std::{
@@ -47,30 +47,87 @@ pub struct PartInputEditRequest {
     pub intent: PartInputIntent,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PartInputFeedbackState {
-    Preparing,
-    Pending,
-    Saved,
-    Failed(String),
+/// One part-input control's bounded logical key: the part target plus the field it edits.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PartInputKey {
+    pub(crate) ui_scope: Scope,
+    pub(crate) scope_generation: u64,
+    pub(crate) part_id: String,
+    pub(crate) field: PartInputField,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum PartInputField {
+    ScanMode,
+    GeneratorParameter(String),
+    GeneratorAnchor { name: String, axis: String },
+}
+
+impl PartInputKey {
+    fn of(request: &PartInputEditRequest) -> Self {
+        let field = match &request.intent {
+            PartInputIntent::ScanMode(_) => PartInputField::ScanMode,
+            PartInputIntent::GeneratorParameter { name, .. } => {
+                PartInputField::GeneratorParameter(name.clone())
+            }
+            PartInputIntent::GeneratorAnchor { name, axis, .. } => {
+                PartInputField::GeneratorAnchor {
+                    name: name.clone(),
+                    axis: axis.clone(),
+                }
+            }
+        };
+        Self {
+            ui_scope: request.identity.ui_scope.clone(),
+            scope_generation: request.identity.scope_generation,
+            part_id: request.identity.part_id.clone(),
+            field,
+        }
+    }
+
+    fn same_part(&self, identity: &PartInputIdentity) -> bool {
+        self.ui_scope == identity.ui_scope
+            && self.scope_generation == identity.scope_generation
+            && self.part_id == identity.part_id
+    }
+}
+
+/// The panel's latest failure, attributed to the part it belongs to.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PartInputFeedback {
-    pub identity: PartInputIdentity,
-    pub state: PartInputFeedbackState,
+pub(crate) struct PartInputFailure {
+    pub(crate) ui_scope: Scope,
+    pub(crate) scope_generation: u64,
+    pub(crate) part_id: String,
+    pub(crate) message: String,
+}
+
+impl PartInputFailure {
+    fn of(key: &PartInputKey, message: String) -> Self {
+        Self {
+            ui_scope: key.ui_scope.clone(),
+            scope_generation: key.scope_generation,
+            part_id: key.part_id.clone(),
+            message,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
 pub struct PartInputActions {
-    pub feedback: Option<PartInputFeedback>,
+    /// A committed setting for the rendered part has not settled yet.
+    pub(crate) pending: bool,
+    /// The latest failure for the rendered part; landing and retirement are silent.
+    pub(crate) failure: Option<PartInputFailure>,
     pub editable: bool,
     pub on_edit: EventHandler<PartInputEditRequest>,
 }
 
+/// The shared projection the rendered controls read: the latest committed intent per
+/// field. The collection owns the ticket lifetime and settlement.
 #[derive(Clone, Copy)]
-struct InputDrafts(Signal<Vec<(u64, PartInputEditRequest)>>);
+struct InputDrafts(Signal<Vec<(PartInputKey, PartInputEditRequest)>>);
 
+/// Reapply the committed pending intents for this part over the accepted projection.
 pub(super) fn apply_drafts(
     identity: &PartInputIdentity,
     projection: &mut super::PartInputProjection,
@@ -78,11 +135,12 @@ pub(super) fn apply_drafts(
     let Some(drafts) = try_consume_context::<InputDrafts>() else {
         return;
     };
-    for (_, request) in drafts.0.read().iter().filter(|(_, request)| {
-        request.identity.ui_scope == identity.ui_scope
-            && request.identity.scope_generation == identity.scope_generation
-            && request.identity.part_id == identity.part_id
-    }) {
+    for (_, request) in drafts
+        .0
+        .read()
+        .iter()
+        .filter(|(key, _)| key.same_part(identity))
+    {
         match &request.intent {
             PartInputIntent::ScanMode(mode) => projection.press_mode = Some(*mode),
             PartInputIntent::GeneratorParameter { name, value } => {
@@ -121,14 +179,15 @@ pub fn use_part_input_edits(
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
 ) -> PartInputActions {
-    let tickets = use_signal(Vec::<(u64, PartInputIdentity, EditTicket)>::new);
-    let drafts = use_signal(Vec::<(u64, PartInputEditRequest)>::new);
+    let edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<PartInputKey>::default())));
+    let drafts = use_signal(Vec::<(PartInputKey, PartInputEditRequest)>::new);
+    let latest = use_signal(|| None::<PartInputKey>);
+    let failure = use_signal(|| None::<PartInputFailure>);
+    let settlement_tick = use_signal(|| 0u64);
+    let _ = settlement_tick();
     use_context_provider(|| InputDrafts(drafts));
-    let sequence = use_hook(|| Rc::new(Cell::new(0u64)));
-    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let feedback = use_signal(|| None::<PartInputFeedback>);
     // Schema preparation is serial so slower module loading cannot reorder committed values.
-    let queue = use_hook(|| Rc::new(RefCell::new(VecDeque::<(u64, PartInputEditRequest)>::new())));
+    let queue = use_hook(|| Rc::new(RefCell::new(VecDeque::<PartInputEditRequest>::new())));
     let preparing = use_hook(|| Rc::new(Cell::new(false)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -137,38 +196,37 @@ pub fn use_part_input_edits(
     });
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
-        let runtime = runtime.clone();
-        let mut tickets = tickets;
-        let mut feedback = feedback;
+        let edits = edits.clone();
         let mut drafts = drafts;
+        let latest = latest;
+        let mut failure = failure;
+        let mut settlement_tick = settlement_tick;
         move |_| {
-            let mut entries = tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(sequence, identity, ticket)| {
-                let live = owner_is_live(&runtime, identity, workspace(), scope_generation());
-                let state = match ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(PartInputFeedbackState::Saved),
-                    Settlement::Failed { message } => Some(PartInputFeedbackState::Failed(message)),
-                    Settlement::Retired => None,
-                };
-                drafts.write().retain(|(id, _)| id != sequence);
-                if *latest.peek() == Some(ticket.operation()) {
-                    feedback.set(state.map(|state| PartInputFeedback {
-                        identity: identity.clone(),
-                        state,
-                    }));
-                }
-                false
-            });
-            if before != entries.len() {
-                tickets.set(entries);
+            // The collection owns the ticket lifetime and retires each ticket whose
+            // captured Scope departed; the keyed drafts are this panel's projection.
+            let results = edits.borrow_mut().settle(workspace() == "PCB");
+            if results.is_empty() {
+                return;
             }
+            for result in results {
+                let (key, message) = match result {
+                    PendingEditResult::Failed { key, message } => (key, Some(message)),
+                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                        (key, None)
+                    }
+                };
+                drafts.write().retain(|(existing, _)| existing != &key);
+                if latest.peek().as_ref() == Some(&key) {
+                    failure.set(message.map(|message| PartInputFailure::of(&key, message)));
+                }
+            }
+            settlement_tick.set(settlement_tick().wrapping_add(1));
         }
     }));
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
+        let edits = edits.clone();
         move |request: PartInputEditRequest| {
             if current_snapshot(
                 &runtime,
@@ -181,18 +239,19 @@ pub fn use_part_input_edits(
             {
                 return;
             }
-            let id = sequence
-                .get()
-                .checked_add(1)
-                .expect("input draft identity exhausted");
-            sequence.set(id);
-            let mut drafts = drafts;
-            drafts.write().push((id, request.clone()));
+            let key = PartInputKey::of(&request);
             let mut latest = latest;
-            latest.set(None);
-            let mut feedback = feedback;
-            feedback.set(None);
-            queue.borrow_mut().push_back((id, request));
+            latest.set(Some(key.clone()));
+            let mut failure = failure;
+            failure.set(None);
+            let mut drafts = drafts;
+            let mut entries = drafts.write();
+            match entries.iter_mut().find(|(existing, _)| existing == &key) {
+                Some(entry) => entry.1 = request.clone(),
+                None => entries.push((key.clone(), request.clone())),
+            }
+            drop(entries);
+            queue.borrow_mut().push_back(request);
             if preparing.replace(true) {
                 return;
             }
@@ -200,13 +259,12 @@ pub fn use_part_input_edits(
             let preparing = preparing.clone();
             let alive = alive.clone();
             let runtime = runtime.clone();
-            let mut tickets = tickets;
-            let mut latest = latest;
-            let mut feedback = feedback;
+            let edits = edits.clone();
+            let mut drafts = drafts;
             spawn_local(async move {
                 loop {
                     let request = queue.borrow_mut().pop_front();
-                    let Some((id, request)) = request else {
+                    let Some(request) = request else {
                         preparing.set(false);
                         break;
                     };
@@ -228,24 +286,22 @@ pub fn use_part_input_edits(
                     if !alive.get() {
                         return;
                     }
-                    if !owner_is_live(&runtime, &request.identity, workspace(), scope_generation())
-                    {
-                        drafts.write().retain(|(sequence, _)| *sequence != id);
+                    let key = PartInputKey::of(&request);
+                    let live = workspace() == "PCB"
+                        && scope_generation() == key.scope_generation
+                        && runtime.scope().as_ref() == Some(&key.ui_scope)
+                        && runtime.model().selected_part_ids.as_slice() == [key.part_id.as_str()];
+                    if !live {
+                        drafts.write().retain(|(existing, _)| existing != &key);
                         continue;
                     }
-                    let identity = request.identity.clone();
-                    let ticket = EditTicket::begin(
+                    edits.borrow_mut().begin(
                         &runtime,
+                        key,
                         "pcb-part-settings",
                         Some("setting".into()),
                         input_resolver(request, schema),
                     );
-                    latest.set(Some(ticket.operation()));
-                    feedback.set(Some(PartInputFeedback {
-                        identity: identity.clone(),
-                        state: PartInputFeedbackState::Pending,
-                    }));
-                    tickets.write().push((id, identity, ticket));
                 }
             });
         }
@@ -256,25 +312,29 @@ pub fn use_part_input_edits(
         scope_generation(),
         instance_is_current(),
     );
-    let feedback = feedback()
-        .filter(|entry| owner_is_live(&runtime, &entry.identity, workspace(), scope_generation()));
+    let live_target = |ui_scope: &Scope, generation: u64, part_id: &str| {
+        workspace() == "PCB"
+            && generation == scope_generation()
+            && runtime.scope().as_ref() == Some(ui_scope)
+            && runtime.model().selected_part_ids.as_slice() == [part_id]
+    };
+    let pending = drafts.read().iter().any(|(key, _)| {
+        live_target(&key.ui_scope, key.scope_generation, &key.part_id)
+            && edits.borrow().is_pending(key)
+    });
+    let failure = failure().filter(|failure| {
+        live_target(
+            &failure.ui_scope,
+            failure.scope_generation,
+            &failure.part_id,
+        )
+    });
     PartInputActions {
-        feedback,
+        pending,
+        failure,
         editable,
         on_edit,
     }
-}
-
-fn owner_is_live(
-    runtime: &Runtime,
-    identity: &PartInputIdentity,
-    workspace: &str,
-    generation: u64,
-) -> bool {
-    workspace == "PCB"
-        && generation == identity.scope_generation
-        && runtime.scope().as_ref() == Some(&identity.ui_scope)
-        && runtime.model().selected_part_ids.as_slice() == [identity.part_id.as_str()]
 }
 
 fn current_snapshot(

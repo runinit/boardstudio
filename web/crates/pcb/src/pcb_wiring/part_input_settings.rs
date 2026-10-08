@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod owner;
 pub use owner::{
-    PartInputActions, PartInputEditRequest, PartInputFeedbackState, PartInputIdentity,
-    PartInputIntent, use_part_input_edits,
+    PartInputActions, PartInputEditRequest, PartInputIdentity, PartInputIntent,
+    use_part_input_edits,
 };
 
 const ROTARY_ENCODER_SOURCE: &str = "ceoloide/rotary_encoder_ec11_ec12";
@@ -153,11 +153,6 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
         }
     }));
     let schema_state = schema.read().clone();
-    let matching_feedback = props.actions.feedback.clone().filter(|feedback| {
-        feedback.identity.ui_scope == identity.ui_scope
-            && feedback.identity.scope_generation == identity.scope_generation
-            && feedback.identity.part_id == identity.part_id
-    });
     let read_only = !props.actions.editable || projection.part.locked == Some(true);
     let on_edit = props.actions.on_edit;
     let scan_mode = projection.press_mode;
@@ -289,13 +284,11 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                 None if generator_source.is_some() => rsx! { p { role: "status", "Loading generator settings…" } },
                 None => rsx! {},
             }
-            if let Some(feedback) = matching_feedback {
-                match feedback.state {
-                    PartInputFeedbackState::Preparing => rsx! { p { role: "status", "Preparing PCB setting…" } },
-                    PartInputFeedbackState::Pending => rsx! { p { role: "status", "Saving PCB setting…" } },
-                    PartInputFeedbackState::Saved => rsx! { p { role: "status", "PCB setting saved." } },
-                    PartInputFeedbackState::Failed(message) => rsx! { p { role: "alert", "{message}" } },
-                }
+            if props.actions.pending {
+                p { role: "status", "Saving PCB setting…" }
+            }
+            if let Some(failure) = props.actions.failure.clone() {
+                p { role: "alert", "{failure.message}" }
             }
         }
     }

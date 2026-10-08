@@ -7,9 +7,42 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_core::model::EditOperation;
-use boardstudio_web_runtime::edit_ticket::EditTicket;
+use boardstudio_web_runtime::pending_edits::PendingEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
+
+/// One routed-board reference control's bounded logical key: its action kind, with the
+/// model path that identifies a model-asset field.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum BoardReferenceKey {
+    Enabled,
+    PositionX,
+    PositionY,
+    Rotation,
+    Elevation,
+    ModelAsset(String),
+    Remove,
+    /// The routed-board import or replacement transaction.
+    Import,
+    /// The model-file attachment transaction.
+    ModelAttach,
+}
+
+impl BoardReferenceKey {
+    pub(crate) fn of(action: &pcb_board_reference::Action) -> Self {
+        match action {
+            pcb_board_reference::Action::SetEnabled(_) => Self::Enabled,
+            pcb_board_reference::Action::SetPositionX(_) => Self::PositionX,
+            pcb_board_reference::Action::SetPositionY(_) => Self::PositionY,
+            pcb_board_reference::Action::SetRotation(_) => Self::Rotation,
+            pcb_board_reference::Action::SetElevation(_) => Self::Elevation,
+            pcb_board_reference::Action::SetModelAsset { path, .. } => {
+                Self::ModelAsset(path.clone())
+            }
+            pcb_board_reference::Action::Remove => Self::Remove,
+        }
+    }
+}
 
 pub fn board_reference_owner_is_current(
     runtime: &Rc<Runtime>,
@@ -94,14 +127,16 @@ pub fn board_reference_owner_lineage_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
-pub fn submit_board_reference_document(
+pub(crate) fn submit_board_reference_document(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     proposed: boardstudio_core::model::ProjectDoc,
     transaction_label: &str,
-) -> Result<Option<EditTicket>, String> {
+    edits: &mut PendingEdits<BoardReferenceKey>,
+    key: BoardReferenceKey,
+) -> Result<Option<BoardReferenceKey>, String> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
@@ -208,40 +243,85 @@ pub fn submit_board_reference_document(
             )
         },
     );
-    Ok(Some(EditTicket::begin(
+    edits.begin(
         runtime,
+        key.clone(),
         transaction_label,
         Some("board reference".into()),
         resolver,
-    )))
+    );
+    Ok(Some(key))
 }
 
-pub fn dispatch_board_reference_action(
+/// The routed-board removal proposal: drop the reference from its board, retiring when
+/// it is already gone.
+fn board_reference_removal_resolver(scope_board_id: String, reference_id: String) -> EditResolver {
+    EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
+        let mut proposed = accepted.document.as_ref().clone();
+        let count = proposed.board_references.len();
+        proposed.board_references.retain(|reference| {
+            reference.id != reference_id || reference.board_id != scope_board_id
+        });
+        if proposed.board_references.len() == count {
+            return Resolution::Retire(
+                "The reference or model asset is no longer available.".into(),
+            );
+        }
+        if proposed == *accepted.document {
+            return Resolution::Unchanged;
+        }
+        Resolution::submit(
+            vec![scope_board_id.clone()],
+            EditOperation::ReplaceDocument {
+                document: Box::new(proposed),
+            },
+        )
+    })
+}
+
+/// The removal edit for the panel's one-shot helper: `None` when the owner is no longer
+/// current or the active board is unavailable.
+pub(crate) fn board_reference_removal(
+    runtime: &Rc<Runtime>,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    reference_id: &str,
+) -> Option<EditResolver> {
+    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+        return None;
+    }
+    let scope = owner.scope.clone()?;
+    Some(board_reference_removal_resolver(
+        scope.board_id,
+        reference_id.to_owned(),
+    ))
+}
+
+pub(crate) fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
     action: pcb_board_reference::Action,
-) -> Option<EditTicket> {
+    edits: &mut PendingEdits<BoardReferenceKey>,
+) -> Option<BoardReferenceKey> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+        return None;
+    }
+    // Removal is owned by the panel's one-shot helper (board_reference_removal);
+    // beginning it here would bypass that control's disabled state and double-submit
+    // guard, so the dispatcher refuses it outright.
+    if matches!(action, pcb_board_reference::Action::Remove) {
         return None;
     }
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
-    let resolver = EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
-        let mut proposed = accepted.document.as_ref().clone();
-        if matches!(&action, pcb_board_reference::Action::Remove) {
-            let count = proposed.board_references.len();
-            proposed.board_references.retain(|reference| {
-                reference.id != reference_id || reference.board_id != scope.board_id
-            });
-            if proposed.board_references.len() == count {
-                return Resolution::Retire(
-                    "The reference or model asset is no longer available.".into(),
-                );
-            }
-        } else {
+    let key = BoardReferenceKey::of(&action);
+    let resolver =
+        EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
+            let mut proposed = accepted.document.as_ref().clone();
             let Some(reference) = proposed.board_references.iter_mut().find(|reference| {
                 reference.id == reference_id && reference.board_id == scope.board_id
             }) else {
@@ -282,6 +362,8 @@ pub fn dispatch_board_reference_action(
                         reference.model_assets.remove(&path);
                     }
                 }
+                // Unreachable: the dispatcher refuses Remove above, and non-finite
+                // positions fall through their guards. The arm keeps the match total.
                 pcb_board_reference::Action::Remove
                 | pcb_board_reference::Action::SetPositionX(_)
                 | pcb_board_reference::Action::SetPositionY(_)
@@ -290,21 +372,22 @@ pub fn dispatch_board_reference_action(
                     return Resolution::Retire("Enter a finite reference position.".into());
                 }
             }
-        }
-        if proposed == *accepted.document {
-            return Resolution::Unchanged;
-        }
-        Resolution::submit(
-            vec![scope.board_id.clone()],
-            EditOperation::ReplaceDocument {
-                document: Box::new(proposed),
-            },
-        )
-    });
-    Some(EditTicket::begin(
+            if proposed == *accepted.document {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![scope.board_id.clone()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(proposed),
+                },
+            )
+        });
+    edits.begin(
         runtime,
+        key.clone(),
         "board-reference",
         Some("board reference".into()),
         resolver,
-    ))
+    );
+    Some(key)
 }

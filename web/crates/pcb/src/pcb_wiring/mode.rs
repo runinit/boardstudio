@@ -8,6 +8,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::{electrical::ElectricalMode, model::EditOperation};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -17,43 +18,52 @@ pub struct BoardWiringModeEditRequest {
     pub mode: ElectricalMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BoardWiringModeFeedback {
-    Pending,
-    Saved,
-    Failed(String),
+/// The accepted or pending mode written as the mode control's `value` text.
+pub(crate) fn mode_text(mode: ElectricalMode) -> String {
+    match mode {
+        ElectricalMode::Matrix => "matrix".to_owned(),
+        ElectricalMode::Direct => "direct".to_owned(),
+    }
 }
 
+/// The board's accepted wiring mode; a board without configuration is a matrix.
+pub(crate) fn board_mode(
+    document: &boardstudio_core::model::ProjectDoc,
+    board_id: &str,
+) -> ElectricalMode {
+    document
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == board_id)
+        })
+        .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
+}
+
+/// The board panel's latest action failure, attributed to the target it belongs to so a
+/// navigated-away board never shows another board's message.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BoardWiringModeFeedbackView {
-    pub target: BoardWiringModeFeedbackTarget,
-    pub request_plan: WiringPlanIdentity,
-    pub state: BoardWiringModeFeedback,
+pub(crate) struct BoardWiringFailure {
+    pub(crate) target: BoardWiringModeFeedbackTarget,
+    pub(crate) message: String,
 }
 
 #[derive(Clone, PartialEq)]
 pub struct BoardWiringModeActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
-    pub feedback: Option<BoardWiringModeFeedbackView>,
+    /// The value the mode control shows: the submitted choice while its edit is pending,
+    /// otherwise the accepted mode. The helper restores it on settlement and a newer
+    /// choice is never overwritten by an older outcome.
+    pub(crate) draft: Signal<String>,
+    /// The current target's latest observation is still pending.
+    pub(crate) pending: bool,
+    /// The current target's inline failure; landing and retirement are silent.
+    pub(crate) failure: Signal<Option<String>>,
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
-}
-
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
-#[derive(Clone, Copy)]
-struct ModeTickets(Signal<Vec<(BoardWiringModeEditRequest, EditTicket)>>);
-
-pub(super) fn pending_mode(
-    identity: &BoardWiringModeIdentity,
-) -> Option<boardstudio_core::electrical::ElectricalMode> {
-    let tickets = try_consume_context::<ModeTickets>()?;
-    tickets.0.read().iter().rev().find_map(|(request, ticket)| {
-        if ticket.is_pending() && request.identity.feedback_target() == identity.feedback_target() {
-            Some(request.mode)
-        } else {
-            None
-        }
-    })
 }
 
 pub fn use_board_wiring_mode_edits(
@@ -65,57 +75,75 @@ pub fn use_board_wiring_mode_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    let tickets = use_signal(Vec::<(BoardWiringModeEditRequest, EditTicket)>::new);
-    use_context_provider(|| ModeTickets(tickets));
-    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let feedback = use_signal(|| None::<BoardWiringModeFeedbackView>);
+    let edits = use_hook(PendingEditSignals::<BoardWiringModeFeedbackTarget>::new);
+    let mut draft = use_signal(String::new);
+    let mut failure = use_signal(|| None::<String>);
+    // Views bound to a target that is no longer rendered: their settlement writes are
+    // invisible, so a late result of an earlier target cannot reach the visible control.
+    let detached_draft = use_signal(String::new);
+    let detached_failure = use_signal(|| None::<String>);
+    let mut bound = use_signal(|| None::<BoardWiringModeFeedbackTarget>);
+    let settlement_tick = use_signal(|| 0u64);
+    let _ = settlement_tick();
+    let identity = source.as_ref().map(mode_identity);
+    let target = identity
+        .as_ref()
+        .map(BoardWiringModeIdentity::feedback_target);
+    let accepted_snapshot = runtime.model().accepted;
+    let accepted = identity.as_ref().map_or_else(
+        || mode_text(ElectricalMode::Matrix),
+        |identity| {
+            accepted_snapshot.as_ref().map_or_else(
+                || mode_text(ElectricalMode::Matrix),
+                |snapshot| mode_text(board_mode(&snapshot.document, &identity.ui_scope.board_id)),
+            )
+        },
+    );
+    if bound.peek().as_ref() != target.as_ref() {
+        if let Some(previous) = bound.peek().clone() {
+            edits.bind_field(previous, detached_draft, detached_failure);
+        }
+        if let Some(current) = target.clone() {
+            edits.bind_field(current, draft, failure);
+        }
+        bound.set(target.clone());
+        failure.set(None);
+        draft.set(accepted.clone());
+    }
+    let pending = target
+        .as_ref()
+        .is_some_and(|target| edits.is_pending(target));
+    if !pending && draft.peek().as_str() != accepted {
+        draft.set(accepted);
+    }
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
         let runtime = runtime.clone();
-        let mut tickets = tickets;
-        let mut feedback = feedback;
+        let edits = edits.clone();
+        let mut settlement_tick = settlement_tick;
         move |_| {
-            let mut entries = tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(request, ticket)| {
-                let live = workspace() == "PCB"
-                    && request.identity.feedback_target().is_visible(
-                        runtime.scope().as_ref(),
-                        runtime
-                            .model()
-                            .selected_part_ids
-                            .first()
-                            .map(String::as_str),
-                        scope_generation(),
-                    );
-                let state = match ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(BoardWiringModeFeedback::Saved),
-                    Settlement::Failed { message } => {
-                        Some(BoardWiringModeFeedback::Failed(message))
-                    }
-                    Settlement::Retired => None,
-                };
-                if *latest.peek() == Some(ticket.operation()) {
-                    feedback.set(state.map(|state| BoardWiringModeFeedbackView {
-                        target: request.identity.feedback_target(),
-                        request_plan: request.identity.plan.clone(),
-                        state,
-                    }));
-                }
-                false
+            // The helper owns panel-lifetime gating; each ticket retires itself when its
+            // captured Scope moves on. The mode control therefore only answers for the
+            // workspace it belongs to.
+            let panel_is_live = workspace() == "PCB";
+            let results = edits.settle(panel_is_live, |target| {
+                let model = runtime.model();
+                model.accepted.as_ref().map_or_else(
+                    || mode_text(ElectricalMode::Matrix),
+                    |snapshot| mode_text(board_mode(&snapshot.document, &target.ui_scope.board_id)),
+                )
             });
-            if before != entries.len() {
-                tickets.set(entries);
+            if !results.is_empty() {
+                settlement_tick.set(settlement_tick().wrapping_add(1));
             }
         }
     }));
     let on_change = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut tickets = tickets;
-        let mut latest = latest;
-        let mut feedback = feedback;
+        let edits = edits.clone();
+        let mut draft = draft;
+        let mut failure = failure;
         move |request: BoardWiringModeEditRequest| {
             let Some(_snapshot) = current_edit_snapshot(
                 &runtime,
@@ -136,33 +164,43 @@ pub fn use_board_wiring_mode_edits(
             if identity != &request.identity.plan {
                 return;
             };
-            let ticket = EditTicket::begin(
+            // Submit the exact text the user chose; the control keeps it while pending.
+            let text = mode_text(request.mode);
+            draft.set(text.clone());
+            failure.set(None);
+            edits.begin_field(
                 &runtime,
+                request.identity.feedback_target(),
                 "pcb-wiring-mode",
                 Some("wiring mode".into()),
-                mode_resolver(request.clone()),
+                mode_resolver(request),
+                &text,
             );
-            latest.set(Some(ticket.operation()));
-            feedback.set(Some(BoardWiringModeFeedbackView {
-                target: request.identity.feedback_target(),
-                request_plan: request.identity.plan.clone(),
-                state: BoardWiringModeFeedback::Pending,
-            }));
-            tickets.write().push((request, ticket));
         }
     });
     let identity = source.as_ref().map(mode_identity);
     let editable = identity.as_ref().is_some_and(|identity| current_edit_snapshot(&runtime, identity, workspace(), scope_generation(), instance_is_current()).is_some()
         && matches!(&*resolution.read(), PcbWiringResolution::Current {identity: current, ..} if current == &identity.plan));
-    let target = identity
-        .as_ref()
-        .map(BoardWiringModeIdentity::feedback_target);
-    let feedback = feedback().filter(|item| target.as_ref() == Some(&item.target));
     BoardWiringModeActions {
         identity,
         editable,
-        feedback,
+        draft,
+        pending,
+        failure,
         on_change,
+    }
+}
+
+#[cfg(test)]
+mod board_mode_tests {
+    use super::*;
+
+    #[test]
+    fn a_board_without_configuration_is_a_matrix_and_mode_text_round_trips() {
+        let document = boardstudio_core::model::ProjectDoc::empty("project", "Mode text");
+        assert_eq!(board_mode(&document, "left"), ElectricalMode::Matrix);
+        assert_eq!(mode_text(ElectricalMode::Matrix), "matrix");
+        assert_eq!(mode_text(ElectricalMode::Direct), "direct");
     }
 }
 

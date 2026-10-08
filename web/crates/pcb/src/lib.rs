@@ -15,7 +15,7 @@ pub(crate) use crate as presentation;
 #[allow(unused_imports)]
 pub(crate) use board_reference_owner::{
     board_reference_owner_is_current, board_reference_owner_lineage_is_current,
-    board_reference_target_is_current, dispatch_board_reference_action,
+    board_reference_removal, board_reference_target_is_current, dispatch_board_reference_action,
     submit_board_reference_document,
 };
 #[allow(unused_imports)]

@@ -1,11 +1,9 @@
-use super::apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
+use super::apply::{BoardWiringApplyActions, use_board_wiring_apply};
 use super::mode::{
-    BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
-    CurrentSnapshotBlocker, current_snapshot_probe, use_board_wiring_mode_edits,
+    BoardWiringModeActions, BoardWiringModeEditRequest, CurrentSnapshotBlocker,
+    current_snapshot_probe, use_board_wiring_mode_edits,
 };
-use super::pins::{
-    PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
-};
+use super::pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 use super::*;
 use boardstudio_application::{
@@ -1142,18 +1140,17 @@ fn mounted_mode_choice_submits_one_edit_that_lands_and_saves() {
     let next_source = refreshed_source(&probe.runtime, None, 5);
     *probe.source.borrow_mut() = next_source;
     tick(&probe, &mut dom);
-    assert!(matches!(
-        probe
-            .latest
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .feedback
-            .as_ref()
-            .unwrap()
-            .state,
-        BoardWiringModeFeedback::Saved
-    ));
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert_eq!(
+        (shown.draft)(),
+        "direct",
+        "the control shows the accepted mode after landing"
+    );
+    assert!(!shown.pending);
+    assert!(
+        (shown.failure)().is_none(),
+        "landing shows the accepted value without a status message"
+    );
 }
 
 #[test]
