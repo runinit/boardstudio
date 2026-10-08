@@ -4,13 +4,14 @@ use super::binding_editor::{
     BindingMacroChoice, BindingTarget, EncoderInputIdentity,
 };
 use super::layer_controller::LayerSource;
+use super::owned_edits::OwnedEdits;
 use super::view::KeymapView;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -73,15 +74,38 @@ pub struct BindingProjectionSources {
     pub current_encoder_projection: Rc<dyn Fn() -> Option<EncoderInputProjection>>,
 }
 
+/// A binding field's logical identity: the latest edit for it replaces the earlier one.
+/// The key carries its request for follow-ups and draft projection; keys compare by layer,
+/// target and field only.
 #[derive(Clone)]
-struct BindingTicket {
-    request: BindingEditRequest,
-    scope_generation: u64,
-    ticket: EditTicket,
+struct BindingKey {
+    layer: String,
+    target: BindingTarget,
+    field: BindingField,
+    request: Option<Rc<BindingEditRequest>>,
 }
 
+impl PartialEq for BindingKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.layer == other.layer && self.target == other.target && self.field == other.field
+    }
+}
+
+impl BindingKey {
+    fn of(request: &BindingEditRequest) -> Self {
+        Self {
+            layer: request.active_layer_id.clone(),
+            target: request.target.clone(),
+            field: request.field,
+            request: Some(Rc::new(request.clone())),
+        }
+    }
+}
+
+type BindingPending = OwnedEdits<BindingKey>;
+
 #[derive(Clone, Copy)]
-struct BindingTickets(Signal<Vec<BindingTicket>>);
+struct BindingTickets(Signal<BindingPending>);
 
 /// Pending field values belong to the editor, not the accepted document projection.
 pub(super) fn draft_binding(
@@ -92,15 +116,18 @@ pub(super) fn draft_binding(
 ) -> KeyBinding {
     let mut value = accepted.clone();
     if let Some(tickets) = try_consume_context::<BindingTickets>() {
-        for entry in tickets.0.read().iter().filter(|entry| {
-            entry.request.scope == *scope
-                && entry.request.active_layer_id == layer
-                && entry.request.target == *target
-                && entry.ticket.is_pending()
-        }) {
-            if let Some(next) =
-                apply_requested_field(&value, &entry.request.binding, entry.request.field)
-            {
+        for request in tickets
+            .0
+            .read()
+            .pending()
+            .filter_map(|entry| entry.request.as_deref())
+            .filter(|request| {
+                request.scope == *scope
+                    && request.active_layer_id == layer
+                    && request.target == *target
+            })
+        {
+            if let Some(next) = apply_requested_field(&value, &request.binding, request.field) {
                 value = next;
             }
         }
@@ -518,7 +545,7 @@ pub fn use_binding_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request_id = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let pending = use_signal(Vec::<BindingTicket>::new);
+    let pending = use_signal(BindingPending::default);
     use_context_provider(|| BindingTickets(pending));
     let feedback = use_signal(Vec::<BindingFeedbackState>::new);
     use_effect(use_reactive((&version,), {
@@ -526,35 +553,35 @@ pub fn use_binding_operations(
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            let mut tickets = pending.peek().clone();
-            let before = tickets.len();
-            tickets.retain(|waiting| {
-                let live = runtime.scope().as_ref() == Some(&waiting.request.scope)
-                    && scope_generation() == waiting.scope_generation;
-                let status = match waiting.ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(BindingEditStatus::Saved),
-                    Settlement::Failed { message } => Some(BindingEditStatus::Failed(message)),
-                    Settlement::Retired => None,
-                };
-                if let Some(status) = status {
-                    if let Some(entry) = feedback
-                        .write()
-                        .iter_mut()
-                        .find(|entry| entry.request.request_id == waiting.request.request_id)
-                    {
-                        entry.status = status;
-                    }
-                } else {
-                    feedback
-                        .write()
-                        .retain(|entry| entry.request.request_id != waiting.request.request_id);
-                }
-                false
-            });
-            if tickets.len() != before {
-                pending.set(tickets);
+            if !pending.peek().has_terminal() {
+                return;
             }
+            let results = pending.peek().helper.settle(true, |_| String::new());
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let Some(waiting) = key.request.as_deref() else {
+                    continue;
+                };
+                let live = runtime.scope().as_ref() == Some(&waiting.scope)
+                    && scope_generation() == captured_generation;
+                match &result {
+                    PendingEditResult::Failed { message, .. } if live => {
+                        if let Some(entry) = feedback
+                            .write()
+                            .iter_mut()
+                            .find(|entry| entry.request.request_id == waiting.request_id)
+                        {
+                            entry.status = BindingEditStatus::Failed(message.clone());
+                        }
+                    }
+                    _ => feedback
+                        .write()
+                        .retain(|entry| entry.request.request_id != waiting.request_id),
+                }
+            }
+            pending.write().prune();
         }
     }));
 
@@ -746,17 +773,24 @@ pub fn use_binding_operations(
             if apply_requested_field(&request.binding, &request.binding, request.field).is_none() {
                 return;
             }
-            let ticket = EditTicket::begin(
+            if pending
+                .peek()
+                .owner_changed(Some(&expected_source.scope), captured_generation)
+            {
+                pending
+                    .write()
+                    .follow_owner(Some(&expected_source.scope), captured_generation);
+            }
+            let key = BindingKey::of(&request);
+            pending.peek().helper.begin_field(
                 &runtime,
+                key.clone(),
                 "keymap-binding",
                 Some("binding".into()),
                 binding_resolver(request.clone()),
+                "",
             );
-            pending.write().push(BindingTicket {
-                request: request.clone(),
-                scope_generation: captured_generation,
-                ticket,
-            });
+            pending.write().remember(key);
             feedback.write().retain(|entry| {
                 !(entry.request.target == request.target && entry.request.field == request.field)
             });

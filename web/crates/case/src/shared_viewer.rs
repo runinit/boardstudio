@@ -2635,20 +2635,18 @@ fn SharedViewer(
     });
     let unlink_message = unlink_feedback
         .as_ref()
-        .map(|feedback| match feedback.state {
+        .and_then(|feedback| match feedback.state {
             super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
-                (false, "Unlinking selected support…".to_owned())
+                Some((false, "Unlinking selected support…".to_owned()))
             }
-            super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => {
-                (false, "Selected support unlinked.".to_owned())
-            }
-            super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => (
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some((
                 true,
                 feedback
                     .message
                     .clone()
                     .unwrap_or_else(|| "The support could not be unlinked.".to_owned()),
-            ),
+            )),
         });
     let unlink_source = current_source.clone();
     let unlink_owner = owner.clone();

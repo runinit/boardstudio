@@ -4,21 +4,113 @@ use super::macro_editor::{
     MacroEditChange, MacroEditFeedback, MacroEditRequest, MacroEditStatus, MacroEditTarget,
     MacroReadSource, MacroStepSequence,
 };
+use super::owned_edits::OwnedEdits;
+use crate::macro_edit::{PrecedingStructure, macro_resolver};
 use crate::runtime::Runtime;
-use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
-use boardstudio_core::model::{EditOperation, KeymapChange, KeymapMacro, MacroChange, MacroStep};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
+use boardstudio_core::model::{MacroChange, MacroStep};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+/// A macro edit's logical identity: the latest edit for it replaces the earlier one. The
+/// key carries its request for follow-ups and draft projection; keys compare by macro and
+/// target only.
 #[derive(Clone)]
-struct MacroTicket {
-    request: MacroEditRequest,
-    ticket: EditTicket,
+struct MacroKey {
+    macro_id: Option<String>,
+    target: MacroEditTarget,
+    request: Option<Rc<MacroEditRequest>>,
 }
 
+impl PartialEq for MacroKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.macro_id == other.macro_id && self.target == other.target
+    }
+}
+
+impl MacroKey {
+    /// A key without a request, for binding a field's Signals.
+    fn bound(macro_id: &str, target: MacroEditTarget) -> Self {
+        Self {
+            macro_id: Some(macro_id.to_owned()),
+            target,
+            request: None,
+        }
+    }
+
+    fn of(request: &MacroEditRequest) -> Self {
+        Self {
+            macro_id: request.macro_id.clone(),
+            target: request.target,
+            request: Some(Rc::new(request.clone())),
+        }
+    }
+}
+
+type MacroPending = OwnedEdits<MacroKey>;
+
 #[derive(Clone, Copy)]
-struct MacroTickets(Signal<Vec<MacroTicket>>);
+struct MacroTickets(Signal<MacroPending>);
+
+/// Bind a macro text field's draft and failure Signals to the controller's helper for as
+/// long as the calling component is mounted. The component's Signals are released when it
+/// leaves, so settlement never writes them afterwards.
+pub(super) fn use_bound_macro_field(
+    macro_id: &str,
+    target: MacroEditTarget,
+    draft: Signal<String>,
+    failure: Signal<Option<String>>,
+) {
+    let edits = try_consume_context::<MacroTickets>();
+    let bound = use_hook(|| Rc::new(RefCell::new(None::<MacroKey>)));
+    if let Some(edits) = edits {
+        let key = MacroKey::bound(macro_id, target);
+        let mut previous = bound.borrow_mut();
+        if let Some(old) = previous.as_ref()
+            && *old != key
+        {
+            edits.0.peek().unbind_field(old);
+        }
+        edits.0.peek().bind_field(key.clone(), draft, failure);
+        *previous = Some(key);
+    }
+    use_drop({
+        let bound = bound.clone();
+        move || {
+            if let (Some(edits), Some(key)) = (edits, bound.borrow_mut().take()) {
+                edits.0.peek().unbind_field(&key);
+            }
+        }
+    });
+}
+
+/// The text a macro text field shows for the accepted document.
+fn accepted_macro_text(
+    document: Option<&boardstudio_core::model::ProjectDoc>,
+    key: &MacroKey,
+) -> String {
+    let item = document
+        .and_then(|document| document.keymap.as_ref())
+        .zip(key.macro_id.as_deref())
+        .and_then(|(map, id)| map.macros.iter().find(|item| item.id == id));
+    match (item, key.target) {
+        (Some(item), MacroEditTarget::Name) => item.name.clone(),
+        (Some(item), MacroEditTarget::TapMs) => item.tap_ms.to_string(),
+        (Some(item), MacroEditTarget::WaitMs) => item.wait_ms.to_string(),
+        _ => String::new(),
+    }
+}
+
+/// The draft text a request submits for its field.
+fn submitted_macro_text(request: &MacroEditRequest) -> String {
+    match &request.change {
+        MacroEditChange::Change(MacroChange::Name { value }) => value.clone(),
+        MacroEditChange::Change(MacroChange::TapMs { value })
+        | MacroEditChange::Change(MacroChange::WaitMs { value }) => value.to_string(),
+        _ => String::new(),
+    }
+}
 
 fn is_action(target: MacroEditTarget) -> bool {
     matches!(
@@ -41,20 +133,13 @@ fn same_action(left: MacroEditTarget, right: MacroEditTarget) -> bool {
     left == right || (structural_action(left) && structural_action(right))
 }
 
-#[derive(Clone, Copy)]
-enum PrecedingStructure {
-    Append,
-    Remove(usize),
-    Ambiguous,
-}
-
 pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) -> bool {
     try_consume_context::<MacroTickets>().is_some_and(|tickets| {
-        tickets.0.read().iter().any(|entry| {
-            entry.request.macro_id.as_deref() == macro_id
-                && same_action(entry.request.target, target)
-                && entry.ticket.is_pending()
-        })
+        tickets
+            .0
+            .read()
+            .pending()
+            .any(|entry| entry.macro_id.as_deref() == macro_id && same_action(entry.target, target))
     })
 }
 
@@ -66,15 +151,19 @@ pub(super) fn draft_step(
 ) -> MacroStep {
     let mut value = accepted.clone();
     if let Some(tickets) = try_consume_context::<MacroTickets>() {
-        for entry in tickets.0.read().iter().filter(|entry| {
-            entry.request.scope == *scope
-                && entry.request.macro_id.as_deref() == Some(macro_id)
-                && entry.ticket.is_pending()
-        }) {
+        for request in tickets
+            .0
+            .read()
+            .pending()
+            .filter_map(|entry| entry.request.as_deref())
+            .filter(|request| {
+                request.scope == *scope && request.macro_id.as_deref() == Some(macro_id)
+            })
+        {
             if let MacroEditChange::Change(MacroChange::Step {
                 index: changed,
                 value: draft,
-            }) = &entry.request.change
+            }) = &request.change
                 && *changed == index
             {
                 value = draft.clone();
@@ -137,7 +226,7 @@ pub fn use_macro_operations(
     let request_sequence = use_signal(|| 0_u64);
     let mut last_admitted_request = use_signal(|| 0_u64);
     let captured_generation = scope_generation();
-    let pending = use_signal(Vec::<MacroTicket>::new);
+    let pending = use_signal(MacroPending::default);
     use_context_provider(|| MacroTickets(pending));
     let feedback = use_signal(Vec::<MacroEditFeedback>::new);
     use_context_provider(|| MacroFeedbacks(feedback));
@@ -152,35 +241,41 @@ pub fn use_macro_operations(
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
-            let mut tickets = pending.peek().clone();
-            let before = tickets.len();
-            tickets.retain(|entry| {
-                let live = runtime.scope().as_ref() == Some(&entry.request.scope)
-                    && scope_generation() == entry.request.scope_generation;
-                let status = match entry.ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(MacroEditStatus::Saved),
-                    Settlement::Failed { message } => Some(MacroEditStatus::Failed(message)),
-                    Settlement::Retired => None,
-                };
-                if let Some(status) = status {
-                    if let Some(feedback) = feedback
-                        .write()
-                        .iter_mut()
-                        .find(|feedback| feedback.request_id == entry.request.request_id)
-                    {
-                        feedback.status = status;
-                    }
-                } else {
-                    feedback
-                        .write()
-                        .retain(|feedback| feedback.request_id != entry.request.request_id);
-                }
-                false
-            });
-            if before != tickets.len() {
-                pending.set(tickets);
+            if !pending.peek().has_terminal() {
+                return;
             }
+            let document = runtime.model().accepted.map(|snapshot| snapshot.document);
+            let results = pending
+                .peek()
+                .helper
+                .settle(true, |key| accepted_macro_text(document.as_deref(), key));
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let Some(request) = key.request.as_deref() else {
+                    continue;
+                };
+                let live = runtime.scope().as_ref() == Some(&request.scope)
+                    && scope_generation() == request.scope_generation;
+                match &result {
+                    // A bound field reports its failure through the helper's Signal at the
+                    // field; only actions without a bound field report in the panel status.
+                    PendingEditResult::Failed { message, .. } if live && is_action(key.target) => {
+                        if let Some(feedback) = feedback
+                            .write()
+                            .iter_mut()
+                            .find(|feedback| feedback.request_id == request.request_id)
+                        {
+                            feedback.status = MacroEditStatus::Failed(message.clone());
+                        }
+                    }
+                    _ => feedback
+                        .write()
+                        .retain(|feedback| feedback.request_id != request.request_id),
+                }
+            }
+            pending.write().prune();
         }
     }));
 
@@ -302,10 +397,8 @@ pub fn use_macro_operations(
                 return;
             }
             if is_action(request.target)
-                && pending.peek().iter().any(|entry| {
-                    entry.request.macro_id == request.macro_id
-                        && same_action(entry.request.target, request.target)
-                        && entry.ticket.is_pending()
+                && pending.peek().pending().any(|entry| {
+                    entry.macro_id == request.macro_id && same_action(entry.target, request.target)
                 })
             {
                 return;
@@ -324,16 +417,12 @@ pub fn use_macro_operations(
             // one can precede a field, so its positional effect can be captured purely.
             let preceding_structure = pending
                 .peek()
-                .iter()
-                .find(|entry| {
-                    entry.request.macro_id == request.macro_id
-                        && structural_action(entry.request.target)
-                        && entry.ticket.is_pending()
-                })
+                .pending()
+                .find(|entry| entry.macro_id == request.macro_id && structural_action(entry.target))
                 .and_then(|entry| {
-                    let before = entry.request.step_sequence.as_ref()?.len();
+                    let before = entry.request.as_ref()?.step_sequence.as_ref()?.len();
                     let now = request.step_sequence.as_ref()?.len();
-                    match entry.request.target {
+                    match entry.target {
                         MacroEditTarget::AddStep if now == before => {
                             Some(PrecedingStructure::Append)
                         }
@@ -346,22 +435,30 @@ pub fn use_macro_operations(
                     }
                 });
             let seed = runtime.operation().0;
-            let ticket = EditTicket::begin(
-                &runtime,
-                "keymap-macro",
-                Some("macro".into()),
-                macro_resolver(request.clone(), seed, preceding_structure),
-            );
             feedback.write().retain(|entry| {
                 !(entry.macro_id == request.macro_id && entry.target == request.target)
             });
             feedback
                 .write()
                 .push(public_feedback(&request, MacroEditStatus::Pending));
-            pending.write().push(MacroTicket {
-                request: request.clone(),
-                ticket,
-            });
+            if pending
+                .peek()
+                .owner_changed(Some(&scope), captured_generation)
+            {
+                pending
+                    .write()
+                    .follow_owner(Some(&scope), captured_generation);
+            }
+            let key = MacroKey::of(&request);
+            pending.peek().helper.begin_field(
+                &runtime,
+                key.clone(),
+                "keymap-macro",
+                Some("macro".into()),
+                macro_resolver(request.clone(), seed, preceding_structure),
+                &submitted_macro_text(&request),
+            );
+            pending.write().remember(key);
             last_admitted_request.set(request.request_id);
         }
     });
@@ -454,183 +551,4 @@ fn current_display_source(
         && snapshot.document.revision == expected.revision
         && generation() == expected_generation)
         .then_some(snapshot)
-}
-
-fn macro_resolver(
-    request: MacroEditRequest,
-    seed: u64,
-    preceding_structure: Option<PrecedingStructure>,
-) -> EditResolver {
-    EditResolver::new("keymap-macro", move |accepted: &AcceptedSnapshot| {
-        if !accepted
-            .document
-            .boards
-            .iter()
-            .any(|board| board.id == request.scope.board_id)
-        {
-            return Resolution::Retire("This board no longer exists.".into());
-        }
-        let macros = accepted
-            .document
-            .keymap
-            .as_ref()
-            .map_or(&[][..], |map| map.macros.as_slice());
-        let change = match (&request.target, &request.change) {
-            (
-                MacroEditTarget::AddMacro,
-                MacroEditChange::Add {
-                    tap_ms,
-                    wait_ms,
-                    steps,
-                    ..
-                },
-            ) if request.macro_id.is_none() => {
-                if macros.len() >= 128 {
-                    return Resolution::Retire("The keymap already has 128 macros.".into());
-                }
-                let mut id = format!("keymap-macro-{seed}");
-                let mut suffix = 0u64;
-                while macros.iter().any(|item| item.id == id) {
-                    suffix += 1;
-                    id = format!("keymap-macro-{seed}-{suffix}");
-                }
-                KeymapChange::SaveMacro {
-                    value: KeymapMacro {
-                        id,
-                        name: format!("Macro {}", macros.len() + 1),
-                        tap_ms: *tap_ms,
-                        wait_ms: *wait_ms,
-                        steps: steps.clone(),
-                    },
-                }
-            }
-            _ => {
-                let Some(item) = request
-                    .macro_id
-                    .as_ref()
-                    .and_then(|id| macros.iter().find(|item| &item.id == id))
-                else {
-                    return Resolution::Retire("This macro no longer exists.".into());
-                };
-                // Appending, or removing a later step, keeps this positional target.
-                // A removed/shifted target is no longer eligible; a failed structural
-                // operation leaves the original position available.
-                if let MacroEditTarget::RemoveStep { index }
-                | MacroEditTarget::StepKind { index }
-                | MacroEditTarget::StepDelay { index }
-                | MacroEditTarget::StepKeycode { index } = request.target
-                {
-                    let valid =
-                        request.step_sequence.as_ref().is_some_and(
-                            |steps| match preceding_structure {
-                                Some(PrecedingStructure::Append) => {
-                                    item.steps.len() == steps.len()
-                                        || item.steps.len() == steps.len() + 1
-                                }
-                                Some(PrecedingStructure::Remove(removed)) => {
-                                    item.steps.len() == steps.len()
-                                        || (item.steps.len() + 1 == steps.len() && index < removed)
-                                }
-                                Some(PrecedingStructure::Ambiguous) => false,
-                                None => item.steps.len() == steps.len(),
-                            },
-                        );
-                    if !valid {
-                        return Resolution::Retire("This macro step is no longer available because the steps changed. Select the step again.".into());
-                    }
-                }
-                match (&request.target, &request.change) {
-                    (MacroEditTarget::RemoveMacro, MacroEditChange::Remove) => {
-                        KeymapChange::RemoveMacro {
-                            id: item.id.clone(),
-                        }
-                    }
-                    (target, MacroEditChange::Change(change)) => {
-                        let valid = match (target, change) {
-                            (MacroEditTarget::Name, MacroChange::Name { value }) => {
-                                if item.name == *value {
-                                    return Resolution::Unchanged;
-                                }
-                                true
-                            }
-                            (MacroEditTarget::TapMs, MacroChange::TapMs { value }) => {
-                                if item.tap_ms == *value {
-                                    return Resolution::Unchanged;
-                                }
-                                true
-                            }
-                            (MacroEditTarget::WaitMs, MacroChange::WaitMs { value }) => {
-                                if item.wait_ms == *value {
-                                    return Resolution::Unchanged;
-                                }
-                                true
-                            }
-                            (MacroEditTarget::AddStep, MacroChange::AddStep { .. }) => {
-                                item.steps.len() < 128
-                            }
-                            (
-                                MacroEditTarget::RemoveStep { index },
-                                MacroChange::RemoveStep { index: changed },
-                            ) => {
-                                index == changed
-                                    && *index < item.steps.len()
-                                    && item.steps.len() > 1
-                            }
-                            (
-                                MacroEditTarget::StepKind { index }
-                                | MacroEditTarget::StepDelay { index }
-                                | MacroEditTarget::StepKeycode { index },
-                                MacroChange::Step {
-                                    index: changed,
-                                    value,
-                                },
-                            ) => {
-                                let Some(current) = item.steps.get(*index) else {
-                                    return Resolution::Retire(
-                                        "This macro step no longer exists.".into(),
-                                    );
-                                };
-                                if index != changed {
-                                    return Resolution::Retire(
-                                        "This macro step is no longer available.".into(),
-                                    );
-                                }
-                                if !matches!(target, MacroEditTarget::StepKind { .. })
-                                    && std::mem::discriminant(current)
-                                        != std::mem::discriminant(value)
-                                {
-                                    return Resolution::Retire(
-                                        "This macro step field is no longer available.".into(),
-                                    );
-                                }
-                                if current == value {
-                                    return Resolution::Unchanged;
-                                }
-                                true
-                            }
-                            _ => false,
-                        };
-                        if !valid {
-                            return Resolution::Retire(
-                                "This macro field or step is no longer available.".into(),
-                            );
-                        }
-                        KeymapChange::EditMacro {
-                            macro_id: item.id.clone(),
-                            change: change.clone(),
-                        }
-                    }
-                    _ => {
-                        return Resolution::Retire(
-                            "This macro edit is no longer available.".into(),
-                        );
-                    }
-                }
-            }
-        };
-        Resolution::submit(
-            vec![request.scope.board_id.clone()],
-            EditOperation::EditKeymap { change },
-        )
-    })
 }

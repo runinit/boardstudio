@@ -56,16 +56,18 @@ pub struct CaseBodyEditFeedback {
     pub request_id: u64,
     /// Echoed from the request so only the owning control consumes feedback.
     pub field_id: Option<String>,
-    pub state: CaseBodyEditState,
-    pub message: Option<String>,
+    /// The edit has not settled; its draft stays visible.
+    pub pending: bool,
+    /// The settled edit's failure, shown inline at its field.
+    pub failure: Option<String>,
     pub created_body_id: Option<String>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum CaseBodyEditState {
-    Pending,
-    Saved,
-    Failed,
+impl CaseBodyEditFeedback {
+    /// The edit landed: the field shows the accepted value again.
+    fn landed(&self) -> bool {
+        !self.pending && self.failure.is_none()
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -268,16 +270,16 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
         .cloned()
         .collect::<Vec<_>>();
     let action_pending = |id: &str| {
-        feedback.iter().any(|entry| {
-            entry.field_id.as_deref() == Some(id) && entry.state == CaseBodyEditState::Pending
-        })
+        feedback
+            .iter()
+            .any(|entry| entry.field_id.as_deref() == Some(id) && entry.pending)
     };
     let mut selection_for_effect = selected_body;
     let scope = props.scope.clone();
     let saved_add = feedback
         .iter()
         .rev()
-        .find(|feedback| feedback.state == CaseBodyEditState::Saved)
+        .find(|feedback| feedback.landed())
         .and_then(|feedback| feedback.created_body_id.clone());
     use_effect(use_reactive((&saved_add, &scope), {
         move |(created_body_id, scope)| {
@@ -348,11 +350,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                 .is_none_or(|id| id.starts_with("action:"))
         })
         .max_by_key(|feedback| feedback.request_id);
-    let global_feedback_saved =
-        global_feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
-    let global_feedback_error = global_feedback
-        .filter(|feedback| feedback.state == CaseBodyEditState::Failed)
-        .and_then(|feedback| feedback.message.clone());
+    let global_feedback_error = global_feedback.and_then(|feedback| feedback.failure.clone());
 
     rsx! {
         section { class: "m1-case-bodies", "aria-label": "Authored case bodies",
@@ -609,9 +607,6 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
             } else {
                 p { class: "m1-case-bodies-empty", role: "status", "Add a board before creating a case body." }
             }
-            if global_feedback_saved {
-                p { class: "m1-case-edit-saved", role: "status", "Case body saved." }
-            }
             if let Some(error) = global_feedback_error {
                 p { class: "m1-case-edit-error", role: "alert", "{error}" }
             }
@@ -640,18 +635,20 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     let dirty = use_signal(|| false);
     let blocked_attempt = use_signal(|| false);
 
+    let mut field_failure = use_signal(|| None::<String>);
+    super::case_controller::use_bound_case_field(
+        &props.field_id,
+        props.value.to_string(),
+        draft,
+        field_failure,
+    );
     let accepted_value = props.value;
     let saved_ack = props
         .feedback
         .iter()
         .rev()
         .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()))
-        .filter(|feedback| {
-            matches!(
-                feedback.state,
-                CaseBodyEditState::Saved | CaseBodyEditState::Failed
-            )
-        })
+        .filter(|feedback| !feedback.pending)
         .map(request_identity);
     let consumed_saved_ack = use_signal(|| None::<RequestIdentity>);
     let saved_ack_pending = saved_ack
@@ -669,10 +666,12 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 if let Some(identity) = ack {
                     consumed_ack_for_effect.set(Some(identity.clone()));
                 }
-                if submitted_for_effect.peek().as_ref() == Some(&*draft_for_effect.peek())
-                    || !*dirty_for_effect.peek()
-                {
-                    draft_for_effect.set(value.to_string());
+                // The helper has already restored a draft that was exactly the submitted
+                // text; a newer draft cleared the submission and stays untouched.
+                if submitted_for_effect.peek().is_some() || !*dirty_for_effect.peek() {
+                    if !*dirty_for_effect.peek() {
+                        draft_for_effect.set(value.to_string());
+                    }
                     error_for_effect.set(None);
                     submitted_for_effect.set(None);
                     dirty_for_effect.set(false);
@@ -691,14 +690,15 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         .rev()
         .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()));
     let feedback_identity = owned_feedback.map(request_identity);
-    let feedback_key = owned_feedback.map(|feedback| (request_identity(feedback), feedback.state));
+    let feedback_key =
+        owned_feedback.map(|feedback| (request_identity(feedback), feedback.failure.is_some()));
     let mut submitted_for_feedback = submitted_draft;
     let mut ignored_for_feedback = ignored_feedback_request;
     use_effect(use_reactive((&feedback_identity,), move |(_identity,)| {
         ignored_for_feedback.set(None);
     }));
     use_effect(use_reactive((&feedback_key,), move |(key,)| {
-        if key.is_some_and(|(_, state)| state == CaseBodyEditState::Failed) {
+        if key.is_some_and(|(_, failed)| failed) {
             submitted_for_feedback.set(None);
         }
     }));
@@ -753,14 +753,8 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         .iter()
         .rev()
         .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()));
-    let feedback_error = feedback
-        .filter(|feedback| feedback.state == CaseBodyEditState::Failed)
-        .filter(|feedback| ignored_feedback_request().as_ref() != Some(&request_identity(feedback)))
-        .and_then(|feedback| feedback.message.clone());
-    let feedback_pending =
-        feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Pending);
-    let feedback_saved =
-        feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
+    let feedback_error = field_failure();
+    let feedback_pending = feedback.is_some_and(|feedback| feedback.pending);
     let input_feedback_identity = feedback.map(request_identity);
     let escape_feedback_identity = input_feedback_identity.clone();
 
@@ -782,6 +776,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                         let mut submitted_draft = submitted_draft;
                         let mut error = error;
                         let mut ignored_feedback_request = ignored_feedback_request;
+                        field_failure.set(None);
                         draft.set(event.value());
                         dirty.set(true);
                         blocked_attempt.set(false);
@@ -826,8 +821,6 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 small { class: "m1-case-field-error", role: "alert", "{error}" }
             } else if feedback_pending {
                 small { role: "status", "Saving…" }
-            } else if feedback_saved {
-                small { role: "status", "Saved" }
             }
             if blocked_attempt() {
                 small { class: "m1-case-field-error", role: "status", "Another Case edit is saving. Your draft is preserved; retry after it finishes." }

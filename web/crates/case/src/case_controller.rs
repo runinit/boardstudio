@@ -1,8 +1,8 @@
 //! Private Case authoring adapter. The child owns drafts; Runtime remains authoritative.
 use super::case_bodies::{
-    CaseBoardSummary, CaseBodies, CaseBodyEdit, CaseBodyEditFeedback, CaseBodyEditState,
-    CaseBodyRequest, CaseMismatch,
+    CaseBoardSummary, CaseBodies, CaseBodyEdit, CaseBodyEditFeedback, CaseBodyRequest, CaseMismatch,
 };
+use crate::owned_edits::OwnedEdits;
 use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
@@ -12,15 +12,157 @@ use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-#[derive(Clone)]
-struct BodyEditTicket {
+struct BodyEditMeta {
     request: CaseBodyRequest,
-    ticket: EditTicket,
     created_body_id: Option<String>,
+}
+
+/// What a body edit is logically: a numeric field, or another edit kind on a body (an
+/// action such as adding a mount, or a kind change). Edits of different kinds never share
+/// a key, so one cannot replace the observation of another.
+#[derive(Clone, PartialEq)]
+enum BodyEditLogical {
+    Field(String),
+    Edit(std::mem::Discriminant<CaseBodyEdit>, Option<String>),
+}
+
+/// A body edit's logical identity: the latest edit for it replaces the earlier one. The key
+/// carries its request and created body for follow-ups; keys compare by logical identity only.
+#[derive(Clone)]
+struct BodyEditKey {
+    logical: BodyEditLogical,
+    meta: Option<Rc<BodyEditMeta>>,
+}
+
+impl PartialEq for BodyEditKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.logical == other.logical
+    }
+}
+
+type BodyEditPending = OwnedEdits<BodyEditKey>;
+
+impl BodyEditKey {
+    /// A key without a request, for binding a field's Signals.
+    fn bound(field_id: &str) -> Self {
+        Self {
+            logical: BodyEditLogical::Field(field_id.to_owned()),
+            meta: None,
+        }
+    }
+
+    fn of(waiting: BodyEditMeta) -> Self {
+        let logical = match &waiting.request.field_id {
+            Some(field_id) => BodyEditLogical::Field(field_id.clone()),
+            None => BodyEditLogical::Edit(
+                std::mem::discriminant(&waiting.request.edit),
+                waiting.request.edit.body_id().map(str::to_owned),
+            ),
+        };
+        Self {
+            logical,
+            meta: Some(Rc::new(waiting)),
+        }
+    }
+}
+
+struct CaseFieldEntry {
+    field_id: String,
+    draft: Signal<String>,
+    /// The text the accepted document shows for the field, refreshed on every render.
+    accepted: String,
+}
+
+/// The controller's helper and the mounted number fields it is bound to. Fields register
+/// while mounted so the controller reads the draft a commit submits and the accepted text a
+/// settlement restores, and releases their Signals when they leave.
+#[derive(Clone)]
+pub(crate) struct CaseEditsContext {
+    pending: Signal<BodyEditPending>,
+    fields: Rc<std::cell::RefCell<Vec<CaseFieldEntry>>>,
+}
+
+impl CaseEditsContext {
+    fn accepted_text(&self, key: &BodyEditKey) -> String {
+        self.fields
+            .borrow()
+            .iter()
+            .find(|entry| BodyEditLogical::Field(entry.field_id.clone()) == key.logical)
+            .map(|entry| entry.accepted.clone())
+            .unwrap_or_default()
+    }
+
+    fn draft_text(&self, field_id: Option<&String>) -> String {
+        self.fields
+            .borrow()
+            .iter()
+            .find(|entry| Some(&entry.field_id) == field_id)
+            .map(|entry| entry.draft.peek().clone())
+            .unwrap_or_default()
+    }
+}
+
+/// Bind a number field's draft and failure Signals to the controller's helper while the
+/// calling component is mounted; they are released when it unmounts.
+pub(crate) fn use_bound_case_field(
+    field_id: &str,
+    accepted: String,
+    draft: Signal<String>,
+    failure: Signal<Option<String>>,
+) {
+    let context = try_consume_context::<CaseEditsContext>();
+    let bound = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
+    if let Some(context) = context.as_ref() {
+        let mut previous = bound.borrow_mut();
+        if let Some(old) = previous.as_ref()
+            && old != field_id
+        {
+            context
+                .pending
+                .peek()
+                .unbind_field(&BodyEditKey::bound(old));
+            context
+                .fields
+                .borrow_mut()
+                .retain(|entry| entry.field_id != *old);
+        }
+        context
+            .pending
+            .peek()
+            .bind_field(BodyEditKey::bound(field_id), draft, failure);
+        let mut fields = context.fields.borrow_mut();
+        match fields.iter_mut().find(|entry| entry.field_id == field_id) {
+            Some(entry) => {
+                entry.draft = draft;
+                entry.accepted = accepted;
+            }
+            None => fields.push(CaseFieldEntry {
+                field_id: field_id.to_owned(),
+                draft,
+                accepted,
+            }),
+        }
+        *previous = Some(field_id.to_owned());
+    }
+    use_drop({
+        let bound = bound.clone();
+        move || {
+            if let (Some(context), Some(field_id)) = (context.as_ref(), bound.borrow_mut().take()) {
+                context
+                    .pending
+                    .peek()
+                    .unbind_field(&BodyEditKey::bound(&field_id));
+                context
+                    .fields
+                    .borrow_mut()
+                    .retain(|entry| entry.field_id != field_id);
+            }
+        }
+    });
 }
 
 /// Mount beside the Case preview in the Inspector slot. The shared page passes
@@ -37,10 +179,16 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     });
     let mut body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
     let request_sequence = use_signal(|| 0_u64);
-    let pending = use_signal(|| Vec::<BodyEditTicket>::new());
+    let pending = use_signal(BodyEditPending::default);
+    let edits_context = CaseEditsContext {
+        pending,
+        fields: use_hook(|| Rc::new(std::cell::RefCell::new(Vec::new()))),
+    };
+    use_context_provider(|| edits_context.clone());
     let feedback = use_signal(|| Vec::<CaseBodyEditFeedback>::new());
     let body_edit_dispatch = use_hook({
         let runtime = runtime.clone();
+        let edits_context = edits_context.clone();
         move || {
             let portal = body_edit_portal;
             let runtime = runtime.clone();
@@ -70,6 +218,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
                         editor_instance_id,
                         &mut pending,
                         &mut feedback,
+                        &edits_context,
                         CaseBodyRequest {
                             editor_instance_id,
                             request_id,
@@ -134,41 +283,49 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     }));
 
     use_effect(use_reactive((&version(),), {
+        let edits_context = edits_context.clone();
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
+            if !pending.peek().has_terminal() {
+                return;
+            }
             let scope = runtime.scope();
-            let mut remaining = Vec::new();
+            let results = pending
+                .peek()
+                .helper
+                .settle(true, |key| edits_context.accepted_text(key));
             let mut next_feedback = feedback.peek().clone();
-            for waiting in pending.peek().iter() {
-                match waiting
-                    .ticket
-                    .settlement(scope.as_ref() == Some(&waiting.request.scope))
-                {
-                    Settlement::Pending => remaining.push(waiting.clone()),
-                    Settlement::Landed { .. } => record_feedback(
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let Some(waiting) = key.meta.as_deref() else {
+                    continue;
+                };
+                let live = scope.as_ref() == Some(&waiting.request.scope);
+                match &result {
+                    PendingEditResult::Landed { .. } if live => {
+                        record_feedback(&mut next_feedback, feedback_for(waiting, None));
+                    }
+                    PendingEditResult::Failed { message, .. } if live => record_feedback(
                         &mut next_feedback,
-                        feedback_for(waiting, CaseBodyEditState::Saved, None),
+                        feedback_for(waiting, Some(message.clone())),
                     ),
-                    Settlement::Failed { message } => record_feedback(
-                        &mut next_feedback,
-                        feedback_for(waiting, CaseBodyEditState::Failed, Some(message)),
-                    ),
-                    Settlement::Retired => {
+                    _ => {
                         next_feedback.retain(|entry| entry.request_id != waiting.request.request_id)
                     }
                 }
             }
-            if remaining.len() != pending.peek().len() {
-                pending.set(remaining);
-                feedback.set(next_feedback);
-            }
+            feedback.set(next_feedback);
+            pending.write().prune();
         }
     }));
 
     let on_edit = {
         let runtime = runtime.clone();
+        let edits_context = edits_context.clone();
         let mut pending = pending;
         let mut feedback = feedback;
         move |request: CaseBodyRequest| {
@@ -178,6 +335,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
                 editor_instance_id,
                 &mut pending,
                 &mut feedback,
+                &edits_context,
                 request,
             );
         }
@@ -277,11 +435,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     }
 }
 
-fn feedback_for(
-    pending: &BodyEditTicket,
-    state: CaseBodyEditState,
-    message: Option<String>,
-) -> CaseBodyEditFeedback {
+fn feedback_for(pending: &BodyEditMeta, failure: Option<String>) -> CaseBodyEditFeedback {
     CaseBodyEditFeedback {
         editor_instance_id: pending.request.editor_instance_id,
         scope: pending.request.scope.clone(),
@@ -289,8 +443,8 @@ fn feedback_for(
         revision: pending.request.revision,
         request_id: pending.request.request_id,
         field_id: pending.request.field_id.clone(),
-        state,
-        message,
+        pending: false,
+        failure,
         created_body_id: pending.created_body_id.clone(),
     }
 }
@@ -312,8 +466,9 @@ fn submit_body_edit(
     runtime: &Rc<Runtime>,
     instance_selection: super::InstanceSelection,
     editor_instance_id: u64,
-    pending: &mut Signal<Vec<BodyEditTicket>>,
+    pending: &mut Signal<BodyEditPending>,
     feedback: &mut Signal<Vec<CaseBodyEditFeedback>>,
+    edits: &CaseEditsContext,
     request: CaseBodyRequest,
 ) {
     let model = runtime.model();
@@ -340,7 +495,8 @@ fn submit_body_edit(
     if let Some(action_id) = request.edit.action_id()
         && pending
             .peek()
-            .iter()
+            .pending()
+            .filter_map(|entry| entry.meta.as_deref())
             .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
     {
         return;
@@ -358,17 +514,28 @@ fn submit_body_edit(
     } else {
         None
     };
-    let ticket = EditTicket::begin(runtime, "case-body", Some("case body".into()), resolver);
-    let waiting = BodyEditTicket {
+    let scope = request.scope.clone();
+    let draft_text = edits.draft_text(request.field_id.as_ref());
+    let waiting = BodyEditMeta {
         request,
-        ticket,
         created_body_id,
     };
-    record_feedback(
-        &mut feedback.write(),
-        feedback_for(&waiting, CaseBodyEditState::Pending, None),
+    let mut submitted = feedback_for(&waiting, None);
+    submitted.pending = true;
+    record_feedback(&mut feedback.write(), submitted);
+    let key = BodyEditKey::of(waiting);
+    if pending.peek().owner_changed(Some(&scope), 0) {
+        pending.write().follow_owner(Some(&scope), 0);
+    }
+    pending.peek().helper.begin_field(
+        runtime,
+        key.clone(),
+        "case-body",
+        Some("case body".into()),
+        resolver,
+        &draft_text,
     );
-    pending.write().push(waiting);
+    pending.write().remember(key);
 }
 
 fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {
@@ -910,6 +1077,194 @@ mod queued_body_tests {
                 .inset,
             2.0
         );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Settlement of a bound body field through the real number input.
+
+    async fn mounted_two_bodies() -> (Rc<Runtime>, web_sys::Element) {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("body-settlement", "Bodies");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .unwrap(),
+        );
+        for seed in [1, 2] {
+            let body = new_case_body(seed, &document, "board").unwrap();
+            document.case_bodies.push(body);
+        }
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        (runtime, root)
+    }
+
+    fn select_body(root: &web_sys::Element, index: u32) {
+        root.query_selector_all(".m1-case-body-tab")
+            .unwrap()
+            .item(index)
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    fn thickness_input(root: &web_sys::Element) -> web_sys::HtmlInputElement {
+        root.query_selector_all(".m1-case-measures input")
+            .unwrap()
+            .item(0)
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    }
+
+    fn type_into(input: &web_sys::HtmlInputElement, value: &str) {
+        input.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    fn press_enter(input: &web_sys::HtmlInputElement) {
+        let enter = web_sys::KeyboardEventInit::new();
+        enter.set_key("Enter");
+        enter.set_bubbles(true);
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+
+    async fn settle_body(runtime: &Rc<Runtime>) {
+        for _ in 0..20 {
+            support::run_pending(runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+    }
+
+    fn inline_failure(root: &web_sys::Element) -> Option<String> {
+        root.query_selector(".m1-case-measures small.m1-case-field-error[role='alert']")
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    fn thickness(runtime: &Rc<Runtime>) -> f64 {
+        runtime.model().accepted.unwrap().document.case_bodies[0].thickness
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_failed_unchanged_body_draft_restores_the_accepted_value_with_an_inline_failure() {
+        let (runtime, root) = mounted_two_bodies().await;
+        support::fail_next_core_reply(&runtime, "body executor failed");
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        settle_body(&runtime).await;
+        assert_eq!(thickness(&runtime), 3.0);
+        assert_eq!(thickness_input(&root).value(), "3", "the draft restores");
+        assert!(
+            inline_failure(&root).is_some_and(|message| message.contains("body executor failed"))
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_newer_body_draft_survives_an_older_failure_that_reports_inline() {
+        let (runtime, root) = mounted_two_bodies().await;
+        support::fail_next_core_reply(&runtime, "body executor failed");
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        // The older edit has not settled when the user types the next draft.
+        type_into(&input, "5");
+        settle_body(&runtime).await;
+        assert_eq!(
+            thickness_input(&root).value(),
+            "5",
+            "a newer draft survives"
+        );
+        assert!(
+            inline_failure(&root).is_some_and(|message| message.contains("body executor failed")),
+            "the older failure still reports inline beside the newer text"
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_second_edit_to_one_body_field_replaces_the_observation_and_both_edits_undo() {
+        let (runtime, root) = mounted_two_bodies().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_into(&input, "5");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        settle_body(&runtime).await;
+        assert_eq!(thickness(&runtime), 5.0);
+        assert_eq!(thickness_input(&root).value(), "5");
+        assert!(inline_failure(&root).is_none());
+        for expected in [4.0, 3.0] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            support::run_pending(&runtime).await;
+            assert_eq!(thickness(&runtime), expected, "each edit has an Undo step");
+        }
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_body_field_that_leaves_with_its_body_tab_keeps_its_held_edit() {
+        let (runtime, root) = mounted_two_bodies().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        // The other body's tab replaces the editor while the first body's edit is held.
+        select_body(&root, 1);
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        release.send(()).unwrap();
+        settle_body(&runtime).await;
+        let document = runtime.model().accepted.unwrap().document;
+        assert_eq!(
+            document.case_bodies[0].thickness, 4.0,
+            "the queued edit kept executing"
+        );
+        assert_eq!(document.case_bodies[1].thickness, 3.0);
+        assert!(inline_failure(&root).is_none());
+        select_body(&root, 0);
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        assert_eq!(
+            thickness_input(&root).value(),
+            "4",
+            "the remounted field shows the accepted value"
+        );
+        assert!(inline_failure(&root).is_none());
         runtime.unsubscribe();
         root.remove();
     }
