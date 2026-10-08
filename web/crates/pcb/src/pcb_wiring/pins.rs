@@ -63,9 +63,6 @@ struct PinOwner {
     edits: Rc<RefCell<PendingEdits<PcbWiringPinKey>>>,
     /// The latest submitted pin per key: the domain projection the pending select shows.
     submissions: Signal<Vec<(PcbWiringPinKey, Option<String>)>>,
-    /// The newest submitted key, so only its outcome places the panel's message.
-    latest: Signal<Option<PcbWiringPinKey>>,
-    failure: Signal<Option<String>>,
 }
 
 pub(super) fn pending_pin(
@@ -103,8 +100,6 @@ pub fn use_pcb_wiring_pin_edits(
     use_context_provider(|| PinOwner {
         edits: edits.clone(),
         submissions,
-        latest,
-        failure,
     });
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
@@ -200,9 +195,10 @@ pub fn use_pcb_wiring_pin_edits(
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
     let pending = target.as_ref().is_some_and(|target| {
-        submissions.read().iter().any(|(key, _)| {
-            &key.target == target && edits.borrow().is_pending(key)
-        })
+        submissions
+            .read()
+            .iter()
+            .any(|(key, _)| &key.target == target && edits.borrow().is_pending(key))
     });
     PcbWiringPinActions {
         identity,

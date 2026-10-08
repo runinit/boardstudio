@@ -70,10 +70,12 @@ impl PartInputKey {
             PartInputIntent::GeneratorParameter { name, .. } => {
                 PartInputField::GeneratorParameter(name.clone())
             }
-            PartInputIntent::GeneratorAnchor { name, axis, .. } => PartInputField::GeneratorAnchor {
-                name: name.clone(),
-                axis: axis.clone(),
-            },
+            PartInputIntent::GeneratorAnchor { name, axis, .. } => {
+                PartInputField::GeneratorAnchor {
+                    name: name.clone(),
+                    axis: axis.clone(),
+                }
+            }
         };
         Self {
             ui_scope: request.identity.ui_scope.clone(),
@@ -120,27 +122,21 @@ pub struct PartInputActions {
     pub on_edit: EventHandler<PartInputEditRequest>,
 }
 
-#[derive(Clone)]
-struct InputOwner {
-    edits: Rc<RefCell<PendingEdits<PartInputKey>>>,
-    /// The latest committed intent per field: the domain projection the rendered
-    /// controls read. The helper owns the ticket lifetime and settlement.
-    drafts: Signal<Vec<(PartInputKey, PartInputEditRequest)>>,
-    /// The newest committed key, so only its outcome drives the panel message.
-    latest: Signal<Option<PartInputKey>>,
-    failure: Signal<Option<PartInputFailure>>,
-}
+/// The shared projection the rendered controls read: the latest committed intent per
+/// field. The collection owns the ticket lifetime and settlement.
+#[derive(Clone, Copy)]
+struct InputDrafts(Signal<Vec<(PartInputKey, PartInputEditRequest)>>);
 
 /// Reapply the committed pending intents for this part over the accepted projection.
 pub(super) fn apply_drafts(
     identity: &PartInputIdentity,
     projection: &mut super::PartInputProjection,
 ) {
-    let Some(owner) = try_consume_context::<InputOwner>() else {
+    let Some(drafts) = try_consume_context::<InputDrafts>() else {
         return;
     };
-    for (_, request) in owner
-        .drafts
+    for (_, request) in drafts
+        .0
         .read()
         .iter()
         .filter(|(key, _)| key.same_part(identity))
@@ -189,12 +185,7 @@ pub fn use_part_input_edits(
     let failure = use_signal(|| None::<PartInputFailure>);
     let settlement_tick = use_signal(|| 0u64);
     let _ = settlement_tick();
-    use_context_provider(|| InputOwner {
-        edits: edits.clone(),
-        drafts,
-        latest,
-        failure,
-    });
+    use_context_provider(|| InputDrafts(drafts));
     // Schema preparation is serial so slower module loading cannot reorder committed values.
     let queue = use_hook(|| Rc::new(RefCell::new(VecDeque::<PartInputEditRequest>::new())));
     let preparing = use_hook(|| Rc::new(Cell::new(false)));
@@ -249,7 +240,7 @@ pub fn use_part_input_edits(
                 return;
             }
             let key = PartInputKey::of(&request);
-            let latest = latest;
+            let mut latest = latest;
             latest.set(Some(key.clone()));
             let mut failure = failure;
             failure.set(None);

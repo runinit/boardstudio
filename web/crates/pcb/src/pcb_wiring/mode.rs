@@ -27,7 +27,10 @@ pub fn mode_text(mode: ElectricalMode) -> String {
 }
 
 /// The board's accepted wiring mode; a board without configuration is a matrix.
-pub fn board_mode(document: &boardstudio_core::model::ProjectDoc, board_id: &str) -> ElectricalMode {
+pub fn board_mode(
+    document: &boardstudio_core::model::ProjectDoc,
+    board_id: &str,
+) -> ElectricalMode {
     document
         .hardware
         .as_ref()
@@ -119,9 +122,7 @@ pub fn use_board_wiring_mode_edits(
                 let model = runtime.model();
                 model.accepted.as_ref().map_or_else(
                     || mode_text(ElectricalMode::Matrix),
-                    |snapshot| {
-                        mode_text(board_mode(&snapshot.document, &target.ui_scope.board_id))
-                    },
+                    |snapshot| mode_text(board_mode(&snapshot.document, &target.ui_scope.board_id)),
                 )
             });
             if !results.is_empty() {

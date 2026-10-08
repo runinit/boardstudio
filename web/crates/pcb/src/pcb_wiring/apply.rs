@@ -71,8 +71,9 @@ pub fn use_board_wiring_apply(
             for result in results {
                 let (key, message) = match result {
                     PendingEditResult::Failed { key, message } => (key, Some(message)),
-                    PendingEditResult::Landed { key, .. }
-                    | PendingEditResult::Retired { key } => (key, None),
+                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                        (key, None)
+                    }
                 };
                 if latest.peek().as_ref() == Some(&key) {
                     failure.set(message);

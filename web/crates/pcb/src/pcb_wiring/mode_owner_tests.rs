@@ -3,9 +3,7 @@ use super::mode::{
     BoardWiringModeActions, BoardWiringModeEditRequest, CurrentSnapshotBlocker,
     current_snapshot_probe, use_board_wiring_mode_edits,
 };
-use super::pins::{
-    PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits,
-};
+use super::pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 use super::*;
 use boardstudio_application::{

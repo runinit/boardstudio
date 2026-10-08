@@ -114,10 +114,9 @@ pub fn use_firmware_position_edits(
             }
             for result in results {
                 let (key, state) = match result {
-                    PendingEditResult::Failed { key, message } => (
-                        key,
-                        Some(FirmwarePositionFeedbackState::Failed(message)),
-                    ),
+                    PendingEditResult::Failed { key, message } => {
+                        (key, Some(FirmwarePositionFeedbackState::Failed(message)))
+                    }
                     PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
                         (key, None)
                     }
@@ -138,7 +137,7 @@ pub fn use_firmware_position_edits(
         let runtime = runtime.clone();
         let edits = edits.clone();
         let mut submissions = submissions;
-        let latest = latest;
+        let mut latest = latest;
         let mut feedback = feedback;
         let instance_is_current = instance_is_current.clone();
         move |request: FirmwarePositionEditRequest| {
@@ -490,7 +489,7 @@ pub fn use_pcb_part_net_edits(
             if create {
                 preparing_create.set(true);
             }
-            let latest = latest;
+            let mut latest = latest;
             latest.set(None);
             let mut feedback = feedback;
             feedback.set(None);
@@ -507,7 +506,7 @@ pub fn use_pcb_part_net_edits(
             let instance_is_current = instance_is_current.clone();
             let edits = edits.clone();
             let mut submissions = submissions;
-            let latest = latest;
+            let mut latest = latest;
             let mut feedback = feedback;
             spawn_local(async move {
                 loop {
@@ -567,9 +566,13 @@ pub fn use_pcb_part_net_edits(
                     }
                     latest.set(Some(key.clone()));
                     feedback.set(None);
-                    edits
-                        .borrow_mut()
-                        .begin(&runtime, key, "pcb-part-net", Some("connection".into()), resolver);
+                    edits.borrow_mut().begin(
+                        &runtime,
+                        key,
+                        "pcb-part-net",
+                        Some("connection".into()),
+                        resolver,
+                    );
                 }
             });
         }
