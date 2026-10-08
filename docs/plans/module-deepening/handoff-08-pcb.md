@@ -73,3 +73,47 @@ Fix findings, rerun affected checks and report commits, every migrated site, exe
 checks, review verdicts, skipped/blocked gates and an Outcome draft. Root coordinates
 integration and any approved history operation; do not automatically rewrite history.
 The parent ticket closes only after both Parts and PCB halves are accepted.
+
+## Root review checkpoint at 87eef740b
+
+The six-commit PCB-only branch is clean at `87eef740b`, base `8ce860a09`.
+Root confirmed protected remap unchanged and branch-specific GitNexus comparison:
+15 changed files, 109 indexed symbols, 17 affected flows, aggregate CRITICAL risk.
+The submitted report records native PCB 22/22, PCB browser 38/38, page browser
+43/43, fmt/Clippy/typecheck passing. Full native checks stopped at 13 KiCad AppImage
+failures; CAD failed to build in this worktree, so its known volume baseline was
+not re-executed. These are reported limits, not passing full-check evidence.
+
+Before integration, address the following root review findings in additive commits:
+
+1. Module placement in pcb_module_inspector.rs still compares committed_draft to
+   the current MountedModule and restores accepted state itself. That repeats
+   submitted-value restoration policy, but its typed draft does not fit the helper's
+   String binding. Report the concrete typed draft scenario and smallest shared
+   contract proposal before editing Runtime/UI-shared; preserve newer typed drafts.
+   Do not serialize domain state into a fake text binding to claim helper adoption.
+2. Move module actions and board-reference removal disabling onto the existing
+   one-shot helper. Keep typed pending_pin/InputDrafts, schema preparation and
+   domain result follow-ups. Iterating returned results for domain cleanup is valid;
+   remove repeated generic restoration/one-shot policy rather than all result loops.
+3. Narrow new BoardReferenceKey/of and PartNetTarget fields/methods to their actual
+   in-crate consumers. Audit new PartNetActions.create_pending and feedback members
+   similarly. Keep existing cross-crate behavior; any retained public expansion
+   requires explicit user approval under current AGENTS.md.
+4. pcb_physical_setup/tests.rs executes on neither target: its parent is WASM-only
+   and the tests are native-only. The cfg gap predates this branch. Record its exact
+   coverage limitation and restore executable coverage of the changed silent landing
+   and owner-attribution behavior through a real Runtime seam. Reuse equivalent
+   existing mounted assertions if they prove those scenarios; test names/counts alone
+   do not demonstrate equivalence.
+
+The physical-setup task-local PendingEdits waiter is workflow orchestration with
+navigation/reassignment follow-ups, distinct from generic field restoration. Document
+this distinction; do not introduce another Session implementation or timer pump.
+
+Preserve the frozen checkpoint and original commit history. The non-building
+intermediate commit is a recorded bisectability limitation; no autosquash/rebase is
+authorized by this follow-up. Run affected native/compile/browser checks after fixes,
+using the orchestrator's exclusive lease, then both reviews pinned to final HEAD.
+Root integrates accepted source and closes the parent only after both Parts/PCB
+halves are accepted.
