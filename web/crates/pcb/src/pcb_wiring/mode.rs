@@ -19,7 +19,7 @@ pub struct BoardWiringModeEditRequest {
 }
 
 /// The accepted or pending mode written as the mode control's `value` text.
-pub fn mode_text(mode: ElectricalMode) -> String {
+pub(crate) fn mode_text(mode: ElectricalMode) -> String {
     match mode {
         ElectricalMode::Matrix => "matrix".to_owned(),
         ElectricalMode::Direct => "direct".to_owned(),
@@ -27,7 +27,7 @@ pub fn mode_text(mode: ElectricalMode) -> String {
 }
 
 /// The board's accepted wiring mode; a board without configuration is a matrix.
-pub fn board_mode(
+pub(crate) fn board_mode(
     document: &boardstudio_core::model::ProjectDoc,
     board_id: &str,
 ) -> ElectricalMode {
@@ -46,7 +46,7 @@ pub fn board_mode(
 /// The board panel's latest action failure, attributed to the target it belongs to so a
 /// navigated-away board never shows another board's message.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BoardWiringFailure {
+pub(crate) struct BoardWiringFailure {
     pub target: BoardWiringModeFeedbackTarget,
     pub message: String,
 }
@@ -58,11 +58,11 @@ pub struct BoardWiringModeActions {
     /// The value the mode control shows: the submitted choice while its edit is pending,
     /// otherwise the accepted mode. The helper restores it on settlement and a newer
     /// choice is never overwritten by an older outcome.
-    pub draft: Signal<String>,
+    pub(crate) draft: Signal<String>,
     /// The current target's latest observation is still pending.
-    pub pending: bool,
+    pub(crate) pending: bool,
     /// The current target's inline failure; landing and retirement are silent.
-    pub failure: Signal<Option<String>>,
+    pub(crate) failure: Signal<Option<String>>,
     pub on_change: EventHandler<BoardWiringModeEditRequest>,
 }
 

@@ -67,7 +67,7 @@ pub struct PartNetEditRequest {
 /// The stable target of one part's connection edits: no accepted token or revision, so a
 /// pending submission keeps projecting and replacing while the revision advances.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PartNetTarget {
+pub(crate) struct PartNetTarget {
     pub ui_scope: Scope,
     pub board_id: String,
     pub part_id: String,
@@ -75,7 +75,7 @@ pub struct PartNetTarget {
 }
 
 impl PartNetTarget {
-    pub fn of(identity: &PartNetEditIdentity) -> Self {
+    pub(crate) fn of(identity: &PartNetEditIdentity) -> Self {
         Self {
             ui_scope: identity.ui_scope.clone(),
             board_id: identity.board_id.clone(),
@@ -84,7 +84,7 @@ impl PartNetTarget {
         }
     }
 
-    pub fn matches(&self, identity: &PartNetEditIdentity) -> bool {
+    pub(crate) fn matches(&self, identity: &PartNetEditIdentity) -> bool {
         self.ui_scope == identity.ui_scope
             && self.board_id == identity.board_id
             && self.part_id == identity.part_id
@@ -94,8 +94,8 @@ impl PartNetTarget {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartNetFeedback {
-    pub target: PartNetTarget,
-    pub failure: String,
+    pub(crate) target: PartNetTarget,
+    pub(crate) failure: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -103,7 +103,7 @@ pub struct PartNetActions {
     pub identity: Option<PartNetEditIdentity>,
     pub editable: bool,
     /// The one-shot "Add net" action is queued or pending for the current part.
-    pub create_pending: bool,
+    pub(crate) create_pending: bool,
     pub feedback: Option<PartNetFeedback>,
     pub on_edit: EventHandler<PartNetEditRequest>,
 }

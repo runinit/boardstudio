@@ -16,7 +16,7 @@ use std::rc::Rc;
 /// The two one-shot action kinds this panel runs. Their controls disable while the
 /// matching edit is pending, so a double click cannot apply or release twice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BoardWiringApplyKey {
+pub(crate) enum BoardWiringApplyKey {
     Apply,
     ReleaseReviewedConnections,
 }
@@ -28,9 +28,9 @@ pub struct BoardWiringApplyActions {
     /// still matches the accepted document.
     pub editable: bool,
     /// The reviewed-connection release control is unavailable while its edit is pending.
-    pub release_disabled: bool,
+    pub(crate) release_disabled: bool,
     /// The current board target's failure; landing and retirement are silent.
-    pub failure: Option<String>,
+    pub(crate) failure: Option<String>,
     pub on_apply: EventHandler<BoardWiringModeIdentity>,
     pub on_release_reviewed_connections: EventHandler<BoardWiringModeIdentity>,
 }

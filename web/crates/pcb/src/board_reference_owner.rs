@@ -14,7 +14,7 @@ use std::rc::Rc;
 /// One routed-board reference control's bounded logical key: its action kind, with the
 /// model path that identifies a model-asset field.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BoardReferenceKey {
+pub(crate) enum BoardReferenceKey {
     Enabled,
     PositionX,
     PositionY,
@@ -29,7 +29,7 @@ pub enum BoardReferenceKey {
 }
 
 impl BoardReferenceKey {
-    pub fn of(action: &pcb_board_reference::Action) -> Self {
+    pub(crate) fn of(action: &pcb_board_reference::Action) -> Self {
         match action {
             pcb_board_reference::Action::SetEnabled(_) => Self::Enabled,
             pcb_board_reference::Action::SetPositionX(_) => Self::PositionX,
@@ -127,7 +127,7 @@ pub fn board_reference_owner_lineage_is_current(
         .is_some_and(|scope| active_board_scope_matches(&model, scope))
 }
 
-pub fn submit_board_reference_document(
+pub(crate) fn submit_board_reference_document(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -284,7 +284,7 @@ fn board_reference_removal_resolver(
 
 /// The removal edit for the panel's one-shot helper: `None` when the owner is no longer
 /// current or the active board is unavailable.
-pub fn board_reference_removal(
+pub(crate) fn board_reference_removal(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
@@ -301,7 +301,7 @@ pub fn board_reference_removal(
     ))
 }
 
-pub fn dispatch_board_reference_action(
+pub(crate) fn dispatch_board_reference_action(
     runtime: &Rc<Runtime>,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,

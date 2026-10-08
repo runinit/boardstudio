@@ -36,9 +36,9 @@ pub struct PcbWiringPinActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
     /// A pin edit for the current board target is still pending.
-    pub pending: bool,
+    pub(crate) pending: bool,
     /// The current board target's inline failure; landing and retirement are silent.
-    pub failure: Option<String>,
+    pub(crate) failure: Option<String>,
     pub on_change: EventHandler<PcbWiringPinEditRequest>,
 }
 

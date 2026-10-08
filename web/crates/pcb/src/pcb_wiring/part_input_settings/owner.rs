@@ -49,7 +49,7 @@ pub struct PartInputEditRequest {
 
 /// One part-input control's bounded logical key: the part target plus the field it edits.
 #[derive(Clone, Debug, PartialEq)]
-pub struct PartInputKey {
+pub(crate) struct PartInputKey {
     pub ui_scope: Scope,
     pub scope_generation: u64,
     pub part_id: String,
@@ -57,7 +57,7 @@ pub struct PartInputKey {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum PartInputField {
+pub(crate) enum PartInputField {
     ScanMode,
     GeneratorParameter(String),
     GeneratorAnchor { name: String, axis: String },
@@ -94,7 +94,7 @@ impl PartInputKey {
 
 /// The panel's latest failure, attributed to the part it belongs to.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PartInputFailure {
+pub(crate) struct PartInputFailure {
     pub ui_scope: Scope,
     pub scope_generation: u64,
     pub part_id: String,
@@ -115,9 +115,9 @@ impl PartInputFailure {
 #[derive(Clone, PartialEq)]
 pub struct PartInputActions {
     /// A committed setting for the rendered part has not settled yet.
-    pub pending: bool,
+    pub(crate) pending: bool,
     /// The latest failure for the rendered part; landing and retirement are silent.
-    pub failure: Option<PartInputFailure>,
+    pub(crate) failure: Option<PartInputFailure>,
     pub editable: bool,
     pub on_edit: EventHandler<PartInputEditRequest>,
 }
