@@ -2,7 +2,6 @@
 //!
 //! The page is `wasm32`-only; project rename admission also compiles natively so its
 //! tests run against the real Session and Core under `cargo test`.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Modules keep the page bin's paths: `super::ThemePicker`, `super::setup_guide`,
 // `crate::runtime`.
