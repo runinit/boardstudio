@@ -1,0 +1,363 @@
+//! Typed mechanical change vocabulary and the edit that carries it.
+//!
+//! The payload names the specific user change; defaults, effective settings,
+//! feature ownership and generated clearance parts stay behind the mechanical
+//! module's seam. UI field IDs, labels and drafts live in the Case adapter.
+use crate::model::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalMountCollection {
+    Suspension,
+    Closure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalDimension {
+    PlateThickness,
+    PlateFoamThickness,
+    PcbThickness,
+    BottomFoamThickness,
+    BottomThickness,
+    WallThickness,
+    Clearance,
+    GasketSupportLength,
+    GasketSupportWidth,
+    OpeningAllowance,
+    OpeningBottomZ,
+    OpeningHeight,
+    OpeningPointX,
+    OpeningPointY,
+    BatteryWidth,
+    BatteryDepth,
+    BatteryHeight,
+    BatteryCableWidth,
+    BatteryPositionX,
+    BatteryPositionY,
+    BatteryCableExitX,
+    BatteryCableExitY,
+    MountPositionX,
+    MountPositionY,
+    MountHoleDiameter,
+    MountBossDiameter,
+    MountBossHeight,
+    ClosureThreadDiameter,
+    ClosurePitch,
+    ClosureHeadDiameter,
+    ClosureHeadHeight,
+    ClosureHoleDiameter,
+    ClosureInsertDiameter,
+    ClosureInsertLength,
+    ClosureSeatDiameter,
+    ClosureSeatDepth,
+    ClosureEngagement,
+    ClosureThreadStart,
+    ClosureTipAllowance,
+    ClosureBottomingClearance,
+    ClosureRoof,
+    ClosureSurround,
+    ClosureSeatLeadDepth,
+    ClosureSeatLeadDiameter,
+    ClosureBearingThickness,
+    CriticalFitFromX,
+    CriticalFitFromY,
+    CriticalFitToX,
+    CriticalFitToY,
+    HardwareLength,
+    HardwareQuantity,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalCriticalFitTextField {
+    Label,
+    Tolerance,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalHardwareTextField {
+    Designation,
+    Thread,
+    Tolerance,
+    Notes,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalChange {
+    Enable,
+    InitializeClosures,
+    Disable,
+    SetBatteryEnabled(bool),
+    SetClosureInsertPreset(String),
+    SetClosureDrive(ScrewDrive),
+    SetClosureInstallation(InsertInstallation),
+    SetClosureFixedLength(Option<f64>),
+    SetClosureThread(String),
+    SetClosureScrewLengths(Vec<f64>),
+    SetClosureHeadProfile(ScrewHeadProfile),
+    SetClosureLengthDatum(ScrewLengthDatum),
+    AddCriticalFit {
+        part_id: String,
+    },
+    RemoveCriticalFit {
+        fit_id: String,
+    },
+    SetCriticalFitText {
+        fit_id: String,
+        field: MechanicalCriticalFitTextField,
+        value: String,
+    },
+    SetCriticalFitPart {
+        fit_id: String,
+        part_id: String,
+    },
+    SetCriticalFitPoint {
+        fit_id: String,
+        field: MechanicalDimension,
+        value: f64,
+    },
+    AddHardware {
+        part_id: String,
+        feature_id: String,
+    },
+    RemoveHardware {
+        hardware_id: String,
+    },
+    SetHardwareMount {
+        hardware_id: String,
+        part_id: String,
+        feature_id: String,
+    },
+    SetHardwareText {
+        hardware_id: String,
+        field: MechanicalHardwareTextField,
+        value: String,
+    },
+    SetHardwareDimension {
+        hardware_id: String,
+        field: MechanicalDimension,
+        value: f64,
+    },
+    AddOpening,
+    RemoveOpening {
+        opening_index: usize,
+    },
+    AddOpeningVertex {
+        opening_index: usize,
+    },
+    RemoveOpeningVertex {
+        opening_index: usize,
+        point_index: usize,
+    },
+    SetOpeningDimension {
+        opening_index: usize,
+        point_index: Option<usize>,
+        field: MechanicalDimension,
+        value: f64,
+    },
+    SetMethod(PlateMethod),
+    SetMount(MechanicalMount),
+    AddMount {
+        collection: MechanicalMountCollection,
+    },
+    AddSuggestedClosureMounts(Vec<Mount>),
+    SetMountCollection {
+        collection: MechanicalMountCollection,
+        mounts: Vec<Mount>,
+    },
+    SetMountDimension {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+        field: MechanicalDimension,
+        value: f64,
+    },
+    SetMountPosition {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+        at: Vec2,
+    },
+    SetMountKind {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+        kind: MountKind,
+    },
+    RemoveMount {
+        collection: MechanicalMountCollection,
+        mount_id: String,
+    },
+    AdoptClosurePositions(Vec<Mount>),
+    SetBottomStyle(MechanicalBottomStyle),
+    SetMiddleFrame(bool),
+    SetIntegratedPlateFrame(bool),
+    SetDimension {
+        field: MechanicalDimension,
+        value: f64,
+    },
+    SetGasketSupportDimension {
+        support_id: String,
+        anchors: Vec<MechanicalGasketAnchor>,
+        field: MechanicalDimension,
+        value: f64,
+    },
+    SetGasketSupportPlacement {
+        support_id: String,
+        anchors: Vec<MechanicalGasketAnchor>,
+    },
+    SetGasketSupportUnlinked {
+        support_id: String,
+        pair_id: Option<String>,
+        anchors: Vec<MechanicalGasketAnchor>,
+    },
+    ResetGasketPlacement,
+    AssignSwitchProfile {
+        definition_id: String,
+        family: MechanicalSwitchFamily,
+    },
+    AssignStabilizerProfile {
+        definition_id: String,
+        source: MechanicalBuiltinProfile,
+    },
+    AssignImportedGeometryProfile {
+        definition_id: String,
+    },
+    UpdateProfile(MechanicalPartProfile),
+    RemoveProfile {
+        definition_id: String,
+    },
+    SetSwitchFamily {
+        definition_id: String,
+        family: MechanicalSwitchFamily,
+    },
+    AddProcessOverride {
+        part_id: String,
+    },
+    RemoveProcessOverride {
+        part_id: String,
+    },
+    SetProcessMethod {
+        part_id: String,
+        method: PlateMethod,
+    },
+    SetProcessMaterial {
+        part_id: String,
+        material: String,
+    },
+    SetProcessThickness {
+        part_id: String,
+        thickness: f64,
+    },
+    SetStabilizerKind(MechanicalStabilizerOverride),
+}
+
+/// The board or physical half a mechanical edit targets.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MechanicalTarget {
+    /// The canonical project-level mechanical configuration.
+    Board {
+        #[serde(rename = "boardId")]
+        board_id: String,
+    },
+    /// One physical half's configuration.
+    Instance {
+        #[serde(rename = "instanceId")]
+        instance_id: String,
+    },
+}
+
+/// One typed mechanical edit: a typed target, a typed change and the optional
+/// normalized mounting-hole catalogue definition projection needs.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalEdit {
+    pub target: MechanicalTarget,
+    pub change: MechanicalChange,
+    /// Supplied whenever projection must create or update a generated
+    /// closure-hole footprint. Validated against its declared source identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mounting_hole: Option<Box<PartDefinition>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_mechanical_edit_round_trips_through_its_wire_shape() {
+        let edit = MechanicalEdit {
+            target: MechanicalTarget::Instance {
+                instance_id: "left".into(),
+            },
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::PlateThickness,
+                value: 1.5,
+            },
+            mounting_hole: None,
+        };
+        let value = serde_json::to_value(&edit).unwrap();
+        assert_eq!(value["target"]["kind"], "instance");
+        assert_eq!(value["target"]["instanceId"], "left");
+        // The change vocabulary is externally tagged: one key names the change.
+        assert_eq!(value["change"]["set-dimension"]["field"], "plate-thickness");
+        assert_eq!(value["change"]["set-dimension"]["value"], 1.5);
+        assert!(value.get("mountingHole").is_none());
+        let parsed: MechanicalEdit = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, edit);
+    }
+
+    #[test]
+    fn a_mechanical_edit_serializes_inside_an_edit_operation() {
+        let operation = crate::model::EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(MechanicalEdit {
+                target: MechanicalTarget::Board {
+                    board_id: "board".into(),
+                },
+                change: MechanicalChange::AddMount {
+                    collection: MechanicalMountCollection::Closure,
+                },
+                mounting_hole: None,
+            }),
+        };
+        let value = serde_json::to_value(&operation).unwrap();
+        assert_eq!(value["kind"], "apply-mechanical-edit");
+        assert_eq!(value["edit"]["target"]["kind"], "board");
+        assert_eq!(
+            value["edit"]["change"]["add-mount"]["collection"],
+            "closure"
+        );
+        let parsed: crate::model::EditOperation = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, operation);
+    }
+
+    #[test]
+    fn a_mounting_hole_definition_round_trips_when_present() {
+        let edit = MechanicalEdit {
+            target: MechanicalTarget::Board {
+                board_id: "board".into(),
+            },
+            change: MechanicalChange::InitializeClosures,
+            mounting_hole: Some(Box::new(
+                serde_json::from_value(json!({
+                    "id": "ceoloide/mounting_hole_npth",
+                    "name": "Mounting hole",
+                    "kind": "utility",
+                    "courtyard": [],
+                    "pads": []
+                }))
+                .unwrap(),
+            )),
+        };
+        let value = serde_json::to_value(&edit).unwrap();
+        assert_eq!(
+            value["mountingHole"]["id"],
+            json!("ceoloide/mounting_hole_npth")
+        );
+        let parsed: MechanicalEdit = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, edit);
+    }
+}

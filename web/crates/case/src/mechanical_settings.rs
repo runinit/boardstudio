@@ -4,6 +4,10 @@ pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
 use crate::mechanical_settings_controller::use_bound_mechanical_field;
+pub use boardstudio_core::mechanical::change::{
+    MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
+    MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,
+};
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
@@ -131,12 +135,6 @@ pub struct MechanicalGasketSupportRow {
     pub is_previous: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalMountCollection {
-    Suspension,
-    Closure,
-}
-
 impl MechanicalGasketSupportRow {
     pub fn saved_anchor(&self) -> MechanicalGasketAnchor {
         MechanicalGasketAnchor {
@@ -179,75 +177,6 @@ pub struct MechanicalHardwareMount {
     pub kind: MountKind,
     pub x: f64,
     pub y: f64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalDimension {
-    PlateThickness,
-    PlateFoamThickness,
-    PcbThickness,
-    BottomFoamThickness,
-    BottomThickness,
-    WallThickness,
-    Clearance,
-    GasketSupportLength,
-    GasketSupportWidth,
-    OpeningAllowance,
-    OpeningBottomZ,
-    OpeningHeight,
-    OpeningPointX,
-    OpeningPointY,
-    BatteryWidth,
-    BatteryDepth,
-    BatteryHeight,
-    BatteryCableWidth,
-    BatteryPositionX,
-    BatteryPositionY,
-    BatteryCableExitX,
-    BatteryCableExitY,
-    MountPositionX,
-    MountPositionY,
-    MountHoleDiameter,
-    MountBossDiameter,
-    MountBossHeight,
-    ClosureThreadDiameter,
-    ClosurePitch,
-    ClosureHeadDiameter,
-    ClosureHeadHeight,
-    ClosureHoleDiameter,
-    ClosureInsertDiameter,
-    ClosureInsertLength,
-    ClosureSeatDiameter,
-    ClosureSeatDepth,
-    ClosureEngagement,
-    ClosureThreadStart,
-    ClosureTipAllowance,
-    ClosureBottomingClearance,
-    ClosureRoof,
-    ClosureSurround,
-    ClosureSeatLeadDepth,
-    ClosureSeatLeadDiameter,
-    ClosureBearingThickness,
-    CriticalFitFromX,
-    CriticalFitFromY,
-    CriticalFitToX,
-    CriticalFitToY,
-    HardwareLength,
-    HardwareQuantity,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalCriticalFitTextField {
-    Label,
-    Tolerance,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalHardwareTextField {
-    Designation,
-    Thread,
-    Tolerance,
-    Notes,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -350,7 +279,13 @@ fn is_dimension_field(field_id: &str) -> bool {
     .any(|field| field.field_id() == field_id)
 }
 
-impl MechanicalDimension {
+pub trait MechanicalDimensionExt {
+    fn field_id(self) -> &'static str;
+    fn rule(self) -> NumberRule;
+    fn step(self) -> &'static str;
+}
+
+impl MechanicalDimensionExt for MechanicalDimension {
     fn field_id(self) -> &'static str {
         match self {
             Self::PlateThickness => "plate-thickness",
@@ -449,175 +384,12 @@ impl MechanicalDimension {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum MechanicalSettingsPatch {
-    Enable,
-    InitializeClosures,
-    Disable,
-    SetBatteryEnabled(bool),
-    SetClosureInsertPreset(String),
-    SetClosureDrive(ScrewDrive),
-    SetClosureInstallation(InsertInstallation),
-    SetClosureFixedLength(Option<f64>),
-    SetClosureThread(String),
-    SetClosureScrewLengths(Vec<f64>),
-    SetClosureHeadProfile(ScrewHeadProfile),
-    SetClosureLengthDatum(ScrewLengthDatum),
-    AddCriticalFit {
-        part_id: String,
-    },
-    RemoveCriticalFit {
-        fit_id: String,
-    },
-    SetCriticalFitText {
-        fit_id: String,
-        field: MechanicalCriticalFitTextField,
-        value: String,
-    },
-    SetCriticalFitPart {
-        fit_id: String,
-        part_id: String,
-    },
-    SetCriticalFitPoint {
-        fit_id: String,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    AddHardware {
-        part_id: String,
-        feature_id: String,
-    },
-    RemoveHardware {
-        hardware_id: String,
-    },
-    SetHardwareMount {
-        hardware_id: String,
-        part_id: String,
-        feature_id: String,
-    },
-    SetHardwareText {
-        hardware_id: String,
-        field: MechanicalHardwareTextField,
-        value: String,
-    },
-    SetHardwareDimension {
-        hardware_id: String,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    AddOpening,
-    RemoveOpening {
-        opening_index: usize,
-    },
-    AddOpeningVertex {
-        opening_index: usize,
-    },
-    RemoveOpeningVertex {
-        opening_index: usize,
-        point_index: usize,
-    },
-    SetOpeningDimension {
-        opening_index: usize,
-        point_index: Option<usize>,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetMethod(PlateMethod),
-    SetMount(MechanicalMount),
-    AddMount {
-        collection: MechanicalMountCollection,
-    },
-    AddSuggestedClosureMounts(Vec<Mount>),
-    SetMountCollection {
-        collection: MechanicalMountCollection,
-        mounts: Vec<Mount>,
-    },
-    SetMountDimension {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetMountPosition {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-        at: Vec2,
-    },
-    SetMountKind {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-        kind: MountKind,
-    },
-    RemoveMount {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-    },
-    AdoptClosurePositions(Vec<Mount>),
-    SetBottomStyle(MechanicalBottomStyle),
-    SetMiddleFrame(bool),
-    SetIntegratedPlateFrame(bool),
-    SetDimension {
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetGasketSupportDimension {
-        support_id: String,
-        anchors: Vec<MechanicalGasketAnchor>,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetGasketSupportPlacement {
-        support_id: String,
-        anchors: Vec<MechanicalGasketAnchor>,
-    },
-    SetGasketSupportUnlinked {
-        support_id: String,
-        pair_id: Option<String>,
-        anchors: Vec<MechanicalGasketAnchor>,
-    },
-    ResetGasketPlacement,
-    AssignSwitchProfile {
-        definition_id: String,
-        family: MechanicalSwitchFamily,
-    },
-    AssignStabilizerProfile {
-        definition_id: String,
-        source: MechanicalBuiltinProfile,
-    },
-    AssignImportedGeometryProfile {
-        definition_id: String,
-    },
-    UpdateProfile(MechanicalPartProfile),
-    RemoveProfile {
-        definition_id: String,
-    },
-    SetSwitchFamily {
-        definition_id: String,
-        family: MechanicalSwitchFamily,
-    },
-    AddProcessOverride {
-        part_id: String,
-    },
-    RemoveProcessOverride {
-        part_id: String,
-    },
-    SetProcessMethod {
-        part_id: String,
-        method: PlateMethod,
-    },
-    SetProcessMaterial {
-        part_id: String,
-        material: String,
-    },
-    SetProcessThickness {
-        part_id: String,
-        thickness: f64,
-    },
-    SetStabilizerKind(MechanicalStabilizerOverride),
+pub trait MechanicalSettingsPatchExt {
+    fn field_id(&self) -> String;
 }
 
-impl MechanicalSettingsPatch {
-    pub fn field_id(&self) -> String {
+impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
+    fn field_id(&self) -> String {
         match self {
             Self::Enable => "configure".to_owned(),
             Self::InitializeClosures => "initialize-closures".to_owned(),

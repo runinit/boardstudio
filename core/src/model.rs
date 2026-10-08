@@ -1261,6 +1261,12 @@ pub enum EditOperation {
     SetConstraint {
         constraint: Constraint,
     },
+    /// Applies one typed mechanical settings/feature change. Core owns defaults,
+    /// validation, linked-feature propagation and closure-clearance projection,
+    /// so the settings Inspector and an equivalent adapter submit the same intent.
+    ApplyMechanicalEdit {
+        edit: Box<crate::mechanical::change::MechanicalEdit>,
+    },
     CreateMirroredPair {
         left: Layout,
         right: Layout,

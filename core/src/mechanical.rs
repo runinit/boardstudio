@@ -1,6 +1,9 @@
 //! Stateless mechanical assembly resolution. Explicit profiles are the geometry authority.
 use crate::model::*;
+pub mod change;
+pub mod edit;
 mod gasket;
+pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
 use i_overlay::float::single::SingleFloatOverlay;
 

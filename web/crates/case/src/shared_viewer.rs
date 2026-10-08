@@ -6,6 +6,7 @@ use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };
 use super::layout_viewer_source::LayoutPreviewSnapshot;
+use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;

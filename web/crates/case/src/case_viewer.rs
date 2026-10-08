@@ -1,5 +1,6 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
 use super::case_bodies::CaseBodyEdit;
+use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
     ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,

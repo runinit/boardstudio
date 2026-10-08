@@ -6,7 +6,7 @@
 use super::mechanical_settings::{
     MechanicalDimension, MechanicalMountCollection, MechanicalSettingsFeedback,
     MechanicalSettingsFeedbackState, MechanicalSettingsIdentity, MechanicalSettingsPatch,
-    MechanicalSettingsRequest,
+    MechanicalSettingsPatchExt, MechanicalSettingsRequest,
 };
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,

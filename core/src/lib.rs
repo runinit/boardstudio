@@ -1517,6 +1517,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             doc.constraints.retain(|item| item.id() != id);
             Ok(vec![id.clone()])
         }
+        EditOperation::ApplyMechanicalEdit { edit } => crate::mechanical::edit::apply(doc, edit),
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
