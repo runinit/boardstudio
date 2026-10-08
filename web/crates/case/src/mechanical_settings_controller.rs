@@ -2665,6 +2665,118 @@ mod battery_patch_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn two_edits_to_one_mechanical_field_keep_both_accepted_edits_and_one_report() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_application::Event;
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("mechanical-same-field", "Mechanical");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        document.mechanical = Some(configuration());
+        support::open_document(&runtime, document).await;
+        let current_runtime = runtime.clone();
+        let current = Rc::new(move || {
+            let model = current_runtime.model();
+            let accepted = model.accepted?;
+            let scope = current_runtime.scope()?;
+            Some(MechanicalSettingsCurrent {
+                identity: MechanicalSettingsIdentity {
+                    editor_instance_id: 1,
+                    scope_generation: 1,
+                    presentation_generation: 1,
+                    scope,
+                    snapshot_token: accepted.token,
+                    revision: accepted.document.revision,
+                    active_board_id: "board".into(),
+                    configuration_board_id: "board".into(),
+                },
+                configuration: accepted.document.mechanical.clone().map(Rc::new),
+                accepted,
+                editable: true,
+                lifecycle: model.lifecycle,
+                durability: model.durability,
+            })
+        });
+        let template = Rc::new(
+            serde_json::from_value::<PartDefinition>(serde_json::json!({
+                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let reports = Rc::new(RefCell::new(Vec::<MechanicalSettingsFeedback>::new()));
+        let published = reports.clone();
+        let controller = MechanicalSettingsController::new(MechanicalSettingsPorts {
+            current: current.clone(),
+            load_mounting_hole: Rc::new(move || {
+                let template = template.clone();
+                Box::pin(async move { Ok(template) })
+            }),
+            edit_port: Rc::new(runtime.clone()),
+            publish: Rc::new(move |feedback| published.borrow_mut().push(feedback)),
+        });
+        let request = |request_id, value| {
+            let patch = MechanicalSettingsPatch::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value,
+            };
+            MechanicalSettingsRequest {
+                identity: current().unwrap().identity,
+                request_id,
+                field_id: patch_field_id(&patch),
+                patch,
+            }
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        assert!(controller.submit(request(1, 3.0)));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        assert!(controller.submit(request(2, 4.0)));
+        gloo_timers::future::TimeoutFuture::new(10).await;
+        support::drive_pending(&runtime);
+        assert_eq!(
+            controller.requests.borrow().len(),
+            1,
+            "the newer observation replaced the older Submitted one for the field"
+        );
+        assert_eq!(controller.requests.borrow()[0].request.request_id, 2);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            controller.settle();
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(!controller.is_busy());
+        let landed = reports
+            .borrow()
+            .iter()
+            .filter(|report| report.state == MechanicalSettingsFeedbackState::Landed)
+            .map(|report| report.request_id)
+            .collect::<Vec<_>>();
+        assert_eq!(landed, vec![2], "only the latest observation reports");
+        let wall = |runtime: &Rc<crate::runtime::Runtime>| {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness
+        };
+        assert_eq!(wall(&runtime), 4.0);
+        for expected in [3.0, 2.0] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            support::run_pending(&runtime).await;
+            assert_eq!(wall(&runtime), expected, "each accepted edit has an Undo step");
+        }
+    }
+
+    #[wasm_bindgen_test]
     async fn opening_action_preserves_queued_dimension_and_undo() {
         use crate::runtime::project_name_test_support as support;
         use boardstudio_application::Event;
