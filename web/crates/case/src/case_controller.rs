@@ -1080,4 +1080,188 @@ mod queued_body_tests {
         runtime.unsubscribe();
         root.remove();
     }
+
+    // ---- Settlement of a bound body field through the real number input.
+
+    async fn mounted_two_bodies() -> (Rc<Runtime>, web_sys::Element) {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("body-settlement", "Bodies");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .unwrap(),
+        );
+        for seed in [1, 2] {
+            let body = new_case_body(seed, &document, "board").unwrap();
+            document.case_bodies.push(body);
+        }
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        (runtime, root)
+    }
+
+    fn select_body(root: &web_sys::Element, index: u32) {
+        root.query_selector_all(".m1-case-body-tab")
+            .unwrap()
+            .item(index)
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    fn thickness_input(root: &web_sys::Element) -> web_sys::HtmlInputElement {
+        root.query_selector_all(".m1-case-measures input")
+            .unwrap()
+            .item(0)
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    }
+
+    fn type_into(input: &web_sys::HtmlInputElement, value: &str) {
+        input.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    fn press_enter(input: &web_sys::HtmlInputElement) {
+        let enter = web_sys::KeyboardEventInit::new();
+        enter.set_key("Enter");
+        enter.set_bubbles(true);
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+
+    async fn settle_body(runtime: &Rc<Runtime>) {
+        for _ in 0..20 {
+            support::run_pending(runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+    }
+
+    fn inline_failure(root: &web_sys::Element) -> Option<String> {
+        root.query_selector(".m1-case-measures small.m1-case-field-error[role='alert']")
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    fn thickness(runtime: &Rc<Runtime>) -> f64 {
+        runtime.model().accepted.unwrap().document.case_bodies[0].thickness
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_failed_unchanged_body_draft_restores_the_accepted_value_with_an_inline_failure() {
+        let (runtime, root) = mounted_two_bodies().await;
+        support::fail_next_core_reply(&runtime, "body executor failed");
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        settle_body(&runtime).await;
+        assert_eq!(thickness(&runtime), 3.0);
+        assert_eq!(thickness_input(&root).value(), "3", "the draft restores");
+        assert!(
+            inline_failure(&root).is_some_and(|message| message.contains("body executor failed"))
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_newer_body_draft_survives_an_older_failure_that_reports_inline() {
+        let (runtime, root) = mounted_two_bodies().await;
+        support::fail_next_core_reply(&runtime, "body executor failed");
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        // The older edit has not settled when the user types the next draft.
+        type_into(&input, "5");
+        settle_body(&runtime).await;
+        assert_eq!(thickness_input(&root).value(), "5", "a newer draft survives");
+        assert!(
+            inline_failure(&root).is_some_and(|message| message.contains("body executor failed")),
+            "the older failure still reports inline beside the newer text"
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_second_edit_to_one_body_field_replaces_the_observation_and_both_edits_undo() {
+        let (runtime, root) = mounted_two_bodies().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_into(&input, "5");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        settle_body(&runtime).await;
+        assert_eq!(thickness(&runtime), 5.0);
+        assert_eq!(thickness_input(&root).value(), "5");
+        assert!(inline_failure(&root).is_none());
+        for expected in [4.0, 3.0] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            support::run_pending(&runtime).await;
+            assert_eq!(thickness(&runtime), expected, "each edit has an Undo step");
+        }
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_body_field_that_leaves_with_its_body_tab_keeps_its_held_edit() {
+        let (runtime, root) = mounted_two_bodies().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = thickness_input(&root);
+        type_into(&input, "4");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        // The other body's tab replaces the editor while the first body's edit is held.
+        select_body(&root, 1);
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        release.send(()).unwrap();
+        settle_body(&runtime).await;
+        let document = runtime.model().accepted.unwrap().document;
+        assert_eq!(
+            document.case_bodies[0].thickness, 4.0,
+            "the queued edit kept executing"
+        );
+        assert_eq!(document.case_bodies[1].thickness, 3.0);
+        assert!(inline_failure(&root).is_none());
+        select_body(&root, 0);
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        assert_eq!(
+            thickness_input(&root).value(),
+            "4",
+            "the remounted field shows the accepted value"
+        );
+        assert!(inline_failure(&root).is_none());
+        runtime.unsubscribe();
+        root.remove();
+    }
 }
