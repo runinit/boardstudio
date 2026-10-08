@@ -322,6 +322,12 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             },
         ),
     };
+    let delete_label = match &projection.fields {
+        MatrixTransformFields::Matrix { .. } => "Delete matrix",
+        MatrixTransformFields::Row { .. } => "Delete row",
+        MatrixTransformFields::Column { .. } => "Delete column",
+        MatrixTransformFields::Key { .. } => "Delete selected keys",
+    };
     rsx! {
         section { key: "{owner_key}", class: "m1-matrix-inspector m1-matrix-transform-inspector", aria_label: "Matrix transform properties",
             header { class: "m1-matrix-inspector-heading",
@@ -329,6 +335,14 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 span { "{projection.label}" }
             }
             {body}
+            ResetTransformButton {
+                label: delete_label, owner: owner.clone(), snapshot_token, revision,
+                field: MatrixTransformField::DeleteSelection,
+                pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::DeleteSelection),
+                baseline: MatrixTransformValue::Bool(false), value: MatrixTransformValue::Bool(true),
+                request_sequence, editable: props.mount.editable,
+                feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+            }
         }
     }
 }

@@ -154,10 +154,14 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
                             let action = if visible { "Hide" } else { "Show" };
                             let accessibility_label = match &layer.target {
                                 LayerTarget::ModuleHidden(_) => &layer.label,
+                                LayerTarget::Hidden(id) if id == "Keys" => &layer.label,
                                 _ => &layer.id,
                             };
                             let aria_label = format!("{action} {accessibility_label}");
-                            let swatch_label = accessibility_label.clone();
+                            let swatch_label = match &layer.target {
+                                LayerTarget::ModuleHidden(_) => layer.label.clone(),
+                                _ => layer.id.clone(),
+                            };
                             let control = layer.clone();
                             let on_toggle = toggle;
                             rsx! {
@@ -207,7 +211,7 @@ fn focus_trigger(id: &str) {
 
 pub fn layout_groups() -> Vec<CanvasLayerGroup> {
     vec![CanvasLayerGroup::ungrouped(vec![
-        CanvasLayer::hidden("Keys", "Keys"),
+        CanvasLayer::hidden("Keys", "Switches"),
         CanvasLayer::hidden("Components", "Components"),
         CanvasLayer::hidden("Keycaps", "Keycaps"),
         CanvasLayer::layout_footprints(),

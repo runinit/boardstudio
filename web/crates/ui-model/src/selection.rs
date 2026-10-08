@@ -432,20 +432,13 @@ fn additive_inspector_context(
         .iter()
         .map(|id| objects::context_for_part(model, id))
         .collect::<Vec<_>>();
-    let mut matrix_id: Option<String> = None;
-    let all_same_matrix_keys = contexts.iter().all(|context| match context {
-        Some(TreeContext::Key {
-            matrix_id: current, ..
-        }) => {
-            if matrix_id.as_ref().is_some_and(|matrix| matrix != current) {
-                return false;
-            }
-            matrix_id = Some(current.clone());
-            true
-        }
-        _ => false,
-    });
-    if all_same_matrix_keys {
+    // A key selection keeps a cell context across matrices as well as within one
+    // matrix. Generated primary part IDs disappear when disabled; the cell's
+    // context still resolves and can own re-enabling the selected group.
+    let all_primary_keys = contexts
+        .iter()
+        .all(|context| matches!(context, Some(TreeContext::Key { .. })));
+    if all_primary_keys {
         if let Some(hit) = hit_context
             && contexts.iter().any(|context| context.as_ref() == Some(hit))
         {

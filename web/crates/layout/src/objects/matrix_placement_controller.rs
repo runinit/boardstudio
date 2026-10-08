@@ -561,6 +561,7 @@ fn assembly_matrix_seed(
         column_splays: Vec::new(),
         column_origins: Vec::new(),
         cells: vec![MatrixCell {
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,

@@ -200,6 +200,7 @@ fn document() -> ProjectDoc {
         column_splays: vec![],
         column_origins: vec![],
         cells: vec![MatrixCell {
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,

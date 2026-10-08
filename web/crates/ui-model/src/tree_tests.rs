@@ -62,6 +62,53 @@ fn stored_row_grouping_and_empty_model_projection_remain_defined() {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+fn deleted_cells_are_absent_from_tree_but_disabled_slots_remain() {
+    let document = ProjectDoc::empty("tree-deletion", "Tree deletion");
+    let matrix = serde_json::from_value(serde_json::json!({
+        "id": "matrix", "rows": 1, "columns": 2,
+        "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": 0},
+        "definitionId": "switch", "partIds": [], "boardId": "main",
+        "cells": [
+            {"row": 0, "column": 0, "enabled": false, "deleted": true},
+            {"row": 0, "column": 1, "enabled": false}
+        ]
+    }))
+    .unwrap();
+    for grouping in [Grouping::Row, Grouping::Column] {
+        let expanded = BTreeSet::from([
+            "row:matrix:0".to_owned(),
+            "column:matrix:0".to_owned(),
+            "column:matrix:1".to_owned(),
+        ]);
+        let mut items = Vec::new();
+        super::append_matrix(
+            &mut items,
+            &document,
+            &matrix,
+            None,
+            &std::collections::HashMap::new(),
+            &std::collections::HashMap::new(),
+            grouping,
+            &expanded,
+            0,
+            false,
+            "main",
+            &[],
+            "matrix",
+        );
+        assert!(
+            !items.iter().any(|item| item.id == "key:matrix:0:0"),
+            "a deleted key must not remain selectable as an empty slot"
+        );
+        assert!(
+            items.iter().any(|item| item.id == "key:matrix:0:1"),
+            "a disabled key keeps its empty slot for later enabling"
+        );
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_context() {
     let ordinary_key = TreeContext::Key {
         matrix_id: "left-keys".into(),

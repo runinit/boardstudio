@@ -836,6 +836,9 @@ fn append_matrix(
                 .cells
                 .iter()
                 .find(|cell| cell.row == row && cell.column == column);
+            if cell.is_some_and(|cell| cell.deleted) {
+                continue;
+            }
             let enabled = cell.is_none_or(|cell| cell.enabled);
             let primary = enabled.then(|| actual_member(row, column)).flatten();
             let assemblies: Vec<_> = cell

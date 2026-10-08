@@ -1673,6 +1673,7 @@ pub fn selected_key_component_operation(
     let can_drive_matrix = matches!(definition.kind, PartKind::Switch)
         || super::parts::matrix_input_available(definition);
     let mut cell = current.clone().unwrap_or(MatrixCell {
+        deleted: false,
         row: *row,
         column: *column,
         enabled: true,
@@ -2247,6 +2248,7 @@ mod tests {
             .push(passive_definition("imported:existing"));
         let mut matrix = matrix_fixture();
         matrix.cells.push(MatrixCell {
+            deleted: false,
             row: 1,
             column: 2,
             enabled: true,
@@ -3226,6 +3228,7 @@ mod tests {
             column_splays: vec![],
             column_origins: vec![],
             cells: vec![MatrixCell {
+                deleted: false,
                 row: 1,
                 column: 2,
                 enabled: false,
@@ -3303,6 +3306,7 @@ mod tests {
         let mut source = matrix_fixture();
         source.id = "matrix-source".into();
         source.cells.push(MatrixCell {
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,

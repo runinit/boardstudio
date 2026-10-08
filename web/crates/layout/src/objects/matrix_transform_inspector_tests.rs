@@ -191,6 +191,7 @@ fn fixture() -> (ProjectDoc, TreeContext) {
         column_splays: vec![],
         column_origins: vec![],
         cells: vec![MatrixCell {
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,
@@ -229,6 +230,7 @@ fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
     matrix.part_ids[0] = first_key.into();
     matrix.part_ids.push(second_key.into());
     matrix.cells.push(MatrixCell {
+        deleted: false,
         row: 0,
         column: 1,
         enabled: true,
@@ -284,6 +286,7 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
     matrix.columns = 3;
     matrix.part_ids.push(third_key.into());
     matrix.cells.push(MatrixCell {
+        deleted: false,
         row: 0,
         column: 2,
         enabled: true,
@@ -450,6 +453,78 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
             .unwrap()
             .is_some(),
         "the mounted key properties retain Key Assembly controls"
+    );
+    let enabled = document
+        .query_selector(
+            "#matrix-transform-multiselect-mounted-test input[aria-label='Key enabled']",
+        )
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    enabled.set_checked(false);
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    enabled
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    settle().await;
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert!(
+        accepted.document.matrices[0]
+            .cells
+            .iter()
+            .all(|cell| !cell.enabled),
+        "disabling a multi-key selection disables every selected key"
+    );
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+    let enabled = root
+        .query_selector("input[aria-label='Key enabled']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    enabled.set_checked(true);
+    enabled
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert!(
+        probe.runtime.model().accepted.unwrap().document.matrices[0]
+            .cells
+            .iter()
+            .all(|cell| cell.enabled),
+        "the same selection re-enables every disabled key"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert!(
+        probe.runtime.model().accepted.unwrap().document.matrices[0]
+            .cells
+            .iter()
+            .all(|cell| !cell.enabled),
+        "one Undo reverses the entire bulk enable"
+    );
+    probe.runtime.submit(Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert!(
+        probe.runtime.model().accepted.unwrap().document.matrices[0]
+            .cells
+            .iter()
+            .all(|cell| cell.enabled),
+        "one Redo restores the entire bulk enable"
     );
     root.remove();
 }
@@ -974,5 +1049,297 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
                 && assembly.definition_id == "replacement-definition"),
         "the accepted key carries the selected replacement"
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_them() {
+    let (document, context) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-delete-selected-test",
+        document,
+        context,
+        &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
+    )
+    .await;
+    settle().await;
+    let delete = root.query_selector_all("button").unwrap();
+    let delete = (0..delete.length())
+        .filter_map(|index| delete.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Delete selected keys"))
+        .expect("key properties provide actual deletion distinct from the enabled toggle")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    delete.click();
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    let model = probe.runtime.model();
+    let scene = &model.accepted.as_ref().unwrap().scene;
+    assert!(
+        scene.matrix_scenes[0].cells.is_empty(),
+        "deleted cells have no snapping/ghost positions"
+    );
+    assert!(
+        model.accepted.as_ref().unwrap().document.parts.is_empty(),
+        "switches and attached assemblies are removed together"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert_eq!(
+        probe.runtime.model().accepted.unwrap().scene.matrix_scenes[0]
+            .cells
+            .len(),
+        2,
+        "one Undo restores the complete selection"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reindexed_survivor() {
+    let (document, context) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-queued-delete-test",
+        document,
+        context,
+        &["matrix/matrix/r0c0"],
+    )
+    .await;
+    settle().await;
+    let (entered, release) = support::gate_next_core_reply(&probe.runtime);
+    let removal = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+        &probe.runtime,
+        "delete-column-test",
+        None,
+        boardstudio_application::EditResolver::new("delete-column-test", |_| {
+            boardstudio_application::Resolution::submit(
+                vec!["matrix".into()],
+                boardstudio_core::model::EditOperation::RemoveMatrixColumn {
+                    matrix_id: "matrix".into(),
+                    column: 0,
+                },
+            )
+        }),
+    );
+    support::drive_pending(&probe.runtime);
+    entered
+        .await
+        .expect("deletion reaches Core while old key remains accepted");
+    let input = root
+        .query_selector("input[aria-label='Local X']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    input.set_value("77");
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+    release.send(()).expect("release removal");
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert!(matches!(
+        removal.settlement(true),
+        boardstudio_web_runtime::edit_ticket::Settlement::Landed { .. }
+    ));
+    assert_eq!(
+        accepted_cell(&probe, 0).offset.unwrap().x,
+        6.0,
+        "the queued deleted-key edit cannot alter the survivor reindexed into its coordinate"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_cell() {
+    let (document, context) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-mixed-enabled-test",
+        document,
+        context,
+        &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
+    )
+    .await;
+    settle().await;
+    let disabled = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+        &probe.runtime,
+        "disable-one-test",
+        None,
+        boardstudio_application::EditResolver::new("disable-one-test", |accepted| {
+            let mut matrix = accepted.document.matrices[0].clone();
+            matrix.cells[1].enabled = false;
+            boardstudio_application::Resolution::submit(
+                vec![matrix.id.clone()],
+                boardstudio_core::model::EditOperation::SetMatrix {
+                    matrix,
+                    definitions: None,
+                },
+            )
+        }),
+    );
+    support::run_pending(&probe.runtime).await;
+    assert!(matches!(
+        disabled.settlement(true),
+        boardstudio_web_runtime::edit_ticket::Settlement::Landed { .. }
+    ));
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+    let enabled = root
+        .query_selector("input[aria-label='Key enabled']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(
+        !enabled.checked(),
+        "mixed selection does not imply every key is enabled"
+    );
+    enabled.set_checked(true);
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    enabled
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert!(
+        probe.runtime.model().accepted.unwrap().document.matrices[0]
+            .cells
+            .iter()
+            .all(|cell| cell.enabled)
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn row_and_column_delete_controls_submit_structural_removal() {
+    for (context, label, remaining_columns) in [
+        (
+            TreeContext::Column {
+                matrix_id: "matrix".into(),
+                column: 1,
+            },
+            "Delete column",
+            Some(1),
+        ),
+        (
+            TreeContext::Row {
+                matrix_id: "matrix".into(),
+                row: 0,
+            },
+            "Delete row",
+            None,
+        ),
+    ] {
+        let (document, _) = two_key_fixture(false);
+        let (probe, root) =
+            mount_selection_probe("matrix-transform-axis-delete-test", document, context, &[])
+                .await;
+        settle().await;
+        let buttons = root.query_selector_all("button").unwrap();
+        let button = (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .find(|node| node.text_content().as_deref() == Some(label))
+            .expect("axis deletion control")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        button.click();
+        button.click();
+        support::run_pending(&probe.runtime).await;
+        settle().await;
+        let accepted = probe.runtime.model().accepted.unwrap();
+        if let Some(columns) = remaining_columns {
+            assert_eq!(
+                accepted.document.matrices[0].columns, columns,
+                "one action removes one column despite repeated click"
+            );
+            assert_eq!(accepted.scene.matrix_scenes[0].cells.len(), 1);
+        } else {
+            assert!(
+                accepted.document.matrices.is_empty(),
+                "removing the final row removes its matrix"
+            );
+            assert!(accepted.document.parts.is_empty());
+        }
+        root.remove();
+    }
+}
+
+#[wasm_bindgen_test]
+async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selection() {
+    let (document, _) = two_key_fixture(false);
+    let context = TreeContext::Key {
+        matrix_id: "matrix".into(),
+        row: 0,
+        column: 1,
+    };
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-disabled-reselect-test",
+        document,
+        context.clone(),
+        &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
+    )
+    .await;
+    settle().await;
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    let enabled = root
+        .query_selector("input[aria-label='Key enabled']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    enabled.set_checked(false);
+    enabled
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+    let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
+    crate::presentation::selection::submit_context(
+        &probe.runtime,
+        &adapter,
+        crate::presentation::selection::ContextRequest {
+            scope: probe.selected.scope.clone(),
+            context,
+            mode: SelectionMode::Replace,
+        },
+    );
+    settle().await;
+    let enabled = root
+        .query_selector("input[aria-label='Key enabled']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    enabled.set_checked(true);
+    enabled
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert!(
+        !accepted_cell(&probe, 0).enabled,
+        "reselected single key cannot revive the old bulk target"
+    );
+    assert!(accepted_cell(&probe, 1).enabled);
     root.remove();
 }

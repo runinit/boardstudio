@@ -30,6 +30,7 @@ pub enum MatrixTransformField {
     KeyAssembly,
     KeyAttached,
     KeyAssembliesLocal,
+    DeleteSelection,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,6 +211,31 @@ pub fn build_operation(
     use MatrixTransformField as Field;
     use MatrixTransformValue as Value;
     match (fields, field, value) {
+        (MatrixTransformFields::Matrix { .. }, Field::DeleteSelection, Value::Bool(_)) => {
+            Ok(EditOperation::RemoveMatrix {
+                id: matrix.id.clone(),
+            })
+        }
+        (MatrixTransformFields::Row { row, .. }, Field::DeleteSelection, Value::Bool(_)) => {
+            Ok(EditOperation::RemoveMatrixRow {
+                matrix_id: matrix.id.clone(),
+                row: *row,
+            })
+        }
+        (MatrixTransformFields::Column { column, .. }, Field::DeleteSelection, Value::Bool(_)) => {
+            Ok(EditOperation::RemoveMatrixColumn {
+                matrix_id: matrix.id.clone(),
+                column: *column,
+            })
+        }
+        (
+            MatrixTransformFields::Key { row, column, .. },
+            Field::DeleteSelection,
+            Value::Bool(_),
+        ) => Ok(EditOperation::RemoveMatrixCells {
+            matrix_id: matrix.id.clone(),
+            cells: vec![(*row, *column)],
+        }),
         (MatrixTransformFields::Matrix { .. }, Field::OriginX, Value::Number(x)) => {
             let mut next = matrix.clone();
             next.origin.x = x;
@@ -499,6 +525,7 @@ fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> Ed
         cell.enabled = enabled;
     } else {
         next.cells.push(MatrixCell {
+            deleted: false,
             row,
             column,
             enabled,
@@ -537,6 +564,7 @@ fn set_cell_assembly(
         }
     } else {
         next.cells.push(MatrixCell {
+            deleted: false,
             row,
             column,
             enabled: true,
@@ -612,6 +640,7 @@ fn set_cell_transform(
         .find(|cell| cell.row == row && cell.column == column)
         .cloned()
         .unwrap_or(MatrixCell {
+            deleted: false,
             row,
             column,
             enabled: true,
@@ -888,6 +917,7 @@ mod tests {
             column_splays: vec![0.0, 4.0, 8.0],
             column_origins: Vec::new(),
             cells: vec![MatrixCell {
+                deleted: false,
                 row: 1,
                 column: 2,
                 enabled: true,
@@ -1303,6 +1333,7 @@ mod tests {
     fn cell_edit_preserves_order_and_untouched_cell_fields() {
         let mut matrix = matrix();
         matrix.cells.push(MatrixCell {
+            deleted: false,
             row: 0,
             column: 1,
             enabled: false,

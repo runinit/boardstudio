@@ -302,6 +302,9 @@ pub struct Matrix {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MatrixCell {
+    /// Removed slots have neither generated members nor snapping geometry.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub deleted: bool,
     pub row: u32,
     pub column: u32,
     pub enabled: bool,
@@ -1068,6 +1071,28 @@ pub enum EditOperation {
     },
     RemoveMatrix {
         id: String,
+    },
+    SetMatrixCellsEnabled {
+        cells: BTreeMap<String, Vec<(u32, u32)>>,
+        enabled: bool,
+    },
+    RemoveSelectedMatrixCells {
+        cells: BTreeMap<String, Vec<(u32, u32)>>,
+    },
+    RemoveMatrixCells {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        cells: Vec<(u32, u32)>,
+    },
+    RemoveMatrixRow {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        row: u32,
+    },
+    RemoveMatrixColumn {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        column: u32,
     },
     RemoveParts {
         ids: Vec<String>,

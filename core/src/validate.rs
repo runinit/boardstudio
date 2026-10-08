@@ -274,11 +274,15 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
                 vec![matrix.id.clone()],
             ));
         }
-        let disabled = matrix.cells.iter().filter(|cell| !cell.enabled).count();
+        let disabled = matrix
+            .cells
+            .iter()
+            .filter(|cell| !cell.enabled || cell.deleted)
+            .count();
         let companions: usize = matrix
             .cells
             .iter()
-            .filter(|cell| cell.enabled)
+            .filter(|cell| cell.enabled && !cell.deleted)
             .map(|cell| cell.assemblies.len())
             .sum();
         if matrix

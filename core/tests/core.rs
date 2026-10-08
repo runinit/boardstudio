@@ -1418,6 +1418,7 @@ fn mirrored_pair_links_geometry_bidirectionally_and_keeps_hardware_local() {
     let (mut engine, mut doc) = linked_pair();
     let mut right = doc.matrices[1].clone();
     right.cells.push(MatrixCell {
+        deleted: false,
         assemblies_local: Some(true),
         row: 0,
         column: 1,
@@ -1460,6 +1461,7 @@ fn mirrored_pair_links_geometry_bidirectionally_and_keeps_hardware_local() {
             .cells
             .retain(|cell| cell.row != 1 || cell.column != 2);
         matrix.cells.push(MatrixCell {
+            deleted: false,
             assemblies_local: None,
             row: 1,
             column: 2,
@@ -1764,6 +1766,7 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
     value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
     value.column_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
     value.cells = vec![MatrixCell {
+        deleted: false,
         assemblies_local: None,
         row: 5,
         column: 0,
@@ -1818,6 +1821,7 @@ fn new_matrix_rejects_out_of_bounds_edits() {
     );
     value.row_offsets.clear();
     value.cells = vec![MatrixCell {
+        deleted: false,
         assemblies_local: None,
         row: 1,
         column: 0,
@@ -1845,6 +1849,7 @@ fn matrix_cells_preserve_survivors_and_companions() {
     value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
     value.cells = vec![
         MatrixCell {
+            deleted: false,
             assemblies_local: None,
             row: 0,
             column: 1,
@@ -1857,6 +1862,7 @@ fn matrix_cells_preserve_survivors_and_companions() {
             assemblies: vec![],
         },
         MatrixCell {
+            deleted: false,
             assemblies_local: None,
             row: 1,
             column: 0,
@@ -2747,6 +2753,7 @@ fn mirrored_resize_keeps_each_halves_local_preset_companions() {
             matrix.cells = (0..matrix.rows)
                 .flat_map(|row| {
                     (0..matrix.columns).map(move |column| MatrixCell {
+                        deleted: false,
                         row,
                         column,
                         enabled: true,
@@ -2802,4 +2809,678 @@ fn mirrored_resize_keeps_each_halves_local_preset_companions() {
             }
         }
     }
+}
+
+#[test]
+fn deleting_matrix_cells_removes_geometry_and_assembly_but_disabled_cells_stay() {
+    let mut engine = CoreEngine::new();
+    engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: matrix_doc(),
+    });
+    let mut value = matrix(1, 3);
+    value.cells = serde_json::from_value(serde_json::json!([
+        {"row":0,"column":0,"enabled":true,"assemblies":[{"id":"led","definitionId":"switch","offset":{"x":0,"y":4}}]},
+        {"row":0,"column":1,"enabled":false}
+    ])).unwrap();
+    scene(engine.handle(edit(
+        0,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: value,
+            definitions: None,
+        },
+    )));
+    let operation = serde_json::from_value(
+        serde_json::json!({"kind":"remove-matrix-cells","matrixId":"main","cells":[[0,0]]}),
+    )
+    .expect("Core must accept a key deletion operation independently of disable");
+    let (geometry, doc) = scene(engine.handle(edit(1, EditPhase::Commit, operation)));
+    assert!(
+        !doc.parts
+            .iter()
+            .any(|part| part.id.starts_with("matrix/main/r0c0"))
+    );
+    assert!(
+        !geometry.matrix_scenes[0]
+            .cells
+            .iter()
+            .any(|cell| cell.row == 0 && cell.column == 0)
+    );
+    assert!(
+        geometry.matrix_scenes[0]
+            .cells
+            .iter()
+            .any(|cell| cell.column == 1 && !cell.enabled)
+    );
+    assert!(
+        geometry.matrix_scenes[0]
+            .cells
+            .iter()
+            .any(|cell| cell.column == 2 && cell.enabled)
+    );
+}
+
+#[test]
+fn deleting_matrix_row_preserves_surviving_part_and_binding_identity() {
+    let mut engine = CoreEngine::new();
+    engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: matrix_doc(),
+    });
+    let (_, mut doc) = scene(engine.handle(edit(
+        0,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: matrix(3, 1),
+            definitions: None,
+        },
+    )));
+    let survivor = doc
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "matrix/main/r2c0")
+        .unwrap();
+    survivor.keycap = Some(Vec2 { x: 1.0, y: 1.5 });
+    let reference = survivor.reference.clone();
+    doc.keymap = Some(KeymapConfiguration::default());
+    doc.keymap.as_mut().unwrap().layers[0].bindings.insert(
+        "matrix/main/r2c0".into(),
+        KeyBinding::KeyPress {
+            keycode: "A".into(),
+        },
+    );
+    engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document: doc,
+    });
+    let operation = serde_json::from_value(
+        serde_json::json!({"kind":"remove-matrix-row","matrixId":"main","row":1}),
+    )
+    .expect("Core must remove a row rather than only shrink the last row");
+    let (_, doc) = scene(engine.handle(edit(1, EditPhase::Commit, operation)));
+    assert_eq!(doc.matrices[0].rows, 2);
+    let survivor = doc
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/main/r1c0")
+        .unwrap();
+    assert_eq!(survivor.reference, reference);
+    assert_eq!(survivor.keycap, Some(Vec2 { x: 1.0, y: 1.5 }));
+    assert_eq!(
+        doc.keymap.as_ref().unwrap().layers[0].bindings["matrix/main/r1c0"],
+        KeyBinding::KeyPress {
+            keycode: "A".into()
+        }
+    );
+    assert!(
+        !doc.keymap.as_ref().unwrap().layers[0]
+            .bindings
+            .contains_key("matrix/main/r2c0")
+    );
+}
+
+#[test]
+fn deleting_matrix_column_compacts_both_halves_and_preserves_local_assemblies() {
+    let (mut engine, mut doc) = linked_pair();
+    let mut right = doc.matrices[1].clone();
+    right.cells = serde_json::from_value(serde_json::json!([
+        {"row":0,"column":2,"enabled":true,"variant":"right-only","assembliesLocal":true,
+        "assemblies":[{"id":"led","definitionId":"switch","offset":{"x":3,"y":4}}]}
+    ]))
+    .unwrap();
+    doc = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: right,
+            definitions: None,
+        },
+    )))
+    .1;
+    let reference = doc
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/right-matrix/r0c2/led")
+        .unwrap()
+        .reference
+        .clone();
+    let before = doc.clone();
+    let (_, compacted) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "right-matrix".into(),
+            column: 1,
+        },
+    )));
+    assert!(compacted.matrices.iter().all(|matrix| matrix.columns == 2));
+    let companion = compacted
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/right-matrix/r0c1/led")
+        .unwrap();
+    assert_eq!(companion.reference, reference);
+    assert!(
+        !compacted
+            .parts
+            .iter()
+            .any(|part| part.id == "matrix/left-matrix/r0c1/led")
+    );
+    assert!(
+        compacted.matrices[1]
+            .cells
+            .iter()
+            .any(|cell| cell.column == 1 && cell.variant.as_deref() == Some("right-only"))
+    );
+    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(undone.parts, before.parts);
+    assert_eq!(undone.matrices, before.matrices);
+    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    assert_eq!(redone.parts, compacted.parts);
+    assert_eq!(redone.matrices, compacted.matrices);
+}
+
+#[test]
+fn deleting_matrix_cells_propagates_tombstones_and_survives_reopen() {
+    let (mut engine, doc) = linked_pair();
+    let (geometry, deleted) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveMatrixCells {
+            matrix_id: "right-matrix".into(),
+            cells: vec![(0, 1), (1, 2)],
+        },
+    )));
+    for matrix in &deleted.matrices {
+        assert!(
+            matrix
+                .cells
+                .iter()
+                .any(|cell| cell.row == 0 && cell.column == 1 && cell.deleted)
+        );
+        assert!(
+            matrix
+                .cells
+                .iter()
+                .any(|cell| cell.row == 1 && cell.column == 2 && cell.deleted)
+        );
+        assert!(
+            !matrix
+                .part_ids
+                .iter()
+                .any(|id| id.ends_with("r0c1") || id.ends_with("r1c2"))
+        );
+    }
+    assert!(
+        geometry
+            .matrix_scenes
+            .iter()
+            .all(|matrix| matrix.cells.len() == 4)
+    );
+    let document = serde_json::from_value(serde_json::to_value(&deleted).unwrap()).unwrap();
+    let (geometry, reopened) = scene(engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document,
+    }));
+    assert_eq!(reopened.parts, deleted.parts);
+    assert!(
+        geometry
+            .matrix_scenes
+            .iter()
+            .all(|matrix| matrix.cells.len() == 4)
+    );
+}
+
+#[test]
+fn deleting_last_matrix_row_removes_matrix_and_key_metadata_and_is_undoable() {
+    let mut engine = CoreEngine::new();
+    engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: matrix_doc(),
+    });
+    let (_, mut doc) = scene(engine.handle(edit(
+        0,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: matrix(1, 1),
+            definitions: None,
+        },
+    )));
+    doc.keymap = Some(KeymapConfiguration::default());
+    doc.keymap.as_mut().unwrap().layers[0]
+        .bindings
+        .insert("matrix/main/r0c0".into(), KeyBinding::None);
+    engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document: doc.clone(),
+    });
+    let (_, removed) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveMatrixRow {
+            matrix_id: "main".into(),
+            row: 0,
+        },
+    )));
+    assert!(removed.matrices.is_empty());
+    assert!(removed.parts.is_empty());
+    assert!(removed.keymap.unwrap().layers[0].bindings.is_empty());
+    let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(restored.matrices, doc.matrices);
+    assert_eq!(restored.keymap, doc.keymap);
+}
+
+#[test]
+fn deleting_matrix_row_remaps_nets_constraints_keycaps_and_direct_wiring() {
+    let mut engine = CoreEngine::new();
+    engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: matrix_doc(),
+    });
+    let (_, mut doc) = scene(engine.handle(edit(
+        0,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: matrix(3, 1),
+            definitions: None,
+        },
+    )));
+    let mut probe = doc.parts[0].clone();
+    probe.id = "probe".into();
+    probe.reference = "PROBE".into();
+    doc.parts.push(probe);
+    doc.boards[0].part_ids.push("probe".into());
+    doc.constraints.push(Constraint::Offset {
+        id: "offset".into(),
+        source_part_id: "matrix/main/r2c0".into(),
+        target_part_id: "probe".into(),
+        offset: Vec2 { x: 4.0, y: 2.0 },
+        rotation: 0.0,
+    });
+    doc.nets.push(Net {
+        id: "net".into(),
+        name: "signal".into(),
+        pins: vec![
+            Pin {
+                part_id: "matrix/main/r1c0".into(),
+                pad_id: "1".into(),
+            },
+            Pin {
+                part_id: "matrix/main/r2c0".into(),
+                pad_id: "1".into(),
+            },
+        ],
+    });
+    doc.keycaps = Some(KeycapConfiguration::default());
+    doc.keycaps.as_mut().unwrap().keys.insert(
+        "matrix/main/r2c0".into(),
+        KeycapKeySettings {
+            legend: Some("A".into()),
+            ..Default::default()
+        },
+    );
+    doc.hardware = Some(HardwareConfiguration {
+        boards: vec![ElectricalBoardConfiguration {
+            board_id: "board".into(),
+            assignments: [
+                ("direct/matrix/main/r2c0".into(), "GPIO1".into()),
+                ("direct/matrix/main/r1c0".into(), "GPIO2".into()),
+            ]
+            .into_iter()
+            .collect(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+    engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document: doc.clone(),
+    });
+    let (_, compacted) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveMatrixRow {
+            matrix_id: "main".into(),
+            row: 1,
+        },
+    )));
+    assert_eq!(
+        compacted.nets[0].pins,
+        vec![Pin {
+            part_id: "matrix/main/r1c0".into(),
+            pad_id: "1".into()
+        }]
+    );
+    assert_eq!(compacted.constraints[0].source(), "matrix/main/r1c0");
+    assert_eq!(
+        compacted.keycaps.unwrap().keys["matrix/main/r1c0"]
+            .legend
+            .as_deref(),
+        Some("A")
+    );
+    assert_eq!(
+        compacted.hardware.unwrap().boards[0].assignments,
+        [("direct/matrix/main/r1c0".into(), "GPIO1".into())]
+            .into_iter()
+            .collect()
+    );
+}
+
+#[test]
+fn legacy_matrix_cells_default_to_not_deleted_and_false_is_omitted() {
+    let cell: MatrixCell =
+        serde_json::from_value(serde_json::json!({"row":0,"column":0,"enabled":false})).unwrap();
+    assert!(!cell.deleted);
+    assert!(serde_json::to_value(cell).unwrap().get("deleted").is_none());
+}
+
+#[test]
+fn deleting_matrix_key_detaches_inactive_outline_snapshots_in_world_coordinates() {
+    for removal in 0..3 {
+        for side in [Side::Front, Side::Back] {
+            let mut engine = CoreEngine::new();
+            engine.handle(CoreRequest::Open {
+                id: "open".into(),
+                document: matrix_doc(),
+            });
+            let mut value = matrix(if removal == 2 { 1 } else { 2 }, 1);
+            value.origin = Vec2 { x: 100.0, y: 20.0 };
+            value.rotation = Some(90.0);
+            let (_, mut doc) = scene(engine.handle(edit(
+                0,
+                EditPhase::Commit,
+                EditOperation::SetMatrix {
+                    matrix: value,
+                    definitions: None,
+                },
+            )));
+            doc.parts
+                .iter_mut()
+                .find(|part| part.id == "matrix/main/r0c0")
+                .unwrap()
+                .side = side.clone();
+            let features = vec![
+                OutlineFeature::Rect {
+                    id: "saved-rect".into(),
+                    anchor_part_id: Some("matrix/main/r0c0".into()),
+                    center: Vec2 { x: 2.0, y: 3.0 },
+                    size: Vec2 { x: 4.0, y: 5.0 },
+                    radius: 1.0,
+                    rotation: Some(15.0),
+                    operation: Operation::Add,
+                },
+                OutlineFeature::Polygon {
+                    id: "saved-polygon".into(),
+                    anchor_part_id: Some("matrix/main/r0c0".into()),
+                    points: vec![
+                        Vec2 { x: 1.0, y: 2.0 },
+                        Vec2 { x: 4.0, y: 2.0 },
+                        Vec2 { x: 4.0, y: 5.0 },
+                    ],
+                    operation: Operation::Add,
+                },
+            ];
+            let snapshot = OutlineSnapshot {
+                features,
+                settings: Default::default(),
+                expected_regions: 1,
+                bridges: vec![],
+                protected_gaps: vec![],
+            };
+            doc.board_outlines.push(BoardOutline {
+                board_id: "board".into(),
+                active_version_id: None,
+                versions: vec![OutlineVersion {
+                    id: "saved".into(),
+                    name: "Saved".into(),
+                    source: OutlineProvenance {
+                        revision: doc.revision,
+                        version_id: None,
+                    },
+                    geometry: snapshot.clone(),
+                }],
+                generated_last_valid: Some(snapshot),
+            });
+            engine.handle(CoreRequest::Open {
+                id: "reopen".into(),
+                document: doc.clone(),
+            });
+            let operation = if removal != 0 {
+                EditOperation::RemoveMatrixRow {
+                    matrix_id: "main".into(),
+                    row: 0,
+                }
+            } else {
+                EditOperation::RemoveMatrixCells {
+                    matrix_id: "main".into(),
+                    cells: vec![(0, 0)],
+                }
+            };
+            let (_, deleted) =
+                scene(engine.handle(edit(doc.revision, EditPhase::Commit, operation)));
+            for snapshot in [
+                &deleted.board_outlines[0].versions[0].geometry,
+                deleted.board_outlines[0]
+                    .generated_last_valid
+                    .as_ref()
+                    .unwrap(),
+            ] {
+                let OutlineFeature::Rect {
+                    anchor_part_id,
+                    center,
+                    rotation,
+                    size,
+                    radius,
+                    ..
+                } = &snapshot.features[0]
+                else {
+                    panic!("rectangle expected")
+                };
+                assert_eq!(anchor_part_id, &None);
+                assert_eq!(
+                    *center,
+                    Vec2 {
+                        x: 97.0,
+                        y: if side == Side::Front { 22.0 } else { 18.0 }
+                    },
+                    "deleted snapshot anchor must retain rectangle's world center"
+                );
+                assert_eq!(
+                    *rotation,
+                    Some(if side == Side::Front { 105.0 } else { 75.0 })
+                );
+                assert_eq!(*size, Vec2 { x: 4.0, y: 5.0 });
+                assert_eq!(*radius, 1.0);
+                let OutlineFeature::Polygon {
+                    anchor_part_id,
+                    points,
+                    ..
+                } = &snapshot.features[1]
+                else {
+                    panic!("polygon expected")
+                };
+                assert_eq!(anchor_part_id, &None);
+                assert_eq!(
+                    *points,
+                    if side == Side::Front {
+                        vec![
+                            Vec2 { x: 98.0, y: 21.0 },
+                            Vec2 { x: 98.0, y: 24.0 },
+                            Vec2 { x: 95.0, y: 24.0 },
+                        ]
+                    } else {
+                        vec![
+                            Vec2 { x: 98.0, y: 19.0 },
+                            Vec2 { x: 98.0, y: 16.0 },
+                            Vec2 { x: 95.0, y: 16.0 },
+                        ]
+                    }
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn grouped_matrix_cell_actions_are_atomic_across_unlinked_matrices() {
+    let mut engine = CoreEngine::new();
+    engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: matrix_doc(),
+    });
+    let (_, doc) = scene(engine.handle(edit(
+        0,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: matrix(1, 2),
+            definitions: None,
+        },
+    )));
+    let mut other = matrix(1, 2);
+    other.id = "other".into();
+    other.origin.x = 60.0;
+    let (_, before) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: other,
+            definitions: None,
+        },
+    )));
+    let operation = serde_json::from_value(serde_json::json!({"kind":"set-matrix-cells-enabled", "cells":{"main":[[0,0]],"other":[[0,1]]}, "enabled":false})).expect("Core must support grouped matrix enable changes atomically");
+    let (geometry, disabled) =
+        scene(engine.handle(edit(before.revision, EditPhase::Commit, operation)));
+    assert!(
+        geometry
+            .matrix_scenes
+            .iter()
+            .all(|matrix| matrix.cells.len() == 2)
+    );
+    assert!(
+        disabled
+            .matrices
+            .iter()
+            .all(|matrix| matrix.part_ids.len() == 1)
+    );
+    let operation = serde_json::from_value(serde_json::json!({"kind":"set-matrix-cells-enabled", "cells":{"main":[[0,0]],"other":[[0,1]]}, "enabled":true})).unwrap();
+    let (_, enabled) = scene(engine.handle(edit(disabled.revision, EditPhase::Commit, operation)));
+    assert!(
+        enabled
+            .matrices
+            .iter()
+            .all(|matrix| matrix.part_ids.len() == 2)
+    );
+    let operation = serde_json::from_value(serde_json::json!({"kind":"remove-selected-matrix-cells", "cells":{"main":[[0,0]],"other":[[0,1]]}})).expect("Core must delete a grouped selection atomically");
+    let (geometry, deleted) =
+        scene(engine.handle(edit(enabled.revision, EditPhase::Commit, operation)));
+    assert!(
+        geometry
+            .matrix_scenes
+            .iter()
+            .all(|matrix| matrix.cells.len() == 1)
+    );
+    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(undone.matrices, enabled.matrices);
+    assert_eq!(undone.parts, enabled.parts);
+    let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    assert_eq!(redone.matrices, deleted.matrices);
+    let document = serde_json::from_value(serde_json::to_value(&deleted).unwrap()).unwrap();
+    let (geometry, _) = scene(engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document,
+    }));
+    assert!(
+        geometry
+            .matrix_scenes
+            .iter()
+            .all(|matrix| matrix.cells.len() == 1)
+    );
+}
+
+#[test]
+fn grouped_matrix_cell_actions_deduplicate_linked_halves_and_reject_deleted_targets() {
+    let (mut engine, before) = linked_pair();
+    let cells = [
+        ("left-matrix".into(), vec![(0, 0), (0, 1)]),
+        ("right-matrix".into(), vec![(0, 1), (1, 2)]),
+    ]
+    .into_iter()
+    .collect();
+    let (_, disabled) = scene(engine.handle(edit(
+        before.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrixCellsEnabled {
+            cells,
+            enabled: false,
+        },
+    )));
+    assert!(
+        disabled
+            .matrices
+            .iter()
+            .all(|matrix| matrix.part_ids.len() == 3)
+    );
+    let cells = [
+        ("left-matrix".into(), vec![(0, 1)]),
+        ("right-matrix".into(), vec![(0, 1)]),
+    ]
+    .into_iter()
+    .collect();
+    let (geometry, deleted) = scene(engine.handle(edit(
+        disabled.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveSelectedMatrixCells { cells },
+    )));
+    assert!(
+        geometry
+            .matrix_scenes
+            .iter()
+            .all(|matrix| matrix.cells.len() == 5)
+    );
+    assert!(
+        deleted.matrices.iter().all(|matrix| matrix
+            .cells
+            .iter()
+            .filter(|cell| cell.deleted)
+            .count()
+            == 1)
+    );
+    let reply = engine.handle(edit(
+        deleted.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrixCellsEnabled {
+            cells: [
+                ("left-matrix".into(), vec![(0, 1)]),
+                ("right-matrix".into(), vec![(1, 0)]),
+            ]
+            .into_iter()
+            .collect(),
+            enabled: true,
+        },
+    ));
+    assert!(
+        matches!(reply, CoreReply::Error { message, .. } if message == "Matrix cell was deleted")
+    );
+    let reply = engine.handle(edit(
+        deleted.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveSelectedMatrixCells {
+            cells: [
+                ("left-matrix".into(), vec![(1, 0)]),
+                ("missing".into(), vec![(0, 0)]),
+            ]
+            .into_iter()
+            .collect(),
+        },
+    ));
+    assert!(
+        matches!(reply, CoreReply::Error { message, .. } if message == "Matrix does not exist")
+    );
+    let (_, unchanged) = scene(engine.handle(CoreRequest::Snapshot {
+        id: "snapshot".into(),
+    }));
+    assert_eq!(unchanged, deleted);
+    let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(undone.matrices, disabled.matrices);
 }

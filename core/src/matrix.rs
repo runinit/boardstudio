@@ -1,3 +1,4 @@
+pub(crate) mod deletion;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror, OutlineFeature,
     Part, Pin, Pose2, ProjectDoc, Side, Vec2,
@@ -66,7 +67,10 @@ fn cell_members(matrix: &Matrix) -> BTreeMap<(u32, u32), String> {
     let mut members = BTreeMap::new();
     for row in 0..matrix.rows {
         for column in 0..matrix.columns {
-            if cells.get(&(row, column)).is_some_and(|cell| !cell.enabled) {
+            if cells
+                .get(&(row, column))
+                .is_some_and(|cell| !cell.enabled || cell.deleted)
+            {
                 continue;
             }
             let id = member_id(&matrix.id, row, column);
@@ -100,6 +104,7 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
                     .position(|cell| cell.row == row && cell.column == column)
                     .unwrap_or_else(|| {
                         matrix.cells.push(MatrixCell {
+                            deleted: false,
                             row,
                             column,
                             enabled: true,
@@ -116,6 +121,7 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
                 let cell = &mut matrix.cells[index];
                 if requested.contains(&id) {
                     cell.enabled = false;
+                    cell.deleted = true;
                     removed.extend(
                         matrix
                             .part_ids
@@ -173,7 +179,7 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
         matrix
             .cells
             .iter()
-            .filter(|cell| cell.enabled)
+            .filter(|cell| cell.enabled && !cell.deleted)
             .filter_map(|cell| cell.definition_id.as_ref()),
     ) {
         if let Some(def) = doc.definitions.iter().find(|def| &def.id == id)
@@ -475,6 +481,9 @@ pub(crate) fn project_matrix(
     for row in 0..matrix.rows {
         for column in 0..matrix.columns {
             let cell = cells.get(&(row, column)).copied();
+            if cell.is_some_and(|item| item.deleted) {
+                continue;
+            }
             let enabled = cell.is_none_or(|item| item.enabled);
             let member_id = if enabled {
                 members.get(&(row, column)).cloned()
@@ -723,7 +732,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
     for row in 0..incoming.rows {
         for column in 0..incoming.columns {
             let cell = cells.get(&(row, column)).copied();
-            if cell.is_some_and(|cell| !cell.enabled) {
+            if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
                 continue;
             }
             let id = member_id(&incoming.id, row, column);
@@ -932,6 +941,7 @@ mod projection_tests {
             column_splays: vec![0.0, 15.0],
             column_origins: vec![],
             cells: vec![MatrixCell {
+                deleted: false,
                 row: 1,
                 column: 1,
                 enabled: false,

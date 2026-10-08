@@ -1006,6 +1006,11 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::AddPart { .. }
             | EditOperation::RemoveParts { .. }
             | EditOperation::RemoveMatrix { .. }
+            | EditOperation::SetMatrixCellsEnabled { .. }
+            | EditOperation::RemoveSelectedMatrixCells { .. }
+            | EditOperation::RemoveMatrixCells { .. }
+            | EditOperation::RemoveMatrixRow { .. }
+            | EditOperation::RemoveMatrixColumn { .. }
             | EditOperation::SetMatrix { .. }
             | EditOperation::SetMatrixSplay { .. }
             | EditOperation::CreateMirroredPair { .. }
@@ -1241,6 +1246,21 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             }
             changed.push(id.clone());
             Ok(changed)
+        }
+        EditOperation::SetMatrixCellsEnabled { cells, enabled } => {
+            matrix::deletion::edit_selected_cells(doc, cells, Some(*enabled))
+        }
+        EditOperation::RemoveSelectedMatrixCells { cells } => {
+            matrix::deletion::edit_selected_cells(doc, cells, None)
+        }
+        EditOperation::RemoveMatrixCells { matrix_id, cells } => {
+            matrix::deletion::remove_cells(doc, matrix_id, cells)
+        }
+        EditOperation::RemoveMatrixRow { matrix_id, row } => {
+            matrix::deletion::remove_axis(doc, matrix_id, *row, true)
+        }
+        EditOperation::RemoveMatrixColumn { matrix_id, column } => {
+            matrix::deletion::remove_axis(doc, matrix_id, *column, false)
         }
         EditOperation::RemoveParts { ids } => {
             let affected: Vec<_> = doc

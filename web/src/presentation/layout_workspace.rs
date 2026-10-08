@@ -607,6 +607,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             pending: input.splay_origin_pick_pending,
             on_cancel: input.on_cancel_splay_origin_pick,
         }
+        super::layout_key_selection_actions::SelectedKeysActions {}
         MatrixRelationshipEscape {
             target: matrix_relationship_escape_target(),
             component_owner,

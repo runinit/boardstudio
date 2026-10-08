@@ -143,6 +143,35 @@ fn resize_resolver(
     })
 }
 
+/// Coordinate-based member IDs can be reused after a row or column is removed.
+/// Keep the admitted matrix topology as eligibility, while allowing accepted
+/// position, size and unrelated document edits to compose normally.
+fn resize_resolver_for(
+    captured: &ProjectDoc,
+    board_id: String,
+    selected_ids: Vec<String>,
+    units: Vec2,
+    axis: Option<ResizeAxis>,
+) -> EditResolver {
+    let topology: Vec<_> = captured
+        .matrices
+        .iter()
+        .filter(|matrix| selected_ids.iter().any(|id| matrix.part_ids.contains(id)))
+        .map(|matrix| (matrix.id.clone(), matrix.rows, matrix.columns))
+        .collect();
+    let resolver = resize_resolver(board_id, selected_ids, units, axis);
+    EditResolver::new("layout-key-size", move |accepted: &AcceptedSnapshot| {
+        if topology.iter().any(|(id, rows, columns)| {
+            !accepted.document.matrices.iter().any(|matrix| {
+                matrix.id == *id && matrix.rows == *rows && matrix.columns == *columns
+            })
+        }) {
+            return Resolution::Retire("The selected key's matrix topology changed.".into());
+        }
+        resolver.resolve(accepted)
+    })
+}
+
 #[derive(Default)]
 struct ContextTracker {
     initialized: bool,
@@ -357,12 +386,16 @@ pub fn use_key_size(
                 request_id: request.request_id,
             };
             clear_feedback(&mut feedback, &key);
+            let Some(accepted) = model.accepted.as_ref() else {
+                return;
+            };
             pending.begin_value(
                 &runtime,
                 key,
                 "layout-key-size",
                 Some("key size".into()),
-                resize_resolver(
+                resize_resolver_for(
+                    &accepted.document,
                     current_selected.scope.board_id.clone(),
                     current.owner.selected_ids.clone(),
                     request.units,

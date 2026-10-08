@@ -154,6 +154,7 @@ fn matrix_primary_fixture() -> (ReadModel, objects::ScopedTreeContext) {
         column_splays: vec![],
         column_origins: vec![],
         cells: vec![MatrixCell {
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,
@@ -557,6 +558,7 @@ fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
             column_splays: vec![],
             column_origins: vec![],
             cells: vec![MatrixCell {
+                deleted: false,
                 row: 0,
                 column: 0,
                 enabled: false,
@@ -771,6 +773,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 column_splays: vec![],
                 column_origins: vec![],
                 cells: vec![MatrixCell {
+                    deleted: false,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -802,6 +805,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 column_splays: vec![],
                 column_origins: vec![],
                 cells: vec![MatrixCell {
+                    deleted: false,
                     row: 0,
                     column: 0,
                     enabled: true,

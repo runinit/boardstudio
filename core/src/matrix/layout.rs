@@ -153,6 +153,7 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
                 };
             }
             MatrixCell {
+                deleted: false,
                 row: source_cell.row,
                 column: source_cell.column,
                 enabled: true,
@@ -169,6 +170,7 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
     for (coordinate, cell) in &mut cells {
         let source_cell = source_cells.get(coordinate);
         cell.enabled = source_cell.is_none_or(|cell| cell.enabled);
+        cell.deleted = source_cell.is_some_and(|cell| cell.deleted);
         cell.offset = source_cell.and_then(|cell| cell.offset);
         cell.rotation = source_cell
             .and_then(|cell| cell.rotation)
@@ -956,6 +958,7 @@ pub(crate) fn move_keys(
             .position(|cell| cell.row == row && cell.column == column)
             .unwrap_or_else(|| {
                 matrix.cells.push(MatrixCell {
+                    deleted: false,
                     row,
                     column,
                     enabled: true,

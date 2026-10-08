@@ -853,7 +853,8 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
         &runtime,
         "layout-key-size",
         Some("key size".into()),
-        resize_resolver(
+        resize_resolver_for(
+            &accepted.document,
             "board-main".into(),
             vec![KEY_ID.into()],
             Vec2 { x: 2.0, y: 1.0 },
@@ -1091,4 +1092,129 @@ async fn key_size_settlement_preserves_newer_drafts_restores_failures_and_tracks
 
     probe.runtime.unsubscribe();
     root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::EditOperation;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let runtime = support::new_runtime();
+    let mut document = key_fixture();
+    document.matrices[0].rows = 3;
+    for row in 1..3 {
+        let mut part = document.parts[0].clone();
+        part.id = format!("matrix/matrix-main/r{row}c0");
+        part.reference = format!("SW{}", row + 1);
+        part.pose.at.y = row as f64 * 19.05;
+        document.boards[0].part_ids.push(part.id.clone());
+        document.matrices[0].part_ids.push(part.id.clone());
+        document.parts.push(part);
+    }
+    support::open_document(&runtime, document).await;
+    let captured = runtime.model().accepted.unwrap();
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let delete = EditTicket::begin(
+        &runtime,
+        "delete-row",
+        None,
+        EditResolver::new("delete-row", |_| {
+            Resolution::submit(
+                vec!["matrix-main".into()],
+                EditOperation::RemoveMatrixRow {
+                    matrix_id: "matrix-main".into(),
+                    row: 0,
+                },
+            )
+        }),
+    );
+    support::drive_pending(&runtime);
+    entered.await.expect("row removal reached Core");
+    let resize = EditTicket::begin(
+        &runtime,
+        "layout-key-size",
+        None,
+        resize_resolver_for(
+            &captured.document,
+            "board-main".into(),
+            vec![KEY_ID.into()],
+            Vec2 { x: 2.0, y: 1.0 },
+            Some(ResizeAxis::X),
+        ),
+    );
+    support::drive_pending(&runtime);
+    release.send(()).unwrap();
+    support::run_pending(&runtime).await;
+    rendered(20).await;
+    assert!(matches!(delete.settlement(true), Settlement::Landed { .. }));
+    assert!(
+        matches!(resize.settlement(true), Settlement::Failed { message }
+            if message.contains("matrix topology changed")),
+        "a reused coordinate ID must not resize the surviving next-row key"
+    );
+    let accepted = runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.matrices[0].rows, 2);
+    assert_eq!(accepted.document.revision, captured.document.revision + 1);
+    assert_eq!(
+        accepted.document.parts[0].keycap,
+        captured.document.parts[0].keycap
+    );
+}
+
+#[wasm_bindgen_test]
+async fn queued_key_resize_composes_with_unrelated_revision_and_reference_changes() {
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::EditOperation;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, key_fixture()).await;
+    let captured = runtime.model().accepted.unwrap();
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let rename = EditTicket::begin(
+        &runtime,
+        "rename",
+        None,
+        EditResolver::new("rename", |accepted: &AcceptedSnapshot| {
+            let mut document = accepted.document.as_ref().clone();
+            document.boards[0].name = "Renamed".into();
+            document.parts[0].reference = "Changed label".into();
+            Resolution::submit(
+                vec!["board-main".into(), KEY_ID.into()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+            )
+        }),
+    );
+    support::drive_pending(&runtime);
+    entered.await.expect("unrelated edit reached Core");
+    let resize = EditTicket::begin(
+        &runtime,
+        "layout-key-size",
+        None,
+        resize_resolver_for(
+            &captured.document,
+            "board-main".into(),
+            vec![KEY_ID.into()],
+            Vec2 { x: 2.0, y: 1.0 },
+            Some(ResizeAxis::X),
+        ),
+    );
+    support::drive_pending(&runtime);
+    release.send(()).unwrap();
+    support::run_pending(&runtime).await;
+    rendered(20).await;
+    assert!(matches!(rename.settlement(true), Settlement::Landed { .. }));
+    assert!(
+        matches!(resize.settlement(true), Settlement::Landed { .. }),
+        "same-grid edits must compose despite revision and reference changes"
+    );
+    assert!(key_width(&runtime).is_some_and(|size| (size.x - 37.1).abs() < 1e-8));
+    assert_eq!(board_name(&runtime), "Renamed");
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.parts[0].reference,
+        "Changed label"
+    );
 }

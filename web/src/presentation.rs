@@ -28,6 +28,8 @@ mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
 #[cfg(test)]
+mod layout_layers_tests;
+#[cfg(test)]
 mod layout_remainder_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
@@ -60,6 +62,7 @@ pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
+mod layout_key_selection_actions;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
 pub(crate) use boardstudio_web_case::mechanical_settings_mount;
@@ -7742,7 +7745,8 @@ fn Editor() -> Element {
                                 let selected = model.selected_part_ids.contains(&part.id);
                                 let side_transform = if matches!(part.side, boardstudio_core::model::Side::Back) { "scale(-1 1)" } else { "" };
                                 let is_matrix_key = matrix_members.contains(part.id.as_str());
-                                let layer_visible = if is_matrix_key { !(layer_visibility.hidden)().contains("Keys") } else { !(layer_visibility.hidden)().contains("Components") };
+                                let is_switch = is_matrix_key || definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Switch));
+                                let layer_visible = if is_switch { !(layer_visibility.hidden)().contains("Keys") } else { !(layer_visibility.hidden)().contains("Components") };
                                 let is_encoder = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Encoder) || definition.input_profile.as_ref().is_some_and(|profile| profile.rotary.is_some()));
                                 let keycap = if is_encoder { None } else {
                                     let standalone_switch = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Switch));
@@ -7772,7 +7776,7 @@ fn Editor() -> Element {
                                 let mirrored_pair = mirrored_pair.clone();
                                 let mut pending_splay_pick = pending_splay_origin_pick;
                                 let transform_inspector = matrix_transform_inspector.clone();
-                                rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
+                                rsx! { if layer_visible || show_keycap.is_some() { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
                                     onpointerdown: move |event: PointerEvent| {
                                         let Some(pointer) = event.data().try_as_web_event() else { return; };
                                         if pointer.button() != 0 { return; }
@@ -7834,8 +7838,10 @@ fn Editor() -> Element {
                                         if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
                                         *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
                                     },
-                                    polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
-                                    if footprints_on {
+                                    if layer_visible {
+                                        polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
+                                    }
+                                    if layer_visible && footprints_on {
                                         if let Some(definition) = definition {
                                             FootprintGraphics { definition: definition.clone(), parameters: part.generator_parameters.clone() }
                                             for pad in &definition.pads {
@@ -7855,10 +7861,10 @@ fn Editor() -> Element {
                                             rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
                                         } } }
                                     }
-                                    if let Some(size) = keycap {
+                                    if let Some(size) = show_keycap {
                                         rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
                                     }
-                                    if show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
+                                    if layer_visible && show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
                                 }} }
                             }
                         }

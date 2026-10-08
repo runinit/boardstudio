@@ -129,6 +129,153 @@ pub fn transform_edit_resolver(
     )
 }
 
+// Only the selection identity is captured. Each queued edit reads the current matrix
+// so enabling several keys is one undo step and composes with other field edits.
+fn selected_keys_enabled_resolver(
+    matrix_id: String,
+    board_id: String,
+    coordinates: Vec<(u32, u32)>,
+    enabled: bool,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = accepted
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            let mut next = matrix.clone();
+            for &(row, column) in &coordinates {
+                if row >= next.rows || column >= next.columns {
+                    return Resolution::Retire("A selected key no longer exists.".into());
+                }
+                let context = TreeContext::Key {
+                    matrix_id: matrix_id.clone(),
+                    row,
+                    column,
+                };
+                let Some(fields) = transform_fields(accepted, &board_id, &context, &next) else {
+                    return Resolution::Retire("A selected key no longer exists.".into());
+                };
+                let operation = build_operation(
+                    &next,
+                    &fields,
+                    MatrixTransformField::KeyEnabled,
+                    MatrixTransformValue::Bool(enabled),
+                    MatrixSplayAffect::Column,
+                );
+                match operation {
+                    Ok(EditOperation::SetMatrix { matrix, .. }) => next = matrix,
+                    Ok(_) => {
+                        return Resolution::Retire(
+                            "The key enabled edit could not be built.".into(),
+                        );
+                    }
+                    Err(message) => return Resolution::Retire(message),
+                }
+            }
+            if &next == matrix {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![matrix.id.clone()],
+                EditOperation::SetMatrix {
+                    matrix: next,
+                    definitions: None,
+                },
+            )
+        },
+    )
+}
+
+fn selected_keys_delete_resolver(matrix_id: String, cells: Vec<(u32, u32)>) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(scene) = accepted
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|scene| scene.matrix_id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if cells.iter().any(|(row, column)| {
+                !scene
+                    .cells
+                    .iter()
+                    .any(|cell| cell.row == *row && cell.column == *column)
+            }) {
+                return Resolution::Retire("A selected key no longer exists.".into());
+            }
+            Resolution::submit(
+                vec![matrix_id.clone()],
+                EditOperation::RemoveMatrixCells {
+                    matrix_id: matrix_id.clone(),
+                    cells: cells.clone(),
+                },
+            )
+        },
+    )
+}
+
+fn guard_matrix_topology(
+    matrix_id: String,
+    dimensions: (u32, u32),
+    resolver: EditResolver,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = accepted
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if (matrix.rows, matrix.columns) != dimensions {
+                return Resolution::Retire("The matrix rows or columns changed before this edit ran. Select the key, row or column again.".into());
+            }
+            resolver.resolve(accepted)
+        },
+    )
+}
+
+fn selected_key_coordinates(
+    snapshot: &AcceptedSnapshot,
+    matrix_id: &str,
+    selected_ids: &[String],
+    context: &TreeContext,
+) -> Vec<(u32, u32)> {
+    let mut coordinates = snapshot
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == matrix_id)
+        .into_iter()
+        .flat_map(|scene| &scene.cells)
+        .filter(|cell| {
+            selected_ids.iter().any(|id| {
+                cell.member_id.as_ref() == Some(id)
+                    || id == &format!("matrix/{matrix_id}/r{}c{}", cell.row, cell.column)
+            })
+        })
+        .map(|cell| (cell.row, cell.column))
+        .collect::<Vec<_>>();
+    if let TreeContext::Key { row, column, .. } = context
+        && !coordinates.contains(&(*row, *column))
+    {
+        coordinates.push((*row, *column));
+    }
+    coordinates
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ContextIdentity {
     scope: Scope,
@@ -286,6 +433,7 @@ pub fn use_workspace_matrix_transform(
             MatrixTransformField::KeyTransformReset,
             MatrixTransformField::KeyAssembliesLocal,
             MatrixTransformField::KeyAttached,
+            MatrixTransformField::DeleteSelection,
         ]
         .into_iter()
         .map(|field| (field, Signal::new(false)))
@@ -351,7 +499,7 @@ pub fn use_workspace_matrix_transform(
         current_workspace,
         owner_workspace,
     );
-    let projection = projection.map(|mut projection| {
+    let mut projection = projection.map(|mut projection| {
         if let MatrixTransformFields::Key {
             definition_id,
             choices,
@@ -383,6 +531,99 @@ pub fn use_workspace_matrix_transform(
         }
         projection
     });
+    // Session drops disabled generated part IDs. Keep their cell selection while
+    // this exact inspector context owns it, so the same checkbox can re-enable all.
+    let retained_keys =
+        use_hook(|| Rc::new(RefCell::new(None::<(ContextIdentity, Vec<(u32, u32)>)>)));
+    use_effect({
+        let retained_keys = retained_keys.clone();
+        move || {
+            // Subscribe to explicit selection writes, including reselection of the
+            // same disabled tree key. Accepted revisions do not write this signal.
+            let _selection = selected_context.read();
+            retained_keys.borrow_mut().take();
+        }
+    });
+    {
+        let model = runtime.model();
+        let mut retained = retained_keys.borrow_mut();
+        match (observed_identity.as_ref(), model.accepted.as_ref()) {
+            (Some(identity), Some(snapshot)) => {
+                if let TreeContext::Key { matrix_id, .. } = &identity.context {
+                    if !model.selected_part_ids.is_empty() {
+                        let cells = selected_key_coordinates(
+                            snapshot,
+                            matrix_id,
+                            &model.selected_part_ids,
+                            &identity.context,
+                        );
+                        let preserves_disabled = retained.as_ref().is_some_and(|(owner, held)| {
+                            owner == identity
+                                && cells.iter().all(|cell| held.contains(cell))
+                                && held.iter().all(|(row, column)| {
+                                    cells.contains(&(*row, *column))
+                                        || snapshot
+                                            .scene
+                                            .matrix_scenes
+                                            .iter()
+                                            .find(|scene| scene.matrix_id == *matrix_id)
+                                            .is_some_and(|scene| {
+                                                scene.cells.iter().any(|cell| {
+                                                    cell.row == *row
+                                                        && cell.column == *column
+                                                        && !cell.enabled
+                                                })
+                                            })
+                                })
+                        });
+                        if !preserves_disabled {
+                            *retained = Some((identity.clone(), cells));
+                        }
+                    } else if retained.as_ref().is_none_or(|(owner, cells)| {
+                        owner != identity
+                            || !cells.iter().all(|(row, column)| {
+                                snapshot
+                                    .scene
+                                    .matrix_scenes
+                                    .iter()
+                                    .find(|scene| scene.matrix_id == *matrix_id)
+                                    .is_some_and(|scene| {
+                                        scene.cells.iter().any(|cell| {
+                                            cell.row == *row
+                                                && cell.column == *column
+                                                && !cell.enabled
+                                        })
+                                    })
+                            })
+                    }) {
+                        *retained = None;
+                    }
+                } else {
+                    *retained = None;
+                }
+            }
+            _ => *retained = None,
+        }
+    }
+    if let Some(projection) = &mut projection
+        && let MatrixTransformFields::Key { enabled, .. } = &mut projection.fields
+        && let Some((_, cells)) = retained_keys.borrow().as_ref()
+        && let Some(snapshot) = runtime.model().accepted
+    {
+        *enabled = snapshot
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == projection.owner.matrix_id)
+            .is_some_and(|scene| {
+                cells.iter().all(|(row, column)| {
+                    scene
+                        .cells
+                        .iter()
+                        .any(|cell| cell.row == *row && cell.column == *column && cell.enabled)
+                })
+            });
+    }
     let identity = observed_identity.clone();
 
     use_effect(use_reactive(
@@ -407,6 +648,7 @@ pub fn use_workspace_matrix_transform(
         let context_generation = context_generation.clone();
         let pending = pending.clone();
         let one_shot_fields = one_shot_fields.clone();
+        let retained_keys = retained_keys.clone();
         let mut last_request_id = last_request_id;
         let mut feedback = feedback;
         let mut catalog_requested = catalog_requested;
@@ -542,15 +784,69 @@ pub fn use_workspace_matrix_transform(
                 }
                 _ => Vec::new(),
             };
-            let resolver = transform_edit_resolver(
-                request.owner.matrix_id.clone(),
-                request.owner.scope.board_id.clone(),
-                request.owner.context.clone(),
+            let selected_cells = retained_keys
+                .borrow()
+                .as_ref()
+                .map(|(_, cells)| cells.clone())
+                .unwrap_or_else(|| {
+                    selected_key_coordinates(
+                        snapshot,
+                        &request.owner.matrix_id,
+                        &model.selected_part_ids,
+                        &request.owner.context,
+                    )
+                });
+            if matches!(
                 request.field,
-                request.value.clone(),
-                request.splay_affect.clone(),
-                catalogue_definitions,
-            );
+                MatrixTransformField::KeyEnabled | MatrixTransformField::DeleteSelection
+            ) && matches!(request.owner.context, TreeContext::Key { .. })
+            {
+                *retained_keys.borrow_mut() = Some((
+                    ContextIdentity {
+                        scope: selected.scope.clone(),
+                        context: selected.context.clone(),
+                        workspace: current_workspace,
+                        scope_generation: current_scope_generation,
+                    },
+                    selected_cells.clone(),
+                ));
+            }
+            let resolver = if request.field == MatrixTransformField::DeleteSelection
+                && matches!(request.owner.context, TreeContext::Key { .. })
+            {
+                selected_keys_delete_resolver(request.owner.matrix_id.clone(), selected_cells)
+            } else if let (MatrixTransformField::KeyEnabled, MatrixTransformValue::Bool(enabled)) =
+                (request.field, &request.value)
+            {
+                selected_keys_enabled_resolver(
+                    request.owner.matrix_id.clone(),
+                    request.owner.scope.board_id.clone(),
+                    selected_cells,
+                    *enabled,
+                )
+            } else {
+                transform_edit_resolver(
+                    request.owner.matrix_id.clone(),
+                    request.owner.scope.board_id.clone(),
+                    request.owner.context.clone(),
+                    request.field,
+                    request.value.clone(),
+                    request.splay_affect.clone(),
+                    catalogue_definitions,
+                )
+            };
+            let resolver = if matches!(
+                request.owner.context,
+                TreeContext::Key { .. } | TreeContext::Row { .. } | TreeContext::Column { .. }
+            ) {
+                guard_matrix_topology(
+                    request.owner.matrix_id.clone(),
+                    (matrix.rows, matrix.columns),
+                    resolver,
+                )
+            } else {
+                resolver
+            };
             if let (Some(draft), Some(failure)) = (request.draft, request.failure) {
                 pending.bind_field(key.clone(), draft, failure);
             }
@@ -751,6 +1047,14 @@ fn transform_fields(
             }
         }
         TreeContext::Key { row, column, .. } => {
+            snapshot
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|scene| scene.matrix_id == matrix.id)?
+                .cells
+                .iter()
+                .find(|cell| cell.row == *row && cell.column == *column)?;
             let cell = matrix
                 .cells
                 .iter()

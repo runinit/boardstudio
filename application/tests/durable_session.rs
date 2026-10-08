@@ -128,6 +128,7 @@ fn matrix_range_fixture() -> (ProjectDoc, Vec<String>) {
         column_splays: vec![],
         column_origins: vec![],
         cells: vec![MatrixCell {
+            deleted: false,
             row: 1,
             column: 1,
             enabled: false,

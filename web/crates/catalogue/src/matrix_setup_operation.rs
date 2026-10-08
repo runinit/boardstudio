@@ -270,6 +270,7 @@ pub fn prepare_matrix(
                 });
             }
             cells.push(MatrixCell {
+                deleted: false,
                 row,
                 column,
                 enabled: true,
