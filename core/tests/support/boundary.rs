@@ -112,6 +112,31 @@ pub fn core_requests() -> Vec<Value> {
             "command": { "baseRevision": 4 + index, "transactionId": format!("keymap-{index}"), "phase": "commit", "targetIds": [], "operation": operation },
         }));
     }
+    // Named placement changes cross the native/WASM seam for every variant.
+    let mut revision = 8;
+    for (name, change) in [
+        (
+            "stagger",
+            json!({ "kind": "column-stagger", "column": 2, "value": 4.5 }),
+        ),
+        (
+            "column-offset",
+            json!({ "kind": "column-offset", "column": 1, "value": { "x": 4, "y": -2 } }),
+        ),
+        (
+            "row-offset",
+            json!({ "kind": "row-offset", "row": 0, "value": { "x": 3, "y": 5 } }),
+        ),
+    ] {
+        for phase in ["preview", "commit"] {
+            requests.push(json!({
+                "id": format!("placement-{name}-{phase}"), "kind": "edit",
+                "command": { "baseRevision": revision, "transactionId": name, "phase": phase, "targetIds": ["matrix"],
+                    "operation": { "kind": "set-matrix-placement", "matrixId": "matrix", "change": change.clone() } },
+            }));
+        }
+        revision += 1;
+    }
     requests
 }
 
