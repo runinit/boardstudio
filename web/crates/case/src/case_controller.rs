@@ -2,7 +2,7 @@
 use super::case_bodies::{
     CaseBoardSummary, CaseBodies, CaseBodyEdit, CaseBodyEditFeedback, CaseBodyRequest, CaseMismatch,
 };
-use crate::observed_edits::ObservedEdits;
+use crate::owned_edits::OwnedEdits;
 use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
@@ -21,11 +21,22 @@ struct BodyEditMeta {
     created_body_id: Option<String>,
 }
 
-/// A body field's logical identity: the latest edit for it replaces the earlier one. Edits
+/// A body field's logical identity: the latest edit for it replaces the earlier one. The key
+/// carries its request and created body for follow-ups; keys compare by field only, and edits
 /// without a field share one key.
-type BodyEditKey = Option<String>;
+#[derive(Clone)]
+struct BodyEditKey {
+    field_id: Option<String>,
+    meta: Option<Rc<BodyEditMeta>>,
+}
 
-type BodyEditPending = ObservedEdits<BodyEditKey, BodyEditMeta>;
+impl PartialEq for BodyEditKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.field_id == other.field_id
+    }
+}
+
+type BodyEditPending = OwnedEdits<BodyEditKey>;
 
 /// Mount beside the Case preview in the Inspector slot. The shared page passes
 /// its already scope-guarded configured-board navigation callback.
@@ -146,23 +157,31 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
                 return;
             }
             let scope = runtime.scope();
+            let results = pending.peek().helper.settle(true, |_| String::new());
             let mut next_feedback = feedback.peek().clone();
-            for (observation, result) in pending.write().settle() {
-                let waiting = observation.meta;
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let Some(waiting) = key.meta.as_deref() else {
+                    continue;
+                };
                 let live = scope.as_ref() == Some(&waiting.request.scope);
-                match result {
+                match &result {
                     PendingEditResult::Landed { .. } if live => {
-                        record_feedback(&mut next_feedback, feedback_for(&waiting, None));
+                        record_feedback(&mut next_feedback, feedback_for(waiting, None));
                     }
-                    PendingEditResult::Failed { message, .. } if live => {
-                        record_feedback(&mut next_feedback, feedback_for(&waiting, Some(message)))
-                    }
+                    PendingEditResult::Failed { message, .. } if live => record_feedback(
+                        &mut next_feedback,
+                        feedback_for(waiting, Some(message.clone())),
+                    ),
                     _ => {
                         next_feedback.retain(|entry| entry.request_id != waiting.request.request_id)
                     }
                 }
             }
             feedback.set(next_feedback);
+            pending.write().prune();
         }
     }));
 
@@ -336,7 +355,8 @@ fn submit_body_edit(
         && pending
             .peek()
             .pending()
-            .any(|entry| entry.meta.request.edit.action_id().as_ref() == Some(&action_id))
+            .filter_map(|entry| entry.meta.as_deref())
+            .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
     {
         return;
     }
@@ -353,6 +373,7 @@ fn submit_body_edit(
     } else {
         None
     };
+    let scope = request.scope.clone();
     let waiting = BodyEditMeta {
         request,
         created_body_id,
@@ -360,14 +381,22 @@ fn submit_body_edit(
     let mut submitted = feedback_for(&waiting, None);
     submitted.pending = true;
     record_feedback(&mut feedback.write(), submitted);
-    pending.write().begin(
+    let key = BodyEditKey {
+        field_id: waiting.request.field_id.clone(),
+        meta: Some(Rc::new(waiting)),
+    };
+    if pending.peek().owner_changed(Some(&scope), 0) {
+        pending.write().follow_owner(Some(&scope), 0);
+    }
+    pending.peek().helper.begin_field(
         runtime,
-        waiting.request.field_id.clone(),
+        key.clone(),
         "case-body",
-        "case body",
-        waiting,
+        Some("case body".into()),
         resolver,
+        "",
     );
+    pending.write().remember(key);
 }
 
 fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {

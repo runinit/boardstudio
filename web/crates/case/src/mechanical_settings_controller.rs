@@ -21,7 +21,8 @@ use boardstudio_core::model::{
     ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use std::{
     cell::{Cell, RefCell},
     future::Future,
@@ -77,8 +78,12 @@ pub struct MechanicalSettingsPorts {
 pub struct MechanicalSettingsController {
     ports: MechanicalSettingsPorts,
     requests: RefCell<Vec<SettingsEdit>>,
-    /// The latest observed edit per field; an older edit for the field still runs.
-    edits: RefCell<PendingEdits<String>>,
+    /// The latest observed edit per field, for the owner it was admitted under; an older
+    /// edit for the field still runs. A changed owner replaces the helper.
+    edits: RefCell<(
+        Option<MechanicalSettingsIdentity>,
+        PendingEditSignals<String>,
+    )>,
     last_request_id: Cell<u64>,
 }
 
@@ -100,7 +105,7 @@ impl MechanicalSettingsController {
         Rc::new(Self {
             ports,
             requests: RefCell::new(Vec::new()),
-            edits: RefCell::new(PendingEdits::default()),
+            edits: RefCell::new((None, PendingEditSignals::new())),
             last_request_id: Cell::new(0),
         })
     }
@@ -223,12 +228,15 @@ impl MechanicalSettingsController {
                 .collect::<Vec<_>>()
         };
         for (id, field_id, resolver) in prepared {
-            self.edits.borrow_mut().begin(
+            self.follow_owner();
+            let helper = self.edits.borrow().1.clone();
+            helper.begin_field(
                 self.ports.edit_port.as_ref(),
                 field_id.clone(),
                 "mechanical-settings",
                 Some("mechanical settings".into()),
                 resolver,
+                "",
             );
             let mut requests = self.requests.borrow_mut();
             // The newest observation replaces the older one for its field.
@@ -258,7 +266,9 @@ impl MechanicalSettingsController {
         self.requests
             .borrow_mut()
             .retain(|pending| live(&pending.request));
-        let results = self.edits.borrow_mut().settle(true);
+        self.follow_owner();
+        let helper = self.edits.borrow().1.clone();
+        let results = helper.settle(true, |_| String::new());
         for result in results {
             let field_id = match &result {
                 PendingEditResult::Landed { key, .. }
@@ -293,6 +303,25 @@ impl MechanicalSettingsController {
             }
         }
         self.flush_prepared();
+    }
+
+    /// Replace the helper when the current owner is no longer the one its observations
+    /// were admitted under, silently retiring them; their Session edits still run.
+    fn follow_owner(&self) {
+        let Some(current) = (self.ports.current)() else {
+            return;
+        };
+        let mut edits = self.edits.borrow_mut();
+        let changed = edits
+            .0
+            .as_ref()
+            .is_none_or(|owner| !same_submitted_owner(&current.identity, owner));
+        if changed {
+            if edits.0.is_some() {
+                edits.1 = PendingEditSignals::new();
+            }
+            edits.0 = Some(current.identity);
+        }
     }
 
     fn emit(
