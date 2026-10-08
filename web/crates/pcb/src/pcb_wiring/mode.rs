@@ -43,6 +43,14 @@ pub fn board_mode(
         .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
 }
 
+/// The board panel's latest action failure, attributed to the target it belongs to so a
+/// navigated-away board never shows another board's message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardWiringFailure {
+    pub target: BoardWiringModeFeedbackTarget,
+    pub message: String,
+}
+
 #[derive(Clone, PartialEq)]
 pub struct BoardWiringModeActions {
     pub identity: Option<BoardWiringModeIdentity>,

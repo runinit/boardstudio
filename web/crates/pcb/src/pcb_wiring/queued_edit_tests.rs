@@ -448,7 +448,13 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
             .any(|part| part.id == "mcu-left")
     );
     assert!(
-        (probe.apply.borrow().as_ref().unwrap().failure)()
+        probe
+            .apply
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .failure
+            .as_deref()
             .is_some_and(|message| message.contains("deleted")),
         "the refused apply reports its failure inline"
     );

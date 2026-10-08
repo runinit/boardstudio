@@ -313,35 +313,34 @@ fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResol
     })
 }
 
-/// One part-connection edit's bounded logical key: the selected part plus its assignment
+/// One part-connection edit's bounded logical key: the part target plus its assignment
 /// (a pad set) or the part's one-shot net creation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum PartNetEditKey {
     AssignPads {
-        identity: PartNetEditIdentity,
+        target: super::PartNetTarget,
         pad_ids: Vec<String>,
     },
     CreateNet {
-        identity: PartNetEditIdentity,
+        target: super::PartNetTarget,
     },
 }
 
 impl PartNetEditKey {
     fn of(request: &PartNetEditRequest) -> Self {
+        let target = super::PartNetTarget::of(&request.identity);
         match &request.action {
             PartNetEditAction::AssignPads { pad_ids, .. } => Self::AssignPads {
-                identity: request.identity.clone(),
+                target,
                 pad_ids: pad_ids.clone(),
             },
-            PartNetEditAction::CreateNet { .. } => Self::CreateNet {
-                identity: request.identity.clone(),
-            },
+            PartNetEditAction::CreateNet { .. } => Self::CreateNet { target },
         }
     }
 
-    fn identity(&self) -> &PartNetEditIdentity {
+    fn target(&self) -> &super::PartNetTarget {
         match self {
-            Self::AssignPads { identity, .. } | Self::CreateNet { identity } => identity,
+            Self::AssignPads { target, .. } | Self::CreateNet { target } => target,
         }
     }
 }
@@ -355,12 +354,15 @@ struct PartNetOwner {
     submissions: Signal<Vec<(PartNetEditKey, Option<String>)>>,
 }
 
-/// Whether the current part's one-shot net creation is queued or pending.
-pub(super) fn create_net_pending(identity: &PartNetEditIdentity) -> bool {
+/// Whether a queued or pending one-shot net creation is still running. The key carries
+/// the accepted revision it was submitted with, so pending-ness is read from the
+/// remembered submission rather than a freshly projected identity.
+pub(super) fn create_net_pending() -> bool {
     try_consume_context::<PartNetOwner>().is_some_and(|owner| {
         (owner.preparing_create)()
-            || owner.edits.borrow().is_pending(&PartNetEditKey::CreateNet {
-                identity: identity.clone(),
+            || owner.submissions.read().iter().any(|(key, _)| {
+                matches!(key, PartNetEditKey::CreateNet { .. })
+                    && owner.edits.borrow().is_pending(key)
             })
     })
 }
@@ -371,7 +373,7 @@ pub(super) fn pending_net(
 ) -> Option<Option<String>> {
     let owner = try_consume_context::<PartNetOwner>()?;
     let key = PartNetEditKey::AssignPads {
-        identity: identity.clone(),
+        target: super::PartNetTarget::of(identity),
         pad_ids: pad_ids.to_vec(),
     };
     if !owner.edits.borrow().is_pending(&key) {
@@ -440,7 +442,7 @@ pub fn use_pcb_part_net_edits(
                 submissions.write().retain(|(existing, _)| existing != &key);
                 if latest.peek().as_ref() == Some(&key) {
                     feedback.set(failure.map(|failure| PartNetFeedback {
-                        identity: key.identity().clone(),
+                        target: key.target().clone(),
                         failure,
                     }));
                 }
@@ -464,7 +466,7 @@ pub fn use_pcb_part_net_edits(
                 return;
             }
             let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
-            if create && create_net_pending(&request.identity) {
+            if create && create_net_pending() {
                 return;
             }
             let accepted = runtime.model().accepted.unwrap();
@@ -557,13 +559,12 @@ pub fn use_pcb_part_net_edits(
                             Resolution::Retire(reason.clone())
                         }),
                     };
-                    if !create {
-                        let mut entries = submissions.write();
-                        match entries.iter_mut().find(|(existing, _)| existing == &key) {
-                            Some(entry) => entry.1 = submitted,
-                            None => entries.push((key.clone(), submitted)),
-                        }
+                    let mut entries = submissions.write();
+                    match entries.iter_mut().find(|(existing, _)| existing == &key) {
+                        Some(entry) => entry.1 = submitted,
+                        None => entries.push((key.clone(), submitted)),
                     }
+                    drop(entries);
                     latest.set(Some(key.clone()));
                     feedback.set(None);
                     edits.borrow_mut().begin(
@@ -579,13 +580,11 @@ pub fn use_pcb_part_net_edits(
     });
     let identity = current_part_net_identity(&runtime, generation, instance_is_current());
     let editable = identity.is_some() && workspace() == "PCB";
-    let create_pending = identity
-        .as_ref()
-        .is_some_and(|identity| create_net_pending(identity));
+    let create_pending = create_net_pending();
     let visible_feedback = feedback().filter(|feedback| {
         identity
             .as_ref()
-            .is_some_and(|identity| same_part_net_identity(&feedback.identity, identity))
+            .is_some_and(|identity| feedback.target.matches(identity))
     });
     PartNetActions {
         identity,
@@ -722,13 +721,6 @@ fn current_part_net_identity(
         revision: accepted.document.revision,
         generation,
     })
-}
-
-fn same_part_net_identity(left: &PartNetEditIdentity, right: &PartNetEditIdentity) -> bool {
-    left.ui_scope == right.ui_scope
-        && left.generation == right.generation
-        && left.part_id == right.part_id
-        && left.board_id == right.board_id
 }
 
 fn request_matches_current_part(

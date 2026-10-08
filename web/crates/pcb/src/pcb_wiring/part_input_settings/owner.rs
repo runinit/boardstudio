@@ -260,6 +260,7 @@ pub fn use_part_input_edits(
             let alive = alive.clone();
             let runtime = runtime.clone();
             let edits = edits.clone();
+            let mut drafts = drafts;
             spawn_local(async move {
                 loop {
                     let request = queue.borrow_mut().pop_front();
@@ -291,6 +292,7 @@ pub fn use_part_input_edits(
                         && runtime.scope().as_ref() == Some(&key.ui_scope)
                         && runtime.model().selected_part_ids.as_slice() == [key.part_id.as_str()];
                     if !live {
+                        drafts.write().retain(|(existing, _)| existing != &key);
                         continue;
                     }
                     edits.borrow_mut().begin(

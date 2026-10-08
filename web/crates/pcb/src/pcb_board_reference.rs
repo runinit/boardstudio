@@ -763,11 +763,10 @@ pub fn Editor(
         let action_latest = action_latest;
         let mut error = error;
         move |_| {
-            let panel_is_live = workspace() == "Layout" || workspace() == "Case";
-            let panel_is_live = panel_is_live
-                && super::board_reference_owner_lineage_is_current(
-                    &runtime, workspace, &adapter, &owner,
-                );
+            // The lineage check already answers for the panel's workspace.
+            let panel_is_live = super::board_reference_owner_lineage_is_current(
+                &runtime, workspace, &adapter, &owner,
+            );
             let results = action_edits.borrow_mut().settle(panel_is_live);
             for result in results {
                 let (key, message) = match result {

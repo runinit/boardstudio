@@ -64,9 +64,37 @@ pub struct PartNetEditRequest {
     pub action: PartNetEditAction,
 }
 
+/// The stable target of one part's connection edits: no accepted token or revision, so a
+/// pending submission keeps projecting and replacing while the revision advances.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartNetTarget {
+    pub ui_scope: Scope,
+    pub board_id: String,
+    pub part_id: String,
+    pub generation: u64,
+}
+
+impl PartNetTarget {
+    pub fn of(identity: &PartNetEditIdentity) -> Self {
+        Self {
+            ui_scope: identity.ui_scope.clone(),
+            board_id: identity.board_id.clone(),
+            part_id: identity.part_id.clone(),
+            generation: identity.generation,
+        }
+    }
+
+    pub fn matches(&self, identity: &PartNetEditIdentity) -> bool {
+        self.ui_scope == identity.ui_scope
+            && self.board_id == identity.board_id
+            && self.part_id == identity.part_id
+            && self.generation == identity.generation
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartNetFeedback {
-    pub identity: PartNetEditIdentity,
+    pub target: PartNetTarget,
     pub failure: String,
 }
 
@@ -711,12 +739,12 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
     let mode_identity = mode_actions.identity.clone();
     let apply_actions = props.apply_actions.clone();
     let apply_identity = apply_actions.identity.clone();
-    let apply_failure = (apply_actions.failure)();
-    let release_pending = apply_actions.release_pending;
+    let apply_failure = apply_actions.failure.clone();
+    let release_disabled = apply_actions.release_disabled;
     let on_apply = apply_actions.on_apply;
     let pin_actions = props.pin_actions.clone();
     let pin_pending = pin_actions.pending;
-    let pin_failure = (pin_actions.failure)();
+    let pin_failure = pin_actions.failure.clone();
     let pin_identity = pin_actions.identity.clone();
     let on_pin_change = pin_actions.on_change;
     let mut pin_rows = matching_plan
@@ -862,7 +890,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     p { "{review.pin_count} pin connections already belong to {existing_connection_names}. Switching them to automatic wiring removes these assignments so the board plan can replace them. Other connections stay in place. You can undo this change." }
                     button {
                         type: "button",
-                        disabled: !mode_actions.editable || review_connections_identity.is_none() || release_pending,
+                        disabled: !mode_actions.editable || review_connections_identity.is_none() || release_disabled,
                         onclick: move |_| {
                             let Some(identity) = review_connections_identity.clone() else { return; };
                             on_release_reviewed_connections.call(identity);

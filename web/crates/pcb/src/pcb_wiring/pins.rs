@@ -1,5 +1,5 @@
 //! Accepted selected-board assignment pin and lock edits.
-use super::mode::{current_edit_snapshot, mode_identity};
+use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
 use super::{PcbWiringResolution, PcbWiringSource};
 use crate::{
     pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity},
@@ -37,8 +37,8 @@ pub struct PcbWiringPinActions {
     pub editable: bool,
     /// A pin edit for the current board target is still pending.
     pub pending: bool,
-    /// The latest pin edit's inline failure; landing and retirement are silent.
-    pub failure: Signal<Option<String>>,
+    /// The current board target's inline failure; landing and retirement are silent.
+    pub failure: Option<String>,
     pub on_change: EventHandler<PcbWiringPinEditRequest>,
 }
 
@@ -94,7 +94,7 @@ pub fn use_pcb_wiring_pin_edits(
     let edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<PcbWiringPinKey>::default())));
     let submissions = use_signal(Vec::<(PcbWiringPinKey, Option<String>)>::new);
     let latest = use_signal(|| None::<PcbWiringPinKey>);
-    let failure = use_signal(|| None::<String>);
+    let failure = use_signal(|| None::<BoardWiringFailure>);
     let settlement_tick = use_signal(|| 0u64);
     let _ = settlement_tick();
     use_context_provider(|| PinOwner {
@@ -119,7 +119,10 @@ pub fn use_pcb_wiring_pin_edits(
                     PendingEditResult::Failed { key, message } => {
                         submissions.write().retain(|(existing, _)| existing != &key);
                         if latest.peek().as_ref() == Some(&key) {
-                            failure.set(Some(message));
+                            failure.set(Some(BoardWiringFailure {
+                                target: key.target.clone(),
+                                message,
+                            }));
                         }
                     }
                     PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
@@ -199,6 +202,9 @@ pub fn use_pcb_wiring_pin_edits(
             .iter()
             .any(|(key, _)| &key.target == target && edits.borrow().is_pending(key))
     });
+    let failure = failure()
+        .filter(|failure| target.as_ref() == Some(&failure.target))
+        .map(|failure| failure.message);
     PcbWiringPinActions {
         identity,
         editable,
