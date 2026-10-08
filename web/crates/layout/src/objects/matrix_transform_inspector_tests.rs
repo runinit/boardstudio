@@ -25,6 +25,7 @@ struct Probe {
     version: Rc<RefCell<Option<Signal<u64>>>>,
     selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
     adapter: Rc<RefCell<Option<crate::presentation::selection::SelectionAdapter>>>,
+    mount: Rc<RefCell<Option<MatrixTransformInspectorMount>>>,
 }
 
 #[component]
@@ -52,6 +53,7 @@ fn matrix_transform_host() -> Element {
         splay_affect,
         "Layout",
     );
+    *probe.mount.borrow_mut() = Some(mount.clone());
     let matrix_id = "matrix".to_owned();
     let canvas_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let canvas_runtime = probe.runtime.clone();
@@ -335,6 +337,7 @@ async fn mount_selection_probe(
         version: Rc::default(),
         selected_context: Rc::default(),
         adapter: Rc::default(),
+        mount: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -622,6 +625,130 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
 
 async fn settle() {
     gloo_timers::future::TimeoutFuture::new(60).await;
+}
+
+#[wasm_bindgen_test]
+async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
+    let (mut document, context) = fixture();
+    document.matrices[0].cells[0].offset = Some(Vec2 { x: 3.0, y: 0.0 });
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-pending-reset-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle().await;
+    let retained = probe.mount.borrow().as_ref().unwrap().clone();
+    let projection = retained.projection.as_ref().unwrap();
+    let button = root.query_selector_all("button").unwrap();
+    let button = (0..button.length())
+        .filter_map(|index| button.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Reset local transform"))
+        .expect("the reset action is mounted")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let input = root
+        .query_selector("input[aria-label='Local X']")
+        .unwrap()
+        .expect("the key offset field is mounted")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    let (entered, release) = support::gate_next_core_reply(&probe.runtime);
+    button.click();
+    support::drive_pending(&probe.runtime);
+    entered.await.expect("the reset reaches Core");
+    settle().await;
+    let disabled_while_pending = button.has_attribute("disabled");
+    assert!(
+        !input.disabled(),
+        "field edits stay available while an action is pending"
+    );
+
+    input.set_value("5");
+    let event = DomEvent::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+    let mut sequence = retained.request_sequence;
+    let request_id = sequence().checked_add(1).unwrap();
+    sequence.set(request_id);
+    retained.on_edit.call(MatrixTransformRequest {
+        owner: projection.owner.clone(),
+        request_id,
+        snapshot_token: projection.snapshot_token,
+        revision: projection.revision,
+        field: MatrixTransformField::KeyTransformReset,
+        baseline: MatrixTransformValue::CellTransform {
+            offset: Vec2 { x: 3.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        value: MatrixTransformValue::CellTransform {
+            offset: Vec2::default(),
+            rotation: 0.0,
+        },
+        splay_affect: (retained.splay_affect)(),
+        draft: None,
+        failure: None,
+        submitted_text: None,
+        one_shot: true,
+    });
+    release.send(()).expect("release the held reset");
+    // The gated task runs through drive_pending, so run_pending alone does not await it.
+    // Refresh this host's version only after the real Session has finished both edits.
+    for _ in 0..100 {
+        support::run_pending(&probe.runtime).await;
+        if matches!(
+            probe.runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Ready
+        ) {
+            break;
+        }
+        settle().await;
+    }
+    assert!(
+        matches!(
+            probe.runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Ready
+        ),
+        "the reset and queued field edit finish through the real Session"
+    );
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+
+    assert!(
+        disabled_while_pending,
+        "the reset button disables while its action is pending"
+    );
+    assert_eq!(
+        accepted_cell(&probe, 0).offset,
+        Some(Vec2 { x: 5.0, y: 0.0 }),
+        "a retained duplicate reset must not undo the queued field edit"
+    );
+    let live_buttons = root.query_selector_all("button").unwrap();
+    let live_button = (0..live_buttons.length())
+        .filter_map(|index| live_buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Reset local transform"))
+        .expect("the live reset action remains mounted")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    assert!(
+        !live_button.has_attribute("disabled"),
+        "the live reset button is available after settlement; captured connected: {}, lifecycle: {:?}",
+        button.is_connected(),
+        probe.runtime.model().lifecycle,
+    );
+    assert!(root.query_selector("[role='alert']").unwrap().is_none());
+    root.remove();
 }
 
 #[wasm_bindgen_test]

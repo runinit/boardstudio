@@ -46,6 +46,7 @@ fn host() -> Element {
         editable: true,
         feedback: probe.feedback.borrow().clone(),
         inspector_mounted: use_signal(|| true),
+        on_bind_draft: use_callback(|_| {}),
         on_resize,
     };
     rsx! { div { id: "key-size-regression-root", KeySizeControls { mount } } }
@@ -912,4 +913,182 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
         original_width,
         "the second Undo removes the key size"
     );
+}
+
+#[derive(Clone)]
+struct RuntimeProbe {
+    runtime: Rc<Runtime>,
+    selected: ScopedTreeContext,
+}
+
+fn runtime_host() -> Element {
+    let probe = use_context::<RuntimeProbe>();
+    let version = use_signal(|| 0u64);
+    use_hook({
+        let runtime = probe.runtime.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
+    use_drop({
+        let runtime = probe.runtime.clone();
+        move || runtime.unsubscribe()
+    });
+    let _ = version();
+    let selected = use_signal(|| Some(probe.selected.clone()));
+    let workspace = use_signal(|| "Layout");
+    let generation = use_signal(|| 1u64);
+    let mount = use_key_size(
+        probe.runtime.clone(),
+        version,
+        selected,
+        workspace,
+        generation,
+    );
+    rsx! { KeySizeControls { mount } }
+}
+
+fn enter_width(input: &HtmlInputElement, value: &str) {
+    input.set_value(value);
+    let event = Event::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+}
+
+fn commit_width(input: &HtmlInputElement) {
+    let event = web_sys::PointerEvent::new("pointerup").unwrap();
+    event.init_event_with_bubbles("pointerup", true);
+    input.dispatch_event(&event).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn key_size_settlement_preserves_newer_drafts_restores_failures_and_tracks_undo_redo() {
+    use crate::runtime::project_name_test_support as support;
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, key_fixture()).await;
+    runtime.submit(SessionEvent::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec![KEY_ID.into()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    let original_width = key_width(&runtime);
+    let probe = RuntimeProbe {
+        selected: ScopedTreeContext {
+            scope: runtime.scope().unwrap(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 0,
+                column: 0,
+            },
+        },
+        runtime,
+    };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(runtime_host);
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    rendered(30).await;
+    let width = element(&root, "input[aria-label='Key width']")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(width.value(), "1");
+
+    enter_width(&width, "2");
+    rendered(20).await;
+    let (entered, release) = support::gate_next_core_reply(&probe.runtime);
+    commit_width(&width);
+    rendered(20).await;
+    assert_eq!(
+        probe.runtime.model().lifecycle,
+        Lifecycle::Applying,
+        "the real pointer release admits a pending resize"
+    );
+    support::drive_pending(&probe.runtime);
+    entered.await.expect("the UI resize reached Core");
+    enter_width(&width, "3");
+    rendered(20).await;
+    release.send(()).expect("release the held UI resize");
+    for _ in 0..20 {
+        support::run_pending(&probe.runtime).await;
+        if probe.runtime.model().lifecycle == Lifecycle::Ready {
+            break;
+        }
+        rendered(10).await;
+    }
+    rendered(30).await;
+    assert!(
+        key_width(&probe.runtime).is_some_and(|size| (size.x - 37.1).abs() < 1e-9),
+        "the UI committed accepted 2u before testing newer drafts and Undo"
+    );
+    let width = element(&root, "input[aria-label='Key width']")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(
+        width.value(),
+        "3",
+        "an older landed resize must leave the newer slider draft visible"
+    );
+    enter_width(&width, "2");
+    rendered(20).await;
+    undo(&probe.runtime).await;
+    rendered(30).await;
+    assert_eq!(
+        key_width(&probe.runtime),
+        original_width,
+        "Runtime accepted Undo before the clean Inspector updates"
+    );
+    let width = element(&root, "input[aria-label='Key width']")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(width.value(), "1", "a clean field follows Undo");
+    probe.runtime.submit(SessionEvent::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    rendered(30).await;
+    let width = element(&root, "input[aria-label='Key width']")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(width.value(), "2", "a clean field follows Redo");
+    let accepted_revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    support::fail_next_core_reply(&probe.runtime, "injected key-size failure");
+    enter_width(&width, "3");
+    rendered(20).await;
+    commit_width(&width);
+    rendered(20).await;
+    support::run_pending(&probe.runtime).await;
+    rendered(30).await;
+    assert_eq!(
+        probe.runtime.model().accepted.unwrap().document.revision,
+        accepted_revision
+    );
+    let width = element(&root, "input[aria-label='Key width']")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(
+        width.value(),
+        "2",
+        "a failed unchanged draft restores the accepted width"
+    );
+    assert!(
+        element(&root, "[role='alert']")
+            .text_content()
+            .unwrap()
+            .contains("injected key-size failure")
+    );
+
+    probe.runtime.unsubscribe();
+    root.remove();
 }

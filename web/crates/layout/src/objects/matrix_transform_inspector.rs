@@ -143,6 +143,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 ResetTransformButton {
                     label: "Reset offsets", owner: owner.clone(), snapshot_token, revision,
                     field: MatrixTransformField::RowOffsetReset,
+                    pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::RowOffsetReset),
                     baseline: MatrixTransformValue::Offset(*offset),
                     value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
                     request_sequence, editable: props.mount.editable,
@@ -241,6 +242,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     ResetTransformButton {
                         label: "Reset offsets", owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::ColumnOffsetReset,
+                        pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetReset),
                         baseline: MatrixTransformValue::Offset(*offset),
                         value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
                         request_sequence, editable: props.mount.editable,
@@ -296,6 +298,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 ResetTransformButton {
                     label: "Reset local transform", owner: owner.clone(), snapshot_token, revision,
                     field: MatrixTransformField::KeyTransformReset,
+                    pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::KeyTransformReset),
                     baseline: MatrixTransformValue::CellTransform { offset: *offset, rotation: *rotation },
                     value: MatrixTransformValue::CellTransform { offset: Vec2 { x: 0.0, y: 0.0 }, rotation: 0.0 },
                     request_sequence, editable: props.mount.editable,
@@ -308,6 +311,8 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 }
                 AttachedComponentsField {
                     owner: owner.clone(), snapshot_token, revision, value: assemblies.clone(),
+                    remove_disabled: props.mount.one_shot_disabled(MatrixTransformField::KeyAttached),
+                    mirror_reset_disabled: props.mount.one_shot_disabled(MatrixTransformField::KeyAssembliesLocal),
                     choices: component_choices.clone(), mirror_target: *mirror_target,
                     assemblies_local: *assemblies_local, request_sequence,
                     editable: props.mount.editable,
@@ -777,6 +782,8 @@ struct AttachedComponentsFieldProps {
     assemblies_local: bool,
     request_sequence: Signal<u64>,
     editable: bool,
+    remove_disabled: Signal<bool>,
+    mirror_reset_disabled: Signal<bool>,
     feedback: Vec<MatrixTransformFeedback>,
     on_edit: EventHandler<MatrixTransformRequest>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -797,6 +804,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
         })
         .and_then(|item| item.message.clone());
     let disabled = !props.editable;
+    let remove_disabled = disabled || (props.remove_disabled)();
     let sequence = props.request_sequence;
     let owner = props.owner.clone();
     let token = props.snapshot_token;
@@ -834,6 +842,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                     label: "Use mirrored components", owner: props.owner.clone(),
                     snapshot_token: props.snapshot_token, revision: props.revision,
                     field: MatrixTransformField::KeyAssembliesLocal,
+                    pending_disabled: props.mirror_reset_disabled,
                     baseline: MatrixTransformValue::Bool(true),
                     value: MatrixTransformValue::Bool(false),
                     request_sequence: props.request_sequence, editable: props.editable,
@@ -873,7 +882,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                         }
                     }
                     button {
-                        r#type: "button", class: "m1-inspector-secondary", disabled,
+                        r#type: "button", class: "m1-inspector-secondary", disabled: remove_disabled,
                         aria_label: "Remove {assembly_id}",
                         onclick: {
                             let assembly_id = assembly_id.clone();
@@ -902,6 +911,7 @@ struct ResetTransformButtonProps {
     value: MatrixTransformValue,
     request_sequence: Signal<u64>,
     editable: bool,
+    pending_disabled: Signal<bool>,
     feedback: Vec<MatrixTransformFeedback>,
     splay_affect: Signal<MatrixSplayAffect>,
     on_edit: EventHandler<MatrixTransformRequest>,
@@ -931,7 +941,7 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 && item.message.is_some()
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable;
+    let disabled = !props.editable || (props.pending_disabled)();
     let mut sequence = props.request_sequence;
     let owner = props.owner.clone();
     let baseline = props.baseline.clone();

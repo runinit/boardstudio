@@ -154,9 +154,18 @@ pub struct MatrixTransformInspectorMount {
     pub splay_affect: Signal<MatrixSplayAffect>,
     pub(super) inspector_mounted: Signal<bool>,
     pub(super) numeric_fields: Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
+    one_shot_fields: Vec<(MatrixTransformField, Signal<bool>)>,
 }
 
 impl MatrixTransformInspectorMount {
+    pub(super) fn one_shot_disabled(&self, field: MatrixTransformField) -> Signal<bool> {
+        self.one_shot_fields
+            .iter()
+            .find(|(candidate, _)| *candidate == field)
+            .expect("one-shot transform action has a stable view")
+            .1
+    }
+
     pub(super) fn numeric_field(
         &self,
         field: MatrixTransformField,
@@ -270,6 +279,18 @@ pub fn use_workspace_matrix_transform(
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
     let pending = use_hook(|| PendingEditSignals::<TransformPendingKey>::new());
+    let one_shot_fields = use_hook(|| {
+        [
+            MatrixTransformField::RowOffsetReset,
+            MatrixTransformField::ColumnOffsetReset,
+            MatrixTransformField::KeyTransformReset,
+            MatrixTransformField::KeyAssembliesLocal,
+            MatrixTransformField::KeyAttached,
+        ]
+        .into_iter()
+        .map(|field| (field, Signal::new(false)))
+        .collect::<Vec<_>>()
+    });
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     let inspector_mounted = use_signal(|| false);
@@ -385,6 +406,7 @@ pub fn use_workspace_matrix_transform(
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
         let pending = pending.clone();
+        let one_shot_fields = one_shot_fields.clone();
         let mut last_request_id = last_request_id;
         let mut feedback = feedback;
         let mut catalog_requested = catalog_requested;
@@ -423,6 +445,16 @@ pub fn use_workspace_matrix_transform(
                 return;
             };
             if current.owner != request.owner {
+                return;
+            }
+            let key = TransformPendingKey {
+                field: request.field,
+                owner: request.owner.clone(),
+                request_id: request.request_id,
+                one_shot: request.one_shot,
+                failure: request.failure,
+            };
+            if request.one_shot && pending.is_pending(&key) {
                 return;
             }
             if !editable {
@@ -519,13 +551,6 @@ pub fn use_workspace_matrix_transform(
                 request.splay_affect.clone(),
                 catalogue_definitions,
             );
-            let key = TransformPendingKey {
-                field: request.field,
-                owner: request.owner.clone(),
-                request_id: request.request_id,
-                one_shot: request.one_shot,
-                failure: request.failure,
-            };
             if let (Some(draft), Some(failure)) = (request.draft, request.failure) {
                 pending.bind_field(key.clone(), draft, failure);
             }
@@ -539,6 +564,13 @@ pub fn use_workspace_matrix_transform(
                     request.submitted_text.as_deref().unwrap_or_default(),
                 );
             } else {
+                let Some((_, disabled)) = one_shot_fields
+                    .iter()
+                    .find(|(field, _)| *field == request.field)
+                else {
+                    return;
+                };
+                pending.bind_one_shot(key.clone(), *disabled);
                 pending.begin_one_shot(
                     &runtime,
                     key,
@@ -559,6 +591,7 @@ pub fn use_workspace_matrix_transform(
         splay_affect,
         inspector_mounted,
         numeric_fields,
+        one_shot_fields,
     }
 }
 

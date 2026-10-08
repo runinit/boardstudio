@@ -86,13 +86,19 @@ impl PartialEq for KeySizeEditKey {
     }
 }
 
+pub(super) type KeySizeDraftBinding = (
+    KeySizeOwner,
+    Option<(Signal<Vec2>, Signal<Option<String>>, Signal<bool>)>,
+);
+
 #[derive(Clone, PartialEq)]
 pub struct KeySizeMount {
     pub projection: Option<KeySizeProjection>,
     pub request_sequence: Signal<u64>,
     pub editable: bool,
     pub feedback: Option<KeySizeFeedback>,
-    pub inspector_mounted: Signal<bool>,
+    pub(super) inspector_mounted: Signal<bool>,
+    pub(super) on_bind_draft: EventHandler<KeySizeDraftBinding>,
     pub on_resize: EventHandler<KeySizeRequest>,
 }
 
@@ -181,7 +187,7 @@ pub fn use_key_size(
     };
     let request_sequence = use_signal(|| 0u64);
     let last_request = use_signal(|| 0u64);
-    let pending = use_hook(|| PendingEditSignals::<KeySizeEditKey>::new());
+    let pending = use_hook(|| PendingEditSignals::<KeySizeEditKey, Vec2>::new());
     let feedback = use_signal(|| None::<KeySizeFeedback>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let inspector_mounted = use_signal(|| false);
@@ -190,7 +196,7 @@ pub fn use_key_size(
         let pending = pending.clone();
         move || {
             alive.set(false);
-            pending.settle(false, |_| String::new());
+            pending.settle(false, |_| Vec2::default());
         }
     });
     let (projection, editable) = project(
@@ -204,6 +210,10 @@ pub fn use_key_size(
     let current_owner = projection
         .as_ref()
         .map(|projection| projection.owner.clone());
+    let accepted_units = projection
+        .as_ref()
+        .map(|projection| projection.units)
+        .unwrap_or_default();
     let observed_owner = use_hook(|| Rc::new(RefCell::new(None::<KeySizeOwner>)));
     let owner_is_current = {
         let mut observed = observed_owner.borrow_mut();
@@ -221,18 +231,19 @@ pub fn use_key_size(
             &scope_generation(),
             &owner_is_current,
             &inspector_mounted(),
+            &accepted_units,
         ),
         {
             let mut feedback = feedback;
             let pending = pending.clone();
             let alive = alive.clone();
-            move |(_, current_workspace, _, owner_is_current, inspector_mounted)| {
+            move |(_, current_workspace, _, owner_is_current, inspector_mounted, accepted_units)| {
                 for result in pending.settle(
                     alive.get()
                         && owner_is_current
                         && inspector_mounted
                         && current_workspace == "Layout",
-                    |_| String::new(),
+                    |_| accepted_units,
                 ) {
                     match result {
                         PendingEditResult::Landed { key, .. }
@@ -250,6 +261,51 @@ pub fn use_key_size(
             }
         },
     ));
+
+    let on_bind_draft = use_callback({
+        let pending = pending.clone();
+        let runtime = runtime.clone();
+        let tracker = tracker.clone();
+        move |(owner, view): KeySizeDraftBinding| {
+            let mut field_pending = false;
+            for field in [
+                KeySizeField::Width,
+                KeySizeField::Height,
+                KeySizeField::Orientation,
+            ] {
+                let key = KeySizeEditKey {
+                    field,
+                    owner: owner.clone(),
+                    request_id: 0,
+                };
+                field_pending |= pending.is_pending(&key);
+                if let Some((draft, failure, _)) = view {
+                    pending.bind_field(key, draft, failure);
+                } else {
+                    pending.unbind_field(&key);
+                }
+            }
+            if let Some((draft, _, mut dirty)) = view
+                && !field_pending
+                && *dirty.peek()
+            {
+                let selected = selected_context.read().clone();
+                let (accepted, _) = project(
+                    &runtime,
+                    selected.as_ref(),
+                    editor_instance_id,
+                    tracker.borrow().generation,
+                    scope_generation(),
+                    workspace(),
+                );
+                if accepted.as_ref().is_some_and(|accepted| {
+                    accepted.owner == owner && accepted.units == *draft.peek()
+                }) {
+                    dirty.set(false);
+                }
+            }
+        }
+    });
 
     let on_resize = use_callback({
         let runtime = runtime.clone();
@@ -301,7 +357,7 @@ pub fn use_key_size(
                 request_id: request.request_id,
             };
             clear_feedback(&mut feedback, &key);
-            pending.begin_field(
+            pending.begin_value(
                 &runtime,
                 key,
                 "layout-key-size",
@@ -312,7 +368,7 @@ pub fn use_key_size(
                     request.units,
                     request.axis,
                 ),
-                &format!("{}:{}", request.units.x, request.units.y),
+                &request.units,
             );
         }
     });
@@ -323,6 +379,7 @@ pub fn use_key_size(
         editable,
         feedback: feedback.read().clone(),
         inspector_mounted,
+        on_bind_draft,
         on_resize,
     }
 }
