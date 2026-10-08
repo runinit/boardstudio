@@ -49,6 +49,16 @@ pub(super) struct InspectorInput {
     pub(super) component_inspector: Option<super::inspector::LayoutComponentInspectorProjection>,
     pub(super) component_inspector_pending_edits:
         dioxus::prelude::Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
+    pub(super) component_inspector_x: Signal<String>,
+    pub(super) component_inspector_y: Signal<String>,
+    pub(super) component_inspector_margin: Signal<String>,
+    pub(super) component_inspector_error: Signal<Option<String>>,
+    pub(super) component_inspector_x_failure: Signal<Option<String>>,
+    pub(super) component_inspector_y_failure: Signal<Option<String>>,
+    pub(super) component_inspector_margin_failure: Signal<Option<String>>,
+    pub(super) component_inspector_layout_pending: Signal<bool>,
+    pub(super) component_inspector_constraint_pending: Signal<bool>,
+    pub(super) component_inspector_remove_pending: Signal<bool>,
     pub(super) on_component_inspector_action:
         EventHandler<super::inspector::LayoutComponentInspectorAction>,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
@@ -64,8 +74,7 @@ pub(super) struct InspectorInput {
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
     pub(super) findings_return_available: bool,
     pub(super) on_findings_return: EventHandler<()>,
-    pub(super) board_inspector: Option<super::board_inspector::BoardInspectorProjection>,
-    pub(super) on_board_rename: EventHandler<super::board_inspector::BoardRenameAction>,
+    pub(super) board_inspector_mount: super::board_inspector::BoardInspectorMount,
     pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
 }
 
@@ -99,6 +108,16 @@ pub(super) struct LayoutWorkspaceState {
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
     component_inspector_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
+    component_inspector_x: Signal<String>,
+    component_inspector_y: Signal<String>,
+    component_inspector_margin: Signal<String>,
+    component_inspector_error: Signal<Option<String>>,
+    component_inspector_x_failure: Signal<Option<String>>,
+    component_inspector_y_failure: Signal<Option<String>>,
+    component_inspector_margin_failure: Signal<Option<String>>,
+    component_inspector_layout_pending: Signal<bool>,
+    component_inspector_constraint_pending: Signal<bool>,
+    component_inspector_remove_pending: Signal<bool>,
 }
 
 pub(super) fn use_layout_workspace_state(
@@ -117,8 +136,18 @@ pub(super) fn use_layout_workspace_state(
         pending_splay_origin_pick: use_signal(|| None),
         pair_created_selection: use_signal(|| None),
         component_inspector_edits: use_signal(
-            super::layout_component_edits::LayoutComponentInspectorEdits::default,
+            super::layout_component_edits::LayoutComponentInspectorEdits::new,
         ),
+        component_inspector_x: use_signal(String::new),
+        component_inspector_y: use_signal(String::new),
+        component_inspector_margin: use_signal(String::new),
+        component_inspector_error: use_signal(|| None),
+        component_inspector_x_failure: use_signal(|| None),
+        component_inspector_y_failure: use_signal(|| None),
+        component_inspector_margin_failure: use_signal(|| None),
+        component_inspector_layout_pending: use_signal(|| false),
+        component_inspector_constraint_pending: use_signal(|| false),
+        component_inspector_remove_pending: use_signal(|| false),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
@@ -171,6 +200,44 @@ impl LayoutWorkspaceState {
         self,
     ) -> Signal<super::layout_component_edits::LayoutComponentInspectorEdits> {
         self.component_inspector_edits
+    }
+    pub(super) fn component_inspector_drafts(
+        self,
+    ) -> (
+        Signal<String>,
+        Signal<String>,
+        Signal<String>,
+        Signal<Option<String>>,
+    ) {
+        (
+            self.component_inspector_x,
+            self.component_inspector_y,
+            self.component_inspector_margin,
+            self.component_inspector_error,
+        )
+    }
+    pub(super) fn component_inspector_pending_controls(
+        self,
+    ) -> (Signal<bool>, Signal<bool>, Signal<bool>) {
+        (
+            self.component_inspector_layout_pending,
+            self.component_inspector_constraint_pending,
+            self.component_inspector_remove_pending,
+        )
+    }
+
+    pub(super) fn component_inspector_field_failures(
+        self,
+    ) -> (
+        Signal<Option<String>>,
+        Signal<Option<String>>,
+        Signal<Option<String>>,
+    ) {
+        (
+            self.component_inspector_x_failure,
+            self.component_inspector_y_failure,
+            self.component_inspector_margin_failure,
+        )
     }
 
     pub(super) fn set_selection_kind_from_context(mut self, context: &objects::TreeContext) {
@@ -475,7 +542,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         .component_inspector
         .as_ref()
         .map(|projection| projection.owner.clone());
-    let board_inspector_visible = input.board_inspector.is_some();
+    let board_inspector_visible = input.board_inspector_mount.projection.is_some();
     let observed_relationship_target = matrix_relationship_escape_target();
     let observed_component_owner = component_owner.clone();
     let observed_board_visible = board_inspector_visible;
@@ -528,10 +595,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
         };
     }
-    let board_context_header = input.board_inspector.is_some();
+    let board_context_header = input.board_inspector_mount.projection.is_some();
     let matrix_context_tabs = input.component_inspector.is_none()
         && input.outline_inspector.is_none()
-        && input.board_inspector.is_none()
+        && input.board_inspector_mount.projection.is_none()
         && input.matrix_transform_inspector.projection.is_some();
     let show_matrix_relations =
         matrix_context_tabs && (input.inspector_tab)() == LayoutInspectorTab::Relations;
@@ -604,6 +671,16 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                         projection,
                         inspector_tab: input.inspector_tab,
                         pending_edits: input.component_inspector_pending_edits,
+                        x: input.component_inspector_x,
+                        y: input.component_inspector_y,
+                        margin: input.component_inspector_margin,
+                        error: input.component_inspector_error,
+                        x_failure: input.component_inspector_x_failure,
+                        y_failure: input.component_inspector_y_failure,
+                        margin_failure: input.component_inspector_margin_failure,
+                        layout_pending: input.component_inspector_layout_pending,
+                        constraint_pending: input.component_inspector_constraint_pending,
+                        remove_pending: input.component_inspector_remove_pending,
                         on_action: input.on_component_inspector_action,
                     }
                 } else if input.show_position_inspector { super::inspector::Inspector {} }
@@ -637,10 +714,9 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             if let Some(projection) = input.outline_inspector {
                 super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
             }
-            if let Some(projection) = input.board_inspector {
+            if input.board_inspector_mount.projection.is_some() {
                 super::board_inspector::BoardInspector {
-                    projection,
-                    on_rename: input.on_board_rename,
+                    mount: input.board_inspector_mount,
                 }
             }
         }

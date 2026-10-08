@@ -6,9 +6,11 @@ use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::EditOperation;
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use super::objects::{ScopedTreeContext, TreeContext};
 
@@ -58,6 +60,29 @@ pub struct BoardRenameAction {
 pub struct BoardInspectorMount {
     pub projection: Option<BoardInspectorProjection>,
     pub on_rename: EventHandler<BoardRenameAction>,
+    pending: Signal<boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals<()>>,
+    mounted: Signal<bool>,
+    draft: Signal<String>,
+    failure: Signal<Option<String>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BoardNameDraftIdentity {
+    scope: Scope,
+    context: ContextIdentity,
+    generation: u64,
+    board_id: String,
+}
+
+impl From<&BoardInspectorOwner> for BoardNameDraftIdentity {
+    fn from(owner: &BoardInspectorOwner) -> Self {
+        Self {
+            scope: owner.scope.clone(),
+            context: owner.context.clone(),
+            generation: owner.generation,
+            board_id: owner.board_id.clone(),
+        }
+    }
 }
 
 /// Owns only the transient Inspector context generation. Board data always comes from the
@@ -69,6 +94,25 @@ pub fn use_board_inspector(
     scope_generation: Signal<u64>,
 ) -> BoardInspectorMount {
     let context_generation = use_hook(|| Rc::new(RefCell::new(ContextGeneration::default())));
+    let pending =
+        use_signal(boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals::<()>::new);
+    let mounted = use_signal(|| false);
+    let initial_name = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .and_then(|snapshot| {
+            snapshot
+                .document
+                .boards
+                .iter()
+                .find(|board| board.id == runtime.model().active_board_id)
+                .map(|board| board.name.clone())
+        })
+        .unwrap_or_default();
+    let mut draft = use_signal(|| initial_name);
+    let mut failure = use_signal(|| None::<String>);
+    let mut pending_owner = use_signal(|| None::<BoardNameDraftIdentity>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
     let current_scope_generation = scope_generation();
@@ -90,35 +134,48 @@ pub fn use_board_inspector(
         tracker.value
     };
     let mut projection = project_current(&runtime, selected.as_ref(), context.clone(), generation);
-    let mut tickets = use_signal(Vec::<(BoardNameDraftIdentity, EditTicket)>::new);
-    let mut failure = use_signal(|| None::<(BoardNameDraftIdentity, String)>);
     let version = use_context::<Signal<u64>>()();
     let owner = projection
         .as_ref()
-        .map(|projection| BoardNameDraftIdentity::from(&projection.owner));
-    use_effect(use_reactive((&version, &owner), move |(_, owner)| {
-        let mut remaining = Vec::new();
-        for (identity, ticket) in tickets.peek().iter() {
-            match ticket.settlement(owner.as_ref() == Some(identity)) {
-                Settlement::Pending => remaining.push((identity.clone(), ticket.clone())),
-                Settlement::Failed { message } => failure.set(Some((identity.clone(), message))),
-                Settlement::Landed { .. } | Settlement::Retired => {}
-            }
-        }
-        if remaining.len() != tickets.peek().len() {
-            tickets.set(remaining);
-        }
-    }));
-    if let Some(projection) = projection.as_mut() {
-        projection.pending = tickets
-            .read()
-            .iter()
-            .any(|(identity, _)| Some(identity) == owner.as_ref());
-        projection.failure = failure
-            .read()
+        .map(|projection| projection.owner.clone());
+    let accepted_name_for_settlement = projection
+        .as_ref()
+        .map(|projection| projection.board_name.clone())
+        .unwrap_or_default();
+    let owner_identity = owner.as_ref().map(BoardNameDraftIdentity::from);
+    let mut field_owner = use_signal(|| owner_identity.clone());
+    if field_owner.peek().as_ref() != owner_identity.as_ref()
+        && let Some(accepted) = projection
             .as_ref()
-            .filter(|(identity, _)| Some(identity) == owner.as_ref())
-            .map(|(_, message)| message.clone());
+            .map(|projection| projection.board_name.clone())
+    {
+        field_owner.set(owner_identity.clone());
+        draft.set(accepted);
+        failure.set(None);
+    }
+    pending.peek().bind_field((), draft, failure);
+    let settle_pending = pending.peek().clone();
+    let mut pending_owner_for_effect = pending_owner;
+    use_effect(use_reactive(
+        (
+            &version,
+            &owner_identity,
+            &accepted_name_for_settlement,
+            &mounted,
+            &pending_owner,
+        ),
+        move |(_, owner, accepted_name, mounted, captured_owner)| {
+            settle_pending.settle(
+                mounted() && owner.as_ref() == captured_owner.read().as_ref(),
+                |_| accepted_name.clone(),
+            );
+            if !settle_pending.is_pending(&()) && captured_owner.peek().is_some() {
+                pending_owner_for_effect.set(None);
+            }
+        },
+    ));
+    if let Some(projection) = projection.as_mut() {
+        projection.pending = pending.read().is_pending(&());
     }
 
     let on_rename = use_callback({
@@ -158,12 +215,15 @@ pub fn use_board_inspector(
             {
                 return;
             }
+            let submitted_name = action.name.clone();
             let name = action.name.trim();
             if name.is_empty() {
                 return;
             }
             let board_id = owner.board_id.clone();
             let name = name.to_owned();
+            let resolver_name = name.clone();
+            pending_owner.set(Some(BoardNameDraftIdentity::from(owner)));
             let resolver = EditResolver::new("board-name", move |accepted: &AcceptedSnapshot| {
                 let mut document = accepted.document.as_ref().clone();
                 let Some(board) = document
@@ -173,10 +233,10 @@ pub fn use_board_inspector(
                 else {
                     return Resolution::Retire("The board no longer exists.".into());
                 };
-                if board.name == name {
+                if board.name == resolver_name {
                     return Resolution::Unchanged;
                 }
-                board.name = name.clone();
+                board.name = resolver_name.clone();
                 Resolution::submit(
                     vec![board_id.clone()],
                     EditOperation::ReplaceDocument {
@@ -184,17 +244,24 @@ pub fn use_board_inspector(
                     },
                 )
             });
-            failure.set(None);
-            tickets.write().push((
-                BoardNameDraftIdentity::from(owner),
-                EditTicket::begin(&runtime, "board-name", Some("board name".into()), resolver),
-            ));
+            pending.peek().begin_field(
+                &runtime,
+                (),
+                "board-name",
+                Some("board name".into()),
+                resolver,
+                &submitted_name,
+            );
         }
     });
 
     BoardInspectorMount {
         projection,
         on_rename,
+        pending,
+        mounted,
+        draft,
+        failure,
     }
 }
 
@@ -298,40 +365,46 @@ fn board_context_is_current(
 }
 
 #[component]
-pub fn BoardInspector(
-    projection: BoardInspectorProjection,
-    on_rename: EventHandler<BoardRenameAction>,
-) -> Element {
-    let mut draft = use_signal(|| None::<NameDraft>);
+pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
+    let pending = mount.pending;
+    let mut draft = mount.draft;
+    let failure = mount.failure;
+    let mut mounted = mount.mounted;
+    let Some(projection) = mount.projection else {
+        return rsx! {};
+    };
+    let on_rename = mount.on_rename;
+    pending.read().bind_field((), draft, failure);
+    let did_mount = use_hook(|| Rc::new(Cell::new(false)));
+    let mut mounted_for_effect = mounted;
+    let did_mount_for_effect = did_mount.clone();
+    use_effect(move || {
+        if !did_mount_for_effect.replace(true) {
+            mounted_for_effect.set(true);
+        }
+    });
+    use_drop(move || mounted.set(false));
     let owner = projection.owner.clone();
     let accepted_name = projection.owner.accepted_name.clone();
-    let name = draft()
-        .filter(|draft| {
-            draft.identity == BoardNameDraftIdentity::from(&owner)
-                && (projection.pending || !draft.submitted)
-        })
-        .map(|draft| draft.value)
-        .unwrap_or_else(|| accepted_name.clone());
-    let input_owner = owner.clone();
+    let name = draft();
     let blur_owner = owner.clone();
     let key_owner = owner.clone();
-    let input_name = accepted_name.clone();
-    let blur_name = accepted_name.clone();
-    let key_name = accepted_name.clone();
     let blur_handler = on_rename;
     let key_handler = on_rename;
+    let blur_pending = pending;
+    let key_pending = pending;
     let submit_blur = move |_| {
-        commit_draft(&mut draft, &blur_owner, &blur_name, blur_handler);
+        commit_draft(&mut draft, blur_pending, &blur_owner, blur_handler);
     };
     let submit_key = move |event: KeyboardEvent| match event.key().to_string().as_str() {
         "Enter" => {
             event.prevent_default();
-            commit_draft(&mut draft, &key_owner, &key_name, key_handler);
+            commit_draft(&mut draft, key_pending, &key_owner, key_handler);
         }
         "Escape" => {
             event.prevent_default();
             event.stop_propagation();
-            draft.set(None);
+            draft.set(accepted_name.clone());
         }
         _ => {}
     };
@@ -344,17 +417,12 @@ pub fn BoardInspector(
                     aria_label: "Board name",
                     value: "{name}",
                     disabled: !projection.editable,
-                    oninput: move |event| draft.set(Some(NameDraft {
-                        identity: BoardNameDraftIdentity::from(&input_owner),
-                        baseline: input_name.clone(),
-                        value: event.value(),
-                        submitted: false,
-                    })),
+                    oninput: move |event| draft.set(event.value()),
                     onblur: submit_blur,
                     onkeydown: submit_key,
                 }
             }
-            if let Some(message) = projection.failure.as_ref() { p { role: "alert", "{message}" } }
+            if let Some(message) = failure() { p { role: "alert", "{message}" } }
             div { class: "m1-board-inspector-measure",
                 span { "Outline" }
                 strong { "{projection.outline_status}" }
@@ -367,56 +435,25 @@ pub fn BoardInspector(
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct NameDraft {
-    identity: BoardNameDraftIdentity,
-    baseline: String,
-    value: String,
-    submitted: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct BoardNameDraftIdentity {
-    scope: Scope,
-    context: ContextIdentity,
-    generation: u64,
-    board_id: String,
-}
-
-impl From<&BoardInspectorOwner> for BoardNameDraftIdentity {
-    fn from(owner: &BoardInspectorOwner) -> Self {
-        Self {
-            scope: owner.scope.clone(),
-            context: owner.context.clone(),
-            generation: owner.generation,
-            board_id: owner.board_id.clone(),
-        }
-    }
-}
-
 fn commit_draft(
-    draft: &mut Signal<Option<NameDraft>>,
+    draft: &mut Signal<String>,
+    pending: Signal<boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals<()>>,
     owner: &BoardInspectorOwner,
-    _accepted_name: &str,
     on_rename: EventHandler<BoardRenameAction>,
 ) {
-    let Some(mut value) = draft.read().clone() else {
-        return;
-    };
-    if value.identity != BoardNameDraftIdentity::from(owner) || value.submitted {
-        return;
-    }
-    let name = value.value.trim();
-    if name.is_empty() {
-        draft.set(None);
+    let submitted_name = draft.peek().clone();
+    let resolver_name = submitted_name.trim();
+    if resolver_name.is_empty() {
+        draft.set(owner.accepted_name.clone());
         return;
     }
-    let name = name.to_owned();
-    value.submitted = true;
-    draft.set(Some(value));
+    if resolver_name == owner.accepted_name && !pending.peek().is_pending(&()) {
+        draft.set(owner.accepted_name.clone());
+        return;
+    }
     on_rename.call(BoardRenameAction {
         owner: owner.clone(),
-        name,
+        name: submitted_name,
     });
 }
 
@@ -445,7 +482,7 @@ mod queued_board_name_tests {
             }
         });
         let mount = use_board_inspector(runtime, selected, workspace, generation);
-        rsx! { if let Some(projection) = mount.projection { BoardInspector { projection, on_rename: mount.on_rename } } }
+        rsx! { if mount.projection.is_some() { BoardInspector { mount } } }
     }
 
     #[wasm_bindgen_test]
@@ -489,7 +526,19 @@ mod queued_board_name_tests {
         };
         let _first = change_layout(2.0);
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        let mut entered = entered;
+        let mut reached_core = false;
+        for _ in 0..100 {
+            match entered.try_recv() {
+                Ok(Some(())) => {
+                    reached_core = true;
+                    break;
+                }
+                Ok(None) => gloo_timers::future::TimeoutFuture::new(10).await,
+                Err(_) => panic!("the Core gate was dropped before the edit arrived"),
+            }
+        }
+        assert!(reached_core, "the first layout edit did not reach Core");
         let input = root
             .query_selector("input")
             .unwrap()
@@ -542,6 +591,127 @@ mod queued_board_name_tests {
             operation_id: runtime.operation(),
         });
         support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.boards[0].name,
+            "Board"
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_spaced_board_name_failure_restores_accepted_name() {
+        let runtime = support::new_runtime();
+        let mut document = boardstudio_core::model::ProjectDoc::empty("board-spaces", "Project");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        support::fail_next_persist(&runtime, "injected durable write failure");
+        let input = root
+            .query_selector("input")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input.set_value(" New ");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        let enter = web_sys::KeyboardEventInit::new();
+        enter.set_key("Enter");
+        enter.set_bubbles(true);
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                    .unwrap(),
+            )
+            .unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(input.value(), "Board");
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("injected durable write failure")
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_accepted_name_draft_queues_behind_an_earlier_rename() {
+        let runtime = support::new_runtime();
+        let mut document =
+            boardstudio_core::model::ProjectDoc::empty("board-queued-reset", "Project");
+        document.boards.push(serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        })).unwrap());
+        support::open_document(&runtime, document).await;
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = root
+            .query_selector("input")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        let enter = web_sys::KeyboardEventInit::new();
+        enter.set_key("Enter");
+        enter.set_bubbles(true);
+        input.set_value("Earlier");
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                    .unwrap(),
+            )
+            .unwrap();
+        support::drive_pending(&runtime);
+        entered.await.expect("the earlier rename reached Core");
+        input.set_value(" Board ");
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter)
+                    .unwrap(),
+            )
+            .unwrap();
+        support::drive_pending(&runtime);
+        release.send(()).expect("release the held earlier rename");
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
         assert_eq!(
             runtime.model().accepted.unwrap().document.boards[0].name,
             "Board"

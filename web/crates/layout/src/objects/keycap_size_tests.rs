@@ -45,6 +45,7 @@ fn host() -> Element {
         request_sequence,
         editable: true,
         feedback: probe.feedback.borrow().clone(),
+        inspector_mounted: use_signal(|| true),
         on_resize,
     };
     rsx! { div { id: "key-size-regression-root", KeySizeControls { mount } } }
@@ -543,7 +544,7 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
     let old_feedback = KeySizeFeedback {
         owner: first_owner.clone(),
         request_id: 0,
-        state: KeySizeState::Failed,
+        field: KeySizeField::Width,
         message: Some("Old selection failed".into()),
     };
     let (probe, root) = mounted(projection(first_owner, &["a"], &[18.0]), Some(old_feedback));
@@ -564,7 +565,7 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
     *probe.feedback.borrow_mut() = Some(KeySizeFeedback {
         owner: second_owner,
         request_id: 0,
-        state: KeySizeState::Failed,
+        field: KeySizeField::Width,
         message: Some("Current selection failed".into()),
     });
     rerender(&probe);

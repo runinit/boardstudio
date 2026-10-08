@@ -13,11 +13,12 @@ use boardstudio_application::{
 use boardstudio_core::model::{
     EditOperation, Matrix, MatrixScene, MatrixSplayAffect, MatrixSplayChange, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::EditTicket;
+use boardstudio_web_runtime::pending_edits::PendingEdits;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen_futures::spawn_local;
 use web_sys::SvgElement;
 
 type TransformEscapeListener = Rc<
@@ -647,12 +648,34 @@ pub fn LayoutTransformToolOverlay(
         key.stop_propagation();
         // A held key queues one step per repeat; each resolves against the matrix the
         // previous steps produced.
-        let _ = EditTicket::begin(
+        let resolver = transform_nudge_resolver(matrix_for_key.id.clone(), nudge, delta);
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime_for_key,
+            (),
             "layout-transform-nudge",
             Some("transform".into()),
-            transform_nudge_resolver(matrix_for_key.id.clone(), nudge, delta),
+            resolver,
         );
+        let runtime = runtime_for_key.clone();
+        let owner = owner_for_key.clone();
+        let context = context_for_key.clone();
+        spawn_local(async move {
+            loop {
+                let is_live = transform_nudge_admitted(
+                    &runtime,
+                    workspace,
+                    scope_generation,
+                    selected_context,
+                    &owner,
+                    &context,
+                );
+                if !edits.settle(is_live).is_empty() {
+                    break;
+                }
+                gloo_timers::future::TimeoutFuture::new(16).await;
+            }
+        });
     });
 
     let selected_row = context_row(&context);
@@ -985,12 +1008,22 @@ fn commit_transform_drag(runtime: &Rc<Runtime>, drag: &TransformDrag, operation:
     let Some(result) = transform_drag_result(drag, operation) else {
         return;
     };
-    let _ = EditTicket::begin(
+    let mut edits = PendingEdits::default();
+    edits.begin(
         runtime,
+        (),
         "layout-transform-drag",
         Some("transform".into()),
         transform_drag_resolver(drag.matrix.id.clone(), drag.transaction_id.clone(), result),
     );
+    spawn_local(async move {
+        loop {
+            if !edits.settle(true).is_empty() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(16).await;
+        }
+    });
 }
 
 /// A handle key press is a delta intent, so it stays admitted while earlier presses are
@@ -1635,14 +1668,16 @@ mod nudge_tests {
     use super::*;
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_web_runtime::edit_ticket::Settlement;
+    use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-    fn nudge_ticket(runtime: &Rc<Runtime>, delta: Vec2) -> EditTicket {
-        EditTicket::begin(
+    fn nudge_edit(runtime: &Rc<Runtime>, delta: Vec2) -> PendingEdits<()> {
+        let mut edits = PendingEdits::default();
+        edits.begin(
             runtime,
+            (),
             "layout-transform-nudge",
             Some("transform".into()),
             transform_nudge_resolver(
@@ -1653,7 +1688,26 @@ mod nudge_tests {
                 },
                 delta,
             ),
-        )
+        );
+        edits
+    }
+
+    async fn settle_edit(runtime: &Rc<Runtime>, edits: &mut PendingEdits<()>) {
+        for _ in 0..100 {
+            support::run_pending(runtime).await;
+            if edits.settle(true).into_iter().any(|result| {
+                matches!(
+                    result,
+                    PendingEditResult::Landed { .. }
+                        | PendingEditResult::Failed { .. }
+                        | PendingEditResult::Retired { .. }
+                )
+            }) {
+                return;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("transform edit did not settle");
     }
 
     #[wasm_bindgen_test]
@@ -1661,18 +1715,16 @@ mod nudge_tests {
         let runtime = fixture::open_matrix_runtime().await;
         let step = Vec2 { x: 0.0, y: 0.1 };
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let first = nudge_ticket(&runtime, step);
+        let mut first = nudge_edit(&runtime, step);
         support::drive_pending(&runtime);
         entered.await.expect("the first nudge reached Core");
-        let second = nudge_ticket(&runtime, step);
-        let third = nudge_ticket(&runtime, step);
+        let mut second = nudge_edit(&runtime, step);
+        let mut third = nudge_edit(&runtime, step);
         support::drive_pending(&runtime);
         release.send(()).expect("release the held reply");
-        fixture::settle_ticket(&runtime, &third).await;
-
-        for ticket in [&first, &second, &third] {
-            assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
-        }
+        settle_edit(&runtime, &mut third).await;
+        settle_edit(&runtime, &mut first).await;
+        settle_edit(&runtime, &mut second).await;
         let offset = fixture::accepted_matrix(&runtime).column_offsets[0];
         assert!(
             (offset.y - 0.3).abs() < 1e-9,
@@ -1687,10 +1739,12 @@ mod nudge_tests {
         let runtime = fixture::open_matrix_runtime().await;
         // Another stagger edit lands while the drag was in flight; the drag's net delta
         // composes with it instead of restoring the matrix the drag started from.
-        let other = nudge_ticket(&runtime, Vec2 { x: 0.0, y: 1.0 });
-        fixture::settle_ticket(&runtime, &other).await;
-        let drag = EditTicket::begin(
+        let mut other = nudge_edit(&runtime, Vec2 { x: 0.0, y: 1.0 });
+        settle_edit(&runtime, &mut other).await;
+        let mut drag = PendingEdits::default();
+        drag.begin(
             &runtime,
+            (),
             "layout-transform-drag",
             Some("transform".into()),
             transform_drag_resolver(
@@ -1703,8 +1757,7 @@ mod nudge_tests {
                 },
             ),
         );
-        fixture::settle_ticket(&runtime, &drag).await;
-        assert!(matches!(drag.settlement(true), Settlement::Landed { .. }));
+        settle_edit(&runtime, &mut drag).await;
         let offset = fixture::accepted_matrix(&runtime).column_offsets[0];
         assert_eq!(offset, Vec2 { x: 2.0, y: 1.0 });
     }

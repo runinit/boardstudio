@@ -8,9 +8,14 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{EditOperation, ProjectDoc, Vec2};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
-use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeSet,
+    rc::Rc,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeySizeOwner {
@@ -57,15 +62,28 @@ pub struct KeySizeRequest {
 pub struct KeySizeFeedback {
     pub owner: KeySizeOwner,
     pub request_id: u64,
-    pub state: KeySizeState,
+    pub field: KeySizeField,
     pub message: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum KeySizeState {
-    Pending,
-    Saved,
-    Failed,
+pub enum KeySizeField {
+    Width,
+    Height,
+    Orientation,
+}
+
+#[derive(Clone)]
+struct KeySizeEditKey {
+    field: KeySizeField,
+    owner: KeySizeOwner,
+    request_id: u64,
+}
+
+impl PartialEq for KeySizeEditKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -74,13 +92,8 @@ pub struct KeySizeMount {
     pub request_sequence: Signal<u64>,
     pub editable: bool,
     pub feedback: Option<KeySizeFeedback>,
+    pub inspector_mounted: Signal<bool>,
     pub on_resize: EventHandler<KeySizeRequest>,
-}
-
-#[derive(Clone)]
-struct KeycapSizeSubmission {
-    request: KeySizeRequest,
-    ticket: EditTicket,
 }
 
 /// Resolve a key-size change against the accepted document at execution time. The plan is
@@ -168,8 +181,18 @@ pub fn use_key_size(
     };
     let request_sequence = use_signal(|| 0u64);
     let last_request = use_signal(|| 0u64);
-    let pending = use_signal(|| None::<KeycapSizeSubmission>);
+    let pending = use_hook(|| PendingEditSignals::<KeySizeEditKey>::new());
     let feedback = use_signal(|| None::<KeySizeFeedback>);
+    let alive = use_hook(|| Rc::new(Cell::new(true)));
+    let inspector_mounted = use_signal(|| false);
+    use_drop({
+        let alive = alive.clone();
+        let pending = pending.clone();
+        move || {
+            alive.set(false);
+            pending.settle(false, |_| String::new());
+        }
+    });
     let (projection, editable) = project(
         &runtime,
         selected.as_ref(),
@@ -178,21 +201,60 @@ pub fn use_key_size(
         current_scope_generation,
         current_workspace,
     );
+    let current_owner = projection
+        .as_ref()
+        .map(|projection| projection.owner.clone());
+    let observed_owner = use_hook(|| Rc::new(RefCell::new(None::<KeySizeOwner>)));
+    let owner_is_current = {
+        let mut observed = observed_owner.borrow_mut();
+        let same_owner = observed
+            .as_ref()
+            .is_some_and(|previous| Some(previous) == current_owner.as_ref());
+        *observed = current_owner.clone();
+        same_owner
+    };
 
     use_effect(use_reactive(
-        (&version(), &workspace(), &scope_generation()),
+        (
+            &version(),
+            &workspace(),
+            &scope_generation(),
+            &owner_is_current,
+            &inspector_mounted(),
+        ),
         {
-            let runtime = runtime.clone();
-            let mut pending = pending;
             let mut feedback = feedback;
-            move |(_, _, generation)| settle(&runtime, generation, &mut pending, &mut feedback)
+            let pending = pending.clone();
+            let alive = alive.clone();
+            move |(_, current_workspace, _, owner_is_current, inspector_mounted)| {
+                for result in pending.settle(
+                    alive.get()
+                        && owner_is_current
+                        && inspector_mounted
+                        && current_workspace == "Layout",
+                    |_| String::new(),
+                ) {
+                    match result {
+                        PendingEditResult::Landed { key, .. }
+                        | PendingEditResult::Retired { key } => clear_feedback(&mut feedback, &key),
+                        PendingEditResult::Failed { key, message } => {
+                            feedback.set(Some(KeySizeFeedback {
+                                owner: key.owner,
+                                request_id: key.request_id,
+                                field: key.field,
+                                message: Some(message),
+                            }))
+                        }
+                    }
+                }
+            }
         },
     ));
 
     let on_resize = use_callback({
         let runtime = runtime.clone();
         let tracker = tracker.clone();
-        let mut pending = pending;
+        let pending = pending.clone();
         let mut feedback = feedback;
         let mut last_request = last_request;
         move |request: KeySizeRequest| {
@@ -229,12 +291,19 @@ pub fn use_key_size(
                 return;
             }
             if !editable {
-                feedback.set(Some(KeySizeFeedback { owner: request.owner.clone(), request_id: request.request_id, state: KeySizeState::Failed,
+                feedback.set(Some(KeySizeFeedback { owner: request.owner.clone(), request_id: request.request_id, field: field_for_axis(request.axis),
                     message: Some("The accepted layout is not ready to edit. Wait for it to save, then retry.".into()) }));
                 return;
             }
-            let ticket = EditTicket::begin(
+            let key = KeySizeEditKey {
+                field: field_for_axis(request.axis),
+                owner: request.owner.clone(),
+                request_id: request.request_id,
+            };
+            clear_feedback(&mut feedback, &key);
+            pending.begin_field(
                 &runtime,
+                key,
                 "layout-key-size",
                 Some("key size".into()),
                 resize_resolver(
@@ -243,17 +312,8 @@ pub fn use_key_size(
                     request.units,
                     request.axis,
                 ),
+                &format!("{}:{}", request.units.x, request.units.y),
             );
-            pending.set(Some(KeycapSizeSubmission {
-                request: request.clone(),
-                ticket,
-            }));
-            feedback.set(Some(KeySizeFeedback {
-                owner: request.owner.clone(),
-                request_id: request.request_id,
-                state: KeySizeState::Pending,
-                message: None,
-            }));
         }
     });
 
@@ -262,6 +322,7 @@ pub fn use_key_size(
         request_sequence,
         editable,
         feedback: feedback.read().clone(),
+        inspector_mounted,
         on_resize,
     }
 }
@@ -555,32 +616,18 @@ fn overlap_references(
     result
 }
 
-fn settle(
-    runtime: &Runtime,
-    scope_generation: u64,
-    pending: &mut Signal<Option<KeycapSizeSubmission>>,
-    feedback: &mut Signal<Option<KeySizeFeedback>>,
-) {
-    let Some(waiting) = pending.read().clone() else {
-        return;
-    };
-    let owner_is_live = runtime.scope().as_ref() == Some(&waiting.request.owner.scope)
-        && scope_generation == waiting.request.owner.scope_generation;
-    let (state, message) = match waiting.ticket.settlement(owner_is_live) {
-        Settlement::Pending => return,
-        Settlement::Landed { .. } => (KeySizeState::Saved, None),
-        Settlement::Failed { message } => (KeySizeState::Failed, Some(message)),
-        Settlement::Retired => {
-            pending.set(None);
-            feedback.set(None);
-            return;
-        }
-    };
-    pending.set(None);
-    feedback.set(Some(KeySizeFeedback {
-        owner: waiting.request.owner.clone(),
-        request_id: waiting.request.request_id,
-        state,
-        message,
-    }));
+fn field_for_axis(axis: Option<ResizeAxis>) -> KeySizeField {
+    match axis {
+        Some(ResizeAxis::X) => KeySizeField::Width,
+        Some(ResizeAxis::Y) => KeySizeField::Height,
+        None => KeySizeField::Orientation,
+    }
+}
+
+fn clear_feedback(feedback: &mut Signal<Option<KeySizeFeedback>>, key: &KeySizeEditKey) {
+    if feedback.read().as_ref().is_some_and(|item| {
+        item.owner == key.owner && item.field == key.field && item.request_id == key.request_id
+    }) {
+        feedback.set(None);
+    }
 }

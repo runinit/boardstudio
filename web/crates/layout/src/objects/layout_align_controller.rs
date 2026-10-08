@@ -13,15 +13,16 @@ use boardstudio_application::{
 #[cfg(test)]
 use boardstudio_core::model::{EditCommand, EditPhase};
 use boardstudio_core::model::{EditOperation, Part, ProjectDoc, Vec2};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+#[cfg(test)]
+use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
-/// The in-flight Align: the edit ticket plus the identity its feedback is shown under.
-/// One-shot, so the Align controls disable while the ticket is pending.
+/// Domain data needed to place a terminal Align result in its original context.
 #[derive(Clone)]
-struct AlignmentSubmission {
-    ticket: EditTicket,
+struct AlignFollowUp {
     workspace: &'static str,
     scope: Scope,
     scope_generation: u64,
@@ -29,6 +30,11 @@ struct AlignmentSubmission {
     moving_ids: Vec<String>,
     reference_id: String,
     command: AlignCommand,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AlignActionKey {
+    Align,
 }
 
 #[derive(Clone)]
@@ -80,7 +86,10 @@ pub fn use_canvas_align(
     owner_workspace: &'static str,
 ) -> LayoutAlignMount {
     let mut selected_reference = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<AlignmentSubmission>);
+    let pending = use_hook(|| PendingEditSignals::<AlignActionKey>::new());
+    let pending_align = use_signal(|| false);
+    pending.bind_one_shot(AlignActionKey::Align, pending_align);
+    let align_follow_up = use_signal(|| None::<AlignFollowUp>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -112,7 +121,8 @@ pub fn use_canvas_align(
         {
             let runtime = runtime.clone();
             let mut selected_reference = selected_reference;
-            let mut pending = pending;
+            let pending = pending.clone();
+            let mut align_follow_up = align_follow_up;
             let mut feedback = feedback;
             move |(_, workspace, scope_generation, identity, _reference_id)| {
                 reconcile_reference(
@@ -129,7 +139,8 @@ pub fn use_canvas_align(
                     workspace,
                     scope_generation,
                     &identity,
-                    &mut pending,
+                    &pending,
+                    &mut align_follow_up,
                     &mut feedback,
                 );
                 clear_stale_feedback(
@@ -169,10 +180,7 @@ pub fn use_canvas_align(
             && projection.selected_reference.as_deref() == Some(state.reference_id.as_str()))
         .then_some(state.feedback)
     });
-    let busy = pending
-        .read()
-        .as_ref()
-        .is_some_and(|waiting| waiting.ticket.is_pending());
+    let busy = pending_align();
 
     let on_reference = use_callback({
         let runtime = runtime.clone();
@@ -198,14 +206,12 @@ pub fn use_canvas_align(
 
     let on_align = use_callback({
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let pending = pending.clone();
+        let mut align_follow_up = align_follow_up;
         let mut feedback = feedback;
+        let pending_align = pending_align;
         move |request: AlignAction| {
-            if pending
-                .peek()
-                .as_ref()
-                .is_some_and(|waiting| waiting.ticket.is_pending())
-            {
+            if pending_align() {
                 return;
             }
             let current_workspace = workspace();
@@ -259,8 +265,9 @@ pub fn use_canvas_align(
                 feedback.set(None);
                 return;
             }
-            let ticket = EditTicket::begin(
+            pending.begin_one_shot(
                 &runtime,
+                AlignActionKey::Align,
                 "layout-align",
                 Some("alignment".into()),
                 align_resolver(
@@ -270,8 +277,7 @@ pub fn use_canvas_align(
                     request.command,
                 ),
             );
-            pending.set(Some(AlignmentSubmission {
-                ticket,
+            align_follow_up.set(Some(AlignFollowUp {
                 workspace: request.workspace,
                 scope: selected.scope.clone(),
                 scope_generation: current_generation,
@@ -859,30 +865,33 @@ fn settle_pending(
     workspace: &'static str,
     scope_generation: u64,
     identity: &AlignIdentity,
-    pending: &mut Signal<Option<AlignmentSubmission>>,
+    pending: &PendingEditSignals<AlignActionKey>,
+    align_follow_up: &mut Signal<Option<AlignFollowUp>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
 ) {
-    let Some(waiting) = pending.peek().clone() else {
+    let Some(waiting) = align_follow_up.peek().clone() else {
         return;
     };
     let model = runtime.model();
     let live_scope = runtime.scope();
     let same_scope =
         live_scope.as_ref() == Some(&waiting.scope) && scope_generation == waiting.scope_generation;
-    let settlement = waiting.ticket.settlement(same_scope);
-    let (message, succeeded) = match settlement {
-        Settlement::Pending => return,
-        Settlement::Landed { .. } => (
+    let results = pending.settle(same_scope, |_| String::new());
+    let Some(result) = results.into_iter().next() else {
+        return;
+    };
+    align_follow_up.set(None);
+    let (message, succeeded) = match result {
+        PendingEditResult::Landed { .. } => (
             format!(
                 "Aligned selection to {}. Reference unchanged.",
                 reference_label(&model, &waiting.reference_id)
             ),
             true,
         ),
-        Settlement::Failed { message } => (message, false),
-        Settlement::Retired => {
+        PendingEditResult::Failed { message, .. } => (message, false),
+        PendingEditResult::Retired { .. } => {
             feedback.set(None);
-            pending.set(None);
             return;
         }
     };
@@ -907,7 +916,6 @@ fn settle_pending(
     } else if identity.scope.as_ref() != Some(&waiting.scope) {
         feedback.set(None);
     }
-    pending.set(None);
 }
 
 fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> String {
@@ -1005,14 +1013,19 @@ mod resolver_tests {
     async fn align_moves_the_selection_against_the_accepted_reference() {
         let runtime = support::new_runtime();
         support::open_document(&runtime, fixture()).await;
-        let ticket = EditTicket::begin(
+        let mut pending = PendingEdits::default();
+        pending.begin(
             &runtime,
+            (),
             "layout-align",
             Some("alignment".into()),
             align_resolver(context(), vec!["a".into()], "b".into(), AlignCommand::Left),
         );
         support::run_pending(&runtime).await;
-        assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            pending.settle(true).as_slice(),
+            [PendingEditResult::Landed { .. }]
+        ));
         assert_eq!(pose_x(&runtime, "a"), Some(20.0));
     }
 
@@ -1040,27 +1053,29 @@ mod resolver_tests {
         );
         support::drive_pending(&runtime);
         entered.await.expect("the delete reached Core");
-        let ticket = EditTicket::begin(
+        let mut pending = PendingEdits::default();
+        pending.begin(
             &runtime,
+            (),
             "layout-align",
             Some("alignment".into()),
             align_resolver(context(), vec!["a".into()], "b".into(), AlignCommand::Left),
         );
         assert!(
-            ticket.is_pending(),
+            pending.is_pending(&()),
             "a one-shot align stays pending until it settles"
         );
         support::drive_pending(&runtime);
         release.send(()).expect("release the held delete");
         for _ in 0..50 {
             support::run_pending(&runtime).await;
-            if !ticket.is_pending() {
+            if !pending.is_pending(&()) {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
-        match ticket.settlement(true) {
-            Settlement::Failed { message } => assert!(
+        match pending.settle(true).as_slice() {
+            [PendingEditResult::Failed { message, .. }] => assert!(
                 message.contains("no longer exists"),
                 "the reason is explained: {message}"
             ),

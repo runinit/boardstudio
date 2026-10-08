@@ -311,8 +311,6 @@ fn mounted_outline_inspector_host() -> Element {
         ));
     }
     let _ = version();
-    let board_projection = board_inspector.projection;
-    let board_rename = board_inspector.on_rename;
     let point_canvas_svg = use_hook(|| Rc::new(RefCell::new(None::<web_sys::SvgElement>)));
     let point_canvas_arbiter =
         use_hook(super::super::canvas_interaction::CanvasInteractionArbiter::default);
@@ -348,10 +346,9 @@ fn mounted_outline_inspector_host() -> Element {
         if let Some(projection) = projection {
             OutlineVersionInspector { projection }
         }
-        if let Some(projection) = board_projection {
+        if board_inspector.projection.is_some() {
             super::super::board_inspector::BoardInspector {
-                projection,
-                on_rename: board_rename,
+                mount: board_inspector,
             }
         }
     }

@@ -286,6 +286,8 @@ struct MountedProbe {
     selection_kind: std::rc::Rc<RefCell<Option<Signal<objects::LayoutSelectionKind>>>>,
     projection: std::rc::Rc<RefCell<Option<LayoutComponentInspectorProjection>>>,
     action: std::rc::Rc<RefCell<Option<EventHandler<LayoutComponentInspectorAction>>>>,
+    pending_edits:
+        std::rc::Rc<RefCell<Option<Signal<layout_component_edits::LayoutComponentInspectorEdits>>>>,
     render_generation: std::rc::Rc<RefCell<Option<Signal<u64>>>>,
     root_id: &'static str,
 }
@@ -392,6 +394,7 @@ fn mounted_component_inspector_host() -> Element {
     let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
+    let mut show_component = use_signal(|| true);
     let anchor_scope = use_signal(|| None::<Scope>);
     let scope_generation = use_signal(|| 1u64);
     let adapter =
@@ -399,6 +402,17 @@ fn mounted_component_inspector_host() -> Element {
     let lifetime = use_hook(|| std::rc::Rc::new(LayoutComponentInspectorLifetime::default()));
     let pending_edits =
         use_signal(super::layout_component_edits::LayoutComponentInspectorEdits::default);
+    *probe.pending_edits.borrow_mut() = Some(pending_edits);
+    let x_draft = use_signal(String::new);
+    let y_draft = use_signal(String::new);
+    let margin_draft = use_signal(String::new);
+    let x_failure = use_signal(|| None::<String>);
+    let y_failure = use_signal(|| None::<String>);
+    let margin_failure = use_signal(|| None::<String>);
+    let error = use_signal(|| None::<String>);
+    let layout_pending = use_signal(|| false);
+    let constraint_pending = use_signal(|| false);
+    let remove_pending = use_signal(|| false);
     let runtime = probe.runtime.clone();
     let model = runtime.model();
     let next_context = probe
@@ -459,8 +473,11 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-select-original", onclick: { let mut generation = render_generation; move |_| { restore_probe.select(Some("selected-part")); generation += 1; } }, "Select original" }
         button { id: "component-inspector-select-component", onclick: { let mut generation = render_generation; move |_| { let part = component_probe.selected_part.borrow().clone().unwrap_or_else(|| "selected-part".into()); component_probe.select_component_from_finding(&part); generation += 1; } }, "Select component from finding" }
         button { id: "component-inspector-clear", onclick: { let mut generation = render_generation; move |_| { clear_probe.select(None); generation += 1; } }, "Clear selection" }
+        button { id: "component-inspector-toggle-view", onclick: move |_| show_component.set(!show_component()), "Toggle Inspector view" }
         if let Some(projection) = projection {
-            LayoutComponentInspector { projection, inspector_tab, pending_edits, on_action: action_handler }
+            if show_component() {
+                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, on_action: action_handler }
+            }
         }
     }
 }
@@ -615,6 +632,7 @@ async fn mounted_runtime_probe(
         selection_kind: std::rc::Rc::default(),
         projection: std::rc::Rc::default(),
         action: std::rc::Rc::default(),
+        pending_edits: std::rc::Rc::default(),
         render_generation: std::rc::Rc::default(),
         root_id,
     };
@@ -892,6 +910,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
         owner: old_projection.owner.clone(),
         axis: ComponentPositionAxis::X,
         value: 42.0,
+        submitted_draft: "42".into(),
     });
     accept_pending(&probe).await;
     assert_eq!(
@@ -910,6 +929,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
             owner: current.owner,
             axis: ComponentPositionAxis::X,
             value: 42.0,
+            submitted_draft: "42".into(),
         });
     accept_pending(&probe).await;
     assert_eq!(
@@ -927,6 +947,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
         owner: stale.owner,
         axis: ComponentPositionAxis::X,
         value: 43.0,
+        submitted_draft: "43".into(),
     });
     accept_pending(&probe).await;
     assert_eq!(
@@ -1515,6 +1536,94 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 }
 
 #[wasm_bindgen_test]
+async fn mounted_position_landing_preserves_a_newer_unsubmitted_draft() {
+    let (probe, root) = mounted_probe("layout-component-position-newer-draft-test-root").await;
+    settle_component_inspector().await;
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    let x = position_input(probe.root_id, "X mm");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    x.focus().unwrap();
+    x.set_value("60");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the position edit reached Core");
+
+    x.set_value("61");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    release.send(()).expect("release the held position result");
+    accept_pending(&probe).await;
+    assert_eq!(accepted_position(&probe, "selected-part").x, 60.0);
+    assert_eq!(
+        x.value(),
+        "61",
+        "landing the older edit must preserve newer typed text"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
+ {
+    let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
+    settle_component_inspector().await;
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    let x = position_input(probe.root_id, "X mm");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    x.focus().unwrap();
+    x.set_value("60");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the position edit reached Core");
+
+    click_component_inspector(probe.root_id, "#component-inspector-toggle-view");
+    settle_component_inspector().await;
+    assert!(
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} [aria-label='Component inspector']",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_none(),
+        "the view-only toggle unmounts the Inspector"
+    );
+    assert_eq!(*probe.selected_part.borrow(), Some("selected-part".into()));
+    click_component_inspector(probe.root_id, "#component-inspector-toggle-view");
+    settle_component_inspector().await;
+    release
+        .send(())
+        .expect("release the held position result after remount");
+    accept_pending(&probe).await;
+    assert_eq!(accepted_position(&probe, "selected-part").x, 60.0);
+    assert_eq!(position_input(probe.root_id, "X mm").value(), "60.00");
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
     let (probe, root) = mounted_probe("layout-component-position-save-failure-test-root").await;
     settle_component_inspector().await;
@@ -1560,6 +1669,167 @@ async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
     assert!(
         alert.contains("did not save") && alert.contains("injected durable write failure"),
         "the inline message names the failure: {alert}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn queued_y_edit_waits_for_recovery_after_x_save_failure() {
+    let (probe, root) = mounted_probe("layout-component-queued-edit-recovery-test-root").await;
+    settle_component_inspector().await;
+    crate::runtime::project_name_test_support::fail_next_persist(
+        &probe.runtime,
+        "injected X write failure",
+    );
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+
+    x.focus().unwrap();
+    x.set_value("8");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    x.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    entered.await.expect("the X edit reached Core");
+
+    y.focus().unwrap();
+    y.set_value("9");
+    y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    y.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    release.send(()).expect("release the held X reply");
+    accept_pending(&probe).await;
+
+    assert_eq!(
+        accepted_position(&probe, "selected-part"),
+        Vec2 { x: 4.0, y: 3.0 },
+        "the queued Y edit cannot land while the failed save requires recovery"
+    );
+    assert_eq!(
+        probe.runtime.model().lifecycle,
+        boardstudio_application::Lifecycle::RecoveryRequired,
+        "a durable save failure requires reopening the accepted document before another edit"
+    );
+    assert_eq!(
+        y.value(),
+        "3.00",
+        "the blocked Y draft restores its accepted value"
+    );
+    let alert = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{} [role='alert']", probe.root_id))
+        .unwrap()
+        .expect("the X failure remains visible")
+        .text_content()
+        .unwrap();
+    assert!(
+        alert.contains("injected X write failure"),
+        "unexpected alert: {alert}"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn successful_y_landing_preserves_an_earlier_x_resolver_failure() {
+    let (probe, root) = mounted_probe("layout-component-independent-field-errors-test-root").await;
+    settle_component_inspector().await;
+    let x = position_input(probe.root_id, "X mm");
+    let y = position_input(probe.root_id, "Y mm");
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    x.focus().unwrap();
+    x.set_value("8");
+    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+
+    let pending = probe
+        .pending_edits
+        .borrow()
+        .expect("the mounted Layout Inspector owns pending edits")
+        .peek()
+        .clone();
+    pending.begin_field(
+        &probe.runtime,
+        layout_component_edits::InspectorField::X,
+        "layout-inspector-x",
+        Some("layout".into()),
+        layout_component_edits::position_resolver(
+            "departed-part".into(),
+            vec!["departed-part".into()],
+            "board".into(),
+            ComponentPositionAxis::X,
+            8.0,
+        ),
+        "8",
+    );
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    probe.refresh();
+    settle_component_inspector().await;
+    assert_eq!(
+        probe.runtime.model().lifecycle,
+        boardstudio_application::Lifecycle::Ready,
+        "a resolver retirement is a field failure without entering save recovery"
+    );
+    let x_failure = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{} [role='alert']", probe.root_id))
+        .unwrap()
+        .expect("the X resolver failure is visible inline")
+        .text_content()
+        .unwrap();
+    assert!(
+        x_failure.contains("selected part no longer exists"),
+        "unexpected X failure: {x_failure}"
+    );
+
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_key("Enter");
+    enter.set_bubbles(true);
+    y.focus().unwrap();
+    y.set_value("9");
+    y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+        .unwrap();
+    y.dispatch_event(
+        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+    )
+    .unwrap();
+    accept_pending(&probe).await;
+
+    assert_eq!(
+        accepted_position(&probe, "selected-part"),
+        Vec2 { x: 4.0, y: 9.0 },
+        "the valid Y field lands independently of X's resolver failure"
+    );
+    let alert = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{} [role='alert']", probe.root_id))
+        .unwrap()
+        .expect("the earlier X failure remains visible")
+        .text_content()
+        .unwrap();
+    assert_eq!(
+        alert, x_failure,
+        "Y landing must not clear X's inline failure"
     );
     root.remove();
 }

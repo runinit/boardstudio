@@ -1,6 +1,6 @@
 //! Layout Inspector controls for accepted keycap size.
 use super::keycap_resize::ResizeAxis;
-use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest, KeySizeState};
+use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
 use dioxus::prelude::*;
 use std::cell::Cell;
 
@@ -41,6 +41,9 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let Some(projection) = props.mount.projection.clone() else {
         return rsx! {};
     };
+    let mut inspector_mounted = props.mount.inspector_mounted;
+    use_hook(|| inspector_mounted.set(true));
+    use_drop(move || inspector_mounted.set(false));
     let mut draft = use_signal(|| projection.units);
     let sent = use_signal(|| None::<String>);
     let keyboard_generation = use_hook(|| std::rc::Rc::new(Cell::new(0u64)));
@@ -150,14 +153,6 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     });
     let feedback = props.mount.feedback.clone();
     let current_request_id = (props.mount.request_sequence)();
-    let status = feedback
-        .as_ref()
-        .filter(|value| value.request_id == current_request_id && value.owner == projection.owner)
-        .map(|value| match value.state {
-            KeySizeState::Pending => "Saving key-size change…",
-            KeySizeState::Saved => "Saved",
-            KeySizeState::Failed => "Key-size change failed",
-        });
     let error = feedback
         .as_ref()
         .filter(|value| value.request_id == current_request_id && value.owner == projection.owner)
@@ -264,7 +259,6 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                     }
                 }, "Tall" }
             }
-            if let Some(status) = status { p { role: "status", class: "m1-key-size-status", "{status}" } }
             if let Some(error) = error { p { role: "alert", class: "m1-key-size-error", "{error}" } }
         }
         if let Some(warning) = overlap_warning {

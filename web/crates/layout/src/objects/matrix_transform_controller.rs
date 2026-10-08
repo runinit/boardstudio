@@ -1,7 +1,7 @@
 //! Accepted-snapshot projection and exact operation lifecycle for transform fields.
 use super::matrix_transform_inspector::{
     MatrixTransformFeedback, MatrixTransformInspectorOwner, MatrixTransformProjection,
-    MatrixTransformRequest, MatrixTransformState,
+    MatrixTransformRequest,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_operation::{
@@ -15,15 +15,25 @@ use boardstudio_application::{
 use boardstudio_core::model::{
     EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
-struct TransformSubmission {
-    request: MatrixTransformRequest,
-    ticket: EditTicket,
+struct TransformPendingKey {
+    field: MatrixTransformField,
+    owner: MatrixTransformInspectorOwner,
+    request_id: u64,
+    one_shot: bool,
+    failure: Option<Signal<Option<String>>>,
+}
+
+impl PartialEq for TransformPendingKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field && self.one_shot == other.one_shot
+    }
 }
 
 /// Resolve one transform field edit against the accepted document at execution time. The
@@ -142,9 +152,23 @@ pub struct MatrixTransformInspectorMount {
     pub feedback: Vec<MatrixTransformFeedback>,
     pub on_edit: EventHandler<MatrixTransformRequest>,
     pub splay_affect: Signal<MatrixSplayAffect>,
+    pub(super) inspector_mounted: Signal<bool>,
+    pub(super) numeric_fields: Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
 }
 
 impl MatrixTransformInspectorMount {
+    pub(super) fn numeric_field(
+        &self,
+        field: MatrixTransformField,
+    ) -> (Signal<String>, Signal<Option<String>>) {
+        let (_, draft, failure) = self
+            .numeric_fields
+            .iter()
+            .find(|(candidate, _, _)| *candidate == field)
+            .expect("numeric transform field has a stable view");
+        (*draft, *failure)
+    }
+
     pub fn pick_splay_origin(&self, point: Vec2) -> bool {
         let Some(projection) = self.projection.as_ref() else {
             return false;
@@ -169,6 +193,10 @@ impl MatrixTransformInspectorMount {
             baseline: MatrixTransformValue::Point(*splay_origin),
             value: MatrixTransformValue::Point(point),
             splay_affect: (self.splay_affect)(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
         });
         true
     }
@@ -212,14 +240,46 @@ pub fn use_workspace_matrix_transform(
         tracker.value
     };
 
+    let numeric_fields = use_hook(|| {
+        [
+            MatrixTransformField::OriginX,
+            MatrixTransformField::OriginY,
+            MatrixTransformField::MatrixRotation,
+            MatrixTransformField::RowOffsetX,
+            MatrixTransformField::RowOffsetY,
+            MatrixTransformField::ColumnSplay,
+            MatrixTransformField::SplayOriginX,
+            MatrixTransformField::SplayOriginY,
+            MatrixTransformField::ColumnStagger,
+            MatrixTransformField::ColumnOffsetX,
+            MatrixTransformField::ColumnOffsetY,
+            MatrixTransformField::KeyOffsetX,
+            MatrixTransformField::KeyOffsetY,
+            MatrixTransformField::KeyRotation,
+        ]
+        .into_iter()
+        .map(|field| {
+            (
+                field,
+                Signal::new(String::new()),
+                Signal::new(None::<String>),
+            )
+        })
+        .collect::<Vec<_>>()
+    });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_signal(Vec::<TransformSubmission>::new);
+    let pending = use_hook(|| PendingEditSignals::<TransformPendingKey>::new());
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
+    let inspector_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
-        move || alive.set(false)
+        let pending = pending.clone();
+        move || {
+            alive.set(false);
+            pending.settle(false, |_| String::new());
+        }
     });
     let switch_catalog = use_signal(Vec::<boardstudio_core::model::PartDefinition>::new);
     // The bundled catalogue is built per document reversibility (as in the Parts browser), so
@@ -308,10 +368,15 @@ pub fn use_workspace_matrix_transform(
         (&version(), &workspace(), &scope_generation(), &identity),
         {
             let runtime = runtime.clone();
-            let mut pending = pending;
             let mut feedback = feedback;
-            move |(_, _, scope_generation, _)| {
-                settle_pending(&runtime, scope_generation, &mut pending, &mut feedback);
+            let pending = pending.clone();
+            let alive = alive.clone();
+            let inspector_mounted = inspector_mounted;
+            move |(_, current_workspace, _, _)| {
+                let owner_is_live = alive.get()
+                    && inspector_mounted()
+                    && workspace_route_matches(current_workspace, owner_workspace);
+                settle_pending(&runtime, &pending, owner_is_live, &mut feedback);
             }
         },
     ));
@@ -319,8 +384,8 @@ pub fn use_workspace_matrix_transform(
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
+        let pending = pending.clone();
         let mut last_request_id = last_request_id;
-        let mut pending = pending;
         let mut feedback = feedback;
         let mut catalog_requested = catalog_requested;
         move |request: MatrixTransformRequest| {
@@ -361,10 +426,9 @@ pub fn use_workspace_matrix_transform(
                 return;
             }
             if !editable {
-                publish_feedback(
+                publish_request_failure(
                     &mut feedback,
                     &request,
-                    MatrixTransformState::Failed,
                     Some("The matrix transform is not ready to edit. Wait for the current operation to finish, then retry.".into()),
                 );
                 return;
@@ -416,12 +480,7 @@ pub fn use_workspace_matrix_transform(
                 } else {
                     "The component catalogue is not ready yet. Try this change again when it finishes loading."
                 };
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some(message.into()),
-                );
+                publish_request_failure(&mut feedback, &request, Some(message.into()));
                 return;
             }
             // Validate the typed value now so a bad entry is explained inline; the resolver
@@ -433,12 +492,7 @@ pub fn use_workspace_matrix_transform(
                 request.value.clone(),
                 request.splay_affect.clone(),
             ) {
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some(message),
-                );
+                publish_request_failure(&mut feedback, &request, Some(message));
                 return;
             }
             let catalogue_definitions = match (&request.field, &request.value) {
@@ -456,25 +510,43 @@ pub fn use_workspace_matrix_transform(
                 }
                 _ => Vec::new(),
             };
-            let ticket = EditTicket::begin(
-                &runtime,
-                "layout-matrix-transform",
-                Some("transform".into()),
-                transform_edit_resolver(
-                    request.owner.matrix_id.clone(),
-                    request.owner.scope.board_id.clone(),
-                    request.owner.context.clone(),
-                    request.field,
-                    request.value.clone(),
-                    request.splay_affect.clone(),
-                    catalogue_definitions,
-                ),
+            let resolver = transform_edit_resolver(
+                request.owner.matrix_id.clone(),
+                request.owner.scope.board_id.clone(),
+                request.owner.context.clone(),
+                request.field,
+                request.value.clone(),
+                request.splay_affect.clone(),
+                catalogue_definitions,
             );
-            pending.write().push(TransformSubmission {
-                request: request.clone(),
-                ticket,
-            });
-            publish_feedback(&mut feedback, &request, MatrixTransformState::Pending, None);
+            let key = TransformPendingKey {
+                field: request.field,
+                owner: request.owner.clone(),
+                request_id: request.request_id,
+                one_shot: request.one_shot,
+                failure: request.failure,
+            };
+            if let (Some(draft), Some(failure)) = (request.draft, request.failure) {
+                pending.bind_field(key.clone(), draft, failure);
+            }
+            if !request.one_shot {
+                pending.begin_field(
+                    &runtime,
+                    key,
+                    "layout-matrix-transform",
+                    Some("transform".into()),
+                    resolver,
+                    request.submitted_text.as_deref().unwrap_or_default(),
+                );
+            } else {
+                pending.begin_one_shot(
+                    &runtime,
+                    key,
+                    "layout-matrix-transform",
+                    Some("transform".into()),
+                    resolver,
+                );
+            }
         }
     });
 
@@ -485,6 +557,8 @@ pub fn use_workspace_matrix_transform(
         feedback: feedback.read().clone(),
         on_edit,
         splay_affect,
+        inspector_mounted,
+        numeric_fields,
     }
 }
 
@@ -810,66 +884,98 @@ fn field_value(
 
 fn settle_pending(
     runtime: &Runtime,
-    scope_generation: u64,
-    pending: &mut Signal<Vec<TransformSubmission>>,
+    pending: &PendingEditSignals<TransformPendingKey>,
+    owner_is_live: bool,
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
 ) {
-    let waiting = pending.read().clone();
-    if waiting.is_empty() {
-        return;
-    }
-    let scope = runtime.scope();
-    let mut remaining = Vec::with_capacity(waiting.len());
-    let mut changed = false;
-    for edit in waiting {
-        let live = scope.as_ref() == Some(&edit.request.owner.scope)
-            && scope_generation == edit.request.owner.scope_generation;
-        match edit.ticket.settlement(live) {
-            Settlement::Pending => remaining.push(edit),
-            Settlement::Landed { .. } => {
-                changed = true;
-                publish_feedback(feedback, &edit.request, MatrixTransformState::Saved, None);
+    for result in pending.settle(owner_is_live, |key| accepted_field_text(runtime, key)) {
+        match result {
+            PendingEditResult::Landed { key, .. } => {
+                if key.failure.is_none() {
+                    publish_feedback(feedback, &key.owner, key.request_id, key.field, None)
+                }
             }
-            Settlement::Failed { message } => {
-                changed = true;
-                publish_feedback(
-                    feedback,
-                    &edit.request,
-                    MatrixTransformState::Failed,
-                    Some(message),
-                );
-            }
-            Settlement::Retired => {
-                changed = true;
-                if live {
+            PendingEditResult::Failed { key, message } => {
+                if key.failure.is_none() {
                     publish_feedback(
                         feedback,
-                        &edit.request,
-                        MatrixTransformState::Failed,
-                        Some("The transform did not complete in the active session. Review the current value and retry.".into()),
-                    );
-                } else {
-                    feedback.set(Vec::new());
+                        &key.owner,
+                        key.request_id,
+                        key.field,
+                        Some(message),
+                    )
                 }
+            }
+            PendingEditResult::Retired { key } => {
+                clear_feedback(feedback, &key);
             }
         }
     }
-    if changed {
-        pending.set(remaining);
+}
+
+fn accepted_field_text(runtime: &Runtime, key: &TransformPendingKey) -> String {
+    let Some(snapshot) = runtime.model().accepted else {
+        return String::new();
+    };
+    let Some(matrix) = snapshot
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == key.owner.matrix_id)
+    else {
+        return String::new();
+    };
+    transform_fields(
+        &snapshot,
+        &key.owner.scope.board_id,
+        &key.owner.context,
+        matrix,
+    )
+    .and_then(|fields| field_value(&fields, key.field))
+    .and_then(|value| match value {
+        MatrixTransformValue::Number(value) => Some(value.to_string()),
+        _ => None,
+    })
+    .unwrap_or_default()
+}
+
+fn publish_request_failure(
+    feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
+    request: &MatrixTransformRequest,
+    message: Option<String>,
+) {
+    if let Some(mut failure) = request.failure {
+        failure.set(message);
+    } else {
+        publish_feedback(
+            feedback,
+            &request.owner,
+            request.request_id,
+            request.field,
+            message,
+        );
     }
+}
+
+fn clear_feedback(feedback: &mut Signal<Vec<MatrixTransformFeedback>>, key: &TransformPendingKey) {
+    let mut entries = feedback.read().clone();
+    entries.retain(|entry| {
+        entry.owner != key.owner || entry.field != key.field || entry.request_id != key.request_id
+    });
+    feedback.set(entries);
 }
 
 fn publish_feedback(
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
-    request: &MatrixTransformRequest,
-    state: MatrixTransformState,
+    owner: &MatrixTransformInspectorOwner,
+    request_id: u64,
+    field: MatrixTransformField,
     message: Option<String>,
 ) {
     let next = MatrixTransformFeedback {
-        owner: request.owner.clone(),
-        request_id: request.request_id,
-        field: request.field,
-        state,
+        owner: owner.clone(),
+        request_id,
+        field,
         message,
     };
     let mut entries = feedback.read().clone();
@@ -882,10 +988,7 @@ fn publish_feedback(
         entries.push(next);
     }
     while entries.len() > 8 {
-        let Some(index) = entries
-            .iter()
-            .position(|entry| entry.state != MatrixTransformState::Pending)
-        else {
+        let Some(index) = entries.iter().position(|entry| entry.message.is_some()) else {
             break;
         };
         entries.remove(index);
@@ -898,6 +1001,7 @@ mod queued_edits {
     use super::*;
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
