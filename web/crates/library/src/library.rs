@@ -6,8 +6,8 @@ use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
 #[cfg(test)]
-use boardstudio_core::model::{EditCommand, EditPhase};
-use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc};
+use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_core::model::{PartKind, ProjectDoc};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
