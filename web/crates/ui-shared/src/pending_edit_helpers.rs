@@ -194,6 +194,14 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
             .begin(port, key, label, feature, resolver);
     }
 
+    pub fn unbind_field(&self, key: &K) {
+        let _ = key;
+    }
+
+    pub fn unbind_one_shot(&self, key: &K) {
+        let _ = key;
+    }
+
     /// Whether the key's latest edit is still pending in its captured document scope.
     pub fn is_pending(&self, key: &K) -> bool {
         self.shared.edits.borrow().is_pending(key)
@@ -871,5 +879,260 @@ mod mounted_tests {
         ));
         assert_eq!(draft_value(), "PROJECTED");
         assert!(failure_message().is_none());
+    }
+
+    // ---- Unbinding: a component that owns bound Signals leaves while its edit runs.
+
+    #[derive(Clone, Default)]
+    struct UnbindProbe {
+        runtime: Rc<RefCell<Option<TestRuntime>>>,
+        helpers: Rc<RefCell<Option<PendingEditSignals<Field>>>>,
+        results: Rc<RefCell<Vec<PendingEditResult<Field>>>>,
+    }
+
+    #[component]
+    fn FieldChild(initial: String) -> Element {
+        let probe = use_context::<UnbindProbe>();
+        let helpers = probe
+            .helpers
+            .borrow()
+            .clone()
+            .expect("helpers are prepared");
+        let draft = use_signal(|| initial.clone());
+        let failure = use_signal(|| None::<String>);
+        let composite = use_signal(|| false);
+        let other = use_signal(|| false);
+        use_hook({
+            let helpers = helpers.clone();
+            move || {
+                helpers.bind_field(Field::Name, draft, failure);
+                helpers.bind_one_shot(Field::Name, composite);
+                helpers.bind_one_shot(Field::Other, other);
+            }
+        });
+        use_drop({
+            let helpers = helpers.clone();
+            move || {
+                // A composite field/one-shot component releases both bindings.
+                helpers.unbind_field(&Field::Name);
+                helpers.unbind_one_shot(&Field::Name);
+                helpers.unbind_one_shot(&Field::Other);
+                // Unbinding is idempotent.
+                helpers.unbind_field(&Field::Name);
+                helpers.unbind_one_shot(&Field::Name);
+                helpers.unbind_one_shot(&Field::Other);
+            }
+        });
+        rsx! {
+            input { id: "child-draft", value: "{draft}" }
+            if let Some(message) = failure() {
+                p { id: "child-failure", "{message}" }
+            }
+            button { id: "child-composite", disabled: composite(), "composite" }
+            button { id: "child-other", disabled: other(), "other" }
+        }
+    }
+
+    fn retire_resolver(message: &'static str) -> EditResolver {
+        EditResolver::new("helper-test", move |_accepted| {
+            Resolution::Retire(message.into())
+        })
+    }
+
+    fn unbind_host() -> Element {
+        let probe = use_context::<UnbindProbe>();
+        let runtime = use_hook(|| {
+            probe
+                .runtime
+                .borrow()
+                .clone()
+                .expect("the runtime is prepared before mounting")
+        });
+        let helpers = probe
+            .helpers
+            .borrow()
+            .clone()
+            .expect("helpers are prepared");
+        let mut shown = use_signal(|| true);
+        let mut mounts = use_signal(|| 0u32);
+        rsx! {
+            if shown() {
+                FieldChild { key: "{mounts}", initial: if mounts() == 0 { "Zephyr" } else { "Fresh" } }
+            }
+            button { id: "unmount", onclick: move |_| shown.set(false), "unmount" }
+            button { id: "remount", onclick: move |_| { mounts += 1; shown.set(true); }, "remount" }
+            button { id: "begin-rename", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_field(&runtime, Field::Name, "name-field",
+                        Some("project".into()), rename_resolver("Renamed"), "Zephyr")
+                }, "begin rename" }
+            button { id: "begin-rejected", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_field(&runtime, Field::Name, "name-field",
+                        Some("project".into()), retire_resolver("old failure"), "Zephyr")
+                }, "begin rejected" }
+            button { id: "begin-other", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_one_shot(&runtime, Field::Other, "one-shot",
+                        Some("project".into()), rename_resolver("Applied"))
+                }, "begin other" }
+            button { id: "settle-unbind", onclick: {
+                    let helpers = helpers.clone();
+                    let probe = probe.clone();
+                    move |_| {
+                        let results = helpers.settle(true, accepted_name);
+                        probe.results.borrow_mut().extend(results);
+                    }
+                }, "settle" }
+        }
+    }
+
+    async fn mount_unbind_fixture(runtime: TestRuntime) -> UnbindProbe {
+        let probe = UnbindProbe {
+            runtime: Rc::new(RefCell::new(Some(runtime))),
+            helpers: Rc::new(RefCell::new(Some(PendingEditSignals::new()))),
+            results: Default::default(),
+        };
+        let window = web_sys::window().unwrap();
+        let dom_document = window.document().unwrap();
+        if let Some(previous) = dom_document.get_element_by_id(root_id()) {
+            previous.remove();
+        }
+        let root = dom_document.create_element("div").unwrap();
+        root.set_id(root_id());
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(unbind_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        rendered().await;
+        probe
+    }
+
+    fn exists(selector: &str) -> bool {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{} {}", root_id(), selector))
+            .unwrap()
+            .is_some()
+    }
+
+    fn child_draft() -> String {
+        element("#child-draft")
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .value()
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_unmounted_field_never_has_its_dropped_signals_written_and_its_edit_still_runs() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-rename");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the field action reached Core");
+        click("#unmount");
+        rendered().await;
+        assert!(!exists("#child-draft"), "the field component is gone");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-unbind");
+        rendered().await;
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Landed {
+                    key: Field::Name,
+                    ..
+                }
+            )),
+            "the outcome still reaches the caller"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Renamed",
+            "the queued Session edit kept executing"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_remounted_field_with_the_same_key_never_receives_the_old_outcome() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-rename");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the first edit reached Core");
+        // The newer edit for the same key is the observed one; it is rejected once it runs.
+        click("#begin-rejected");
+        rendered().await;
+        click("#unmount");
+        rendered().await;
+        click("#remount");
+        rendered().await;
+        assert_eq!(child_draft(), "Fresh");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-unbind");
+        rendered().await;
+        assert_eq!(
+            child_draft(),
+            "Fresh",
+            "the old submitted text never restores into the new component"
+        );
+        assert!(
+            !exists("#child-failure"),
+            "the old failure is not shown by the new component"
+        );
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Failed { message, .. } if message.contains("old failure")
+            )),
+            "the caller still receives the old outcome for its own follow-up"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_unmounted_one_shot_is_not_released_through_a_dropped_signal() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-other");
+        rendered().await;
+        assert!(element("#child-other").has_attribute("disabled"));
+        support::drive_pending(&runtime);
+        entered.await.expect("the one-shot reached Core");
+        click("#unmount");
+        rendered().await;
+        click("#remount");
+        rendered().await;
+        assert!(
+            !element("#child-other").has_attribute("disabled"),
+            "a new component starts enabled"
+        );
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-unbind");
+        rendered().await;
+        assert!(probe.results.borrow().iter().any(|result| matches!(
+            result,
+            PendingEditResult::Landed {
+                key: Field::Other,
+                ..
+            }
+        )));
+        assert!(!element("#child-other").has_attribute("disabled"));
     }
 }
