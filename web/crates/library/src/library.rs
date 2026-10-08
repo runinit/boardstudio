@@ -2396,6 +2396,82 @@ mod mounted_tests {
             .remove_child(&root);
     }
 
+    async fn mounted_name_field(project_id: &str) -> (Rc<crate::runtime::Runtime>, web_sys::Element) {
+        let (session, core) = accepted(ProjectDoc::empty(project_id, "Original"));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(seed);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        (runtime, root)
+    }
+
+    fn name_alert(root: &web_sys::Element) -> Option<String> {
+        root.query_selector("p[role='alert']")
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_failed_unchanged_project_name_restores_the_accepted_name_with_an_inline_failure() {
+        use crate::runtime::project_name_test_support as support;
+        let (runtime, root) = mounted_name_field("menu-name-unchanged-failure").await;
+        support::fail_next_core_reply(&runtime, "name executor failed");
+        type_value(&field(), "Rejected");
+        let _ = field().blur();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            settle().await;
+        }
+        assert_eq!(runtime.model().accepted.unwrap().document.name, "Original");
+        assert_eq!(field().value(), "Original", "the unchanged draft restores");
+        assert!(name_alert(&root).is_some_and(|message| message.contains("name executor failed")));
+        runtime
+            .store
+            .delete_project("menu-name-unchanged-failure".into())
+            .await
+            .unwrap();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_newer_project_name_draft_survives_an_older_failure_that_reports_inline() {
+        use crate::runtime::project_name_test_support as support;
+        let (runtime, root) = mounted_name_field("menu-name-newer-failure").await;
+        support::fail_next_core_reply(&runtime, "name executor failed");
+        type_value(&field(), "Rejected");
+        let _ = field().blur();
+        // The older rename has not settled when the user types the next draft.
+        type_value(&field(), "Still typing");
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            settle().await;
+        }
+        assert_eq!(field().value(), "Still typing", "a newer draft survives");
+        assert!(
+            name_alert(&root).is_some_and(|message| message.contains("name executor failed")),
+            "the older failure reports inline beside the newer text"
+        );
+        runtime
+            .store
+            .delete_project("menu-name-newer-failure".into())
+            .await
+            .unwrap();
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn delayed_rename_persist_after_owner_replacement_cannot_update_new_project() {
         let (session, core) = accepted(ProjectDoc::empty("menu-name-delayed", "Original"));
