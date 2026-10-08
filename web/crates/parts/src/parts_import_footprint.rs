@@ -180,7 +180,8 @@ mod ui {
     use super::{ImportCapture, ImportOwner, ScopedMessage, import_resolver, owner_matches};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
     use js_sys::{Date, Function, Reflect};
@@ -189,12 +190,25 @@ mod ui {
     use wasm_bindgen_futures::{JsFuture, spawn_local};
     use web_sys::HtmlInputElement;
 
+    /// This action's one bounded key: the helper keeps one observation for the import
+    /// edit; preparation (file reading and compiling) happens before it begins.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum ImportKey {
+        Footprint,
+    }
+
+    /// The import this panel tracks: preparation is cancellable; once the resolver is
+    /// admitted the helper owns the observation until it settles.
     #[derive(Clone)]
-    struct FootprintImport {
-        capture: ImportCapture,
-        filename: String,
-        diagnostics: Vec<String>,
-        ticket: Option<EditTicket>,
+    enum ImportPhase {
+        Preparing {
+            filename: String,
+        },
+        Committed {
+            capture: ImportCapture,
+            filename: String,
+            diagnostics: Vec<String>,
+        },
     }
 
     fn current_owner(
@@ -241,7 +255,8 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
-        let pending = use_signal(|| None::<FootprintImport>);
+        let pending = use_signal(|| None::<ImportPhase>);
+        let edits = use_hook(|| PendingEditSignals::<ImportKey>::new());
         let mut error = use_signal(|| None::<ScopedMessage>);
         let mut notice = use_signal(|| None::<ScopedMessage>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
@@ -258,14 +273,17 @@ mod ui {
         use_effect(use_reactive((&version(),), {
             let runtime = runtime.clone();
             let owner_is_mounted = owner_is_mounted.clone();
+            let edits = edits.clone();
             let mut pending = pending;
             let mut selected = selected;
             let mut query = query;
             move |_| {
-                let Some(waiting) = pending.read().clone() else {
-                    return;
-                };
-                let Some(ticket) = waiting.ticket.as_ref() else {
+                let Some(ImportPhase::Committed {
+                    capture,
+                    filename,
+                    diagnostics,
+                }) = pending.read().clone()
+                else {
                     return;
                 };
                 let model = runtime.model();
@@ -280,46 +298,49 @@ mod ui {
                     scope_generation(),
                     workspace(),
                 );
-                let live = owner_is_mounted.get() && owner_matches(&waiting.capture, &owner);
-                match ticket.settlement(live) {
-                    Settlement::Pending => return,
-                    Settlement::Landed { .. } => {
-                        pending.set(None);
-                    }
-                    Settlement::Failed { message } => {
-                        pending.set(None);
-                        publish_message(&mut error, Some(owner), message);
-                        return;
-                    }
-                    Settlement::Retired => {
-                        pending.set(None);
-                        return;
+                let live = owner_is_mounted.get() && owner_matches(&capture, &owner);
+                let mut landed = false;
+                for result in edits.settle(live, |_| String::new()) {
+                    match result {
+                        PendingEditResult::Landed { .. } => {
+                            landed = true;
+                            pending.set(None);
+                        }
+                        PendingEditResult::Failed { message, .. } => {
+                            pending.set(None);
+                            publish_message(&mut error, Some(owner), message);
+                            return;
+                        }
+                        PendingEditResult::Retired { .. } => {
+                            pending.set(None);
+                            return;
+                        }
                     }
                 }
+                if !landed {
+                    return;
+                }
                 // The resolver appends the newly allocated definition. Read its accepted
-                // identity only after the ticket confirms landing.
+                // identity only after the edit confirms landing.
                 let Some(created) = snapshot
                     .document
                     .definitions
                     .iter()
                     .rev()
                     .find(|definition| {
-                        definition.id == waiting.capture.definition_id
+                        definition.id == capture.definition_id
                             || definition
                                 .id
-                                .strip_prefix(&format!("{}-", waiting.capture.definition_id))
+                                .strip_prefix(&format!("{}-", capture.definition_id))
                                 .is_some_and(|suffix| suffix.parse::<u64>().is_ok())
                     })
                 else {
                     return;
                 };
-                selected.set(Some((
-                    Some(waiting.capture.scope.clone()),
-                    created.id.clone(),
-                )));
+                selected.set(Some((Some(capture.scope.clone()), created.id.clone())));
                 query.set(String::new());
                 error.set(None);
-                notice.set((!waiting.diagnostics.is_empty()).then(|| ScopedMessage {
+                notice.set((!diagnostics.is_empty()).then(|| ScopedMessage {
                     owner: ImportOwner::new(
                         snapshot,
                         runtime.scope(),
@@ -328,8 +349,9 @@ mod ui {
                         scope_generation(),
                         workspace(),
                     ),
-                    message: format!("Imported with notes: {}", waiting.diagnostics.join(" ")),
+                    message: format!("Imported with notes: {}", diagnostics.join(" ")),
                 }));
+                let _ = filename;
                 on_select.call(());
             }
         }));
@@ -356,6 +378,7 @@ mod ui {
             let selected = selected;
             let scope = scope.clone();
             move |event: FormEvent| {
+                let edits = edits.clone();
                 let Some(input) = event
                     .data()
                     .try_as_web_event()
@@ -441,11 +464,8 @@ mod ui {
                 let epoch = request_epoch.get().wrapping_add(1);
                 request_epoch.set(epoch);
                 let filename = file.name();
-                pending.set(Some(FootprintImport {
-                    capture: capture.clone(),
+                pending.set(Some(ImportPhase::Preparing {
                     filename: filename.clone(),
-                    diagnostics: Vec::new(),
-                    ticket: None,
                 }));
                 let runtime = runtime.clone();
                 let owner_is_mounted = owner_is_mounted.clone();
@@ -613,17 +633,17 @@ mod ui {
                         }
                         return;
                     }
-                    let ticket = EditTicket::begin(
+                    edits.begin_one_shot(
                         &runtime,
+                        ImportKey::Footprint,
                         "parts-import-footprint",
                         Some("KiCad footprint".into()),
                         import_resolver(capture.clone(), compiled),
                     );
-                    pending.set(Some(FootprintImport {
+                    pending.set(Some(ImportPhase::Committed {
                         capture,
                         filename,
                         diagnostics,
-                        ticket: Some(ticket),
                     }));
                 });
             }
@@ -656,10 +676,10 @@ mod ui {
                     }
                 }
             }
-            if let Some(waiting) = pending.read().as_ref().filter(|waiting| waiting.ticket.is_none()) {
+            if let Some(ImportPhase::Preparing { filename }) = pending.read().as_ref() {
                 p { class: "m1-parts-loading", role: "status",
-                    "Reading and importing {waiting.filename}…"
-                    if waiting.ticket.is_none() { button { type: "button", onclick: cancel, "Cancel import" } }
+                    "Reading and importing {filename}…"
+                    button { type: "button", onclick: cancel, "Cancel import" }
                 }
             }
             if let Some(message) = visible_error {

@@ -7,7 +7,7 @@ use boardstudio_core::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -103,10 +103,19 @@ impl ModuleRotaryDraft {
     }
 }
 
+/// This panel's one bounded key: a module profile save covers the profile and rotary
+/// drafts together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModuleProfileKey {
+    Save,
+}
+
+/// The drafts the latest save was submitted with. The drafts are structured values, so
+/// the panel keeps this submitted-draft memory itself and settles through the raw
+/// [`PendingEdits`] collection (the shared Signal helper binds text fields only).
 #[derive(Clone)]
 struct ModuleProfileSave {
     owner: ModuleProfileOwner,
-    ticket: EditTicket,
     profile: Option<ModuleProfileDraft>,
     rotary: Option<ModuleRotaryDraft>,
 }
@@ -310,7 +319,12 @@ pub fn ModuleProfileEditor(
     let synced = use_signal(|| (baseline.clone(), baseline_rotary.clone()));
     let mut shape = use_signal(ModuleVolumeDraft::default);
     let mut reviewed = use_signal(|| false);
-    let pending = use_signal(Vec::<ModuleProfileSave>::new);
+    let edits = use_hook(|| {
+        Rc::new(std::cell::RefCell::new(
+            PendingEdits::<ModuleProfileKey>::default(),
+        ))
+    });
+    let pending = use_signal(|| None::<ModuleProfileSave>);
     let mut error = use_signal(|| None::<ModuleProfileError>);
     let draft_owner = (
         owner.session_epoch,
@@ -350,71 +364,65 @@ pub fn ModuleProfileEditor(
     }));
     use_effect(use_reactive((&owner, &version()), {
         let runtime = runtime.clone();
+        let edits = edits.clone();
         let mut pending = pending;
+        let mut draft = draft;
+        let mut rotary = rotary;
+        let mut error = error;
         move |_| {
-            let saves = pending.peek().clone();
-            let mut retained = Vec::new();
-            for save in &saves {
-                let live = module_profile_owner_is_current(
-                    &runtime,
-                    &save.owner,
-                    &selected,
-                    selection_generation(),
-                    &workspace,
-                )
-                .is_some();
-                let settlement = save.ticket.settlement(live);
-                if matches!(
-                    settlement,
-                    Settlement::Landed { .. } | Settlement::Failed { .. }
-                ) {
-                    if let Some(accepted) = runtime.model().accepted.as_ref().and_then(|snapshot| {
-                        snapshot
-                            .document
-                            .module_definitions
-                            .iter()
-                            .find(|definition| definition.id == save.owner.definition_id)
-                            .cloned()
-                    }) {
-                        let newer_profile = saves.iter().any(|other| {
-                            other.ticket.operation().0 > save.ticket.operation().0
-                                && other.profile.is_some()
-                        });
-                        let newer_rotary = saves.iter().any(|other| {
-                            other.ticket.operation().0 > save.ticket.operation().0
-                                && other.rotary.is_some()
-                        });
-                        if !newer_profile
-                            && save
+            let Some(save) = pending.peek().clone() else {
+                return;
+            };
+            let live = module_profile_owner_is_current(
+                &runtime,
+                &save.owner,
+                &selected,
+                selection_generation(),
+                &workspace,
+            )
+            .is_some();
+            // The collection keeps only the latest observation, so a restored draft
+            // never loses a newer save's submitted value.
+            for result in edits.borrow_mut().settle(live) {
+                match &result {
+                    PendingEditResult::Landed { .. } | PendingEditResult::Failed { .. } => {
+                        if let Some(accepted) =
+                            runtime.model().accepted.as_ref().and_then(|snapshot| {
+                                snapshot
+                                    .document
+                                    .module_definitions
+                                    .iter()
+                                    .find(|definition| definition.id == save.owner.definition_id)
+                                    .cloned()
+                            })
+                        {
+                            if save
                                 .profile
                                 .as_ref()
                                 .is_some_and(|submitted| *submitted == draft())
-                        {
-                            draft.set(ModuleProfileDraft::from_definition(&accepted));
-                        }
-                        if !newer_rotary
-                            && save
+                            {
+                                draft.set(ModuleProfileDraft::from_definition(&accepted));
+                            }
+                            if save
                                 .rotary
                                 .as_ref()
                                 .is_some_and(|submitted| *submitted == rotary())
-                        {
-                            rotary.set(ModuleRotaryDraft::from_profile(
-                                accepted.electrical.rotary_profile.as_ref(),
-                            ));
+                            {
+                                rotary.set(ModuleRotaryDraft::from_profile(
+                                    accepted.electrical.rotary_profile.as_ref(),
+                                ));
+                            }
                         }
                     }
+                    PendingEditResult::Retired { .. } => {}
                 }
-                match settlement {
-                    Settlement::Pending => retained.push(save.clone()),
-                    Settlement::Failed { message } => error.set(Some(ModuleProfileError {
+                if let PendingEditResult::Failed { message, .. } = result {
+                    error.set(Some(ModuleProfileError {
                         owner: save.owner.clone(),
                         message,
-                    })),
-                    Settlement::Landed { .. } | Settlement::Retired => {}
+                    }));
                 }
-            }
-            if retained.len() != saves.len() {
-                pending.set(retained);
+                pending.set(None);
             }
         }
     }));
@@ -436,7 +444,7 @@ pub fn ModuleProfileEditor(
                 && current_owner.is_some()
         })
         .map(|feedback| feedback.message);
-    let busy = !pending().is_empty();
+    let busy = pending.peek().is_some();
     let runtime_for_add = runtime.clone();
     let add_volume = {
         let mut draft = draft;
@@ -595,19 +603,19 @@ pub fn ModuleProfileEditor(
                 rotary_override,
                 reviewed,
             );
-            let ticket = EditTicket::begin(
+            edits.borrow_mut().begin(
                 &runtime,
+                ModuleProfileKey::Save,
                 "parts-module-profile",
                 Some("module profile".into()),
                 resolver,
             );
             error.set(None);
-            pending.write().push(ModuleProfileSave {
+            pending.set(Some(ModuleProfileSave {
                 owner: owner.clone(),
-                ticket,
                 profile: submitted_profile,
                 rotary: submitted_rotary,
-            });
+            }));
         }
     });
 
@@ -724,6 +732,7 @@ pub fn ModuleProfileEditor(
 mod settlement_tests {
     use super::*;
     use boardstudio_core::model::ProjectDoc;
+    use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use wasm_bindgen_test::*;
 
@@ -744,9 +753,11 @@ mod settlement_tests {
         let mut changed = original_rotary.clone().unwrap();
         changed.steps = Some(24);
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let first = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
-            "rotary-test",
+            0_u64,
+            "rotary-change",
             None,
             module_profile_resolver(
                 owner.clone(),
@@ -758,9 +769,10 @@ mod settlement_tests {
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let second = EditTicket::begin(
+        edits.begin(
             &runtime,
-            "rotary-test",
+            1_u64,
+            "rotary-restore",
             None,
             module_profile_resolver(
                 owner,
@@ -773,8 +785,16 @@ mod settlement_tests {
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&runtime).await;
-        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
-        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        assert!(
+            matches!(
+                edits.settle(true).as_slice(),
+                [
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. }
+                ]
+            ),
+            "the queued restore runs behind the held change and both land"
+        );
         assert_eq!(
             runtime
                 .model()
