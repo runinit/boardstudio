@@ -52,7 +52,7 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
             let mut doc: Value =
                 serde_json::from_slice(&fs::read(output.join(format!("{name}.json"))).unwrap())
                     .unwrap();
-            assert_eq!(doc["formatVersion"], 2, "{name}");
+            assert_eq!(doc["formatVersion"], 3, "{name}");
             doc["assets"]
                 .as_array_mut()
                 .unwrap()

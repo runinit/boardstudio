@@ -1331,7 +1331,12 @@ fn construct_bodies(
                 openings: if (id == "bottom" && !config.integrated_plate_frame)
                     || (id == "plate" && config.integrated_plate_frame)
                 {
-                    let mut openings = config.openings.clone().unwrap_or_default();
+                    let mut openings: Vec<CaseOpening> = config
+                        .openings
+                        .iter()
+                        .flatten()
+                        .map(MechanicalOpening::as_case_opening)
+                        .collect();
                     openings.extend(profile_openings.clone());
                     Some(openings)
                 } else {
@@ -1574,7 +1579,7 @@ fn finalize_assembly(
         for opening in config.openings.iter().flatten() {
             mounting_contours.push(Contour {
                 hole: true,
-                points: opening.points.clone(),
+                points: opening.points(),
             });
         }
         result.suggested_mounts =

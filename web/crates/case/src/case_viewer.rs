@@ -2317,7 +2317,8 @@ mod gesture_cancellation_tests {
                     flipped: false,
                     controller_part_id: None,
                     mechanical: None,
-                    construction_linked: false,
+                    construction_ownership:
+                        boardstudio_core::model::MechanicalConstructionOwnership::Local,
                 })
                 .collect(),
             ..Default::default()

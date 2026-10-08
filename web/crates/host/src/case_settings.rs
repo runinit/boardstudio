@@ -1,5 +1,7 @@
 //! Defaults for supported mechanical presets.
-use boardstudio_core::model::{MechanicalConfiguration, Part, PartDefinition, ProjectDoc};
+use boardstudio_core::model::{
+    MechanicalConfiguration, MechanicalConstructionOwnership, Part, PartDefinition, ProjectDoc,
+};
 
 /// Existing configuration keeps all extension settings; a new board uses reference defaults.
 pub fn initial_settings(
@@ -140,7 +142,11 @@ pub fn update_instance_settings(
     }
     hardware.shared_construction = common;
     for instance in &mut hardware.instances {
-        instance.construction_linked = configuration.is_some();
+        instance.construction_ownership = if configuration.is_some() {
+            MechanicalConstructionOwnership::Legacy
+        } else {
+            MechanicalConstructionOwnership::Local
+        };
         if configuration.is_none() || instance.id == instance_id {
             instance.mechanical = configuration.clone();
         }

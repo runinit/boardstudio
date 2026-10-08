@@ -16,9 +16,9 @@ use boardstudio_core::model::{
     InsertInstallation, InternalClosureHardware, InternalGasketConfiguration, MechanicalAssembly,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalConfiguration,
     MechanicalCriticalFit, MechanicalGasketLayout, MechanicalHardwareSpecification,
-    MechanicalMount, MechanicalPartProcess, MechanicalPartProfile, MechanicalSwitchFamily, Mount,
-    MountKind, Part, PartDefinition, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
-    ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
+    MechanicalMount, MechanicalOpening, MechanicalOpeningVertex, MechanicalPartProcess,
+    MechanicalPartProfile, MechanicalSwitchFamily, Mount, MountKind, Part, PartDefinition,
+    PartKind, PlateMethod, ProjectDoc, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
@@ -576,7 +576,7 @@ impl OpeningTargetGuard {
         let opening_count = openings.map_or(0, Vec::len);
         let point_count = openings
             .and_then(|openings| openings.get(self.opening_index))
-            .map_or(0, |opening| opening.points.len());
+            .map_or(0, |opening| opening.vertices.len());
         let shifted = self.removals.iter().any(|(opening, point)| match point {
             None => *opening <= self.opening_index && opening_count < self.opening_count,
             Some(removed) => {
@@ -638,7 +638,7 @@ fn opening_target_guard(
         opening_count: openings.map_or(0, Vec::len),
         point_count: openings
             .and_then(|openings| openings.get(opening_index))
-            .map_or(0, |opening| opening.points.len()),
+            .map_or(0, |opening| opening.vertices.len()),
         removals,
     })
 }
@@ -1297,19 +1297,18 @@ fn apply_patch(
             }
         }
         MechanicalSettingsPatch::AddOpening => {
-            configuration
-                .openings
-                .get_or_insert_with(Vec::new)
-                .push(CaseOpening {
-                    points: vec![
-                        Vec2 { x: -2.5, y: -2.5 },
-                        Vec2 { x: 2.5, y: -2.5 },
-                        Vec2 { x: 2.5, y: 2.5 },
-                        Vec2 { x: -2.5, y: 2.5 },
-                    ],
-                    z: 0.0,
-                    height: 10.0,
-                });
+            let openings = configuration.openings.get_or_insert_with(Vec::new);
+            push_mechanical_opening(
+                openings,
+                vec![
+                    Vec2 { x: -2.5, y: -2.5 },
+                    Vec2 { x: 2.5, y: -2.5 },
+                    Vec2 { x: 2.5, y: 2.5 },
+                    Vec2 { x: -2.5, y: 2.5 },
+                ],
+                0.0,
+                10.0,
+            );
         }
         MechanicalSettingsPatch::RemoveOpening { opening_index } => {
             let openings = configuration
@@ -1329,7 +1328,11 @@ fn apply_patch(
             let opening = openings
                 .get_mut(*opening_index)
                 .ok_or("The selected access opening is no longer available.")?;
-            opening.points.push(Vec2 { x: 0.0, y: 0.0 });
+            let id = next_vertex_id(opening);
+            opening.vertices.push(MechanicalOpeningVertex {
+                id,
+                point: Vec2 { x: 0.0, y: 0.0 },
+            });
             validate_openings(openings)?;
         }
         MechanicalSettingsPatch::RemoveOpeningVertex {
@@ -1343,13 +1346,13 @@ fn apply_patch(
             let opening = openings
                 .get_mut(*opening_index)
                 .ok_or("The selected access opening is no longer available.")?;
-            if opening.points.len() <= 3 {
+            if opening.vertices.len() <= 3 {
                 return Err("An opening footprint needs at least three vertices.".into());
             }
-            if *point_index >= opening.points.len() {
+            if *point_index >= opening.vertices.len() {
                 return Err("The selected opening vertex is no longer available.".into());
             }
-            opening.points.remove(*point_index);
+            opening.vertices.remove(*point_index);
             validate_openings(openings)?;
         }
         MechanicalSettingsPatch::SetOpeningDimension {
@@ -1380,12 +1383,12 @@ fn apply_patch(
                 .get_mut(*opening_index)
                 .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
             if let Some(point_index) = point_index {
-                let point = opening.points.get_mut(*point_index).ok_or_else(|| {
+                let point = opening.vertices.get_mut(*point_index).ok_or_else(|| {
                     "The selected opening vertex is no longer available.".to_owned()
                 })?;
                 match field {
-                    MechanicalDimension::OpeningPointX => point.x = *value,
-                    MechanicalDimension::OpeningPointY => point.y = *value,
+                    MechanicalDimension::OpeningPointX => point.point.x = *value,
+                    MechanicalDimension::OpeningPointY => point.point.y = *value,
                     _ => return Err("The selected opening field is unavailable.".into()),
                 }
             } else {
@@ -2123,37 +2126,105 @@ fn valid_profile_polygons(polygons: &[Vec<Vec2>]) -> bool {
 
 fn validate_profile_openings(openings: &[CaseOpening], label: &str) -> Result<(), String> {
     for (index, opening) in openings.iter().enumerate() {
-        if opening.points.len() < 3
-            || opening.points.iter().any(|point| {
-                !point.x.is_finite()
-                    || !point.y.is_finite()
-                    || point.x < -1_000_000.0
-                    || point.y < -1_000_000.0
-            })
-        {
-            return Err(format!(
-                "{label} {} needs at least three vertices with finite coordinates no smaller than −1,000,000 mm.",
-                index + 1
-            ));
-        }
-        if !opening.z.is_finite() || opening.z < -1_000_000.0 {
-            return Err(format!(
-                "{label} {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
-                index + 1
-            ));
-        }
-        if !opening.height.is_finite() || opening.height < 0.1 {
-            return Err(format!(
-                "{label} {} height must be at least 0.1 mm.",
-                index + 1
-            ));
-        }
+        validate_opening_geometry(&opening.points, opening.z, opening.height, label, index)?;
     }
     Ok(())
 }
 
-fn validate_openings(openings: &[CaseOpening]) -> Result<(), String> {
-    validate_profile_openings(openings, "Access opening")
+fn validate_opening_geometry(
+    points: &[Vec2],
+    z: f64,
+    height: f64,
+    label: &str,
+    index: usize,
+) -> Result<(), String> {
+    if points.len() < 3
+        || points.iter().any(|point| {
+            !point.x.is_finite()
+                || !point.y.is_finite()
+                || point.x < -1_000_000.0
+                || point.y < -1_000_000.0
+        })
+    {
+        return Err(format!(
+            "{label} {} needs at least three vertices with finite coordinates no smaller than −1,000,000 mm.",
+            index + 1
+        ));
+    }
+    if !z.is_finite() || z < -1_000_000.0 {
+        return Err(format!(
+            "{label} {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
+            index + 1
+        ));
+    }
+    if !height.is_finite() || height < 0.1 {
+        return Err(format!(
+            "{label} {} height must be at least 0.1 mm.",
+            index + 1
+        ));
+    }
+    Ok(())
+}
+
+fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
+    for (index, opening) in openings.iter().enumerate() {
+        validate_opening_geometry(
+            &opening.points(),
+            opening.z,
+            opening.height,
+            "Access opening",
+            index,
+        )?;
+    }
+    Ok(())
+}
+
+/// The lowest unused `opening-N` identity in this configuration.
+fn next_opening_id(openings: &[MechanicalOpening]) -> String {
+    let mut index = 1;
+    loop {
+        let candidate = format!("opening-{index}");
+        if !openings.iter().any(|opening| opening.id == candidate) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+/// The lowest unused `vertex-N` identity within one opening footprint.
+fn next_vertex_id(opening: &MechanicalOpening) -> String {
+    let mut index = 1;
+    loop {
+        let candidate = format!("vertex-{index}");
+        if !opening.vertices.iter().any(|vertex| vertex.id == candidate) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+/// Append a new authored opening with deterministic opening/vertex identities.
+fn push_mechanical_opening(
+    openings: &mut Vec<MechanicalOpening>,
+    points: Vec<Vec2>,
+    z: f64,
+    height: f64,
+) {
+    let id = next_opening_id(openings);
+    let vertices = points
+        .into_iter()
+        .enumerate()
+        .map(|(index, point)| MechanicalOpeningVertex {
+            id: format!("vertex-{}", index + 1),
+            point,
+        })
+        .collect();
+    openings.push(MechanicalOpening {
+        id,
+        vertices,
+        z,
+        height,
+    });
 }
 
 fn validate_mount_positive(value: f64, label: &str) -> Result<(), String> {
@@ -2991,12 +3062,25 @@ mod battery_patch_tests {
         })).unwrap());
         let mut config = configuration();
         config.closure_mounts = Some(vec![]);
-        config.openings = Some(vec![CaseOpening {
-            points: vec![
-                Vec2 { x: -2.5, y: -2.5 },
-                Vec2 { x: 2.5, y: -2.5 },
-                Vec2 { x: 2.5, y: 2.5 },
-                Vec2 { x: -2.5, y: 2.5 },
+        config.openings = Some(vec![MechanicalOpening {
+            id: "opening-1".into(),
+            vertices: vec![
+                MechanicalOpeningVertex {
+                    id: "vertex-1".into(),
+                    point: Vec2 { x: -2.5, y: -2.5 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-2".into(),
+                    point: Vec2 { x: 2.5, y: -2.5 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-3".into(),
+                    point: Vec2 { x: 2.5, y: 2.5 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-4".into(),
+                    point: Vec2 { x: -2.5, y: 2.5 },
+                },
             ],
             z: 0.0,
             height: 10.0,
@@ -3247,12 +3331,25 @@ mod battery_patch_tests {
         })).unwrap());
         let mut config = configuration();
         config.closure_mounts = Some(vec![]);
-        config.openings = Some(vec![CaseOpening {
-            points: vec![
-                Vec2 { x: -2.5, y: -2.5 },
-                Vec2 { x: 2.5, y: -2.5 },
-                Vec2 { x: 2.5, y: 2.5 },
-                Vec2 { x: -2.5, y: 2.5 },
+        config.openings = Some(vec![MechanicalOpening {
+            id: "opening-1".into(),
+            vertices: vec![
+                MechanicalOpeningVertex {
+                    id: "vertex-1".into(),
+                    point: Vec2 { x: -2.5, y: -2.5 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-2".into(),
+                    point: Vec2 { x: 2.5, y: -2.5 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-3".into(),
+                    point: Vec2 { x: 2.5, y: 2.5 },
+                },
+                MechanicalOpeningVertex {
+                    id: "vertex-4".into(),
+                    point: Vec2 { x: -2.5, y: 2.5 },
+                },
             ],
             z: 0.0,
             height: 10.0,
@@ -3961,6 +4058,7 @@ mod battery_patch_tests {
             instances: vec![],
             boards: vec![],
             shared_construction: None,
+            pairs: vec![],
         });
 
         assert!(

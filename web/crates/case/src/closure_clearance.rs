@@ -5,7 +5,8 @@
 //! admission remain with their existing owners.
 
 use boardstudio_core::model::{
-    MountKind, Part, PartDefinition, PartGenerator, PartOutline, Pose2, ProjectDoc, Side, Vec2,
+    MechanicalConstructionOwnership, MountKind, Part, PartDefinition, PartGenerator, PartOutline,
+    Pose2, ProjectDoc, Side, Vec2,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -587,7 +588,7 @@ mod tests {
                 role: "peripheral".into(),
                 flipped: true,
                 controller_part_id: None,
-                construction_linked: true,
+                construction_ownership: MechanicalConstructionOwnership::Legacy,
                 mechanical: Some(configuration(
                     "board",
                     vec![mount(
@@ -749,7 +750,7 @@ mod tests {
                 role: "peripheral".into(),
                 flipped: true,
                 controller_part_id: None,
-                construction_linked: true,
+                construction_ownership: MechanicalConstructionOwnership::Legacy,
                 mechanical: Some(configuration(
                     "board",
                     vec![mount(Vec2 { x: 0.0, y: 0.0 }, MountKind::Hole, 2.2, None)],

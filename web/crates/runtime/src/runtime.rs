@@ -6493,6 +6493,7 @@ pub mod firmware_export_test_support {
             transport: HardwareTransport::None,
             instances: Vec::new(),
             shared_construction: None,
+            pairs: Vec::new(),
             boards: vec![ElectricalBoardConfiguration {
                 board_id: "board-a".into(),
                 controller_part_id: Some("mcu-left".into()),

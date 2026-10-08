@@ -886,6 +886,9 @@ pub struct HardwareConfiguration {
     pub instances: Vec<PhysicalBoardInstance>,
     pub boards: Vec<ElectricalBoardConfiguration>,
     pub shared_construction: Option<MechanicalConfiguration>,
+    /// Explicit mechanical mirror pairs between physical instances.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pairs: Vec<MechanicalMirrorPair>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -916,7 +919,10 @@ pub struct PhysicalBoardInstance {
     pub flipped: bool,
     pub controller_part_id: Option<String>,
     pub mechanical: Option<MechanicalConfiguration>,
-    pub construction_linked: bool,
+    /// Who owns this instance's construction values. Replaces the old
+    /// `constructionLinked` flag, whose value never affected the effective overlay.
+    #[serde(default)]
+    pub construction_ownership: MechanicalConstructionOwnership,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
@@ -938,6 +944,127 @@ pub struct ElectricalHandoffBaseline {
     pub fingerprint: String,
     pub revision: u64,
     pub assignments: BTreeMap<String, String>,
+}
+
+/// Who owns an instance's construction values.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalConstructionOwnership {
+    /// Today's effective shared overlay with first-instance fallback, kept until
+    /// the user explicitly converts the instance.
+    #[default]
+    Legacy,
+    /// The instance's own mechanical configuration is authoritative.
+    Local,
+    /// A [`MechanicalMirrorPair`]'s construction is authoritative.
+    Pair,
+}
+
+/// An explicit mechanical mirror pair between exactly two physical instances.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalMirrorPair {
+    pub id: String,
+    pub members: [String; 2],
+    /// The map from the first member's Case frame to the second's: a [`Pose2`]
+    /// composed with a fixed X reflection,
+    /// `q = R(rotation) * (-p.x, p.y) + at`. `rotation` uses the project's degree
+    /// convention, and the exact inverse maps the second member back to the first.
+    pub mapping: Pose2,
+    pub construction: MechanicalConstruction,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub features: Vec<MechanicalFeature>,
+}
+
+/// The rigid map from the first member's Case frame to the second's.
+///
+/// The map is a `Pose2` composed with a fixed X reflection:
+/// `q = R(rotation) * (-p.x, p.y) + at`. `rotation` uses the project's degree
+/// convention, and the exact inverse maps the second member back to the first.
+/// The shared construction subset of a mechanical pair.
+///
+/// Board identity/thickness, batteries, part profiles, stabilizer overrides and
+/// hardware-specific fits/specifications stay local on each instance.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalConstruction {
+    pub method: PlateMethod,
+    pub mount: MechanicalMount,
+    pub integrated_plate_frame: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bottom_style: Option<MechanicalBottomStyle>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub middle_frame: Option<bool>,
+    pub plate_thickness: f64,
+    pub plate_foam_thickness: f64,
+    pub bottom_foam_thickness: f64,
+    pub bottom_thickness: f64,
+    pub plate_to_pcb: f64,
+    pub wall_thickness: f64,
+    pub clearance: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gasket: Option<Gasket>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gasket_travel: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opening_allowance: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part_processes: Option<Vec<MechanicalPartProcess>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub internal_gasket: Option<InternalGasketConfiguration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gasket_layout: Option<MechanicalGasketLayout>,
+}
+
+/// One linked mechanical feature of a pair.
+///
+/// The shared value is stored once with its authoring member; counterpart
+/// geometry is derived in Core rather than persisted as a second value.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalFeature {
+    pub id: String,
+    pub kind: MechanicalFeatureKind,
+    /// The instance that authored the shared value.
+    pub author: String,
+    pub value: MechanicalFeatureValue,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<MechanicalFeatureMember>,
+}
+
+/// One member's identity and state for a linked feature.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalFeatureMember {
+    pub instance_id: String,
+    pub feature_id: String,
+    pub state: MechanicalFeatureState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalFeatureKind {
+    Mount,
+    ClosureMount,
+    Opening,
+    GasketSupport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalFeatureState {
+    Linked,
+    Local,
+    Omitted,
+}
+
+/// The single authored value of a linked feature.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MechanicalFeatureValue {
+    Mount { mount: Mount },
+    Opening { opening: MechanicalOpening },
+    GasketSupport { anchor: MechanicalGasketAnchor },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -2203,7 +2330,7 @@ pub struct MechanicalConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gasket_travel: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub openings: Option<Vec<CaseOpening>>,
+    pub openings: Option<Vec<MechanicalOpening>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opening_allowance: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2337,6 +2464,50 @@ pub struct CaseOpening {
     pub points: Vec<Vec2>,
     pub z: f64,
     pub height: f64,
+}
+
+/// An authored mechanical opening with stable identity for edit targeting.
+///
+/// Only `MechanicalConfiguration.openings` uses this identified shape; profile and
+/// derived geometry keeps plain [`CaseOpening`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalOpening {
+    pub id: String,
+    pub vertices: Vec<MechanicalOpeningVertex>,
+    pub z: f64,
+    pub height: f64,
+}
+
+impl MechanicalOpening {
+    /// The authored outline in authoring order.
+    pub fn points(&self) -> Vec<Vec2> {
+        self.vertices.iter().map(|vertex| vertex.point).collect()
+    }
+
+    /// The plain derived shape, for the existing cavity and clearance projection.
+    pub fn as_case_opening(&self) -> CaseOpening {
+        CaseOpening {
+            points: self.points(),
+            z: self.z,
+            height: self.height,
+        }
+    }
+}
+
+impl From<&MechanicalOpening> for CaseOpening {
+    fn from(opening: &MechanicalOpening) -> Self {
+        opening.as_case_opening()
+    }
+}
+
+/// One editable vertex of an authored mechanical opening, addressed by ID rather
+/// than by its position in the outline.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalOpeningVertex {
+    pub id: String,
+    pub point: Vec2,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -1022,7 +1022,8 @@ mod tests {
                 flipped: true,
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: true,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
             }],
             ..HardwareConfiguration::default()
         });

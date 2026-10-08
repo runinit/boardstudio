@@ -1469,7 +1469,8 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
                 flipped: half == "right",
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: false,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Local,
             })
             .collect(),
         ..HardwareConfiguration::default()

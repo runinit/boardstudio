@@ -283,7 +283,7 @@ pub(super) fn generate(
         .clone()
         .unwrap_or_default()
         .into_iter()
-        .map(|opening| opening.points)
+        .map(|opening| opening.points())
         .collect::<Vec<_>>();
     for body in &result.case.bodies {
         for opening in body.body.openings.iter().flatten() {

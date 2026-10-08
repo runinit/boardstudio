@@ -2,7 +2,7 @@
   "archive": [
     {
       "buffers": [
-        "1098:86f3f8633c3393be"
+        "1100:be9ad4bcb8ba904e"
       ],
       "kind": "pack-project",
       "reply": {
@@ -22,12 +22,12 @@
           }
         ],
         "kind": "unpacked",
-        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":2,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
+        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":3,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
       }
     },
     {
       "buffers": [
-        "972:6d8fe1ec219ef664"
+        "974:a55ace961fc931f2"
       ],
       "kind": "pack-files",
       "reply": {
@@ -47,12 +47,12 @@
           }
         ],
         "kind": "unpacked",
-        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":2,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
+        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":3,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
       }
     },
     {
       "buffers": [
-        "958:962a7beda9c29597"
+        "960:dc112e3529b393d1"
       ],
       "kind": "pack-files",
       "reply": {
@@ -94,7 +94,7 @@
     },
     {
       "buffers": [
-        "4196497:5b1f323b60aa4974"
+        "4196497:9b5b415e5f203b9e"
       ],
       "kind": "pack-project",
       "reply": {
@@ -114,7 +114,7 @@
           }
         ],
         "kind": "unpacked",
-        "projectJson": "{\"assets\":[{\"id\":\"memory-fixture\",\"sha256\":\"decef75c559cfb399caa8eef4120d22d8320bde71d2cb78820248367dbb6b7de\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":2,\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
+        "projectJson": "{\"assets\":[{\"id\":\"memory-fixture\",\"sha256\":\"decef75c559cfb399caa8eef4120d22d8320bde71d2cb78820248367dbb6b7de\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":3,\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
       }
     }
   ],
@@ -151,7 +151,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -636,7 +636,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -2516,7 +2516,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -3001,7 +3001,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -3514,7 +3514,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -4006,7 +4006,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -4830,7 +4830,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -5352,7 +5352,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -5889,7 +5889,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -6497,7 +6497,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -7105,7 +7105,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -8086,7 +8086,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -9069,7 +9069,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -10053,7 +10053,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -10706,7 +10706,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -11587,7 +11587,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -12458,7 +12458,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {
@@ -13332,7 +13332,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 2,
+        "formatVersion": 3,
         "hardware": {
           "boards": [
             {

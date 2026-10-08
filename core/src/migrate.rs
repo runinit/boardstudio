@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use crate::generators;
 
 /// The version this build reads and writes.
-pub const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 3;
 /// The version of a document that does not state one.
 pub const LEGACY_VERSION: u32 = 1;
 
@@ -36,6 +36,7 @@ pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
     while version < CURRENT_VERSION {
         match version {
             1 => version_1_to_2(object),
+            2 => version_2_to_3(object),
             _ => unreachable!("every version below the current one has a migration"),
         }
         version += 1;
@@ -70,6 +71,75 @@ fn version_1_to_2(document: &mut Map<String, Value>) {
     rename_in_place(&mut value);
     if let Value::Object(renamed) = value {
         *document = renamed;
+    }
+}
+
+/// Give authored openings and their vertices stable identities and record explicit
+/// construction ownership.
+///
+/// Existing physical instances become `legacy`, which preserves today's effective
+/// shared overlay and first-instance fallback; the old `constructionLinked` flag never
+/// affected that overlay and is retired. Geometry is preserved and no mechanical pair
+/// or feature correspondence is inferred.
+fn version_2_to_3(document: &mut Map<String, Value>) {
+    identify_mechanical_openings(document.get_mut("mechanical"));
+    let Some(Value::Object(hardware)) = document.get_mut("hardware") else {
+        return;
+    };
+    identify_mechanical_openings(hardware.get_mut("sharedConstruction"));
+    let Some(Value::Array(instances)) = hardware.get_mut("instances") else {
+        return;
+    };
+    for instance in instances {
+        let Some(object) = instance.as_object_mut() else {
+            continue;
+        };
+        identify_mechanical_openings(object.get_mut("mechanical"));
+        object.insert("constructionOwnership".into(), Value::from("legacy"));
+        object.remove("constructionLinked");
+    }
+}
+
+/// Rewrite a mechanical configuration's `openings` from point arrays to identified
+/// openings and vertices. Geometry, order, Z and height are unchanged.
+fn identify_mechanical_openings(configuration: Option<&mut Value>) {
+    let Some(Value::Object(configuration)) = configuration else {
+        return;
+    };
+    let Some(Value::Array(openings)) = configuration.get_mut("openings") else {
+        return;
+    };
+    for (index, opening) in openings.iter_mut().enumerate() {
+        let Some(object) = opening.as_object_mut() else {
+            continue;
+        };
+        object
+            .entry("id")
+            .or_insert_with(|| Value::from(format!("opening-{}", index + 1)));
+        if let Some(Value::Array(points)) = object.remove("points") {
+            let vertices = points
+                .into_iter()
+                .enumerate()
+                .map(|(vertex_index, point)| {
+                    let mut vertex = Map::new();
+                    vertex.insert(
+                        "id".into(),
+                        Value::from(format!("vertex-{}", vertex_index + 1)),
+                    );
+                    vertex.insert("point".into(), point);
+                    Value::Object(vertex)
+                })
+                .collect();
+            object.insert("vertices".into(), Value::Array(vertices));
+        } else if let Some(Value::Array(vertices)) = object.get_mut("vertices") {
+            for (vertex_index, vertex) in vertices.iter_mut().enumerate() {
+                if let Some(vertex) = vertex.as_object_mut() {
+                    vertex
+                        .entry("id")
+                        .or_insert_with(|| Value::from(format!("vertex-{}", vertex_index + 1)));
+                }
+            }
+        }
     }
 }
 
@@ -314,7 +384,7 @@ mod tests {
     fn migrates_a_version_1_document() {
         let (document, changed) = migrate_value(version_1()).unwrap();
         assert!(changed);
-        assert_eq!(document["formatVersion"], 2);
+        assert_eq!(document["formatVersion"], 3);
         assert_eq!(document["future"], json!({ "keep": true }));
 
         let definitions = &document["definitions"];
@@ -373,6 +443,93 @@ mod tests {
     }
 
     #[test]
+    fn gives_authored_openings_identity_without_moving_geometry() {
+        let mut value =
+            serde_json::to_value(crate::model::ProjectDoc::empty("doc", "Doc")).unwrap();
+        value["formatVersion"] = json!(2);
+        value["mechanical"] = json!({ "boardId": "board", "method": "printed", "mount": "tray",
+                "plateThickness": 1.5, "plateFoamThickness": 0.0, "pcbThickness": 1.6,
+                "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [],
+                "openings": [
+                    { "points": [ { "x": -2.5, "y": -2.5 }, { "x": 2.5, "y": 2.5 } ], "z": 0.0, "height": 10.0 }
+                ] });
+        value["hardware"] = json!({
+                "instances": [
+                    { "id": "left", "name": "Left", "boardId": "board", "half": "left", "role": "primary", "flipped": false, "controllerPartId": null, "constructionLinked": true,
+                      "mechanical": { "boardId": "board", "method": "printed", "mount": "tray",
+                        "plateThickness": 1.5, "plateFoamThickness": 0.0, "pcbThickness": 1.6,
+                        "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [],
+                        "openings": [
+                            { "points": [ { "x": 1.0, "y": 1.0 }, { "x": 2.0, "y": 2.0 }, { "x": 1.0, "y": 2.0 } ], "z": 1.0, "height": 5.0 }
+                        ] } }
+                ],
+                "sharedConstruction": { "boardId": "board", "method": "printed", "mount": "tray",
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0, "pcbThickness": 1.6,
+                    "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                    "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [],
+                    "openings": [
+                        { "points": [ { "x": 0.0, "y": 0.0 }, { "x": 4.0, "y": 0.0 }, { "x": 4.0, "y": 4.0 } ], "z": -1.0, "height": 8.0 }
+                    ] }
+        });
+        let (document, changed) = migrate_value(value).unwrap();
+        assert!(changed);
+        assert_eq!(document["formatVersion"], 3);
+
+        let canonical = &document["mechanical"]["openings"][0];
+        assert_eq!(canonical["id"], "opening-1");
+        assert_eq!(canonical["vertices"][0]["id"], "vertex-1");
+        assert_eq!(
+            canonical["vertices"][0]["point"],
+            json!({ "x": -2.5, "y": -2.5 })
+        );
+        assert_eq!(
+            canonical["vertices"][1]["point"],
+            json!({ "x": 2.5, "y": 2.5 })
+        );
+        assert_eq!(canonical["z"], 0.0);
+        assert_eq!(canonical["height"], 10.0);
+        assert!(canonical.get("points").is_none());
+
+        let shared = &document["hardware"]["sharedConstruction"]["openings"][0];
+        assert_eq!(shared["id"], "opening-1");
+        assert_eq!(
+            shared["vertices"][2]["point"],
+            json!({ "x": 4.0, "y": 4.0 })
+        );
+
+        let instance = &document["hardware"]["instances"][0];
+        assert_eq!(instance["constructionOwnership"], "legacy");
+        assert!(instance.get("constructionLinked").is_none());
+        assert_eq!(instance["mechanical"]["openings"][0]["id"], "opening-1");
+        assert_eq!(
+            instance["mechanical"]["openings"][0]["vertices"][1]["point"],
+            json!({ "x": 2.0, "y": 2.0 })
+        );
+
+        // No mechanical pairs or feature correspondences are invented.
+        assert!(document["hardware"].get("pairs").is_none());
+
+        // The migrated document deserializes and round-trips its geometry.
+        let parsed: crate::model::ProjectDoc = serde_json::from_value(document.clone()).unwrap();
+        let openings = parsed
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .openings
+            .as_ref()
+            .unwrap();
+        assert_eq!(openings[0].id, "opening-1");
+        assert_eq!(openings[0].vertices.len(), 2);
+        assert_eq!(openings[0].vertices[0].point.x, -2.5);
+        assert_eq!(
+            parsed.hardware.as_ref().unwrap().instances[0].construction_ownership,
+            crate::model::MechanicalConstructionOwnership::Legacy
+        );
+    }
+
+    #[test]
     fn migration_is_idempotent_and_leaves_current_documents_alone() {
         let (once, _) = migrate_value(version_1()).unwrap();
         let (twice, changed) = migrate_value(once.clone()).unwrap();
@@ -382,13 +539,13 @@ mod tests {
 
     #[test]
     fn current_documents_keep_their_text() {
-        let text = r#" { "format":"boardstudio/v2", "formatVersion":2, "x": 1 } "#;
+        let text = r#" { "format":"boardstudio/v2", "formatVersion":3, "x": 1 } "#;
         assert_eq!(migrate_json(text).unwrap(), (text.to_owned(), false));
     }
 
     #[test]
     fn rejects_newer_or_malformed_versions() {
-        let newer = migrate_value(json!({ "formatVersion": 3 })).unwrap_err();
+        let newer = migrate_value(json!({ "formatVersion": 4 })).unwrap_err();
         assert!(newer.contains("newer than this app supports"), "{newer}");
         assert!(migrate_value(json!({ "formatVersion": "2" })).is_err());
         assert!(migrate_value(json!({ "formatVersion": null })).is_err());

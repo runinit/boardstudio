@@ -679,7 +679,8 @@ mod tests {
                 flipped,
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: true,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
             }],
             ..HardwareConfiguration::default()
         });
@@ -854,7 +855,8 @@ mod tests {
         let (mut accepted, scope) = snapshot(false, false);
         let document = Arc::make_mut(&mut accepted.document);
         document.revision = 22;
-        document.hardware.as_mut().unwrap().instances[0].construction_linked = false;
+        document.hardware.as_mut().unwrap().instances[0].construction_ownership =
+            boardstudio_core::model::MechanicalConstructionOwnership::Local;
         document.board_references = serde_json::from_str(
             r#"[{"id":"c976e201-ecaf-4ec2-803e-aaa85c250a4d","boardId":"left","assetId":"27a7ecfd-570a-4e96-84c0-1db32be8e683","enabled":true,"pose":{"at":{"x":4.2,"y":-3.1},"rotation":15.0},"elevation":2.5,"modelAssets":{"${KIPRJMOD}/models/31dd9ab0a892e02f43c13f07c3d78f83dbe64390178e64b2f1f6df4849935e5b.stp":"157020b7-1608-4b58-bf00-0aefcb6dd903","${KIPRJMOD}/models/42d7eb2588578a42bfc08d91a8f27e28db37b9c76ff62395bb9bb67a934b23b3.step":"c3a7f7fc-dfa4-4f02-96d4-18ae794e6bf8","${KIPRJMOD}/models/54889afbae4bb3f7deca2a39e9031752845b94e647c1ebbcac7ba1a5261e7e0e.step":"22492d28-81a7-4a1f-8549-b9f2438174da","${KIPRJMOD}/models/77fcad08b9bceca821b32733443e7bc9157230fb6340aa390797f56d5694182f.step":"fd84413b-f8f0-4af5-97ee-95899ad9d6fa","${KIPRJMOD}/models/abe50072b241c6ce69f8e79d787644ab3ff54d1ea09d74ee8025fb2bf4228722.step":"2be1144d-0e37-4fab-93d7-9f02568cd688","${KIPRJMOD}/models/ddf0fb3a776faa6105303efb98e39645e044c43b3ac03cbfe75d8eda28e297f4.stp":"e42a7d7d-49f5-4e33-aaad-67ef79d3939d"}}]"#,
         )

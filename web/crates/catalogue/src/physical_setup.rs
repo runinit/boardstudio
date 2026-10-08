@@ -1,8 +1,8 @@
 //! Private physical-setup proposal rules. This code prepares values only; it never submits edits.
 
 use boardstudio_core::model::{
-    HardwareTopology, HardwareTransport, MechanicalConfiguration, PartDefinition,
-    PhysicalBoardInstance, ProjectDoc,
+    HardwareTopology, HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
+    PartDefinition, PhysicalBoardInstance, ProjectDoc,
 };
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -256,7 +256,7 @@ fn make_instance(
         flipped,
         controller_part_id: None,
         mechanical: Some(mechanical),
-        construction_linked: true,
+        construction_ownership: MechanicalConstructionOwnership::Legacy,
     }
 }
 
@@ -303,7 +303,7 @@ mod tests {
             flipped,
             controller_part_id: Some(format!("{id}-controller")),
             mechanical: Some(mechanical(doc, 4.2)),
-            construction_linked: false,
+            construction_ownership: MechanicalConstructionOwnership::Local,
         }
     }
 
@@ -331,6 +331,7 @@ mod tests {
             instances: vec![primary.clone()],
             boards: vec![electrical.clone()],
             shared_construction: Some(shared.clone()),
+            pairs: vec![],
         });
         doc.parameters.insert("unrelated".into(), json!("keep"));
         let accepted = doc.clone();
@@ -390,6 +391,7 @@ mod tests {
             instances: vec![another_board, primary.clone()],
             boards: vec![],
             shared_construction: None,
+            pairs: vec![],
         });
         let result = propose(
             &doc,
@@ -469,6 +471,7 @@ mod tests {
                 ..Default::default()
             }],
             shared_construction: Some(mechanical(&doc, 5.0)),
+            pairs: vec![],
         });
         let accepted = doc.clone();
         let result = propose(
