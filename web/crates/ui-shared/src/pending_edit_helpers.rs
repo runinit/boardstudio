@@ -1041,7 +1041,7 @@ mod mounted_tests {
     }
 
     #[component]
-    fn FieldChild(initial: String) -> Element {
+    fn FieldChild(initial: String, start_disabled: bool) -> Element {
         let probe = use_context::<UnbindProbe>();
         let helpers = probe
             .helpers
@@ -1051,7 +1051,7 @@ mod mounted_tests {
         let draft = use_signal(|| initial.clone());
         let failure = use_signal(|| None::<String>);
         let composite = use_signal(|| false);
-        let other = use_signal(|| false);
+        let other = use_signal(|| start_disabled);
         use_hook({
             let helpers = helpers.clone();
             move || {
@@ -1107,7 +1107,7 @@ mod mounted_tests {
         let mut mounts = use_signal(|| 0u32);
         rsx! {
             if shown() {
-                FieldChild { key: "{mounts}", initial: if mounts() == 0 { "Zephyr" } else { "Fresh" } }
+                FieldChild { key: "{mounts}", initial: if mounts() == 0 { "Zephyr" } else { "Fresh" }, start_disabled: mounts() > 0 }
             }
             button { id: "unmount", onclick: move |_| shown.set(false), "unmount" }
             button { id: "remount", onclick: move |_| { mounts += 1; shown.set(true); }, "remount" }
@@ -1266,23 +1266,63 @@ mod mounted_tests {
         entered.await.expect("the one-shot reached Core");
         click("#unmount");
         rendered().await;
+        assert!(!exists("#child-other"), "the control is gone and not remounted");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        // Releasing a control through its dropped Signal would panic here.
+        click("#settle-unbind");
+        rendered().await;
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Landed {
+                    key: Field::Other,
+                    ..
+                }
+            )),
+            "the outcome still reaches the caller"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Applied",
+            "the queued Session edit kept executing"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_old_one_shot_outcome_never_re_enables_a_replacement_that_is_disabled() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-other");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the old one-shot reached Core");
+        click("#unmount");
+        rendered().await;
         click("#remount");
         rendered().await;
         assert!(
-            !element("#child-other").has_attribute("disabled"),
-            "a new component starts enabled"
+            element("#child-other").has_attribute("disabled"),
+            "the replacement is disabled for reasons of its own"
         );
         release.send(()).unwrap();
         settle(&runtime).await;
         click("#settle-unbind");
         rendered().await;
-        assert!(probe.results.borrow().iter().any(|result| matches!(
-            result,
-            PendingEditResult::Landed {
-                key: Field::Other,
-                ..
-            }
-        )));
-        assert!(!element("#child-other").has_attribute("disabled"));
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Landed {
+                    key: Field::Other,
+                    ..
+                }
+            )),
+            "the old outcome still reaches the caller for its follow-up"
+        );
+        assert!(
+            element("#child-other").has_attribute("disabled"),
+            "the old outcome never re-enables the replacement"
+        );
     }
 }
