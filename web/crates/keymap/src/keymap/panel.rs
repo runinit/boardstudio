@@ -360,6 +360,7 @@ mod disclosure_mounted_tests {
 
     #[component]
     fn fixture() -> Element {
+        super::super::layer_controller::provide_idle_context();
         let probe = use_context::<Probe>();
         let version = use_signal(|| 0_u64);
         *probe.render.borrow_mut() = Some(version);

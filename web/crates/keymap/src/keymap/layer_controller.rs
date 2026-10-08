@@ -54,6 +54,19 @@ pub(super) struct LayerEditsContext {
     pub(super) name_failure: Signal<Option<String>>,
 }
 
+/// Provides an empty context for panel fixtures that mount the view without the controller.
+#[cfg(test)]
+pub(super) fn provide_idle_context() {
+    let edits = use_signal(LayerPending::default);
+    let name_draft = use_signal(String::new);
+    let name_failure = use_signal(|| None::<String>);
+    use_context_provider(|| LayerEditsContext {
+        edits,
+        name_draft,
+        name_failure,
+    });
+}
+
 pub(super) fn action_pending(request: &KeymapLayerOperation) -> bool {
     try_consume_context::<LayerEditsContext>()
         .is_some_and(|context| context.edits.read().is_pending(&LayerKey::from(request)))

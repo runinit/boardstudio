@@ -2198,8 +2198,12 @@ mod queued_settings_tests {
         let scope = runtime.scope().unwrap();
         let view = keycaps_scene::project(&accepted, &scope, &scope.board_id).unwrap();
         let selected = project_selected_key(&accepted.document, &view, Some("key")).unwrap();
-        let actions = use_keycaps_settings_actions(runtime, source, workspace, generation).unwrap();
-        *probe.actions.borrow_mut() = Some(actions.clone());
+        // Outside the Keycaps workspace the hook offers no actions and nothing renders.
+        let actions = use_keycaps_settings_actions(runtime, source, workspace, generation);
+        *probe.actions.borrow_mut() = actions.clone();
+        let Some(actions) = actions else {
+            return rsx! {};
+        };
         rsx! { KeycapsSettingsEditor { selected, actions } }
     }
 
