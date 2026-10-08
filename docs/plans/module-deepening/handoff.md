@@ -13,6 +13,22 @@ Repo rules: the root `AGENTS.md`.
   branch, on the files its ticket names, and reports back with an `## Outcome` draft.
 - **Human**: answers decision tickets (`Status: ready-for-human`) and approves PRs.
 
+## Current integration checkpoint
+
+Ticket09 and the PCB half are accepted at final source `ed92e9d9`, after their
+preserved external branches merged and root completed consumer fixes. See the
+[09 Outcome](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#outcome),
+[PCB half Outcome](issues/08-parts-and-pcb-onto-pending-edits.md#pcb-half-outcome)
+and [shared contract update](issues/16-pending-edit-ui-helpers.md#coordinated-integration-contract-update-2026-10-08).
+The complete browser gate passed, including page presentation 43/43. Lint/typecheck
+and workspace native tests pass; the full native step still fails the documented
+CAD gasket-volume baseline. Final Standards and Spec reviews have no blockers.
+
+Parts and Layout remain separate, unaccepted streams; parent08 stays claimed and
+cleanup remains blocked. Preserve their worktrees. Use the
+[worktree-specific GitNexus commands](gitnexus-worktree-coverage.md) for new branch
+symbols; only root refreshes canonical `boardstudio` after integration.
+
 ## Waves
 
 A wave starts when every ticket it depends on is merged to `dev`. Tickets in one wave
@@ -81,8 +97,9 @@ panel migrations blocked on that gate.
   the resulting SIGKILL status alone does not establish OOM. The lease is still required.
 - Reviews pin the actual worktree, base and HEAD. Every shell read/review command uses
   that absolute workdir; start by confirming `git rev-parse HEAD` and the diff range.
-  The shared canonical GitNexus index is advisory for worktree edits: confirm stale,
-  empty or UNKNOWN results against the current source and never reindex an agent tree.
+  The canonical `boardstudio` graph covers dev. For branch symbols, refresh the
+  [separately named worktree graph](gitnexus-worktree-coverage.md); confirm empty or
+  UNKNOWN results against current source. Root retains canonical index ownership.
 
 ## Third-app test preparation
 
@@ -147,8 +164,8 @@ Give each agent its ticket path plus this list.
   HIGH/CRITICAL risk before editing. Run `detect_changes` with `scope: all` in the
   correct worktree before each commit. Partial/truncated results require a rerun or
   complete fallback. Use `rename` for renames (the `gitnexus-*` skills). An empty or
-  `UNKNOWN` result is unanswered, not safe: confirm with `rg`. The index is shared by
-  all worktrees and lags their edits; the orchestrator reindexes `dev` after each merge
+  `UNKNOWN` result is unanswered, not safe: confirm with `rg`. The canonical index
+  covers dev; the orchestrator refreshes it after each merge
   (`node .gitnexus/run.cjs analyze --index-only`). Agents may refresh only their
   separately named worktree index using the [worktree coverage workflow](gitnexus-worktree-coverage.md);
   root retains the canonical `boardstudio` index.

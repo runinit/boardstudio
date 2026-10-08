@@ -6,15 +6,16 @@ Worktree: `/home/chris/.codex/worktrees/boardstudio-module-deepening/09-case-key
 Branch: `deepening/09-case-keymap-keycaps-library-pending-edits`  
 Starting dev commit: `8ce860a0950304ddfae34f12d5891b8c6f267f2f`
 
-## Current hold
+## Current integration
 
-The completion pass is committed at `72ba713b7`, with a clean worktree confirmed
-by root. The user asked to wait until PCB is done before deciding whether to change
-the spec or shared contract. Preserve the branch and hold further work on this
-assignment. The instructions below are historical and apply only after root resumes
-the stream. The ticket's [latest checkpoint](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#2026-10-08-completion-pass-held-until-pcb-finishes)
-records the reported checks and unresolved review findings. No additional helper
-API is approved, and root's browser-test pause remains in effect.
+Root completed integration of the preserved external HEAD `72ba713b7`, with final
+source pinned to `ed92e9d9`. The [accepted Outcome](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#outcome)
+records consumer fixes, executed checks, both final reviews and remaining baseline
+limits. The user resumed implementation/testing and authorized necessary spec fixes;
+the former PCB hold and browser pause are superseded. The instructions below are
+historical assignment and completion context. Do not reopen or duplicate this stream.
+The [shared contract update](issues/16-pending-edit-ui-helpers.md#coordinated-integration-contract-update-2026-10-08)
+records the actual lifecycle and typed interface now used by consumers.
 
 ## Work
 
@@ -33,7 +34,7 @@ For text-field migrations, bind the actual stable draft/failure Signals before s
 
 ## Ownership and coordination
 
-This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev`, ticket claims/resolutions and the canonical GitNexus index. Follow the current [GitNexus rules](handoff.md#rules-every-agent-follows), including impact before function edits and complete change analysis before commits. Reindexing belongs to the orchestrator. Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
+This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev`, ticket claims/resolutions and the canonical GitNexus index. Follow the current [GitNexus rules](handoff.md#rules-every-agent-follows), including impact before function edits and complete change analysis before commits. Root owns canonical reindexing; agents may refresh their [separately named worktree graph](gitnexus-worktree-coverage.md). Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
 
 ## Known verification limits
 
