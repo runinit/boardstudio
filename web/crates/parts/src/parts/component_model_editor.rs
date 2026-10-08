@@ -725,6 +725,7 @@ fn ModelVectorEditor(
     let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
+    let mut dirty = use_signal(|| [false; 3]);
     let mut synced = use_signal(|| current);
     let mut error = use_signal(|| None::<String>);
     let failure = use_signal(|| None::<String>);
@@ -749,8 +750,8 @@ fn ModelVectorEditor(
                 axis: axes[index],
             };
             if !pending.is_pending(&key)
+                && !dirty.peek()[index]
                 && current[index] != previous[index]
-                && drafts[index].peek().as_str() == previous[index].to_string()
             {
                 drafts[index].set(current[index].to_string());
             }
@@ -784,6 +785,9 @@ fn ModelVectorEditor(
             };
             // Blur admission lasts only as long as the latest axis edit is pending.
             submitted.write()[index] = None;
+            if drafts[index].peek().as_str() == current[index].to_string() {
+                dirty.write()[index] = false;
+            }
         }
     }
     rsx! {
@@ -803,7 +807,12 @@ fn ModelVectorEditor(
                         value: "{drafts[index]()}",
                         aria_label: "{title} {label} {unit}",
                         aria_invalid: error().is_some(),
-                        oninput: move |event| drafts[index].set(event.value()),
+                        oninput: move |event| {
+                            drafts[index].set(event.value());
+                            // Typing remains a draft even when it returns to the old
+                            // accepted value while an earlier edit is still settling.
+                            dirty.write()[index] = true;
+                        },
                         onblur: move |_| {
                             let raw = drafts[index]().clone();
                             let parsed = raw.trim().parse::<f64>().ok();
@@ -816,7 +825,11 @@ fn ModelVectorEditor(
                             error.set(None);
                             let already_submitted = submitted.peek()[index].as_deref() == Some(raw.as_str());
                             let axis_pending = pending.is_pending(&ModelKey::Transform { field, axis });
-                            if !already_submitted && (number != current[index] || axis_pending) {
+                            if !axis_pending && number == current[index] {
+                                dirty.write()[index] = false;
+                                return;
+                            }
+                            if !already_submitted {
                                 if let Some(resolver) = on_commit.call((axis, raw.clone(), number)) {
                                     // The helper remembers the submitted axis text, so an
                                     // older outcome can never clobber a newer draft.
@@ -845,6 +858,7 @@ fn ModelVectorEditor(
                                     current[index].to_string()
                                 };
                                 drafts[index].set(restored);
+                                dirty.write()[index] = false;
                                 error.set(None);
                             }
                         }
@@ -992,6 +1006,73 @@ mod settlement_tests {
             4.0,
             "the same typed text can land again after Undo"
         );
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_model_axis_preserves_newer_baseline_typing_when_edit_lands() {
+        let runtime = opened().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        tick().await;
+        let x = input(&root, "X");
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        commit(&x, "4").await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        x.focus().unwrap();
+        type_value(&x, "0");
+        tick().await;
+        release.send(()).unwrap();
+        tick().await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x,
+            4.0,
+            "the older committed axis value lands"
+        );
+        assert_eq!(
+            x.value(),
+            "0",
+            "new typing at the previous accepted baseline survives the older landing"
+        );
+
+        x.blur().unwrap();
+        tick().await;
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x,
+            0.0,
+            "the preserved baseline draft can commit after the older edit lands"
+        );
+        runtime.submit(boardstudio_application::Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(x.value(), "4", "the clean axis follows Undo");
+        runtime.submit(boardstudio_application::Event::Redo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        tick().await;
+        assert_eq!(x.value(), "0", "the clean axis follows Redo");
         runtime.unsubscribe();
         root.remove();
     }
