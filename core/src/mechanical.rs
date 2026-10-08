@@ -3,6 +3,7 @@ use crate::model::*;
 pub mod change;
 pub mod clearance;
 pub mod edit;
+pub mod features;
 mod gasket;
 pub mod inputs;
 pub mod pair;
