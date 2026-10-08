@@ -107,13 +107,14 @@ impl CaseEditsContext {
 }
 
 /// Bind a number field's draft and failure Signals to the controller's helper while the
-/// calling component is mounted; they are released when it unmounts.
+/// calling component is mounted; they are released when it unmounts. Return whether
+/// the helper is still observing a pending edit for this field.
 pub(crate) fn use_bound_case_field(
     field_id: &str,
     accepted: String,
     draft: Signal<String>,
     failure: Signal<Option<String>>,
-) {
+) -> bool {
     let context = try_consume_context::<CaseEditsContext>();
     let bound = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
     if let Some(context) = context.as_ref() {
@@ -148,6 +149,12 @@ pub(crate) fn use_bound_case_field(
         }
         *previous = Some(field_id.to_owned());
     }
+    let pending = context.as_ref().is_some_and(|context| {
+        context
+            .pending
+            .read()
+            .is_pending(&BodyEditKey::bound(field_id))
+    });
     use_drop({
         let bound = bound.clone();
         move || {
@@ -163,6 +170,7 @@ pub(crate) fn use_bound_case_field(
             }
         }
     });
+    pending
 }
 
 /// Mount beside the Case preview in the Inspector slot. The shared page passes
@@ -1232,6 +1240,39 @@ mod queued_body_tests {
             support::run_pending(&runtime).await;
             assert_eq!(thickness(&runtime), expected, "each edit has an Undo step");
         }
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn repeated_enter_and_native_blur_commit_one_body_edit_then_the_field_follows_undo() {
+        let (runtime, root) = mounted_two_bodies().await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = thickness_input(&root);
+        let _ = input.focus();
+        type_into(&input, "4");
+        press_enter(&input);
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let duplicate = support::observe_next(&runtime);
+        press_enter(&input);
+        let _ = input.blur();
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        settle_body(&runtime).await;
+        assert_eq!(thickness(&runtime), 4.0);
+        assert!(
+            duplicate.borrow().is_none(),
+            "unchanged Enter and blur admit no second edit"
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        settle_body(&runtime).await;
+        assert_eq!(thickness(&runtime), 3.0, "one input creates one Undo step");
+        assert_eq!(thickness_input(&root).value(), "3");
+        assert!(inline_failure(&root).is_none());
         runtime.unsubscribe();
         root.remove();
     }

@@ -527,10 +527,9 @@ pub fn Library(
                 .is_some_and(|(previous, _)| previous != &owner);
             *observed_name.borrow_mut() = Some(observed);
             let owner_is_live = owner.is_some() && *submitted_name_owner.borrow() == owner;
-            let results = name_edits.settle(owner_is_live, |_| current_name.clone());
-            let settled = !results.is_empty();
+            name_edits.settle(owner_is_live, |_| current_name.clone());
             let pending = name_edits.is_pending(&ProjectNameKey::Name);
-            if owner_changed || (!pending && !*name_dirty.peek() && (changed || settled)) {
+            if owner_changed || (!pending && !*name_dirty.peek() && changed) {
                 project_name.set(current_name);
                 name_dirty.set(false);
             }
@@ -2471,6 +2470,63 @@ mod mounted_tests {
             .delete_project("menu-name-newer-failure".into())
             .await
             .unwrap();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn two_project_name_commits_keep_the_latest_observation_and_both_undo_steps() {
+        use crate::runtime::project_name_test_support as support;
+        let (runtime, root) = mounted_name_field("menu-name-latest-observation").await;
+        let (first_entered, first_release) = support::gate_next_core_reply(&runtime);
+        type_value(&field(), "First name");
+        let _ = field().blur();
+        support::drive_pending(&runtime);
+        first_entered.await.unwrap();
+
+        let (second_entered, second_release) = support::gate_next_core_reply(&runtime);
+        type_value(&field(), "Latest name");
+        let _ = field().blur();
+        support::drive_pending(&runtime);
+        first_release.send(()).unwrap();
+        second_entered.await.unwrap();
+        settle().await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "First name"
+        );
+        assert_eq!(
+            field().value(),
+            "Latest name",
+            "the first landing cannot restore over the latest committed name"
+        );
+        assert!(name_alert(&root).is_none());
+
+        second_release.send(()).unwrap();
+        for _ in 0..12 {
+            support::run_pending(&runtime).await;
+            settle().await;
+        }
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Latest name"
+        );
+        assert_eq!(field().value(), "Latest name");
+        assert!(name_alert(&root).is_none());
+        for expected in ["First name", "Original"] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            support::run_pending(&runtime).await;
+            settle().await;
+            assert_eq!(runtime.model().accepted.unwrap().document.name, expected);
+            assert_eq!(field().value(), expected, "the settled field follows Undo");
+        }
+        runtime
+            .store
+            .delete_project("menu-name-latest-observation".into())
+            .await
+            .unwrap();
+        runtime.unsubscribe();
         root.remove();
     }
 

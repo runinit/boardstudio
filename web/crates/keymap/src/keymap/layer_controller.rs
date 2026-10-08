@@ -102,6 +102,7 @@ pub fn use_layer_operations(
     admission_current: Rc<dyn Fn() -> bool>,
 ) -> LayerActions {
     let version = use_context::<Signal<u64>>()();
+    let observed_workspace = workspace();
     let captured_generation = scope_generation();
     let pending = use_signal(LayerPending::default);
     let name_draft = use_signal(String::new);
@@ -133,13 +134,19 @@ pub fn use_layer_operations(
             *bound = displayed;
         }
     }
-    use_effect(use_reactive((&version,), {
+    use_effect(use_reactive((&version, &observed_workspace), {
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
-        move |_| {
-            // A changed owner retires the observations of the previous one.
-            let owner_scope = runtime.scope();
+        let mut name_failure = name_failure;
+        move |(_, observed_workspace)| {
+            // The Editor hook stays mounted across workspace changes; its hidden
+            // panel has no live UI owner. Session edits remain authoritative.
+            let owner_scope = if observed_workspace == "Keymap" {
+                runtime.scope()
+            } else {
+                None
+            };
             let owner_generation = scope_generation();
             if pending
                 .peek()
@@ -148,6 +155,12 @@ pub fn use_layer_operations(
                 pending
                     .write()
                     .follow_owner(owner_scope.as_ref(), owner_generation);
+                if feedback.peek().is_some() {
+                    feedback.set(None);
+                }
+                if name_failure.peek().is_some() {
+                    name_failure.set(None);
+                }
             }
             if !pending.peek().has_terminal() {
                 return;

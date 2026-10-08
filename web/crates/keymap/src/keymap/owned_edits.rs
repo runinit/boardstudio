@@ -71,6 +71,16 @@ impl<K: PartialEq + Clone + 'static> OwnedEdits<K> {
             .retain(|(existing, _, _)| existing != key);
     }
 
+    /// Read the exact text currently shown by a mounted field before its typed
+    /// request is submitted. The shared helper owns the submitted-value memory.
+    pub(super) fn bound_draft(&self, key: &K) -> Option<String> {
+        self.fields
+            .borrow()
+            .iter()
+            .find(|(existing, _, _)| existing == key)
+            .map(|(_, draft, _)| draft.peek().clone())
+    }
+
     pub fn remember(&mut self, key: K) {
         self.requests.retain(|existing| *existing != key);
         self.requests.push(key);

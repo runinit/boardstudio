@@ -22,7 +22,8 @@ use boardstudio_core::model::{
 };
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::pending_edit_helpers::{FieldView, PendingEditSignals};
+use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     future::Future,
@@ -85,12 +86,84 @@ pub struct MechanicalSettingsController {
         PendingEditSignals<String>,
     )>,
     last_request_id: Cell<u64>,
+    fields: RefCell<Vec<MechanicalField>>,
+    staged_field: RefCell<Option<PreparedField>>,
+}
+
+struct MechanicalField {
+    key: String,
+    view: FieldView,
+    accepted: String,
+    latest_request: Option<u64>,
+}
+
+/// Only catalogue preparation retains this commit-time text and binding identity.
+/// Once a ticket starts, its helper owns both submitted text and binding epochs.
+#[derive(Clone)]
+struct PreparedField {
+    key: String,
+    view: FieldView,
+    text: String,
+}
+
+fn same_field(left: FieldView, right: FieldView) -> bool {
+    left.draft == right.draft && left.failure == right.failure
+}
+
+/// Connect actual child Signals to the existing controller without expanding panel props.
+/// The registry contains only mounted logical controls; dropped views are never read.
+pub(super) fn use_bound_mechanical_field(
+    key: String,
+    accepted: String,
+    draft: Signal<String>,
+    failure: Signal<Option<String>>,
+) -> (Option<Rc<MechanicalSettingsController>>, bool) {
+    let controller = try_consume_context::<Rc<MechanicalSettingsController>>();
+    let bound = use_hook(|| Rc::new(RefCell::new(None::<String>)));
+    let view = FieldView { draft, failure };
+    if let Some(controller) = controller.as_ref() {
+        let mut previous = bound.borrow_mut();
+        if let Some(old) = previous.as_ref()
+            && old != &key
+        {
+            controller.unbind_field(old, view);
+        }
+        controller.bind_field(key.clone(), view, accepted);
+        *previous = Some(key.clone());
+    }
+    let pending = controller.as_ref().is_some_and(|controller| {
+        let latest = controller
+            .fields
+            .borrow()
+            .iter()
+            .find(|field| field.key == key && same_field(field.view, view))
+            .and_then(|field| field.latest_request);
+        controller.requests.borrow().iter().any(|request| {
+            request.key == key
+                && Some(request.request.request_id) == latest
+                && (!matches!(request.phase, SettingsPhase::Submitted)
+                    || controller.edits.borrow().1.is_pending(&key))
+        })
+    });
+    use_drop({
+        let controller = controller.clone();
+        move || {
+            if let Some(controller) = controller
+                && let Some(key) = bound.borrow().as_ref()
+            {
+                controller.unbind_field(key, view);
+            }
+        }
+    });
+    (controller, pending)
 }
 
 #[derive(Clone)]
 struct SettingsEdit {
     request: MechanicalSettingsRequest,
     phase: SettingsPhase,
+    key: String,
+    prepared_field: Option<PreparedField>,
 }
 
 #[derive(Clone)]
@@ -107,6 +180,8 @@ impl MechanicalSettingsController {
             requests: RefCell::new(Vec::new()),
             edits: RefCell::new((None, PendingEditSignals::new())),
             last_request_id: Cell::new(0),
+            fields: RefCell::new(Vec::new()),
+            staged_field: RefCell::new(None),
         })
     }
 
@@ -114,7 +189,63 @@ impl MechanicalSettingsController {
         !self.requests.borrow().is_empty()
     }
 
+    fn bind_field(&self, key: String, view: FieldView, accepted: String) {
+        self.follow_owner();
+        self.edits
+            .borrow()
+            .1
+            .bind_field(key.clone(), view.draft, view.failure);
+        let mut fields = self.fields.borrow_mut();
+        match fields.iter_mut().find(|field| field.key == key) {
+            Some(field) => {
+                if !same_field(field.view, view) {
+                    field.latest_request = None;
+                }
+                field.view = view;
+                field.accepted = accepted;
+            }
+            None => fields.push(MechanicalField {
+                key,
+                view,
+                accepted,
+                latest_request: None,
+            }),
+        }
+    }
+
+    fn unbind_field(&self, key: &str, view: FieldView) {
+        let mut fields = self.fields.borrow_mut();
+        if fields
+            .iter()
+            .any(|field| field.key == key && same_field(field.view, view))
+        {
+            self.edits.borrow().1.unbind_field(&key.to_owned());
+            fields.retain(|field| field.key != key);
+        }
+    }
+
+    /// Keep the original callback's admission path and transfer field metadata only
+    /// during its synchronous submit. Rejected admission leaves no staged request.
+    pub(super) fn request_field(
+        &self,
+        key: String,
+        draft: Signal<String>,
+        failure: Signal<Option<String>>,
+        text: String,
+        on_request: EventHandler<MechanicalSettingsRequest>,
+        request: MechanicalSettingsRequest,
+    ) {
+        let previous = self.staged_field.replace(Some(PreparedField {
+            key,
+            view: FieldView { draft, failure },
+            text,
+        }));
+        on_request.call(request);
+        self.staged_field.replace(previous);
+    }
+
     pub fn submit(self: &Rc<Self>, request: MechanicalSettingsRequest) -> bool {
+        let prepared_field = self.staged_field.borrow_mut().take();
         if request.request_id <= self.last_request_id.get() {
             return false;
         }
@@ -136,10 +267,31 @@ impl MechanicalSettingsController {
         {
             return false;
         }
+        // Preparation has no ticket yet. Remember only the latest admitted request
+        // for the current mounted view, including after that preparation fails.
+        if let Some(submitted) = prepared_field.as_ref()
+            && let Some(field) =
+                self.fields.borrow_mut().iter_mut().find(|field| {
+                    field.key == submitted.key && same_field(field.view, submitted.view)
+                })
+        {
+            field.latest_request = Some(request.request_id);
+            // A newer admitted preparation owns this mounted field immediately.
+            // Detach the old ticket's UI epoch while its Session write continues;
+            // the new ticket will capture this binding only after its loader succeeds.
+            let helper = self.edits.borrow().1.clone();
+            helper.unbind_field(&field.key);
+            helper.bind_field(field.key.clone(), field.view.draft, field.view.failure);
+        }
         let opening_guard = opening_target_guard(&current, &request.patch, &self.requests.borrow());
         self.requests.borrow_mut().push(SettingsEdit {
             request: request.clone(),
             phase: SettingsPhase::Preparing,
+            key: prepared_field.as_ref().map_or_else(
+                || format!("request:{}", request.field_id),
+                |field| field.key.clone(),
+            ),
+            prepared_field,
         });
         self.emit(&request, MechanicalSettingsFeedbackState::Pending, None);
         let owner = Rc::downgrade(self);
@@ -194,10 +346,18 @@ impl MechanicalSettingsController {
                     }
                 }
                 Err(message) => {
-                    owner
-                        .requests
-                        .borrow_mut()
-                        .retain(|pending| pending.request.request_id != request.request_id);
+                    let removed = {
+                        let mut requests = owner.requests.borrow_mut();
+                        requests
+                            .iter()
+                            .position(|pending| pending.request.request_id == request.request_id)
+                            .map(|index| requests.remove(index))
+                    };
+                    // No ticket exists yet: this is catalogue preparation failure,
+                    // projected only to the same still-mounted commit-time field.
+                    if let Some(field) = removed.and_then(|entry| entry.prepared_field) {
+                        owner.fail_preparation(&field, request.request_id, &message);
+                    }
                     owner.emit(
                         &request,
                         MechanicalSettingsFeedbackState::Failed,
@@ -220,29 +380,51 @@ impl MechanicalSettingsController {
                 .filter_map(|pending| match &pending.phase {
                     SettingsPhase::Prepared(resolver) => Some((
                         pending.request.request_id,
-                        pending.request.field_id.clone(),
+                        pending.key.clone(),
+                        pending.prepared_field.clone(),
                         resolver.clone(),
                     )),
                     _ => None,
                 })
                 .collect::<Vec<_>>()
         };
-        for (id, field_id, resolver) in prepared {
+        for (id, key, field, resolver) in prepared {
             self.follow_owner();
             let helper = self.edits.borrow().1.clone();
+            let current_view = self
+                .fields
+                .borrow()
+                .iter()
+                .find(|entry| entry.key == key)
+                .map(|entry| (entry.view, entry.latest_request));
+            let detached = field.as_ref().is_some_and(|field| {
+                current_view.is_none_or(|(view, latest)| {
+                    !same_field(view, field.view) || latest != Some(id)
+                })
+            });
+            if detached {
+                // The ordered preparation prefix cannot have submitted a newer request
+                // behind this one yet. Detaching here therefore cannot invalidate a
+                // newer binding's in-flight ticket, and prevents the old preparation
+                // from acquiring a replacement child's binding epoch.
+                helper.unbind_field(&key);
+            }
             helper.begin_field(
                 self.ports.edit_port.as_ref(),
-                field_id.clone(),
+                key.clone(),
                 "mechanical-settings",
                 Some("mechanical settings".into()),
                 resolver,
-                "",
+                field.as_ref().map_or("", |field| field.text.as_str()),
             );
+            if detached && let Some((view, _)) = current_view {
+                helper.bind_field(key.clone(), view.draft, view.failure);
+            }
             let mut requests = self.requests.borrow_mut();
             // The newest observation replaces the older one for its field.
             requests.retain(|entry| {
                 entry.request.request_id == id
-                    || entry.request.field_id != field_id
+                    || entry.key != key
                     || !matches!(entry.phase, SettingsPhase::Submitted)
             });
             if let Some(pending) = requests
@@ -250,6 +432,7 @@ impl MechanicalSettingsController {
                 .find(|pending| pending.request.request_id == id)
             {
                 pending.phase = SettingsPhase::Submitted;
+                pending.prepared_field = None;
             }
         }
     }
@@ -259,7 +442,7 @@ impl MechanicalSettingsController {
         let live = |request: &MechanicalSettingsRequest| {
             current
                 .as_ref()
-                .is_some_and(|current| same_submitted_owner(&current.identity, &request.identity))
+                .is_some_and(|current| same_owner(&current.identity, &request.identity))
         };
         // A request whose owner has gone retires silently in any phase; a later result
         // for its field then finds no request to report.
@@ -268,9 +451,16 @@ impl MechanicalSettingsController {
             .retain(|pending| live(&pending.request));
         self.follow_owner();
         let helper = self.edits.borrow().1.clone();
-        let results = helper.settle(true, |_| String::new());
+        let results = helper.settle(current.is_some(), |key| {
+            self.fields
+                .borrow()
+                .iter()
+                .find(|field| &field.key == key)
+                .map(|field| field.accepted.clone())
+                .unwrap_or_default()
+        });
         for result in results {
-            let field_id = match &result {
+            let key = match &result {
                 PendingEditResult::Landed { key, .. }
                 | PendingEditResult::Failed { key, .. }
                 | PendingEditResult::Retired { key } => key.clone(),
@@ -280,8 +470,7 @@ impl MechanicalSettingsController {
                 requests
                     .iter()
                     .position(|entry| {
-                        matches!(entry.phase, SettingsPhase::Submitted)
-                            && entry.request.field_id == field_id
+                        matches!(entry.phase, SettingsPhase::Submitted) && entry.key == key
                     })
                     .map(|index| requests.remove(index))
             };
@@ -305,8 +494,8 @@ impl MechanicalSettingsController {
         self.flush_prepared();
     }
 
-    /// Replace the helper when the current owner is no longer the one its observations
-    /// were admitted under, silently retiring them; their Session edits still run.
+    /// Presentation ownership governs UI observations, including leave/return to Case.
+    /// Replacing the helper never cancels the already submitted Session-owned edits.
     fn follow_owner(&self) {
         let Some(current) = (self.ports.current)() else {
             return;
@@ -315,12 +504,37 @@ impl MechanicalSettingsController {
         let changed = edits
             .0
             .as_ref()
-            .is_none_or(|owner| !same_submitted_owner(&current.identity, owner));
+            .is_none_or(|owner| !same_owner(&current.identity, owner));
         if changed {
             if edits.0.is_some() {
                 edits.1 = PendingEditSignals::new();
+                for field in self.fields.borrow_mut().iter_mut() {
+                    field.latest_request = None;
+                    edits
+                        .1
+                        .bind_field(field.key.clone(), field.view.draft, field.view.failure);
+                }
             }
             edits.0 = Some(current.identity);
+        }
+    }
+
+    fn fail_preparation(&self, submitted: &PreparedField, request_id: u64, message: &str) {
+        let field = self
+            .fields
+            .borrow()
+            .iter()
+            .find(|field| {
+                field.key == submitted.key
+                    && same_field(field.view, submitted.view)
+                    && field.latest_request == Some(request_id)
+            })
+            .map(|field| (field.view, field.accepted.clone()));
+        if let Some((mut view, accepted)) = field {
+            if *view.draft.peek() == submitted.text {
+                view.draft.set(accepted);
+            }
+            view.failure.set(Some(message.to_owned()));
         }
     }
 
@@ -765,20 +979,6 @@ fn same_owner(current: &MechanicalSettingsIdentity, request: &MechanicalSettings
     current.editor_instance_id == request.editor_instance_id
         && current.scope_generation == request.scope_generation
         && current.presentation_generation == request.presentation_generation
-        && current.scope == request.scope
-        && current.active_board_id == request.active_board_id
-        && current.configuration_board_id == request.configuration_board_id
-}
-
-/// Once the exact Runtime operation is submitted, leaving and returning to the same Case scope
-/// does not cancel that Session-owned write. Ignore only the presentation generation here; the
-/// original feedback identity is retained, and Resolving continuations still use `same_owner`.
-fn same_submitted_owner(
-    current: &MechanicalSettingsIdentity,
-    request: &MechanicalSettingsIdentity,
-) -> bool {
-    current.editor_instance_id == request.editor_instance_id
-        && current.scope_generation == request.scope_generation
         && current.scope == request.scope
         && current.active_board_id == request.active_board_id
         && current.configuration_board_id == request.configuration_board_id

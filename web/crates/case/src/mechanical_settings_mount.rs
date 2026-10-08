@@ -189,6 +189,7 @@ pub fn use_mechanical_settings_mount(
             })
         }
     });
+    use_context_provider(|| controller.clone());
 
     let version = use_context::<Signal<u64>>();
     let resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);

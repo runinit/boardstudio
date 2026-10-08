@@ -520,8 +520,8 @@ fn legacy_base_binding(snapshot: &AcceptedSnapshot, board_id: &str, key_id: &str
     }
 }
 
-/// Owns binding operation state for the Editor lifetime, including while the
-/// Keymap panel is hidden. Fresh event admission is repeated in the callback.
+/// Keeps controller state for the Editor lifetime while UI observations belong
+/// to the visible Keymap panel. Fresh event admission is repeated in the callback.
 pub fn use_binding_operations(
     runtime: Rc<Runtime>,
     projections: BindingProjectionSources,
@@ -537,6 +537,7 @@ pub fn use_binding_operations(
         current_encoder_projection,
     } = projections;
     let version = use_context::<Signal<u64>>()();
+    let observed_workspace = workspace();
     let encoder_inputs_value = encoder_projection();
     let editor_instance_id = use_hook({
         let runtime = runtime.clone();
@@ -548,11 +549,30 @@ pub fn use_binding_operations(
     let pending = use_signal(BindingPending::default);
     use_context_provider(|| BindingTickets(pending));
     let feedback = use_signal(Vec::<BindingFeedbackState>::new);
-    use_effect(use_reactive((&version,), {
+    use_effect(use_reactive((&version, &observed_workspace), {
         let runtime = runtime.clone();
         let mut pending = pending;
         let mut feedback = feedback;
-        move |_| {
+        move |(_, observed_workspace)| {
+            // The hidden panel retires its observations even though the Editor
+            // hook and authoritative Session work continue.
+            let owner_scope = if observed_workspace == "Keymap" {
+                runtime.scope()
+            } else {
+                None
+            };
+            let owner_generation = scope_generation();
+            if pending
+                .peek()
+                .owner_changed(owner_scope.as_ref(), owner_generation)
+            {
+                pending
+                    .write()
+                    .follow_owner(owner_scope.as_ref(), owner_generation);
+                if !feedback.peek().is_empty() {
+                    feedback.write().clear();
+                }
+            }
             if !pending.peek().has_terminal() {
                 return;
             }
