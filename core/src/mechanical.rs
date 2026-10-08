@@ -74,7 +74,7 @@ fn is_switch_position(part: &Part, definition: &PartDefinition) -> bool {
             .is_some_and(|g| g.source.ends_with("/switch_choc_v1_v2"))
 }
 
-fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
+pub fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
     if part_id.ends_with("foam") {
         return "EVA";
     }
@@ -86,7 +86,7 @@ fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
     }
 }
 
-fn default_layer_process(
+pub fn default_layer_process(
     part_id: &str,
     method: PlateMethod,
     thickness: f64,
@@ -102,6 +102,81 @@ fn default_layer_process(
         method,
         thickness,
         constraints_version: "2026-09-24".into(),
+    }
+}
+
+/// The plate-to-PCB mounting datum baseline for a switch family.
+pub fn mounting_datum(family: MechanicalSwitchFamily) -> f64 {
+    switch_mounting_datum(family)
+}
+
+/// The default plate thickness for a switch family.
+pub fn default_plate_thickness(family: MechanicalSwitchFamily) -> f64 {
+    if family == MechanicalSwitchFamily::ChocV1 {
+        1.3
+    } else {
+        1.5
+    }
+}
+
+/// The default plate-foam thickness for a plate-to-PCB gap.
+pub fn default_plate_foam_thickness(gap: f64) -> f64 {
+    (((gap - 0.2).min(3.0) + 0.000001) * 10.0).floor().max(0.0) / 10.0
+}
+
+/// The default gasket layout used when gasket mounting is first selected.
+pub fn default_gasket_layout() -> MechanicalGasketLayout {
+    MechanicalGasketLayout {
+        auto_size: Some(true),
+        adhesive_thickness: None,
+        minimum_foam_thickness: None,
+        preset_id: None,
+        material: None,
+        length: 80.0,
+        width: 3.0,
+        thickness: 2.0,
+        compression: 0.15,
+        supports: Vec::new(),
+    }
+}
+
+/// The default internal gasket (internal closure) configuration.
+pub fn default_internal_gasket() -> InternalGasketConfiguration {
+    InternalGasketConfiguration {
+        version: GasketConstructionVersion::InternalV1,
+        minimum_wall: 2.0,
+        support_clearance: None,
+        tolerance: 0.05,
+        support_count: 4,
+        auto_count: Some(true),
+        hardware: InternalClosureHardware {
+            id: "custom-m2".into(),
+            thread: "M2 × 0.4".into(),
+            screw_lengths: vec![8.0, 10.0, 12.0, 14.0, 15.0, 16.0],
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            fixed_length: None,
+            head_diameter: 4.0,
+            head_height: 1.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            insert_length: 3.0,
+            seat_diameter: 2.8,
+            seat_depth: 3.5,
+            engagement: 2.5,
+            thread_start: 0.2,
+            tip_allowance: 0.1,
+            bottoming_clearance: 0.5,
+            roof: 1.5,
+            surround: 1.5,
+            seat_lead_depth: 0.25,
+            seat_lead_diameter: 3.0,
+            bearing_thickness: 1.5,
+        },
     }
 }
 
@@ -3566,5 +3641,43 @@ mod tests {
                 .iter()
                 .any(|d| d.id == "mechanical:gasket-rigid-frame")
         );
+    }
+}
+
+#[cfg(test)]
+mod default_tests {
+    use super::*;
+
+    #[test]
+    fn mechanical_defaults_have_their_reference_values() {
+        assert_eq!(mounting_datum(MechanicalSwitchFamily::Mx), 5.0);
+        assert_eq!(mounting_datum(MechanicalSwitchFamily::ChocV1), 3.5);
+        assert_eq!(mounting_datum(MechanicalSwitchFamily::ChocV2), 5.0);
+        assert_eq!(default_plate_thickness(MechanicalSwitchFamily::Mx), 1.5);
+        assert_eq!(default_plate_thickness(MechanicalSwitchFamily::ChocV1), 1.3);
+        assert_eq!(default_plate_foam_thickness(3.5), 3.0);
+        assert_eq!(default_plate_foam_thickness(0.0), 0.0);
+        assert_eq!(default_material("plate", &PlateMethod::Printed), "PLA");
+        assert_eq!(default_material("plate-foam", &PlateMethod::Printed), "EVA");
+        let process = default_layer_process("plate-foam", PlateMethod::Printed, 2.0);
+        assert_eq!(process.method, PlateMethod::CutSheet);
+        assert_eq!(process.material, "EVA");
+        assert_eq!(process.thickness, 2.0);
+        let layout = default_gasket_layout();
+        assert_eq!(layout.length, 80.0);
+        assert_eq!(layout.width, 3.0);
+        assert_eq!(layout.compression, 0.15);
+        assert!(layout.supports.is_empty());
+        let gasket = default_internal_gasket();
+        assert_eq!(gasket.version, GasketConstructionVersion::InternalV1);
+        assert_eq!(gasket.hardware.id, "custom-m2");
+        assert_eq!(
+            gasket.hardware.screw_lengths,
+            vec![8.0, 10.0, 12.0, 14.0, 15.0, 16.0]
+        );
+        assert_eq!(gasket.hardware.drive, ScrewDrive::Hex);
+        assert_eq!(gasket.hardware.installation, InsertInstallation::HeatSet);
+        assert_eq!(gasket.hardware.head_profile, ScrewHeadProfile::Flat);
+        assert_eq!(gasket.hardware.length_datum, ScrewLengthDatum::UnderHead);
     }
 }

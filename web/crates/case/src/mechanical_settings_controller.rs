@@ -753,11 +753,12 @@ fn prepare_document(
                         .or_else(|| initial_switch_family(base_document, &configuration.board_id));
                     let family_changed = family_assignment_changes(existing_family, *family);
                     let plate_thickness = if family_changed {
-                        default_plate_thickness(*family)
+                        boardstudio_core::mechanical::default_plate_thickness(*family)
                     } else {
                         configuration.plate_thickness
                     };
-                    let plate_to_pcb = mounting_datum(*family) - plate_thickness;
+                    let plate_to_pcb =
+                        boardstudio_core::mechanical::mounting_datum(*family) - plate_thickness;
                     let source = match family {
                         MechanicalSwitchFamily::Mx => MechanicalBuiltinProfile::MxSwitch,
                         MechanicalSwitchFamily::ChocV1 => MechanicalBuiltinProfile::ChocV1Switch,
@@ -777,7 +778,9 @@ fn prepare_document(
                         configuration.plate_thickness = plate_thickness;
                         configuration.plate_to_pcb = plate_to_pcb;
                         configuration.plate_foam_thickness =
-                            default_plate_foam_thickness(plate_to_pcb);
+                            boardstudio_core::mechanical::default_plate_foam_thickness(
+                                plate_to_pcb,
+                            );
                     }
                     configuration.profiles.push(profile);
                 }
@@ -847,7 +850,8 @@ fn prepare_document(
                         source: format!("KiCad {}", definition.name),
                         cutouts: Vec::new(),
                         plate_to_pcb: family.map_or(configuration.plate_to_pcb, |family| {
-                            mounting_datum(family) - configuration.plate_thickness
+                            boardstudio_core::mechanical::mounting_datum(family)
+                                - configuration.plate_thickness
                         }),
                     });
                 }
@@ -1408,13 +1412,13 @@ fn apply_patch(
                 }
                 configuration
                     .gasket_layout
-                    .get_or_insert_with(default_gasket_layout);
+                    .get_or_insert_with(boardstudio_core::mechanical::default_gasket_layout);
                 if configuration.internal_gasket.is_none() {
                     configuration.gasket_travel = Some(0.1);
                 }
                 configuration
                     .internal_gasket
-                    .get_or_insert_with(default_internal_gasket);
+                    .get_or_insert_with(boardstudio_core::mechanical::default_internal_gasket);
                 configuration.integrated_plate_frame = false;
                 configuration.bottom_style = Some(MechanicalBottomStyle::Shell);
                 configuration.middle_frame = Some(false);
@@ -1645,7 +1649,7 @@ fn apply_patch(
             }
             let layout = configuration
                 .gasket_layout
-                .get_or_insert_with(default_gasket_layout);
+                .get_or_insert_with(boardstudio_core::mechanical::default_gasket_layout);
             for source in anchors {
                 let mut anchor = source.clone();
                 if *field == MechanicalDimension::GasketSupportLength {
@@ -1690,7 +1694,7 @@ fn apply_patch(
             }
             let layout = configuration
                 .gasket_layout
-                .get_or_insert_with(default_gasket_layout);
+                .get_or_insert_with(boardstudio_core::mechanical::default_gasket_layout);
             for source in anchors {
                 let mut anchor = source.clone();
                 anchor.placement = Some(GasketPlacement::User);
@@ -1745,7 +1749,7 @@ fn apply_patch(
             }
             let layout = configuration
                 .gasket_layout
-                .get_or_insert_with(default_gasket_layout);
+                .get_or_insert_with(boardstudio_core::mechanical::default_gasket_layout);
             for source in anchors {
                 let mut anchor = source.clone();
                 anchor.unlinked = true;
@@ -1769,7 +1773,7 @@ fn apply_patch(
             }
             configuration
                 .gasket_layout
-                .get_or_insert_with(default_gasket_layout)
+                .get_or_insert_with(boardstudio_core::mechanical::default_gasket_layout)
                 .supports
                 .clear();
         }
@@ -1872,19 +1876,23 @@ fn apply_patch(
             {
                 return Err("The selected switch profile is no longer available.".into());
             }
-            let plate_thickness = default_plate_thickness(*family);
-            let plate_to_pcb = mounting_datum(*family) - plate_thickness;
+            let plate_thickness = boardstudio_core::mechanical::default_plate_thickness(*family);
+            let plate_to_pcb =
+                boardstudio_core::mechanical::mounting_datum(*family) - plate_thickness;
             for profile in &mut configuration.profiles {
                 if profile.definition_id == *definition_id {
                     profile.switch_family = Some(*family);
                     profile.plate_to_pcb = plate_to_pcb;
                 } else if let Some(other_family) = profile.switch_family {
-                    profile.plate_to_pcb = mounting_datum(other_family) - plate_thickness;
+                    profile.plate_to_pcb =
+                        boardstudio_core::mechanical::mounting_datum(other_family)
+                            - plate_thickness;
                 }
             }
             configuration.plate_thickness = plate_thickness;
             configuration.plate_to_pcb = plate_to_pcb;
-            configuration.plate_foam_thickness = default_plate_foam_thickness(plate_to_pcb);
+            configuration.plate_foam_thickness =
+                boardstudio_core::mechanical::default_plate_foam_thickness(plate_to_pcb);
         }
         MechanicalSettingsPatch::AddProcessOverride { part_id } => {
             if !is_process_target(document, part_id) {
@@ -1907,7 +1915,9 @@ fn apply_patch(
             configuration
                 .part_processes
                 .get_or_insert_with(Vec::new)
-                .push(default_process(part_id, method, thickness));
+                .push(boardstudio_core::mechanical::default_layer_process(
+                    part_id, method, thickness,
+                ));
         }
         MechanicalSettingsPatch::RemoveProcessOverride { part_id } => {
             let processes = configuration.part_processes.as_mut().ok_or_else(|| {
@@ -1932,7 +1942,8 @@ fn apply_patch(
                 if previous_method != *method
                     && !material_options(part_id, method).contains(&process.material.as_str())
                 {
-                    process.material = default_material(part_id, method).into();
+                    process.material =
+                        boardstudio_core::mechanical::default_material(part_id, method).into();
                 }
             }
         }
@@ -1997,18 +2008,24 @@ fn apply_patch(
     if let Some(new_plate_thickness) = new_plate_thickness
         && let Some(family) = family
     {
-        let previous_gap = mounting_datum(family) - previous.plate_thickness;
-        configuration.plate_to_pcb = mounting_datum(family) - new_plate_thickness;
+        let previous_gap =
+            boardstudio_core::mechanical::mounting_datum(family) - previous.plate_thickness;
+        configuration.plate_to_pcb =
+            boardstudio_core::mechanical::mounting_datum(family) - new_plate_thickness;
         for profile in &mut configuration.profiles {
             if profile.switch_family == Some(family) {
                 profile.plate_to_pcb = configuration.plate_to_pcb;
             }
         }
-        if (previous.plate_foam_thickness - default_plate_foam_thickness(previous_gap)).abs()
+        if (previous.plate_foam_thickness
+            - boardstudio_core::mechanical::default_plate_foam_thickness(previous_gap))
+        .abs()
             < 0.001
         {
             configuration.plate_foam_thickness =
-                default_plate_foam_thickness(configuration.plate_to_pcb);
+                boardstudio_core::mechanical::default_plate_foam_thickness(
+                    configuration.plate_to_pcb,
+                );
         }
     }
     let skip_process_normalization = matches!(
@@ -2446,7 +2463,9 @@ fn normalize_processes(
             material_options(&process.part_id, &method).contains(&process.material.as_str());
         if is_standard {
             if method_changed || !valid_material {
-                process.material = default_material(&process.part_id, &method).into();
+                process.material =
+                    boardstudio_core::mechanical::default_material(&process.part_id, &method)
+                        .into();
             }
             process.method = method;
             process.thickness = match process.part_id.as_str() {
@@ -2472,21 +2491,6 @@ fn process_default_thickness(configuration: &MechanicalConfiguration, part_id: &
         "bottom-foam" => configuration.bottom_foam_thickness,
         "bottom" => configuration.bottom_thickness,
         _ => configuration.plate_thickness,
-    }
-}
-
-fn default_process(part_id: &str, method: PlateMethod, thickness: f64) -> MechanicalPartProcess {
-    let method = if part_id.ends_with("foam") {
-        PlateMethod::CutSheet
-    } else {
-        method
-    };
-    MechanicalPartProcess {
-        part_id: part_id.to_owned(),
-        material: default_material(part_id, &method).to_owned(),
-        method,
-        thickness,
-        constraints_version: "2026-09-24".into(),
     }
 }
 
@@ -2564,19 +2568,6 @@ fn material_options(part_id: &str, method: &PlateMethod) -> &'static [&'static s
     }
 }
 
-fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
-    if part_id.ends_with("foam") {
-        "EVA"
-    } else {
-        match method {
-            PlateMethod::Printed => "PLA",
-            PlateMethod::Cnc => "Aluminium",
-            PlateMethod::CutSheet => "Acrylic",
-            PlateMethod::PcbFr4 => "FR-4",
-        }
-    }
-}
-
 fn profile_family(configuration: &MechanicalConfiguration) -> Option<MechanicalSwitchFamily> {
     let mut families = configuration
         .profiles
@@ -2643,14 +2634,6 @@ fn definition_family(definition: &PartDefinition, part: &Part) -> Option<Mechani
     }
 }
 
-fn default_plate_thickness(family: MechanicalSwitchFamily) -> f64 {
-    if family == MechanicalSwitchFamily::ChocV1 {
-        1.3
-    } else {
-        1.5
-    }
-}
-
 fn family_assignment_changes(
     existing_family: Option<MechanicalSwitchFamily>,
     selected_family: MechanicalSwitchFamily,
@@ -2658,74 +2641,8 @@ fn family_assignment_changes(
     existing_family != Some(selected_family)
 }
 
-fn mounting_datum(family: MechanicalSwitchFamily) -> f64 {
-    if family == MechanicalSwitchFamily::ChocV1 {
-        3.5
-    } else {
-        5.0
-    }
-}
-
-fn default_plate_foam_thickness(gap: f64) -> f64 {
-    (((gap - 0.2).min(3.0) + 0.000001) * 10.0).floor().max(0.0) / 10.0
-}
-
 fn patch_field_id(patch: &MechanicalSettingsPatch) -> String {
     patch.field_id()
-}
-
-fn default_gasket_layout() -> MechanicalGasketLayout {
-    MechanicalGasketLayout {
-        auto_size: Some(true),
-        adhesive_thickness: None,
-        minimum_foam_thickness: None,
-        preset_id: None,
-        material: None,
-        length: 80.0,
-        width: 3.0,
-        thickness: 2.0,
-        compression: 0.15,
-        supports: Vec::new(),
-    }
-}
-
-fn default_internal_gasket() -> InternalGasketConfiguration {
-    InternalGasketConfiguration {
-        version: GasketConstructionVersion::InternalV1,
-        minimum_wall: 2.0,
-        support_clearance: None,
-        tolerance: 0.05,
-        support_count: 4,
-        auto_count: Some(true),
-        hardware: InternalClosureHardware {
-            id: "custom-m2".into(),
-            thread: "M2 × 0.4".into(),
-            screw_lengths: vec![8.0, 10.0, 12.0, 14.0, 15.0, 16.0],
-            thread_diameter: 2.0,
-            pitch: 0.4,
-            drive: ScrewDrive::Hex,
-            installation: InsertInstallation::HeatSet,
-            length_datum: ScrewLengthDatum::UnderHead,
-            head_profile: ScrewHeadProfile::Flat,
-            fixed_length: None,
-            head_diameter: 4.0,
-            head_height: 1.0,
-            hole_diameter: 2.2,
-            insert_diameter: 3.2,
-            insert_length: 3.0,
-            seat_diameter: 2.8,
-            seat_depth: 3.5,
-            engagement: 2.5,
-            thread_start: 0.2,
-            tip_allowance: 0.1,
-            bottoming_clearance: 0.5,
-            roof: 1.5,
-            surround: 1.5,
-            seat_lead_depth: 0.25,
-            seat_lead_diameter: 3.0,
-            bearing_thickness: 1.5,
-        },
-    }
 }
 
 fn closure_hardware_mut(
@@ -3552,7 +3469,7 @@ mod battery_patch_tests {
     fn plate_process_thickness_matches_dimension_profile_and_default_foam_sync() {
         let document = ProjectDoc::empty("doc", "doc");
         let mut base = configuration();
-        base.plate_foam_thickness = default_plate_foam_thickness(3.5);
+        base.plate_foam_thickness = boardstudio_core::mechanical::default_plate_foam_thickness(3.5);
         base.profiles.push(MechanicalPartProfile {
             source_geometry: None,
             pcb_holes: None,
@@ -3889,7 +3806,7 @@ mod battery_patch_tests {
                 unlinked: false,
             },
         ];
-        let mut layout = default_gasket_layout();
+        let mut layout = boardstudio_core::mechanical::default_gasket_layout();
         layout.supports = anchors.clone();
         configuration.gasket_layout = Some(layout);
         assert!(configuration.internal_gasket.is_none());
