@@ -20,7 +20,8 @@ use boardstudio_core::model::{
     MountKind, Part, PartDefinition, PartKind, PlateMethod, ProjectDoc, ScrewDrive,
     ScrewHeadProfile, ScrewLengthDatum, Vec2, Vec3,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::edit_ticket::EditTicketPort;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use std::{
     cell::{Cell, RefCell},
     future::Future,
@@ -69,13 +70,15 @@ pub struct MechanicalResolution {
 pub struct MechanicalSettingsPorts {
     pub current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
     pub load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
-    pub begin_edit: Rc<dyn Fn(EditResolver) -> EditTicket>,
+    pub edit_port: Rc<dyn EditTicketPort>,
     pub publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
 }
 
 pub struct MechanicalSettingsController {
     ports: MechanicalSettingsPorts,
     requests: RefCell<Vec<SettingsEdit>>,
+    /// The latest observed edit per field; an older edit for the field still runs.
+    edits: RefCell<PendingEdits<String>>,
     last_request_id: Cell<u64>,
 }
 
@@ -89,7 +92,7 @@ struct SettingsEdit {
 enum SettingsPhase {
     Preparing,
     Prepared(EditResolver),
-    Submitted(EditTicket),
+    Submitted,
 }
 
 impl MechanicalSettingsController {
@@ -97,6 +100,7 @@ impl MechanicalSettingsController {
         Rc::new(Self {
             ports,
             requests: RefCell::new(Vec::new()),
+            edits: RefCell::new(PendingEdits::default()),
             last_request_id: Cell::new(0),
         })
     }
@@ -209,55 +213,84 @@ impl MechanicalSettingsController {
                 .iter()
                 .take_while(|pending| !matches!(pending.phase, SettingsPhase::Preparing))
                 .filter_map(|pending| match &pending.phase {
-                    SettingsPhase::Prepared(resolver) => {
-                        Some((pending.request.request_id, resolver.clone()))
-                    }
+                    SettingsPhase::Prepared(resolver) => Some((
+                        pending.request.request_id,
+                        pending.request.field_id.clone(),
+                        resolver.clone(),
+                    )),
                     _ => None,
                 })
                 .collect::<Vec<_>>()
         };
-        for (id, resolver) in prepared {
-            let ticket = (self.ports.begin_edit)(resolver);
-            if let Some(pending) = self
-                .requests
-                .borrow_mut()
+        for (id, field_id, resolver) in prepared {
+            self.edits.borrow_mut().begin(
+                self.ports.edit_port.as_ref(),
+                field_id.clone(),
+                "mechanical-settings",
+                Some("mechanical settings".into()),
+                resolver,
+            );
+            let mut requests = self.requests.borrow_mut();
+            // The newest observation replaces the older one for its field.
+            requests.retain(|entry| {
+                entry.request.request_id == id
+                    || entry.request.field_id != field_id
+                    || !matches!(entry.phase, SettingsPhase::Submitted)
+            });
+            if let Some(pending) = requests
                 .iter_mut()
                 .find(|pending| pending.request.request_id == id)
             {
-                pending.phase = SettingsPhase::Submitted(ticket);
+                pending.phase = SettingsPhase::Submitted;
             }
         }
     }
 
     pub fn settle(&self) {
         let current = (self.ports.current)();
-        let requests = self.requests.borrow().clone();
-        for pending in requests {
-            let live = current.as_ref().is_some_and(|current| {
-                same_submitted_owner(&current.identity, &pending.request.identity)
-            });
-            let settlement = match &pending.phase {
-                SettingsPhase::Submitted(ticket) => ticket.settlement(live),
-                _ if live => continue,
-                _ => Settlement::Retired,
+        let live = |request: &MechanicalSettingsRequest| {
+            current
+                .as_ref()
+                .is_some_and(|current| same_submitted_owner(&current.identity, &request.identity))
+        };
+        // A request whose owner has gone retires silently in any phase; a later result
+        // for its field then finds no request to report.
+        self.requests
+            .borrow_mut()
+            .retain(|pending| live(&pending.request));
+        let results = self.edits.borrow_mut().settle(true);
+        for result in results {
+            let field_id = match &result {
+                PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key } => key.clone(),
             };
-            match settlement {
-                Settlement::Pending => continue,
-                Settlement::Landed { .. } => self.emit(
-                    &pending.request,
-                    MechanicalSettingsFeedbackState::Saved,
+            let settled = {
+                let mut requests = self.requests.borrow_mut();
+                requests
+                    .iter()
+                    .position(|entry| {
+                        matches!(entry.phase, SettingsPhase::Submitted)
+                            && entry.request.field_id == field_id
+                    })
+                    .map(|index| requests.remove(index))
+            };
+            let Some(settled) = settled else {
+                continue;
+            };
+            match result {
+                PendingEditResult::Landed { .. } => self.emit(
+                    &settled.request,
+                    MechanicalSettingsFeedbackState::Landed,
                     None,
                 ),
-                Settlement::Failed { message } => self.emit(
-                    &pending.request,
+                PendingEditResult::Failed { message, .. } => self.emit(
+                    &settled.request,
                     MechanicalSettingsFeedbackState::Failed,
                     Some(message),
                 ),
-                Settlement::Retired => {}
+                PendingEditResult::Retired { .. } => {}
             }
-            self.requests
-                .borrow_mut()
-                .retain(|entry| entry.request.request_id != pending.request.request_id);
         }
         self.flush_prepared();
     }
@@ -2542,14 +2575,7 @@ mod battery_patch_tests {
                 let template = template.clone();
                 Box::pin(async move { Ok(template) })
             }),
-            begin_edit: Rc::new(move |resolver| {
-                EditTicket::begin(
-                    &submit_runtime,
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            }),
+            edit_port: Rc::new(submit_runtime),
             publish: Rc::new(|_| {}),
         });
         let request = |request_id, field, value| {
@@ -2668,14 +2694,7 @@ mod battery_patch_tests {
                 let template = template.clone();
                 Box::pin(async move { Ok(template) })
             }),
-            begin_edit: Rc::new(move |resolver| {
-                EditTicket::begin(
-                    &submit_runtime,
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            }),
+            edit_port: Rc::new(submit_runtime),
             publish: Rc::new(|_| {}),
         });
         let request = |request_id, patch: MechanicalSettingsPatch| MechanicalSettingsRequest {
@@ -2800,14 +2819,7 @@ mod battery_patch_tests {
                 let template = template.clone();
                 Box::pin(async move { Ok(template) })
             }),
-            begin_edit: Rc::new(move |resolver| {
-                EditTicket::begin(
-                    &submit_runtime,
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            }),
+            edit_port: Rc::new(submit_runtime),
             publish: Rc::new(|_| {}),
         });
         let request = |request_id, patch: MechanicalSettingsPatch| MechanicalSettingsRequest {
@@ -2941,14 +2953,7 @@ mod battery_patch_tests {
                 let template = template.clone();
                 Box::pin(async move { Ok(template) })
             }),
-            begin_edit: Rc::new(move |resolver| {
-                EditTicket::begin(
-                    &submit_runtime,
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            }),
+            edit_port: Rc::new(submit_runtime),
             publish: Rc::new(|_| {}),
         });
         let request = |request_id, patch: MechanicalSettingsPatch| MechanicalSettingsRequest {

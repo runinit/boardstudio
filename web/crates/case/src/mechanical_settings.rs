@@ -803,7 +803,7 @@ pub struct MechanicalSettingsProps {
     pub editable: bool,
     pub disabled_reason: Option<String>,
     /// Bounded per-request feedback keeps a rejected raced submit from replacing the
-    /// currently admitted operation's Pending/Saved response.
+    /// currently admitted operation's Pending/Landed response.
     pub feedback: Rc<[MechanicalSettingsFeedback]>,
     pub summary_feedback: Option<MechanicalSettingsFeedback>,
     pub on_request: EventHandler<MechanicalSettingsRequest>,
@@ -999,9 +999,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
-                    if feedback.state == MechanicalSettingsFeedbackState::Saved {
-                        p { role: "status", "Mechanical settings saved." }
-                    } else if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
+                    if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
                         && let Some(message) = feedback.message.as_deref()
                     {
                         p { role: "alert", "{message}" }
@@ -3821,15 +3819,15 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 match feedback.state {
                     MechanicalSettingsFeedbackState::Pending => {
                         // The accepted token can advance before persistence settles. Keep this
-                        // field's submitted draft until its exact request receives Saved or Failed.
+                        // field's submitted draft until its exact request receives Landed or Failed.
                         status_for_ack.set(Some("Saving…".to_owned()));
                         return;
                     }
-                    MechanicalSettingsFeedbackState::Saved => {
+                    MechanicalSettingsFeedbackState::Landed => {
                         draft_for_ack.set(accepted.to_string());
                         dirty_for_ack.set(false);
                         error_for_ack.set(None);
-                        status_for_ack.set(Some("Saved".to_owned()));
+                        status_for_ack.set(None);
                         submitted_for_ack.set(None);
                         return;
                     }
@@ -4093,11 +4091,11 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 Some((MechanicalSettingsFeedbackState::Pending, _)) => {
                     status_for_ack.set(Some("Saving…".to_owned()));
                 }
-                Some((MechanicalSettingsFeedbackState::Saved, _)) => {
+                Some((MechanicalSettingsFeedbackState::Landed, _)) => {
                     draft_for_ack.set(accepted);
                     dirty_for_ack.set(false);
                     error_for_ack.set(None);
-                    status_for_ack.set(Some("Saved".to_owned()));
+                    status_for_ack.set(None);
                     submitted_for_ack.set(None);
                 }
                 Some((MechanicalSettingsFeedbackState::Failed, message)) => {

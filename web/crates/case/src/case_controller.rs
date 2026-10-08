@@ -1,8 +1,8 @@
 //! Private Case authoring adapter. The child owns drafts; Runtime remains authoritative.
 use super::case_bodies::{
-    CaseBoardSummary, CaseBodies, CaseBodyEdit, CaseBodyEditFeedback, CaseBodyEditState,
-    CaseBodyRequest, CaseMismatch,
+    CaseBoardSummary, CaseBodies, CaseBodyEdit, CaseBodyEditFeedback, CaseBodyRequest, CaseMismatch,
 };
+use crate::observed_edits::ObservedEdits;
 use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
@@ -12,16 +12,20 @@ use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-#[derive(Clone)]
-struct BodyEditTicket {
+struct BodyEditMeta {
     request: CaseBodyRequest,
-    ticket: EditTicket,
     created_body_id: Option<String>,
 }
+
+/// A body field's logical identity: the latest edit for it replaces the earlier one. Edits
+/// without a field share one key.
+type BodyEditKey = Option<String>;
+
+type BodyEditPending = ObservedEdits<BodyEditKey, BodyEditMeta>;
 
 /// Mount beside the Case preview in the Inspector slot. The shared page passes
 /// its already scope-guarded configured-board navigation callback.
@@ -37,7 +41,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     });
     let mut body_edit_portal = use_context::<super::case_viewer::CaseSelection>().body_edit_portal;
     let request_sequence = use_signal(|| 0_u64);
-    let pending = use_signal(|| Vec::<BodyEditTicket>::new());
+    let pending = use_signal(BodyEditPending::default);
     let feedback = use_signal(|| Vec::<CaseBodyEditFeedback>::new());
     let body_edit_dispatch = use_hook({
         let runtime = runtime.clone();
@@ -138,32 +142,27 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
+            if !pending.peek().has_terminal() {
+                return;
+            }
             let scope = runtime.scope();
-            let mut remaining = Vec::new();
             let mut next_feedback = feedback.peek().clone();
-            for waiting in pending.peek().iter() {
-                match waiting
-                    .ticket
-                    .settlement(scope.as_ref() == Some(&waiting.request.scope))
-                {
-                    Settlement::Pending => remaining.push(waiting.clone()),
-                    Settlement::Landed { .. } => record_feedback(
-                        &mut next_feedback,
-                        feedback_for(waiting, CaseBodyEditState::Saved, None),
-                    ),
-                    Settlement::Failed { message } => record_feedback(
-                        &mut next_feedback,
-                        feedback_for(waiting, CaseBodyEditState::Failed, Some(message)),
-                    ),
-                    Settlement::Retired => {
+            for (observation, result) in pending.write().settle() {
+                let waiting = observation.meta;
+                let live = scope.as_ref() == Some(&waiting.request.scope);
+                match result {
+                    PendingEditResult::Landed { .. } if live => {
+                        record_feedback(&mut next_feedback, feedback_for(&waiting, None));
+                    }
+                    PendingEditResult::Failed { message, .. } if live => {
+                        record_feedback(&mut next_feedback, feedback_for(&waiting, Some(message)))
+                    }
+                    _ => {
                         next_feedback.retain(|entry| entry.request_id != waiting.request.request_id)
                     }
                 }
             }
-            if remaining.len() != pending.peek().len() {
-                pending.set(remaining);
-                feedback.set(next_feedback);
-            }
+            feedback.set(next_feedback);
         }
     }));
 
@@ -277,11 +276,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
     }
 }
 
-fn feedback_for(
-    pending: &BodyEditTicket,
-    state: CaseBodyEditState,
-    message: Option<String>,
-) -> CaseBodyEditFeedback {
+fn feedback_for(pending: &BodyEditMeta, failure: Option<String>) -> CaseBodyEditFeedback {
     CaseBodyEditFeedback {
         editor_instance_id: pending.request.editor_instance_id,
         scope: pending.request.scope.clone(),
@@ -289,8 +284,8 @@ fn feedback_for(
         revision: pending.request.revision,
         request_id: pending.request.request_id,
         field_id: pending.request.field_id.clone(),
-        state,
-        message,
+        pending: false,
+        failure,
         created_body_id: pending.created_body_id.clone(),
     }
 }
@@ -312,7 +307,7 @@ fn submit_body_edit(
     runtime: &Rc<Runtime>,
     instance_selection: super::InstanceSelection,
     editor_instance_id: u64,
-    pending: &mut Signal<Vec<BodyEditTicket>>,
+    pending: &mut Signal<BodyEditPending>,
     feedback: &mut Signal<Vec<CaseBodyEditFeedback>>,
     request: CaseBodyRequest,
 ) {
@@ -340,8 +335,8 @@ fn submit_body_edit(
     if let Some(action_id) = request.edit.action_id()
         && pending
             .peek()
-            .iter()
-            .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
+            .pending()
+            .any(|entry| entry.meta.request.edit.action_id().as_ref() == Some(&action_id))
     {
         return;
     }
@@ -358,17 +353,21 @@ fn submit_body_edit(
     } else {
         None
     };
-    let ticket = EditTicket::begin(runtime, "case-body", Some("case body".into()), resolver);
-    let waiting = BodyEditTicket {
+    let waiting = BodyEditMeta {
         request,
-        ticket,
         created_body_id,
     };
-    record_feedback(
-        &mut feedback.write(),
-        feedback_for(&waiting, CaseBodyEditState::Pending, None),
+    let mut submitted = feedback_for(&waiting, None);
+    submitted.pending = true;
+    record_feedback(&mut feedback.write(), submitted);
+    pending.write().begin(
+        runtime,
+        waiting.request.field_id.clone(),
+        "case-body",
+        "case body",
+        waiting,
+        resolver,
     );
-    pending.write().push(waiting);
 }
 
 fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {
