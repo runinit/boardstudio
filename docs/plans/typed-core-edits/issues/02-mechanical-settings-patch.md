@@ -1,6 +1,6 @@
 # 02: Core owns mechanical settings and linked mirrored features
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 01, [matrix Core placement](../../matrix-layout-consistency/issues/02-core-set-matrix-placement.md), [matrix companion modes](../../matrix-layout-consistency/issues/03-core-companion-placement-modes.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [module deepening](../../module-deepening/map.md), [review candidate 04](../../../investigations/architecture-review-2026-10-07.html#c4)
