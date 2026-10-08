@@ -122,14 +122,8 @@ pub fn use_mechanical_settings_mount(
             let load_mounting_hole: MountingHoleLoader =
                 Rc::new(|| Box::pin(parts::load_mounting_hole_definition()));
             let submit_runtime = runtime_for_operation.clone();
-            let begin_edit = Rc::new(move |resolver| {
-                boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-                    &submit_runtime,
-                    "mechanical-settings",
-                    Some("mechanical settings".into()),
-                    resolver,
-                )
-            });
+            let edit_port: Rc<dyn boardstudio_web_runtime::edit_ticket::EditTicketPort> =
+                Rc::new(submit_runtime);
             let publish_alive = alive.clone();
             let publish_current = current.clone();
             let publish = Rc::new(move |entry: MechanicalSettingsFeedback| {
@@ -144,6 +138,11 @@ pub fn use_mechanical_settings_mount(
                     feedback: entry,
                     basis,
                 };
+                let record_is_pending_submission =
+                    record.feedback.state == MechanicalSettingsFeedbackState::Pending;
+                let pending_identity = record.feedback.identity.clone();
+                let pending_field = record.feedback.field_id.clone();
+                let pending_request = record.feedback.request_id;
                 let mut entries = feedback.read().to_vec();
                 if let Some(existing) = entries.iter_mut().find(|existing| {
                     existing.feedback.identity == record.feedback.identity
@@ -153,6 +152,16 @@ pub fn use_mechanical_settings_mount(
                     *existing = record;
                 } else {
                     entries.push(record);
+                }
+                if record_is_pending_submission {
+                    // A newer submission for a field supersedes the pending feedback of its
+                    // older requests, so pending entries cannot accumulate across edits.
+                    entries.retain(|entry| {
+                        !(entry.feedback.state == MechanicalSettingsFeedbackState::Pending
+                            && entry.feedback.identity == pending_identity
+                            && entry.feedback.field_id == pending_field
+                            && entry.feedback.request_id < pending_request)
+                    });
                 }
                 entries.sort_by_key(|record| record.feedback.request_id);
                 // Keep every pending request; bound only terminal feedback history.
@@ -175,11 +184,12 @@ pub fn use_mechanical_settings_mount(
             MechanicalSettingsController::new(MechanicalSettingsPorts {
                 current: current.clone(),
                 load_mounting_hole,
-                begin_edit,
+                edit_port,
                 publish,
             })
         }
     });
+    use_context_provider(|| controller.clone());
 
     let version = use_context::<Signal<u64>>();
     let resolved_mechanical = use_signal(|| None::<MechanicalSettingsResolvedProjection>);

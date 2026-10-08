@@ -5,7 +5,10 @@ Type: build
 Blocked by: 15
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits and Matrix tracer gate](05-pending-edits-module.md) · Decision: [Pending-edit settlement answer](01-decide-pending-edit-settlement.md#answer), [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-a-retired-edit-is-silent-2026-10-07)
 
-## Owner reservation
+## Original owner reservation (completed)
+
+This reservation covered the original resolved slice; approved integration updates
+are recorded at the end of the Outcome.
 
 Reserved for the user's separate AI tool (user, 2026-10-07). Agents in this chat must
 not claim or implement this slice. Reservation is not an early implementation claim:
@@ -107,3 +110,33 @@ Bindings/draft records last for the helper lifetime. Use bounded logical panel k
 Matrix action keys compare by action kind even when carrying request metadata. Do not
 introduce unbounded per-operation keys. The next consumer removes its direct action
 collection and uses one helper-owned collection for field and action observations.
+
+### Coordinated integration contract update (2026-10-08)
+
+Root integrated the approved unbind/epoch extension with ticket09 and added typed
+bindings in `9cf6a268`. The final source pin is
+`ed92e9d9d05de7c9ff3d1ad6e696e631e819091c`. Current interface:
+
+- `PendingEditSignals<K, D = String>` and `FieldView<D = String>` bind the actual
+  draft value with `D: Clone + PartialEq + 'static`. The existing String consumer
+  shape and `begin_field(..., &str)` remain available; `begin_value(..., &D)` handles
+  typed drafts such as PCB's MountedModule without serialization.
+- Submission requires `K: Clone`, including `begin_one_shot`. The helper retains
+  submitted values and applies the unchanged-submitted guard for both String and
+  typed values; caller accepted projection remains domain-owned.
+- `unbind_field(&key)` and `unbind_one_shot(&key)` are idempotent and detach child
+  Signals. Binding epochs prevent an old observation writing to a replacement
+  component under the same logical key. Call both for composite controls. Session
+  execution continues; callers still own observation liveness and Landed follow-ups.
+- Bind before admission and unbind in `use_drop`; use bounded keys and helper/owner
+  lifetimes. Replacement owners retire observations before disposed or rebound
+  Signals can receive writes. No unbind_all, retry policy, Saved state, Runtime API
+  change or general form framework was added.
+
+Root executed native UI-shared 8/8 and both mounted groups, 24/24 plus panels 1/1,
+including typed unchanged failure restore, newer typed draft with inline failure,
+and typed unchanged landing. Typed interface compilation failed against the old
+String-only contract before implementation. Consumer behavioral REDs and GREENs
+cover PCB, Case and Keymap real fields. Final pinned Standards and Spec reviews
+have no blocking contract findings. Mounted behavior executes under WASM in Chrome;
+native cfg continues to exercise only the plain helper policy and native crate tests.

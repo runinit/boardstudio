@@ -1,4 +1,4 @@
-//! Signal-bound text-field and one-shot helpers over the Runtime `PendingEdits`
+//! Signal-bound field and one-shot helpers over the Runtime `PendingEdits`
 //! collection. The helpers own the settlement coordination panels repeated per field —
 //! submitted-draft memory, draft restoration, inline failures, one-shot disabling — so a
 //! panel binds its Signals once and reads drained results for its own follow-ups.
@@ -27,10 +27,35 @@
 //! }
 //! ```
 //!
+//! `PendingEditSignals<K, D = String>` also binds typed drafts with `D: Clone + PartialEq`.
+//! A caller binds `Signal<D>` with the same `bind_field`, submits the exact value through
+//! `begin_value(..., &draft)`, and projects an accepted `D` through `settle`. Submitted
+//! values are compared directly; no text conversion or serialization is involved. The
+//! default String form keeps `begin_field(..., &str)` and its existing field policy.
+//! Typed fields and one-shot actions can share one collection and the same binding epochs.
+//!
+//! A component that owns bound Signals releases them when it unmounts, so a settlement
+//! never writes a dropped Signal and an outcome submitted before the unmount never reaches
+//! a later component that binds the same key:
+//!
+//! ```ignore
+//! use_hook(|| helpers.bind_field(Key::Name, draft, failure));
+//! use_drop({
+//!     let helpers = helpers.clone();
+//!     // A composite control that also binds the key as a one-shot releases both.
+//!     move || { helpers.unbind_field(&Key::Name); helpers.unbind_one_shot(&Key::Name); }
+//! });
+//! ```
+//!
+//! Unbinding is idempotent and does not touch the Session: the queued edit still runs and
+//! its result is still returned by `settle` for caller follow-ups. Rebinding the same
+//! Signals on every render is harmless; binding other Signals for a key detaches the edits
+//! submitted for the old ones in the same way.
+//!
 //! Invariants (decision [01](../../../../docs/plans/module-deepening/issues/01-decide-pending-edit-settlement.md),
 //! [ADR-0005 amendment](../../../../docs/adr/0005-resolve-queued-edits-at-execution.md)):
 //! the latest ticket per key drives it; a settlement may only write a draft that still
-//! is the text its edit was submitted with, so an older outcome never overwrites a newer
+//! is the value its edit was submitted with, so an older outcome never overwrites a newer
 //! draft; failures surface inline at the field by default while the results keep them
 //! available for other placement; retirement is silent; there is no Saved state and no
 //! automatic retry. Domain projection and value conversion stay with the caller through
@@ -40,20 +65,28 @@ use boardstudio_application::EditResolver;
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// Whether a settlement may write a field's draft: only while the live draft still is
-/// the text the edit was submitted with. An unknown submitted draft never qualifies.
-fn draft_may_restore(submitted: Option<&str>, current: &str) -> bool {
+/// the value the edit was submitted with. An unknown submitted draft never qualifies.
+fn draft_may_restore<D: PartialEq + ?Sized>(submitted: Option<&D>, current: &D) -> bool {
     submitted.is_some_and(|submitted| submitted == current)
 }
 
-/// The Signals one text field binds: its live draft and its inline failure message.
-#[derive(Clone, Copy)]
-pub struct FieldView {
-    pub draft: Signal<String>,
+/// The Signals one field binds: its live draft and its inline failure message.
+pub struct FieldView<D = String> {
+    pub draft: Signal<D>,
     pub failure: Signal<Option<String>>,
+}
+
+// Signal handles are Copy even when their values are not.
+impl<D> Copy for FieldView<D> {}
+
+impl<D> Clone for FieldView<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 /// The Signal one one-shot control binds: unavailable while its edit is pending.
@@ -62,44 +95,63 @@ pub struct OneShotView {
     pub disabled: Signal<bool>,
 }
 
-struct Binding<K> {
+struct Binding<K, D> {
     key: K,
-    view: FieldView,
+    view: FieldView<D>,
+    /// Identifies this component's binding; a rebind with other Signals gets a new one.
+    epoch: u64,
 }
 
 struct OneShotBinding<K> {
     key: K,
     view: OneShotView,
+    epoch: u64,
+}
+
+/// What the latest edit for a key was submitted with, and which bindings were live then.
+/// A settlement writes a Signal only while the same binding is still bound, so an old
+/// outcome never reaches a component that unmounted or a remount that took its key.
+struct Submission<K, D> {
+    key: K,
+    /// The submitted draft value, for field edits.
+    text: Option<D>,
+    field_epoch: Option<u64>,
+    one_shot_epoch: Option<u64>,
 }
 
 /// The collection, the bound views and the submitted-draft memory, shared by every
 /// clone of [`PendingEditSignals`].
-struct Shared<K> {
+struct Shared<K, D> {
     edits: RefCell<PendingEdits<K>>,
-    fields: RefCell<Vec<Binding<K>>>,
+    fields: RefCell<Vec<Binding<K, D>>>,
     one_shots: RefCell<Vec<OneShotBinding<K>>>,
-    /// The draft text each key's latest edit was submitted with.
-    submitted: RefCell<Vec<(K, String)>>,
+    submitted: RefCell<Vec<Submission<K, D>>>,
+    next_epoch: Cell<u64>,
 }
 
 /// Signal-bound coordination over one [`PendingEdits`] collection. Clone to share
 /// between a panel's hooks and handlers; every clone drives the same collection and
 /// bindings.
 #[derive(Clone)]
-pub struct PendingEditSignals<K> {
-    shared: Rc<Shared<K>>,
+pub struct PendingEditSignals<K, D = String> {
+    shared: Rc<Shared<K, D>>,
 }
 
-impl<K> Default for PendingEditSignals<K>
+impl<K, D> Default for PendingEditSignals<K, D>
 where
     K: PartialEq + 'static,
+    D: Clone + PartialEq + 'static,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<K: PartialEq + 'static> PendingEditSignals<K> {
+impl<K, D> PendingEditSignals<K, D>
+where
+    K: PartialEq + 'static,
+    D: Clone + PartialEq + 'static,
+{
     pub fn new() -> Self {
         Self {
             shared: Rc::new(Shared {
@@ -107,65 +159,129 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
                 fields: RefCell::new(Vec::new()),
                 one_shots: RefCell::new(Vec::new()),
                 submitted: RefCell::new(Vec::new()),
+                next_epoch: Cell::new(1),
             }),
         }
     }
 
-    /// Bind one text field's draft and inline failure Signals. Rebinding a key replaces
-    /// its view; only bound fields receive settlement writes.
-    pub fn bind_field(&self, key: K, draft: Signal<String>, failure: Signal<Option<String>>) {
+    fn new_epoch(&self) -> u64 {
+        let epoch = self.shared.next_epoch.get();
+        self.shared.next_epoch.set(epoch + 1);
+        epoch
+    }
+
+    /// Bind one field's draft and inline failure Signals. Rebinding a key with the
+    /// same Signals changes nothing, so a panel may bind on every render; rebinding with
+    /// other Signals replaces the view and detaches edits submitted for the old one. Only
+    /// bound fields receive settlement writes.
+    ///
+    /// A component that owns the Signals must call [`Self::unbind_field`] when it
+    /// unmounts: a settlement never writes a Signal that was dropped without unbinding.
+    pub fn bind_field(&self, key: K, draft: Signal<D>, failure: Signal<Option<String>>) {
         let view = FieldView { draft, failure };
+        let unchanged = self
+            .shared
+            .fields
+            .borrow()
+            .iter()
+            .find(|binding| binding.key == key)
+            .map(|binding| binding.view.draft == draft && binding.view.failure == failure);
+        if unchanged == Some(true) {
+            return;
+        }
+        let epoch = self.new_epoch();
         let mut fields = self.shared.fields.borrow_mut();
         match fields.iter_mut().find(|binding| binding.key == key) {
-            Some(binding) => binding.view = view,
-            None => fields.push(Binding { key, view }),
+            Some(binding) => {
+                binding.view = view;
+                binding.epoch = epoch;
+            }
+            None => fields.push(Binding { key, view, epoch }),
         }
     }
 
-    /// Bind one one-shot control's disabled Signal. Rebinding a key replaces its view.
+    /// Bind one one-shot control's disabled Signal. Rebinding a key with the same Signal
+    /// changes nothing; another Signal replaces the view and detaches older edits. The
+    /// owning component calls [`Self::unbind_one_shot`] when it unmounts.
     pub fn bind_one_shot(&self, key: K, disabled: Signal<bool>) {
         let view = OneShotView { disabled };
+        let unchanged = self
+            .shared
+            .one_shots
+            .borrow()
+            .iter()
+            .find(|binding| binding.key == key)
+            .map(|binding| binding.view.disabled == disabled);
+        if unchanged == Some(true) {
+            return;
+        }
+        let epoch = self.new_epoch();
         let mut one_shots = self.shared.one_shots.borrow_mut();
         match one_shots.iter_mut().find(|binding| binding.key == key) {
-            Some(binding) => binding.view = view,
-            None => one_shots.push(OneShotBinding { key, view }),
+            Some(binding) => {
+                binding.view = view;
+                binding.epoch = epoch;
+            }
+            None => one_shots.push(OneShotBinding { key, view, epoch }),
         }
+    }
+
+    /// Release a field binding when its component leaves. Idempotent. The key's edit keeps
+    /// running in the Session and its result is still returned by [`Self::settle`], but no
+    /// settlement writes the dropped Signals, and an outcome submitted before the unbind
+    /// never reaches a later binding of the same key.
+    ///
+    /// A composite component that binds the same key as a field and as a one-shot control
+    /// releases both: call `unbind_field` and `unbind_one_shot` with the key.
+    pub fn unbind_field(&self, key: &K) {
+        self.shared
+            .fields
+            .borrow_mut()
+            .retain(|binding| binding.key != *key);
+    }
+
+    /// Release a one-shot binding when its control leaves; the same guarantees as
+    /// [`Self::unbind_field`]. Idempotent.
+    pub fn unbind_one_shot(&self, key: &K) {
+        self.shared
+            .one_shots
+            .borrow_mut()
+            .retain(|binding| binding.key != *key);
+    }
+
+    fn field_epoch(&self, key: &K) -> Option<u64> {
+        self.shared
+            .fields
+            .borrow()
+            .iter()
+            .find(|binding| binding.key == *key)
+            .map(|binding| binding.epoch)
+    }
+
+    fn one_shot_epoch(&self, key: &K) -> Option<u64> {
+        self.shared
+            .one_shots
+            .borrow()
+            .iter()
+            .find(|binding| binding.key == *key)
+            .map(|binding| binding.epoch)
     }
 
     /// Submit a field edit as intent under `key`, remembering the draft it was
     /// submitted with so a later settlement cannot clobber a newer draft.
-    pub fn begin_field(
+    pub fn begin_value(
         &self,
         port: &dyn EditTicketPort,
         key: K,
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
-        current_draft: &str,
+        current_draft: &D,
     ) where
         K: Clone,
     {
-        self.shared
-            .edits
-            .borrow_mut()
-            .begin(port, key.clone(), label, feature, resolver);
-        let mut submitted = self.shared.submitted.borrow_mut();
-        match submitted.iter_mut().find(|(existing, _)| *existing == key) {
-            Some(entry) => entry.1 = current_draft.to_owned(),
-            None => submitted.push((key, current_draft.to_owned())),
-        }
-    }
-
-    /// Submit a one-shot edit as intent under `key` and disable its bound control until
-    /// the edit settles or retires.
-    pub fn begin_one_shot(
-        &self,
-        port: &dyn EditTicketPort,
-        key: K,
-        label: &str,
-        feature: Option<String>,
-        resolver: EditResolver,
-    ) {
+        // A composite field action may also bind the same logical key as a one-shot
+        // control. Keep its disabling lifetime inside the collection as well.
         let disabled = self
             .shared
             .one_shots
@@ -179,7 +295,61 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
         self.shared
             .edits
             .borrow_mut()
-            .begin(port, key, label, feature, resolver);
+            .begin(port, key.clone(), label, feature, resolver);
+        let entry = Submission {
+            field_epoch: self.field_epoch(&key),
+            one_shot_epoch: self.one_shot_epoch(&key),
+            text: Some(current_draft.clone()),
+            key: key.clone(),
+        };
+        let mut submitted = self.shared.submitted.borrow_mut();
+        match submitted.iter_mut().find(|existing| existing.key == key) {
+            Some(existing) => *existing = entry,
+            None => submitted.push(entry),
+        }
+    }
+
+    /// Submit a one-shot edit as intent under `key` and disable its bound control until
+    /// the edit settles or retires.
+    pub fn begin_one_shot(
+        &self,
+        port: &dyn EditTicketPort,
+        key: K,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+    ) where
+        K: Clone,
+    {
+        let disabled = self
+            .shared
+            .one_shots
+            .borrow()
+            .iter()
+            .find(|binding| binding.key == key)
+            .map(|binding| binding.view.disabled);
+        if let Some(mut disabled) = disabled {
+            disabled.set(true);
+        }
+        self.shared
+            .edits
+            .borrow_mut()
+            .begin(port, key.clone(), label, feature, resolver);
+        let one_shot_epoch = self.one_shot_epoch(&key);
+        let mut submitted = self.shared.submitted.borrow_mut();
+        match submitted.iter_mut().find(|existing| existing.key == key) {
+            Some(existing) => {
+                existing.text = None;
+                existing.field_epoch = None;
+                existing.one_shot_epoch = one_shot_epoch;
+            }
+            None => submitted.push(Submission {
+                key,
+                text: None,
+                field_epoch: None,
+                one_shot_epoch,
+            }),
+        }
     }
 
     /// Whether the key's latest edit is still pending in its captured document scope.
@@ -190,7 +360,7 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
     /// Drain terminal results once and apply the field policy:
     ///
     /// - *Landed* and *Retired* project the accepted value (via `accepted`) into the
-    ///   field's draft while that draft still is the submitted text; retirement is
+    ///   field's draft while that draft still is the submitted value; retirement is
     ///   silent. *Failed* additionally reports the message inline. A newer draft is
     ///   never overwritten; its field still receives the failure message.
     /// - Any terminal re-enables a bound one-shot control.
@@ -201,7 +371,7 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
     pub fn settle(
         &self,
         owner_is_live: bool,
-        accepted: impl Fn(&K) -> String,
+        accepted: impl Fn(&K) -> D,
     ) -> Vec<PendingEditResult<K>> {
         let results = self.shared.edits.borrow_mut().settle(owner_is_live);
 
@@ -218,22 +388,40 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
         results
     }
 
-    fn apply_to_field(
-        &self,
-        key: &K,
-        result: &PendingEditResult<K>,
-        accepted: &impl Fn(&K) -> String,
-    ) {
-        let mut view = match self
+    /// The submission record of the key's latest edit, if one is held.
+    fn submission_of(&self, key: &K) -> Option<(Option<D>, Option<u64>, Option<u64>)> {
+        self.shared
+            .submitted
+            .borrow()
+            .iter()
+            .find(|existing| existing.key == *key)
+            .map(|existing| {
+                (
+                    existing.text.clone(),
+                    existing.field_epoch,
+                    existing.one_shot_epoch,
+                )
+            })
+    }
+
+    fn apply_to_field(&self, key: &K, result: &PendingEditResult<K>, accepted: &impl Fn(&K) -> D) {
+        let Some((submitted, field_epoch, _)) = self.submission_of(key) else {
+            return;
+        };
+        let (mut view, epoch) = match self
             .shared
             .fields
             .borrow()
             .iter()
             .find(|binding| &binding.key == key)
         {
-            Some(binding) => binding.view,
+            Some(binding) => (binding.view, binding.epoch),
             None => return,
         };
+        if field_epoch != Some(epoch) {
+            // The edit was submitted for a binding that has since been replaced.
+            return;
+        }
         let message = match result {
             PendingEditResult::Failed { message, .. } => Some(message.as_str()),
             _ => None,
@@ -243,32 +431,53 @@ impl<K: PartialEq + 'static> PendingEditSignals<K> {
         } else if view.failure.read().is_some() {
             view.failure.set(None);
         }
-        let submitted = self
-            .shared
-            .submitted
-            .borrow()
-            .iter()
-            .find(|(existing, _)| existing == key)
-            .map(|(_, draft)| draft.as_str())
-            .map(|draft| draft.to_owned());
-        let current = view.draft.peek().as_str().to_owned();
+        let current = view.draft.peek().clone();
         let projected = accepted(key);
-        if draft_may_restore(submitted.as_deref(), &current) && current != projected {
+        if draft_may_restore(submitted.as_ref(), &current) && current != projected {
             view.draft.set(projected);
         }
     }
 
     fn release_one_shot(&self, key: &K) {
-        let disabled = self
+        let Some((_, _, one_shot_epoch)) = self.submission_of(key) else {
+            return;
+        };
+        let bound = self
             .shared
             .one_shots
             .borrow()
             .iter()
             .find(|binding| &binding.key == key)
-            .map(|binding| binding.view.disabled);
-        if let Some(mut disabled) = disabled {
+            .map(|binding| (binding.view.disabled, binding.epoch));
+        if let Some((mut disabled, epoch)) = bound
+            && one_shot_epoch == Some(epoch)
+        {
             disabled.set(false);
         }
+    }
+}
+
+impl<K: PartialEq + 'static> PendingEditSignals<K> {
+    /// Submit a String field's exact text, preserving the existing borrowed-str interface.
+    pub fn begin_field(
+        &self,
+        port: &dyn EditTicketPort,
+        key: K,
+        label: &str,
+        feature: Option<String>,
+        resolver: EditResolver,
+        current_draft: &str,
+    ) where
+        K: Clone,
+    {
+        self.begin_value(
+            port,
+            key,
+            label,
+            feature,
+            resolver,
+            &current_draft.to_owned(),
+        );
     }
 }
 
@@ -418,10 +627,12 @@ mod mounted_tests {
         let mut draft = use_signal(|| "Zephyr".to_string());
         let failure = use_signal(|| None::<String>);
         let disabled = use_signal(|| false);
+        let name_disabled = use_signal(|| false);
         use_hook({
             let helpers = helpers.clone();
             move || {
                 helpers.bind_field(Field::Name, draft, failure);
+                helpers.bind_one_shot(Field::Name, name_disabled);
                 helpers.bind_one_shot(Field::Other, disabled);
             }
         });
@@ -434,6 +645,8 @@ mod mounted_tests {
             }
             button { id: "one-shot-control", disabled: disabled(),
                 "one-shot control" }
+            button { id: "composite-control", disabled: name_disabled(),
+                "composite control" }
             button { id: "begin-field", onclick: {
                     let helpers = helpers.clone();
                     let runtime = runtime.clone();
@@ -593,6 +806,7 @@ mod mounted_tests {
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         click("#begin-field");
+        rendered().await;
         support::drive_pending(&runtime);
         entered.await.unwrap();
         assert!(
@@ -628,6 +842,37 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn field_action_disables_and_releases_its_bound_composite_control() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-field");
+        rendered().await;
+        assert!(
+            element("#composite-control").has_attribute("disabled"),
+            "begin_field disables the one-shot bound to the same logical key"
+        );
+        support::drive_pending(&runtime);
+        entered.await.expect("the field action reached Core");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle");
+        rendered().await;
+        assert!(
+            !element("#composite-control").has_attribute("disabled"),
+            "terminal settlement re-enables the composite control"
+        );
+        assert_eq!(draft_value(), "PROJECTED");
+        assert!(probe.results.borrow().iter().any(|result| matches!(
+            result,
+            PendingEditResult::Landed {
+                key: Field::Name,
+                ..
+            }
+        )));
+    }
+
+    #[wasm_bindgen_test]
     async fn a_failed_edit_restores_the_accepted_value_and_reports_inline() {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
@@ -659,7 +904,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn a_newer_draft_is_never_replaced_by_an_older_outcome() {
         let runtime = opened_runtime("Original").await;
-        let probe = mount_fixture(runtime.clone()).await;
+        let _probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         click("#begin-field");
         support::drive_pending(&runtime);
@@ -823,5 +1068,523 @@ mod mounted_tests {
         ));
         assert_eq!(draft_value(), "PROJECTED");
         assert!(failure_message().is_none());
+    }
+
+    fn typed_module(x: f64) -> boardstudio_core::model::MountedModule {
+        use boardstudio_core::model::{ModuleAttachment, MountedModule};
+        MountedModule {
+            id: "typed-module".into(),
+            definition_id: "typed-definition".into(),
+            host_board_id: "board".into(),
+            host_instance_id: None,
+            host_face: Side::Front,
+            facing_face: Side::Front,
+            at: Vec2 { x, y: 2.0 },
+            rotation: 0.0,
+            gap: 1.0,
+            attachment: ModuleAttachment::Board,
+            detached: false,
+            connection: None,
+            service_clearance: 0.0,
+            mount_supports: Vec::new(),
+        }
+    }
+
+    fn refused_typed_resolver() -> EditResolver {
+        EditResolver::new("helper-test", |_accepted| {
+            Resolution::submit(
+                vec!["key".into()],
+                EditOperation::MoveParts {
+                    positions: vec![boardstudio_core::model::Position {
+                        id: "typed-missing-part".into(),
+                        at: Vec2 { x: 7.25, y: 2.0 },
+                    }],
+                },
+            )
+        })
+    }
+
+    fn typed_value_host() -> Element {
+        let probe = use_context::<Probe>();
+        let runtime = use_hook(|| probe.runtime.borrow().clone().expect("prepared Runtime"));
+        let helpers =
+            use_hook(|| PendingEditSignals::<Field, boardstudio_core::model::MountedModule>::new());
+        let mut draft = use_signal(|| typed_module(7.25));
+        let failure = use_signal(|| None::<String>);
+        use_hook({
+            let helpers = helpers.clone();
+            move || helpers.bind_field(Field::Name, draft, failure)
+        });
+        use_drop({
+            let helpers = helpers.clone();
+            move || helpers.unbind_field(&Field::Name)
+        });
+        rsx! {
+            input { id: "typed-draft", r#type: "number", value: "{draft().at.x}",
+                oninput: move |event: FormEvent| {
+                    if let Ok(x) = event.value().parse::<f64>() {
+                        draft.with_mut(|value| value.at.x = x);
+                    }
+                }
+            }
+            if let Some(message) = failure() {
+                p { id: "typed-failure", "{message}" }
+            }
+            button { id: "begin-typed", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    let probe = probe.clone();
+                    move |_| {
+                        helpers.begin_value(&runtime, Field::Name, "typed-placement",
+                            Some("placement".into()), refused_typed_resolver(), &draft.peek().clone());
+                        probe.pending.set(helpers.is_pending(&Field::Name));
+                    }
+                }, "begin typed value" }
+            button { id: "begin-typed-unchanged", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_value(&runtime, Field::Name, "typed-placement",
+                        Some("placement".into()), unchanged_resolver(), &draft.peek().clone())
+                }, "begin unchanged typed value" }
+            button { id: "settle-typed", onclick: {
+                    let helpers = helpers.clone();
+                    let probe = probe.clone();
+                    move |_| {
+                        *probe.results.borrow_mut() = helpers.settle(true, |_| typed_module(1.0));
+                        probe.pending.set(helpers.is_pending(&Field::Name));
+                    }
+                }, "settle typed value" }
+        }
+    }
+
+    async fn mount_typed_fixture(runtime: TestRuntime) -> Probe {
+        let probe = Probe {
+            runtime: Rc::new(RefCell::new(Some(runtime))),
+            results: Default::default(),
+            pending: Default::default(),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        if let Some(previous) = document.get_element_by_id(root_id()) {
+            previous.remove();
+        }
+        let root = document.create_element("div").unwrap();
+        root.set_id(root_id());
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(typed_value_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        rendered().await;
+        rendered().await;
+        probe
+    }
+
+    fn typed_draft_x() -> String {
+        element("#typed-draft")
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .value()
+    }
+
+    fn typed_failure_message() -> String {
+        element("#typed-failure").text_content().unwrap()
+    }
+
+    fn type_typed_draft_x(value: &str) {
+        let input = element("#typed-draft")
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        input.set_value(value);
+        let event = EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&WebEvent::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    async fn typed_unchanged_draft_restores_accepted_value_after_failure() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_typed_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-typed");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("typed edit reached Core");
+        assert!(probe.pending.get());
+        assert_eq!(typed_draft_x(), "7.25");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-typed");
+        rendered().await;
+        assert_eq!(
+            typed_draft_x(),
+            "1",
+            "the untouched typed draft restores from the accepted projection"
+        );
+        assert!(matches!(
+            taken_results(&probe).as_slice(),
+            [PendingEditResult::Failed {
+                key: Field::Name,
+                ..
+            }]
+        ));
+        assert_eq!(
+            typed_failure_message(),
+            "The placement change was refused: Unknown part typed-missing-part"
+        );
+        assert!(!probe.pending.get());
+    }
+
+    #[wasm_bindgen_test]
+    async fn typed_newer_draft_survives_failure_with_inline_feedback() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_typed_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-typed");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("typed edit reached Core");
+        type_typed_draft_x("8");
+        rendered().await;
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-typed");
+        rendered().await;
+        assert_eq!(
+            typed_draft_x(),
+            "8",
+            "an older typed outcome preserves a newer draft"
+        );
+        assert!(matches!(
+            taken_results(&probe).as_slice(),
+            [PendingEditResult::Failed {
+                key: Field::Name,
+                ..
+            }]
+        ));
+        assert_eq!(
+            typed_failure_message(),
+            "The placement change was refused: Unknown part typed-missing-part"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn typed_unchanged_landing_projects_accepted_value() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_typed_fixture(runtime.clone()).await;
+        click("#begin-typed-unchanged");
+        settle(&runtime).await;
+        click("#settle-typed");
+        rendered().await;
+        assert_eq!(typed_draft_x(), "1");
+        assert!(!exists("#typed-failure"));
+        assert_eq!(
+            taken_results(&probe),
+            vec![PendingEditResult::Landed {
+                key: Field::Name,
+                revision: 0
+            }]
+        );
+    }
+
+    // ---- Unbinding: a component that owns bound Signals leaves while its edit runs.
+
+    #[derive(Clone, Default)]
+    struct UnbindProbe {
+        runtime: Rc<RefCell<Option<TestRuntime>>>,
+        helpers: Rc<RefCell<Option<PendingEditSignals<Field>>>>,
+        results: Rc<RefCell<Vec<PendingEditResult<Field>>>>,
+    }
+
+    #[component]
+    fn FieldChild(initial: String, start_disabled: bool) -> Element {
+        let probe = use_context::<UnbindProbe>();
+        let helpers = probe
+            .helpers
+            .borrow()
+            .clone()
+            .expect("helpers are prepared");
+        let draft = use_signal(|| initial.clone());
+        let failure = use_signal(|| None::<String>);
+        let composite = use_signal(|| false);
+        let other = use_signal(|| start_disabled);
+        use_hook({
+            let helpers = helpers.clone();
+            move || {
+                helpers.bind_field(Field::Name, draft, failure);
+                helpers.bind_one_shot(Field::Name, composite);
+                helpers.bind_one_shot(Field::Other, other);
+            }
+        });
+        use_drop({
+            let helpers = helpers.clone();
+            move || {
+                // A composite field/one-shot component releases both bindings.
+                helpers.unbind_field(&Field::Name);
+                helpers.unbind_one_shot(&Field::Name);
+                helpers.unbind_one_shot(&Field::Other);
+                // Unbinding is idempotent.
+                helpers.unbind_field(&Field::Name);
+                helpers.unbind_one_shot(&Field::Name);
+                helpers.unbind_one_shot(&Field::Other);
+            }
+        });
+        rsx! {
+            input { id: "child-draft", value: "{draft}" }
+            if let Some(message) = failure() {
+                p { id: "child-failure", "{message}" }
+            }
+            button { id: "child-composite", disabled: composite(), "composite" }
+            button { id: "child-other", disabled: other(), "other" }
+        }
+    }
+
+    fn retire_resolver(message: &'static str) -> EditResolver {
+        EditResolver::new("helper-test", move |_accepted| {
+            Resolution::Retire(message.into())
+        })
+    }
+
+    fn unbind_host() -> Element {
+        let probe = use_context::<UnbindProbe>();
+        let runtime = use_hook(|| {
+            probe
+                .runtime
+                .borrow()
+                .clone()
+                .expect("the runtime is prepared before mounting")
+        });
+        let helpers = probe
+            .helpers
+            .borrow()
+            .clone()
+            .expect("helpers are prepared");
+        let mut shown = use_signal(|| true);
+        let mut mounts = use_signal(|| 0u32);
+        rsx! {
+            if shown() {
+                FieldChild { key: "{mounts}", initial: if mounts() == 0 { "Zephyr" } else { "Fresh" }, start_disabled: mounts() > 0 }
+            }
+            button { id: "unmount", onclick: move |_| shown.set(false), "unmount" }
+            button { id: "remount", onclick: move |_| { mounts += 1; shown.set(true); }, "remount" }
+            button { id: "begin-rename", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_field(&runtime, Field::Name, "name-field",
+                        Some("project".into()), rename_resolver("Renamed"), "Zephyr")
+                }, "begin rename" }
+            button { id: "begin-rejected", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_field(&runtime, Field::Name, "name-field",
+                        Some("project".into()), retire_resolver("old failure"), "Zephyr")
+                }, "begin rejected" }
+            button { id: "begin-other", onclick: {
+                    let helpers = helpers.clone();
+                    let runtime = runtime.clone();
+                    move |_| helpers.begin_one_shot(&runtime, Field::Other, "one-shot",
+                        Some("project".into()), rename_resolver("Applied"))
+                }, "begin other" }
+            button { id: "settle-unbind", onclick: {
+                    let helpers = helpers.clone();
+                    let probe = probe.clone();
+                    move |_| {
+                        let results = helpers.settle(true, accepted_name);
+                        probe.results.borrow_mut().extend(results);
+                    }
+                }, "settle" }
+        }
+    }
+
+    async fn mount_unbind_fixture(runtime: TestRuntime) -> UnbindProbe {
+        let probe = UnbindProbe {
+            runtime: Rc::new(RefCell::new(Some(runtime))),
+            helpers: Rc::new(RefCell::new(Some(PendingEditSignals::new()))),
+            results: Default::default(),
+        };
+        let window = web_sys::window().unwrap();
+        let dom_document = window.document().unwrap();
+        if let Some(previous) = dom_document.get_element_by_id(root_id()) {
+            previous.remove();
+        }
+        let root = dom_document.create_element("div").unwrap();
+        root.set_id(root_id());
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(unbind_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        rendered().await;
+        probe
+    }
+
+    fn exists(selector: &str) -> bool {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!("#{} {}", root_id(), selector))
+            .unwrap()
+            .is_some()
+    }
+
+    fn child_draft() -> String {
+        element("#child-draft")
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .value()
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_unmounted_field_never_has_its_dropped_signals_written_and_its_edit_still_runs() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-rename");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the field action reached Core");
+        click("#unmount");
+        rendered().await;
+        assert!(!exists("#child-draft"), "the field component is gone");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-unbind");
+        rendered().await;
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Landed {
+                    key: Field::Name,
+                    ..
+                }
+            )),
+            "the outcome still reaches the caller"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Renamed",
+            "the queued Session edit kept executing"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_remounted_field_with_the_same_key_never_receives_the_old_outcome() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-rename");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the first edit reached Core");
+        // The newer edit for the same key is the observed one; it is rejected once it runs.
+        click("#begin-rejected");
+        rendered().await;
+        click("#unmount");
+        rendered().await;
+        click("#remount");
+        rendered().await;
+        assert_eq!(child_draft(), "Fresh");
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-unbind");
+        rendered().await;
+        assert_eq!(
+            child_draft(),
+            "Fresh",
+            "the old submitted text never restores into the new component"
+        );
+        assert!(
+            !exists("#child-failure"),
+            "the old failure is not shown by the new component"
+        );
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Failed { message, .. } if message.contains("old failure")
+            )),
+            "the caller still receives the old outcome for its own follow-up"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_unmounted_one_shot_is_not_released_through_a_dropped_signal() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-other");
+        rendered().await;
+        assert!(element("#child-other").has_attribute("disabled"));
+        support::drive_pending(&runtime);
+        entered.await.expect("the one-shot reached Core");
+        click("#unmount");
+        rendered().await;
+        assert!(
+            !exists("#child-other"),
+            "the control is gone and not remounted"
+        );
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        // Releasing a control through its dropped Signal would panic here.
+        click("#settle-unbind");
+        rendered().await;
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Landed {
+                    key: Field::Other,
+                    ..
+                }
+            )),
+            "the outcome still reaches the caller"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Applied",
+            "the queued Session edit kept executing"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_old_one_shot_outcome_never_re_enables_a_replacement_that_is_disabled() {
+        let runtime = opened_runtime("Original").await;
+        let probe = mount_unbind_fixture(runtime.clone()).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click("#begin-other");
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the old one-shot reached Core");
+        click("#unmount");
+        rendered().await;
+        click("#remount");
+        rendered().await;
+        assert!(
+            element("#child-other").has_attribute("disabled"),
+            "the replacement is disabled for reasons of its own"
+        );
+        release.send(()).unwrap();
+        settle(&runtime).await;
+        click("#settle-unbind");
+        rendered().await;
+        assert!(
+            probe.results.borrow().iter().any(|result| matches!(
+                result,
+                PendingEditResult::Landed {
+                    key: Field::Other,
+                    ..
+                }
+            )),
+            "the old outcome still reaches the caller for its follow-up"
+        );
+        assert!(
+            element("#child-other").has_attribute("disabled"),
+            "the old outcome never re-enables the replacement"
+        );
     }
 }

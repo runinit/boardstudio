@@ -141,19 +141,24 @@ fn host() -> Element {
         }),
     ));
     let actions = probe.mode.borrow().as_ref().unwrap().clone();
-    let shown_mode = actions
-        .identity
-        .as_ref()
-        .and_then(mode::pending_mode)
-        .unwrap_or_else(|| plan(&accepted.document).mode);
-    let mode_value = if shown_mode == ElectricalMode::Direct {
-        "direct"
-    } else {
-        "matrix"
-    };
-    rsx! { div { select { id: "queued-mode", value: mode_value, disabled: !actions.editable,
-        option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
-    } } }
+    let mode_value = (actions.draft)();
+    let nets = probe.nets.borrow().as_ref().unwrap().clone();
+    rsx! { div {
+        select { id: "queued-mode", value: mode_value, disabled: !actions.editable,
+            option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
+        }
+        button { id: "queued-create-net", disabled: !nets.editable || nets.create_pending,
+            onclick: move |_| {
+                if let Some(identity) = nets.identity.clone() {
+                    nets.on_edit.call(PartNetEditRequest {
+                        identity,
+                        action: PartNetEditAction::CreateNet { name: "Created signal".into() },
+                    });
+                }
+            },
+            "Add net"
+        }
+    } }
 }
 
 async fn mounted() -> (Probe, web_sys::Element) {
@@ -295,6 +300,121 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
             .hardware
             .as_ref()
             .is_none_or(|hardware| hardware.boards.is_empty())
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_allows_assignment() {
+    let (probe, root) = mounted().await;
+    let runtime = &probe.runtime;
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["connector".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    rendered().await;
+    let actions = probe.nets.borrow().as_ref().unwrap().clone();
+    let identity = actions.identity.unwrap();
+    let create = PartNetEditRequest {
+        identity: identity.clone(),
+        action: PartNetEditAction::CreateNet {
+            name: "Created signal".into(),
+        },
+    };
+    let (entered, release) = support::gate_next_core_reply(runtime);
+    let button = root.query_selector("#queued-create-net").unwrap().unwrap();
+    assert!(!button.has_attribute("disabled"));
+    button.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+    rendered().await;
+    support::drive_pending(runtime);
+    entered.await.unwrap();
+    rendered().await;
+    assert!(
+        button.has_attribute("disabled"),
+        "the submitted one-shot disables its control"
+    );
+    assert!(probe.nets.borrow().as_ref().unwrap().feedback.is_none());
+    actions.on_edit.call(create);
+    actions.on_edit.call(PartNetEditRequest {
+        identity,
+        action: PartNetEditAction::AssignPads {
+            pad_ids: vec!["1".into()],
+            net_id: Some("net".into()),
+        },
+    });
+    rendered().await;
+    assert!(
+        button.has_attribute("disabled"),
+        "a field edit does not release the action"
+    );
+    release.send(()).unwrap();
+    settle(runtime).await;
+    let document = runtime.model().accepted.unwrap().document;
+    assert_eq!(
+        document
+            .nets
+            .iter()
+            .filter(|net| net.name == "Created signal")
+            .count(),
+        1,
+        "the retained handler cannot submit a second creation"
+    );
+    assert!(
+        document
+            .nets
+            .iter()
+            .find(|net| net.id == "net")
+            .unwrap()
+            .pins
+            .iter()
+            .any(|pin| pin.part_id == "connector")
+    );
+    assert!(
+        !button.has_attribute("disabled"),
+        "landing makes the action available again"
+    );
+    assert!(
+        probe.nets.borrow().as_ref().unwrap().feedback.is_none(),
+        "landing is silent"
+    );
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    settle(runtime).await;
+    let document = runtime.model().accepted.unwrap().document;
+    assert!(
+        document
+            .nets
+            .iter()
+            .find(|net| net.id == "net")
+            .unwrap()
+            .pins
+            .is_empty()
+    );
+    assert_eq!(
+        document
+            .nets
+            .iter()
+            .filter(|net| net.name == "Created signal")
+            .count(),
+        1,
+        "Undo removes the later assignment before the created net"
+    );
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    settle(runtime).await;
+    assert!(
+        !runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .nets
+            .iter()
+            .any(|net| net.name == "Created signal")
     );
     root.remove();
 }
@@ -457,8 +577,15 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
             .any(|part| part.id == "mcu-left")
     );
     assert!(
-        matches!(&probe.apply.borrow().as_ref().unwrap().feedback.as_ref().unwrap().state,
-        BoardWiringApplyFeedback::Failed(message) if message.contains("deleted"))
+        probe
+            .apply
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .failure
+            .as_deref()
+            .is_some_and(|message| message.contains("deleted")),
+        "the refused apply reports its failure inline"
     );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
@@ -498,9 +625,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             .as_ref()
             .is_none_or(|hardware| hardware.boards.is_empty())
     );
-    assert!(
-        matches!(&probe.mode.borrow().as_ref().unwrap().feedback.as_ref().unwrap().state,
-        BoardWiringModeFeedback::Failed(message) if message == "The wiring mode change could not be applied: injected wiring refusal")
+    assert_eq!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().as_deref(),
+        Some("The wiring mode change could not be applied: injected wiring refusal"),
+        "the failure stays inline"
     );
     runtime.submit(Event::ResolveEdit {
         operation_id: runtime.operation(),
@@ -520,18 +648,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         ),
     });
     settle(runtime).await;
-    assert!(matches!(
-        &probe
-            .mode
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .feedback
-            .as_ref()
-            .unwrap()
-            .state,
-        BoardWiringModeFeedback::Failed(_)
-    ));
+    assert!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_some(),
+        "an unrelated edit must not clear the field's failure"
+    );
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: vec!["connector".into()],
@@ -539,7 +659,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         mode: boardstudio_application::SelectionMode::Replace,
     });
     settle(runtime).await;
-    assert!(probe.mode.borrow().as_ref().unwrap().feedback.is_none());
+    assert!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_none(),
+        "a different target shows only its own failure"
+    );
     root.remove();
 }
 

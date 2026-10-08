@@ -73,6 +73,8 @@ pub mod mechanical_settings_controller;
 #[cfg(target_arch = "wasm32")]
 pub mod mechanical_settings_mount;
 #[cfg(target_arch = "wasm32")]
+pub(crate) mod owned_edits;
+#[cfg(target_arch = "wasm32")]
 pub mod shared_viewer;
 #[cfg(all(any(test, feature = "test-support"), target_arch = "wasm32"))]
 pub mod test_contexts;

@@ -1273,18 +1273,18 @@ fn direct_gesture_message(
         .iter()
         .rev()
         .find(|entry| entry.field_id == field_id)?;
-    Some(match feedback.state {
+    match feedback.state {
         super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
-            "Saving position…".into()
+            Some("Saving position…".into())
         }
-        super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => {
-            "Position saved.".into()
-        }
-        super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => feedback
-            .message
-            .clone()
-            .unwrap_or_else(|| "Position could not be saved.".into()),
-    })
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some(
+            feedback
+                .message
+                .clone()
+                .unwrap_or_else(|| "Position could not be saved.".into()),
+        ),
+    }
 }
 
 fn submit_settings_patch(

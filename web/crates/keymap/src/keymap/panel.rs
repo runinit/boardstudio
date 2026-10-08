@@ -1,5 +1,5 @@
-use super::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use super::view::KeymapView;
+use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use boardstudio_application::Scope;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -255,7 +255,9 @@ struct KeymapLayerControlsProps {
 
 #[component]
 fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
-    let mut name_draft = use_signal(|| props.layer_name.clone());
+    let context = use_context::<super::layer_controller::LayerEditsContext>();
+    let mut name_draft = context.name_draft;
+    let mut name_failure = context.name_failure;
     let mut dirty = use_signal(|| false);
     use_effect(use_reactive(
         (&props.layer_name, &props.feedback),
@@ -274,10 +276,9 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
             layer_id: props.layer_id.clone(),
         });
     let layer_id = props.layer_id.clone();
-    let feedback_saved = matches!(props.feedback.as_ref(), Some(KeymapLayerFeedback::Saved));
     let feedback_error = props.feedback.as_ref().and_then(|feedback| match feedback {
         KeymapLayerFeedback::Failed(message) => Some(message.as_str()),
-        KeymapLayerFeedback::Pending | KeymapLayerFeedback::Saved => None,
+        KeymapLayerFeedback::Pending => None,
     });
 
     rsx! {
@@ -296,7 +297,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                     maxlength: 32,
                     value: "{name_draft}",
                     disabled: !props.enabled,
-                    oninput: move |event: FormEvent| { name_draft.set(event.value()); dirty.set(true); },
+                    oninput: move |event: FormEvent| { name_failure.set(None); name_draft.set(event.value()); dirty.set(true); },
                     onblur: {
                         let name_draft = name_draft;
                         let on_operation = props.on_operation;
@@ -332,8 +333,8 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 p { class: "m1-keymap-layer-paused", role: "status", "Layer changes are paused while another edit or save is in progress." }
             }
 
-            if feedback_saved { p { role: "status", "Layer changes saved." } }
             if let Some(message) = feedback_error { p { role: "alert", "{message}" } }
+            if feedback_error.is_none() && let Some(message) = name_failure() { p { role: "alert", "{message}" } }
         }
     }
 }
@@ -359,6 +360,7 @@ mod disclosure_mounted_tests {
 
     #[component]
     fn fixture() -> Element {
+        super::super::layer_controller::provide_idle_context();
         let probe = use_context::<Probe>();
         let version = use_signal(|| 0_u64);
         *probe.render.borrow_mut() = Some(version);

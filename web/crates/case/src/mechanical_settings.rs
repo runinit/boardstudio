@@ -3,6 +3,7 @@
 pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
+use crate::mechanical_settings_controller::use_bound_mechanical_field;
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
@@ -803,7 +804,7 @@ pub struct MechanicalSettingsProps {
     pub editable: bool,
     pub disabled_reason: Option<String>,
     /// Bounded per-request feedback keeps a rejected raced submit from replacing the
-    /// currently admitted operation's Pending/Saved response.
+    /// currently admitted operation's Pending/Landed response.
     pub feedback: Rc<[MechanicalSettingsFeedback]>,
     pub summary_feedback: Option<MechanicalSettingsFeedback>,
     pub on_request: EventHandler<MechanicalSettingsRequest>,
@@ -999,9 +1000,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
-                    if feedback.state == MechanicalSettingsFeedbackState::Saved {
-                        p { role: "status", "Mechanical settings saved." }
-                    } else if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
+                    if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
                         && let Some(message) = feedback.message.as_deref()
                     {
                         p { role: "alert", "{message}" }
@@ -3779,78 +3778,58 @@ struct HardwareDimensionTarget {
     hardware_id: String,
 }
 
+// Profile-volume controls emit the same UpdateProfile domain request, but each
+// mounted dimension owns a distinct bounded helper observation and accepted text.
+fn dimension_field_key(props: &DimensionFieldProps) -> String {
+    let field = props.field.field_id();
+    if let Some(target) = &props.profile_volume_target {
+        format!(
+            "field:profile-volume:{}:{}:{}:{field}",
+            target.profile.definition_id, target.clearance_volume, target.opening_index
+        )
+    } else if let Some(target) = &props.support_target {
+        format!("field:gasket-support:{}:{field}", target.support_id)
+    } else if let Some(target) = &props.mount_target {
+        format!(
+            "field:mount:{}:{}:{field}",
+            mount_collection_id(target.collection),
+            target.mount_id
+        )
+    } else if let Some(target) = &props.opening_target {
+        format!(
+            "field:opening:{}:{:?}:{field}",
+            target.opening_index, target.point_index
+        )
+    } else if let Some(target) = &props.critical_fit_target {
+        format!("field:critical-fit:{}:{field}", target.fit_id)
+    } else if let Some(target) = &props.hardware_target {
+        format!("field:hardware:{}:{field}", target.hardware_id)
+    } else if let Some(part_id) = &props.process_target {
+        format!("field:process:{part_id}:{field}")
+    } else {
+        format!("field:dimension:{field}")
+    }
+}
+
 #[component]
 fn DimensionField(props: DimensionFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.to_string());
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
-    let mut field_status = use_signal(|| None::<String>);
-    let mut previous_accepted = use_signal(|| props.value);
-
-    let saved_value = props.value;
-    let feedback_entries = props.feedback.clone();
-    let mut draft_for_ack = draft;
-    let mut dirty_for_ack = dirty;
-    let mut error_for_ack = error;
-    let mut submitted_for_ack = submitted;
-    let mut status_for_ack = field_status;
-    let submitted_copy = submitted;
+    let mut failure = use_signal(|| None::<String>);
+    let field_key = dimension_field_key(&props);
+    let accepted = props.value.to_string();
+    let (controller, pending) =
+        use_bound_mechanical_field(field_key.clone(), accepted.clone(), draft, failure);
     use_effect(use_reactive(
-        (&feedback_entries, &saved_value),
-        move |(feedback_entries, accepted)| {
-            let accepted_changed = *previous_accepted.read() != accepted;
-            if accepted_changed {
-                previous_accepted.set(accepted);
-            }
-            let Some(request) = submitted_copy.read().clone() else {
-                if accepted_changed && !dirty_for_ack() {
-                    draft_for_ack.set(accepted.to_string());
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(None);
-                }
+        (&accepted, &pending),
+        move |(accepted, pending)| {
+            if pending {
                 return;
-            };
-            let feedback = feedback_entries.iter().find(|feedback| {
-                feedback.identity == request.identity
-                    && feedback.request_id == request.request_id
-                    && feedback.field_id == request.field_id
-            });
-            if let Some(feedback) = feedback {
-                match feedback.state {
-                    MechanicalSettingsFeedbackState::Pending => {
-                        // The accepted token can advance before persistence settles. Keep this
-                        // field's submitted draft until its exact request receives Saved or Failed.
-                        status_for_ack.set(Some("Saving…".to_owned()));
-                        return;
-                    }
-                    MechanicalSettingsFeedbackState::Saved => {
-                        draft_for_ack.set(accepted.to_string());
-                        dirty_for_ack.set(false);
-                        error_for_ack.set(None);
-                        status_for_ack.set(Some("Saved".to_owned()));
-                        submitted_for_ack.set(None);
-                        return;
-                    }
-                    MechanicalSettingsFeedbackState::Failed => {
-                        draft_for_ack.set(accepted.to_string());
-                        dirty_for_ack.set(false);
-                        error_for_ack.set(Some(feedback.message.clone().unwrap_or_else(|| {
-                            "This setting was not saved. Review the value and retry.".to_owned()
-                        })));
-                        status_for_ack.set(None);
-                        submitted_for_ack.set(None);
-                        return;
-                    }
-                }
             }
-            if accepted_changed && !dirty_for_ack() {
-                draft_for_ack.set(accepted.to_string());
-                dirty_for_ack.set(false);
-                error_for_ack.set(None);
-                status_for_ack.set(None);
-                submitted_for_ack.set(None);
+            if !*dirty.peek() && *draft.peek() != accepted {
+                draft.set(accepted);
+                error.set(None);
             }
         },
     ));
@@ -3870,8 +3849,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         move || {
             let mut sequence = sequence;
             let mut error = error;
-            let mut field_status = field_status;
-            let mut submitted = submitted;
+            let mut dirty = dirty;
             let text = draft();
             let process_rule = process_target.as_deref().map(|target| {
                 if target.ends_with("foam") {
@@ -3881,7 +3859,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 }
             });
             let rule = process_rule.unwrap_or_else(|| field.rule());
-            if submitted().is_some() || !dirty() {
+            if !dirty() {
                 return;
             }
             let Ok(value) = text.trim().parse::<f64>() else {
@@ -3968,13 +3946,23 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 field_id: patch.field_id(),
                 patch,
             };
-            submitted.set(Some(request.clone()));
-            field_status.set(Some("Saving…".to_owned()));
-            on_request.call(request);
+            dirty.set(false);
+            if let Some(controller) = controller.as_ref() {
+                controller.request_field(
+                    field_key.clone(),
+                    draft,
+                    failure,
+                    text,
+                    on_request,
+                    request,
+                );
+            } else {
+                on_request.call(request);
+            }
         }
     });
-    let error_text = error();
-    let status_text = field_status();
+    let error_text = error().or_else(|| failure());
+    let status_text = pending.then_some("Saving…");
     rsx! {
         label { class: "m1-mechanical-dimension",
             span { "{props.label}" }
@@ -3994,8 +3982,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                         draft.set(event.value());
                         dirty.set(true);
                         error.set(None);
-                        field_status.set(None);
-                        submitted.set(None);
+                        failure.set(None);
                     },
                     onblur: {
                         let commit = commit.clone();
@@ -4020,8 +4007,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                                 draft.set(accepted.to_string());
                                 dirty.set(false);
                                 error.set(None);
-                                submitted.set(None);
-                                field_status.set(None);
+                                failure.set(None);
                             }
                         }
                     }
@@ -4057,66 +4043,20 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.clone());
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
-    let mut status = use_signal(|| None::<String>);
-    let mut previous_accepted = use_signal(|| props.value.clone());
+    let mut failure = use_signal(|| None::<String>);
+    let field_key = format!("field:text:{:?}", props.intent);
     let accepted = props.value.clone();
-    let feedback_entries = props.feedback.clone();
-    let mut draft_for_ack = draft;
-    let mut dirty_for_ack = dirty;
-    let mut error_for_ack = error;
-    let mut submitted_for_ack = submitted;
-    let mut status_for_ack = status;
-    let submitted_copy = submitted;
+    let (controller, pending) =
+        use_bound_mechanical_field(field_key.clone(), accepted.clone(), draft, failure);
     use_effect(use_reactive(
-        (&feedback_entries, &accepted),
-        move |(feedback_entries, accepted)| {
-            let accepted_changed = *previous_accepted.read() != accepted;
-            if accepted_changed {
-                previous_accepted.set(accepted.clone());
-            }
-            let Some(request) = submitted_copy.read().clone() else {
-                if accepted_changed && !dirty_for_ack() {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(None);
-                }
+        (&accepted, &pending),
+        move |(accepted, pending)| {
+            if pending {
                 return;
-            };
-            let feedback = feedback_entries.iter().find(|feedback| {
-                feedback.identity == request.identity
-                    && feedback.request_id == request.request_id
-                    && feedback.field_id == request.field_id
-            });
-            match feedback.map(|feedback| (&feedback.state, &feedback.message)) {
-                Some((MechanicalSettingsFeedbackState::Pending, _)) => {
-                    status_for_ack.set(Some("Saving…".to_owned()));
-                }
-                Some((MechanicalSettingsFeedbackState::Saved, _)) => {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(Some("Saved".to_owned()));
-                    submitted_for_ack.set(None);
-                }
-                Some((MechanicalSettingsFeedbackState::Failed, message)) => {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(Some(message.clone().unwrap_or_else(|| {
-                        "This setting was not saved. Review the value and retry.".to_owned()
-                    })));
-                    status_for_ack.set(None);
-                    submitted_for_ack.set(None);
-                }
-                None if accepted_changed && !dirty_for_ack() => {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(None);
-                    submitted_for_ack.set(None);
-                }
-                None => {}
+            }
+            if !*dirty.peek() && *draft.peek() != accepted {
+                draft.set(accepted);
+                error.set(None);
             }
         },
     ));
@@ -4129,18 +4069,16 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
         move || {
             let mut sequence = sequence;
             let mut error = error;
-            let mut status = status;
-            let mut submitted = submitted;
+            let mut dirty = dirty;
             let draft = draft;
             let value = draft();
-            if submitted().is_some() || !dirty() {
+            if !dirty() {
                 return;
             }
-            let patch = match intent.patch(value) {
+            let patch = match intent.patch(value.clone()) {
                 Ok(patch) => patch,
                 Err(message) => {
                     error.set(Some(message));
-                    status.set(None);
                     return;
                 }
             };
@@ -4158,14 +4096,24 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 field_id: patch.field_id(),
                 patch,
             };
-            submitted.set(Some(request.clone()));
-            status.set(Some("Saving…".to_owned()));
+            dirty.set(false);
             error.set(None);
-            on_request.call(request);
+            if let Some(controller) = controller.as_ref() {
+                controller.request_field(
+                    field_key.clone(),
+                    draft,
+                    failure,
+                    value,
+                    on_request,
+                    request,
+                );
+            } else {
+                on_request.call(request);
+            }
         }
     });
-    let error_text = error();
-    let status_text = status();
+    let error_text = error().or_else(|| failure());
+    let status_text = pending.then_some("Saving…");
     rsx! {
         label { class: "m1-mechanical-field",
             span { "{props.label}" }
@@ -4180,8 +4128,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                         draft.set(event.value());
                         dirty.set(true);
                         error.set(None);
-                        status.set(None);
-                        submitted.set(None);
+                        failure.set(None);
                     },
                     onblur: {
                         let commit = commit.clone();
@@ -4196,8 +4143,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                                 draft.set(accepted.clone());
                                 dirty.set(false);
                                 error.set(None);
-                                submitted.set(None);
-                                status.set(None);
+                                failure.set(None);
                             }
                         }
                     }
@@ -4213,8 +4159,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                         draft.set(event.value());
                         dirty.set(true);
                         error.set(None);
-                        status.set(None);
-                        submitted.set(None);
+                        failure.set(None);
                     },
                     onblur: {
                         let commit = commit.clone();
@@ -4239,8 +4184,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                                 draft.set(accepted.clone());
                                 dirty.set(false);
                                 error.set(None);
-                                submitted.set(None);
-                                status.set(None);
+                                failure.set(None);
                             }
                         }
                     }
@@ -5745,5 +5689,773 @@ mod contextual_layer_tests {
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         assert_eq!(cable_width.value().parse::<f64>().unwrap(), 2.0);
+    }
+}
+
+#[cfg(test)]
+mod mounted_settlement_tests {
+    use super::*;
+    use crate::mechanical_settings_controller::{
+        MechanicalSettingsController, MechanicalSettingsCurrent, MechanicalSettingsPorts,
+    };
+    use crate::runtime::{Runtime, project_name_test_support as support};
+    use boardstudio_application::Event;
+    use boardstudio_core::model::{
+        GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
+    };
+    use futures_channel::oneshot;
+    use std::{cell::RefCell, collections::VecDeque};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[derive(Clone, Default)]
+    struct TestCatalogue(Rc<RefCell<VecDeque<CatalogueReply>>>);
+
+    type CatalogueReply = oneshot::Receiver<Result<(), String>>;
+
+    fn template() -> Rc<PartDefinition> {
+        Rc::new(
+            serde_json::from_value(serde_json::json!({
+                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        )
+    }
+
+    fn profile() -> MechanicalPartProfile {
+        MechanicalPartProfile {
+            definition_id: "part-profile".into(),
+            source: "Authored".into(),
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: Some(vec![CaseOpening {
+                points: vec![
+                    Vec2 { x: 0.0, y: 0.0 },
+                    Vec2 { x: 5.0, y: 0.0 },
+                    Vec2 { x: 5.0, y: 5.0 },
+                    Vec2 { x: 0.0, y: 5.0 },
+                ],
+                z: 0.0,
+                height: 10.0,
+            }]),
+            clearances: None,
+            supported_thickness: None,
+            switch_family: None,
+            cutouts: vec![],
+            plate_to_pcb: 3.5,
+        }
+    }
+
+    fn host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let _ = version();
+        let feedback = use_signal(Vec::<MechanicalSettingsFeedback>::new);
+        let sequence = use_signal(|| 0_u64);
+        let mut show_dimension = use_signal(|| true);
+        let mut show_case = use_signal(|| true);
+        let mut presentation_generation = use_signal(|| 1_u64);
+        let catalogue = use_context::<TestCatalogue>();
+        let current = {
+            let runtime = runtime.clone();
+            Rc::new(move || {
+                let model = runtime.model();
+                let accepted = model.accepted?;
+                Some(MechanicalSettingsCurrent {
+                    identity: MechanicalSettingsIdentity {
+                        editor_instance_id: 1,
+                        scope_generation: 1,
+                        presentation_generation: presentation_generation(),
+                        scope: runtime.scope()?,
+                        snapshot_token: accepted.token,
+                        revision: accepted.document.revision,
+                        active_board_id: "board".into(),
+                        configuration_board_id: "board".into(),
+                    },
+                    configuration: accepted.document.mechanical.clone().map(Rc::new),
+                    accepted,
+                    editable: show_case(),
+                    lifecycle: model.lifecycle,
+                    durability: model.durability,
+                })
+            })
+        };
+        let controller = use_hook({
+            let current = current.clone();
+            let runtime = runtime.clone();
+            move || {
+                MechanicalSettingsController::new(MechanicalSettingsPorts {
+                    current,
+                    load_mounting_hole: Rc::new(move || {
+                        let reply = catalogue.0.borrow_mut().pop_front();
+                        Box::pin(async move {
+                            if let Some(reply) = reply {
+                                reply.await.unwrap()?;
+                            }
+                            Ok(template())
+                        })
+                    }),
+                    edit_port: Rc::new(runtime),
+                    publish: Rc::new(move |entry| {
+                        let mut feedback = feedback;
+                        feedback.write().push(entry);
+                    }),
+                })
+            }
+        });
+        use_context_provider(|| controller.clone());
+        use_effect(use_reactive(
+            (&version(), &presentation_generation(), &show_case()),
+            {
+                let controller = controller.clone();
+                move |_| controller.settle()
+            },
+        ));
+        let current = current().unwrap();
+        let configuration = current.configuration.unwrap();
+        let dimension_controller = controller.clone();
+        let text_controller = controller.clone();
+        let profile_controller = controller.clone();
+        let profile = configuration.profiles[0].clone();
+        rsx! {
+            button { class: "test-toggle-dimension", onclick: move |_| show_dimension.toggle(), "Toggle dimension" }
+            button { class: "test-toggle-case", onclick: move |_| {
+                presentation_generation += 1;
+                show_case.toggle();
+            }, "Toggle Case" }
+            if show_case() {
+            if show_dimension() {
+            div { class: "test-mechanical-dimension",
+                DimensionField {
+                    identity: current.identity.clone(), request_sequence: sequence,
+                    feedback: Rc::from(feedback().as_slice()),
+                    field: MechanicalDimension::WallThickness, label: "Wall thickness",
+                    value: configuration.wall_thickness, editable: true,
+                    on_request: move |request| { dimension_controller.submit(request); },
+                }
+            }
+            }
+            div { class: "test-mechanical-text",
+                TextDraftField {
+                    identity: current.identity.clone(), request_sequence: sequence,
+                    feedback: Rc::from(feedback().as_slice()), label: "Thread",
+                    value: configuration.internal_gasket.as_ref().unwrap().hardware.thread.clone(),
+                    intent: MechanicalTextIntent::ClosureThread, editable: true,
+                    on_request: move |request| { text_controller.submit(request); },
+                }
+            }
+            div { class: "test-mechanical-profile",
+                ProfileOpeningListEditor {
+                    identity: current.identity, request_sequence: sequence,
+                    feedback: Rc::from(feedback().as_slice()),
+                    profile: profile.clone(),
+                    clearance_volume: false, title: "Access openings",
+                    openings: profile.openings.clone().unwrap(), editable: true,
+                    on_request: move |request| { profile_controller.submit(request); },
+                    on_change: move |_| {},
+                }
+            }
+            }
+        }
+    }
+
+    async fn mounted_fields(project_id: &str) -> (Rc<Runtime>, web_sys::Element) {
+        mounted_fields_with_catalogue(project_id, TestCatalogue::default()).await
+    }
+
+    async fn mounted_fields_with_catalogue(
+        project_id: &str,
+        catalogue: TestCatalogue,
+    ) -> (Rc<Runtime>, web_sys::Element) {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty(project_id, "Mechanical field settlement");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .unwrap(),
+        );
+        let hardware = InternalClosureHardware {
+            id: "custom-m2".into(),
+            thread: "M2".into(),
+            screw_lengths: vec![8.0, 10.0, 12.0],
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            fixed_length: None,
+            head_diameter: 4.0,
+            head_height: 1.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            insert_length: 3.0,
+            seat_diameter: 2.8,
+            seat_depth: 3.5,
+            engagement: 2.5,
+            thread_start: 0.2,
+            tip_allowance: 0.1,
+            bottoming_clearance: 0.5,
+            roof: 1.5,
+            surround: 1.5,
+            seat_lead_depth: 0.25,
+            seat_lead_diameter: 3.0,
+            bearing_thickness: 1.5,
+        };
+        let gasket = InternalGasketConfiguration {
+            version: GasketConstructionVersion::InternalV1,
+            minimum_wall: 2.0,
+            support_clearance: None,
+            tolerance: 0.05,
+            support_count: 4,
+            auto_count: Some(true),
+            hardware,
+        };
+        document.mechanical = Some(
+            serde_json::from_value(serde_json::json!({
+                "boardId": "board", "method": "printed", "mount": "rigid",
+                "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                "bottomFoamThickness": 0.4, "batteryHeight": 4.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [profile()],
+                "closureMounts": [], "internalGasket": gasket,
+            }))
+            .unwrap(),
+        );
+        support::open_document(&runtime, document).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(catalogue);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+        (runtime, root)
+    }
+
+    async fn rendered() {
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    async fn settle_fields(runtime: &Rc<Runtime>) {
+        for _ in 0..15 {
+            support::run_pending(runtime).await;
+            rendered().await;
+        }
+    }
+
+    fn input(root: &web_sys::Element, field: &str) -> HtmlInputElement {
+        root.query_selector(&format!(".test-mechanical-{field} input"))
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    fn type_value(input: &HtmlInputElement, value: &str) {
+        input.focus().unwrap();
+        input.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    fn inline_failure(root: &web_sys::Element, field: &str) -> Option<String> {
+        root.query_selector(&format!(".test-mechanical-{field} [role='alert']"))
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    async fn dispose(runtime: &Rc<Runtime>, root: web_sys::Element, project_id: &str) {
+        runtime
+            .store
+            .delete_project(project_id.into())
+            .await
+            .unwrap();
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn unchanged_failed_mechanical_fields_restore_accepted_text_and_report_inline() {
+        for (field, submitted, accepted) in [("dimension", "3", "2"), ("text", "M3", "M2")] {
+            let project_id = format!("mechanical-unchanged-{field}");
+            let (runtime, root) = mounted_fields(&project_id).await;
+            support::fail_next_core_reply(&runtime, "mechanical executor refused the edit");
+            let input = input(&root, field);
+            type_value(&input, submitted);
+            input.blur().unwrap();
+            rendered().await;
+            settle_fields(&runtime).await;
+            assert_eq!(
+                input.value(),
+                accepted,
+                "an untouched submitted draft restores"
+            );
+            assert!(
+                inline_failure(&root, field)
+                    .is_some_and(|message| message.contains("mechanical executor refused"))
+            );
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn older_mechanical_failures_report_beside_newer_drafts_and_original_accepted_text() {
+        for (field, submitted, newer) in [
+            ("dimension", "3", "4"),
+            ("dimension", "3", "2"),
+            ("text", "M3", "M4"),
+            ("text", "M3", "M2"),
+        ] {
+            let project_id = format!("mechanical-newer-{field}-{newer}");
+            let (runtime, root) = mounted_fields(&project_id).await;
+            support::fail_next_core_reply(&runtime, "older mechanical failure");
+            let input = input(&root, field);
+            type_value(&input, submitted);
+            input.blur().unwrap();
+            rendered().await;
+            type_value(&input, newer);
+            settle_fields(&runtime).await;
+            assert_eq!(input.value(), newer, "the newer draft stays visible");
+            assert!(
+                inline_failure(&root, field)
+                    .is_some_and(|message| message.contains("older mechanical failure")),
+                "the older failure still reports beside the newer draft, including the original accepted value"
+            );
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_newer_original_mechanical_draft_survives_an_older_held_landing() {
+        for (field, submitted, original) in [("dimension", "3", "2"), ("text", "M3", "M2")] {
+            let project_id = format!("mechanical-original-{field}");
+            let (runtime, root) = mounted_fields(&project_id).await;
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+            let input = input(&root, field);
+            type_value(&input, submitted);
+            input.blur().unwrap();
+            rendered().await;
+            support::drive_pending(&runtime);
+            entered.await.unwrap();
+            type_value(&input, original);
+            release.send(()).unwrap();
+            settle_fields(&runtime).await;
+            assert_eq!(
+                input.value(),
+                original,
+                "returning to the original accepted text remains a newer draft"
+            );
+            assert!(inline_failure(&root, field).is_none());
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_mechanical_latest_commit_keeps_both_edits_and_undo_steps() {
+        let project_id = "mechanical-mounted-latest";
+        let (runtime, root) = mounted_fields(project_id).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = input(&root, "dimension");
+        type_value(&input, "3");
+        input.blur().unwrap();
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_value(&input, "4");
+        input.blur().unwrap();
+        rendered().await;
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            4.0
+        );
+        assert_eq!(input.value(), "4");
+        for (accepted, expected_text) in [(3.0, "3"), (2.0, "2")] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            settle_fields(&runtime).await;
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .mechanical
+                    .as_ref()
+                    .unwrap()
+                    .wall_thickness,
+                accepted
+            );
+            assert_eq!(input.value(), expected_text);
+        }
+        dispose(&runtime, root, project_id).await;
+    }
+    #[wasm_bindgen_test]
+    async fn catalogue_failure_restores_only_unchanged_drafts_and_reports_beside_newer_text() {
+        for (field, submitted, newer, expected) in [
+            ("dimension", "3", None, "2"),
+            ("dimension", "3", Some("4"), "4"),
+            ("dimension", "3", Some("2"), "2"),
+            ("text", "M3", None, "M2"),
+            ("text", "M3", Some("M4"), "M4"),
+            ("text", "M3", Some("M2"), "M2"),
+        ] {
+            let (release, reply) = oneshot::channel();
+            let catalogue = TestCatalogue::default();
+            catalogue.0.borrow_mut().push_back(reply);
+            let project_id = format!("mechanical-catalogue-{field}-{expected}");
+            let (runtime, root) = mounted_fields_with_catalogue(&project_id, catalogue).await;
+            let input = input(&root, field);
+            type_value(&input, submitted);
+            input.blur().unwrap();
+            rendered().await;
+            if let Some(newer) = newer {
+                type_value(&input, newer);
+            }
+            release.send(Err("catalogue unavailable".into())).unwrap();
+            settle_fields(&runtime).await;
+            assert_eq!(input.value(), expected);
+            assert!(
+                inline_failure(&root, field)
+                    .is_some_and(|message| message.contains("catalogue unavailable"))
+            );
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .mechanical
+                    .as_ref()
+                    .unwrap()
+                    .wall_thickness,
+                2.0
+            );
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn preparation_from_an_unmounted_field_cannot_bind_a_replacement_field() {
+        let (release, reply) = oneshot::channel();
+        let catalogue = TestCatalogue::default();
+        catalogue.0.borrow_mut().push_back(reply);
+        let project_id = "mechanical-preparation-remount";
+        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        support::fail_next_core_reply(&runtime, "old preparation failed");
+        let old_input = input(&root, "dimension");
+        type_value(&old_input, "3");
+        old_input.blur().unwrap();
+        rendered().await;
+        let toggle = root
+            .query_selector(".test-toggle-dimension")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        toggle.click();
+        rendered().await;
+        assert!(
+            root.query_selector(".test-mechanical-dimension")
+                .unwrap()
+                .is_none()
+        );
+        toggle.click();
+        rendered().await;
+        let replacement = input(&root, "dimension");
+        type_value(&replacement, "3");
+        release.send(Ok(())).unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(
+            replacement.value(),
+            "3",
+            "the old submission must not restore the replacement's identical draft"
+        );
+        assert!(
+            inline_failure(&root, "dimension").is_none(),
+            "the old outcome must not reach the replacement binding"
+        );
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            2.0
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    fn profile_input(root: &web_sys::Element, dimension: &str) -> HtmlInputElement {
+        root.query_selector(&format!(
+            ".test-mechanical-profile input[aria-label='Access openings volume 1 {dimension}']"
+        ))
+        .unwrap()
+        .unwrap()
+        .dyn_into()
+        .unwrap()
+    }
+
+    fn failure_at(input: &HtmlInputElement) -> Option<String> {
+        input
+            .closest("label")
+            .unwrap()
+            .unwrap()
+            .query_selector("[role='alert']")
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    #[wasm_bindgen_test]
+    async fn profile_volume_siblings_bind_distinct_fields_for_the_same_domain_request() {
+        let project_id = "mechanical-profile-siblings";
+        let (runtime, root) = mounted_fields(project_id).await;
+        support::fail_next_core_reply(&runtime, "profile volume failed");
+        let bottom = profile_input(&root, "Bottom Z");
+        let height = profile_input(&root, "Height");
+        type_value(&bottom, "2");
+        bottom.blur().unwrap();
+        rendered().await;
+        type_value(&height, "15");
+        settle_fields(&runtime).await;
+        assert_eq!(bottom.value(), "0");
+        assert!(
+            failure_at(&bottom).is_some_and(|message| message.contains("profile volume failed"))
+        );
+        assert_eq!(
+            height.value(),
+            "15",
+            "an untouched sibling's newer draft stays visible"
+        );
+        assert!(
+            failure_at(&height).is_none(),
+            "failure belongs to the submitted profile dimension"
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn catalogue_latest_preparation_keeps_identical_newer_text_while_pending() {
+        let (release_a, reply_a) = oneshot::channel();
+        let (release_b, reply_b) = oneshot::channel();
+        let catalogue = TestCatalogue::default();
+        catalogue.0.borrow_mut().extend([reply_a, reply_b]);
+        let project_id = "mechanical-catalogue-latest-identical";
+        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        let input = input(&root, "dimension");
+        for _ in 0..2 {
+            type_value(&input, "3");
+            input.blur().unwrap();
+            rendered().await;
+        }
+        release_a
+            .send(Err("older catalogue failure".into()))
+            .unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(
+            input.value(),
+            "3",
+            "the newer identical submitted text remains pending"
+        );
+        assert!(
+            inline_failure(&root, "dimension").is_none(),
+            "older preparation must not report through the latest field"
+        );
+        release_b
+            .send(Err("newer catalogue failure".into()))
+            .unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(input.value(), "2");
+        assert!(
+            inline_failure(&root, "dimension")
+                .is_some_and(|message| message.contains("newer catalogue failure"))
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn catalogue_latest_preparation_error_survives_older_failure_arriving_last() {
+        let (release_a, reply_a) = oneshot::channel();
+        let (release_b, reply_b) = oneshot::channel();
+        let catalogue = TestCatalogue::default();
+        catalogue.0.borrow_mut().extend([reply_a, reply_b]);
+        let project_id = "mechanical-catalogue-latest-error";
+        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        let input = input(&root, "dimension");
+        for _ in 0..2 {
+            type_value(&input, "3");
+            input.blur().unwrap();
+            rendered().await;
+        }
+        release_b
+            .send(Err("newer catalogue failure".into()))
+            .unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(input.value(), "2");
+        assert!(
+            inline_failure(&root, "dimension")
+                .is_some_and(|message| message.contains("newer catalogue failure"))
+        );
+        release_a
+            .send(Err("older catalogue failure".into()))
+            .unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(input.value(), "2");
+        assert!(
+            inline_failure(&root, "dimension")
+                .is_some_and(|message| message.contains("newer catalogue failure")),
+            "the bounded latest admission still owns feedback after its preparation failed"
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn presentation_departure_retires_field_observation_without_canceling_session_edit() {
+        let project_id = "mechanical-presentation-return";
+        let (runtime, root) = mounted_fields(project_id).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first_input = input(&root, "dimension");
+        type_value(&first_input, "3");
+        first_input.blur().unwrap();
+        rendered().await;
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        let toggle = root
+            .query_selector(".test-toggle-case")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        toggle.click();
+        rendered().await;
+        assert!(
+            root.query_selector(".test-mechanical-dimension")
+                .unwrap()
+                .is_none()
+        );
+        toggle.click();
+        rendered().await;
+        let returned = input(&root, "dimension");
+        assert_eq!(returned.value(), "2");
+        assert!(
+            root.query_selector(".test-mechanical-dimension [role='status']")
+                .unwrap()
+                .is_none(),
+            "returning to Case must not revive the old presentation's pending field observation"
+        );
+        release.send(()).unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            3.0,
+            "the already submitted Session edit still runs"
+        );
+        assert_eq!(returned.value(), "3");
+        assert!(inline_failure(&root, "dimension").is_none());
+        dispose(&runtime, root, project_id).await;
+    }
+    #[wasm_bindgen_test]
+    async fn newer_catalogue_failure_and_draft_survive_an_older_actual_ticket_landing() {
+        for newer in ["5", "2"] {
+            let (ready, reply_a) = oneshot::channel();
+            let (release_b, reply_b) = oneshot::channel();
+            ready.send(Ok(())).unwrap();
+            let catalogue = TestCatalogue::default();
+            catalogue.0.borrow_mut().extend([reply_a, reply_b]);
+            let project_id = format!("mechanical-mixed-phase-{newer}");
+            let (runtime, root) = mounted_fields_with_catalogue(&project_id, catalogue).await;
+            let (entered, release_a) = support::gate_next_core_reply(&runtime);
+            let input = input(&root, "dimension");
+            type_value(&input, "3");
+            input.blur().unwrap();
+            rendered().await;
+            support::drive_pending(&runtime);
+            entered.await.unwrap();
+            type_value(&input, "4");
+            input.blur().unwrap();
+            rendered().await;
+            type_value(&input, newer);
+            release_b
+                .send(Err("newer preparation failed".into()))
+                .unwrap();
+            settle_fields(&runtime).await;
+            assert_eq!(input.value(), newer);
+            assert!(
+                inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer preparation failed"))
+            );
+            assert!(
+                root.query_selector(".test-mechanical-dimension [role='status']")
+                    .unwrap()
+                    .is_none(),
+                "only the latest admitted request drives field pending"
+            );
+            release_a.send(()).unwrap();
+            settle_fields(&runtime).await;
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .mechanical
+                    .as_ref()
+                    .unwrap()
+                    .wall_thickness,
+                3.0
+            );
+            assert_eq!(
+                input.value(),
+                newer,
+                "the newer draft survives, including the original accepted value"
+            );
+            assert!(
+                inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer preparation failed")),
+                "an older actual ticket cannot clear the newer preparation failure"
+            );
+            dispose(&runtime, root, &project_id).await;
+        }
     }
 }

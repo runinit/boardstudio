@@ -6,14 +6,14 @@ Worktree: `/home/chris/01_Projects/ts-boardstudio2/.worktrees/08-pcb-pending-edi
 Branch: `deepening/08-pcb-pending-edits`  
 Starting dev commit: `8ce860a0950304ddfae34f12d5891b8c6f267f2f`
 
-## Current completion gate
+## Current integration
 
-Root confirmed a clean branch at `05e1b7026` (11 commits). The pinned root reviews
-found no Standards violations and three Spec findings. Complete the focused
-[final follow-up](#final-follow-up-at-05e1b7026) below; the earlier frozen report
-is not acceptance of the final source. Keep the original history, including
-`63e051463`. Root's decision is to preserve that history and its recorded
-bisectability limitation; no rewrite is needed to continue verification.
+Root accepted the PCB half at final source `ed92e9d9`, preserving external HEAD
+`4cd26b77b` and its full history, including the non-building intermediate
+`63e051463`. The [PCB half Outcome](issues/08-parts-and-pcb-onto-pending-edits.md#pcb-half-outcome)
+records every migrated site, the coordinated typed helper, executed checks and
+final pinned reviews. The checkpoints and follow-up instructions below are historical.
+Parts remains separate; parent08 closes only after both halves are accepted.
 
 ## Read first
 
@@ -187,3 +187,11 @@ Make PCB-only additive fixes, rerun affected native/lint/typecheck checks and bo
 reviews pinned to the resulting HEAD, and explicitly release the Chrome lease.
 Other browser streams remain paused. The shared-contract decision and integration
 remain with root; do not claim the parent ticket is resolved.
+
+## Worktree GitNexus commands
+
+When root dev cannot resolve new branch symbols, use the
+[separately named worktree index and CLI checks](gitnexus-worktree-coverage.md).
+Run from this assigned checkout, use its stream alias and pinned base, and refresh
+that index before final change analysis. Root keeps ownership of `boardstudio`.
+Report graph coverage separately from executed tests and pinned reviews.

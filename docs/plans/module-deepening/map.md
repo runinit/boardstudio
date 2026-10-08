@@ -55,7 +55,8 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. Preview-only 
 the native Runtime, resolution constructors, outline split, typed wiring, export leases
 and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers,
 Matrix actions and Matrix fields are merged and resolved. The complete tracer gate
-is resolved; Layout, Parts/PCB and the remaining panel migrations are unblocked.
+is resolved; Case/Keymap/Keycaps/Library and the PCB half are accepted. Layout and
+Parts remain unblocked.
 Mechanical patch and outline intent proposals await human approval.
 
 ## Decisions so far
@@ -78,6 +79,14 @@ Mechanical patch and outline intent proposals await human approval.
 ## Progress
 
 <!-- one line per resolved build ticket -->
+
+- [Case, Keymap, Keycaps and Library settlement](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#outcome):
+  all consumers use shared settlement and real field bindings; final native/browser
+  checks and both reviews accepted, with the CAD baseline reported separately.
+
+- [PCB half accepted](issues/08-parts-and-pcb-onto-pending-edits.md#pcb-half-outcome):
+  native 23 and mounted 48 pass; typed draft and bounded action gaps are closed.
+  Parent 08 remains claimed until the separate Parts half is accepted.
 
 - [PendingEdits and Matrix tracer integration gate](issues/05-pending-edits-module.md#outcome):
   the reviewed complete tracer passes combined verification and opens the three
@@ -160,18 +169,21 @@ Mechanical patch and outline intent proposals await human approval.
 
 ## Parallel frontier after the Matrix tracer
 
-The complete tracer opens Layout, Case/Keymap/Keycaps/Library, and Parts/PCB
-migrations. Parts and PCB now have separate crate owners and worktrees under the
-same parent ticket. Root owns dev/tracker/index and serializes Chrome leases.
+The complete tracer opened the three panel migrations. Ticket09 and the PCB half
+are accepted; Layout and Parts remain separate work. Parent08 stays claimed until
+Parts is accepted. Root owns dev/tracker/canonical index and serializes Chrome leases.
 Cleanup follows all reviewed, merged migrations, including both Parts/PCB halves.
 
 ## Parallel app allocation
 
-- This chat owns Layout panels and integration.
-- The user's second app owns
-  [Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md).
-- The existing third-app worktree now owns [Parts settlement](handoff-08-parts-pcb.md).
-- The separate PCB app owns [PCB settlement](handoff-08-pcb.md).
+- This chat owns integration; the existing Layout work remains separate.
+- The user's second app completed
+  [Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md);
+  root accepted its integration and resolved ticket09.
+- The existing third-app worktree owns [Parts settlement](handoff-08-parts-pcb.md),
+  which remains unaccepted.
+- The separate PCB app completed [PCB settlement](handoff-08-pcb.md); root accepted
+  that half without closing parent08.
 
 The handoffs name exact branches, worktrees and starting commits. Preserve ongoing
 work when resuming; each stream reports final pinned reviews and verification.

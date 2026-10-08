@@ -100,7 +100,6 @@ pub struct BindingEditRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BindingEditStatus {
     Pending,
-    Saved,
     Failed(String),
 }
 
@@ -488,11 +487,9 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
     });
     let pending =
         feedback.is_some_and(|feedback| matches!(feedback.status, BindingEditStatus::Pending));
-    let saved =
-        feedback.is_some_and(|feedback| matches!(feedback.status, BindingEditStatus::Saved));
     let failed_field = feedback.and_then(|feedback| match &feedback.status {
         BindingEditStatus::Failed(message) => Some((feedback.field, message.as_str())),
-        BindingEditStatus::Pending | BindingEditStatus::Saved => None,
+        BindingEditStatus::Pending => None,
     });
     let code_error = failed_field
         .filter(|(field, _)| matches!(field, BindingField::Keycode | BindingField::Tap))
@@ -685,7 +682,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                 }
             }
             if pending { p { class: "m1-keymap-binding-pending", role: "status", "Saving binding…" } }
-            if saved { p { class: "m1-keymap-binding-saved", role: "status", "Binding saved." } }
             if let Some(message) = error { p { class: "m1-keymap-binding-error", role: "alert", "{message}" } }
         }
     }

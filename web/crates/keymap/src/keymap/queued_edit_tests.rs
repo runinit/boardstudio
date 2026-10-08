@@ -2,9 +2,9 @@
 use super::binding_controller::{BindingActions, BindingProjectionSources, use_binding_operations};
 use super::binding_editor::{BindingEditRequest, BindingField, BindingTarget};
 use super::layer_controller::{LayerActions, LayerSource, use_layer_operations};
-use super::layer_edit::KeymapLayerOperation;
 use super::macro_controller::{MacroActions, use_macro_operations};
 use super::macro_editor::{MacroEditChange, MacroEditRequest, MacroEditTarget};
+use crate::layer_edit::KeymapLayerOperation;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{KeyBinding, ProjectDoc};
@@ -19,6 +19,9 @@ struct Probe {
     layers: Rc<RefCell<Option<LayerActions>>>,
     macros: Rc<RefCell<Option<MacroActions>>>,
     active_layer: Rc<RefCell<Option<Signal<String>>>>,
+    generation: Rc<RefCell<Option<Signal<u64>>>>,
+    layer_name: Rc<RefCell<Option<(Signal<String>, Signal<Option<String>>)>>>,
+    hide_macros: Rc<RefCell<Option<Signal<bool>>>>,
 }
 
 fn host() -> Element {
@@ -38,6 +41,7 @@ fn host() -> Element {
     *probe.active_layer.borrow_mut() = Some(active_layer);
     let workspace = use_signal(|| "Keymap");
     let generation = use_signal(|| 0u64);
+    *probe.generation.borrow_mut() = Some(generation);
     let accepted = runtime.model().accepted.unwrap();
     let scope = runtime.scope().unwrap();
     let source = Some(LayerSource {
@@ -55,6 +59,8 @@ fn host() -> Element {
         generation,
         Rc::new(|| true),
     ));
+    let layer_edits = use_context::<super::layer_controller::LayerEditsContext>();
+    *probe.layer_name.borrow_mut() = Some((layer_edits.name_draft, layer_edits.name_failure));
     let macro_actions = use_macro_operations(
         runtime.clone(),
         source.clone(),
@@ -62,7 +68,9 @@ fn host() -> Element {
         generation,
         Rc::new(|| true),
     );
-    let macro_ui = macro_actions.source.as_ref().map(|source| rsx! { super::macro_editor::MacroEditor {
+    let hide_macros = use_signal(|| false);
+    *probe.hide_macros.borrow_mut() = Some(hide_macros);
+    let macro_ui = macro_actions.source.as_ref().filter(|_| !hide_macros()).map(|source| rsx! { super::macro_editor::MacroEditor {
         scope: scope.clone(), scope_generation: 0, editor_instance_id: macro_actions.editor_instance_id,
         request_sequence: macro_actions.request_sequence, source: source.clone(), sequences: macro_actions.sequences.clone(),
         enabled: macro_actions.enabled, feedback: macro_actions.feedback.clone(), on_change: macro_actions.on_change,
@@ -130,6 +138,9 @@ async fn mount_runtime(runtime: Rc<Runtime>) -> (Probe, web_sys::Element) {
         layers: Rc::new(RefCell::new(None)),
         macros: Rc::new(RefCell::new(None)),
         active_layer: Rc::new(RefCell::new(None)),
+        generation: Rc::new(RefCell::new(None)),
+        layer_name: Rc::new(RefCell::new(None)),
+        hide_macros: Rc::new(RefCell::new(None)),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -445,7 +456,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
         1
     );
     assert!(
-        matches!(&probe.layers.borrow().as_ref().unwrap().feedback, Some(super::layer_edit::KeymapLayerFeedback::Failed(message)) if message.contains("no longer exists"))
+        matches!(&probe.layers.borrow().as_ref().unwrap().feedback, Some(crate::layer_edit::KeymapLayerFeedback::Failed(message)) if message.contains("no longer exists"))
     );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
@@ -682,23 +693,18 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             expected
         );
         let eligible = removed.is_none_or(|index| index > 1);
-        assert_eq!(
-            matches!(
-                &probe
-                    .macros
-                    .borrow()
-                    .as_ref()
-                    .unwrap()
-                    .feedback
-                    .as_ref()
-                    .unwrap()
-                    .status,
-                super::macro_editor::MacroEditStatus::Saved
-            ),
-            eligible
+        assert!(
+            probe.macros.borrow().as_ref().unwrap().feedback.is_none(),
+            "a bound step field reports at the field, never in the panel status"
         );
         if !eligible {
-            assert!(root.text_content().unwrap().contains("macro step"));
+            assert!(
+                root.query_selector("label small[role='alert']")
+                    .unwrap()
+                    .and_then(|alert| alert.text_content())
+                    .is_some_and(|message| message.contains("macro step")),
+                "an ineligible step edit reports its failure at the step field"
+            );
         }
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
@@ -742,4 +748,330 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
         );
         root.remove();
     }
+}
+
+fn rename_base(probe: &Probe, name: &str) {
+    probe
+        .layers
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_operation
+        .call(KeymapLayerOperation::Rename {
+            layer_id: "base".into(),
+            name: name.into(),
+        });
+}
+
+#[wasm_bindgen_test]
+async fn a_newer_layer_name_survives_an_older_failure_that_reports_inline() {
+    let (probe, root) = mounted().await;
+    let runtime = probe.runtime.clone();
+    let (mut draft, failure) = probe.layer_name.borrow().unwrap();
+    draft.set("A".into());
+    support::fail_next_core_reply(&runtime, "layer executor failed");
+    rename_base(&probe, "A");
+    // The older rename has not settled when the user types the next draft.
+    draft.set("AB".into());
+    settle(&runtime).await;
+    assert_eq!(draft(), "AB", "a newer draft is never overwritten");
+    assert!(
+        failure().is_some_and(|message| message.contains("layer executor failed")),
+        "the older failure reports inline at the name field"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
+    let runtime = support::new_runtime();
+    let mut doc = document();
+    doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}},{"id":"child","name":"Child","bindings":{},"sensors":{}}],"macros":[]})).unwrap());
+    support::open_document(&runtime, doc).await;
+    let (probe, root) = mount_runtime(runtime.clone()).await;
+    probe.active_layer.borrow().unwrap().set("child".into());
+    rendered().await;
+    let (mut draft, failure) = probe.layer_name.borrow().unwrap();
+    // Removing the layer is held in Core; the rename behind it can only fail once it runs.
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    probe
+        .layers
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_operation
+        .call(KeymapLayerOperation::Remove {
+            layer_id: "child".into(),
+        });
+    support::drive_pending(&runtime);
+    entered.await.unwrap();
+    draft.set("Gone".into());
+    probe
+        .layers
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_operation
+        .call(KeymapLayerOperation::Rename {
+            layer_id: "child".into(),
+            name: "Gone".into(),
+        });
+    // The owner departs before either edit settles.
+    let mut generation = probe.generation.borrow().unwrap();
+    generation.set(generation() + 1);
+    rendered().await;
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    assert_eq!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .keymap
+            .as_ref()
+            .unwrap()
+            .layers
+            .len(),
+        1,
+        "the queued Session edits kept executing"
+    );
+    assert_eq!(draft(), "Gone", "a departed owner leaves the draft alone");
+    assert!(
+        failure().is_none(),
+        "the rename would fail with \"no longer exists\"; retirement keeps it silent"
+    );
+    assert!(
+        probe.layers.borrow().as_ref().unwrap().feedback.is_none(),
+        "no status survives the owner"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_cleanly() {
+    use wasm_bindgen::JsCast;
+    let runtime = support::new_runtime();
+    let mut doc = document();
+    doc.keymap = Some(serde_json::from_value(serde_json::json!({
+        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
+        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
+    })).unwrap());
+    support::open_document(&runtime, doc).await;
+    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let tap = || {
+        root.query_selector("input[aria-label='Original tapMs']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    };
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let input = tap();
+    input.focus().unwrap();
+    input.set_value("55");
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+    input.blur().unwrap();
+    support::drive_pending(&runtime);
+    entered.await.unwrap();
+    let mut hide = probe.hide_macros.borrow().unwrap();
+    hide.set(true);
+    rendered().await;
+    assert!(
+        root.query_selector("input[aria-label='Original tapMs']")
+            .unwrap()
+            .is_none(),
+        "the macro field is unmounted while its edit is held"
+    );
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    assert_eq!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .keymap
+            .as_ref()
+            .unwrap()
+            .macros[0]
+            .tap_ms,
+        55,
+        "the queued edit kept executing"
+    );
+    hide.set(false);
+    rendered().await;
+    assert_eq!(
+        tap().value(),
+        "55",
+        "the remounted field shows the accepted value"
+    );
+    root.remove();
+}
+
+fn macro_doc() -> ProjectDoc {
+    let mut doc = document();
+    doc.keymap = Some(serde_json::from_value(serde_json::json!({
+        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
+        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
+    })).unwrap());
+    doc
+}
+
+fn macro_input(root: &web_sys::Element, label: &str) -> web_sys::HtmlInputElement {
+    use wasm_bindgen::JsCast;
+    root.query_selector(&format!("input[aria-label='{label}']"))
+        .unwrap()
+        .unwrap()
+        .dyn_into()
+        .unwrap()
+}
+
+fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
+    input.set_value(value);
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+}
+
+/// A held failing macro field edit with a newer dirty draft typed behind it: the older
+/// failure must report at the field, and nowhere in the panel status.
+async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &str) {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_doc()).await;
+    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    let input = macro_input(&root, label);
+    support::fail_next_core_reply(&runtime, "macro executor failed");
+    input.focus().unwrap();
+    type_value(&input, first);
+    input.blur().unwrap();
+    rendered().await;
+    // The older edit has not settled when the user types the next draft.
+    type_value(&input, newer);
+    settle(&runtime).await;
+    let input = macro_input(&root, label);
+    assert_eq!(input.value(), newer, "a newer draft is never overwritten");
+    let alert = root
+        .query_selector("label small[role='alert']")
+        .unwrap()
+        .expect("the older failure reports inline beside the newer draft");
+    assert!(
+        alert
+            .text_content()
+            .unwrap()
+            .contains("macro executor failed")
+    );
+    assert!(
+        root.query_selector("p.m1-keymap-macro-status")
+            .unwrap()
+            .is_none(),
+        "a bound field's failure is not duplicated in the panel status"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_newer_macro_text_draft_keeps_an_older_failure_inline_only() {
+    newer_macro_draft_with_older_failure("Macro name Original", "Renamed", "Renamed again").await;
+}
+
+#[wasm_bindgen_test]
+async fn a_newer_macro_number_draft_keeps_an_older_failure_inline_only() {
+    newer_macro_draft_with_older_failure("Original tapMs", "55", "66").await;
+}
+
+#[wasm_bindgen_test]
+async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inline_failure() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_doc()).await;
+    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    support::fail_next_core_reply(&runtime, "macro executor failed");
+    let input = macro_input(&root, "Original tapMs");
+    input.focus().unwrap();
+    type_value(&input, "55");
+    input.blur().unwrap();
+    settle(&runtime).await;
+    assert_eq!(macro_input(&root, "Original tapMs").value(), "30");
+    let alert = root
+        .query_selector("label small[role='alert']")
+        .unwrap()
+        .expect("the failure reports inline");
+    assert!(
+        alert
+            .text_content()
+            .unwrap()
+            .contains("macro executor failed")
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_doc()).await;
+    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    let tap_ms = |runtime: &Rc<Runtime>| {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .keymap
+            .as_ref()
+            .unwrap()
+            .macros[0]
+            .tap_ms
+    };
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let input = macro_input(&root, "Original tapMs");
+    input.focus().unwrap();
+    type_value(&input, "55");
+    input.blur().unwrap();
+    support::drive_pending(&runtime);
+    entered.await.unwrap();
+    input.focus().unwrap();
+    type_value(&input, "66");
+    input.blur().unwrap();
+    support::drive_pending(&runtime);
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    assert_eq!(tap_ms(&runtime), 66);
+    assert_eq!(macro_input(&root, "Original tapMs").value(), "66");
+    assert!(
+        root.query_selector("label small[role='alert']")
+            .unwrap()
+            .is_none()
+    );
+    for expected in [55, 30] {
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        settle(&runtime).await;
+        assert_eq!(tap_ms(&runtime), expected, "each edit has an Undo step");
+    }
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_failed_unchanged_layer_name_restores_the_accepted_name_with_an_inline_failure() {
+    let (probe, root) = mounted().await;
+    let runtime = probe.runtime.clone();
+    let (mut draft, failure) = probe.layer_name.borrow().unwrap();
+    draft.set("A".into());
+    support::fail_next_core_reply(&runtime, "layer executor failed");
+    rename_base(&probe, "A");
+    settle(&runtime).await;
+    assert_eq!(
+        draft(),
+        "Base",
+        "the unchanged draft restores the accepted name"
+    );
+    assert!(failure().is_some_and(|message| message.contains("layer executor failed")));
+    root.remove();
 }

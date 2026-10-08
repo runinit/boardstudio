@@ -1,11 +1,9 @@
-use super::apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
+use super::apply::{BoardWiringApplyActions, use_board_wiring_apply};
 use super::mode::{
-    BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
-    CurrentSnapshotBlocker, current_snapshot_probe, use_board_wiring_mode_edits,
+    BoardWiringModeActions, BoardWiringModeEditRequest, CurrentSnapshotBlocker,
+    current_snapshot_probe, use_board_wiring_mode_edits,
 };
-use super::pins::{
-    PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
-};
+use super::pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
 use super::*;
 use boardstudio_application::{
@@ -1142,18 +1140,69 @@ fn mounted_mode_choice_submits_one_edit_that_lands_and_saves() {
     let next_source = refreshed_source(&probe.runtime, None, 5);
     *probe.source.borrow_mut() = next_source;
     tick(&probe, &mut dom);
-    assert!(matches!(
-        probe
-            .latest
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .feedback
-            .as_ref()
-            .unwrap()
-            .state,
-        BoardWiringModeFeedback::Saved
-    ));
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert_eq!(
+        (shown.draft)(),
+        "direct",
+        "the control shows the accepted mode after landing"
+    );
+    assert!(!shown.pending);
+    assert!(
+        (shown.failure)().is_none(),
+        "landing shows the accepted value without a status message"
+    );
+}
+
+#[test]
+fn mounted_mode_owner_departure_does_not_resurrect_a_pending_choice_when_selection_returns() {
+    let (probe, mut dom) = mounted();
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    probe.runtime.hold_next_core();
+    actions
+        .on_change
+        .call(request(&probe, ElectricalMode::Direct));
+    let mode = latest_edit_slot(&probe.runtime);
+    assert!(probe.runtime.core_entered(), "the mode choice reaches Core");
+    tick(&probe, &mut dom);
+    assert!(probe.latest.borrow().as_ref().unwrap().pending);
+
+    select_part(&probe.runtime, "matrix/m/r0c0");
+    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, Some("matrix/m/r0c0"), 5);
+    tick(&probe, &mut dom);
+    assert!(!probe.latest.borrow().as_ref().unwrap().pending);
+    probe.runtime.submit(Event::SelectParts {
+        operation_id: probe.runtime.operation(),
+        mode: boardstudio_application::SelectionMode::Replace,
+        part_ids: Vec::new(),
+        range_part_ids: Vec::new(),
+    });
+    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, None, 5);
+    tick(&probe, &mut dom);
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert!(
+        !shown.pending,
+        "returning to a departed owner does not revive its observation"
+    );
+    assert_eq!(
+        (shown.draft)(),
+        "matrix",
+        "the returned owner shows accepted mode"
+    );
+    assert!((shown.failure)().is_none(), "owner retirement is silent");
+    assert!(
+        mode.borrow().is_none(),
+        "the departed owner's Session edit still waits for Core"
+    );
+
+    probe.runtime.release_core();
+    assert_eq!(*mode.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
+    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, None, 5);
+    tick(&probe, &mut dom);
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert!(!shown.pending);
+    assert_eq!((shown.draft)(), "direct");
+    assert!((shown.failure)().is_none());
 }
 
 #[test]

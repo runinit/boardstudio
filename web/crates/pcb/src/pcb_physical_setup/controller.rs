@@ -4,7 +4,7 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -146,6 +146,14 @@ impl OperationUi {
             self.busy.set(None);
         }
     }
+
+    /// A landed setup shows no status: the accepted document is the confirmation.
+    fn settle_silently(&mut self, operation_id: OperationId) {
+        if !self.alive.get() || *self.busy.peek() != Some(operation_id) {
+            return;
+        }
+        self.busy.set(None);
+    }
 }
 pub fn use_controller(
     runtime: Rc<Runtime>,
@@ -235,13 +243,21 @@ pub fn use_controller(
                     ui.busy.set(None);
                     return;
                 }
-                let ticket = EditTicket::begin(
+                // One setup operation is in flight at a time (the busy gate above), so a
+                // task-local keyed collection is the whole settlement owner here. This is
+                // workflow orchestration, not field settlement: the drained result drives
+                // navigation and reassignment follow-ups through finish_operation instead
+                // of restoring a drafted control, which is why it does not route through
+                // PendingEditSignals.
+                let mut edits = PendingEdits::<OwnerIdentity>::default();
+                let operation = edits.begin(
                     &runtime,
+                    identity.clone(),
                     "physical-setup",
                     Some("physical setup".into()),
                     setup_resolver(identity.clone(), intent.clone(), seed, prepared),
                 );
-                ui.busy.set(Some(ticket.operation()));
+                ui.busy.set(Some(operation));
                 loop {
                     if !ui.alive.get() {
                         return;
@@ -251,39 +267,36 @@ pub fn use_controller(
                         accepted.session_epoch == identity.session_epoch
                             && accepted.document.id == identity.document_id
                     });
-                    let reassigned = matches!(ticket.settlement(true), Settlement::Landed { .. })
-                        && match &intent {
-                            PhysicalSetupIntent::CasePcbDesign(board_id) => model
-                                .accepted
-                                .as_ref()
-                                .and_then(|accepted| {
-                                    expected_case_reassignment_owner(
-                                        &identity,
-                                        board_id,
-                                        accepted.token,
-                                        generation(),
-                                    )
-                                })
-                                .is_some_and(|owner| activity.matches(&owner, false)),
-                            _ => false,
-                        };
+                    let reassigned = match &intent {
+                        PhysicalSetupIntent::CasePcbDesign(board_id) => model
+                            .accepted
+                            .as_ref()
+                            .and_then(|accepted| {
+                                expected_case_reassignment_owner(
+                                    &identity,
+                                    board_id,
+                                    accepted.token,
+                                    generation(),
+                                )
+                            })
+                            .is_some_and(|owner| activity.matches(&owner, false)),
+                        _ => false,
+                    };
                     let live = same_session && (activity.matches(&identity, false) || reassigned);
-                    match ticket.settlement(live) {
-                        Settlement::Pending => {}
-                        settlement => {
-                            finish_operation(
-                                &runtime,
-                                &identity,
-                                &intent,
-                                ticket.operation(),
-                                settlement,
-                                &activity,
-                                instance_selection,
-                                generation,
-                                &mut ui,
-                            );
-                            break;
-                        }
+                    let mut results = edits.settle(live);
+                    if let Some(settlement) = results.pop() {
+                        finish_operation(
+                            &runtime,
+                            &identity,
+                            &intent,
+                            operation,
+                            settlement,
+                            &activity,
+                            instance_selection,
+                            generation,
+                            &mut ui,
+                        );
+                        break;
                     }
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 }
@@ -705,7 +718,7 @@ fn finish_operation(
     identity: &OwnerIdentity,
     intent: &PhysicalSetupIntent,
     operation_id: OperationId,
-    settlement: Settlement,
+    settlement: PendingEditResult<OwnerIdentity>,
     activity: &OwnerActivity,
     instance_selection: super::super::InstanceSelection,
     generation: Signal<u64>,
@@ -714,7 +727,7 @@ fn finish_operation(
     if !ui.alive.get() {
         return;
     }
-    let landed = matches!(settlement, Settlement::Landed { .. });
+    let landed = matches!(settlement, PendingEditResult::Landed { .. });
     let model = runtime.model();
     let accepted = model.accepted.as_ref();
     let navigate_to = match intent {
@@ -756,7 +769,7 @@ fn finish_operation(
         return;
     }
     let message = match settlement {
-        Settlement::Landed { .. } => {
+        PendingEditResult::Landed { .. } => {
             if let Some(accepted) = accepted {
                 owner.token = accepted.token;
                 owner.revision = accepted.document.revision;
@@ -784,15 +797,16 @@ fn finish_operation(
                     });
                 }
             }
-            "Physical setup saved.".into()
+            // The accepted document is the confirmation; landing shows no status.
+            ui.settle_silently(operation_id);
+            return;
         }
-        Settlement::Failed { message } => message,
-        Settlement::Retired => {
+        PendingEditResult::Failed { message, .. } => message,
+        PendingEditResult::Retired { .. } => {
             ui.feedback.set(None);
             ui.busy.set(None);
             return;
         }
-        Settlement::Pending => return,
     };
     ui.publish(operation_id, &owner, message, true);
 }

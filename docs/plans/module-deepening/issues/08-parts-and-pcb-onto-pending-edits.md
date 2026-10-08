@@ -55,7 +55,7 @@ dormant domain tests in this ticket's other files still migrate here as needed.
 - [ ] `GeneratorSubmission`, `AssemblySubmission`, `ModelSubmission`,
   `PartInputFeedbackState` and the three remaining `owner_is_live` functions are gone.
 - [ ] Exact post-landing selection (edit settlement 15) still works through `Landed`.
-- [ ] The electrical remap review keeps its strict route (ADR-0005).
+- [x] The electrical remap review keeps its strict route (ADR-0005).
 - [ ] Mounted Parts and PCB tests pass.
 
 ## Verification
@@ -64,6 +64,58 @@ dormant domain tests in this ticket's other files still migrate here as needed.
 cargo test -p boardstudio-web-parts -p boardstudio-web-pcb --locked
 python3 scripts/check.py lint typecheck test browser
 ```
+
+## PCB half Outcome
+
+The PCB half is accepted at final source `ed92e9d9`, independently of Parts.
+Root preserved the external branch at `4cd26b77b` through merge `36c32938a`,
+then committed typed helper support (`9cf6a268`) and the remaining PCB corrections
+(`97b681df`). Parent 08 stays claimed until the Parts half is reviewed and integrated.
+The earlier PCB checkpoints below are historical.
+
+All named PCB sites use PendingEdits/PendingEditSignals: mode, pins, Apply,
+firmware positions, part-net assignment/input settings, module inspector, board
+reference and physical setup. ModeTickets, PinTickets, ApplyTickets,
+FirmwareTickets, PartNetTickets, PartInputFeedbackState and the named PCB
+owner_is_live are gone. Pending mode/pin and InputDrafts remain domain projection;
+schema-preparation queues and exact Landed navigation/selection remain intact.
+Physical setup's task-local waiter coordinates workflow/navigation, not bound-field
+restoration or a second Session implementation.
+
+The module inspector binds its real MountedModule through
+`PendingEditSignals<ModuleEditKey, MountedModule>`; no serialization or local
+submitted-value equality policy is needed. Its ordinary draft-dirty projection
+protects a newer draft returning to baseline and resumes accepted/Undo/Redo updates
+when clean. Remove Circuit uses one bounded action key and rejects retained sibling
+admission while pending. Create Net uses helper-owned submitted disabling while
+preparation state stays caller-owned. Wiring-mode helpers retire old selection,
+scope and generation observations instead of retaining a binding history.
+Protected `pcb_wiring/remap.rs` is byte-for-byte unchanged from root's pinned base;
+its strict captured-revision route and ticket19's domain scenarios are preserved.
+
+### Verification and reviews
+
+Root verified final source `ed92e9d9d05de7c9ff3d1ad6e696e631e819091c`:
+
+- Native PCB: 23/23, including all 17 mode-owner cases.
+- PCB mounted browser: 48/48; physical setup's seven formerly dormant scenarios
+  execute on WASM. The parked late-reply test asserts its sender exists before hiding
+  and replying. Retained sibling removal and return-to-baseline placement tests
+  failed behaviorally before their fixes and pass on the final source.
+- Shared helper: native 8/8, mounted 24/24 plus panels 1/1.
+- Lint/typecheck: pass. Complete browser gate: Pass: all crate groups and page presentation 43/43; no missing or duplicate terminal outcomes.
+- Full native test step: only the reproduced CAD volume failure (49/1/4);
+  the KiCad environment failures no longer occur and worktree CAD builds execute.
+- Final Standards review: zero documented breaches; the combined integration's
+  one nonblocking Case/Keymap duplication smell is unrelated to PCB.
+- Final Spec review: no blocking implementation findings. Both reviews pin root
+  base `974e367e7c8fc61ac94751295854ab6727b3590d` through the full final source above.
+
+[Root graph coverage](09-case-keymap-keycaps-library-onto-pending-edits.md#graph-coverage-and-remaining-limits)
+includes PCB and the coordinated helper. The [CLI workflow](../gitnexus-worktree-coverage.md)
+resolves future branch symbols through an independent worktree index.
+Original history is preserved, including non-building intermediate `63e051463`;
+this remains a bisectability limitation, not an uncommitted source defect.
 
 ## Comments
 

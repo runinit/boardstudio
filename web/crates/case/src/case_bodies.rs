@@ -2,7 +2,7 @@
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
 use dioxus::prelude::*;
-use std::rc::Rc;
+use std::{cell::Cell, rc::Rc};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct CaseBodiesProps {
@@ -56,16 +56,18 @@ pub struct CaseBodyEditFeedback {
     pub request_id: u64,
     /// Echoed from the request so only the owning control consumes feedback.
     pub field_id: Option<String>,
-    pub state: CaseBodyEditState,
-    pub message: Option<String>,
+    /// The edit has not settled; its draft stays visible.
+    pub pending: bool,
+    /// The settled edit's failure, shown inline at its field.
+    pub failure: Option<String>,
     pub created_body_id: Option<String>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum CaseBodyEditState {
-    Pending,
-    Saved,
-    Failed,
+impl CaseBodyEditFeedback {
+    /// The edit landed: the field shows the accepted value again.
+    fn landed(&self) -> bool {
+        !self.pending && self.failure.is_none()
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -167,16 +169,6 @@ pub enum CaseBodyEdit {
     },
 }
 
-#[derive(Clone, PartialEq)]
-struct RequestIdentity {
-    editor_instance_id: u64,
-    scope: Scope,
-    snapshot_token: SnapshotToken,
-    revision: u64,
-    request_id: u64,
-    field_id: Option<String>,
-}
-
 use super::case_viewer::{BodySelection, CaseSelection};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -268,16 +260,16 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
         .cloned()
         .collect::<Vec<_>>();
     let action_pending = |id: &str| {
-        feedback.iter().any(|entry| {
-            entry.field_id.as_deref() == Some(id) && entry.state == CaseBodyEditState::Pending
-        })
+        feedback
+            .iter()
+            .any(|entry| entry.field_id.as_deref() == Some(id) && entry.pending)
     };
     let mut selection_for_effect = selected_body;
     let scope = props.scope.clone();
     let saved_add = feedback
         .iter()
         .rev()
-        .find(|feedback| feedback.state == CaseBodyEditState::Saved)
+        .find(|feedback| feedback.landed())
         .and_then(|feedback| feedback.created_body_id.clone());
     use_effect(use_reactive((&saved_add, &scope), {
         move |(created_body_id, scope)| {
@@ -348,11 +340,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                 .is_none_or(|id| id.starts_with("action:"))
         })
         .max_by_key(|feedback| feedback.request_id);
-    let global_feedback_saved =
-        global_feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
-    let global_feedback_error = global_feedback
-        .filter(|feedback| feedback.state == CaseBodyEditState::Failed)
-        .and_then(|feedback| feedback.message.clone());
+    let global_feedback_error = global_feedback.and_then(|feedback| feedback.failure.clone());
 
     rsx! {
         section { class: "m1-case-bodies", "aria-label": "Authored case bodies",
@@ -436,28 +424,28 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                         div { class: "m1-case-measures",
                             CaseNumberField {
                                 label: "Thickness", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "thickness"), value: body.thickness, unit: "mm", rule: NumberRule::Positive,
-                                editable: can_edit, feedback: feedback.clone(),
+                                editable: can_edit,
                                 on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetThickness { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                             }
                             CaseNumberField {
                                 label: "Clearance", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "clearance"), value: body.clearance, unit: "mm", rule: NumberRule::Nonnegative,
-                                editable: can_edit, feedback: feedback.clone(),
+                                editable: can_edit,
                                 on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetClearance { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                             }
                             CaseNumberField {
                                 label: "Z offset", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "z"), value: body.z.unwrap_or(0.0), unit: "mm", rule: NumberRule::Finite,
-                                editable: can_edit, feedback: feedback.clone(),
+                                editable: can_edit,
                                 on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetZ { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                             }
                             if !matches!(&body.kind, CaseKind::Plate) {
                                 CaseNumberField {
                                     label: "Wall height", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "wall-height"), value: body.wall_height.unwrap_or(14.0), unit: "mm", rule: NumberRule::Positive,
-                                    editable: can_edit, feedback: feedback.clone(),
+                                    editable: can_edit,
                                     on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetWallHeight { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                 }
                                 CaseNumberField {
                                     label: "Wall thickness", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "wall-thickness"), value: body.wall_thickness.unwrap_or(2.0), unit: "mm", rule: NumberRule::Positive,
-                                    editable: can_edit, feedback: feedback.clone(),
+                                    editable: can_edit,
                                     on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetWallThickness { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                 }
                             }
@@ -517,28 +505,28 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                             div { class: "m1-case-measures",
                                                 CaseNumberField {
                                                     label: "X position", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, Some(&mount_id), "mount-x"), value: mount.at.x, unit: "mm", rule: NumberRule::Finite,
-                                                    editable: can_edit, feedback: feedback.clone(),
+                                                    editable: can_edit,
                                                     on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetMountX { body_id: body_id.clone(), mount_id: mount_id.clone(), value: change.value }, Some(change.field_id)) }
                                                 }
                                                 CaseNumberField {
                                                     label: "Y position", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, Some(&mount_id), "mount-y"), value: mount.at.y, unit: "mm", rule: NumberRule::Finite,
-                                                    editable: can_edit, feedback: feedback.clone(),
+                                                    editable: can_edit,
                                                     on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetMountY { body_id: body_id.clone(), mount_id: mount_id.clone(), value: change.value }, Some(change.field_id)) }
                                                 }
                                                 CaseNumberField {
                                                     label: "Hole diameter", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, Some(&mount_id), "mount-hole-diameter"), value: mount.hole_diameter, unit: "mm", rule: NumberRule::Positive,
-                                                    editable: can_edit, feedback: feedback.clone(),
+                                                    editable: can_edit,
                                                     on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetMountHoleDiameter { body_id: body_id.clone(), mount_id: mount_id.clone(), value: change.value }, Some(change.field_id)) }
                                                 }
                                                 if matches!(&mount.kind, MountKind::Boss) {
                                                     CaseNumberField {
                                                         label: "Boss diameter", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, Some(&mount_id), "mount-boss-diameter"), value: mount.boss_diameter.unwrap_or(5.0), unit: "mm", rule: NumberRule::Positive,
-                                                        editable: can_edit, feedback: feedback.clone(),
+                                                        editable: can_edit,
                                                         on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetMountBossDiameter { body_id: body_id.clone(), mount_id: mount_id.clone(), value: change.value }, Some(change.field_id)) }
                                                     }
                                                     CaseNumberField {
                                                         label: "Height", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, Some(&mount_id), "mount-height"), value: mount.height.unwrap_or(5.0), unit: "mm", rule: NumberRule::Positive,
-                                                        editable: can_edit, feedback: feedback.clone(),
+                                                        editable: can_edit,
                                                         on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetMountHeight { body_id: body_id.clone(), mount_id: mount_id.clone(), value: change.value }, Some(change.field_id)) }
                                                     }
                                                 }
@@ -585,17 +573,17 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 div { class: "m1-case-measures m1-case-gasket-measures",
                                     CaseNumberField {
                                         label: "Inset", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-inset"), value: gasket.inset, unit: "mm", rule: NumberRule::Nonnegative,
-                                        editable: can_edit, feedback: feedback.clone(),
+                                        editable: can_edit,
                                         on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasketInset { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                     }
                                     CaseNumberField {
                                         label: "Width", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-width"), value: gasket.width, unit: "mm", rule: NumberRule::Positive,
-                                        editable: can_edit, feedback: feedback.clone(),
+                                        editable: can_edit,
                                         on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasketWidth { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                     }
                                     CaseNumberField {
                                         label: "Depth", field_id: case_field_id(props.editor_instance_id, &props.scope, &body_id, None, "gasket-depth"), value: gasket.depth, unit: "mm", rule: NumberRule::Positive,
-                                        editable: can_edit, feedback: feedback.clone(),
+                                        editable: can_edit,
                                         on_commit: { let submit = emit_edit_with_field.clone(); let body_id = body_id.clone(); move |change: CaseNumberCommit| submit(CaseBodyEdit::SetGasketDepth { body_id: body_id.clone(), value: change.value }, Some(change.field_id)) }
                                     }
                                 }
@@ -608,9 +596,6 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                 p { class: "m1-case-bodies-empty", role: "status", "Add a plate, tray, or lid to begin the case stack." }
             } else {
                 p { class: "m1-case-bodies-empty", role: "status", "Add a board before creating a case body." }
-            }
-            if global_feedback_saved {
-                p { class: "m1-case-edit-saved", role: "status", "Case body saved." }
             }
             if let Some(error) = global_feedback_error {
                 p { class: "m1-case-edit-error", role: "alert", "{error}" }
@@ -627,7 +612,6 @@ struct CaseNumberFieldProps {
     unit: &'static str,
     rule: NumberRule,
     editable: bool,
-    feedback: Vec<CaseBodyEditFeedback>,
     on_commit: EventHandler<CaseNumberCommit>,
 }
 
@@ -635,73 +619,37 @@ struct CaseNumberFieldProps {
 fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     let draft = use_signal(|| props.value.to_string());
     let error = use_signal(|| None::<String>);
-    let submitted_draft = use_signal(|| None::<String>);
-    let mut ignored_feedback_request = use_signal(|| None::<RequestIdentity>);
     let dirty = use_signal(|| false);
-    let blocked_attempt = use_signal(|| false);
+    let skip_enter_blur = use_hook(|| Rc::new(Cell::new(false)));
 
-    let accepted_value = props.value;
-    let saved_ack = props
-        .feedback
-        .iter()
-        .rev()
-        .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()))
-        .filter(|feedback| {
-            matches!(
-                feedback.state,
-                CaseBodyEditState::Saved | CaseBodyEditState::Failed
-            )
-        })
-        .map(request_identity);
-    let consumed_saved_ack = use_signal(|| None::<RequestIdentity>);
-    let saved_ack_pending = saved_ack
-        .as_ref()
-        .is_some_and(|identity| consumed_saved_ack.read().as_ref() != Some(identity));
+    let mut field_failure = use_signal(|| None::<String>);
+    let pending = super::case_controller::use_bound_case_field(
+        &props.field_id,
+        props.value.to_string(),
+        draft,
+        field_failure,
+    );
+    let accepted_text = props.value.to_string();
+    let current_draft = draft();
+    let is_dirty = dirty();
     let mut draft_for_effect = draft;
     let mut error_for_effect = error;
-    let mut submitted_for_effect = submitted_draft;
     let mut dirty_for_effect = dirty;
-    let mut consumed_ack_for_effect = consumed_saved_ack;
     use_effect(use_reactive(
-        (&accepted_value, &saved_ack_pending, &saved_ack),
-        move |(value, ack_pending, ack)| {
-            if ack_pending {
-                if let Some(identity) = ack {
-                    consumed_ack_for_effect.set(Some(identity.clone()));
-                }
-                if submitted_for_effect.peek().as_ref() == Some(&*draft_for_effect.peek())
-                    || !*dirty_for_effect.peek()
-                {
-                    draft_for_effect.set(value.to_string());
-                    error_for_effect.set(None);
-                    submitted_for_effect.set(None);
-                    dirty_for_effect.set(false);
-                }
-            } else if !dirty_for_effect() {
-                draft_for_effect.set(value.to_string());
+        (&accepted_text, &pending, &current_draft, &is_dirty),
+        move |(accepted, pending, current_draft, is_dirty)| {
+            if pending {
+                return;
+            }
+            if current_draft == accepted {
+                dirty_for_effect.set(false);
                 error_for_effect.set(None);
-                submitted_for_effect.set(None);
+            } else if !is_dirty {
+                draft_for_effect.set(accepted);
+                error_for_effect.set(None);
             }
         },
     ));
-
-    let owned_feedback = props
-        .feedback
-        .iter()
-        .rev()
-        .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()));
-    let feedback_identity = owned_feedback.map(request_identity);
-    let feedback_key = owned_feedback.map(|feedback| (request_identity(feedback), feedback.state));
-    let mut submitted_for_feedback = submitted_draft;
-    let mut ignored_for_feedback = ignored_feedback_request;
-    use_effect(use_reactive((&feedback_identity,), move |(_identity,)| {
-        ignored_for_feedback.set(None);
-    }));
-    use_effect(use_reactive((&feedback_key,), move |(key,)| {
-        if key.is_some_and(|(_, state)| state == CaseBodyEditState::Failed) {
-            submitted_for_feedback.set(None);
-        }
-    }));
 
     let commit: Rc<dyn Fn()> = Rc::new({
         let on_commit = props.on_commit;
@@ -709,16 +657,11 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
         let rule = props.rule;
         move || {
             let mut error = error;
-            let mut submitted_draft = submitted_draft;
-            let mut blocked_attempt = blocked_attempt;
             let mut dirty = dirty;
-            let value_text = draft();
-            if !dirty() || submitted_draft().as_deref() == Some(value_text.as_str()) {
+            if !dirty() {
                 return;
             }
-            // Enter commits the draft and then the native input blurs. Ignore that
-            // same-draft blur before checking busy state so it does not report a
-            // second, blocked edit while the Enter submission is being accepted.
+            let value_text = draft();
             let Ok(value) = value_text.trim().parse::<f64>() else {
                 error.set(Some(number_error(rule).to_string()));
                 return;
@@ -731,9 +674,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 return;
             }
             error.set(None);
-            blocked_attempt.set(false);
-            submitted_draft.set(Some(value_text));
-            dirty.set(true);
+            dirty.set(false);
             on_commit.call(CaseNumberCommit {
                 field_id: field_id.clone(),
                 value,
@@ -748,21 +689,7 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
     };
     let error_text = error();
     let invalid = error_text.is_some();
-    let feedback = props
-        .feedback
-        .iter()
-        .rev()
-        .find(|feedback| feedback.field_id.as_deref() == Some(props.field_id.as_str()));
-    let feedback_error = feedback
-        .filter(|feedback| feedback.state == CaseBodyEditState::Failed)
-        .filter(|feedback| ignored_feedback_request().as_ref() != Some(&request_identity(feedback)))
-        .and_then(|feedback| feedback.message.clone());
-    let feedback_pending =
-        feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Pending);
-    let feedback_saved =
-        feedback.is_some_and(|feedback| feedback.state == CaseBodyEditState::Saved);
-    let input_feedback_identity = feedback.map(request_identity);
-    let escape_feedback_identity = input_feedback_identity.clone();
+    let feedback_error = field_failure();
 
     rsx! {
         label { class: if invalid { "m1-case-number has-error" } else { "m1-case-number" },
@@ -775,45 +702,46 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                     value: "{draft}",
                     disabled: !props.editable,
                     "aria-invalid": invalid,
-                    oninput: move |event: FormEvent| {
-                        let mut draft = draft;
-                        let mut dirty = dirty;
-                        let mut blocked_attempt = blocked_attempt;
-                        let mut submitted_draft = submitted_draft;
-                        let mut error = error;
-                        let mut ignored_feedback_request = ignored_feedback_request;
-                        draft.set(event.value());
-                        dirty.set(true);
-                        blocked_attempt.set(false);
-                        submitted_draft.set(None);
-                        error.set(None);
-                        ignored_feedback_request.set(input_feedback_identity.clone());
+                    oninput: {
+                        let skip_enter_blur = skip_enter_blur.clone();
+                        move |event: FormEvent| {
+                            let mut draft = draft;
+                            let mut dirty = dirty;
+                            let mut error = error;
+                            skip_enter_blur.set(false);
+                            field_failure.set(None);
+                            draft.set(event.value());
+                            dirty.set(true);
+                            error.set(None);
+                        }
                     },
                     onblur: {
                         let commit = commit.clone();
-                        move |_| commit()
+                        let skip_enter_blur = skip_enter_blur.clone();
+                        move |_| {
+                            if !skip_enter_blur.replace(false) {
+                                commit();
+                            }
+                        }
                     },
                     onkeydown: {
                         let commit = commit.clone();
                         let mut dirty = dirty;
-                        let mut blocked_attempt = blocked_attempt;
                         let mut draft = draft;
                         let mut error = error;
-                        let mut submitted_draft = submitted_draft;
                         let accepted = props.value;
                         move |event: KeyboardEvent| {
                             let key = event.data().key().to_string();
                             if key == "Enter" {
                                 event.prevent_default();
+                                skip_enter_blur.set(true);
                                 commit();
                             } else if key == "Escape" {
                                 event.prevent_default();
+                                skip_enter_blur.set(false);
                                 draft.set(accepted.to_string());
                                 dirty.set(false);
-                                blocked_attempt.set(false);
                                 error.set(None);
-                                submitted_draft.set(None);
-                                ignored_feedback_request.set(escape_feedback_identity.clone());
                             }
                         }
                     }
@@ -824,13 +752,8 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
                 small { class: "m1-case-field-error", role: "alert", "{error}" }
             } else if let Some(error) = feedback_error {
                 small { class: "m1-case-field-error", role: "alert", "{error}" }
-            } else if feedback_pending {
+            } else if pending {
                 small { role: "status", "Saving…" }
-            } else if feedback_saved {
-                small { role: "status", "Saved" }
-            }
-            if blocked_attempt() {
-                small { class: "m1-case-field-error", role: "status", "Another Case edit is saving. Your draft is preserved; retry after it finishes." }
             }
         }
     }
@@ -855,17 +778,6 @@ fn case_field_id(
         "{editor_instance_id}|{scope:?}|{body_id}|{}|{field}",
         mount_id.unwrap_or_default()
     )
-}
-
-fn request_identity(feedback: &CaseBodyEditFeedback) -> RequestIdentity {
-    RequestIdentity {
-        editor_instance_id: feedback.editor_instance_id,
-        scope: feedback.scope.clone(),
-        snapshot_token: feedback.snapshot_token,
-        revision: feedback.revision,
-        request_id: feedback.request_id,
-        field_id: feedback.field_id.clone(),
-    }
 }
 
 fn case_kind_label(kind: &CaseKind) -> &'static str {

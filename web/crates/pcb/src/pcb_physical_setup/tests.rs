@@ -1,68 +1,129 @@
-//! Regressions mount the actual production hook, not a copy of its admission/async logic.
+//! Mounted regressions for the physical-setup controller over the real WASM Runtime
+//! (Session and Core in process, memory persistence), launched as a real VirtualDom.
+//!
+//! Coverage limitation, recorded for the root review: the former module held these
+//! scenarios as native `#[test]`s inside this wasm32-only parent, so it compiled on
+//! neither target and executed never. The tests below restore executable coverage of the
+//! behavior the PendingEdits migration changed — silent landing, silent retirement and
+//! owner attribution at dispatch and settlement. The scenarios that relied on the native
+//! stub's synchronous VirtualDom polling remain uncovered by any executing test:
+//! preparation results arriving after their source was replaced, unmount races, and the
+//! stale-scope CaseTransport variant. The CasePcbDesign reassignment navigation keeps a
+//! pure unit assertion in `controller.rs` (case_reassignment_scope_transition_tests),
+//! and wiring-panel equivalents cover the topology landing and undo path in
+//! `pcb_wiring/queued_edit_tests.rs`.
 use super::*;
-use boardstudio_application::{Event, TerminalOutcome};
+use crate::runtime::{Runtime, project_name_test_support as support};
+use boardstudio_application::Event;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    task::{Context, Poll, Waker},
 };
+use wasm_bindgen_test::*;
+
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+type ProposalReply = Result<boardstudio_core::model::ProjectDoc, String>;
 
 #[derive(Clone)]
 struct Probe {
-    runtime: Rc<crate::runtime::Runtime>,
+    runtime: Rc<Runtime>,
+    /// Whether the project-guide stage observes its owner as active.
     active: Rc<Cell<bool>>,
+    /// The generation the owner check and the rendered source answer for.
     generation: Rc<Cell<u64>>,
-    reply: Rc<RefCell<Option<Result<boardstudio_core::model::ProjectDoc, String>>>>,
-    latest: Rc<RefCell<Option<PhysicalSetupMount>>>,
+    /// The reply queued before the preparation call that will consume it.
+    reply: Rc<RefCell<Option<ProposalReply>>>,
+    /// The sender of the preparation call currently parked on a later reply.
+    prepare_sender: Rc<RefCell<Option<futures_channel::oneshot::Sender<ProposalReply>>>>,
+    /// The mount the host rendered last.
+    mount: Rc<RefCell<Option<PhysicalSetupMount>>>,
+    /// Bumped by the test to force a host render without a runtime change.
+    poke: Rc<RefCell<Option<Signal<u64>>>>,
 }
-impl Probe {
-    fn new() -> Self {
-        let runtime = crate::runtime::Runtime::new();
-        runtime.submit(Event::Open {
-            operation_id: runtime.operation(),
-            document: fixture_document("A", 1),
-        });
-        Self {
-            runtime,
-            active: Rc::new(Cell::new(true)),
-            generation: Rc::new(Cell::new(1)),
-            reply: Rc::new(RefCell::new(None)),
-            latest: Rc::new(RefCell::new(None)),
-        }
-    }
-    fn mount(&self) -> PhysicalSetupMount {
-        self.latest.borrow().as_ref().unwrap().clone()
-    }
-    fn edits(&self) -> usize {
-        self.runtime
-            .events
-            .borrow()
-            .iter()
-            .filter(|event| matches!(event, Event::ResolveEdit { .. }))
-            .count()
-    }
-    fn changed_proposal(&self) -> boardstudio_core::model::ProjectDoc {
-        let mut doc = (*self.runtime.model().accepted.unwrap().document).clone();
-        doc.parameters
-            .insert("reversibleLayout".into(), serde_json::json!(true));
-        doc
-    }
-    fn replace_project(&self, id: &str, revision: u64) {
-        self.runtime.submit(Event::Open {
-            operation_id: self.runtime.operation(),
-            document: fixture_document(id, revision),
+
+fn host() -> Element {
+    let probe = use_context::<Probe>();
+    let runtime = probe.runtime.clone();
+    let version = use_signal(|| 0_u64);
+    {
+        let runtime = runtime.clone();
+        use_hook(move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
         });
     }
-    fn release_pending_operation(&self) {
-        if self.runtime.core_entered() {
-            self.runtime.release_core();
-        } else if self.runtime.save_entered() {
-            self.runtime.release_save();
-        }
-        crate::poll_detached();
+    let poke = use_signal(|| 0_u64);
+    {
+        let probe = probe.clone();
+        use_hook(move || *probe.poke.borrow_mut() = Some(poke));
     }
+    let _ = version();
+    let _ = poke();
+    let mut generation = use_signal(|| 0_u64);
+    if *generation.peek() != probe.generation.get() {
+        generation.set(probe.generation.get());
+    }
+    let is_current = {
+        let runtime = runtime.clone();
+        let probe = probe.clone();
+        Rc::new(move |owner: &OwnerIdentity, strict: bool| {
+            let model = runtime.model();
+            model.accepted.as_ref().is_some_and(|accepted| {
+                owner.generation == probe.generation.get()
+                    && owner.document_id == accepted.document.id
+                    && owner.session_epoch == accepted.session_epoch
+                    && owner.board_id == model.active_board_id
+                    && owner.instance_id == model.active_instance_id
+                    && (!strict
+                        || (owner.token == accepted.token
+                            && owner.revision == accepted.document.revision))
+            })
+        })
+    };
+    let prepare = {
+        let probe = probe.clone();
+        Rc::new(
+            move |_: boardstudio_core::model::ProjectDoc, _: crate::physical_setup::SetupIntent| {
+                let probe = probe.clone();
+                // A channel so a reply queued after the task parks still wakes it; a
+                // poll_fn alone would leave the parked task waiting forever.
+                Box::pin(async move {
+                    let (sender, receiver) = futures_channel::oneshot::channel();
+                    match probe.reply.borrow_mut().take() {
+                        Some(value) => {
+                            let _ = sender.send(value);
+                        }
+                        None => {
+                            *probe.prepare_sender.borrow_mut() = Some(sender);
+                        }
+                    }
+                    receiver
+                        .await
+                        .unwrap_or_else(|_| Err("the preparation gate was dropped".into()))
+                }) as super::controller::ProposalFuture
+            },
+        )
+    };
+    let mount = use_controller(
+        runtime,
+        version,
+        generation,
+        {
+            let active = probe.active.clone();
+            Rc::new(move || active.get())
+        },
+        crate::InstanceSelection(use_signal(|| None)),
+        is_current,
+        prepare,
+    );
+    *probe.mount.borrow_mut() = Some(mount);
+    rsx! {}
 }
+
 fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::ProjectDoc {
     let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
         "../../../../../core/tests/fixtures/reviung41-outline-original.json"
@@ -72,273 +133,311 @@ fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::Project
     document.revision = revision;
     document
 }
-fn host() -> Element {
-    let probe = use_context::<Probe>();
-    let version = use_signal(|| 0u64);
-    let mut generation = use_signal(|| 1u64);
-    if *generation.peek() != probe.generation.get() {
-        generation.set(probe.generation.get());
-    }
-    let current = probe.clone();
-    let prepare = probe.clone();
-    let mount = use_controller(
-        probe.runtime.clone(),
-        version,
-        generation,
-        {
-            let active = probe.active.clone();
-            Rc::new(move || active.get())
-        },
-        crate::InstanceSelection,
-        Rc::new(move |owner: &OwnerIdentity, strict| {
-            let model = current.runtime.model();
-            let accepted = model.accepted.unwrap();
-            owner.generation == current.generation.get()
-                && owner.document_id == accepted.document.id
-                && owner.session_epoch == accepted.session_epoch
-                && owner.board_id == model.active_board_id
-                && match owner.context {
-                    OwnerContext::ProjectGuide => owner.instance_id == model.active_instance_id,
-                    OwnerContext::CaseInspector => current
-                        .runtime
-                        .scope()
-                        .is_some_and(|scope| scope.instance_id == owner.instance_id),
-                }
-                && (!strict
-                    || (owner.token == accepted.token
-                        && owner.revision == accepted.document.revision))
-        }),
-        Rc::new(move |_, _| {
-            let reply = prepare.reply.clone();
-            Box::pin(std::future::poll_fn(move |_| {
-                match reply.borrow_mut().take() {
-                    Some(value) => Poll::Ready(value),
-                    None => Poll::Pending,
-                }
-            }))
-        }),
-    );
-    *probe.latest.borrow_mut() = Some(mount.clone());
-    controller::project_setup_controls(mount)
-}
-fn flush(dom: &mut VirtualDom) {
-    dom.mark_dirty(ScopeId::APP);
-    for _ in 0..4 {
-        dom.render_immediate_to_vec();
-        let mut work = std::pin::pin!(dom.wait_for_work());
-        let _ = std::future::Future::poll(work.as_mut(), &mut Context::from_waker(Waker::noop()));
-    }
-}
-fn mounted() -> (Probe, VirtualDom) {
-    crate::TASKS.with_borrow_mut(Vec::clear);
-    let probe = Probe::new();
-    let mut dom = VirtualDom::new(host);
+
+async fn mounted(id: &str) -> (Probe, web_sys::Element) {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, fixture_document(id, 1)).await;
+    let probe = Probe {
+        runtime,
+        active: Rc::new(Cell::new(true)),
+        generation: Rc::new(Cell::new(0)),
+        reply: Rc::new(RefCell::new(None)),
+        prepare_sender: Rc::new(RefCell::new(None)),
+        mount: Rc::new(RefCell::new(None)),
+        poke: Rc::new(RefCell::new(None)),
+    };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id(format!("physical-setup-test-{id}").as_str());
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dom.rebuild_to_vec();
-    flush(&mut dom);
-    (probe, dom)
-}
-fn send(mount: &PhysicalSetupMount) {
-    mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    rendered().await;
+    (probe, root)
 }
 
-#[test]
-fn retained_rendered_controls_cannot_retarget_another_project() {
-    let (probe, mut dom) = mounted();
-    let old = probe.mount();
-    probe.replace_project("B", 1);
-    flush(&mut dom);
-    *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
-    send(&old);
-    crate::poll_detached();
-    assert_eq!(
-        probe.edits(),
-        0,
-        "retained A control must not submit an Edit for B"
-    );
+async fn rendered() {
+    gloo_timers::future::TimeoutFuture::new(30).await;
 }
-#[test]
-fn retained_rendered_controls_reject_replaced_token_and_generation() {
-    for (token, generation, revision) in [(2, 1, 1), (1, 2, 1), (1, 1, 2)] {
-        let (probe, mut dom) = mounted();
-        let old = probe.mount();
-        if token != 1 || revision != 1 {
-            probe.replace_project("A", revision);
-        }
-        probe.generation.set(generation);
-        flush(&mut dom);
-        *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
-        send(&old);
-        crate::poll_detached();
-        assert_eq!(
-            probe.edits(),
-            0,
-            "stale rendered source cannot be refreshed at dispatch"
-        );
-    }
-}
-#[test]
-fn closing_project_stage_during_normalization_prevents_submission() {
-    let (probe, mut dom) = mounted();
-    let proposal = probe.changed_proposal();
-    send(&probe.mount());
-    crate::poll_detached();
-    probe.active.set(false);
-    flush(&mut dom);
-    *probe.reply.borrow_mut() = Some(Ok(proposal));
-    crate::poll_detached();
-    assert_eq!(
-        probe.edits(),
-        0,
-        "hidden Project stage must fail async admission"
-    );
-}
-#[test]
-fn delayed_preparation_error_and_noop_do_not_appear_under_new_source() {
-    for failure in [true, false] {
-        let (probe, mut dom) = mounted();
-        let unchanged = (*probe.runtime.model().accepted.unwrap().document).clone();
-        send(&probe.mount());
-        crate::poll_detached();
-        probe.replace_project("B", 1);
-        flush(&mut dom);
-        *probe.reply.borrow_mut() = Some(if failure {
-            Err("old failure".into())
-        } else {
-            Ok(unchanged)
-        });
-        crate::poll_detached();
-        flush(&mut dom);
-        assert!(
-            probe.mount().projection.project_feedback.is_none(),
-            "B must not display A preparation result"
-        );
-    }
-}
-#[test]
-fn terminal_results_keep_exact_observer_but_never_retarget_feedback() {
-    for result in [
-        TerminalOutcome::PersistenceFailed("old disk".into()),
-        TerminalOutcome::Completed,
-        TerminalOutcome::Cancelled,
-    ] {
-        let (probe, mut dom) = mounted();
-        match &result {
-            TerminalOutcome::Completed => probe.runtime.hold_next_save(),
-            TerminalOutcome::PersistenceFailed(reason) => {
-                probe.runtime.fail_next_save(reason.clone())
-            }
-            TerminalOutcome::Cancelled => probe.runtime.hold_next_core(),
-        }
-        *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
-        send(&probe.mount());
-        crate::poll_detached();
-        assert_eq!(probe.edits(), 1);
-        probe.replace_project("B", 1);
-        flush(&mut dom);
-        probe.release_pending_operation();
-        flush(&mut dom);
-        assert!(
-            probe.mount().projection.project_feedback.is_none(),
-            "B must not display A terminal result"
-        );
+
+async fn settle(runtime: &Rc<Runtime>) {
+    for _ in 0..12 {
+        support::run_pending(runtime).await;
+        rendered().await;
     }
 }
 
-#[test]
-fn case_transport_keeps_the_rendered_scope() {
-    let (probe, mut dom) = mounted();
-    let old = probe.mount();
-    probe.replace_project("B", 1);
-    flush(&mut dom);
-    *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
-    old.submit(PhysicalSetupIntent::CaseTransport(
-        boardstudio_core::model::HardwareTransport::Wired,
-    ));
-    crate::poll_detached();
-    assert_eq!(probe.edits(), 0);
+fn poke(probe: &Probe) {
+    if let Some(mut poke) = probe.poke.borrow_mut().as_ref().copied() {
+        poke.set(poke() + 1);
+    }
 }
-#[test]
-fn exact_accepted_proposal_advances_only_its_feedback_attribution() {
-    let (probe, mut dom) = mounted();
-    let proposal = probe.changed_proposal();
-    probe.runtime.hold_next_save();
-    *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
-    send(&probe.mount());
-    crate::poll_detached();
-    assert_eq!(probe.edits(), 1);
-    probe.release_pending_operation();
-    flush(&mut dom);
-    assert_eq!(
-        probe.mount().projection.project_feedback.as_deref(),
-        Some("Physical setup saved.")
+
+fn mount(probe: &Probe) -> PhysicalSetupMount {
+    probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the host rendered")
+        .clone()
+}
+
+fn reversible(probe: &Probe) -> boardstudio_core::model::ProjectDoc {
+    let mut document = (*probe.runtime.model().accepted.unwrap().document).clone();
+    document
+        .parameters
+        .insert("reversibleLayout".into(), serde_json::json!(true));
+    document
+}
+
+fn accepted_reversible(runtime: &Runtime) -> Option<serde_json::Value> {
+    runtime
+        .model()
+        .accepted
+        .unwrap()
+        .document
+        .parameters
+        .get("reversibleLayout")
+        .cloned()
+}
+
+/// Queue a preparation reply. Before the controller asks for preparation it is consumed
+/// by the next call; afterwards it wakes the parked preparation task.
+fn queue_reply(probe: &Probe, value: ProposalReply) {
+    match probe.prepare_sender.borrow_mut().take() {
+        Some(sender) => {
+            let _ = sender.send(value);
+        }
+        None => *probe.reply.borrow_mut() = Some(value),
+    }
+}
+
+/// Hold the next Core reply, submit a reversible-layout setup, and observe it in flight.
+async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
+    queue_reply(probe, Ok(reversible(probe)));
+    let (mut entered, release) = support::gate_next_core_reply(&probe.runtime);
+    mount(probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    // The panel submits from a task that first awaits preparation, so the Core request is
+    // only held after a turn of the local executor. Yield, drive whatever the turn held,
+    // and repeat until the gate reports the request in flight.
+    let mut held = false;
+    for _ in 0..12 {
+        rendered().await;
+        support::drive_pending(&probe.runtime);
+        if let Ok(Some(())) = entered.try_recv() {
+            held = true;
+            break;
+        }
+    }
+    assert!(held, "the setup request reaches the gated Core executor");
+    poke(probe);
+    rendered().await;
+    release
+}
+
+#[wasm_bindgen_test]
+async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_context() {
+    let (probe, root) = mounted("setup-landing").await;
+    let runtime = probe.runtime.clone();
+    let release = hold_in_flight(&probe).await;
+    assert!(
+        mount(&probe).projection.busy,
+        "the setup edit holds the busy gate while in flight"
+    );
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    let projection = mount(&probe).projection;
+    assert!(!projection.busy, "landing clears busy without a status");
+    assert!(
+        projection.project_feedback.is_none(),
+        "landing shows the accepted value without a status message"
     );
     assert!(
-        probe.mount().projection.feedback.is_none(),
-        "Project result must not appear in Case"
+        projection.feedback.is_none(),
+        "a project result must not appear in Case"
     );
-    assert!(!probe.mount().projection.busy);
-}
-#[test]
-fn hidden_guide_keeps_observer_and_restores_only_same_owner_result() {
-    let (probe, mut dom) = mounted();
-    probe.runtime.fail_next_save("disk");
-    *probe.reply.borrow_mut() = Some(Ok(probe.changed_proposal()));
-    send(&probe.mount());
-    crate::poll_detached();
-    probe.active.set(false);
-    flush(&mut dom);
-    probe.release_pending_operation();
-    flush(&mut dom);
-    assert!(probe.mount().projection.project_feedback.is_none());
-    probe.active.set(true);
-    flush(&mut dom);
     assert_eq!(
-        probe.mount().projection.project_feedback.as_deref(),
-        Some("Physical setup failed: disk")
+        accepted_reversible(&runtime),
+        Some(serde_json::json!(true)),
+        "the exact accepted proposal landed"
     );
-    assert_eq!(probe.edits(), 1, "restoring the view must not resubmit");
-}
-#[test]
-fn detached_normalization_and_outcome_survive_unmount_without_signal_access() {
-    for submitted in [false, true] {
-        let (probe, dom) = mounted();
-        let proposal = probe.changed_proposal();
-        if submitted {
-            probe.runtime.hold_next_core();
-            *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
-        }
-        send(&probe.mount());
-        crate::poll_detached();
-        drop(dom);
-        if submitted {
-            probe.release_pending_operation();
-        } else {
-            *probe.reply.borrow_mut() = Some(Ok(proposal));
-            crate::poll_detached();
-            assert_eq!(probe.edits(), 0);
-        }
-    }
+    root.remove();
 }
 
-#[test]
-fn hidden_success_restores_feedback_for_its_exact_accepted_proposal() {
-    let (probe, mut dom) = mounted();
-    let proposal = probe.changed_proposal();
-    probe.runtime.hold_next_save();
-    *probe.reply.borrow_mut() = Some(Ok(proposal.clone()));
-    send(&probe.mount());
-    crate::poll_detached();
+#[wasm_bindgen_test]
+async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
+    let (probe, root) = mounted("setup-hidden-success").await;
+    let runtime = probe.runtime.clone();
+    let release = hold_in_flight(&probe).await;
     probe.active.set(false);
-    flush(&mut dom);
-    probe.release_pending_operation();
-    flush(&mut dom);
-    assert!(probe.mount().projection.project_feedback.is_none());
+    release.send(()).unwrap();
+    settle(&runtime).await;
+    let projection = mount(&probe).projection;
+    assert!(!projection.busy, "the hidden landing still clears busy");
+    assert!(projection.project_feedback.is_none());
+    assert!(projection.feedback.is_none());
+    poke(&probe);
+    rendered().await;
     probe.active.set(true);
-    flush(&mut dom);
-    assert_eq!(
-        probe.mount().projection.project_feedback.as_deref(),
-        Some("Physical setup saved.")
+    poke(&probe);
+    rendered().await;
+    assert!(
+        mount(&probe).projection.project_feedback.is_none(),
+        "a success recorded while hidden still shows no status when the view returns"
     );
-    assert_eq!(probe.edits(), 1);
+    assert_eq!(
+        accepted_reversible(&runtime),
+        Some(serde_json::json!(true)),
+        "the accepted proposal still landed"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
+    let (probe, root) = mounted("setup-retire").await;
+    let release = hold_in_flight(&probe).await;
+    probe.active.set(false);
+    poke(&probe);
+    rendered().await;
+    // The settlement loop answers for a departed owner while the reply is still held.
+    settle(&probe.runtime).await;
+    let projection = mount(&probe).projection;
+    assert!(!projection.busy, "the retired setup clears busy silently");
+    assert!(
+        projection.project_feedback.is_none(),
+        "retirement is silent, per the ADR-0005 amendment"
+    );
+    assert!(projection.feedback.is_none());
+    release.send(()).unwrap();
+    settle(&probe.runtime).await;
+    assert!(mount(&probe).projection.project_feedback.is_none());
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_stage_hidden_during_preparation_submits_no_edit() {
+    let (probe, root) = mounted("setup-hidden-preparation").await;
+    let runtime = probe.runtime.clone();
+    mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    rendered().await;
+    assert!(
+        mount(&probe).projection.busy,
+        "preparation holds the busy gate"
+    );
+    assert!(
+        probe.prepare_sender.borrow().is_some(),
+        "the preparation task parked before its late reply is queued"
+    );
+    probe.active.set(false);
+    queue_reply(&probe, Ok(reversible(&probe)));
+    settle(&runtime).await;
+    let projection = mount(&probe).projection;
+    assert!(
+        !projection.busy,
+        "the hidden stage clears busy without an edit"
+    );
+    assert!(projection.project_feedback.is_none());
+    assert!(
+        support::take_held_effects(&runtime).is_empty(),
+        "the hidden stage fails async admission before any edit begins"
+    );
+    assert_eq!(
+        accepted_reversible(&runtime),
+        None,
+        "the abandoned preparation applied nothing"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn retained_rendered_controls_cannot_retarget_another_project() {
+    let (probe, root) = mounted("setup-retarget").await;
+    let runtime = probe.runtime.clone();
+    let stale = mount(&probe);
+    runtime.submit(Event::Open {
+        operation_id: runtime.operation(),
+        document: fixture_document("setup-retarget-b", 1),
+    });
+    settle(&runtime).await;
+    support::take_held_effects(&runtime);
+    queue_reply(&probe, Ok(reversible(&probe)));
+    stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    rendered().await;
+    assert!(
+        support::take_held_effects(&runtime).is_empty(),
+        "a retained control must not submit an edit for the replaced project"
+    );
+    assert!(!stale.projection.busy);
+    assert!(mount(&probe).projection.project_feedback.is_none());
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn retained_rendered_controls_reject_replaced_token_and_generation() {
+    // A replaced accepted revision leaves the rendered owner's token and revision stale.
+    let (probe, root) = mounted("setup-stale-revision").await;
+    let runtime = probe.runtime.clone();
+    let stale = mount(&probe);
+    runtime.submit(Event::Open {
+        operation_id: runtime.operation(),
+        document: fixture_document("setup-stale-revision", 2),
+    });
+    settle(&runtime).await;
+    support::take_held_effects(&runtime);
+    queue_reply(&probe, Ok(reversible(&probe)));
+    stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    rendered().await;
+    assert!(
+        support::take_held_effects(&runtime).is_empty(),
+        "a stale token and revision cannot submit"
+    );
+    root.remove();
+
+    // An advanced generation leaves the rendered owner stale even with the same source.
+    let (probe, root) = mounted("setup-stale-generation").await;
+    let runtime = probe.runtime.clone();
+    let stale = mount(&probe);
+    probe.generation.set(1);
+    poke(&probe);
+    rendered().await;
+    queue_reply(&probe, Ok(reversible(&probe)));
+    stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    rendered().await;
+    assert!(
+        support::take_held_effects(&runtime).is_empty(),
+        "a stale generation cannot submit"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_failed_save_reports_once_for_its_exact_owner() {
+    let (probe, root) = mounted("setup-failure").await;
+    let runtime = probe.runtime.clone();
+    support::fail_next_persist(&runtime, "disk");
+    queue_reply(&probe, Ok(reversible(&probe)));
+    mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    settle(&runtime).await;
+    let projection = mount(&probe).projection;
+    assert!(
+        !projection.busy,
+        "the failed setup no longer holds the busy gate"
+    );
+    assert!(
+        projection
+            .project_feedback
+            .as_deref()
+            .is_some_and(|message| message.contains("disk")),
+        "the failure reports for its exact owner"
+    );
+    assert!(
+        projection.feedback.is_none(),
+        "a project failure must not appear in Case"
+    );
+    root.remove();
 }
