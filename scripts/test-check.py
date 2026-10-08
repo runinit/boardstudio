@@ -41,6 +41,18 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(run.call_count, 2)
         self.assertIn("step 'repo' failed", errors.getvalue())
 
+    def test_commands_get_the_page_runner_timeout_unless_the_caller_sets_one(self):
+        # Broad mounted crates exceed the wasm-bindgen runner's 20 second default.
+        for preset, expected in ((None, "120"), ("37", "37")):
+            environment = {key: value for key, value in check.os.environ.items() if key != "WASM_BINDGEN_TEST_TIMEOUT"}
+            if preset:
+                environment["WASM_BINDGEN_TEST_TIMEOUT"] = preset
+            with mock.patch.dict(check.os.environ, environment, clear=True), \
+                    mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)) as run, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(check.run(["typecheck"]), 0)
+            self.assertEqual(run.call_args.kwargs["env"]["WASM_BINDGEN_TEST_TIMEOUT"], expected)
+
     def test_list_prints_every_step_without_running_anything(self):
         output = io.StringIO()
         with mock.patch.object(check.subprocess, "run") as run, contextlib.redirect_stdout(output):

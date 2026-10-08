@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import shlex
+import os
 import subprocess
 import sys
 
@@ -102,11 +103,14 @@ DEFAULT = tuple(name for name, (included, _) in STEPS.items() if included)
 
 
 def run(names: list[str]) -> int:
+    # Broad mounted crates exceed the wasm-bindgen runner's 20 second default; the page
+    # runner (scripts/run-wasm-tests.py) uses the same 120 seconds.
+    env = {**os.environ, "WASM_BINDGEN_TEST_TIMEOUT": os.environ.get("WASM_BINDGEN_TEST_TIMEOUT", "120")}
     for name in names:
         print(f"== {name}", flush=True)
         for command in STEPS[name][1]:
             print("$ " + shlex.join(command), flush=True)
-            if subprocess.run(command, cwd=ROOT).returncode:
+            if subprocess.run(command, cwd=ROOT, env=env).returncode:
                 print(f"check: step '{name}' failed", file=sys.stderr)
                 return 1
     print("check: all steps passed: " + ", ".join(names))
