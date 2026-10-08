@@ -18,7 +18,7 @@ and subsequent cluster migrations; they are no longer deferred work.
 - **Rust conventions:** audit six production `unwrap` sites (`find`-by-id in `core/src/inputs.rs`, `core/src/modules/circuit.rs`, `core/src/mechanical/gasket.rs`; `accepted.unwrap()` in `application/src/session.rs`) for panics reachable from real documents, and drop 17 dead `#[allow(unused_imports)]` re-exports. Measurements, rejected advice and ordering are in the [Rust conventions review](investigations/rust-conventions-review.md). Reproduce before repairing.
 - **Undo/Redo:** investigate outstanding history behavior separately. Existing controls and tests remain; earlier qualification was deferred.
 - **Generator errors:** replace raw JavaScript stack text in Parts validation with an actionable message (`web/src/presentation/parts/`).
-- **Feature ownership:** keep workspace-owned state, lifecycle and behavior in private handles under `web/src/presentation/*_workspace.rs`; keep `Editor` focused on composing views and routing cross-workspace actions. Avoid a general framework rewrite.
+- **Feature ownership:** Editor now composes private workspace handles, and panels share keyed pending-edit settlement. The next ownership review should examine preview pipelines and project lifecycle in `web/crates/runtime/src/runtime.rs`. Keep domain projections and request metadata with their callers; avoid a general framework rewrite. See the [module-deepening cleanup](plans/module-deepening/issues/13-cleanup.md#outcome).
 - **Geometry ownership:** consolidate frontend geometric planning and explicit canonical/physical-instance/sample scopes where ambiguity causes a reproduced defect.
 - **Host interfaces:** review exposed internal browser types, reflective renderer calls and the single-observer Runtime contract when extending those interfaces.
 - **Asynchronous operations:** distinguish worker cancellation from kernel cancellation; make provider-failure tests deterministic and preserve scope checks on delivery.
@@ -26,7 +26,7 @@ and subsequent cluster migrations; they are no longer deferred work.
 - **Archives:** clarify ownership between archive packing, options and asset resolution before extending export formats.
 - **Identity:** review persistent outline ID generation and accepted-versus-provisional Case scene identities when changing these workflows; collision and stale-action guards already exist.
 - **Catalogue:** keep imported project definitions separate from reusable library choices as catalogue features expand.
-- **Testing:** reduce the native test harness's duplicated presentation module declarations without losing mounted WASM coverage.
+- **Testing:** panel native tests now drive the real Runtime/Session/Core with shared gates instead of duplicated presentation drivers. Preserve mounted WASM interface coverage and deterministic provider-failure fixtures when extending it. The complete native and browser gates pass after the CAD fixture and runner/environment repairs; future native Runtime decomposition must retain that shared test contract.
 - **Controls:** consolidate selection liveness, pointer ownership, keyboard scope and dynamic-select handling only where future changes demonstrate repeated policy.
 - **Mechanical settings:** align family defaults, target eligibility and authored-body readiness through existing owners; bounded functional repairs are already present.
 

@@ -1,8 +1,8 @@
 //! Layout Inspector controls for accepted keycap size.
 use super::keycap_resize::ResizeAxis;
-use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest, KeySizeState};
+use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
 use dioxus::prelude::*;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 #[derive(Clone)]
 struct ResizeIntent {
@@ -41,7 +41,23 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let Some(projection) = props.mount.projection.clone() else {
         return rsx! {};
     };
+    let mut inspector_mounted = props.mount.inspector_mounted;
+    use_hook(|| inspector_mounted.set(true));
     let mut draft = use_signal(|| projection.units);
+    let mut draft_dirty = use_signal(|| false);
+    let failure = use_signal(|| None::<String>);
+    let on_bind_draft = props.mount.on_bind_draft;
+    on_bind_draft.call((
+        projection.owner.clone(),
+        Some((draft, failure, draft_dirty)),
+    ));
+    use_drop({
+        let owner = projection.owner.clone();
+        move || {
+            on_bind_draft.call((owner, None));
+            inspector_mounted.set(false);
+        }
+    });
     let sent = use_signal(|| None::<String>);
     let keyboard_generation = use_hook(|| std::rc::Rc::new(Cell::new(0u64)));
     let sequence = props.mount.request_sequence;
@@ -63,16 +79,36 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let snapshot_token = projection.snapshot_token;
     let revision = projection.revision;
     let owner_for_effect = projection.owner.clone();
+    let owner_for_projection =
+        use_hook(|| std::rc::Rc::new(RefCell::new(projection.owner.clone())));
+    let feedback = props.mount.feedback.clone();
     let mut draft_for_effect = draft;
     let mut sent_for_effect = sent;
-    use_effect(use_reactive((&owner_for_effect, &base_units, &mixed), {
-        let keyboard_generation = keyboard_generation.clone();
-        move |(_, units, _)| {
-            keyboard_generation.set(keyboard_generation.get().wrapping_add(1));
-            draft_for_effect.set(units);
-            sent_for_effect.set(None);
-        }
-    }));
+    let mut failure_for_effect = failure;
+    let mut dirty_for_effect = draft_dirty;
+    use_effect(use_reactive(
+        (&owner_for_effect, &base_units, &mixed, &feedback),
+        {
+            let keyboard_generation = keyboard_generation.clone();
+            move |(owner, units, _, _)| {
+                keyboard_generation.set(keyboard_generation.get().wrapping_add(1));
+                let mut previous_owner = owner_for_projection.borrow_mut();
+                if *previous_owner != owner || !*dirty_for_effect.peek() {
+                    if *draft_for_effect.peek() != units {
+                        draft_for_effect.set(units);
+                    }
+                    if *dirty_for_effect.peek() {
+                        dirty_for_effect.set(false);
+                    }
+                }
+                if *previous_owner != owner && failure_for_effect.peek().is_some() {
+                    failure_for_effect.set(None);
+                }
+                *previous_owner = owner;
+                sent_for_effect.set(None);
+            }
+        },
+    ));
 
     let submit = use_callback({
         let callback = props.mount.on_resize;
@@ -148,16 +184,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
             });
         }
     });
-    let feedback = props.mount.feedback.clone();
     let current_request_id = (props.mount.request_sequence)();
-    let status = feedback
-        .as_ref()
-        .filter(|value| value.request_id == current_request_id && value.owner == projection.owner)
-        .map(|value| match value.state {
-            KeySizeState::Pending => "Saving key-size change…",
-            KeySizeState::Saved => "Saved",
-            KeySizeState::Failed => "Key-size change failed",
-        });
     let error = feedback
         .as_ref()
         .filter(|value| value.request_id == current_request_id && value.owner == projection.owner)
@@ -181,7 +208,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 input {
                     r#type: "range", aria_label: "Key width", min: "1", max: "7", step: "0.25",
                     value: "{width_value}", aria_valuetext: "{width_value}u", disabled: !props.mount.editable,
-                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft.write().x = value; },
+                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft_dirty.set(true); draft.write().x = value; },
                     onpointerup: {
                         let owner = event_owner.clone();
                         let generation = timer_generation.clone();
@@ -210,7 +237,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 input {
                     r#type: "range", aria_label: "Key height", min: "1", max: "7", step: "0.25",
                     value: "{height_value}", aria_valuetext: "{height_value}u", disabled: !props.mount.editable,
-                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft.write().y = value; },
+                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft_dirty.set(true); draft.write().y = value; },
                     onpointerup: {
                         let owner = event_owner.clone();
                         let generation = timer_generation.clone();
@@ -245,6 +272,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                         let long = current.x.max(current.y);
                         let short = current.x.min(current.y);
                         let next = boardstudio_core::model::Vec2 { x: long, y: short };
+                        draft_dirty.set(true);
                         draft.set(next);
                         submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
                     }
@@ -259,12 +287,12 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                         let long = current.x.max(current.y);
                         let short = current.x.min(current.y);
                         let next = boardstudio_core::model::Vec2 { x: short, y: long };
+                        draft_dirty.set(true);
                         draft.set(next);
                         submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
                     }
                 }, "Tall" }
             }
-            if let Some(status) = status { p { role: "status", class: "m1-key-size-status", "{status}" } }
             if let Some(error) = error { p { role: "alert", class: "m1-key-size-error", "{error}" } }
         }
         if let Some(warning) = overlap_warning {

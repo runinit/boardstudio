@@ -15,24 +15,25 @@ use wasm_bindgen::JsCast;
 
 #[component]
 pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Element {
+    let mut inspector_mounted = projection.inspector_mounted;
+    use_effect(move || {
+        inspector_mounted.set(true);
+    });
+    use_drop(move || inspector_mounted.set(false));
     let contour_view = contour_preview(&projection.contours);
     let copy = projection.copy_action();
     let delete = projection.delete_action();
     let copy_handler = projection.on_action;
     let delete_handler = projection.on_action;
-    let mut version_name = use_signal(|| None::<(String, String, String)>);
+    let mut version_name = projection.version_name_draft;
     let mut perimeter_open = projection.editing_points;
     let mut selected_point = projection.selected_point;
     let mut selected_feature_id = projection.selected_feature_id;
     let mut selected_connection_id = projection.selected_connection_id;
-    let name_draft = version_name()
-        .filter(|(id, baseline, _)| {
-            Some(id) == projection.active_version_id.as_ref()
-                && baseline == &projection.version_name
-        })
-        .map(|(_, _, draft)| draft)
-        .unwrap_or_else(|| projection.version_name.clone());
+    let name_draft = version_name();
     let active_version = projection.active_version_id.clone();
+    let accepted_name = projection.version_name.clone();
+    let name_failure = projection.version_name_failure.read().clone();
     let on_action = projection.on_action;
     let action_context = projection.action_context.clone();
     let enabled = projection.enabled;
@@ -221,12 +222,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             }
                         }
                     }
-                    if let Some(feedback) = projection.feedback.as_ref() {
-                        p { role: if feedback.state == "pending" || feedback.state == "saved" { "status" } else { "alert" }, "data-state": feedback.state,
-                            if feedback.state == "pending" { "Saving outline…" }
-                            else if feedback.state == "saved" { "Saved" }
-                            else { "Outline change failed: {feedback.message.as_deref().unwrap_or_default()}" }
-                        }
+                    if let Some(message) = projection.feedback.as_ref().and_then(|feedback| feedback.message.as_ref()) {
+                        p { role: "alert", "Outline change failed: {message}" }
                     }
                 }
             }
@@ -274,24 +271,23 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             disabled: !enabled,
                             aria_invalid: name_draft.trim().is_empty(),
                             oninput: {
-                                let version_id = version_id.clone();
-                                let baseline = projection.version_name.clone();
-                                move |event: FormEvent| version_name.set(Some((version_id.clone(), baseline.clone(), event.value())))
+                                move |event: FormEvent| version_name.set(event.value())
                             },
                             onblur: {
                                 let version_id = version_id.clone();
-                                let accepted_name = projection.version_name.clone();
+                                let accepted_name = accepted_name.clone();
                                 let action_context = action_context.clone();
                                 move |_| {
-                                    let Some((draft_id, baseline, draft)) = version_name() else { return; };
-                                    if draft_id != version_id || baseline != accepted_name { return; }
+                                    let draft = version_name();
                                     let name = draft.trim().to_owned();
+                                    version_name.set(name.clone());
                                     if !name.is_empty() && name.len() <= 120 && name != accepted_name {
                                         on_action.call(action_context.action(OutlineEdit::RenameVersion { version_id: version_id.clone(), name }));
                                     }
                                 }
                             },
                             onkeydown: {
+                                let accepted_name = accepted_name.clone();
                                 move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
                                     "Enter" => {
                                         event.prevent_default();
@@ -302,12 +298,15 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     }
                                     "Escape" => {
                                         event.prevent_default();
-                                        version_name.set(None);
+                                        version_name.set(accepted_name.clone());
                                     }
                                     _ => {}
                                 }
                             }
                         }
+                    }
+                    if let Some(message) = name_failure.as_ref() {
+                        p { class: "m1-inline-error", role: "alert", "{message}" }
                     }
                 }
                 if !projection.has_generated && projection.active_version_id.is_none() {
@@ -466,6 +465,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 button {
                                     class: "m1-outline-remove-gap",
                                     aria_label: "Remove protected gap {index + 1}",
+                                    disabled: !one_shot_enabled,
                                     onclick: {
                                         let gap_id = gap.id.clone();
                                         let action_context = action_context.clone();
@@ -677,7 +677,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     button {
                                         r#type: "button",
                                         class: "m1-outline-remove-feature",
-                                        disabled: !enabled,
+                                        disabled: !one_shot_enabled,
                                         aria_label: "Remove connection {index + 1}",
                                         onclick: {
                                             let action_context = action_context.clone();
@@ -797,7 +797,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         div { class: "m1-outline-point-actions",
                                             button {
                                                 r#type: "button",
-                                                disabled: !enabled || index + 1 == connection.points.len(),
+                                                disabled: !one_shot_enabled || index + 1 == connection.points.len(),
                                                 aria_label: "Insert after connection point {index + 1}",
                                                 title: if index + 1 == connection.points.len() { "A connection needs its final endpoint." } else { "Insert a fixed point after this point." },
                                                 onclick: {
@@ -827,7 +827,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             }
                                             button {
                                                 r#type: "button",
-                                                disabled: !enabled || connection.points.len() <= 2,
+                                                disabled: !one_shot_enabled || connection.points.len() <= 2,
                                                 aria_label: "Remove connection point {index + 1}",
                                                 title: if connection.points.len() <= 2 { "Keep at least two points." } else { "Remove the selected point" },
                                                 onclick: {
@@ -948,12 +948,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                     button { r#type: "button", disabled: !projection.enabled || projection.one_shot_pending, onclick: move |_| delete_handler.call(delete.clone()), "Delete outline" }
                 }
             }
-            if let Some(feedback) = projection.feedback.as_ref() {
-                p { role: if feedback.state == "pending" || feedback.state == "saved" { "status" } else { "alert" }, "data-state": feedback.state,
-                    if feedback.state == "pending" { "Saving outline…" }
-                    else if feedback.state == "saved" { "Saved" }
-                    else { "Outline change failed: {feedback.message.as_deref().unwrap_or_default()}" }
-                }
+            if let Some(message) = projection.feedback.as_ref().and_then(|feedback| feedback.message.as_ref()) {
+                p { role: "alert", "Outline change failed: {message}" }
             }
         }
         }

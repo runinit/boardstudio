@@ -37,6 +37,26 @@ Gesture commits and export-owned operations keep their strict captured-revision
 routes (see the
 [edit-settlement contract and resolver inventory](plans/edit-settlement/map.md)).
 
+`runtime::PendingEdits` owns the latest observation per bounded logical key,
+captured lineage and once-only terminal results. `ui-shared::PendingEditSignals`
+binds actual field drafts/failures and one-shot disabling to those outcomes. It
+preserves newer drafts, ignores bindings replaced after submission, and releases
+submitted values after terminal field/control writes. Components unbind child
+Signals on drop. Callers retain ordinary dirty projection, domain preparation and
+request metadata, observation-owner predicates, failure placement and exact Landed
+selection/navigation. Retirement is silent; settlement does not create Saved state.
+
+The test-support Runtime drives the real Session and Core with in-memory saving,
+shared native/WASM gate semantics and a read-only event log. Panel tests exercise
+that interface rather than a second Session implementation. Native coverage does
+not validate WASM-only presentation; mounted browser tests remain required.
+
+The Runtime export-lease registry owns capture, source currency and export lifecycle.
+A lease retains the accepted snapshot, scope, executor epoch and worker identity;
+Session ownership and those identities govern delivery. An export's own accepted
+commit advances its lease without relaxing its strict origin checks. Disposable
+preview currency remains separate from export ownership.
+
 The page is split into crates by workspace so each stays a manageable size. Lower
 crates never depend on higher ones:
 

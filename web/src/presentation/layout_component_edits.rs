@@ -1,46 +1,14 @@
-//! The Layout Inspector's pending edits: one edit ticket per committed field, and the
-//! resolver builders every action submits through. Each resolver is a pure function of
-//! the accepted snapshot plus what the user captured when they committed — it re-checks
-//! at execution time what admission checked when the action was dispatched (the part
-//! still exists, the anchor is unchanged, locked and driven parts stay ineligible) and
-//! builds the edit operation from the accepted document it is handed, so a queued edit
-//! always applies on top of the edits accepted before it. This module is the pattern the
-//! later cluster tickets copy.
-use crate::edit_ticket::{EditTicket, Settlement};
+//! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
     Constraint, EditOperation, Part, PartOutline, Position, ProjectDoc, Vec2,
 };
-use dioxus::prelude::{ReadableExt, WritableExt};
-use std::rc::Rc;
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 
-/// One ticket per committed Inspector field. A new commit for a field replaces its
-/// ticket; the field renders its draft while the ticket is pending.
-#[derive(Clone, Default)]
-pub struct LayoutComponentInspectorEdits {
-    pub x: Option<EditTicket>,
-    pub y: Option<EditTicket>,
-    pub margin: Option<EditTicket>,
-    pub layout: Option<EditTicket>,
-    pub constraint: Option<EditTicket>,
-    pub remove_constraint: Option<EditTicket>,
-}
-
-/// Begin a pending edit and park it on its field.
-pub fn begin_inspector_edit(
-    runtime: &Rc<crate::runtime::Runtime>,
-    field: InspectorField,
-    resolver: EditResolver,
-) -> EditTicket {
-    let ticket = EditTicket::begin(runtime, field.label(), Some("layout".into()), resolver);
-    ticket
-}
-
-/// The Inspector fields that can hold a pending edit ticket.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InspectorField {
+pub(super) enum InspectorField {
     X,
     Y,
     Margin,
@@ -50,17 +18,12 @@ pub enum InspectorField {
 }
 
 impl InspectorField {
-    fn label(self) -> &'static str {
-        match self {
-            InspectorField::X => "layout-inspector-x",
-            InspectorField::Y => "layout-inspector-y",
-            InspectorField::Margin => "layout-inspector-outline",
-            InspectorField::Layout => "layout-inspector-layout",
-            InspectorField::Constraint => "layout-inspector-constraint",
-            InspectorField::RemoveConstraint => "layout-inspector-remove-constraint",
-        }
+    pub(super) fn is_field(self) -> bool {
+        matches!(self, Self::X | Self::Y | Self::Margin)
     }
 }
+
+pub(super) type LayoutComponentInspectorEdits = PendingEditSignals<InspectorField>;
 
 fn commit(command: EditOperation, target_ids: Vec<String>) -> Resolution {
     Resolution::submit(target_ids, command)
@@ -416,93 +379,4 @@ pub fn commit_position_resolver(
             EditOperation::MoveParts { positions },
         )
     })
-}
-
-/// Read a field's settlement; a terminal settlement drops the ticket so the field shows
-/// the accepted document again. Returns the settlement for the caller to render.
-pub fn settle_field(ticket: &mut Option<EditTicket>, owner_is_live: bool) -> Option<Settlement> {
-    let pending = ticket.as_ref()?;
-    let settlement = pending.settlement(owner_is_live);
-    if settlement != Settlement::Pending {
-        ticket.take();
-    }
-    (settlement != Settlement::Pending).then_some(settlement)
-}
-
-/// Settle the Inspector's pending edits on each render. Pending keeps the draft; a
-/// failure restores the accepted value and reports the message inline; landed and
-/// retired tickets drop so the field follows the accepted document again. The Inspector
-/// itself is the owner-liveness answer: a departed owner unmounts it, so the tickets
-/// here always belong to the live selection.
-pub fn settle_inspector_edits(
-    mut pending_edits: dioxus::prelude::Signal<LayoutComponentInspectorEdits>,
-    accepted_x: f64,
-    accepted_y: f64,
-    accepted_margin: Option<f64>,
-    x: &mut dioxus::prelude::Signal<String>,
-    y: &mut dioxus::prelude::Signal<String>,
-    margin: &mut dioxus::prelude::Signal<String>,
-    error: &mut dioxus::prelude::Signal<Option<String>>,
-) {
-    let mut edits = pending_edits.peek().clone();
-    let mut changed = false;
-    let mut failure: Option<String> = None;
-    fn settle_text_field(
-        ticket: &mut Option<EditTicket>,
-        accepted: &str,
-        draft: &mut dioxus::prelude::Signal<String>,
-        changed: &mut bool,
-        failure: &mut Option<String>,
-    ) {
-        if let Some(settlement) = settle_field(ticket, true) {
-            *changed = true;
-            if let Settlement::Failed { message } = settlement {
-                *failure = Some(message);
-            }
-            if draft.peek().as_str() != accepted {
-                draft.set(accepted.to_owned());
-            }
-        }
-    }
-    settle_text_field(
-        &mut edits.x,
-        &format!("{accepted_x:.2}"),
-        x,
-        &mut changed,
-        &mut failure,
-    );
-    settle_text_field(
-        &mut edits.y,
-        &format!("{accepted_y:.2}"),
-        y,
-        &mut changed,
-        &mut failure,
-    );
-    settle_text_field(
-        &mut edits.margin,
-        &accepted_margin
-            .map(|value| value.to_string())
-            .unwrap_or_default(),
-        margin,
-        &mut changed,
-        &mut failure,
-    );
-    for ticket in [
-        &mut edits.layout,
-        &mut edits.constraint,
-        &mut edits.remove_constraint,
-    ] {
-        if let Some(settlement) = settle_field(ticket, true) {
-            changed = true;
-            if let Settlement::Failed { message } = settlement {
-                failure = Some(message);
-            }
-        }
-    }
-    if changed {
-        pending_edits.set(edits);
-    }
-    if let Some(message) = failure {
-        error.set(Some(message));
-    }
 }

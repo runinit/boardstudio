@@ -10,6 +10,14 @@ use std::{
 };
 use wasm_bindgen::JsCast;
 
+type InspectorOwnerIdentity = (
+    boardstudio_application::Scope,
+    u64,
+    u64,
+    String,
+    Vec<String>,
+);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutComponentInspectorOwnerKey {
     pub scope: Option<Scope>,
@@ -122,6 +130,7 @@ pub enum LayoutComponentInspectorAction {
         owner: LayoutComponentInspectorOwner,
         axis: ComponentPositionAxis,
         value: f64,
+        submitted_draft: String,
     },
     AssignLayout {
         owner: LayoutComponentInspectorOwner,
@@ -130,6 +139,7 @@ pub enum LayoutComponentInspectorAction {
     SetOutline {
         owner: LayoutComponentInspectorOwner,
         outline: PartOutline,
+        submitted_draft: String,
     },
     SetConstraint {
         owner: LayoutComponentInspectorOwner,
@@ -149,7 +159,18 @@ pub enum LayoutComponentInspectorAction {
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
     pub inspector_tab: Signal<LayoutInspectorTab>,
-    pub pending_edits: Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
+    pub(in crate::presentation) pending_edits:
+        Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
+    pub(in crate::presentation) x: Signal<String>,
+    pub(in crate::presentation) y: Signal<String>,
+    pub(in crate::presentation) margin: Signal<String>,
+    pub(in crate::presentation) x_failure: Signal<Option<String>>,
+    pub(in crate::presentation) y_failure: Signal<Option<String>>,
+    pub(in crate::presentation) margin_failure: Signal<Option<String>>,
+    pub(in crate::presentation) error: Signal<Option<String>>,
+    pub(in crate::presentation) layout_pending: Signal<bool>,
+    pub(in crate::presentation) constraint_pending: Signal<bool>,
+    pub(in crate::presentation) remove_pending: Signal<bool>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
 }
 
@@ -212,15 +233,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     }));
     let mut tab = props.inspector_tab;
     let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
-    let mut x = use_signal(|| format!("{:.2}", projection.position.x));
-    let mut y = use_signal(|| format!("{:.2}", projection.position.y));
-    let mut margin = use_signal(|| {
-        projection
-            .outline
-            .margin
-            .map(|value| value.to_string())
-            .unwrap_or_default()
-    });
+    let mut x = props.x;
+    let mut y = props.y;
+    let mut margin = props.margin;
+    let x_failure = props.x_failure;
+    let y_failure = props.y_failure;
+    let margin_failure = props.margin_failure;
     let mut constraint_kind = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
         _ => ConstraintKind::Offset,
@@ -260,7 +278,39 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         Some(Constraint::Mirror { coordinate, .. }) => coordinate.to_string(),
         _ => "0".to_owned(),
     });
-    let mut error = use_signal(|| None::<String>);
+    let mut error = props.error;
+    let pending = props.pending_edits.peek().clone();
+    let last_owner = use_hook(|| Rc::new(RefCell::new(None::<LayoutComponentInspectorOwnerKey>)));
+    let owner_is_live = {
+        let mut previous = last_owner.borrow_mut();
+        let changed = previous.as_ref().is_some_and(|old| {
+            old != &LayoutComponentInspectorOwnerKey {
+                scope: Some(owner.scope.clone()),
+                workspace: "Layout",
+                part_id: Some(owner.part_id.clone()),
+                selected_part_ids: owner.selected_part_ids.clone(),
+            }
+        });
+        *previous = Some(LayoutComponentInspectorOwnerKey {
+            scope: Some(owner.scope.clone()),
+            workspace: "Layout",
+            part_id: Some(owner.part_id.clone()),
+            selected_part_ids: owner.selected_part_ids.clone(),
+        });
+        !changed
+    };
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::Layout,
+        props.layout_pending,
+    );
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::Constraint,
+        props.constraint_pending,
+    );
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::RemoveConstraint,
+        props.remove_pending,
+    );
 
     let initial_position = projection.position;
     let initial_outline = projection.outline.clone();
@@ -274,17 +324,56 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     }));
+    let mut previous_x = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_x = (identity.clone(), initial_position.x);
+    let identity_x = identity.clone();
+    let pending_x = pending.clone();
     use_effect(use_reactive((&accepted_x,), move |((_, value),)| {
-        x.set(format!("{value:.2}"));
+        let previous = previous_x.peek().clone();
+        let clean = previous.as_ref().is_none_or(|(old_identity, old_value)| {
+            old_identity != &identity_x || x.peek().as_str() == format!("{old_value:.2}")
+        });
+        if clean && !pending_x.is_pending(&super::super::layout_component_edits::InspectorField::X)
+        {
+            x.set(format!("{value:.2}"));
+        }
+        previous_x.set(Some((identity_x.clone(), value)));
     }));
+    let mut previous_y = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_y = (identity.clone(), initial_position.y);
+    let identity_y = identity.clone();
+    let pending_y = pending.clone();
     use_effect(use_reactive((&accepted_y,), move |((_, value),)| {
-        y.set(format!("{value:.2}"));
+        let previous = previous_y.peek().clone();
+        let clean = previous.as_ref().is_none_or(|(old_identity, old_value)| {
+            old_identity != &identity_y || y.peek().as_str() == format!("{old_value:.2}")
+        });
+        if clean && !pending_y.is_pending(&super::super::layout_component_edits::InspectorField::Y)
+        {
+            y.set(format!("{value:.2}"));
+        }
+        previous_y.set(Some((identity_y.clone(), value)));
     }));
+    let mut previous_margin = use_signal(|| None::<(InspectorOwnerIdentity, Option<f64>)>);
     let accepted_margin = (identity.clone(), initial_outline.margin);
+    let identity_margin = identity.clone();
+    let pending_margin = pending.clone();
     use_effect(use_reactive((&accepted_margin,), move |((_, value),)| {
-        margin.set(value.map(|value| value.to_string()).unwrap_or_default());
+        let previous = previous_margin.peek().clone();
+        let old_text = previous
+            .as_ref()
+            .map(|(_, value)| value.map(|value| value.to_string()).unwrap_or_default());
+        let clean = previous
+            .as_ref()
+            .is_none_or(|(old_identity, _)| old_identity != &identity_margin)
+            || old_text.as_deref() == Some(margin.peek().as_str());
+        if clean
+            && !pending_margin
+                .is_pending(&super::super::layout_component_edits::InspectorField::Margin)
+        {
+            margin.set(value.map(|value| value.to_string()).unwrap_or_default());
+        }
+        previous_margin.set(Some((identity_margin.clone(), value)));
     }));
     let accepted_constraint = (identity.clone(), initial_constraint.clone());
     use_effect(use_reactive((&accepted_constraint,), {
@@ -404,25 +493,40 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         }
     };
 
-    // Settle the pending edit tickets before rendering: pending fields keep their
-    // drafts, failures restore the accepted value with the message inline, and landed
-    // or retired tickets drop so the fields follow the accepted document again.
-    {
-        let mut settle_x = x;
-        let mut settle_y = y;
-        let mut settle_margin = margin;
-        let mut settle_error = error;
-        super::super::layout_component_edits::settle_inspector_edits(
-            props.pending_edits,
-            projection.position.x,
-            projection.position.y,
-            projection.outline.margin,
-            &mut settle_x,
-            &mut settle_y,
-            &mut settle_margin,
-            &mut settle_error,
-        );
-    }
+    pending.bind_field(
+        super::super::layout_component_edits::InspectorField::X,
+        x,
+        x_failure,
+    );
+    pending.bind_field(
+        super::super::layout_component_edits::InspectorField::Y,
+        y,
+        y_failure,
+    );
+    pending.bind_field(
+        super::super::layout_component_edits::InspectorField::Margin,
+        margin,
+        margin_failure,
+    );
+    let accepted_projection = projection.clone();
+    pending.settle(owner_is_live, move |key| match key {
+        super::super::layout_component_edits::InspectorField::X => {
+            format!("{:.2}", accepted_projection.position.x)
+        }
+        super::super::layout_component_edits::InspectorField::Y => {
+            format!("{:.2}", accepted_projection.position.y)
+        }
+        super::super::layout_component_edits::InspectorField::Margin => accepted_projection
+            .outline
+            .margin
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    });
+    let retired_pending = pending.clone();
+    use_drop(move || {
+        retired_pending.settle(false, |_| String::new());
+    });
 
     let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
     let commit_position: Rc<dyn Fn(ComponentPositionAxis, PositionCommitTrigger)> = {
@@ -474,7 +578,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             let untouched_blur =
                 trigger == PositionCommitTrigger::Blur && draft == format!("{current:.2}");
             if value != current && !untouched_blur {
-                action.call(LayoutComponentInspectorAction::SetPosition { owner, axis, value });
+                action.call(LayoutComponentInspectorAction::SetPosition {
+                    owner,
+                    axis,
+                    value,
+                    submitted_draft: draft,
+                });
             }
         })
     };
@@ -485,6 +594,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             action.call(LayoutComponentInspectorAction::SetOutline {
                 owner: latest_capture(),
                 outline,
+                submitted_draft: margin(),
             })
         })
     };
@@ -594,6 +704,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         select {
                             aria_label: "Component layout",
                             value: projection.layout_id.as_deref().unwrap_or(""),
+                            disabled: (props.layout_pending)(),
                             onchange: {
                                 let latest_capture = latest_capture;
                                 let action = props.on_action;
@@ -744,13 +855,17 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             p { class: "m1-layout-component-constraint-note", "{constraint_source_reference} drives {projection.reference}." }
                         }
                         div { class: "m1-layout-component-constraint-actions",
-                            button { r#type: "button", onclick: save_constraint, if active_constraint.is_some() { "Save constraint" } else { "Add constraint" } }
-                            if active_constraint.is_some() { button { r#type: "button", onclick: remove_constraint, "Remove" } }
+                            button { r#type: "button", disabled: (props.constraint_pending)(), onclick: save_constraint, if active_constraint.is_some() { "Save constraint" } else { "Add constraint" } }
+                            if active_constraint.is_some() { button { r#type: "button", disabled: (props.remove_pending)(), onclick: remove_constraint, "Remove" } }
                         }
                     } else { p { "Add another part on this board to create a layout constraint." } }
                 }
                 }
-                if let Some(message) = error() { p { role: "alert", "{message}" } }
+                if let Some(message) = x_failure()
+                    .or_else(|| y_failure())
+                    .or_else(|| margin_failure())
+                    .or_else(|| error())
+                { p { role: "alert", "{message}" } }
                 button { class: "m1-layout-component-electrical", r#type: "button", onclick: {
                     let latest_capture = latest_capture; let action = props.on_action;
                     move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: latest_capture() })

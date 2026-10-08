@@ -1608,23 +1608,34 @@ fn layout_component_inspector_owner_is_current(
 /// the accepted value again when it settles.
 fn submit_layout_component_edit(
     runtime: &Rc<Runtime>,
-    mut pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
+    pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
     field: layout_component_edits::InspectorField,
     resolver: boardstudio_application::EditResolver,
+    draft: Option<String>,
 ) {
-    let ticket = layout_component_edits::begin_inspector_edit(runtime, field, resolver);
-    let mut edits = pending_edits.peek().clone();
-    match field {
-        layout_component_edits::InspectorField::X => edits.x = Some(ticket),
-        layout_component_edits::InspectorField::Y => edits.y = Some(ticket),
-        layout_component_edits::InspectorField::Margin => edits.margin = Some(ticket),
-        layout_component_edits::InspectorField::Layout => edits.layout = Some(ticket),
-        layout_component_edits::InspectorField::Constraint => edits.constraint = Some(ticket),
+    let helper = pending_edits.peek().clone();
+    let label = match field {
+        layout_component_edits::InspectorField::X => "layout-inspector-x",
+        layout_component_edits::InspectorField::Y => "layout-inspector-y",
+        layout_component_edits::InspectorField::Margin => "layout-inspector-outline",
+        layout_component_edits::InspectorField::Layout => "layout-inspector-layout",
+        layout_component_edits::InspectorField::Constraint => "layout-inspector-constraint",
         layout_component_edits::InspectorField::RemoveConstraint => {
-            edits.remove_constraint = Some(ticket)
+            "layout-inspector-remove-constraint"
         }
+    };
+    if field.is_field() {
+        helper.begin_field(
+            runtime,
+            field,
+            label,
+            Some("layout".into()),
+            resolver,
+            draft.as_deref().unwrap_or_default(),
+        );
+    } else {
+        helper.begin_one_shot(runtime, field, label, Some("layout".into()), resolver);
     }
-    pending_edits.set(edits);
 }
 
 fn dispatch_layout_component_inspector_action(
@@ -1681,7 +1692,12 @@ fn dispatch_layout_component_inspector_action(
         return;
     }
     match action {
-        inspector::LayoutComponentInspectorAction::SetPosition { owner, axis, value } => {
+        inspector::LayoutComponentInspectorAction::SetPosition {
+            owner,
+            axis,
+            value,
+            submitted_draft,
+        } => {
             if !value.is_finite() {
                 return;
             }
@@ -1700,6 +1716,7 @@ fn dispatch_layout_component_inspector_action(
                     axis,
                     value,
                 ),
+                Some(submitted_draft),
             );
         }
         inspector::LayoutComponentInspectorAction::AssignLayout { owner, layout_id } => {
@@ -1727,14 +1744,20 @@ fn dispatch_layout_component_inspector_action(
                     owner.scope.board_id.clone(),
                     layout_id,
                 ),
+                None,
             );
         }
-        inspector::LayoutComponentInspectorAction::SetOutline { owner, outline } => {
+        inspector::LayoutComponentInspectorAction::SetOutline {
+            owner,
+            outline,
+            submitted_draft,
+        } => {
             submit_layout_component_edit(
                 runtime,
                 pending_edits,
                 layout_component_edits::InspectorField::Margin,
                 layout_component_edits::outline_resolver(owner.part_id.clone(), outline),
+                Some(submitted_draft),
             );
         }
         inspector::LayoutComponentInspectorAction::SetConstraint {
@@ -1759,6 +1782,7 @@ fn dispatch_layout_component_inspector_action(
                     values,
                     id_seed,
                 ),
+                None,
             );
         }
         inspector::LayoutComponentInspectorAction::RemoveConstraint {
@@ -1773,6 +1797,7 @@ fn dispatch_layout_component_inspector_action(
                     owner.part_id.clone(),
                     constraint_id,
                 ),
+                None,
             );
         }
         inspector::LayoutComponentInspectorAction::NavigateElectrical { .. } => {
@@ -6926,6 +6951,22 @@ fn Editor() -> Element {
         )),
     };
     let component_inspector_pending_edits = layout_state.component_inspector_edits();
+    let (
+        component_inspector_x,
+        component_inspector_y,
+        component_inspector_margin,
+        component_inspector_error,
+    ) = layout_state.component_inspector_drafts();
+    let (
+        component_inspector_x_failure,
+        component_inspector_y_failure,
+        component_inspector_margin_failure,
+    ) = layout_state.component_inspector_field_failures();
+    let (
+        component_inspector_layout_pending,
+        component_inspector_constraint_pending,
+        component_inspector_remove_pending,
+    ) = layout_state.component_inspector_pending_controls();
     let on_component_inspector_action = EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -7145,6 +7186,16 @@ fn Editor() -> Element {
                 show_position_inspector,
                 component_inspector: component_inspector.clone(),
                 component_inspector_pending_edits,
+                component_inspector_x,
+                component_inspector_y,
+                component_inspector_margin,
+                component_inspector_error,
+                component_inspector_x_failure,
+                component_inspector_y_failure,
+                component_inspector_margin_failure,
+                component_inspector_layout_pending,
+                component_inspector_constraint_pending,
+                component_inspector_remove_pending,
                 on_component_inspector_action,
                 matrix_inspector,
                 key_size,
@@ -7192,8 +7243,7 @@ fn Editor() -> Element {
                     },
                 ),
                 on_findings_return: on_return_from_layout_finding,
-                board_inspector: board_inspector_projection,
-                on_board_rename: board_inspector.on_rename,
+                board_inspector_mount: board_inspector.clone(),
                 findings_page: Some(layout_findings::InspectorMount {
                     open: (layout_findings.open)(),
                     document: Rc::new(document.as_ref().clone()),

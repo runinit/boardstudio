@@ -1,6 +1,6 @@
 # 08: Parts and PCB panels settle through `PendingEdits`
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 05, 19
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -52,11 +52,11 @@ dormant domain tests in this ticket's other files still migrate here as needed.
 
 ## Acceptance criteria
 
-- [ ] `GeneratorSubmission`, `AssemblySubmission`, `ModelSubmission`,
+- [x] `GeneratorSubmission`, `AssemblySubmission`, `ModelSubmission`,
   `PartInputFeedbackState` and the three remaining `owner_is_live` functions are gone.
-- [ ] Exact post-landing selection (edit settlement 15) still works through `Landed`.
+- [x] Exact post-landing selection (edit settlement 15) still works through `Landed`.
 - [x] The electrical remap review keeps its strict route (ADR-0005).
-- [ ] Mounted Parts and PCB tests pass.
+- [x] Mounted Parts and PCB tests pass.
 
 ## Verification
 
@@ -70,7 +70,7 @@ python3 scripts/check.py lint typecheck test browser
 The PCB half is accepted at final source `ed92e9d9`, independently of Parts.
 Root preserved the external branch at `4cd26b77b` through merge `36c32938a`,
 then committed typed helper support (`9cf6a268`) and the remaining PCB corrections
-(`97b681df`). Parent 08 stays claimed until the Parts half is reviewed and integrated.
+(`97b681df`). At PCB acceptance the parent remained claimed; the Parts Outcome below closes it.
 The earlier PCB checkpoints below are historical.
 
 All named PCB sites use PendingEdits/PendingEditSignals: mode, pins, Apply,
@@ -152,3 +152,36 @@ Keep the parent claimed until both Parts and PCB are reviewed and integrated. Th
 remaining common helper/spec decision stays with root; the other panel stream remains
 held. Preserve all PCB commits, including the non-building intermediate `63e051463`,
 and record that limitation rather than rewriting history.
+
+## Parts half and parent Outcome
+
+Both halves are accepted on integrated source
+`eebc703d3f1530c654f82fe92fa282c9617fe378`. Merge `629ced642` preserves all
+11 external Parts commits through `43bbdc26687499b483c24fb976046dfe81a0e230`.
+The original clean Parts checkout remains unchanged. The historical PCB Outcome
+above records its earlier acceptance; its CAD limitation is now repaired.
+
+GeneratorSubmission, AssemblySubmission, ModelSubmission and the named Parts
+owner/settlement functions are gone. Definition names, courtyard/pad fields,
+profiles, model transforms and attachments use actual shared Signal bindings.
+Ordinary dirty projection protects newer drafts even when they return to the old
+baseline; clean fields follow accepted changes and Undo/Redo. Captured owners retire
+before replacement bindings can be written. Removed row bindings/maps are pruned;
+parent-scoped Signal allocations still last until the parent unmounts. Helpers
+release terminal submitted values after field/control writes, with real driver
+ownership regression coverage. Domain preparation queues remain caller-owned.
+
+Mechanical-profile Save, Add Pad, Remove Pad and model Upload use bounded live
+one-shot admission guards. Add/remove guards run before identity allocation;
+Upload checks the helper at dispatch rather than a captured render boolean.
+Actual mounted duplicate-click/upload regressions failed before these fixes and
+pass afterwards. Field-form commits remain queueable. Attachment outcomes drain
+before exact Landed navigation; ticket19's identity, history and queue regressions
+are preserved. Protected PCB electrical remap is byte-for-byte unchanged from
+root base `30e922ac6`.
+
+Final native Parts 42 and PCB 23 pass; mounted Parts 65 and PCB 48 pass.
+Lint, WASM typecheck and the complete native/browser steps pass. Final Parts Spec
+review covers all complete one-shot sites and reports no blockers at `eebc703d`;
+final Standards review reports zero documented breaches. Detailed shared evidence
+and limitations are in the [integration acceptance record](../integration-acceptance-2026-10-08.md).

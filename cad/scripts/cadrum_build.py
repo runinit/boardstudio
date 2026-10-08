@@ -1,10 +1,13 @@
 """Pinned OCCT preparation and Cadrum build orchestration (standard library only)."""
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
+import tomllib
 import urllib.request
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
@@ -84,17 +87,46 @@ def wasm_inputs_digest():
     """Hash everything the container build reads, so an unchanged provider is not rebuilt."""
     contracts = CAD_ROOT.parent / "contracts/rust"
     digest = hashlib.sha256(f"{IMAGE}\n{VERSION}\n".encode())
+    digest.update(Path(__file__).read_bytes())
     digest.update((CAD_ROOT / CONTAINERFILE).read_bytes())
-    for base, names in ((CAD_ROOT / "wasm", ("Cargo.toml", "Cargo.lock", "src", "assets")),
+    for base, names in ((CAD_ROOT.parent, ("Cargo.toml",)),
+                        (CAD_ROOT / "wasm", ("Cargo.toml", "Cargo.lock", "src", "assets")),
                         (contracts, ("Cargo.toml", "src"))):
         for name in names:
             path = base / name
             files = sorted(path.rglob("*")) if path.is_dir() else [path]
             for file in files:
                 if file.is_file():
-                    digest.update(file.relative_to(base).as_posix().encode() + b"\0")
+                    digest.update(file.relative_to(CAD_ROOT.parent).as_posix().encode() + b"\0")
                     digest.update(file.read_bytes())
     return digest.hexdigest()
+
+
+def _toml_value(value):
+    """Encode workspace lint tables as TOML inline tables without a third-party writer."""
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{json.dumps(key)} = {_toml_value(item)}" for key, item in value.items()) + " }"
+    return json.dumps(value)
+
+
+def _container_workspace_manifest():
+    """Keep contract lint inheritance while excluding the independently built CAD crates."""
+    workspace = tomllib.loads((CAD_ROOT.parent / "Cargo.toml").read_text())["workspace"]
+    contracts = tomllib.loads((CAD_ROOT.parent / "contracts/rust/Cargo.toml").read_text())
+
+    def validate_inheritance(table, path=()):
+        for key, value in table.items():
+            if key == "workspace" and value is True and path != ("lints",):
+                raise RuntimeError(f"CAD container does not support contracts workspace inheritance at {'.'.join(path)}")
+            if isinstance(value, dict):
+                validate_inheritance(value, (*path, key))
+
+    validate_inheritance(contracts)
+    return ('[workspace]\n'
+            f'resolver = {json.dumps(workspace["resolver"])}\n'
+            'members = ["contracts/rust"]\n'
+            'exclude = ["cad/wasm", "cad/step-oracle"]\n'
+            f'lints = {_toml_value(workspace.get("lints", {}))}\n')
 
 
 def build_wasm():
@@ -109,6 +141,7 @@ def build_wasm():
         (name for name in ("podman", "docker") if available(name)), None)
     if not runtime:
         raise RuntimeError("Building the Cadrum WASM module requires Podman or Docker")
+    workspace_manifest = _container_workspace_manifest()
     # CI may build and load the pinned image itself, then set CADRUM_IMAGE_READY.
     if not os.environ.get("CADRUM_IMAGE_READY"):
         provide_image(runtime)
@@ -123,15 +156,22 @@ def build_wasm():
     git_deps = CAD_ROOT / ".cache/cargo-git"
     for directory in (registry, git_deps):
         directory.mkdir(parents=True, exist_ok=True)
-    run([runtime, "run", "--rm", "--volume", cad_mount,
-         "--volume", f"{registry}:/root/.cargo/registry{label}",
-         "--volume", f"{git_deps}:/root/.cargo/git{label}",
-         "--volume", f"{contracts}:/workspace/contracts/rust:ro",
-         "--workdir", "/workspace/cad", "--env", f"OCCT_ROOT=/workspace/cad/{occt}",
-         "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", IMAGE,
-         "wasm-pack", "build", "wasm", "--target", "web", "--out-dir", "pkg",
-         "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked"])
     stamp.parent.mkdir(parents=True, exist_ok=True)
+    jobs = ["--env", f"CARGO_BUILD_JOBS={os.environ['CARGO_BUILD_JOBS']}"] if os.environ.get("CARGO_BUILD_JOBS") else []
+    # The full root workspace references crates absent from these narrow mounts.
+    # Give contracts its inherited lints without joining CAD to that workspace.
+    with tempfile.TemporaryDirectory(prefix="workspace-", dir=stamp.parent) as directory:
+        manifest = Path(directory) / "Cargo.toml"
+        manifest.write_text(workspace_manifest)
+        run([runtime, "run", "--rm", "--volume", cad_mount,
+             "--volume", f"{registry}:/root/.cargo/registry{label}",
+             "--volume", f"{git_deps}:/root/.cargo/git{label}",
+             "--volume", f"{manifest}:/workspace/Cargo.toml:ro{',Z' if label else ''}",
+             "--volume", f"{contracts}:/workspace/contracts/rust:ro",
+             "--workdir", "/workspace/cad", "--env", f"OCCT_ROOT=/workspace/cad/{occt}",
+             "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", *jobs, IMAGE,
+             "wasm-pack", "build", "wasm", "--target", "web", "--out-dir", "pkg",
+             "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked"])
     stamp.write_text(inputs + "\n")
 
 

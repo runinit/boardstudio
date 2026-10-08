@@ -12,10 +12,12 @@ ticket's pinned base; do not substitute a moving `dev` ref for that base.
 
 | Stream | Index alias | Pinned base |
 | --- | --- | --- |
+| Layout 07 | `boardstudio-07-layout` | `8ce860a09` |
 | PCB 08 | `boardstudio-08-pcb` | `8ce860a09` |
 | Parts 08 | `boardstudio-08-parts` | `8ce860a09` |
 | Case / Keymap / Keycaps / Library 09 | `boardstudio-09-panels` | `8ce860a09` |
-| Root integration | `boardstudio-module-deepening-integration` | `974e367e7` |
+| Root integration (09 / PCB acceptance) | `boardstudio-module-deepening-integration` | `974e367e7` |
+| Root integration (Parts / Layout / CAD acceptance) | `boardstudio-module-deepening-integration` | `30e922ac6` |
 
 For example, the PCB agent runs:
 
@@ -34,6 +36,12 @@ lives in this worktree's ignored `.gitnexus/`, and the unique alias preserves ro
 current symbol and file. Refresh with the same analyze command after source changes
 and before the final comparison; `--force` includes uncommitted additions even when
 HEAD has not changed. Indexing does not execute tests or reviews.
+
+The repository's `.gitnexusignore` explicitly includes `web/crates/parts/` because
+GitNexus's default artifact exclusions otherwise skip every directory named
+`parts`. Keep this override in agent worktrees before analyzing Parts. Verify that
+the index includes a Parts definition; a zero-symbol comparison across changed
+Parts files is unresolved coverage, even if the reported risk says low.
 
 If root's generated runner is unavailable, bootstrap from the same worktree with:
 

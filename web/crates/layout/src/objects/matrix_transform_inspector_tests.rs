@@ -13,6 +13,7 @@ use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
+use web_sys::{Event as DomEvent, HtmlInputElement};
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -21,14 +22,17 @@ struct Probe {
     runtime: Rc<Runtime>,
     selected: ScopedTreeContext,
     root_id: &'static str,
+    version: Rc<RefCell<Option<Signal<u64>>>>,
     selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
     adapter: Rc<RefCell<Option<crate::presentation::selection::SelectionAdapter>>>,
+    mount: Rc<RefCell<Option<MatrixTransformInspectorMount>>>,
 }
 
 #[component]
 fn matrix_transform_host() -> Element {
     let probe = use_context::<Probe>();
     let version = use_signal(|| 0u64);
+    *probe.version.borrow_mut() = Some(version);
     let selected_context = use_signal(|| Some(probe.selected.clone()));
     *probe.selected_context.borrow_mut() = Some(selected_context);
     let workspace = use_signal(|| "Layout");
@@ -49,6 +53,7 @@ fn matrix_transform_host() -> Element {
         splay_affect,
         "Layout",
     );
+    *probe.mount.borrow_mut() = Some(mount.clone());
     let matrix_id = "matrix".to_owned();
     let canvas_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let canvas_runtime = probe.runtime.clone();
@@ -329,8 +334,10 @@ async fn mount_selection_probe(
         runtime,
         selected: ScopedTreeContext { scope, context },
         root_id,
+        version: Rc::default(),
         selected_context: Rc::default(),
         adapter: Rc::default(),
+        mount: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -618,6 +625,289 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
 
 async fn settle() {
     gloo_timers::future::TimeoutFuture::new(60).await;
+}
+
+#[wasm_bindgen_test]
+async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
+    let (mut document, context) = fixture();
+    document.matrices[0].cells[0].offset = Some(Vec2 { x: 3.0, y: 0.0 });
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-pending-reset-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle().await;
+    let retained = probe.mount.borrow().as_ref().unwrap().clone();
+    let projection = retained.projection.as_ref().unwrap();
+    let button = root.query_selector_all("button").unwrap();
+    let button = (0..button.length())
+        .filter_map(|index| button.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Reset local transform"))
+        .expect("the reset action is mounted")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let input = root
+        .query_selector("input[aria-label='Local X']")
+        .unwrap()
+        .expect("the key offset field is mounted")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    let (entered, release) = support::gate_next_core_reply(&probe.runtime);
+    button.click();
+    support::drive_pending(&probe.runtime);
+    entered.await.expect("the reset reaches Core");
+    settle().await;
+    let disabled_while_pending = button.has_attribute("disabled");
+    assert!(
+        !input.disabled(),
+        "field edits stay available while an action is pending"
+    );
+
+    input.set_value("5");
+    let event = DomEvent::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+    let mut sequence = retained.request_sequence;
+    let request_id = sequence().checked_add(1).unwrap();
+    sequence.set(request_id);
+    retained.on_edit.call(MatrixTransformRequest {
+        owner: projection.owner.clone(),
+        request_id,
+        snapshot_token: projection.snapshot_token,
+        revision: projection.revision,
+        field: MatrixTransformField::KeyTransformReset,
+        baseline: MatrixTransformValue::CellTransform {
+            offset: Vec2 { x: 3.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        value: MatrixTransformValue::CellTransform {
+            offset: Vec2::default(),
+            rotation: 0.0,
+        },
+        splay_affect: (retained.splay_affect)(),
+        draft: None,
+        failure: None,
+        submitted_text: None,
+        one_shot: true,
+    });
+    release.send(()).expect("release the held reset");
+    // The gated task runs through drive_pending, so run_pending alone does not await it.
+    // Refresh this host's version only after the real Session has finished both edits.
+    for _ in 0..100 {
+        support::run_pending(&probe.runtime).await;
+        if matches!(
+            probe.runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Ready
+        ) {
+            break;
+        }
+        settle().await;
+    }
+    assert!(
+        matches!(
+            probe.runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Ready
+        ),
+        "the reset and queued field edit finish through the real Session"
+    );
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+
+    assert!(
+        disabled_while_pending,
+        "the reset button disables while its action is pending"
+    );
+    assert_eq!(
+        accepted_cell(&probe, 0).offset,
+        Some(Vec2 { x: 5.0, y: 0.0 }),
+        "a retained duplicate reset must not undo the queued field edit"
+    );
+    let live_buttons = root.query_selector_all("button").unwrap();
+    let live_button = (0..live_buttons.length())
+        .filter_map(|index| live_buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Reset local transform"))
+        .expect("the live reset action remains mounted")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    assert!(
+        !live_button.has_attribute("disabled"),
+        "the live reset button is available after settlement; captured connected: {}, lifecycle: {:?}",
+        button.is_connected(),
+        probe.runtime.model().lifecycle,
+    );
+    assert!(root.query_selector("[role='alert']").unwrap().is_none());
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn failed_numeric_edit_keeps_a_newer_typed_draft() {
+    let (document, context) = fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-failed-draft-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle().await;
+
+    let input = root
+        .query_selector("input[aria-label='Local X']")
+        .unwrap()
+        .expect("the key offset field is mounted")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    support::fail_next_core_reply(&probe.runtime, "injected transform failure");
+
+    input.set_value("5.00");
+    let first_input = DomEvent::new("input").unwrap();
+    first_input.init_event_with_bubbles("input", true);
+    input.dispatch_event(&first_input).unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+
+    // Type again before the failed Core reply is observed by the mounted panel.
+    input.set_value("7.00");
+    let newer_input = DomEvent::new("input").unwrap();
+    newer_input.init_event_with_bubbles("input", true);
+    input.dispatch_event(&newer_input).unwrap();
+    support::run_pending(&probe.runtime).await;
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+
+    assert_eq!(
+        input.value(),
+        "7.00",
+        "failure must not restore older submitted text"
+    );
+    assert_eq!(
+        root.query_selector("[role='alert']")
+            .unwrap()
+            .and_then(|element| element.text_content()),
+        Some("The transform change could not be applied: injected transform failure".into())
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() {
+    let (document, context) = fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-restored-failure-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle().await;
+
+    let input = root
+        .query_selector("input[aria-label='Local X']")
+        .unwrap()
+        .expect("the key offset field is mounted")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    support::fail_next_core_reply(&probe.runtime, "injected transform failure");
+    input.set_value("5.00");
+    let event = DomEvent::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+
+    support::run_pending(&probe.runtime).await;
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+    assert_eq!(
+        input.value(),
+        "0",
+        "the unchanged failed draft restores accepted text"
+    );
+    assert_eq!(
+        root.query_selector("[role='alert']")
+            .unwrap()
+            .and_then(|element| element.text_content()),
+        Some("The transform change could not be applied: injected transform failure".into()),
+        "restoring the accepted projection must not clear the helper-owned failure"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn hidden_transform_inspector_retires_a_held_failure_before_remount() {
+    let (document, context) = fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-hidden-failure-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle().await;
+
+    let input = root
+        .query_selector("input[aria-label='Local X']")
+        .unwrap()
+        .expect("the key offset field is mounted")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    support::fail_next_core_reply(&probe.runtime, "held transform failure");
+    input.set_value("5");
+    let event = DomEvent::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+
+    // Hide the actual inspector while its Core result is still held. The controller's
+    // inspector-mounted marker must retire the request even though the selected key stays.
+    let mut selected_signal = probe.selected_context.borrow().as_ref().unwrap().clone();
+    selected_signal.set(None);
+    settle().await;
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    selected_signal.set(Some(probe.selected.clone()));
+    settle().await;
+
+    assert!(
+        root.query_selector("[role='alert']").unwrap().is_none(),
+        "a held failure from the hidden owner must not surface after remount"
+    );
+    root.remove();
 }
 
 #[wasm_bindgen_test]

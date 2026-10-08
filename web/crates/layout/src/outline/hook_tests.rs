@@ -25,6 +25,7 @@ struct Probe {
     latest: Rc<RefCell<Option<OutlineInspectorProjection>>>,
     context: Rc<RefCell<TreeContext>>,
     activation: Rc<RefCell<Option<EventHandler<OutlineAction>>>>,
+    inspector_visible: Rc<Cell<bool>>,
 }
 impl Probe {
     fn projection(&self) -> OutlineInspectorProjection {
@@ -80,7 +81,8 @@ fn host() -> Element {
         use_outline_lifecycle(probe.runtime.clone(), selected, workspace, generation);
     *probe.activation.borrow_mut() = Some(activation);
     *probe.latest.borrow_mut() = projection.clone();
-    rsx! { div { if let Some(projection) = projection { OutlineVersionInspector { projection } } } }
+    let show_inspector = probe.inspector_visible.get();
+    rsx! { div { if show_inspector { if let Some(projection) = projection { OutlineVersionInspector { projection } } } } }
 }
 
 fn flush(probe: &Probe, dom: &mut VirtualDom) {
@@ -119,6 +121,7 @@ async fn mounted() -> (Probe, VirtualDom) {
         workspace: Rc::new(Cell::new("Layout")),
         latest: Rc::default(),
         activation: Rc::default(),
+        inspector_visible: Rc::new(Cell::new(true)),
         context: Rc::new(RefCell::new(TreeContext::Outline {
             board_id: "board".into(),
         })),
@@ -320,7 +323,7 @@ async fn admitted_outcome_survives_editor_unmount_until_terminal() {
 }
 
 #[wasm_bindgen_test]
-async fn hidden_inspector_retains_exact_success_until_same_owner_returns() {
+async fn hidden_inspector_does_not_show_success_feedback_after_landing() {
     let (probe, mut dom) = mounted().await;
     let slot = probe.watch_next();
     probe.copy();
@@ -331,8 +334,99 @@ async fn hidden_inspector_retains_exact_success_until_same_owner_returns() {
     assert!(probe.latest.borrow().is_none());
     probe.workspace.set("Layout");
     flush(&probe, &mut dom);
-    assert_eq!(probe.projection().feedback.unwrap().state, "saved");
+    assert!(probe.projection().feedback.is_none());
     assert!(probe.projection().enabled);
+}
+
+#[wasm_bindgen_test]
+async fn outline_one_shot_controls_disable_until_the_pending_edit_settles() {
+    let (probe, mut dom) = mounted().await;
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    probe.copy();
+    flush(&probe, &mut dom);
+    assert!(probe.projection().one_shot_pending);
+
+    let runtime = probe.runtime.clone();
+    let (done_tx, done_rx) = futures_channel::oneshot::channel();
+    wasm_bindgen_futures::spawn_local(async move {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        let _ = done_tx.send(());
+    });
+    entered.await.unwrap();
+    release.send(()).unwrap();
+    done_rx.await.unwrap();
+    flush(&probe, &mut dom);
+
+    assert!(!probe.projection().one_shot_pending);
+    assert!(probe.projection().feedback.is_none());
+}
+
+#[wasm_bindgen_test]
+async fn newer_version_name_draft_survives_an_older_rename_settlement() {
+    let (probe, mut dom) = mounted().await;
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    let mut projection = probe.projection();
+    projection.version_name_draft.set("Submitted name".into());
+    projection.on_action.call(
+        projection
+            .action_context
+            .action(OutlineEdit::RenameVersion {
+                version_id: "fixed".into(),
+                name: "Submitted name".into(),
+            }),
+    );
+    let runtime = probe.runtime.clone();
+    let (done_tx, done_rx) = futures_channel::oneshot::channel();
+    wasm_bindgen_futures::spawn_local(async move {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        let _ = done_tx.send(());
+    });
+    entered.await.unwrap();
+    probe
+        .projection()
+        .version_name_draft
+        .set("Newer draft".into());
+    flush(&probe, &mut dom);
+    release.send(()).unwrap();
+    done_rx.await.unwrap();
+    flush(&probe, &mut dom);
+
+    assert_eq!(probe.projection().version_name, "Submitted name");
+    assert_eq!(
+        probe.projection().version_name_draft.read().as_str(),
+        "Newer draft"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn held_failure_after_inspector_view_unmount_is_silent_after_remount() {
+    let (probe, mut dom) = mounted().await;
+    let (entered, release) =
+        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+    probe.copy();
+    let runtime = probe.runtime.clone();
+    let (done_tx, done_rx) = futures_channel::oneshot::channel();
+    wasm_bindgen_futures::spawn_local(async move {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        let _ = done_tx.send(());
+    });
+    entered.await.unwrap();
+    probe.inspector_visible.set(false);
+    flush(&probe, &mut dom);
+    crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
+    release.send(()).unwrap();
+    done_rx.await.unwrap();
+    flush(&probe, &mut dom);
+    assert_eq!(
+        probe.runtime.model().lifecycle,
+        boardstudio_application::Lifecycle::RecoveryRequired
+    );
+
+    probe.inspector_visible.set(true);
+    flush(&probe, &mut dom);
+    assert!(probe.projection().feedback.is_none());
 }
 
 #[wasm_bindgen_test]
@@ -352,7 +446,15 @@ async fn exact_rejection_allows_fresh_operation_retry() {
         "a failed durable write requires recovery before another edit"
     );
     flush(&probe, &mut dom);
-    assert_eq!(probe.projection().feedback.unwrap().state, "failed");
+    assert!(
+        probe
+            .projection()
+            .feedback
+            .unwrap()
+            .message
+            .unwrap()
+            .contains("disk full")
+    );
 
     // The old hand-settled harness could retry immediately after inventing a persistence
     // failure. Real Session keeps edits blocked until the saved document is reopened.
@@ -415,7 +517,6 @@ async fn completed_current_source_in_recovery_retires_with_failure() {
         boardstudio_application::Lifecycle::RecoveryRequired
     );
     let feedback = probe.projection().feedback.unwrap();
-    assert_eq!(feedback.state, "failed");
     assert!(feedback.message.unwrap().contains("disk full"));
 }
 
@@ -543,7 +644,7 @@ async fn activation_settles_exact_generated_target_while_hidden() {
     assert!(probe.latest.borrow().is_none());
     probe.workspace.set("Layout");
     flush(&probe, &mut dom);
-    assert_eq!(probe.projection().feedback.unwrap().state, "saved");
+    assert!(probe.projection().feedback.is_none());
     let revision = probe.runtime.model().accepted.unwrap().document.revision;
     activate_generated(&probe);
     accept(&probe).await;

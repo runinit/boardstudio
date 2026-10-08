@@ -1,10 +1,10 @@
 //! Layout presentation for the existing Core-owned Rhai script workflow.
+use crate::pending_edit_helpers::PendingEditSignals;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
 use boardstudio_core::model::{EditOperation, Finding, Script, Severity};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -66,6 +66,34 @@ fn apply_script_resolver(
     )
 }
 
+#[derive(Clone, Debug)]
+enum ScriptActionKey {
+    New,
+    Apply(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ScriptOwner {
+    document_id: String,
+    session_epoch: SessionEpoch,
+    script_id: String,
+}
+
+impl PartialEq for ScriptActionKey {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::New, Self::New) | (Self::Apply(_), Self::Apply(_))
+        )
+    }
+}
+
+impl Eq for ScriptActionKey {}
+
+fn encode_script_draft(name: &str, source: &str, enabled: bool) -> String {
+    serde_json::to_string(&(name, source, enabled)).expect("script draft tuple serializes")
+}
+
 #[component]
 pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let _ = use_context::<Signal<u64>>()();
@@ -81,28 +109,51 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let mut name = use_signal(String::new);
     let mut source = use_signal(String::new);
     let mut enabled = use_signal(|| true);
-    let script_ticket = use_signal(|| None::<EditTicket>);
-    let script_pending = script_ticket
-        .read()
-        .as_ref()
-        .is_some_and(EditTicket::is_pending);
-    let ticket_error =
-        script_ticket
-            .read()
-            .as_ref()
-            .and_then(|ticket| match ticket.settlement(true) {
-                Settlement::Failed { message } => Some(message),
-                _ => None,
-            });
+    let mut draft = use_signal(|| encode_script_draft("", "", true));
+    let failure = use_signal(|| None::<String>);
+    let pending = use_hook(|| PendingEditSignals::<ScriptActionKey>::new());
+    let pending_owner = use_signal(|| None::<ScriptOwner>);
+    let new_disabled = use_signal(|| false);
+    let apply_disabled = use_signal(|| false);
+    pending.bind_one_shot(ScriptActionKey::New, new_disabled);
+    pending.bind_one_shot(ScriptActionKey::Apply(String::new()), apply_disabled);
+    pending.bind_field(ScriptActionKey::Apply(String::new()), draft, failure);
+    let pending_for_drop = pending.clone();
+    let new_pending = new_disabled();
     let active_script = scripts.iter().find(|script| script.id == active());
-    let active_identity = active_script.map(|script| {
-        (
-            script.id.clone(),
-            script.name.clone(),
-            script.source.clone(),
-            script.enabled,
-        )
+    let current_owner = active_script.map(|script| ScriptOwner {
+        document_id: document.id.clone(),
+        session_epoch: snapshot.session_epoch,
+        script_id: script.id.clone(),
     });
+    let new_active = new_pending && !active().is_empty();
+    let owner_is_live = match (pending_owner(), current_owner.as_ref()) {
+        (Some(owner), Some(active_owner)) => &owner == active_owner,
+        (Some(owner), None) => {
+            new_active
+                && owner.document_id == document.id
+                && owner.session_epoch == snapshot.session_epoch
+                && owner.script_id == active()
+        }
+        _ => false,
+    };
+    let accepted_scripts = scripts.clone();
+    pending.settle(owner_is_live, move |key| match key {
+        ScriptActionKey::Apply(script_id) => accepted_scripts
+            .iter()
+            .find(|script| script.id == *script_id)
+            .map(|script| encode_script_draft(&script.name, &script.source, script.enabled))
+            .unwrap_or_default(),
+        ScriptActionKey::New => String::new(),
+    });
+    use_drop(move || {
+        pending_for_drop.settle(false, |_| String::new());
+    });
+    let active_identity = if active().is_empty() {
+        None
+    } else {
+        Some((active(), active_script.is_some()))
+    };
     let draft_owner = (snapshot.document.id.clone(), snapshot.session_epoch);
     let accepted_identity = (
         draft_owner.0.clone(),
@@ -111,31 +162,52 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     );
     let observed_identity = use_hook(|| {
         std::rc::Rc::new(std::cell::RefCell::new(
-            None::<(String, SessionEpoch, Option<(String, String, String, bool)>)>,
+            None::<(String, SessionEpoch, Option<(String, bool)>)>,
         ))
     });
+    let accepted_active = active_script.cloned();
     use_effect(use_reactive((&accepted_identity,), {
+        let observed_identity = observed_identity.clone();
         let mut name = name;
         let mut source = source;
         let mut enabled = enabled;
-        let observed_identity = observed_identity.clone();
+        let mut draft = draft;
         move |(identity,)| {
             let owner_changed = observed_identity.borrow().as_ref() != Some(&identity);
             *observed_identity.borrow_mut() = Some(identity.clone());
-            match identity.2 {
-                Some((_, accepted_name, accepted_source, accepted_enabled)) => {
-                    if owner_changed {
-                        name.set(accepted_name);
-                        source.set(accepted_source);
-                        enabled.set(accepted_enabled);
-                    }
+            if owner_changed {
+                let (accepted_name, accepted_source, accepted_enabled) = accepted_active
+                    .as_ref()
+                    .map(|script| (script.name.clone(), script.source.clone(), script.enabled))
+                    .unwrap_or_else(|| (String::new(), String::new(), true));
+                name.set(accepted_name.clone());
+                source.set(accepted_source.clone());
+                enabled.set(accepted_enabled);
+                draft.set(encode_script_draft(
+                    &accepted_name,
+                    &accepted_source,
+                    accepted_enabled,
+                ));
+            }
+        }
+    }));
+    let current_draft = draft();
+    use_effect(use_reactive((&current_draft,), {
+        let mut name = name;
+        let mut source = source;
+        let mut enabled = enabled;
+        move |(serialized,)| {
+            if let Ok((next_name, next_source, next_enabled)) =
+                serde_json::from_str::<(String, String, bool)>(&serialized)
+            {
+                if name.peek().as_str() != next_name {
+                    name.set(next_name);
                 }
-                None => {
-                    if owner_changed {
-                        name.set(String::new());
-                        source.set(String::new());
-                        enabled.set(true);
-                    }
+                if source.peek().as_str() != next_source {
+                    source.set(next_source);
+                }
+                if enabled() != next_enabled {
+                    enabled.set(next_enabled);
                 }
             }
         }
@@ -166,15 +238,18 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 h3 { "Scripts" }
                 button {
                     r#type: "button",
-                    disabled: !can_edit || script_pending,
+                    disabled: !can_edit || new_pending,
                     onclick: {
                         let runtime = runtime.clone();
                         let snapshot = snapshot.clone();
-                        let mut script_ticket = script_ticket;
+                        let pending = pending.clone();
+                        let mut failure = failure;
                         let mut active = active;
                         let mut name = name;
                         let mut source = source;
                         let mut enabled = enabled;
+                        let mut draft = draft;
+                        let mut pending_owner = pending_owner;
                         move |_| {
                             if !current_session_can_accept_edits(&runtime, &snapshot) {
                                 return;
@@ -183,16 +258,25 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                                 return;
                             };
                             let script_id = format!("geometry-script-{script_identity}");
+                            pending.settle(false, |_| String::new());
+                            pending_owner.set(Some(ScriptOwner {
+                                document_id: snapshot.document.id.clone(),
+                                session_epoch: snapshot.session_epoch,
+                                script_id: script_id.clone(),
+                            }));
                             active.set(script_id.clone());
                             name.set(format!("Script {}", snapshot.document.scripts.len() + 1));
                             source.set(String::new());
                             enabled.set(false);
-                            script_ticket.set(Some(EditTicket::begin(
+                            draft.set(encode_script_draft(&name(), &source(), enabled()));
+                            failure.set(None);
+                            pending.begin_one_shot(
                                 &runtime,
+                                ScriptActionKey::New,
                                 "geometry-script-new",
                                 Some("script".into()),
                                 new_script_resolver(script_id),
-                            )));
+                            );
                         }
                     },
                     "+ New script"
@@ -207,17 +291,29 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                         disabled: !can_edit,
                         onchange: {
                             let scripts = scripts.clone();
+                            let pending = pending.clone();
+                            let mut pending_owner = pending_owner;
+                            let document_id = document.id.clone();
+                            let session_epoch = snapshot.session_epoch;
                             move |event| {
                                 let id = event.value();
+                                pending.settle(false, |_| String::new());
+                                pending_owner.set((!id.is_empty()).then(|| ScriptOwner {
+                                    document_id: document_id.clone(),
+                                    session_epoch,
+                                    script_id: id.clone(),
+                                }));
                                 active.set(id.clone());
                                 if let Some(script) = scripts.iter().find(|script| script.id == id) {
                                     name.set(script.name.clone());
                                     source.set(script.source.clone());
                                     enabled.set(script.enabled);
+                                    draft.set(encode_script_draft(&script.name, &script.source, script.enabled));
                                 } else {
                                     name.set(String::new());
                                     source.set(String::new());
                                     enabled.set(true);
+                                    draft.set(encode_script_draft("", "", true));
                                 }
                             }
                         },
@@ -235,7 +331,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                         aria_label: "Name",
                         value: "{name()}",
                         disabled: !can_edit,
-                        oninput: move |event| name.set(event.value()),
+                        oninput: move |event| { let value = event.value(); name.set(value.clone()); draft.set(encode_script_draft(&value, &source(), enabled())); },
                     }
                 }
                 label { class: "m1-geometry-script-field",
@@ -246,7 +342,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                         value: "{source()}",
                         placeholder: "// Describe generated geometry and component groups",
                         disabled: !can_edit,
-                        oninput: move |event| source.set(event.value()),
+                        oninput: move |event| { let value = event.value(); source.set(value.clone()); draft.set(encode_script_draft(&name(), &value, enabled())); },
                     }
                 }
                 label { class: "m1-geometry-script-enabled",
@@ -254,25 +350,35 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                         r#type: "checkbox",
                         checked: enabled(),
                         disabled: !can_edit,
-                        onchange: move |event| enabled.set(event.checked()),
+                        onchange: move |event| { let value = event.checked(); enabled.set(value); draft.set(encode_script_draft(&name(), &source(), value)); },
                     }
                     "Enable on Apply"
                 }
                 button {
                     r#type: "button",
                     class: "m1-geometry-script-apply",
-                    disabled: !can_edit || script_pending || source().trim().is_empty(),
+                    disabled: !can_edit || apply_disabled() || source().trim().is_empty(),
                     onclick: {
                         let runtime = runtime.clone();
                         let snapshot = snapshot.clone();
                         let script_id = script.id.clone();
-                        let mut script_ticket = script_ticket;
+                        let pending = pending.clone();
+                        let mut failure = failure;
+                        let draft = draft;
+                        let mut pending_owner = pending_owner;
                         move |_| {
                             if !current_session_can_accept_edits(&runtime, &snapshot) {
                                 return;
                             }
-                            script_ticket.set(Some(EditTicket::begin(
+                            failure.set(None);
+                            pending_owner.set(Some(ScriptOwner {
+                                document_id: snapshot.document.id.clone(),
+                                session_epoch: snapshot.session_epoch,
+                                script_id: script_id.clone(),
+                            }));
+                            pending.begin_field(
                                 &runtime,
+                                ScriptActionKey::Apply(script_id.clone()),
                                 "geometry-script-apply",
                                 Some("script".into()),
                                 apply_script_resolver(
@@ -281,13 +387,16 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                                     source(),
                                     enabled(),
                                 ),
-                            )));
+                                &draft(),
+                            );
                         }
                     },
                     "Apply script"
                 }
-                if let Some(error) = ticket_error.as_ref().or(current_error.as_ref()) {
-                    p { role: "alert", class: "m1-geometry-script-error", "{error}" }
+                if let Some(error) = failure.read().as_ref() {
+                    p { role: "alert", class: "m1-geometry-script-error", "data-error-source": "script", "{error}" }
+                } else if let Some(error) = current_error.as_ref() {
+                    p { role: "alert", class: "m1-geometry-script-error", "data-error-source": "runtime", "{error}" }
                 }
                 ScriptFindings { findings: current_findings }
             } else {
@@ -352,9 +461,20 @@ mod queued_script_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{Board, EditCommand, EditPhase, ProjectDoc};
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use std::cell::{Cell, RefCell};
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{Event, EventInit, HtmlSelectElement, HtmlTextAreaElement};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct ScriptProbe {
+        runtime: Rc<Runtime>,
+        version: Rc<Cell<u64>>,
+        version_signal: Rc<RefCell<Option<Signal<u64>>>>,
+    }
 
     fn document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("script-doc", "Scripts");
@@ -377,6 +497,126 @@ mod queued_script_tests {
         document
     }
 
+    fn editor_host() -> Element {
+        let probe = use_context::<ScriptProbe>();
+        let mut version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        if version() != probe.version.get() {
+            version.set(probe.version.get());
+        }
+        *probe.version_signal.borrow_mut() = Some(version);
+        use_context_provider(|| probe.runtime.clone());
+        rsx! { GeometryScriptsEditor { on_back: EventHandler::default() } }
+    }
+
+    async fn render_wait() {
+        gloo_timers::future::TimeoutFuture::new(10).await;
+    }
+
+    async fn mount_editor(runtime: Rc<Runtime>) -> ScriptProbe {
+        let probe = ScriptProbe {
+            runtime,
+            version: Rc::new(Cell::new(0)),
+            version_signal: Rc::default(),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        if let Some(previous) = document.get_element_by_id("geometry-script-owner-test") {
+            previous.remove();
+        }
+        let root = document.create_element("div").unwrap();
+        root.set_id("geometry-script-owner-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(editor_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        render_wait().await;
+        render_wait().await;
+        probe
+    }
+
+    async fn flush(probe: &ScriptProbe) {
+        let next = probe.version.get() + 1;
+        probe.version.set(next);
+        if let Some(mut version) = *probe.version_signal.borrow() {
+            version.set(next);
+        }
+        render_wait().await;
+        render_wait().await;
+    }
+
+    fn select_script(id: &str) {
+        let select = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#geometry-script-owner-test select[aria-label='Active script']")
+            .unwrap()
+            .expect("active script select")
+            .dyn_into::<HtmlSelectElement>()
+            .unwrap();
+        select.set_value(id);
+        select.dispatch_event(&bubbling_event("change")).unwrap();
+    }
+
+    fn source_value() -> String {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#geometry-script-owner-test textarea[aria-label='Rhai source']")
+            .unwrap()
+            .expect("source field")
+            .dyn_into::<HtmlTextAreaElement>()
+            .unwrap()
+            .value()
+    }
+
+    fn type_source(value: &str) {
+        let source = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#geometry-script-owner-test textarea[aria-label='Rhai source']")
+            .unwrap()
+            .expect("source field")
+            .dyn_into::<HtmlTextAreaElement>()
+            .unwrap();
+        source.set_value(value);
+        source.dispatch_event(&bubbling_event("input")).unwrap();
+    }
+
+    fn bubbling_event(name: &str) -> Event {
+        let init = EventInit::new();
+        init.set_bubbles(true);
+        Event::new_with_event_init_dict(name, &init).unwrap()
+    }
+
+    fn click_apply() {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#geometry-script-owner-test button.m1-geometry-script-apply")
+            .unwrap()
+            .expect("apply button")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    }
+
+    fn script_field_failure() -> Option<String> {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#geometry-script-owner-test [data-error-source='script']")
+            .unwrap()
+            .map(|element| element.text_content().unwrap_or_default())
+    }
+
     async fn settle(runtime: &Rc<Runtime>, ticket: &EditTicket) {
         for _ in 0..100 {
             support::run_pending(runtime).await;
@@ -385,6 +625,67 @@ mod queued_script_tests {
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn held_script_failure_is_retired_when_active_script_changes() {
+        let runtime = support::new_runtime();
+        let mut document = document();
+        document.scripts.push(Script {
+            id: "script-2".into(),
+            name: "Script 2".into(),
+            source: "// script 2".into(),
+            enabled: false,
+        });
+        support::open_document(&runtime, document).await;
+        let probe = mount_editor(runtime.clone()).await;
+        select_script("script-1");
+        flush(&probe).await;
+        type_source("// script 1 edited");
+        flush(&probe).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click_apply();
+
+        let runner = runtime.clone();
+        let done = Rc::new(Cell::new(false));
+        let done_task = done.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            support::run_pending(&runner).await;
+            done_task.set(true);
+        });
+        let entered_core = Rc::new(Cell::new(false));
+        let entered_core_task = entered_core.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            entered.await.expect("script A reached Core");
+            entered_core_task.set(true);
+        });
+        for _ in 0..100 {
+            if entered_core.get() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(entered_core.get(), "script A reached Core");
+        select_script("script-2");
+        flush(&probe).await;
+        assert_eq!(source_value(), "// script 2");
+        support::fail_next_persist(&runtime, "disk full");
+        release.send(()).expect("release held script A reply");
+        for _ in 0..100 {
+            if done.get() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(done.get(), "Session work completed");
+        flush(&probe).await;
+
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert_eq!(source_value(), "// script 2");
+        assert!(
+            script_field_failure().is_none(),
+            "script A failure must not be attached to active script B"
+        );
     }
 
     #[wasm_bindgen_test]

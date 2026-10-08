@@ -19,7 +19,8 @@ use boardstudio_core::model::{
     EditOperation, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition, PartKind,
     Pose2, ProjectDoc, Side, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -182,6 +183,12 @@ struct KeyEditOwner {
     selection: ScopedTreeContext,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlacementPendingKey {
+    KeyComponent,
+    Placement,
+}
+
 /// Resolve a placement commit against the accepted document at execution time: the
 /// operation is built from the document the resolver is handed, so a placement queued
 /// behind other edits lands on top of them.
@@ -313,6 +320,33 @@ impl PlacementAdmission {
             preferences,
         }
     }
+
+    fn admits(
+        &self,
+        owner: &PlacementOwner,
+        runtime: &Runtime,
+        model: &boardstudio_application::ReadModel,
+    ) -> bool {
+        let Some(snapshot) = model.accepted.as_ref() else {
+            return false;
+        };
+        owner.is_current(
+            snapshot,
+            self.scope.as_ref(),
+            self.generation,
+            self.preferences
+                .as_ref()
+                .is_some_and(|preferences| preferences.open),
+            self.preferences
+                .as_ref()
+                .map(|preferences| preferences.project_id.as_str()),
+            self.preferences
+                .as_ref()
+                .is_some_and(|preferences| preferences.current_stage == SetupGuideStage::Wiring),
+        ) && model.active_board_id == owner.board_id
+            && runtime.scope().as_ref() == Some(&owner.scope)
+            && self.workspace == self.expected_workspace
+    }
 }
 
 #[derive(Clone)]
@@ -403,8 +437,11 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let chooser = use_signal(|| None::<ControllerChooserOwner>);
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
-    let committing = use_signal(|| None::<EditTicket>);
-    let mut key_edit = use_signal(|| None::<KeyEditOwner>);
+    let committing = use_signal(|| false);
+    let key_edit_disabled = use_signal(|| false);
+    let pending_edits = use_hook(|| PendingEditSignals::<PlacementPendingKey>::new());
+    pending_edits.bind_one_shot(PlacementPendingKey::Placement, committing);
+    pending_edits.bind_one_shot(PlacementPendingKey::KeyComponent, key_edit_disabled);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -491,6 +528,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         let alive = alive.clone();
         let adapter_for_async = adapter.clone();
         let canvas_interaction = canvas_interaction.clone();
+        let pending_edits = pending_edits.clone();
         Rc::new(RefCell::new(
             move |definition_id: String,
                   kind: PartKind,
@@ -517,7 +555,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     guide_preferences(),
                 );
                 if active.read().as_ref().is_some_and(|placement| {
-                    !owner_is_live(&placement.owner, &runtime, &current_model, admission)
+                    !admission.admits(&placement.owner, &runtime, &current_model)
                 }) {
                     active.set(None);
                 }
@@ -535,14 +573,14 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 if preparing
                     .read()
                     .as_ref()
-                    .is_some_and(|owner| !owner_is_live(owner, &runtime, &current_model, admission))
+                    .is_some_and(|owner| !admission.admits(owner, &runtime, &current_model))
                 {
                     preparing.set(None);
                 }
                 if active.read().is_some()
                     || preparing.read().is_some()
-                    || committing.read().is_some()
-                    || key_edit.read().is_some()
+                    || *committing.read()
+                    || *key_edit_disabled.read()
                     || workspace() != source_workspace
                 {
                     return;
@@ -611,8 +649,11 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     let reversible_document = (*snapshot.document).clone();
                     let runtime = runtime.clone();
                     let load_definition = load_definition.clone();
-                    let mut error = error;
+                    let mut error = error.clone();
                     let current_context = adapter_for_async.selected_context;
+                    let workspace_for_load = workspace.clone();
+                    let generation_for_load = generation.clone();
+                    let pending_edits_for_key = pending_edits.clone();
                     let alive = alive.clone();
                     spawn_local(async move {
                         let definition =
@@ -622,8 +663,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                                     if alive.get()
                                         && accepted_snapshot_is_current(runtime.as_ref(), &accepted)
                                         && runtime.scope().as_ref() == Some(&scope)
-                                        && workspace() == source_workspace
-                                        && generation() == accepted_generation
+                                        && workspace_for_load() == source_workspace
+                                        && generation_for_load() == accepted_generation
                                         && current_context() == Some(selected.clone())
                                     {
                                         error.set(Some(message));
@@ -637,8 +678,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         if definition.kind != kind {
                             if accepted_snapshot_is_current(runtime.as_ref(), &accepted)
                                 && runtime.scope().as_ref() == Some(&scope)
-                                && workspace() == source_workspace
-                                && generation() == accepted_generation
+                                && workspace_for_load() == source_workspace
+                                && generation_for_load() == accepted_generation
                                 && current_context() == Some(selected.clone())
                             {
                                 error.set(Some(
@@ -650,13 +691,14 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         if !alive.get()
                             || runtime.scope().as_ref() != Some(&scope)
                             || current_context() != Some(selected.clone())
-                            || workspace() != source_workspace
-                            || generation() != accepted_generation
+                            || workspace_for_load() != source_workspace
+                            || generation_for_load() != accepted_generation
                         {
                             return;
                         }
-                        let ticket = EditTicket::begin(
+                        pending_edits_for_key.begin_one_shot(
                             &runtime,
+                            PlacementPendingKey::KeyComponent,
                             "layout-key-component",
                             Some("component".into()),
                             key_component_resolver(scope.clone(), selected.clone(), definition),
@@ -667,28 +709,33 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             source_workspace,
                             selection: selected.clone(),
                         };
-                        key_edit.set(Some(pending.clone()));
                         error.set(None);
                         let runtime = runtime.clone();
-                        let mut key_edit = key_edit;
-                        let mut error = error;
+                        let pending_edits = pending_edits_for_key.clone();
+                        let mut error = error.clone();
                         let current_context = current_context;
+                        let workspace_for_key = workspace.clone();
+                        let generation_for_key = generation.clone();
                         let alive = alive.clone();
                         spawn_local(async move {
-                            while ticket.is_pending() {
+                            loop {
+                                if !alive.get() {
+                                    return;
+                                }
+                                let still_current = runtime.scope().as_ref()
+                                    == Some(&pending.scope)
+                                    && workspace_for_key() == pending.source_workspace
+                                    && generation_for_key() == pending.generation
+                                    && current_context() == Some(pending.selection.clone());
+                                let results =
+                                    pending_edits.settle(still_current, |_| String::new());
+                                if let Some(result) = results.into_iter().next() {
+                                    if let PendingEditResult::Failed { message, .. } = result {
+                                        error.set(Some(message));
+                                    }
+                                    break;
+                                }
                                 gloo_timers::future::TimeoutFuture::new(16).await;
-                            }
-                            if !alive.get() {
-                                return;
-                            }
-                            let still_current = runtime.scope().as_ref() == Some(&pending.scope)
-                                && workspace() == pending.source_workspace
-                                && generation() == pending.generation
-                                && current_context() == Some(pending.selection.clone());
-                            key_edit.set(None);
-                            if let Settlement::Failed { message } = ticket.settlement(still_current)
-                            {
-                                error.set(Some(message));
                             }
                         });
                     });
@@ -732,14 +779,17 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 let accepted = snapshot.clone();
                 let reversible_document = (*snapshot.document).clone();
                 let runtime = runtime.clone();
-                let mut workspace = workspace;
-                let mut active = active;
-                let mut error = error;
+                let mut workspace = workspace.clone();
+                let mut active = active.clone();
+                let mut error = error.clone();
                 let alive = alive.clone();
                 let mut adapter = adapter_for_async.clone();
-                let guide = guide_preferences;
-                let mut query = query;
-                let mut preparing = preparing;
+                let guide = guide_preferences.clone();
+                let mut query = query.clone();
+                let mut preparing = preparing.clone();
+                let workspace_for_preparation = workspace.clone();
+                let generation_for_preparation = generation.clone();
+                let guide_for_preparation = guide.clone();
                 let load_definition = load_definition.clone();
                 let source_definition = source_definition.clone();
                 spawn_local(async move {
@@ -754,20 +804,16 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         return;
                     }
                     let model = runtime.model();
-                    let still_owned = owner_is_live(
-                        &owner,
+                    let still_owned = PlacementAdmission::capture(
                         &runtime,
-                        &model,
-                        PlacementAdmission::capture(
-                            &runtime,
-                            generation(),
-                            workspace(),
-                            owner.source_workspace,
-                            guide(),
-                        ),
-                    );
+                        generation_for_preparation(),
+                        workspace_for_preparation(),
+                        owner.source_workspace,
+                        guide_for_preparation(),
+                    )
+                    .admits(&owner, &runtime, &model);
                     if !still_owned
-                        || workspace() != owner.source_workspace
+                        || workspace_for_preparation() != owner.source_workspace
                         || model.lifecycle != Lifecycle::Ready
                         || model.durability
                             != (Durability::Saved {
@@ -822,18 +868,15 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         ));
                         return;
                     };
-                    if !owner_is_live(
-                        &owner,
+                    if !PlacementAdmission::capture(
                         &runtime,
-                        &model,
-                        PlacementAdmission::capture(
-                            &runtime,
-                            generation(),
-                            workspace(),
-                            owner.source_workspace,
-                            guide(),
-                        ),
-                    ) {
+                        generation_for_preparation(),
+                        workspace_for_preparation(),
+                        owner.source_workspace,
+                        guide_for_preparation(),
+                    )
+                    .admits(&owner, &runtime, &model)
+                    {
                         preparing.set(None);
                         return;
                     }
@@ -1005,35 +1048,27 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             }
             let model = cleanup_runtime.model();
             let stale_active = cleanup_active.read().as_ref().is_some_and(|placement| {
-                !owner_is_live(
-                    &placement.owner,
+                !PlacementAdmission::capture(
                     &cleanup_runtime,
-                    &model,
-                    PlacementAdmission::capture(
-                        &cleanup_runtime,
-                        observed_generation,
-                        observed_workspace,
-                        "Layout",
-                        observed_guide.clone(),
-                    ),
+                    observed_generation,
+                    observed_workspace,
+                    "Layout",
+                    observed_guide.clone(),
                 )
+                .admits(&placement.owner, &cleanup_runtime, &model)
             });
             if stale_active {
                 cleanup_active.set(None);
             }
             let stale_preparing = cleanup_preparing.read().as_ref().is_some_and(|owner| {
-                !owner_is_live(
-                    owner,
+                !PlacementAdmission::capture(
                     &cleanup_runtime,
-                    &model,
-                    PlacementAdmission::capture(
-                        &cleanup_runtime,
-                        observed_generation,
-                        observed_workspace,
-                        owner.source_workspace,
-                        observed_guide.clone(),
-                    ),
+                    observed_generation,
+                    observed_workspace,
+                    owner.source_workspace,
+                    observed_guide.clone(),
                 )
+                .admits(owner, &cleanup_runtime, &model)
             });
             if stale_preparing {
                 cleanup_preparing.set(None);
@@ -1056,7 +1091,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let on_commit = {
         let runtime = runtime.clone();
         let mut active = active;
-        let mut committing = committing;
         let mut error = error;
         let alive = alive.clone();
         let canvas_interaction = canvas_interaction.clone();
@@ -1067,7 +1101,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             let Some(mut placement) = active() else {
                 return;
             };
-            if committing.read().is_some() {
+            if *committing.read() {
                 return;
             }
             update_pending_part(&mut placement.pending, at);
@@ -1078,18 +1112,15 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             if model.accepted.is_none() {
                 return;
             }
-            if !owner_is_live(
-                &placement.owner,
+            if !PlacementAdmission::capture(
                 &runtime,
-                &model,
-                PlacementAdmission::capture(
-                    &runtime,
-                    generation(),
-                    workspace(),
-                    "Layout",
-                    guide_preferences(),
-                ),
-            ) || model.lifecycle != Lifecycle::Ready
+                generation(),
+                workspace(),
+                "Layout",
+                guide_preferences(),
+            )
+            .admits(&placement.owner, &runtime, &model)
+                || model.lifecycle != Lifecycle::Ready
                 || model.durability
                     != (Durability::Saved {
                         revision: placement.owner.revision,
@@ -1098,8 +1129,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 return;
             }
             let owner = placement.owner.clone();
-            let ticket = EditTicket::begin(
+            pending_edits.begin_one_shot(
                 &runtime,
+                PlacementPendingKey::Placement,
                 "layout-component-placement",
                 Some("placement".into()),
                 placement_resolver(
@@ -1109,12 +1141,11 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     owner.layout_id.clone(),
                 ),
             );
-            // One-shot: the canvas stays busy while the placement ticket is held.
-            committing.set(Some(ticket.clone()));
+            // The helper disables this canvas-owning one-shot until settlement.
             active.set(None);
             error.set(None);
             let runtime = runtime.clone();
-            let mut committing = committing;
+            let pending_edits = pending_edits.clone();
             let mut error = error;
             let mut workspace = workspace;
             let guide_preferences = guide_preferences;
@@ -1123,25 +1154,31 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             let canvas_interaction = canvas_interaction.clone();
             let alive = alive.clone();
             spawn_local(async move {
-                while ticket.is_pending() {
+                let settlement = loop {
+                    if !alive.get() {
+                        return;
+                    }
+                    let model = runtime.model();
+                    let route_live = placement_route_is_current(
+                        &runtime,
+                        &model,
+                        &owner,
+                        generation(),
+                        workspace(),
+                        guide_preferences(),
+                    );
+                    if let Some(result) = pending_edits
+                        .settle(route_live, |_| String::new())
+                        .into_iter()
+                        .next()
+                    {
+                        break result;
+                    }
                     gloo_timers::future::TimeoutFuture::new(16).await;
-                }
-                if !alive.get() {
-                    return;
-                }
+                };
                 let model = runtime.model();
-                let route_live = placement_route_is_current(
-                    &runtime,
-                    &model,
-                    &owner,
-                    generation(),
-                    workspace(),
-                    guide_preferences(),
-                );
-                let settlement = ticket.settlement(route_live);
-                committing.set(None);
                 match settlement {
-                    Settlement::Landed { .. } => {
+                    PendingEditResult::Landed { .. } => {
                         // Select from the accepted document at the landing; nothing when the
                         // placed part is no longer there.
                         let placed = model.accepted.as_ref().is_some_and(|accepted| {
@@ -1185,7 +1222,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             mode: SelectionMode::Replace,
                         });
                     }
-                    Settlement::Failed { message } => {
+                    PendingEditResult::Failed { message, .. } => {
                         workspace.set(if owner.workflow.is_controller() {
                             "Parts"
                         } else {
@@ -1193,7 +1230,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         });
                         error.set(Some(message));
                     }
-                    Settlement::Retired | Settlement::Pending => {}
+                    PendingEditResult::Retired { .. } => {}
                 }
                 canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
             });
@@ -1212,7 +1249,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             if !canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
                 return;
             }
-            if committing.read().is_some() {
+            if *committing.read() {
                 return;
             }
             let owner_and_workspace = active
@@ -1230,18 +1267,14 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             };
             let model = runtime.model();
             let current = model.accepted.as_ref().is_some_and(|_snapshot| {
-                owner_is_live(
-                    &owner,
+                PlacementAdmission::capture(
                     &runtime,
-                    &model,
-                    PlacementAdmission::capture(
-                        &runtime,
-                        generation(),
-                        workspace(),
-                        owner_workspace,
-                        guide(),
-                    ),
+                    generation(),
+                    workspace(),
+                    owner_workspace,
+                    guide(),
                 )
+                .admits(&owner, &runtime, &model)
             });
             active.set(None);
             preparing.set(None);
@@ -1267,21 +1300,16 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let on_commit = EventHandler::new(on_commit);
     let projection = active().filter(|placement| {
         let model = runtime.model();
-        owner_is_live(
-            &placement.owner,
+        PlacementAdmission::capture(
             &runtime,
-            &model,
-            PlacementAdmission::capture(
-                &runtime,
-                generation(),
-                workspace(),
-                "Layout",
-                guide_preferences(),
-            ),
+            generation(),
+            workspace(),
+            "Layout",
+            guide_preferences(),
         )
+        .admits(&placement.owner, &runtime, &model)
     });
-    let busy =
-        preparing.read().is_some() || committing.read().is_some() || key_edit.read().is_some();
+    let busy = preparing.read().is_some() || *committing.read() || *key_edit_disabled.read();
     let owns_canvas = busy || projection.is_some();
     use_effect(use_reactive(
         (&version(), &workspace(), &generation(), &owns_canvas),
@@ -1307,36 +1335,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         on_commit,
         on_cancel: EventHandler::new(on_cancel),
     }
-}
-
-fn owner_is_live(
-    owner: &PlacementOwner,
-    runtime: &Runtime,
-    model: &boardstudio_application::ReadModel,
-    admission: PlacementAdmission,
-) -> bool {
-    let Some(snapshot) = model.accepted.as_ref() else {
-        return false;
-    };
-    owner.is_current(
-        snapshot,
-        admission.scope.as_ref(),
-        admission.generation,
-        admission
-            .preferences
-            .as_ref()
-            .is_some_and(|preferences| preferences.open),
-        admission
-            .preferences
-            .as_ref()
-            .map(|preferences| preferences.project_id.as_str()),
-        admission
-            .preferences
-            .as_ref()
-            .is_some_and(|preferences| preferences.current_stage == SetupGuideStage::Wiring),
-    ) && model.active_board_id == owner.board_id
-        && runtime.scope().as_ref() == Some(&owner.scope)
-        && admission.workspace == admission.expected_workspace
 }
 
 fn placement_route_is_current(
@@ -1777,9 +1775,7 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     use super::*;
-    use boardstudio_application::{
-        Event as SessionEvent, OperationId, ReadModel, SessionEpoch, SnapshotToken, TerminalOutcome,
-    };
+    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
     use boardstudio_core::model::{Board, EditCommand, EditPhase, OutlineSettings};
     use std::{
         cell::{Cell, RefCell},
@@ -2951,6 +2947,11 @@ mod tests {
         assert!(
             probe.unmounted.get(),
             "mounted hook component was not dropped"
+        );
+        assert_eq!(
+            *outcome.borrow(),
+            None,
+            "placement should still be pending while its owner is unmounted"
         );
         drop(dom);
         let _ = release.send(());

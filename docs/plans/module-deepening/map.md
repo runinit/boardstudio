@@ -55,8 +55,10 @@ TCE-nn are [typed Core edits](../typed-core-edits/map.md) tickets. Preview-only 
 the native Runtime, resolution constructors, outline split, typed wiring, export leases
 and Editor state are resolved. Captured Scope, keyed settlement, shared UI helpers,
 Matrix actions and Matrix fields are merged and resolved. The complete tracer gate
-is resolved; Case/Keymap/Keycaps/Library and the PCB half are accepted. Layout and
-Parts remain unblocked.
+is resolved; all three panel migrations, including both Parts/PCB halves, are
+accepted and integrated. Cleanup and recording are resolved, including fresh full
+native/browser/build gates and the CAD volume/container repairs. Earlier baseline
+notes below describe historical checkpoints.
 Mechanical patch and outline intent proposals await human approval.
 
 ## Decisions so far
@@ -80,13 +82,21 @@ Mechanical patch and outline intent proposals await human approval.
 
 <!-- one line per resolved build ticket -->
 
+- [Cleanup and record](issues/13-cleanup.md#outcome):
+  ownership/audit and helper contract are recorded; all required gates pass, CAD
+  repairs are separate, and the next review is Runtime previews/project lifecycle.
+
 - [Case, Keymap, Keycaps and Library settlement](issues/09-case-keymap-keycaps-library-onto-pending-edits.md#outcome):
   all consumers use shared settlement and real field bindings; final native/browser
   checks and both reviews accepted, with the CAD baseline reported separately.
 
-- [PCB half accepted](issues/08-parts-and-pcb-onto-pending-edits.md#pcb-half-outcome):
-  native 23 and mounted 48 pass; typed draft and bounded action gaps are closed.
-  Parent 08 remains claimed until the separate Parts half is accepted.
+- [Parts and PCB settlement](issues/08-parts-and-pcb-onto-pending-edits.md#parts-half-and-parent-outcome):
+  both halves accepted; real typed bindings, owner/draft lifecycle and bounded
+  one-shot admission pass final native and mounted checks.
+
+- [Layout settlement](issues/07-layout-panels-onto-pending-edits.md#outcome):
+  remaining controllers and actual typed fields use shared settlement; final
+  native, mounted and page checks pass with both reviews clear.
 
 - [PendingEdits and Matrix tracer integration gate](issues/05-pending-edits-module.md#outcome):
   the reviewed complete tracer passes combined verification and opens the three
@@ -167,26 +177,13 @@ Mechanical patch and outline intent proposals await human approval.
 - Cross-effort: [TCE-02 mechanical settings patch](../typed-core-edits/issues/02-mechanical-settings-patch.md),
   [TCE-03 decide outline version intents](../typed-core-edits/issues/03-decide-outline-version-intents.md)
 
-## Parallel frontier after the Matrix tracer
+## Integration frontier
 
-The complete tracer opened the three panel migrations. Ticket09 and the PCB half
-are accepted; Layout and Parts remain separate work. Parent08 stays claimed until
-Parts is accepted. Root owns dev/tracker/canonical index and serializes Chrome leases.
-Cleanup follows all reviewed, merged migrations, including both Parts/PCB halves.
-
-## Parallel app allocation
-
-- This chat owns integration; the existing Layout work remains separate.
-- The user's second app completed
-  [Case/Keymap/Keycaps/Library settlement](handoff-09-case-keymap-keycaps-library.md);
-  root accepted its integration and resolved ticket09.
-- The existing third-app worktree owns [Parts settlement](handoff-08-parts-pcb.md),
-  which remains unaccepted.
-- The separate PCB app completed [PCB settlement](handoff-08-pcb.md); root accepted
-  that half without closing parent08.
-
-The handoffs name exact branches, worktrees and starting commits. Preserve ongoing
-work when resuming; each stream reports final pinned reviews and verification.
+All panel streams, including external Parts and Layout, and cleanup are accepted
+for integration into local dev. Root owns dev, tracker, canonical indexing and
+serial Chrome execution. There are no open module-deepening tickets.
+The original external worktrees remain intact. Separate typed Core proposals
+still require their human decisions.
 
 ## Out of scope
 

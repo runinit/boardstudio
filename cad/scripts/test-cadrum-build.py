@@ -7,6 +7,7 @@ import io
 from pathlib import Path
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -21,7 +22,9 @@ class CadrumBuildTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.project = Path(self.directory.name)
+        self.root = self.project / "cad"
+        self.root.mkdir()
         self.payload = b"archive fixture"
         self.archive_name = "occt-fixture.tar.gz"
         self.cache = self.root / ".cache/cadrum/native"
@@ -70,6 +73,74 @@ class CadrumBuildTests(unittest.TestCase):
         (self.root / "wasm/src").mkdir(parents=True)
         (self.root / "wasm/src/lib.rs").write_text("// provider")
         (self.root / "wasm/Containerfile").write_text("FROM scratch")
+        (self.project / "Cargo.toml").write_text('''[workspace]
+resolver = "3"
+members = ["application", "contracts/rust"]
+exclude = ["cad/wasm", "cad/step-oracle"]
+[workspace.lints.clippy]
+large_enum_variant = "allow"
+missing_errors_doc = { level = "warn", priority = -1 }
+[workspace.lints.rust]
+unsafe_code = "forbid"
+''')
+        contracts = self.project / "contracts/rust"
+        (contracts / "src").mkdir(parents=True)
+        (contracts / "src/lib.rs").write_text("// contracts")
+        (contracts / "Cargo.toml").write_text('''[package]
+name = "boardstudio-contracts"
+version = "0.1.0"
+[lints]
+workspace = true
+''')
+
+    def test_container_supplies_isolated_workspace_for_contract_lints(self):
+        self.wasm_sources()
+        mounted = []
+
+        def inspect_container(command):
+            volumes = [command[index + 1] for index, value in enumerate(command) if value == "--volume"]
+            manifest_mount = next((volume for volume in volumes if ":/workspace/Cargo.toml:" in volume), None)
+            self.assertIsNotNone(manifest_mount, "contracts/rust inherits lints but cannot find a workspace root inside /workspace")
+            manifest = Path(manifest_mount.split(":", 1)[0])
+            mounted.append(manifest)
+            workspace = tomllib.loads(manifest.read_text())["workspace"]
+            source_workspace = tomllib.loads((self.project / "Cargo.toml").read_text())["workspace"]
+            self.assertEqual(workspace["lints"], source_workspace["lints"])
+            self.assertEqual(workspace["resolver"], source_workspace["resolver"])
+            self.assertEqual(workspace["members"], ["contracts/rust"])
+            self.assertEqual(workspace["exclude"], ["cad/wasm", "cad/step-oracle"])
+            self.assertIn(":ro", manifest_mount)
+            self.assertIn(f"{self.project}/contracts/rust:/workspace/contracts/rust:ro", volumes)
+            self.assertIn("CARGO_BUILD_JOBS=2", command)
+            self.assertIn("--locked", command)
+
+        with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1", "CARGO_BUILD_JOBS": "2"}), \
+                patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "run", side_effect=inspect_container):
+            build.build_wasm()
+        self.assertFalse(mounted[0].exists(), "the temporary workspace manifest should be removed after the container exits")
+
+    def test_new_contract_workspace_inheritance_fails_clearly(self):
+        self.wasm_sources()
+        contracts = self.project / "contracts/rust/Cargo.toml"
+        contracts.write_text(contracts.read_text() + "[dependencies]\nserde.workspace = true\n")
+        with patch.dict(build.os.environ, {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1"}), \
+                patch.object(build, "prepare", return_value=self.root / "occt"), patch.object(build, "run") as run, \
+                self.assertRaisesRegex(RuntimeError, "does not support contracts workspace inheritance at dependencies.serde"):
+            build.build_wasm()
+        run.assert_not_called()
+
+    def test_workspace_and_build_script_changes_invalidate_wasm_cache(self):
+        self.wasm_sources()
+        script = self.project / "cadrum_build.py"
+        script.write_text("# build script")
+        with patch.object(build, "__file__", str(script)):
+            for path in (self.project / "Cargo.toml", script, self.root / "wasm/src/lib.rs",
+                         self.project / "contracts/rust/src/lib.rs"):
+                with self.subTest(path=path):
+                    previous = build.wasm_inputs_digest()
+                    path.write_text(path.read_text() + "\n# changed" if path.suffix != ".rs" else "// changed")
+                    self.assertNotEqual(build.wasm_inputs_digest(), previous)
 
     def test_container_override_preserves_mounts_and_build_failure_stops_run(self):
         self.wasm_sources()

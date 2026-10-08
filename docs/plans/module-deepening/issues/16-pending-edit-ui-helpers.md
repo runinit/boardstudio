@@ -140,3 +140,13 @@ String-only contract before implementation. Consumer behavioral REDs and GREENs
 cover PCB, Case and Keymap real fields. Final pinned Standards and Spec reviews
 have no blocking contract findings. Mounted behavior executes under WASM in Chrome;
 native cfg continues to exercise only the plain helper policy and native crate tests.
+
+### Terminal submission lifetime (2026-10-08)
+
+At final panel source `eebc703d`, helper submission records are removed after
+terminal field restoration/failure placement and one-shot re-enabling. Pending
+epoch records remain until settlement so unbinding cannot accidentally permit an
+old observation to write into a new child. A real driver/Rc-Weak mounted regression
+proves drained terminal records release their retained values. This changes no
+public interface; the final integrated native helper 8 and mounted 26 plus panels 1
+pass. Callers still own ordinary dirty state, owner retirement and domain metadata.

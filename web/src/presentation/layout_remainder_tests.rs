@@ -360,3 +360,61 @@ async fn mounted_old_position_axes_queue_and_translate_from_first_selected_part(
     runtime.unsubscribe();
     root.remove();
 }
+
+#[wasm_bindgen_test]
+async fn mounted_apply_position_commits_both_axes_as_one_undo_entry() {
+    use wasm_bindgen::JsCast;
+    let runtime = open().await;
+    runtime.submit(boardstudio_application::Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["b".into(), "a".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = dioxus::prelude::VirtualDom::new(old_inspector_host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    gloo_timers::future::TimeoutFuture::new(50).await;
+    let input = |selector: &str| {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    };
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    for (selector, value) in [("#m1-position-x", "45"), ("#m1-position-y", "7")] {
+        let field = input(selector);
+        field.set_value(value);
+        field
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+            .unwrap();
+    }
+    root.query_selector("button")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    for _ in 0..30 {
+        support::run_pending(&runtime).await;
+        if position(&runtime, "b") == Some(Vec2 { x: 45.0, y: 7.0 }) {
+            break;
+        }
+        gloo_timers::future::TimeoutFuture::new(10).await;
+    }
+    assert_eq!(position(&runtime, "b"), Some(Vec2 { x: 45.0, y: 7.0 }));
+    assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 5.0, y: 7.0 }));
+    undo(&runtime).await;
+    assert_eq!(position(&runtime, "b"), Some(Vec2 { x: 40.0, y: 0.0 }));
+    assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 0.0, y: 0.0 }));
+    runtime.unsubscribe();
+    root.remove();
+}

@@ -6,7 +6,8 @@ use boardstudio_application::{
 use boardstudio_core::model::{
     EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -34,7 +35,6 @@ pub struct ExistingHalfProjection {
     pub editable: bool,
     pub can_cancel: bool,
     pub error: Option<String>,
-    pub status: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,10 +54,9 @@ pub struct ExistingHalfMount {
     pub on_create: EventHandler<ExistingHalfCreateRequest>,
 }
 
-#[derive(Clone)]
-struct ExistingHalfSubmission {
-    owner: ExistingHalfOwner,
-    ticket: EditTicket,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExistingHalfAction {
+    Create,
 }
 
 /// Resolve mirroring existing halves against the accepted document at execution time. The
@@ -110,8 +109,10 @@ pub fn use_existing_half(
     let open_id = use_signal(|| 0_u64);
     let open = use_signal(|| None::<ExistingHalfOwner>);
     let error = use_signal(|| None::<String>);
-    let status = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<ExistingHalfSubmission>);
+    let pending = use_hook(|| PendingEditSignals::<ExistingHalfAction>::new());
+    let pending_create = use_signal(|| false);
+    pending.bind_one_shot(ExistingHalfAction::Create, pending_create);
+    let create_owner = use_signal(|| None::<ExistingHalfOwner>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -119,19 +120,20 @@ pub fn use_existing_half(
             let runtime = runtime.clone();
             let mut open = open;
             let mut error = error;
-            let mut status = status;
-            let mut pending = pending;
+            let pending = pending.clone();
+            let mut create_owner = create_owner;
             move |(_, current_workspace, current_generation)| {
                 settle_pending(
                     &runtime,
                     current_workspace,
                     current_generation,
-                    &mut pending,
+                    editor_instance_id,
+                    &pending,
+                    &mut create_owner,
                     &mut open,
                     &mut error,
-                    &mut status,
                 );
-                if pending.read().is_none()
+                if create_owner.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
                         current_workspace != "Layout"
                             || owner.scope_generation != current_generation
@@ -140,7 +142,6 @@ pub fn use_existing_half(
                 {
                     open.set(None);
                     error.set(None);
-                    status.set(None);
                 }
             }
         },
@@ -151,16 +152,16 @@ pub fn use_existing_half(
         .as_ref()
         .map(|(snapshot, scope)| eligible_options(&snapshot.document, &scope.board_id))
         .unwrap_or_default();
-    let can_open = !options.is_empty() && pending.read().is_none();
+    let can_open = !options.is_empty() && !pending_create();
 
     let on_open = use_callback({
         let runtime = runtime.clone();
         let mut open = open;
         let mut open_id = open_id;
         let mut error = error;
-        let mut status = status;
+        let pending_create = pending_create;
         move |_| {
-            if pending.read().is_some() {
+            if pending_create() {
                 return;
             }
             let Some((snapshot, scope)) = existing_half_source(&runtime, workspace()) else {
@@ -180,7 +181,6 @@ pub fn use_existing_half(
             };
             open_id.set(next_open_id);
             error.set(None);
-            status.set(None);
             let default_axis_x = default_axis_x(&snapshot, &scope.board_id);
             open.set(Some(ExistingHalfOwner {
                 editor_instance_id,
@@ -198,23 +198,23 @@ pub fn use_existing_half(
     let on_cancel = use_callback({
         let mut open = open;
         let mut error = error;
-        let mut status = status;
+        let pending_create = pending_create;
         move |owner: ExistingHalfOwner| {
-            if pending.read().is_none() && open.read().as_ref() == Some(&owner) {
+            if !pending_create() && open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 error.set(None);
-                status.set(None);
             }
         }
     });
 
     let on_create = use_callback({
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let pending = pending.clone();
+        let mut create_owner = create_owner;
         let mut error = error;
-        let mut status = status;
+        let pending_create = pending_create;
         move |request: ExistingHalfCreateRequest| {
-            if pending.read().is_some()
+            if pending_create()
                 || open.read().as_ref() != Some(&request.owner)
                 || request.owner.editor_instance_id != editor_instance_id
             {
@@ -232,7 +232,6 @@ pub fn use_existing_half(
                     "The accepted board changed. Cancel this setup and reopen it before mirroring."
                         .into(),
                 ));
-                status.set(None);
                 return;
             }
             if !request.axis_x.is_finite() {
@@ -275,7 +274,6 @@ pub fn use_existing_half(
                     Ok(id) => id_pool.push(id),
                     Err(message) => {
                         error.set(Some(message));
-                        status.set(None);
                         return;
                     }
                 }
@@ -294,11 +292,11 @@ pub fn use_existing_half(
                 &mut id_factory,
             ) {
                 error.set(Some(message));
-                status.set(None);
                 return;
             }
-            let ticket = EditTicket::begin(
+            pending.begin_one_shot(
                 &runtime,
+                ExistingHalfAction::Create,
                 "layout-mirror-existing-half",
                 Some("mirror".into()),
                 mirror_existing_half_resolver(
@@ -308,18 +306,15 @@ pub fn use_existing_half(
                     id_pool,
                 ),
             );
-            pending.set(Some(ExistingHalfSubmission {
-                owner: request.owner.clone(),
-                ticket,
-            }));
+            create_owner.set(Some(request.owner.clone()));
             error.set(None);
-            status.set(Some("Creating linked half…".into()));
         }
     });
 
     let projection = open.read().as_ref().map(|owner| {
-        let is_pending = pending.read().is_some();
-        let editable = owner_is_current(&runtime, owner, workspace(), scope_generation());
+        let is_pending = pending_create();
+        let editable =
+            !is_pending && owner_is_current(&runtime, owner, workspace(), scope_generation());
         ExistingHalfProjection {
             owner: owner.clone(),
             editable,
@@ -330,7 +325,6 @@ pub fn use_existing_half(
                         .into()
                 })
             }),
-            status: status(),
         }
     });
 
@@ -639,42 +633,32 @@ fn settle_pending(
     runtime: &Rc<Runtime>,
     workspace: &'static str,
     scope_generation: u64,
-    pending: &mut Signal<Option<ExistingHalfSubmission>>,
+    editor_instance_id: u64,
+    pending: &PendingEditSignals<ExistingHalfAction>,
+    create_owner: &mut Signal<Option<ExistingHalfOwner>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
-    status: &mut Signal<Option<String>>,
 ) {
-    let Some(waiting) = pending.read().clone() else {
+    let Some(owner) = create_owner.read().clone() else {
         return;
     };
     let model = runtime.model();
-    let same_lineage = runtime.scope().as_ref() == Some(&waiting.owner.scope)
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == waiting.owner.scope.session_epoch
-                && snapshot.document.id == waiting.owner.scope.document_id
-        });
-    let settlement = waiting.ticket.settlement(same_lineage);
-    if settlement == Settlement::Pending {
+    let owner_is_live = owner.editor_instance_id == editor_instance_id
+        && workspace == "Layout"
+        && scope_generation == owner.scope_generation;
+    let results = pending.settle(owner_is_live, |_| String::new());
+    let Some(result) = results.into_iter().next() else {
         return;
-    }
-    if !same_lineage {
-        pending.set(None);
-        open.set(None);
-        error.set(None);
-        status.set(None);
-        return;
-    }
-    match settlement {
-        Settlement::Pending => {}
-        Settlement::Landed { .. } => {
+    };
+    create_owner.set(None);
+    match result {
+        PendingEditResult::Landed { .. } => {
             let current_owner = workspace == "Layout"
-                && scope_generation == waiting.owner.scope_generation
-                && model.active_board_id == waiting.owner.scope.board_id
-                && model.active_instance_id == waiting.owner.scope.instance_id;
-            pending.set(None);
+                && scope_generation == owner.scope_generation
+                && model.active_board_id == owner.scope.board_id
+                && model.active_instance_id == owner.scope.instance_id;
             open.set(None);
             error.set(None);
-            status.set(None);
             if current_owner {
                 runtime.submit(Event::SetCamera {
                     operation_id: runtime.operation(),
@@ -683,20 +667,15 @@ fn settle_pending(
                 });
             }
         }
-        Settlement::Failed { message } => {
-            pending.set(None);
-            if open.read().as_ref() == Some(&waiting.owner) {
+        PendingEditResult::Failed { message, .. } => {
+            if open.read().as_ref() == Some(&owner) {
                 error.set(Some(message));
-                status.set(None);
             }
         }
-        Settlement::Retired => {
-            pending.set(None);
-            if open.read().as_ref() == Some(&waiting.owner) {
-                error.set(Some(
-                    "The mirror operation did not complete. Reopen the form and try again.".into(),
-                ));
-                status.set(None);
+        PendingEditResult::Retired { .. } => {
+            if open.read().as_ref() == Some(&owner) {
+                open.set(None);
+                error.set(None);
             }
         }
     }
@@ -760,7 +739,6 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let cancel = props.on_cancel;
     let owner_escape = owner.clone();
     let error = props.projection.error.clone();
-    let status = props.projection.status.clone();
 
     rsx! {
         div {
@@ -801,7 +779,6 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                         }
                     }
                     if let Some(message) = error { p { class: "m1-mirrored-pair-error", role: "alert", "{message}" } }
-                    if let Some(message) = status { p { class: "m1-mirrored-pair-status", role: "status", "{message}" } }
                     footer { class: "m1-mirrored-pair-actions",
                         button { class: "wb-secondary", r#type: "button", disabled: !props.projection.can_cancel, onclick: move |_| cancel.call(owner.clone()), "Cancel" }
                         button { class: "wb-primary", r#type: "submit", disabled: !can_create, "Create linked half" }
