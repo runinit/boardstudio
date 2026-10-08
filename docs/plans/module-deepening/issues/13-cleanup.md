@@ -1,6 +1,6 @@
 # 13: Cleanup and record
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 07, 08, 09, 10, 12
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -38,3 +38,8 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 python3 scripts/check.py
 python3 scripts/check-doc-links.py
 ```
+
+## Comments
+
+Root claimed cleanup after the final integrated Parts/Layout panel gates passed.
+Production build is finishing; full acceptance remains gated on its completion.
