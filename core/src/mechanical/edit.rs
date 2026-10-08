@@ -11,6 +11,11 @@
 //! target's stored configuration. A change equal to the accepted value is a no-op
 //! that reports nothing. Malformed values return an error and leave the document
 //! untouched because every mutation is staged on a clone before it is committed.
+//!
+//! Closure-mount initialization (when `closure_mounts` is absent and the mount is
+//! not Gasket) and the generated closure-clearance projection are deferred to
+//! slice 07; see the `TODO(slice 07)` notes on [`initialize_closures`] and
+//! [`apply`].
 use crate::model::*;
 
 use super::change::{
@@ -40,6 +45,10 @@ pub fn apply(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>,
                 return Ok(Vec::new());
             }
             changed.insert(0, owner_id(&edit.target, &board_id));
+            // TODO(slice 07): `prepare_document` initializes absent closure mounts from
+            // the resolved assembly (and projects the generated clearance parts) before
+            // persisting. Slice 06 persists the settings-only effective configuration;
+            // the resolver-driven initialization and projection land with slice 07.
             persist(doc, &edit.target, configuration)?;
             Ok(changed)
         }
