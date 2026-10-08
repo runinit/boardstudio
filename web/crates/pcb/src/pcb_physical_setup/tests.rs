@@ -219,10 +219,21 @@ fn queue_reply(probe: &Probe, value: ProposalReply) {
 /// Hold the next Core reply, submit a reversible-layout setup, and observe it in flight.
 async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
     queue_reply(probe, Ok(reversible(probe)));
-    let (entered, release) = support::gate_next_core_reply(&probe.runtime);
+    let (mut entered, release) = support::gate_next_core_reply(&probe.runtime);
     mount(probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
-    support::drive_pending(&probe.runtime);
-    entered.await.unwrap();
+    // The panel submits from a task that first awaits preparation, so the Core request is
+    // only held after a turn of the local executor. Yield, drive whatever the turn held,
+    // and repeat until the gate reports the request in flight.
+    let mut held = false;
+    for _ in 0..12 {
+        rendered().await;
+        support::drive_pending(&probe.runtime);
+        if let Ok(Some(())) = entered.try_recv() {
+            held = true;
+            break;
+        }
+    }
+    assert!(held, "the setup request reaches the gated Core executor");
     poke(probe);
     rendered().await;
     release

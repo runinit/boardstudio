@@ -1,0 +1,6 @@
+# wasm-bindgen-test bounds one test-binary run at 20 seconds by default, which a broad
+# mounted batch exceeds once the wasm module load is counted. Two minutes is the bound
+# scripts/run-wasm-tests.py already sets for its batches and README.md documents; an
+# explicit WASM_BINDGEN_TEST_TIMEOUT in the environment still overrides this default.
+[env]
+WASM_BINDGEN_TEST_TIMEOUT = "120"
