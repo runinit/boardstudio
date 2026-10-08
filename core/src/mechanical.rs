@@ -3,6 +3,7 @@ use crate::model::*;
 pub mod change;
 pub mod clearance;
 pub mod edit;
+pub mod inputs;
 mod gasket;
 pub mod pair;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
