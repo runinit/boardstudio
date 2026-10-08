@@ -2459,6 +2459,57 @@ mod queued_settings_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn a_failed_unchanged_legend_restores_the_accepted_text_with_an_inline_failure() {
+        let (runtime, _probe, root, input) = mounted_legend("keycaps-unchanged-failure").await;
+        support::fail_next_core_reply(&runtime, "legend executor failed");
+        type_legend(&input, "A");
+        input.blur().unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(input.value(), "", "the unchanged draft restores the accepted text");
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("legend executor failed"),
+            "the failure reports inline"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_second_legend_edit_replaces_the_observation_and_both_edits_undo() {
+        let (runtime, _probe, root, input) = mounted_legend("keycaps-latest-per-key").await;
+        let legend = |runtime: &Rc<Runtime>| {
+            accepted_legend_text(&runtime.model().accepted.unwrap().document, "key")
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_legend(&input, "A");
+        input.blur().unwrap();
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        type_legend(&input, "B");
+        input.blur().unwrap();
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        for _ in 0..20 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(legend(&runtime), "B");
+        assert_eq!(input.value(), "B");
+        for expected in ["A", ""] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            support::run_pending(&runtime).await;
+            assert_eq!(legend(&runtime), expected, "each edit has an Undo step");
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
         let (runtime, probe, root, input) = mounted_legend("keycaps-owner-departs").await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
