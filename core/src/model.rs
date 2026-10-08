@@ -958,6 +958,16 @@ pub enum MatrixSplayChange {
     },
 }
 
+/// A named matrix parameter change, applied to one column or row. Values are
+/// absolute and in matrix coordinates, matching the Inspector fields.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MatrixPlacementChange {
+    ColumnStagger { column: u32, value: f64 },
+    ColumnOffset { column: u32, value: Vec2 },
+    RowOffset { row: u32, value: Vec2 },
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum EditOperation {
@@ -1113,6 +1123,13 @@ pub enum EditOperation {
         matrix_id: String,
         column: u32,
         change: MatrixSplayChange,
+    },
+    /// Edits one named matrix placement parameter. Core owns the parameter rule,
+    /// so the Inspector value and an equivalent gesture submit identical intents.
+    SetMatrixPlacement {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        change: MatrixPlacementChange,
     },
     SetConstraint {
         constraint: Constraint,
@@ -1321,6 +1338,9 @@ pub struct MatrixColumnBasis {
     pub axis_x: Vec2,
     #[serde(rename = "axisY")]
     pub axis_y: Vec2,
+    /// World direction this column's keys move per +1 mm of its column stagger.
+    #[serde(rename = "staggerAxis")]
+    pub stagger_axis: Vec2,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]

@@ -723,6 +723,7 @@ mod tests {
                     custom_origin: false,
                     axis_x: point(1.0, 0.0),
                     axis_y: point(0.0, 1.0),
+                    stagger_axis: point(0.0, 1.0),
                 })
                 .collect(),
         }
@@ -945,6 +946,7 @@ mod tests {
                 custom_origin: false,
                 axis_x: point(1.0, 0.0),
                 axis_y: point(0.0, 1.0),
+                stagger_axis: point(0.0, 1.0),
             }],
         };
         let placements: Vec<_> = ["a", "b", "c"]
@@ -1043,6 +1045,7 @@ mod tests {
                 custom_origin: false,
                 axis_x: point(1.0, 0.0),
                 axis_y: point(0.0, 1.0),
+                stagger_axis: point(0.0, 1.0),
             }],
         };
         let placements: Vec<_> = ["a", "b", "c"]

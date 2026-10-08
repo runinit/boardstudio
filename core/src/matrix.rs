@@ -5,6 +5,7 @@ use crate::model::{
 };
 use serde_json::json;
 pub(crate) mod layout;
+pub(crate) mod placement;
 pub(crate) mod splay;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -371,6 +372,23 @@ fn column_basis(matrix: &Matrix, column: u32) -> MatrixColumnBasis {
     };
     let axis_x = rotate(reflect(Vec2 { x: cos, y: sin }));
     let axis_y = rotate(reflect(Vec2 { x: -sin, y: cos }));
+    // The stagger axis is exact by differencing `location`: raising this column's
+    // stagger by one moves its keys by exactly this vector. A default splay pivot
+    // moves with the stagger and does not rotate the displacement; a custom pivot
+    // is fixed, so this column's own splay does rotate it.
+    let stagger_axis = {
+        let mut raised = matrix.clone();
+        if raised.column_staggers.len() <= column as usize {
+            raised.column_staggers.resize(column as usize + 1, 0.0);
+        }
+        raised.column_staggers[column as usize] += 1.0;
+        let here = location(matrix, 0, column, None);
+        let there = location(&raised, 0, column, None);
+        Vec2 {
+            x: there.x - here.x,
+            y: there.y - here.y,
+        }
+    };
     MatrixColumnBasis {
         column,
         splay_origin: splay::origin_world(matrix, column),
@@ -385,6 +403,7 @@ fn column_basis(matrix: &Matrix, column: u32) -> MatrixColumnBasis {
             .is_some_and(Option::is_some),
         axis_x,
         axis_y,
+        stagger_axis,
     }
 }
 

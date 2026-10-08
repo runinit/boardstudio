@@ -76,3 +76,6 @@ mod thqwgd001_library;
 
 #[path = "key_move_assemblies.rs"]
 mod key_move_assemblies;
+
+#[path = "matrix_placement.rs"]
+mod matrix_placement;

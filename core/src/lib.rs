@@ -502,6 +502,7 @@ impl CoreEngine {
                 EditOperation::MoveParts { .. }
                     | EditOperation::SetMatrix { .. }
                     | EditOperation::SetMatrixSplay { .. }
+                    | EditOperation::SetMatrixPlacement { .. }
             )
         {
             return self.preview_edit(id, command);
@@ -1019,6 +1020,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::RemoveMatrixColumn { .. }
             | EditOperation::SetMatrix { .. }
             | EditOperation::SetMatrixSplay { .. }
+            | EditOperation::SetMatrixPlacement { .. }
             | EditOperation::CreateMirroredPair { .. }
             | EditOperation::SetLayout { .. }
             | EditOperation::SetConstraint { .. }
@@ -1367,6 +1369,37 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             let matrix = matrix::splay::update(current, *column, change)?;
             let mut changed = matrix::set_matrix(doc, &matrix)?;
             changed.extend(layout::sync(doc, matrix_id)?);
+            Ok(changed)
+        }
+        EditOperation::SetMatrixPlacement { matrix_id, change } => {
+            let current = doc
+                .matrices
+                .iter()
+                .find(|matrix| &matrix.id == matrix_id)
+                .cloned()
+                .ok_or("Matrix not found")?;
+            let matrix = matrix::placement::update(&current, change)?;
+            // Setting the current value is a valid no-op.
+            if matrix == current {
+                return Ok(Vec::new());
+            }
+            let before: BTreeMap<String, Part> = doc
+                .parts
+                .iter()
+                .map(|part| (part.id.clone(), part.clone()))
+                .collect();
+            let mut changed = matrix::set_matrix(doc, &matrix)?;
+            changed.extend(layout::sync(doc, matrix_id)?);
+            changed.extend(matrix::placement::carry_authored_companions(doc, &before));
+            // Report only members whose projection actually moved.
+            changed.retain(|id| match before.get(id) {
+                Some(previous) => doc
+                    .parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .is_none_or(|part| part != previous),
+                None => true,
+            });
             Ok(changed)
         }
         EditOperation::CreateMirroredPair {
