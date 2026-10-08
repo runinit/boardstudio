@@ -566,81 +566,28 @@ fn effective_case_inputs(
     Ok((effective, effective_scene))
 }
 
+/// Thin adapter over the Core effective-inputs read path.
+///
+/// Core resolves the canonical configuration, the ownership-specific shared
+/// overlay (Legacy, Local or Pair), the board thickness, the wireless battery
+/// default and the instance flip. The `board_thickness` parameter is retained
+/// so the existing caller is unchanged; Core derives the same value from the
+/// instance's board.
 #[cfg(feature = "page")]
 fn effective_instance_configuration(
     document: &ProjectDoc,
     instance: &PhysicalBoardInstance,
     board_thickness: f64,
 ) -> Option<MechanicalConfiguration> {
-    let hardware = document.hardware.as_ref()?;
-    let common = hardware.shared_construction.as_ref().or_else(|| {
-        hardware
-            .instances
-            .iter()
-            .find_map(|entry| entry.mechanical.as_ref())
-    });
-    let mut configuration = instance.mechanical.clone().or_else(|| common.cloned())?;
-    if instance.mechanical.is_none() {
-        configuration.openings = None;
-        configuration.mounts.clear();
-        configuration.closure_mounts = None;
-        configuration.battery = None;
-        configuration.battery_height = 0.0;
-    }
-    if let Some(common) = common {
-        let mut output = serde_json::to_value(&configuration)
-            .ok()?
-            .as_object()?
-            .clone();
-        let shared = serde_json::to_value(common).ok()?.as_object()?.clone();
-        for field in [
-            "method",
-            "mount",
-            "integratedPlateFrame",
-            "bottomStyle",
-            "middleFrame",
-            "plateThickness",
-            "plateFoamThickness",
-            "bottomFoamThickness",
-            "bottomThickness",
-            "plateToPcb",
-            "wallThickness",
-            "clearance",
-            "gasket",
-            "gasketTravel",
-            "openingAllowance",
-            "partProcesses",
-            "internalGasket",
-            "hardware",
-            "criticalFits",
-            "profiles",
-        ] {
-            if let Some(value) = shared.get(field) {
-                output.insert(field.into(), value.clone());
-            }
-        }
-        if let Some(mut gasket_layout) = shared.get("gasketLayout").cloned() {
-            let supports = instance
-                .mechanical
-                .as_ref()
-                .and_then(|item| item.gasket_layout.as_ref())
-                .map(|item| item.supports.clone())
-                .unwrap_or_default();
-            if let Some(layout) = gasket_layout.as_object_mut() {
-                layout.insert("supports".into(), serde_json::to_value(supports).ok()?);
-            }
-            output.insert("gasketLayout".into(), gasket_layout);
-        }
-        output.insert(
-            "boardId".into(),
-            serde_json::Value::String(instance.board_id.clone()),
-        );
-        output.insert("pcbThickness".into(), serde_json::json!(board_thickness));
-        configuration = serde_json::from_value(serde_json::Value::Object(output)).ok()?;
-    }
-    configuration.board_id = instance.board_id.clone();
-    configuration.pcb_thickness = board_thickness;
-    Some(configuration)
+    let _ = board_thickness;
+    boardstudio_core::mechanical::inputs::effective_inputs(
+        document,
+        &boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance.id.clone(),
+        },
+    )
+    .ok()
+    .map(|inputs| inputs.configuration)
 }
 
 #[cfg(feature = "page")]
