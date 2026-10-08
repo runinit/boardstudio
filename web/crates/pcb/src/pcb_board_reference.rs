@@ -763,12 +763,12 @@ pub fn Editor(
         let action_latest = action_latest;
         let mut error = error;
         move |_| {
-            let owner_is_live = workspace() == "Layout" || workspace() == "Case";
-            let owner_is_live = owner_is_live
+            let panel_is_live = workspace() == "Layout" || workspace() == "Case";
+            let panel_is_live = panel_is_live
                 && super::board_reference_owner_lineage_is_current(
                     &runtime, workspace, &adapter, &owner,
                 );
-            let results = action_edits.borrow_mut().settle(owner_is_live);
+            let results = action_edits.borrow_mut().settle(panel_is_live);
             for result in results {
                 let (key, message) = match result {
                     PendingEditResult::Failed { key, message } => (key, Some(message)),

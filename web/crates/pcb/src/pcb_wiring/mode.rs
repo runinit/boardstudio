@@ -117,8 +117,8 @@ pub fn use_board_wiring_mode_edits(
             // The helper owns panel-lifetime gating; each ticket retires itself when its
             // captured Scope moves on. The mode control therefore only answers for the
             // workspace it belongs to.
-            let owner_is_live = workspace() == "PCB";
-            let results = edits.settle(owner_is_live, |target| {
+            let panel_is_live = workspace() == "PCB";
+            let results = edits.settle(panel_is_live, |target| {
                 let model = runtime.model();
                 model.accepted.as_ref().map_or_else(
                     || mode_text(ElectricalMode::Matrix),

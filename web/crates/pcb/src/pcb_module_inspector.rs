@@ -133,9 +133,9 @@ fn PcbMountedModuleInspector(
         let committed_draft = committed_draft;
         let mut draft = draft;
         move |_| {
-            let owner_is_live =
+            let panel_is_live =
                 mounted_selection_current(&runtime, selected_context, &scope, &module_id);
-            let results = edits.borrow_mut().settle(owner_is_live);
+            let results = edits.borrow_mut().settle(panel_is_live);
             for result in results {
                 match result {
                     PendingEditResult::Failed { key, message } => {
@@ -1637,10 +1637,10 @@ mod mounted_save_replacement_tests {
             "after the old IndexedDB write completes, the replacement Session has no old-operation feedback"
         );
         assert!(
-            !root
-                .text_content()
-                .unwrap_or_default()
-                .contains("Placement saved.")
+            root.query_selector(".m1-pcb-module-actions + p[role='status']")
+                .unwrap()
+                .is_none(),
+            "a landed placement shows no status message"
         );
         let _ = runtime
             .store
