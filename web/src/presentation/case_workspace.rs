@@ -1088,7 +1088,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     }
                 }
                 if let Some(props) = input.mechanical_settings.props {
-                    {MechanicalSettings(props)}
+                    MechanicalSettings { ..props }
                 }
                 if generated {
                     if active_display_layer.is_some() {
@@ -1449,6 +1449,117 @@ mod mounted_live_scene_tests {
             }
             p { id: "case11-shown-finding", "{shown_finding}" }
             div { id: "case11-workspace-evidence", {tree} {inspector} }
+        }
+    }
+
+    fn navigation_host() -> Element {
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        super::super::use_empty_test_instance_selection();
+        let runtime = use_context::<Rc<Runtime>>();
+        let instance_selection = use_context::<InstanceSelection>();
+        let state = use_case_workspace_state();
+        let mut workspace = use_signal(|| "Layout");
+        let generation = use_signal(|| 1u64);
+        let mechanical = super::super::mechanical_settings_mount::use_mechanical_settings_mount(
+            runtime.clone(),
+            generation,
+            workspace,
+            instance_selection,
+            state.selection(),
+            EventHandler::new(|_| {}),
+        );
+        let physical_setup = super::super::pcb_physical_setup::use_controller(
+            runtime.clone(),
+            version,
+            generation,
+            Rc::new(|| false),
+            instance_selection,
+            Rc::new(|_, _| true),
+            Rc::new(|_, _| {
+                Box::pin(async { panic!("navigation must not prepare physical edits") })
+            }),
+        );
+        let content = if workspace() == "Case" {
+            inspector(InspectorInput {
+                physical_setup,
+                mechanical_settings: mechanical,
+                instance_scope_pending: false,
+                scope: runtime.scope(),
+                scene: None,
+                case_selection: state.selection(),
+                selected_layer_id: String::new(),
+                selected_context: None,
+                selected_part_summary: None,
+                on_show_configured_board: EventHandler::new(|_| {}),
+                on_display: EventHandler::new(|_| {}),
+            })
+        } else {
+            rsx! { p { "Layout workspace" } }
+        };
+        // A page-owned hook after dispatch catches leaked child hooks on either transition.
+        let marker = use_signal(|| "page owner retained");
+        rsx! {
+            button { id: "case-navigation-enter", onclick: move |_| workspace.set("Case"), "Case" }
+            button { id: "case-navigation-leave", onclick: move |_| workspace.set("Layout"), "Layout" }
+            p { id: "case-navigation-owner", "{marker}" }
+            div { id: "case-navigation-content", {content} }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn case_inspector_navigation_keeps_hooks_in_the_mounted_child() {
+        let (runtime, _, _) = accepted_fixture().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-navigation-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(navigation_host);
+        dom.provide_root_context(runtime);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        settle().await;
+        for _ in 0..2 {
+            document
+                .get_element_by_id("case-navigation-enter")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click();
+            settle().await;
+            assert!(
+                document
+                    .query_selector("#case-navigation-content .m1-mechanical-settings")
+                    .unwrap()
+                    .is_some(),
+                "entering Case mounts its real mechanical Inspector"
+            );
+            document
+                .get_element_by_id("case-navigation-leave")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click();
+            settle().await;
+            assert!(
+                document
+                    .get_element_by_id("case-navigation-content")
+                    .unwrap()
+                    .text_content()
+                    .unwrap()
+                    .contains("Layout workspace"),
+                "leaving Case restores the previous workspace"
+            );
+            assert_eq!(
+                document
+                    .get_element_by_id("case-navigation-owner")
+                    .unwrap()
+                    .text_content()
+                    .unwrap(),
+                "page owner retained"
+            );
         }
     }
 
