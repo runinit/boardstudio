@@ -4,7 +4,9 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import os
 from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 
@@ -40,6 +42,17 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(check.run(["repo", "tooling"]), 1)
         self.assertEqual(run.call_count, 2)
         self.assertIn("step 'repo' failed", errors.getvalue())
+
+    def test_native_checks_do_not_inherit_parent_appimage_directory(self):
+        # System KiCad loads its libraries from APPDIR when an editor leaks it.
+        probe = [sys.executable, "-c",
+                 "import os, sys; sys.exit(0 if 'APPDIR' not in os.environ "
+                 "and os.environ.get('APPIMAGE') == 'editor.AppImage' else 17)"]
+        with mock.patch.dict(os.environ, {"APPDIR": "/tmp/editor-appimage", "APPIMAGE": "editor.AppImage"}), \
+                mock.patch.dict(check.STEPS, {"test": (True, [probe])}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run(["test"]), 0)
+            self.assertEqual(os.environ["APPDIR"], "/tmp/editor-appimage")
 
     def test_list_prints_every_step_without_running_anything(self):
         output = io.StringIO()

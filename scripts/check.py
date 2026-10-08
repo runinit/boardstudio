@@ -21,6 +21,7 @@ Steps:
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -104,9 +105,13 @@ DEFAULT = tuple(name for name, (included, _) in STEPS.items() if included)
 def run(names: list[str]) -> int:
     for name in names:
         print(f"== {name}", flush=True)
+        environment = os.environ.copy()
+        if name == "test":
+            # An editor's AppImage directory redirects system KiCad's library lookup.
+            environment.pop("APPDIR", None)
         for command in STEPS[name][1]:
             print("$ " + shlex.join(command), flush=True)
-            if subprocess.run(command, cwd=ROOT).returncode:
+            if subprocess.run(command, cwd=ROOT, env=environment).returncode:
                 print(f"check: step '{name}' failed", file=sys.stderr)
                 return 1
     print("check: all steps passed: " + ", ".join(names))
