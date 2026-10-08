@@ -82,6 +82,35 @@ pinned by the user; it remains eligible for automatic placement repair.
 A support whose position the user has committed or explicitly pinned; automatic
 placement repair preserves it until the user moves or resets it.
 
+### Matrix layout
+
+**Column stagger**:
+The vertical step of a matrix column from the previous column, in matrix
+coordinates. The first column steps from the matrix origin. The column and every
+later column inherit it.
+_Avoid_: column offset (when the inherited step is meant)
+
+**Column offset**:
+An independent adjustment of one column only. Later columns do not inherit it.
+_Avoid_: stagger (when the independent adjustment is meant)
+
+**Row offset**:
+An independent adjustment of one matrix row only.
+
+**Key local offset**:
+An adjustment of one key within its matrix. The key's attached companions move
+with it.
+
+**Structural relationship**:
+Placement a selection inherits from its matrix (pitch, offsets, stagger, splay,
+matrix frame) and from key assemblies. It is read from the accepted document;
+there is no separate relationship record.
+
+**Explicit constraint**:
+A separately authored placement relationship from a source part to a target part.
+It takes priority over a companion's attachment to its key.
+_Avoid_: relationship (unqualified)
+
 ### Editing
 
 **Accepted document**:
