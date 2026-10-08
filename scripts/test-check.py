@@ -54,6 +54,31 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(check.run(["test"]), 0)
             self.assertEqual(os.environ["APPDIR"], "/tmp/editor-appimage")
 
+    def test_browser_checks_supply_a_bounded_timeout_without_changing_other_steps(self):
+        probe = [sys.executable, "-c",
+                 "import os, sys; actual = os.environ.get('WASM_BINDGEN_TEST_TIMEOUT', '<unset>'); "
+                 "sys.exit(0 if actual == sys.argv[1] else "
+                 "f'browser timeout was {actual}, expected {sys.argv[1]}')"]
+        with mock.patch.dict(os.environ), \
+                mock.patch.dict(check.STEPS, {
+                    "browser": (True, [[*probe, "120"], [*probe, "120"]]),
+                    "tooling": (True, [[*probe, "<unset>"]]),
+                }), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            os.environ.pop("WASM_BINDGEN_TEST_TIMEOUT", None)
+            self.assertEqual(check.run(["browser", "tooling"]), 0)
+            self.assertNotIn("WASM_BINDGEN_TEST_TIMEOUT", os.environ)
+
+    def test_browser_checks_preserve_an_explicit_timeout(self):
+        probe = [sys.executable, "-c",
+                 "import os, sys; sys.exit(0 if os.environ.get('WASM_BINDGEN_TEST_TIMEOUT') "
+                 "== '37' else 17)"]
+        with mock.patch.dict(os.environ, {"WASM_BINDGEN_TEST_TIMEOUT": "37"}), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [probe, probe])}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run(["browser"]), 0)
+            self.assertEqual(os.environ["WASM_BINDGEN_TEST_TIMEOUT"], "37")
+
     def test_list_prints_every_step_without_running_anything(self):
         output = io.StringIO()
         with mock.patch.object(check.subprocess, "run") as run, contextlib.redirect_stdout(output):

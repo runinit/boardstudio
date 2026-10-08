@@ -73,6 +73,12 @@ panel migrations blocked on that gate.
 - Chrome/headless browser runs use one explicit orchestrator lease across all tools.
   Other workers continue native checks or source work while waiting; release the lease
   as soon as the runner exits. Never stop unrelated browser processes.
+- Browser batches need a bounded timeout: the current check launcher defaults
+  WASM_BINDGEN_TEST_TIMEOUT to 120 seconds, matching the page runner, and preserves
+  explicit overrides. For direct wasm-pack commands or older worktrees, set
+  `WASM_BINDGEN_TEST_TIMEOUT=120` in the runner's environment, including when using
+  ZCode. A timeout can cause the test runner to kill ChromeDriver during cleanup;
+  the resulting SIGKILL status alone does not establish OOM. The lease is still required.
 - Reviews pin the actual worktree, base and HEAD. Every shell read/review command uses
   that absolute workdir; start by confirming `git rev-parse HEAD` and the diff range.
   The shared canonical GitNexus index is advisory for worktree edits: confirm stale,

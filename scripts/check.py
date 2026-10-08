@@ -109,6 +109,9 @@ def run(names: list[str]) -> int:
         if name == "test":
             # An editor's AppImage directory redirects system KiCad's library lookup.
             environment.pop("APPDIR", None)
+        if name == "browser":
+            # Match the page runner's bounded budget for direct wasm-pack crate batches.
+            environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
         for command in STEPS[name][1]:
             print("$ " + shlex.join(command), flush=True)
             if subprocess.run(command, cwd=ROOT, env=environment).returncode:
