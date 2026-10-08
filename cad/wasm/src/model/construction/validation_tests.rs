@@ -873,6 +873,36 @@ fn integrated_lid_and_component_opening_have_exact_exported_subtraction() {
 }
 
 #[test]
+fn cad_volume_baseline_retains_established_closures_under_coordinate_roundoff() {
+    let input: Value = serde_json::from_slice(
+        &fs::read(fixture_path(
+            "cad/test/fixtures/internal-gasket-v1/rotated-concave.json",
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    // The STEP baseline measures an established layout, predating the automatic
+    // selector's run-length tolerance. Roundoff must not replace its closures.
+    let expected = json!({"x":48.72598633998126,"y":92.01679604939501});
+    for direction in [-1, 0, 1] {
+        let mut contours = input["contours"].clone();
+        let coordinate = num(&contours[0]["points"][4]["x"]);
+        contours[0]["points"][4]["x"] = json!(match direction {
+            -1 => coordinate.next_down(),
+            1 => coordinate.next_up(),
+            _ => coordinate,
+        });
+        let assembly = resolve_mechanical(&input["document"], &contours);
+        assert_eq!(assembly["generationBlocked"], false);
+        assert_eq!(assembly["suggestedMounts"][5]["at"], expected);
+        assert_eq!(
+            assembly["suggestedMounts"], input["document"]["mechanical"]["closureMounts"],
+            "established closure positions must survive one-ulp outline changes"
+        );
+    }
+}
+
+#[test]
 fn core_internal_gasket_fixtures_export_connected_positive_regions() {
     for name in [
         "rectangle",
