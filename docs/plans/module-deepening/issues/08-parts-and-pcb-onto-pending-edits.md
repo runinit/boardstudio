@@ -64,3 +64,39 @@ dormant domain tests in this ticket's other files still migrate here as needed.
 cargo test -p boardstudio-web-parts -p boardstudio-web-pcb --locked
 python3 scripts/check.py lint typecheck test browser
 ```
+
+## Comments
+
+### 2026-10-08: PCB final-source review and browser gate
+
+Root confirmed the PCB-only branch is clean at
+`05e1b7026e983afd1148581fc94b148e4ab5eaac`, 11 commits after `8ce860a09`.
+Protected pcb_wiring/remap.rs is unchanged. Fresh pinned root review covered all
+17 changed files: Standards found zero violations/smells; Spec found two remaining
+PCB implementation gaps and the previously reported typed-placement contract gap.
+See the [focused final follow-up](../handoff-08-pcb.md#final-follow-up-at-05e1b7026)
+for the fixes, required evidence and preserved-history decision.
+
+Create Net still implements its submitted one-shot state outside the shared helper.
+Circuit-removal keys accumulate per copied circuit while sharing one disabled Signal;
+a retained sibling handler can submit another removal and an older terminal can
+re-enable the control while that other request is pending. Use the existing helper
+and bounded action keys; neither correction needs a shared API extension.
+
+The oneshot preparation-fixture fix, dispatcher refusal, parent-owned circuit
+Signal and narrowed visibility have static review support. The agent reports native
+PCB/lint/typecheck passing at that HEAD. The user's latest browser report starts 45
+tests but ends in driver SIGKILL with filtered output; an isolated run has no output.
+Final mounted behavior remains unverified. Use an explicit 120-second batch budget,
+unfiltered output and preserved process exit status before diagnosing another cause.
+
+The branch-specific graph comparison saw all 17 changed files, 35 indexed symbols
+and one affected flow, medium aggregate risk, with no partial/truncated flags. Branch
+symbols unresolved by the canonical dev graph were inspected directly; this is not
+complete graph coverage. The root embedding refresh also failed on duplicate primary
+key `:0`; current-source review is the fallback, with the integrated-tree gate retained.
+
+Keep the parent claimed until both Parts and PCB are reviewed and integrated. The
+remaining common helper/spec decision stays with root; the other panel stream remains
+held. Preserve all PCB commits, including the non-building intermediate `63e051463`,
+and record that limitation rather than rewriting history.
