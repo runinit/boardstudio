@@ -82,6 +82,23 @@ pinned by the user; it remains eligible for automatic placement repair.
 A support whose position the user has committed or explicitly pinned; automatic
 placement repair preserves it until the user moves or resets it.
 
+### Mechanical relationships
+
+**Mechanical mirror pair**:
+Two physical halves whose shared mechanical features stay reflected when edited
+from either half. They may use one reversible PCB design or different PCB designs,
+and individual features may be half-specific exceptions. New pairs share their
+construction settings within the pair; existing independent halves link explicitly.
+
+**Linked mechanical feature**:
+A mechanical feature whose counterparts on mirrored halves remain related as
+reflected geometry when the feature changes.
+
+**Half-specific mechanical feature**:
+A mechanical feature required by one half's hardware or assembly, such as a
+screen opening or an encoder clearance. It is an explicit exception to mirrored
+sharing and may be a local feature or an omission on that half.
+
 ### Matrix layout
 
 **Column stagger**:

@@ -26,8 +26,12 @@ later decision explicitly permits.
   targets retire; equal values resolve Unchanged.
 - One typed edit is one Undo step, exactly as the replacement was. Typed edits do not
   shrink Undo: Core history stores a full prior document per step.
-- Operations are added to Core's `EditOperation`; serialized documents are not
-  affected, but every operation needs Core tests at the Session/Core boundary.
+- Adding an operation to Core's `EditOperation` does not itself change serialized
+  documents; every operation needs Core tests at the Session/Core seam. The
+  [mechanical settings extension](issues/02-mechanical-settings-patch.md) also adds
+  persisted mirror-pair and feature-exception semantics. Specify their representation
+  and existing-project compatibility under
+  [ADR-0004](../../adr/0004-document-format-version-and-id-rename.md) before building it.
 - The strict paths (captured gesture commit, export commits, protected electrical
   remap) are unchanged.
 
