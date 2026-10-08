@@ -907,3 +907,71 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
     );
     root.remove();
 }
+
+fn macro_doc() -> ProjectDoc {
+    let mut doc = document();
+    doc.keymap = Some(serde_json::from_value(serde_json::json!({
+        "layers": [{"id": "base", "name": "Base", "bindings": {}, "sensors": {}}],
+        "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
+    })).unwrap());
+    doc
+}
+
+fn macro_input(root: &web_sys::Element, label: &str) -> web_sys::HtmlInputElement {
+    use wasm_bindgen::JsCast;
+    root.query_selector(&format!("input[aria-label='{label}']"))
+        .unwrap()
+        .unwrap()
+        .dyn_into()
+        .unwrap()
+}
+
+fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
+    input.set_value(value);
+    let event = web_sys::EventInit::new();
+    event.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+        .unwrap();
+}
+
+/// A held failing macro field edit with a newer dirty draft typed behind it: the older
+/// failure must report at the field, and nowhere in the panel status.
+async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &str) {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, macro_doc()).await;
+    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    let input = macro_input(&root, label);
+    support::fail_next_core_reply(&runtime, "macro executor failed");
+    input.focus().unwrap();
+    type_value(&input, first);
+    input.blur().unwrap();
+    rendered().await;
+    // The older edit has not settled when the user types the next draft.
+    type_value(&input, newer);
+    settle(&runtime).await;
+    let input = macro_input(&root, label);
+    assert_eq!(input.value(), newer, "a newer draft is never overwritten");
+    let alert = root
+        .query_selector("label small[role='alert']")
+        .unwrap()
+        .expect("the older failure reports inline beside the newer draft");
+    assert!(alert.text_content().unwrap().contains("macro executor failed"));
+    assert!(
+        root.query_selector("p.m1-keymap-macro-status")
+            .unwrap()
+            .is_none(),
+        "a bound field's failure is not duplicated in the panel status"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn a_newer_macro_text_draft_keeps_an_older_failure_inline_only() {
+    newer_macro_draft_with_older_failure("Macro name Original", "Renamed", "Renamed again").await;
+}
+
+#[wasm_bindgen_test]
+async fn a_newer_macro_number_draft_keeps_an_older_failure_inline_only() {
+    newer_macro_draft_with_older_failure("Original tapMs", "55", "66").await;
+}

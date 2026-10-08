@@ -259,7 +259,9 @@ pub fn use_macro_operations(
                 let live = runtime.scope().as_ref() == Some(&request.scope)
                     && scope_generation() == request.scope_generation;
                 match &result {
-                    PendingEditResult::Failed { message, .. } if live => {
+                    // A bound field reports its failure through the helper's Signal at the
+                    // field; only actions without a bound field report in the panel status.
+                    PendingEditResult::Failed { message, .. } if live && is_action(key.target) => {
                         if let Some(feedback) = feedback
                             .write()
                             .iter_mut()

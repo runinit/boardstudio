@@ -535,10 +535,8 @@ fn TextDraft(props: TextDraftProps) -> Element {
                     if dirty() || commit_if_unchanged { dirty.set(false); draft.set(value.clone()); on_commit.call(value); }
                 }
             }
-            if !dirty() {
-                if let Some(message) = failure() {
-                    small { role: "alert", "{message}" }
-                }
+            if let Some(message) = failure() {
+                small { role: "alert", "{message}" }
             }
         }
     }
@@ -593,10 +591,8 @@ fn NumberDraft(props: NumberDraftProps) -> Element {
                     if let Some(value) = parsed && dirty() { dirty.set(false); draft.set(value.to_string()); on_commit.call(value); }
                 }
             }
-            if !dirty() {
-                if let Some(message) = failure() {
-                    small { role: "alert", "{message}" }
-                }
+            if let Some(message) = failure() {
+                small { role: "alert", "{message}" }
             }
         }
     }
