@@ -67,6 +67,8 @@ Saved projects keep their geometry.
 
 - 02 `SetMatrixPlacement` and the published stagger axis:
   [Outcome](issues/02-core-set-matrix-placement.md#outcome).
+- 03 Core publishes companion placement modes:
+  [Outcome](issues/03-core-companion-placement-modes.md#outcome).
 
 ## Still open
 
