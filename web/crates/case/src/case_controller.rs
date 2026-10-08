@@ -21,18 +21,26 @@ struct BodyEditMeta {
     created_body_id: Option<String>,
 }
 
-/// A body field's logical identity: the latest edit for it replaces the earlier one. The key
-/// carries its request and created body for follow-ups; keys compare by field only, and edits
-/// without a field share one key.
+/// What a body edit is logically: a numeric field, or another edit kind on a body (an
+/// action such as adding a mount, or a kind change). Edits of different kinds never share
+/// a key, so one cannot replace the observation of another.
+#[derive(Clone, PartialEq)]
+enum BodyEditLogical {
+    Field(String),
+    Edit(std::mem::Discriminant<CaseBodyEdit>, Option<String>),
+}
+
+/// A body edit's logical identity: the latest edit for it replaces the earlier one. The key
+/// carries its request and created body for follow-ups; keys compare by logical identity only.
 #[derive(Clone)]
 struct BodyEditKey {
-    field_id: Option<String>,
+    logical: BodyEditLogical,
     meta: Option<Rc<BodyEditMeta>>,
 }
 
 impl PartialEq for BodyEditKey {
     fn eq(&self, other: &Self) -> bool {
-        self.field_id == other.field_id
+        self.logical == other.logical
     }
 }
 
@@ -42,8 +50,22 @@ impl BodyEditKey {
     /// A key without a request, for binding a field's Signals.
     fn bound(field_id: &str) -> Self {
         Self {
-            field_id: Some(field_id.to_owned()),
+            logical: BodyEditLogical::Field(field_id.to_owned()),
             meta: None,
+        }
+    }
+
+    fn of(waiting: BodyEditMeta) -> Self {
+        let logical = match &waiting.request.field_id {
+            Some(field_id) => BodyEditLogical::Field(field_id.clone()),
+            None => BodyEditLogical::Edit(
+                std::mem::discriminant(&waiting.request.edit),
+                waiting.request.edit.body_id().map(str::to_owned),
+            ),
+        };
+        Self {
+            logical,
+            meta: Some(Rc::new(waiting)),
         }
     }
 }
@@ -69,7 +91,7 @@ impl CaseEditsContext {
         self.fields
             .borrow()
             .iter()
-            .find(|entry| Some(&entry.field_id) == key.field_id.as_ref())
+            .find(|entry| BodyEditLogical::Field(entry.field_id.clone()) == key.logical)
             .map(|entry| entry.accepted.clone())
             .unwrap_or_default()
     }
@@ -102,7 +124,6 @@ pub(crate) fn use_bound_case_field(
             context
                 .pending
                 .peek()
-                .helper
                 .unbind_field(&BodyEditKey::bound(old));
             context
                 .fields
@@ -112,7 +133,6 @@ pub(crate) fn use_bound_case_field(
         context
             .pending
             .peek()
-            .helper
             .bind_field(BodyEditKey::bound(field_id), draft, failure);
         let mut fields = context.fields.borrow_mut();
         match fields.iter_mut().find(|entry| entry.field_id == field_id) {
@@ -135,7 +155,6 @@ pub(crate) fn use_bound_case_field(
                 context
                     .pending
                     .peek()
-                    .helper
                     .unbind_field(&BodyEditKey::bound(&field_id));
                 context
                     .fields
@@ -504,10 +523,7 @@ fn submit_body_edit(
     let mut submitted = feedback_for(&waiting, None);
     submitted.pending = true;
     record_feedback(&mut feedback.write(), submitted);
-    let key = BodyEditKey {
-        field_id: waiting.request.field_id.clone(),
-        meta: Some(Rc::new(waiting)),
-    };
+    let key = BodyEditKey::of(waiting);
     if pending.peek().owner_changed(Some(&scope), 0) {
         pending.write().follow_owner(Some(&scope), 0);
     }

@@ -70,20 +70,16 @@ pub(super) fn use_bound_macro_field(
         if let Some(old) = previous.as_ref()
             && *old != key
         {
-            edits.0.peek().helper.unbind_field(old);
+            edits.0.peek().unbind_field(old);
         }
-        edits
-            .0
-            .peek()
-            .helper
-            .bind_field(key.clone(), draft, failure);
+        edits.0.peek().bind_field(key.clone(), draft, failure);
         *previous = Some(key);
     }
     use_drop({
         let bound = bound.clone();
         move || {
             if let (Some(edits), Some(key)) = (edits, bound.borrow_mut().take()) {
-                edits.0.peek().helper.unbind_field(&key);
+                edits.0.peek().unbind_field(&key);
             }
         }
     });

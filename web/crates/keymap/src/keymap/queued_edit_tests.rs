@@ -779,22 +779,63 @@ async fn a_newer_layer_name_survives_an_older_failure_that_reports_inline() {
 
 #[wasm_bindgen_test]
 async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
-    let (probe, root) = mounted().await;
-    let runtime = probe.runtime.clone();
+    let runtime = support::new_runtime();
+    let mut doc = document();
+    doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}},{"id":"child","name":"Child","bindings":{},"sensors":{}}],"macros":[]})).unwrap());
+    support::open_document(&runtime, doc).await;
+    let (probe, root) = mount_runtime(runtime.clone()).await;
+    probe.active_layer.borrow().unwrap().set("child".into());
+    rendered().await;
     let (mut draft, failure) = probe.layer_name.borrow().unwrap();
-    draft.set("Gone".into());
+    // Removing the layer is held in Core; the rename behind it can only fail once it runs.
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    rename_base(&probe, "Gone");
+    probe
+        .layers
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_operation
+        .call(KeymapLayerOperation::Remove {
+            layer_id: "child".into(),
+        });
     support::drive_pending(&runtime);
     entered.await.unwrap();
+    draft.set("Gone".into());
+    probe
+        .layers
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .on_operation
+        .call(KeymapLayerOperation::Rename {
+            layer_id: "child".into(),
+            name: "Gone".into(),
+        });
+    // The owner departs before either edit settles.
     let mut generation = probe.generation.borrow().unwrap();
     generation.set(generation() + 1);
     rendered().await;
-    support::fail_next_core_reply(&runtime, "never reported");
     release.send(()).unwrap();
     settle(&runtime).await;
+    assert_eq!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .keymap
+            .as_ref()
+            .unwrap()
+            .layers
+            .len(),
+        1,
+        "the queued Session edits kept executing"
+    );
     assert_eq!(draft(), "Gone", "a departed owner leaves the draft alone");
-    assert!(failure().is_none(), "retirement is silent");
+    assert!(
+        failure().is_none(),
+        "the rename would fail with \"no longer exists\"; retirement keeps it silent"
+    );
     assert!(
         probe.layers.borrow().as_ref().unwrap().feedback.is_none(),
         "no status survives the owner"

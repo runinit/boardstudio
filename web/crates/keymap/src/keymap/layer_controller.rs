@@ -99,17 +99,25 @@ pub fn use_layer_operations(
         name_failure,
     });
     let feedback = use_signal(|| None::<LayerFeedbackState>);
+    let bound_layer = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
     {
-        // Bind the displayed layer's name field to this owner's helper.
+        // Only the displayed layer's name field is bound, so an older layer's outcome can
+        // never reach the Signals now shown for another layer.
         let displayed = runtime.model().accepted.and_then(|snapshot| {
             resolve_display_layer_id(snapshot.document.keymap.as_ref(), &active_layer())
                 .map(str::to_owned)
         });
-        if let Some(layer_id) = displayed {
-            pending
-                .peek()
-                .helper
-                .bind_field(LayerKey::Rename(layer_id), name_draft, name_failure);
+        let mut bound = bound_layer.borrow_mut();
+        if *bound != displayed {
+            if let Some(old) = bound.take() {
+                pending.peek().unbind_field(&LayerKey::Rename(old));
+            }
+            if let Some(layer_id) = displayed.clone() {
+                pending
+                    .peek()
+                    .bind_field(LayerKey::Rename(layer_id), name_draft, name_failure);
+            }
+            *bound = displayed;
         }
     }
     use_effect(use_reactive((&version,), {
@@ -117,6 +125,17 @@ pub fn use_layer_operations(
         let mut pending = pending;
         let mut feedback = feedback;
         move |_| {
+            // A changed owner retires the observations of the previous one.
+            let owner_scope = runtime.scope();
+            let owner_generation = scope_generation();
+            if pending
+                .peek()
+                .owner_changed(owner_scope.as_ref(), owner_generation)
+            {
+                pending
+                    .write()
+                    .follow_owner(owner_scope.as_ref(), owner_generation);
+            }
             if !pending.peek().has_terminal() {
                 return;
             }
