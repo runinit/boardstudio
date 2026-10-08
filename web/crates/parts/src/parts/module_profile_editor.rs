@@ -387,13 +387,22 @@ pub fn ModuleProfileEditor(
             )
             .is_some();
             let accepted = runtime.model().accepted.and_then(|snapshot| {
-                snapshot.document.module_definitions.iter()
-                    .find(|definition| definition.id == owner.definition_id).cloned()
+                snapshot
+                    .document
+                    .module_definitions
+                    .iter()
+                    .find(|definition| definition.id == owner.definition_id)
+                    .cloned()
             });
-            let accepted_profile = accepted.as_ref()
-                .map(ModuleProfileDraft::from_definition).unwrap_or_else(|| baseline.clone());
-            let accepted_rotary = accepted.as_ref()
-                .map(|definition| ModuleRotaryDraft::from_profile(definition.electrical.rotary_profile.as_ref()))
+            let accepted_profile = accepted
+                .as_ref()
+                .map(ModuleProfileDraft::from_definition)
+                .unwrap_or_else(|| baseline.clone());
+            let accepted_rotary = accepted
+                .as_ref()
+                .map(|definition| {
+                    ModuleRotaryDraft::from_profile(definition.electrical.rotary_profile.as_ref())
+                })
                 .unwrap_or_else(|| baseline_rotary.clone());
             let profile_results = profile_edits.settle(live, |_| accepted_profile.clone());
             let rotary_results = rotary_edits.settle(live, |_| accepted_rotary.clone());
@@ -590,13 +599,21 @@ pub fn ModuleProfileEditor(
             );
             if rotary_save {
                 rotary_edits.begin_value(
-                    &runtime, ModuleProfileKey::Save, "parts-module-profile",
-                    Some("module profile".into()), resolver, &rotary.peek().clone(),
+                    &runtime,
+                    ModuleProfileKey::Save,
+                    "parts-module-profile",
+                    Some("module profile".into()),
+                    resolver,
+                    &rotary.peek().clone(),
                 );
             } else {
                 profile_edits.begin_value(
-                    &runtime, ModuleProfileKey::Save, "parts-module-profile",
-                    Some("module profile".into()), resolver, &draft.peek().clone(),
+                    &runtime,
+                    ModuleProfileKey::Save,
+                    "parts-module-profile",
+                    Some("module profile".into()),
+                    resolver,
+                    &draft.peek().clone(),
                 );
             }
             error.set(None);
@@ -739,10 +756,12 @@ mod settlement_tests {
         let _ = version();
         use_hook({
             let runtime = runtime.clone();
-            move || runtime.subscribe(Rc::new(move || {
-                let mut version = version;
-                version += 1;
-            }))
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
         });
         let snapshot = runtime.model().accepted.unwrap();
         let definition = snapshot.document.module_definitions[0].clone();
@@ -757,7 +776,9 @@ mod settlement_tests {
         input.set_value(value);
         let init = web_sys::EventInit::new();
         init.set_bubbles(true);
-        input.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -775,10 +796,23 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
         tick().await;
-        let pulses: web_sys::HtmlInputElement = root.query_selector("input[aria-label='Rotary pulses per rotation']").unwrap().unwrap().dyn_into().unwrap();
-        let save: web_sys::HtmlElement = root.query_selector(".m1-module-profile-editor fieldset button").unwrap().unwrap().dyn_into().unwrap();
+        let pulses: web_sys::HtmlInputElement = root
+            .query_selector("input[aria-label='Rotary pulses per rotation']")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        let save: web_sys::HtmlElement = root
+            .query_selector(".m1-module-profile-editor fieldset button")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         type_value(&pulses, "24");
         tick().await;
@@ -792,18 +826,52 @@ mod settlement_tests {
         tick().await;
         support::run_pending(&runtime).await;
         tick().await;
-        assert_eq!(runtime.model().accepted.unwrap().document.module_definitions[0].electrical.rotary_profile.as_ref().unwrap().steps, Some(24));
-        assert_eq!(pulses.value(), "20", "newer typing that returns to the original accepted value survives landing");
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .module_definitions[0]
+                .electrical
+                .rotary_profile
+                .as_ref()
+                .unwrap()
+                .steps,
+            Some(24)
+        );
+        assert_eq!(
+            pulses.value(),
+            "20",
+            "newer typing that returns to the original accepted value survives landing"
+        );
         save.click();
         tick().await;
         support::run_pending(&runtime).await;
         tick().await;
-        assert_eq!(runtime.model().accepted.unwrap().document.module_definitions[0].electrical.rotary_profile.as_ref().unwrap().steps, Some(20));
-        runtime.submit(boardstudio_application::Event::Undo { operation_id: runtime.operation() });
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .module_definitions[0]
+                .electrical
+                .rotary_profile
+                .as_ref()
+                .unwrap()
+                .steps,
+            Some(20)
+        );
+        runtime.submit(boardstudio_application::Event::Undo {
+            operation_id: runtime.operation(),
+        });
         support::run_pending(&runtime).await;
         tick().await;
         assert_eq!(pulses.value(), "24", "a clean rotary draft follows Undo");
-        runtime.submit(boardstudio_application::Event::Redo { operation_id: runtime.operation() });
+        runtime.submit(boardstudio_application::Event::Redo {
+            operation_id: runtime.operation(),
+        });
         support::run_pending(&runtime).await;
         tick().await;
         assert_eq!(pulses.value(), "20", "a clean rotary draft follows Redo");
@@ -811,11 +879,19 @@ mod settlement_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut blocker = PendingEdits::default();
         blocker.begin(
-            &runtime, (), "rotary-failure-blocker", None,
+            &runtime,
+            (),
+            "rotary-failure-blocker",
+            None,
             EditResolver::new("rotary-failure-blocker", |accepted: &AcceptedSnapshot| {
                 let mut document = accepted.document.as_ref().clone();
                 document.name = "Failure blocker".into();
-                replacement_commit(EditOperation::ReplaceDocument { document: Box::new(document) }, vec![])
+                replacement_commit(
+                    EditOperation::ReplaceDocument {
+                        document: Box::new(document),
+                    },
+                    vec![],
+                )
             }),
         );
         support::drive_pending(&runtime);
@@ -831,8 +907,16 @@ mod settlement_tests {
         tick().await;
         support::run_pending(&runtime).await;
         tick().await;
-        assert_eq!(pulses.value(), "26", "an older failure preserves newer rotary typing");
-        assert!(root.text_content().unwrap().contains("controlled rotary failure"));
+        assert_eq!(
+            pulses.value(),
+            "26",
+            "an older failure preserves newer rotary typing"
+        );
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("controlled rotary failure")
+        );
         runtime.unsubscribe();
         root.remove();
     }

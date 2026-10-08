@@ -584,10 +584,12 @@ mod mounted_settlement_tests {
         let _ = version();
         use_hook({
             let runtime = runtime.clone();
-            move || runtime.subscribe(Rc::new(move || {
-                let mut version = version;
-                version += 1;
-            }))
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
         });
         let snapshot = runtime.model().accepted.unwrap();
         let module = ModuleEntry {
@@ -617,38 +619,65 @@ mod mounted_settlement_tests {
         let runtime = support::new_runtime();
         let mut document = ProjectDoc::empty("attachment-settlement", "Attachment settlement");
         document.boards.push(Board {
-            id: "board".into(), name: "Board".into(), outline_ids: vec![], part_ids: vec![],
-            net_ids: vec![], thickness: 1.6, traces: vec![], vias: vec![],
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
         });
-        document.module_definitions.push(serde_json::from_value(serde_json::json!({
-            "id":"module", "name":"Module", "family":"test", "variant":"test",
-            "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
-            "board":{"contours":[]}, "electrical":{"protocol":"gpio"}
-        })).unwrap());
+        document.module_definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"module", "name":"Module", "family":"test", "variant":"test",
+                "source":{"repository":"test", "revision":"test", "path":"test", "license":"test"},
+                "board":{"contours":[]}, "electrical":{"protocol":"gpio"}
+            }))
+            .unwrap(),
+        );
         support::open_document(&runtime, document).await;
-        let probe = Rc::new(Probe { runtime: runtime.clone(), navigations: RefCell::new(Vec::new()) });
+        let probe = Rc::new(Probe {
+            runtime: runtime.clone(),
+            navigations: RefCell::new(Vec::new()),
+        });
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
         tick().await;
-        let attach: web_sys::HtmlElement = root.query_selector(".m1-module-attach button").unwrap().unwrap().dyn_into().unwrap();
+        let attach: web_sys::HtmlElement = root
+            .query_selector(".m1-module-attach button")
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         attach.click();
         tick().await;
         support::drive_pending(&runtime);
         entered.await.unwrap();
         assert!(attach.has_attribute("disabled"));
-        assert!(probe.navigations.borrow().is_empty(), "navigation waits for landing");
+        assert!(
+            probe.navigations.borrow().is_empty(),
+            "navigation waits for landing"
+        );
         release.send(()).unwrap();
         tick().await;
         support::run_pending(&runtime).await;
         tick().await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.modules.len(), 1);
-        assert_eq!(probe.navigations.borrow().len(), 1, "landing delivers one exact selection follow-up");
+        assert_eq!(
+            probe.navigations.borrow().len(),
+            1,
+            "landing delivers one exact selection follow-up"
+        );
         let navigation = probe.navigations.borrow()[0].clone();
         assert_eq!(navigation.module_id, accepted.document.modules[0].id);
         assert_eq!(navigation.definition_id, "module");
@@ -662,26 +691,53 @@ mod mounted_settlement_tests {
         tick().await;
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        root.query_selector("#depart-attachment-owner").unwrap().unwrap().dyn_into::<web_sys::HtmlElement>().unwrap().click();
+        root.query_selector("#depart-attachment-owner")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
         tick().await;
         release.send(()).unwrap();
         tick().await;
         support::run_pending(&runtime).await;
         tick().await;
-        assert_eq!(probe.navigations.borrow().len(), 1, "departed owner retires its follow-up silently");
-        assert!(!root.text_content().unwrap().contains("controlled attachment failure"));
+        assert_eq!(
+            probe.navigations.borrow().len(),
+            1,
+            "departed owner retires its follow-up silently"
+        );
+        assert!(
+            !root
+                .text_content()
+                .unwrap()
+                .contains("controlled attachment failure")
+        );
         assert!(!root.text_content().unwrap().contains("Module attached."));
         assert!(!attach.has_attribute("disabled"));
 
-        root.query_selector("#return-attachment-owner").unwrap().unwrap().dyn_into::<web_sys::HtmlElement>().unwrap().click();
+        root.query_selector("#return-attachment-owner")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
         tick().await;
         support::fail_next_core_reply(&runtime, "controlled attachment failure");
         attach.click();
         tick().await;
         support::run_pending(&runtime).await;
         tick().await;
-        assert!(root.text_content().unwrap().contains("controlled attachment failure"));
-        assert_eq!(probe.navigations.borrow().len(), 1, "failure does not navigate");
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("controlled attachment failure")
+        );
+        assert_eq!(
+            probe.navigations.borrow().len(),
+            1,
+            "failure does not navigate"
+        );
         assert!(!attach.has_attribute("disabled"));
         runtime.unsubscribe();
         root.remove();
