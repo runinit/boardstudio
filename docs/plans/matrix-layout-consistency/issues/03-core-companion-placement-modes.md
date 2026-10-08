@@ -1,6 +1,6 @@
 # 03: Core publishes companion placement modes
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 02
 Spec: [spec.md](../spec.md#core-owns-the-parameter-rules) · Map: [map.md](../map.md)
