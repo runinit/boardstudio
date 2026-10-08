@@ -10,7 +10,7 @@ use boardstudio_application::{
 use boardstudio_core::{electrical::ElectricalMode, model::EditOperation};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeEditRequest {
@@ -75,13 +75,15 @@ pub fn use_board_wiring_mode_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringModeActions {
-    let edits = use_hook(PendingEditSignals::<BoardWiringModeFeedbackTarget>::new);
+    // A rendered owner has one field binding. Departing drops only its observation;
+    // its edit remains in the Session queue and can still land normally.
+    let edits = use_hook(|| {
+        Rc::new(RefCell::new(PendingEditSignals::<
+            BoardWiringModeFeedbackTarget,
+        >::new()))
+    });
     let mut draft = use_signal(String::new);
     let mut failure = use_signal(|| None::<String>);
-    // Views bound to a target that is no longer rendered: their settlement writes are
-    // invisible, so a late result of an earlier target cannot reach the visible control.
-    let detached_draft = use_signal(String::new);
-    let detached_failure = use_signal(|| None::<String>);
     let mut bound = use_signal(|| None::<BoardWiringModeFeedbackTarget>);
     let settlement_tick = use_signal(|| 0u64);
     let _ = settlement_tick();
@@ -100,11 +102,11 @@ pub fn use_board_wiring_mode_edits(
         },
     );
     if bound.peek().as_ref() != target.as_ref() {
-        if let Some(previous) = bound.peek().clone() {
-            edits.bind_field(previous, detached_draft, detached_failure);
-        }
+        // Feedback targets exclude accepted revision/token, so ordinary landing does
+        // not replace this helper; only selection or scope ownership does.
+        *edits.borrow_mut() = PendingEditSignals::new();
         if let Some(current) = target.clone() {
-            edits.bind_field(current, draft, failure);
+            edits.borrow().bind_field(current, draft, failure);
         }
         bound.set(target.clone());
         failure.set(None);
@@ -112,7 +114,7 @@ pub fn use_board_wiring_mode_edits(
     }
     let pending = target
         .as_ref()
-        .is_some_and(|target| edits.is_pending(target));
+        .is_some_and(|target| edits.borrow().is_pending(target));
     if !pending && draft.peek().as_str() != accepted {
         draft.set(accepted);
     }
@@ -126,7 +128,7 @@ pub fn use_board_wiring_mode_edits(
             // captured Scope moves on. The mode control therefore only answers for the
             // workspace it belongs to.
             let panel_is_live = workspace() == "PCB";
-            let results = edits.settle(panel_is_live, |target| {
+            let results = edits.borrow().settle(panel_is_live, |target| {
                 let model = runtime.model();
                 model.accepted.as_ref().map_or_else(
                     || mode_text(ElectricalMode::Matrix),
@@ -168,7 +170,7 @@ pub fn use_board_wiring_mode_edits(
             let text = mode_text(request.mode);
             draft.set(text.clone());
             failure.set(None);
-            edits.begin_field(
+            edits.borrow().begin_field(
                 &runtime,
                 request.identity.feedback_target(),
                 "pcb-wiring-mode",

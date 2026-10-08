@@ -15,6 +15,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -345,26 +346,17 @@ impl PartNetEditKey {
     }
 }
 
+/// The panel owns one Add net control across selected-part changes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PartNetActionKey {
+    CreateNet,
+}
+
 #[derive(Clone)]
 struct PartNetOwner {
     edits: Rc<RefCell<PendingEdits<PartNetEditKey>>>,
-    /// The generator classification queue has not finished for a pending create.
-    preparing_create: Signal<bool>,
     /// The latest submitted net per assignment key: the pending select projection.
     submissions: Signal<Vec<(PartNetEditKey, Option<String>)>>,
-}
-
-/// Whether a queued or pending one-shot net creation is still running. The key carries
-/// the accepted revision it was submitted with, so pending-ness is read from the
-/// remembered submission rather than a freshly projected identity.
-pub(super) fn create_net_pending() -> bool {
-    try_consume_context::<PartNetOwner>().is_some_and(|owner| {
-        (owner.preparing_create)()
-            || owner.submissions.read().iter().any(|(key, _)| {
-                matches!(key, PartNetEditKey::CreateNet { .. })
-                    && owner.edits.borrow().is_pending(key)
-            })
-    })
 }
 
 pub(super) fn pending_net(
@@ -399,12 +391,19 @@ pub fn use_pcb_part_net_edits(
     let latest = use_signal(|| None::<PartNetEditKey>);
     let feedback = use_signal(|| None::<PartNetFeedback>);
     let submissions = use_signal(Vec::<(PartNetEditKey, Option<String>)>::new);
+    // Preparation is caller-owned; the shared helper owns the submitted action.
     let preparing_create = use_signal(|| false);
+    let create_edits = use_hook(PendingEditSignals::<PartNetActionKey>::new);
+    let create_disabled = use_signal(|| false);
+    create_edits.bind_one_shot(PartNetActionKey::CreateNet, create_disabled);
+    use_drop({
+        let create_edits = create_edits.clone();
+        move || create_edits.unbind_one_shot(&PartNetActionKey::CreateNet)
+    });
     let settlement_tick = use_signal(|| 0u64);
     let _ = settlement_tick();
     use_context_provider(|| PartNetOwner {
         edits: edits.clone(),
-        preparing_create,
         submissions,
     });
     let queue = use_hook(|| {
@@ -421,6 +420,7 @@ pub fn use_pcb_part_net_edits(
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
         let edits = edits.clone();
+        let create_edits = create_edits.clone();
         let mut submissions = submissions;
         let latest = latest;
         let mut feedback = feedback;
@@ -429,7 +429,8 @@ pub fn use_pcb_part_net_edits(
             // Connection selects project their pending net through the keyed submissions
             // memory; the collection owns the ticket lifetime and Scope retirement.
             let results = edits.borrow_mut().settle(workspace() == "PCB");
-            if results.is_empty() {
+            let create_results = create_edits.settle(workspace() == "PCB", |_| String::new());
+            if results.is_empty() && create_results.is_empty() {
                 return;
             }
             for result in results {
@@ -447,12 +448,24 @@ pub fn use_pcb_part_net_edits(
                     }));
                 }
             }
+            // The latest key remembers the submitted part only for inline attribution;
+            // the helper owns its ticket and releases the panel's disabled Signal.
+            for result in create_results {
+                let failure = match result {
+                    PendingEditResult::Failed { message, .. } => Some(message),
+                    PendingEditResult::Landed { .. } | PendingEditResult::Retired { .. } => None,
+                };
+                if let Some(PartNetEditKey::CreateNet { target }) = latest.peek().clone() {
+                    feedback.set(failure.map(|failure| PartNetFeedback { target, failure }));
+                }
+            }
             settlement_tick.set(settlement_tick().wrapping_add(1));
         }
     }));
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
+        let create_edits = create_edits.clone();
         move |request: PartNetEditRequest| {
             if workspace() != "PCB" || scope_generation() != generation || !instance_is_current() {
                 return;
@@ -466,7 +479,10 @@ pub fn use_pcb_part_net_edits(
                 return;
             }
             let create = matches!(&request.action, PartNetEditAction::CreateNet { .. });
-            if create && create_net_pending() {
+            if create
+                && (*preparing_create.peek()
+                    || create_edits.is_pending(&PartNetActionKey::CreateNet))
+            {
                 return;
             }
             let accepted = runtime.model().accepted.unwrap();
@@ -507,6 +523,7 @@ pub fn use_pcb_part_net_edits(
             let alive = alive.clone();
             let instance_is_current = instance_is_current.clone();
             let edits = edits.clone();
+            let create_edits = create_edits.clone();
             let mut submissions = submissions;
             let mut latest = latest;
             let mut feedback = feedback;
@@ -559,28 +576,38 @@ pub fn use_pcb_part_net_edits(
                             Resolution::Retire(reason.clone())
                         }),
                     };
-                    let mut entries = submissions.write();
-                    match entries.iter_mut().find(|(existing, _)| existing == &key) {
-                        Some(entry) => entry.1 = submitted,
-                        None => entries.push((key.clone(), submitted)),
-                    }
-                    drop(entries);
                     latest.set(Some(key.clone()));
                     feedback.set(None);
-                    edits.borrow_mut().begin(
-                        &runtime,
-                        key,
-                        "pcb-part-net",
-                        Some("connection".into()),
-                        resolver,
-                    );
+                    if create {
+                        create_edits.begin_one_shot(
+                            &runtime,
+                            PartNetActionKey::CreateNet,
+                            "pcb-part-net",
+                            Some("connection".into()),
+                            resolver,
+                        );
+                    } else {
+                        let mut entries = submissions.write();
+                        match entries.iter_mut().find(|(existing, _)| existing == &key) {
+                            Some(entry) => entry.1 = submitted,
+                            None => entries.push((key.clone(), submitted)),
+                        }
+                        drop(entries);
+                        edits.borrow_mut().begin(
+                            &runtime,
+                            key,
+                            "pcb-part-net",
+                            Some("connection".into()),
+                            resolver,
+                        );
+                    }
                 }
             });
         }
     });
     let identity = current_part_net_identity(&runtime, generation, instance_is_current());
     let editable = identity.is_some() && workspace() == "PCB";
-    let create_pending = create_net_pending();
+    let create_pending = preparing_create() || create_disabled();
     let visible_feedback = feedback().filter(|feedback| {
         identity
             .as_ref()

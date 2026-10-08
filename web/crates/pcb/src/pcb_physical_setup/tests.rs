@@ -329,6 +329,10 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
         mount(&probe).projection.busy,
         "preparation holds the busy gate"
     );
+    assert!(
+        probe.prepare_sender.borrow().is_some(),
+        "the preparation task parked before its late reply is queued"
+    );
     probe.active.set(false);
     queue_reply(&probe, Ok(reversible(&probe)));
     settle(&runtime).await;
