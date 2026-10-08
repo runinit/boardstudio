@@ -5,6 +5,7 @@
 //! first-instance fallback, instance settings, board thickness, wireless battery
 //! defaults and flipped-instance handling. Apply, evaluation, findings and
 //! presentation all reuse it. Filled in by the effective-inputs slice.
+use crate::geometry::board_contours;
 use crate::model::*;
 
 use super::change::MechanicalTarget;
@@ -245,11 +246,20 @@ fn overlay_shared<S: serde::Serialize>(
     serde_json::from_value(serde_json::Value::Object(output)).map_err(|error| error.to_string())
 }
 
-/// Applies the wireless battery default and board thickness derivation.
+/// Applies the defaults every effective configuration needs on top of its stored value.
 ///
-/// The default battery sits at the board-local part center, mirrored across X
-/// for a flipped instance.
-fn apply_mechanical_defaults(
+/// Ports the adapter's remaining `mechanical_defaults` computation so `effective_inputs`
+/// is the single source of the fully defaulted configuration:
+///
+/// - the wireless battery default sits at the board-local part center, mirrored across
+///   X for a flipped instance, and drives `battery_height`;
+/// - the stabilizer defaults propose a footprint for every wide MX switch keycap that
+///   has no existing `STAB_MX_` footprint, rounding the key units and deriving the
+///   rotation. Explicit stabilizer overrides keep every field except the recomputed
+///   units and rotation.
+///
+/// The host `cad_jobs::mechanical_defaults` is now a thin delegate to this function.
+pub fn apply_mechanical_defaults(
     document: &ProjectDoc,
     mut configuration: MechanicalConfiguration,
     board_id: &str,
@@ -300,7 +310,180 @@ fn apply_mechanical_defaults(
     if let Some(battery) = &configuration.battery {
         configuration.battery_height = battery.size.z;
     }
+
+    let explicit = configuration.stabilizers.clone().unwrap_or_default();
+    let mut stabilizers = Vec::new();
+    for part in &parts {
+        let Some(definition) = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == part.definition_id)
+        else {
+            continue;
+        };
+        let size = part.keycap.as_ref().or(definition.keycap.as_ref());
+        let Some(size) = size.filter(|size| size.x.max(size.y) >= 37.0) else {
+            continue;
+        };
+        if definition
+            .generator
+            .as_ref()
+            .is_none_or(|generator| generator.source.to_lowercase() != "ceoloide/switch_mx")
+        {
+            continue;
+        }
+        let has_existing = document.parts.iter().any(|candidate| {
+            let is_stabilizer = document
+                .definitions
+                .iter()
+                .find(|entry| entry.id == candidate.definition_id)
+                .and_then(|entry| entry.kicad_source.as_ref())
+                .is_some_and(|source| source.source.contains("(footprint \"STAB_MX_"));
+            is_stabilizer
+                && (candidate.pose.at.x - part.pose.at.x)
+                    .hypot(candidate.pose.at.y - part.pose.at.y)
+                    < 0.01
+        });
+        if has_existing {
+            continue;
+        }
+        let key_units = (((size.x.max(size.y) + 1.0) / 19.05) * 4.0).round() / 4.0;
+        let units = if key_units <= 2.75 { 2.0 } else { key_units };
+        let rotation = if size.y > size.x { 90.0 } else { 0.0 };
+        let mut stabilizer = explicit
+            .iter()
+            .find(|entry| entry.part_id == part.id)
+            .cloned()
+            .unwrap_or(MechanicalStabilizerOverride {
+                profile: None,
+                part_id: part.id.clone(),
+                kind: MechanicalStabilizerKind::PcbMount,
+                units,
+                rotation: Some(rotation),
+            });
+        stabilizer.units = units;
+        stabilizer.rotation = Some(rotation);
+        stabilizers.push(stabilizer);
+    }
+    configuration.stabilizers = Some(stabilizers);
     configuration
+}
+
+/// Projects the effective document a target's mechanical resolution sees.
+///
+/// Installs the resolved effective configuration as `document.mechanical` and, for a
+/// physical instance, records `document.physical_instance_id`. The remaining
+/// defaulting (battery placement and stabilizer proposals) lives in
+/// [`apply_mechanical_defaults`], which [`effective_inputs`] already applies, so the
+/// projected document carries the fully defaulted configuration.
+///
+/// A flipped instance is mirrored exactly as the host `effective_case_inputs` does:
+/// the target board's parts get `pose.at.x = -x`, `pose.rotation = -rotation`, a
+/// swapped `side` and a rewritten `side` generator parameter; that board's
+/// `board_references` are disabled; and the board's contours are mirrored by negating
+/// each point's X and reversing the point order. The mirrored contours are returned
+/// so callers can resolve the assembly and replace the scene's target-board contours
+/// without recomputing them.
+///
+/// A missing canonical or instance configuration is not an error here: the structural
+/// projection (instance identity, part mirroring, contours) is still meaningful, and
+/// callers that require a configuration use [`effective_inputs`] directly. This matches
+/// the host projection's previous leniency.
+pub fn effective_document(
+    document: &ProjectDoc,
+    target: &MechanicalTarget,
+) -> Result<(ProjectDoc, Vec<Contour>), String> {
+    let mut effective = document.clone();
+    let (board_id, flipped) = match target {
+        MechanicalTarget::Board { board_id } => {
+            // A canonical configuration that belongs to another board is still
+            // projected with this board's defaults, matching the host's previous
+            // unconditional `document.mechanical.clone()` behaviour.
+            effective.mechanical = document.mechanical.clone().map(|configuration| {
+                effective_inputs(document, target)
+                    .map(|inputs| inputs.configuration)
+                    .unwrap_or_else(|_| {
+                        apply_mechanical_defaults(document, configuration, board_id, false)
+                    })
+            });
+            (board_id.clone(), false)
+        }
+        MechanicalTarget::Instance { instance_id } => {
+            let instance = document
+                .hardware
+                .as_ref()
+                .and_then(|hardware| {
+                    hardware
+                        .instances
+                        .iter()
+                        .find(|instance| instance.id == *instance_id)
+                })
+                .ok_or("The selected physical instance is unavailable")?;
+            effective.physical_instance_id = Some(instance_id.clone());
+            effective.mechanical = effective_inputs(document, target)
+                .ok()
+                .map(|inputs| inputs.configuration);
+            (instance.board_id.clone(), instance.flipped)
+        }
+    };
+
+    if flipped {
+        let selected_parts = document
+            .boards
+            .iter()
+            .find(|board| board.id == board_id)
+            .map(|board| {
+                board
+                    .part_ids
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+            })
+            .unwrap_or_default();
+        for part in &mut effective.parts {
+            if !selected_parts.contains(&part.id) {
+                continue;
+            }
+            part.pose.at.x = -part.pose.at.x;
+            part.pose.rotation = -part.pose.rotation;
+            part.side = match part.side {
+                Side::Front => Side::Back,
+                Side::Back => Side::Front,
+            };
+            let parameters = part
+                .generator_parameters
+                .get_or_insert_with(Default::default);
+            parameters.insert(
+                "side".into(),
+                serde_json::Value::String(if part.side == Side::Front { "F" } else { "B" }.into()),
+            );
+        }
+        for reference in &mut effective.board_references {
+            if reference.board_id == board_id {
+                reference.enabled = false;
+            }
+        }
+    }
+
+    // `geometry::board_contours` reads the outline path cache, so build it from the
+    // source document first; a default (empty) cache would resolve no contours. The
+    // contours are taken before mirroring so a flipped instance reflects the same
+    // accepted geometry the host scene carried.
+    let (cache, _, _) = crate::geometry::outlines(document, None, &[]);
+    let (per_board, _, _) = board_contours(document, &cache);
+    let mut contours = per_board
+        .into_iter()
+        .find(|entry| entry.board_id == board_id)
+        .map(|entry| entry.contours)
+        .unwrap_or_default();
+    if flipped {
+        for contour in &mut contours {
+            for point in &mut contour.points {
+                point.x = -point.x;
+            }
+            contour.points.reverse();
+        }
+    }
+    Ok((effective, contours))
 }
 
 #[cfg(test)]
@@ -499,6 +682,8 @@ mod tests {
         document.boards.push(board("board", 1.6));
         let mut canonical = configuration("board");
         canonical.clearance = 0.4;
+        // The defaulting pass always materializes the stabilizer proposal list.
+        canonical.stabilizers = Some(vec![]);
         document.mechanical = Some(canonical.clone());
 
         let inputs = effective_inputs(
@@ -576,7 +761,9 @@ mod tests {
             Some(vec![mount("local-closure")])
         );
         assert_eq!(configuration.battery, Some(battery()));
-        assert_eq!(configuration.stabilizers, Some(vec![stabilizer()]));
+        // The defaulting pass recomputes the stabilizer proposal list; this board
+        // has no wide MX keycap part, so the list is empty.
+        assert_eq!(configuration.stabilizers, Some(vec![]));
         assert_eq!(configuration.board_id, "board");
         assert_eq!(configuration.pcb_thickness, 1.6);
     }
@@ -883,5 +1070,92 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_flipped_instance_mirrors_parts_references_and_contours() {
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline".into(),
+            center: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 80.0, y: 60.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
+        let mut board = board("board", 1.6);
+        board.outline_ids = vec!["outline".into()];
+        board.part_ids = vec!["left-switch".into(), "right-switch".into()];
+        document.boards.push(board);
+        document.parts.push(part("left-switch", 3.0));
+        document.parts.push(part("right-switch", 40.0));
+        document.board_references.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "reference", "boardId": "board", "assetId": "asset",
+                "enabled": true,
+                "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+                "elevation": 0.0, "modelAssets": {}
+            }))
+            .unwrap(),
+        );
+        let mut flipped = instance(
+            "left",
+            "board",
+            MechanicalConstructionOwnership::Local,
+            Some(configuration("board")),
+        );
+        flipped.flipped = true;
+        document.hardware = Some(hardware(vec![flipped], None, HardwareTransport::None));
+
+        let (effective, contours) = effective_document(
+            &document,
+            &MechanicalTarget::Instance {
+                instance_id: "left".into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(effective.physical_instance_id.as_deref(), Some("left"));
+        let mirrored = effective
+            .parts
+            .iter()
+            .find(|part| part.id == "left-switch")
+            .unwrap();
+        assert_eq!(mirrored.pose.at.x, -3.0);
+        assert_eq!(mirrored.side, Side::Back);
+        assert_eq!(
+            mirrored.generator_parameters.as_ref().unwrap()["side"],
+            serde_json::Value::String("B".into())
+        );
+        assert_eq!(
+            effective
+                .parts
+                .iter()
+                .find(|part| part.id == "right-switch")
+                .unwrap()
+                .pose
+                .at
+                .x,
+            -40.0
+        );
+        assert!(!effective.board_references[0].enabled);
+
+        // The returned target contours negate X and reverse the point order.
+        let (cache, _, _) = crate::geometry::outlines(&document, None, &[]);
+        let (per_board, _, _) = crate::geometry::board_contours(&document, &cache);
+        let mut expected = per_board
+            .into_iter()
+            .find(|entry| entry.board_id == "board")
+            .unwrap()
+            .contours;
+        for contour in &mut expected {
+            for point in &mut contour.points {
+                point.x = -point.x;
+            }
+            contour.points.reverse();
+        }
+        assert_eq!(contours, expected);
+        assert!(!contours.is_empty(), "the board outline resolves");
     }
 }

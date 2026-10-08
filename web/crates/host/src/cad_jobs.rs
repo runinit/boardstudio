@@ -472,8 +472,6 @@ fn effective_case_inputs(
     scene: &SceneDelta,
     scope: &Scope,
 ) -> Result<(ProjectDoc, SceneDelta), CadJobError> {
-    let mut effective = document.clone();
-    let mut effective_scene = scene.clone();
     let board = document
         .boards
         .iter()
@@ -506,199 +504,47 @@ fn effective_case_inputs(
     };
 
     let flipped = selected_instance.is_some_and(|instance| instance.flipped);
-    if let Some(instance) = selected_instance {
-        effective.physical_instance_id = Some(instance.id.clone());
-    }
-    let configuration = if let Some(instance) = selected_instance {
-        effective_instance_configuration(document, instance, board.thickness)
-    } else {
-        document.mechanical.clone()
-    };
-    effective.mechanical = configuration.map(|configuration| {
-        mechanical_defaults(document, configuration, &scope.board_id, flipped)
-    });
 
+    // Core owns the effective-document projection: the fully defaulted configuration,
+    // the physical-instance identity, flipped-instance part/reference mirroring and the
+    // target board's mirrored contours. The host keeps only the scene transform and
+    // target-contour mirroring that are not part of the document projection.
+    let target = match &scope.instance_id {
+        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
+    };
+    let (effective, target_contours) =
+        boardstudio_core::mechanical::inputs::effective_document(document, &target)
+            .map_err(CadJobError::Blocked)?;
+
+    let mut effective_scene = scene.clone();
     if flipped {
+        // The scene transform and target-contour mirroring are not part of the
+        // document projection, so the host keeps them. Core returns the target
+        // board's mirrored contours for the scene to adopt.
         let selected_parts = board
             .part_ids
             .iter()
             .collect::<std::collections::HashSet<_>>();
-        for part in &mut effective.parts {
-            if !selected_parts.contains(&part.id) {
-                continue;
-            }
-            part.pose.at.x = -part.pose.at.x;
-            part.pose.rotation = -part.pose.rotation;
-            part.side = match part.side {
-                Side::Front => Side::Back,
-                Side::Back => Side::Front,
-            };
-            let parameters = part
-                .generator_parameters
-                .get_or_insert_with(Default::default);
-            parameters.insert(
-                "side".into(),
-                serde_json::Value::String(if part.side == Side::Front { "F" } else { "B" }.into()),
-            );
-        }
-        for reference in &mut effective.board_references {
-            if reference.board_id == scope.board_id {
-                reference.enabled = false;
-            }
-        }
         for transform in &mut effective_scene.transforms {
             if selected_parts.contains(&transform.id) {
                 transform.pose.at.x = -transform.pose.at.x;
                 transform.pose.rotation = -transform.pose.rotation;
             }
         }
-        for board_contours in &mut effective_scene.board_contours {
-            if board_contours.board_id == scope.board_id {
-                for contour in &mut board_contours.contours {
-                    for point in &mut contour.points {
-                        point.x = -point.x;
-                    }
-                    contour.points.reverse();
-                }
-            }
+        if let Some(entry) = effective_scene
+            .board_contours
+            .iter_mut()
+            .find(|entry| entry.board_id == scope.board_id)
+        {
+            entry.contours = target_contours;
         }
     }
     Ok((effective, effective_scene))
-}
-
-/// Thin adapter over the Core effective-inputs read path.
-///
-/// Core resolves the canonical configuration, the ownership-specific shared
-/// overlay (Legacy, Local or Pair), the board thickness, the wireless battery
-/// default and the instance flip. The `board_thickness` parameter is retained
-/// so the existing caller is unchanged; Core derives the same value from the
-/// instance's board.
-#[cfg(feature = "page")]
-fn effective_instance_configuration(
-    document: &ProjectDoc,
-    instance: &PhysicalBoardInstance,
-    board_thickness: f64,
-) -> Option<MechanicalConfiguration> {
-    let _ = board_thickness;
-    boardstudio_core::mechanical::inputs::effective_inputs(
-        document,
-        &boardstudio_core::mechanical::MechanicalTarget::Instance {
-            instance_id: instance.id.clone(),
-        },
-    )
-    .ok()
-    .map(|inputs| inputs.configuration)
-}
-
-#[cfg(feature = "page")]
-fn mechanical_defaults(
-    document: &ProjectDoc,
-    mut configuration: MechanicalConfiguration,
-    board_id: &str,
-    flipped: bool,
-) -> MechanicalConfiguration {
-    let board = document.boards.iter().find(|board| board.id == board_id);
-    let parts = document
-        .parts
-        .iter()
-        .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
-        .collect::<Vec<_>>();
-    fn center(parts: &[&Part], coordinate: impl Fn(&Part) -> f64) -> f64 {
-        let values = parts
-            .iter()
-            .map(|part| coordinate(part))
-            .collect::<Vec<_>>();
-        values
-            .iter()
-            .copied()
-            .reduce(f64::min)
-            .zip(values.iter().copied().reduce(f64::max))
-            .map_or(0.0, |(min, max)| (min + max) / 2.0)
-    }
-    let at = Vec2 {
-        x: center(&parts, |part| part.pose.at.x) * if flipped { -1.0 } else { 1.0 },
-        y: center(&parts, |part| part.pose.at.y),
-    };
-    if configuration.battery.is_none()
-        && document
-            .hardware
-            .as_ref()
-            .is_some_and(|hardware| hardware.transport == HardwareTransport::Wireless)
-    {
-        configuration.battery = Some(MechanicalBattery {
-            cable_width: Some(2.0),
-            size: Vec3 {
-                x: 30.0,
-                y: 20.0,
-                z: 6.0,
-            },
-            at,
-            cable_exit: Vec2 {
-                x: at.x + 17.0,
-                y: at.y,
-            },
-        });
-    }
-    if let Some(battery) = &configuration.battery {
-        configuration.battery_height = battery.size.z;
-    }
-
-    let explicit = configuration.stabilizers.clone().unwrap_or_default();
-    let mut stabilizers = Vec::new();
-    for part in &parts {
-        let Some(definition) = document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == part.definition_id)
-        else {
-            continue;
-        };
-        let size = part.keycap.as_ref().or(definition.keycap.as_ref());
-        let Some(size) = size.filter(|size| size.x.max(size.y) >= 37.0) else {
-            continue;
-        };
-        if definition
-            .generator
-            .as_ref()
-            .is_none_or(|generator| generator.source.to_lowercase() != "ceoloide/switch_mx")
-        {
-            continue;
-        }
-        let has_existing = document.parts.iter().any(|candidate| {
-            let is_stabilizer = document
-                .definitions
-                .iter()
-                .find(|entry| entry.id == candidate.definition_id)
-                .and_then(|entry| entry.kicad_source.as_ref())
-                .is_some_and(|source| source.source.contains("(footprint \"STAB_MX_"));
-            is_stabilizer
-                && (candidate.pose.at.x - part.pose.at.x)
-                    .hypot(candidate.pose.at.y - part.pose.at.y)
-                    < 0.01
-        });
-        if has_existing {
-            continue;
-        }
-        let key_units = (((size.x.max(size.y) + 1.0) / 19.05) * 4.0).round() / 4.0;
-        let units = if key_units <= 2.75 { 2.0 } else { key_units };
-        let rotation = if size.y > size.x { 90.0 } else { 0.0 };
-        let mut stabilizer = explicit
-            .iter()
-            .find(|entry| entry.part_id == part.id)
-            .cloned()
-            .unwrap_or(MechanicalStabilizerOverride {
-                profile: None,
-                part_id: part.id.clone(),
-                kind: MechanicalStabilizerKind::PcbMount,
-                units,
-                rotation: Some(rotation),
-            });
-        stabilizer.units = units;
-        stabilizer.rotation = Some(rotation);
-        stabilizers.push(stabilizer);
-    }
-    configuration.stabilizers = Some(stabilizers);
-    configuration
 }
 
 #[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
@@ -923,10 +769,19 @@ mod tests {
     fn flipped_instance_reflects_only_its_board_parts_and_scene_transform() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.revision = 4;
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline-a".into(),
+            center: Vec2 { x: 10.0, y: 0.0 },
+            size: Vec2 { x: 20.0, y: 10.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
         document.boards.push(Board {
             id: "board-a".into(),
             name: "Board A".into(),
-            outline_ids: vec![],
+            outline_ids: vec!["outline-a".into()],
             part_ids: vec!["part-a".into()],
             net_ids: vec![],
             thickness: 1.6,
@@ -996,7 +851,18 @@ mod tests {
             ],
             matrix_scenes: vec![],
             contours: vec![],
-            board_contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board-a".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: 0.0, y: 5.0 },
+                        Vec2 { x: 0.0, y: -5.0 },
+                        Vec2 { x: 20.0, y: -5.0 },
+                        Vec2 { x: 20.0, y: 5.0 },
+                    ],
+                    hole: false,
+                }],
+            }],
             board_readiness: vec![],
             board_outline_scenes: vec![],
             module_scenes: vec![],
@@ -1030,6 +896,21 @@ mod tests {
         assert_eq!(effective.parts[1], document.parts[1]);
         assert_eq!(scene.transforms[0].pose.at.x, -3.0);
         assert_eq!(scene.transforms[1].pose.at.x, 8.0);
+        // The target board's scene contours come from Core's mirrored projection.
+        let board_contours = scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == "board-a")
+            .unwrap();
+        assert!(!board_contours.contours.is_empty());
+        assert!(
+            board_contours
+                .contours
+                .iter()
+                .flat_map(|contour| &contour.points)
+                .all(|point| point.x <= 0.0),
+            "the mirrored contours negate X"
+        );
         assert_eq!(
             captured_document.physical_instance_id.as_deref(),
             Some("instance-a")

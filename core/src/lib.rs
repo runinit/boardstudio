@@ -541,6 +541,26 @@ impl CoreEngine {
         outline_controls::detach_removed(&self.document.parts, &mut next);
         changed.sort();
         changed.dedup();
+        // A committed mechanical edit that reports nothing changed is a no-op: return
+        // the current committed scene without a revision bump, an undo entry or a redo
+        // clear. The no-op policy of every other operation is unchanged.
+        if changed.is_empty()
+            && command.phase == EditPhase::Commit
+            && matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. })
+        {
+            return self.scene(
+                id,
+                SceneInput {
+                    transaction: &command.transaction_id,
+                    changed,
+                    document: &self.document,
+                    contours: &self.contours,
+                    geom_findings: &self.findings,
+                    cache: &self.outline_cache,
+                    kind: SceneKind::Committed,
+                },
+            );
+        }
         let (cache, contours, findings) = if affects_outline(&command.operation) {
             let previous = if matches!(command.operation, EditOperation::MoveParts { .. }) {
                 Some(&self.outline_cache)
@@ -1005,6 +1025,9 @@ impl PreviewBackup {
 }
 
 fn affects_outline(op: &EditOperation) -> bool {
+    if let EditOperation::ApplyMechanicalEdit { edit } = op {
+        return crate::mechanical::edit::affects_outline(&edit.change);
+    }
     matches!(
         op,
         EditOperation::SetMountedModule {
@@ -1688,5 +1711,279 @@ mod set_wiring_mode_tests {
         assert!(!affects_outline(&set_mode(
             electrical::ElectricalMode::Direct
         )));
+    }
+}
+
+#[cfg(test)]
+mod mechanical_edit_engine_tests {
+    use super::*;
+    use crate::mechanical::change::MechanicalDimension;
+    use crate::mechanical::{MechanicalChange, MechanicalEdit, MechanicalTarget};
+
+    fn board() -> Board {
+        Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        }
+    }
+
+    fn configuration(board_id: &str) -> MechanicalConfiguration {
+        serde_json::from_value(serde_json::json!({
+            "boardId": board_id, "method": "printed", "mount": "rigid",
+            "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+            "bottomFoamThickness": 0.4, "batteryHeight": 0.0, "bottomThickness": 3.0,
+            "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+            "mounts": [], "closureMounts": [], "profiles": []
+        }))
+        .unwrap()
+    }
+
+    fn template() -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+            "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+                "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+            "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+            "envelopeSource":{"courtyard":"generated"},
+            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
+        }))
+        .unwrap()
+    }
+
+    fn edit_op(board_id: &str, change: MechanicalChange, mounting_hole: bool) -> EditOperation {
+        EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(MechanicalEdit {
+                target: MechanicalTarget::Board {
+                    board_id: board_id.into(),
+                },
+                change,
+                mounting_hole: mounting_hole.then(|| Box::new(template())),
+            }),
+        }
+    }
+
+    fn command(base: u64, operation: EditOperation) -> CoreRequest {
+        CoreRequest::Edit {
+            id: "mechanical".into(),
+            command: EditCommand {
+                base_revision: base,
+                transaction_id: "mechanical".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation,
+            },
+        }
+    }
+
+    fn open(engine: &mut CoreEngine, document: ProjectDoc) -> SceneDelta {
+        match engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document,
+        }) {
+            CoreReply::Scene { scene, .. } => scene,
+            reply => panic!("open failed: {reply:?}"),
+        }
+    }
+
+    fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
+        match reply {
+            CoreReply::Scene {
+                scene, document, ..
+            } => (scene, *document),
+            reply => panic!("expected scene: {reply:?}"),
+        }
+    }
+
+    fn generated_parts(document: &ProjectDoc) -> Vec<&str> {
+        document
+            .parts
+            .iter()
+            .map(|part| part.id.as_str())
+            .filter(|id| id.starts_with("case-closure/"))
+            .collect()
+    }
+
+    fn generated_definitions(document: &ProjectDoc) -> Vec<&str> {
+        document
+            .definitions
+            .iter()
+            .map(|definition| definition.id.as_str())
+            .filter(|id| id.starts_with("assembly-closure/definition/"))
+            .collect()
+    }
+
+    /// Case 3: a no-op mechanical edit adds no history step and no revision bump.
+    #[test]
+    fn a_no_op_mechanical_edit_keeps_revision_and_history() {
+        let mut engine = CoreEngine::new();
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.boards.push(board());
+        document.mechanical = Some(configuration("board"));
+        open(&mut engine, document);
+
+        let revision = engine.document.revision;
+        let undo = engine.undo.len();
+        let redo = engine.redo.len();
+        let reply = engine.handle(command(
+            revision,
+            edit_op(
+                "board",
+                MechanicalChange::SetDimension {
+                    field: MechanicalDimension::WallThickness,
+                    value: 2.0,
+                },
+                false,
+            ),
+        ));
+        let CoreReply::Scene {
+            scene, document, ..
+        } = reply
+        else {
+            panic!("expected scene")
+        };
+        assert!(scene.changed_ids.is_empty());
+        assert_eq!(document.revision, revision, "no revision bump");
+        assert_eq!(engine.document.revision, revision);
+        assert_eq!(engine.undo.len(), undo, "no undo entry");
+        assert_eq!(engine.redo.len(), redo, "redo is not cleared");
+    }
+
+    /// Case 2: generated clearance parts, definitions and memberships appear in
+    /// the same reply and disappear together on one Undo.
+    #[test]
+    fn closure_projection_lands_atomically_and_undoes_in_one_step() {
+        let mut engine = CoreEngine::new();
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline".into(),
+            center: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 80.0, y: 60.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
+        let mut board = board();
+        board.outline_ids = vec!["outline".into()];
+        document.boards.push(board);
+        // Absent closure mounts are initialized by the edit.
+        document.mechanical = Some(configuration("board"));
+        document.mechanical.as_mut().unwrap().closure_mounts = None;
+        open(&mut engine, document);
+
+        let revision = engine.document.revision;
+        let (reply_scene, projected) = scene(engine.handle(command(
+            revision,
+            edit_op("board", MechanicalChange::InitializeClosures, true),
+        )));
+
+        let parts = generated_parts(&projected);
+        let definitions = generated_definitions(&projected);
+        assert!(!parts.is_empty(), "generated clearance parts appear");
+        assert!(
+            !definitions.is_empty(),
+            "generated clearance definitions appear"
+        );
+        assert!(
+            projected.boards[0]
+                .part_ids
+                .iter()
+                .any(|id| id.starts_with("case-closure/")),
+            "the board membership includes the generated parts"
+        );
+        for id in parts.iter().chain(definitions.iter()) {
+            assert!(
+                reply_scene.changed_ids.contains(&(*id).to_string()),
+                "changed ids name generated {id}"
+            );
+        }
+        assert!(reply_scene.changed_ids.contains(&"board".to_string()));
+
+        let undo_reply = engine.handle(CoreRequest::Undo { id: "undo".into() });
+        let (_, undone) = scene(undo_reply);
+        assert!(
+            generated_parts(&undone).is_empty(),
+            "one Undo removes every generated part"
+        );
+        assert!(
+            generated_definitions(&undone).is_empty(),
+            "one Undo removes every generated definition"
+        );
+        assert!(
+            undone.boards[0]
+                .part_ids
+                .iter()
+                .all(|id| !id.starts_with("case-closure/")),
+            "one Undo removes the generated memberships"
+        );
+        assert_eq!(
+            undone.mechanical.as_ref().unwrap().closure_mounts,
+            None,
+            "one Undo restores the absent closure mounts"
+        );
+    }
+
+    /// Case 6: a pure settings edit does not rebuild board outlines; the
+    /// outline-version recovery snapshot is the observable.
+    #[test]
+    fn pure_settings_edits_preserve_the_outline_recovery_snapshot() {
+        let mut source: ProjectDoc = serde_json::from_str(include_str!(
+            "../tests/fixtures/reviung41-outline-original.json"
+        ))
+        .unwrap();
+        // Protect a generated gap so opening the project writes a recovery snapshot.
+        let mut probe = CoreEngine::new();
+        let probe_scene = open(&mut probe, source.clone());
+        let gap = probe_scene.board_outline_scenes[0]
+            .gaps
+            .first()
+            .cloned()
+            .expect("the repaired outline exposes a gap");
+        if let OutlineFeature::PartEnvelope { settings, .. } = &mut source.outline[0] {
+            settings.repair = Some(OutlineRepairSettings {
+                keep_gaps: vec![ProtectedOutlineGap {
+                    id: gap.id,
+                    points: gap.points,
+                }],
+                ..Default::default()
+            });
+        }
+        source.mechanical = Some(configuration("main"));
+
+        let mut engine = CoreEngine::new();
+        open(&mut engine, source);
+        assert!(
+            engine
+                .document
+                .board_outlines
+                .iter()
+                .any(|state| state.generated_last_valid.is_some()),
+            "the protected outline has a recovery snapshot to observe"
+        );
+        let revision = engine.document.revision;
+        let before = engine.document.board_outlines.clone();
+        let (_, document) = scene(engine.handle(command(
+            revision,
+            edit_op(
+                "main",
+                MechanicalChange::SetDimension {
+                    field: MechanicalDimension::WallThickness,
+                    value: 2.5,
+                },
+                false,
+            ),
+        )));
+        assert_eq!(document.revision, revision + 1, "the settings edit commits");
+        assert_eq!(
+            document.board_outlines, before,
+            "a pure settings edit leaves the outline recovery snapshot untouched"
+        );
     }
 }

@@ -5,54 +5,277 @@
 //! submits a typed [`MechanicalEdit`] and the operation reports only the durable
 //! ids whose values or memberships actually changed.
 //!
-//! Slice 06 ports the settings families that need no clearance projection. The
-//! operation resolves the target through [`effective_inputs`], applies the change
-//! to the effective configuration, then persists the effective value back to the
-//! target's stored configuration. A change equal to the accepted value is a no-op
-//! that reports nothing. Malformed values return an error and leave the document
-//! untouched because every mutation is staged on a clone before it is committed.
-//!
-//! Closure-mount initialization (when `closure_mounts` is absent and the mount is
-//! not Gasket) and the generated closure-clearance projection are deferred to
-//! slice 07; see the `TODO(slice 07)` notes on [`initialize_closures`] and
-//! [`apply`].
+//! One accepted edit owns its whole result: the effective configuration change,
+//! absent closure-mount initialization and the generated closure-clearance
+//! projection. Every mutation is staged on a clone, so a failure (including a
+//! missing required mounting-hole template) leaves the accepted document untouched,
+//! and the complete result is one Undo step. A change equal to the accepted value
+//! that needs no initialization is a no-op that reports nothing.
 use crate::model::*;
 
 use super::change::{
     MechanicalChange, MechanicalCriticalFitTextField, MechanicalDimension, MechanicalEdit,
     MechanicalHardwareTextField, MechanicalMountCollection, MechanicalTarget,
 };
-use super::inputs::effective_inputs;
+use super::inputs::{effective_document, effective_inputs};
+
+const GENERATED_PART_PREFIX: &str = "case-closure/";
+const GENERATED_DEFINITION_PREFIX: &str = "assembly-closure/definition/";
+const AUTO_CLOSURE_PREFIX: &str = "auto-closure/";
+const MISSING_TEMPLATE: &str =
+    "A normalized mounting-hole definition is required to project the generated closure clearance.";
 
 /// Applies one mechanical edit, returning the changed durable ids.
 ///
 /// The configuration owner (the canonical board id or the physical instance id)
 /// is always the first reported id; profile, hardware, critical-fit, opening,
-/// mount and process ids follow when the ported code changes them.
+/// mount and process ids follow when the ported code changes them, then the
+/// generated clearance part ids, definition ids and membership owners the
+/// projection actually changed.
 pub fn apply(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>, String> {
+    // Stage the whole edit on a clone so any later failure leaves the accepted
+    // document - configuration, initialization and projection - untouched.
+    let mut next = doc.clone();
+    let changed = apply_staged(&mut next, edit)?;
+    *doc = next;
+    Ok(changed)
+}
+
+fn apply_staged(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>, String> {
     let board_id = target_board_id(doc, &edit.target)?;
     match &edit.change {
-        MechanicalChange::Enable => enable(doc, &edit.target, &board_id),
-        MechanicalChange::Disable => disable(doc, &edit.target, &board_id),
-        MechanicalChange::InitializeClosures => initialize_closures(doc, &edit.target),
-        change => {
-            let inputs = effective_inputs(doc, &edit.target)?;
-            let mut configuration = inputs.configuration;
-            let before = configuration.clone();
-            let mut changed = Vec::new();
-            apply_change(&mut configuration, change, doc, &board_id, &mut changed)?;
-            if configuration == before {
-                return Ok(Vec::new());
-            }
-            changed.insert(0, owner_id(&edit.target, &board_id));
-            // TODO(slice 07): `prepare_document` initializes absent closure mounts from
-            // the resolved assembly (and projects the generated clearance parts) before
-            // persisting. Slice 06 persists the settings-only effective configuration;
-            // the resolver-driven initialization and projection land with slice 07.
-            persist(doc, &edit.target, configuration)?;
-            Ok(changed)
+        MechanicalChange::Enable => enable(doc, &edit.target, &board_id, edit),
+        MechanicalChange::Disable => disable(doc, &edit.target, &board_id, edit),
+        MechanicalChange::InitializeClosures => {
+            initialize_closures(doc, &edit.target, &board_id, edit)
+        }
+        change => apply_settings(doc, edit, change, &board_id),
+    }
+}
+
+/// Whether a mechanical change can create, move or remove generated clearance
+/// geometry.
+///
+/// Projection rebuilds the generated closure-hole parts, definitions and
+/// memberships. Whenever it is required the caller must supply the normalized
+/// mounting-hole template, because the projected holes and their definitions are
+/// derived from it. Enable/Disable and closure initialization change the closure
+/// mount set itself; openings, mounts and mount collections, closure mounts, the
+/// clearance and the mount dimensions that decide a generated hole diameter,
+/// gasket support placement/reset and profile changes can all move the holes the
+/// projection derives. Pure settings edits (battery, closure hardware, critical
+/// fits, hardware text/quantity, process overrides, method/style switches, mount
+/// type) leave every generated hole untouched.
+pub fn requires_projection(change: &MechanicalChange) -> bool {
+    match change {
+        MechanicalChange::Enable
+        | MechanicalChange::Disable
+        | MechanicalChange::InitializeClosures => true,
+        MechanicalChange::AddOpening
+        | MechanicalChange::RemoveOpening { .. }
+        | MechanicalChange::AddOpeningVertex { .. }
+        | MechanicalChange::RemoveOpeningVertex { .. }
+        | MechanicalChange::SetOpeningDimension { .. }
+        | MechanicalChange::AddMount { .. }
+        | MechanicalChange::AddSuggestedClosureMounts(_)
+        | MechanicalChange::SetMountCollection { .. }
+        | MechanicalChange::AdoptClosurePositions(_)
+        | MechanicalChange::SetMountDimension { .. }
+        | MechanicalChange::SetMountPosition { .. }
+        | MechanicalChange::SetMountKind { .. }
+        | MechanicalChange::RemoveMount { .. }
+        | MechanicalChange::SetGasketSupportPlacement { .. }
+        | MechanicalChange::ResetGasketPlacement
+        | MechanicalChange::AssignSwitchProfile { .. }
+        | MechanicalChange::AssignStabilizerProfile { .. }
+        | MechanicalChange::AssignImportedGeometryProfile { .. }
+        | MechanicalChange::UpdateProfile(_)
+        | MechanicalChange::RemoveProfile { .. }
+        | MechanicalChange::SetSwitchFamily { .. } => true,
+        MechanicalChange::SetDimension { field, .. } => {
+            // Only the clearance changes a generated closure-hole diameter.
+            matches!(field, MechanicalDimension::Clearance)
+        }
+        _ => false,
+    }
+}
+
+/// Whether a mechanical change can alter the inputs the outline composer reads.
+///
+/// Pure settings edits leave every outline input untouched, so the committed
+/// outline cache is reused. Changes that can create, move or remove generated
+/// parts/definitions or closure geometry - enable/disable, closure
+/// initialization, openings, mounts and mount collections, closure clearance and
+/// the dimensions that change generated holes, gasket support placement/reset and
+/// profiles - feed the outline composer and must recompute. This is exactly the
+/// projection classification: those are the changes that can alter the generated
+/// clearances the composer reads.
+pub fn affects_outline(change: &MechanicalChange) -> bool {
+    requires_projection(change)
+}
+
+fn apply_settings(
+    doc: &mut ProjectDoc,
+    edit: &MechanicalEdit,
+    change: &MechanicalChange,
+    board_id: &str,
+) -> Result<Vec<String>, String> {
+    let inputs = effective_inputs(doc, &edit.target)?;
+    let mut configuration = inputs.configuration;
+    let before = configuration.clone();
+    let mut changed = Vec::new();
+    apply_change(&mut configuration, change, doc, board_id, &mut changed)?;
+    // Closure mounts are initialized whenever the resolved stack still has none
+    // and the mount is not a gasket; explicit `Some(vec![])` is deliberate.
+    let needs_initialization =
+        configuration.closure_mounts.is_none() && configuration.mount != MechanicalMount::Gasket;
+    if configuration == before && !needs_initialization {
+        return Ok(Vec::new());
+    }
+    let projection_required = requires_projection(change) || needs_initialization;
+    if projection_required && edit.mounting_hole.is_none() {
+        return Err(MISSING_TEMPLATE.into());
+    }
+    changed.insert(0, owner_id(&edit.target, board_id));
+    if needs_initialization {
+        persist(doc, &edit.target, configuration)?;
+        configuration = initialize_closure_mounts(doc, &edit.target)?;
+    }
+    persist(doc, &edit.target, configuration)?;
+    if projection_required {
+        project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    }
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
+/// Runs the owned projection and records only the generated ids it changed.
+fn project(
+    doc: &mut ProjectDoc,
+    mounting_hole: Option<&PartDefinition>,
+    changed: &mut Vec<String>,
+) -> Result<(), String> {
+    let template = mounting_hole.ok_or_else(|| MISSING_TEMPLATE.to_string())?;
+    let before = doc.clone();
+    let projected =
+        crate::mechanical::clearance::project_owned_closure_clearance(before.clone(), template)?;
+    changed.extend(generated_change_ids(&before, &projected));
+    *doc = projected;
+    Ok(())
+}
+
+/// Resolves the assembly from the proposed document and materializes its
+/// suggested closure mounts onto the proposed configuration.
+///
+/// The caller must already have persisted the proposed configuration into the
+/// target slot so [`effective_document`] resolves the same stack the user is
+/// configuring. The result is the resolved effective configuration, matching the
+/// adapter's `prepare_document`: initialization adopts the effective value the
+/// resolver returned.
+fn initialize_closure_mounts(
+    doc: &ProjectDoc,
+    target: &MechanicalTarget,
+) -> Result<MechanicalConfiguration, String> {
+    let (effective, contours) = effective_document(doc, target)?;
+    let mut configuration = effective
+        .mechanical
+        .clone()
+        .ok_or("The mechanical configuration no longer exists.")?;
+    let assembly = crate::mechanical::resolve(&effective, &contours);
+    let height = configuration.plate_to_pcb
+        + configuration.pcb_thickness
+        + configuration
+            .bottom_foam_thickness
+            .max(configuration.battery_height);
+    configuration.closure_mounts = Some(
+        assembly
+            .suggested_mounts
+            .into_iter()
+            .map(|mut mount| {
+                mount.id = format!("{AUTO_CLOSURE_PREFIX}{}", mount.id);
+                mount.kind = MountKind::Boss;
+                mount.hole_diameter = 2.2;
+                mount.height = Some(height);
+                mount
+            })
+            .collect(),
+    );
+    Ok(configuration)
+}
+
+/// The generated part ids, generated definition ids and membership owners that
+/// differ between two documents.
+fn generated_change_ids(before: &ProjectDoc, after: &ProjectDoc) -> Vec<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    for part in &after.parts {
+        if part.id.starts_with(GENERATED_PART_PREFIX)
+            && before.parts.iter().find(|entry| entry.id == part.id) != Some(part)
+        {
+            ids.insert(part.id.clone());
         }
     }
+    for part in &before.parts {
+        if part.id.starts_with(GENERATED_PART_PREFIX)
+            && !after.parts.iter().any(|entry| entry.id == part.id)
+        {
+            ids.insert(part.id.clone());
+        }
+    }
+    for definition in &after.definitions {
+        if definition.id.starts_with(GENERATED_DEFINITION_PREFIX)
+            && before
+                .definitions
+                .iter()
+                .find(|entry| entry.id == definition.id)
+                != Some(definition)
+        {
+            ids.insert(definition.id.clone());
+        }
+    }
+    for definition in &before.definitions {
+        if definition.id.starts_with(GENERATED_DEFINITION_PREFIX)
+            && !after
+                .definitions
+                .iter()
+                .any(|entry| entry.id == definition.id)
+        {
+            ids.insert(definition.id.clone());
+        }
+    }
+    let generated_set = |part_ids: Option<&Vec<String>>| {
+        part_ids
+            .into_iter()
+            .flatten()
+            .filter(|id| id.starts_with(GENERATED_PART_PREFIX))
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    for board in &after.boards {
+        let before_ids = before
+            .boards
+            .iter()
+            .find(|entry| entry.id == board.id)
+            .map(|entry| &entry.part_ids);
+        if generated_set(before_ids) != generated_set(Some(&board.part_ids)) {
+            ids.insert(board.id.clone());
+        }
+    }
+    for layout in &after.layouts {
+        let before_ids = before
+            .layouts
+            .iter()
+            .find(|entry| entry.id == layout.id)
+            .map(|entry| &entry.part_ids);
+        if generated_set(before_ids) != generated_set(Some(&layout.part_ids)) {
+            ids.insert(layout.id.clone());
+        }
+    }
+    ids.into_iter().collect()
+}
+
+fn dedup_changed(changed: &mut Vec<String>) {
+    let mut seen = std::collections::BTreeSet::new();
+    changed.retain(|id| seen.insert(id.clone()));
 }
 
 /// Resolves an edit target to its board id and optional physical instance.
@@ -124,40 +347,66 @@ fn persist(
 }
 
 /// Enables a target that has no effective configuration yet.
+///
+/// The fresh configuration is closure-initialized and projected like any other
+/// change, because its `closure_mounts` starts absent.
 fn enable(
     doc: &mut ProjectDoc,
     target: &MechanicalTarget,
     board_id: &str,
+    edit: &MechanicalEdit,
 ) -> Result<Vec<String>, String> {
     // An already-effective target is unchanged; the edit reports nothing.
     if effective_inputs(doc, target).is_ok() {
         return Ok(Vec::new());
     }
+    if edit.mounting_hole.is_none() {
+        return Err(MISSING_TEMPLATE.into());
+    }
     let configuration = default_configuration(doc, board_id)?;
-    let owner = owner_id(target, board_id);
+    let mut changed = vec![owner_id(target, board_id)];
     persist(doc, target, configuration)?;
-    Ok(vec![owner])
+    let configuration = initialize_closure_mounts(doc, target)?;
+    persist(doc, target, configuration)?;
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
 }
 
 /// Clears the target's stored configuration; absent configuration is a no-op.
+///
+/// Disabling can remove generated closure geometry, so it is projection-required
+/// and must remove the stale generated clearance parts in the same edit.
 fn disable(
     doc: &mut ProjectDoc,
     target: &MechanicalTarget,
     board_id: &str,
+    edit: &MechanicalEdit,
 ) -> Result<Vec<String>, String> {
+    let present = match target {
+        MechanicalTarget::Board { .. } => doc
+            .mechanical
+            .as_ref()
+            .is_some_and(|configuration| configuration.board_id == *board_id),
+        MechanicalTarget::Instance { instance_id } => doc
+            .hardware
+            .as_ref()
+            .and_then(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .find(|instance| instance.id == *instance_id)
+            })
+            .is_some_and(|instance| instance.mechanical.is_some()),
+    };
+    if !present {
+        return Ok(Vec::new());
+    }
+    if edit.mounting_hole.is_none() {
+        return Err(MISSING_TEMPLATE.into());
+    }
     match target {
-        MechanicalTarget::Board { .. } => {
-            if doc
-                .mechanical
-                .as_ref()
-                .is_some_and(|configuration| configuration.board_id == *board_id)
-            {
-                doc.mechanical = None;
-                Ok(vec![board_id.to_string()])
-            } else {
-                Ok(Vec::new())
-            }
-        }
+        MechanicalTarget::Board { .. } => doc.mechanical = None,
         MechanicalTarget::Instance { instance_id } => {
             let hardware = doc
                 .hardware
@@ -168,30 +417,41 @@ fn disable(
                 .iter_mut()
                 .find(|instance| instance.id == *instance_id)
                 .ok_or("The selected physical instance is unavailable")?;
-            if instance.mechanical.is_some() {
-                instance.mechanical = None;
-                Ok(vec![instance_id.clone()])
-            } else {
-                Ok(Vec::new())
-            }
+            instance.mechanical = None;
         }
     }
+    let mut changed = vec![owner_id(target, board_id)];
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
 }
 
-/// Admits closure-location initialization without mutating the configuration.
+/// Initializes absent closure mounts from the resolved assembly and projects them.
 ///
-/// The resolved assembly and generated closure-clearance projection that turn an
-/// eligible request into mounts are owned by slice 07. Until then the request is
-/// validated and reported as a no-op so the accepted configuration is unchanged.
-fn initialize_closures(doc: &ProjectDoc, target: &MechanicalTarget) -> Result<Vec<String>, String> {
+/// An already-present collection or a gasket mount is not eligible and reports the
+/// adapter's message; explicit `Some(vec![])` therefore stays deliberate.
+fn initialize_closures(
+    doc: &mut ProjectDoc,
+    target: &MechanicalTarget,
+    board_id: &str,
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
     let inputs = effective_inputs(doc, target)?;
-    let configuration = inputs.configuration;
-    if configuration.closure_mounts.is_some() || configuration.mount == MechanicalMount::Gasket {
+    if inputs.configuration.closure_mounts.is_some()
+        || inputs.configuration.mount == MechanicalMount::Gasket
+    {
         return Err("The current stack no longer needs mounting-location initialization.".into());
     }
-    // TODO(slice 07): initialize closure mounts from the resolved assembly and run
-    // the owned closure-clearance projection as one atomic edit.
-    Ok(Vec::new())
+    if edit.mounting_hole.is_none() {
+        return Err(MISSING_TEMPLATE.into());
+    }
+    persist(doc, target, inputs.configuration)?;
+    let configuration = initialize_closure_mounts(doc, target)?;
+    persist(doc, target, configuration)?;
+    let mut changed = vec![owner_id(target, board_id)];
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
 }
 
 /// Reference defaults for a board that has no stored configuration.
@@ -2170,7 +2430,31 @@ mod tests {
             "middleFrame": false,
             "openingAllowance": 0.25,
             "mounts": [],
+            // Deliberate empty closure collection: most settings tests must not
+            // trigger closure initialization and its required template.
+            "closureMounts": [],
             "profiles": []
+        }))
+        .unwrap()
+    }
+
+    /// The same configuration with absent closure mounts, for initialization tests.
+    fn configuration_without_closures() -> MechanicalConfiguration {
+        let mut configuration = configuration();
+        configuration.closure_mounts = None;
+        configuration
+    }
+
+    /// The normalized bundled mounting-hole catalogue entry projection expects.
+    fn template() -> PartDefinition {
+        serde_json::from_value(json!({
+            "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+            "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+                "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+            "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+            "envelopeSource":{"courtyard":"generated"},
+            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
         }))
         .unwrap()
     }
@@ -2179,6 +2463,24 @@ mod tests {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.boards.push(board("board", vec![]));
         document.mechanical = Some(configuration());
+        document
+    }
+
+    /// A board whose outline yields at least one suggested closure mount.
+    fn document_with_outline() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline".into(),
+            center: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 80.0, y: 60.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
+        document.boards.push(board("board", vec![]));
+        document.boards[0].outline_ids = vec!["outline".into()];
+        document.mechanical = Some(configuration_without_closures());
         document
     }
 
@@ -2200,7 +2502,7 @@ mod tests {
             &MechanicalEdit {
                 target: board_target(),
                 change,
-                mounting_hole: None,
+                mounting_hole: Some(Box::new(template())),
             },
         )
     }
@@ -2214,7 +2516,7 @@ mod tests {
             &MechanicalEdit {
                 target: instance_target(),
                 change,
-                mounting_hole: None,
+                mounting_hole: Some(Box::new(template())),
             },
         )
     }
@@ -2373,6 +2675,11 @@ mod tests {
         assert_eq!(created.method, PlateMethod::Printed);
         assert_eq!(created.mount, MechanicalMount::Tray);
         assert_eq!(created.part_processes.as_ref().unwrap().len(), 4);
+        assert_eq!(
+            created.closure_mounts,
+            Some(vec![]),
+            "enabling initializes the absent closure collection from the resolved assembly"
+        );
 
         assert!(
             apply_change(&mut doc, MechanicalChange::Enable)
@@ -2580,9 +2887,10 @@ mod tests {
     }
 
     #[test]
-    fn explicit_empty_mount_collections_survive_and_absent_ones_stay_absent() {
+    fn explicit_empty_mount_collections_survive_and_absent_ones_initialize() {
+        // A deliberate explicit empty collection is preserved and never re-initialized.
         let mut doc = document();
-        assert!(stored(&doc).closure_mounts.is_none());
+        assert_eq!(stored(&doc).closure_mounts, Some(vec![]));
         apply_change(
             &mut doc,
             MechanicalChange::SetDimension {
@@ -2591,22 +2899,11 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(
-            stored(&doc).closure_mounts.is_none(),
-            "an unrelated change leaves absent collections absent"
-        );
         assert_eq!(
-            apply_change(
-                &mut doc,
-                MechanicalChange::SetMountCollection {
-                    collection: MechanicalMountCollection::Closure,
-                    mounts: vec![],
-                },
-            )
-            .unwrap(),
-            vec!["board"]
+            stored(&doc).closure_mounts,
+            Some(vec![]),
+            "an unrelated change preserves a deliberate explicit empty collection"
         );
-        assert_eq!(stored(&doc).closure_mounts, Some(vec![]));
         assert!(
             apply_change(
                 &mut doc,
@@ -2619,17 +2916,130 @@ mod tests {
             .is_empty(),
             "repeating the explicit empty value is a no-op"
         );
+
+        // An absent collection becomes the explicit empty value on request.
+        let mut absent = document_with_outline();
+        assert!(stored(&absent).closure_mounts.is_none());
         assert_eq!(
             apply_change(
-                &mut doc,
-                MechanicalChange::AddMount {
+                &mut absent,
+                MechanicalChange::SetMountCollection {
                     collection: MechanicalMountCollection::Closure,
+                    mounts: vec![],
                 },
             )
             .unwrap(),
-            vec!["board", "case-mechanical-mount-1"]
+            vec!["board"]
+        );
+        assert_eq!(stored(&absent).closure_mounts, Some(vec![]));
+        assert!(
+            absent
+                .parts
+                .iter()
+                .all(|part| !part.id.starts_with("case-closure/")),
+            "an explicit empty collection projects no clearance parts"
+        );
+
+        let changed = apply_change(
+            &mut doc,
+            MechanicalChange::AddMount {
+                collection: MechanicalMountCollection::Closure,
+            },
+        )
+        .unwrap();
+        assert!(changed.contains(&"board".to_string()));
+        assert!(changed.contains(&"case-mechanical-mount-1".to_string()));
+        assert!(
+            changed.iter().any(|id| id.starts_with("case-closure/")),
+            "the added closure mount projects a generated clearance part"
         );
         assert_eq!(stored(&doc).closure_mounts.as_ref().unwrap().len(), 1);
+    }
+
+    /// Case 1: absent closure mounts initialize from the resolved assembly, and an
+    /// explicit `Some(vec![])` stays deliberate.
+    #[test]
+    fn absent_closure_mounts_initialize_from_the_resolved_assembly() {
+        let mut doc = document_with_outline();
+        assert!(stored(&doc).closure_mounts.is_none());
+        let changed = apply_change(&mut doc, MechanicalChange::InitializeClosures).unwrap();
+        let mounts = stored(&doc)
+            .closure_mounts
+            .clone()
+            .expect("initialized mounts");
+        assert!(!mounts.is_empty(), "the outline suggests closure mounts");
+        for mount in &mounts {
+            assert!(mount.id.starts_with("auto-closure/"));
+            assert_eq!(mount.kind, MountKind::Boss);
+            assert_eq!(mount.hole_diameter, 2.2);
+            assert_eq!(
+                mount.height,
+                Some(
+                    stored(&doc).plate_to_pcb
+                        + stored(&doc).pcb_thickness
+                        + stored(&doc)
+                            .bottom_foam_thickness
+                            .max(stored(&doc).battery_height)
+                )
+            );
+        }
+        assert!(changed.contains(&"board".to_string()));
+
+        // Explicit empty is deliberate and never re-initialized.
+        let mut deliberate = document_with_outline();
+        deliberate.mechanical.as_mut().unwrap().closure_mounts = Some(vec![]);
+        assert!(
+            apply_change(&mut deliberate, MechanicalChange::InitializeClosures).is_err(),
+            "an explicit empty collection is not eligible for initialization"
+        );
+        assert_eq!(stored(&deliberate).closure_mounts, Some(vec![]));
+    }
+
+    /// Case 2 and 4: generated clearance parts, definitions and memberships appear
+    /// with the configuration owner and nothing else.
+    #[test]
+    fn initialization_reports_only_generated_ids_and_the_owner() {
+        let mut doc = document_with_outline();
+        let changed = apply_change(&mut doc, MechanicalChange::InitializeClosures).unwrap();
+        assert_eq!(changed[0], "board", "the configuration owner leads");
+        assert!(!doc.parts.is_empty(), "generated clearance parts exist");
+        for part in &doc.parts {
+            assert!(
+                changed.contains(&part.id),
+                "generated part {} is reported",
+                part.id
+            );
+        }
+        for definition in &doc.definitions {
+            assert!(changed.contains(&definition.id));
+        }
+        assert!(changed.contains(&"board".to_string()));
+        for id in &changed {
+            assert!(
+                id == "board"
+                    || id.starts_with("case-closure/")
+                    || id.starts_with("assembly-closure/definition/"),
+                "unexpected changed id {id}"
+            );
+        }
+    }
+
+    /// Case 5: a required projection without a template rolls back the configuration.
+    #[test]
+    fn a_missing_required_template_rolls_back_the_configuration() {
+        let mut doc = document();
+        let before = doc.clone();
+        let error = apply(
+            &mut doc,
+            &MechanicalEdit {
+                target: board_target(),
+                change: MechanicalChange::AddOpening,
+                mounting_hole: None,
+            },
+        )
+        .unwrap_err();
+        assert!(error.contains("mounting-hole"), "{error}");
+        assert_eq!(doc, before, "the configuration change rolled back");
     }
 
     #[test]
@@ -3111,5 +3521,133 @@ mod tests {
             apply_instance(&mut doc, MechanicalChange::Enable).is_err(),
             "an unknown instance is unavailable"
         );
+    }
+
+    /// Case 7: `affects_outline` classifies each change kind.
+    #[test]
+    fn outline_classification_covers_the_projection_changes() {
+        let pure: Vec<MechanicalChange> = vec![
+            MechanicalChange::SetBatteryEnabled(true),
+            MechanicalChange::SetClosureDrive(ScrewDrive::Torx),
+            MechanicalChange::SetClosureInsertPreset("m2-4".into()),
+            MechanicalChange::AddCriticalFit {
+                part_id: "plate".into(),
+            },
+            MechanicalChange::AddHardware {
+                part_id: "plate".into(),
+                feature_id: "feature".into(),
+            },
+            MechanicalChange::SetMethod(PlateMethod::Cnc),
+            MechanicalChange::SetMount(MechanicalMount::Gasket),
+            MechanicalChange::SetBottomStyle(MechanicalBottomStyle::Shell),
+            MechanicalChange::SetMiddleFrame(true),
+            MechanicalChange::SetIntegratedPlateFrame(true),
+            MechanicalChange::AddProcessOverride {
+                part_id: "plate".into(),
+            },
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::PlateThickness,
+                value: 2.0,
+            },
+            MechanicalChange::SetStabilizerKind(MechanicalStabilizerOverride {
+                profile: None,
+                part_id: "wide".into(),
+                kind: MechanicalStabilizerKind::PcbMount,
+                units: 2.0,
+                rotation: None,
+            }),
+        ];
+        for change in pure {
+            assert!(
+                !affects_outline(&change),
+                "pure settings edit {change:?} must not rebuild outlines"
+            );
+        }
+
+        let projection: Vec<MechanicalChange> = vec![
+            MechanicalChange::Enable,
+            MechanicalChange::Disable,
+            MechanicalChange::InitializeClosures,
+            MechanicalChange::AddOpening,
+            MechanicalChange::RemoveOpening { opening_index: 0 },
+            MechanicalChange::AddOpeningVertex { opening_index: 0 },
+            MechanicalChange::RemoveOpeningVertex {
+                opening_index: 0,
+                point_index: 0,
+            },
+            MechanicalChange::SetOpeningDimension {
+                opening_index: 0,
+                point_index: None,
+                field: MechanicalDimension::OpeningHeight,
+                value: 12.0,
+            },
+            MechanicalChange::AddMount {
+                collection: MechanicalMountCollection::Closure,
+            },
+            MechanicalChange::AddSuggestedClosureMounts(vec![]),
+            MechanicalChange::SetMountCollection {
+                collection: MechanicalMountCollection::Closure,
+                mounts: vec![],
+            },
+            MechanicalChange::AdoptClosurePositions(vec![]),
+            MechanicalChange::SetMountDimension {
+                collection: MechanicalMountCollection::Closure,
+                mount_id: "m".into(),
+                field: MechanicalDimension::MountHoleDiameter,
+                value: 2.4,
+            },
+            MechanicalChange::SetMountPosition {
+                collection: MechanicalMountCollection::Closure,
+                mount_id: "m".into(),
+                at: Vec2 { x: 1.0, y: 2.0 },
+            },
+            MechanicalChange::SetMountKind {
+                collection: MechanicalMountCollection::Closure,
+                mount_id: "m".into(),
+                kind: MountKind::Boss,
+            },
+            MechanicalChange::RemoveMount {
+                collection: MechanicalMountCollection::Closure,
+                mount_id: "m".into(),
+            },
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::Clearance,
+                value: 0.4,
+            },
+            MechanicalChange::SetGasketSupportPlacement {
+                support_id: "s".into(),
+                anchors: vec![],
+            },
+            MechanicalChange::ResetGasketPlacement,
+            MechanicalChange::AssignSwitchProfile {
+                definition_id: "switch-mx".into(),
+                family: MechanicalSwitchFamily::Mx,
+            },
+            MechanicalChange::AssignStabilizerProfile {
+                definition_id: "stab".into(),
+                source: MechanicalBuiltinProfile::MxStab2u,
+            },
+            MechanicalChange::AssignImportedGeometryProfile {
+                definition_id: "imported".into(),
+            },
+            MechanicalChange::RemoveProfile {
+                definition_id: "switch-mx".into(),
+            },
+            MechanicalChange::SetSwitchFamily {
+                definition_id: "switch-mx".into(),
+                family: MechanicalSwitchFamily::Mx,
+            },
+        ];
+        for change in projection {
+            assert!(
+                affects_outline(&change),
+                "projection change {change:?} must rebuild outlines"
+            );
+            assert_eq!(affects_outline(&change), requires_projection(&change));
+        }
     }
 }
