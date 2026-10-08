@@ -1060,7 +1060,12 @@ fn CircuitCopyRow(
     );
     let on_remove = move |_| {
         let Some(_snapshot) = mounted_owner_current(
-            &runtime, selected_context, &scope, &module_id, token, revision,
+            &runtime,
+            selected_context,
+            &scope,
+            &module_id,
+            token,
+            revision,
         ) else {
             feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
             return;

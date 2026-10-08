@@ -1019,7 +1019,6 @@ fn pin_assignment_options(row: &pins::PcbWiringPinAssignment, choices: Vec<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken};
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen::JsValue;
     #[cfg(target_arch = "wasm32")]

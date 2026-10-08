@@ -255,10 +255,7 @@ pub(crate) fn submit_board_reference_document(
 
 /// The routed-board removal proposal: drop the reference from its board, retiring when
 /// it is already gone.
-fn board_reference_removal_resolver(
-    scope_board_id: String,
-    reference_id: String,
-) -> EditResolver {
+fn board_reference_removal_resolver(scope_board_id: String, reference_id: String) -> EditResolver {
     EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
         let mut proposed = accepted.document.as_ref().clone();
         let count = proposed.board_references.len();
@@ -326,68 +323,69 @@ pub(crate) fn dispatch_board_reference_action(
         );
         return Some(key);
     }
-    let resolver = EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
-        let mut proposed = accepted.document.as_ref().clone();
-        let Some(reference) = proposed.board_references.iter_mut().find(|reference| {
-            reference.id == reference_id && reference.board_id == scope.board_id
-        }) else {
-            return Resolution::Retire(
-                "The reference or model asset is no longer available.".into(),
-            );
-        };
-        match action.clone() {
-            pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
-            pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
-                reference.pose.at.x = value;
-            }
-            pcb_board_reference::Action::SetPositionY(value) if value.is_finite() => {
-                reference.pose.at.y = value;
-            }
-            pcb_board_reference::Action::SetRotation(value) if value.is_finite() => {
-                reference.pose.rotation = value;
-            }
-            pcb_board_reference::Action::SetElevation(value) if value.is_finite() => {
-                reference.elevation = value;
-            }
-            pcb_board_reference::Action::SetModelAsset { path, asset_id } => {
-                if asset_id.as_ref().is_some_and(|asset_id| {
-                    !proposed.assets.iter().any(|asset| {
-                        asset.id == *asset_id
-                            && [".step", ".stp", ".stl", ".wrl"].iter().any(|extension| {
-                                asset.name.to_ascii_lowercase().ends_with(extension)
-                            })
-                    })
-                }) {
-                    return Resolution::Retire(
-                        "The reference or model asset is no longer available.".into(),
-                    );
+    let resolver =
+        EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
+            let mut proposed = accepted.document.as_ref().clone();
+            let Some(reference) = proposed.board_references.iter_mut().find(|reference| {
+                reference.id == reference_id && reference.board_id == scope.board_id
+            }) else {
+                return Resolution::Retire(
+                    "The reference or model asset is no longer available.".into(),
+                );
+            };
+            match action.clone() {
+                pcb_board_reference::Action::SetEnabled(enabled) => reference.enabled = enabled,
+                pcb_board_reference::Action::SetPositionX(value) if value.is_finite() => {
+                    reference.pose.at.x = value;
                 }
-                if let Some(asset_id) = asset_id {
-                    reference.model_assets.insert(path, asset_id);
-                } else {
-                    reference.model_assets.remove(&path);
+                pcb_board_reference::Action::SetPositionY(value) if value.is_finite() => {
+                    reference.pose.at.y = value;
+                }
+                pcb_board_reference::Action::SetRotation(value) if value.is_finite() => {
+                    reference.pose.rotation = value;
+                }
+                pcb_board_reference::Action::SetElevation(value) if value.is_finite() => {
+                    reference.elevation = value;
+                }
+                pcb_board_reference::Action::SetModelAsset { path, asset_id } => {
+                    if asset_id.as_ref().is_some_and(|asset_id| {
+                        !proposed.assets.iter().any(|asset| {
+                            asset.id == *asset_id
+                                && [".step", ".stp", ".stl", ".wrl"].iter().any(|extension| {
+                                    asset.name.to_ascii_lowercase().ends_with(extension)
+                                })
+                        })
+                    }) {
+                        return Resolution::Retire(
+                            "The reference or model asset is no longer available.".into(),
+                        );
+                    }
+                    if let Some(asset_id) = asset_id {
+                        reference.model_assets.insert(path, asset_id);
+                    } else {
+                        reference.model_assets.remove(&path);
+                    }
+                }
+                // Unreachable through this dispatcher: removal begins above and non-finite
+                // positions fall through their guards. The arm keeps the match total.
+                pcb_board_reference::Action::Remove
+                | pcb_board_reference::Action::SetPositionX(_)
+                | pcb_board_reference::Action::SetPositionY(_)
+                | pcb_board_reference::Action::SetRotation(_)
+                | pcb_board_reference::Action::SetElevation(_) => {
+                    return Resolution::Retire("Enter a finite reference position.".into());
                 }
             }
-            // Unreachable through this dispatcher: removal begins above and non-finite
-            // positions fall through their guards. The arm keeps the match total.
-            pcb_board_reference::Action::Remove
-            | pcb_board_reference::Action::SetPositionX(_)
-            | pcb_board_reference::Action::SetPositionY(_)
-            | pcb_board_reference::Action::SetRotation(_)
-            | pcb_board_reference::Action::SetElevation(_) => {
-                return Resolution::Retire("Enter a finite reference position.".into());
+            if proposed == *accepted.document {
+                return Resolution::Unchanged;
             }
-        }
-        if proposed == *accepted.document {
-            return Resolution::Unchanged;
-        }
-        Resolution::submit(
-            vec![scope.board_id.clone()],
-            EditOperation::ReplaceDocument {
-                document: Box::new(proposed),
-            },
-        )
-    });
+            Resolution::submit(
+                vec![scope.board_id.clone()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(proposed),
+                },
+            )
+        });
     edits.begin(
         runtime,
         key.clone(),
