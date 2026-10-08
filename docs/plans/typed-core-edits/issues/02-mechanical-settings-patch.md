@@ -612,3 +612,27 @@ GitNexus `detect-changes` (5 files, 67 symbols, medium risk, 2 mechanical flows)
 
 Next: slice 05 (`effective_inputs`) and slice 06 (`apply` settings families),
 then 07-10.
+
+### Progress — slices 05 and 06 landed
+
+- Slice 05 (Core effective inputs, `e1de79af7`): `core::mechanical::inputs::effective_inputs`
+  resolves canonical, Legacy overlay with first-instance fallback, Local, Pair,
+  board thickness, wireless battery defaults and flipped instances; the host
+  `effective_instance_configuration` is now a thin adapter over it.
+- Slice 06 (Core applies settings, `3fbce5418`): `core::mechanical::edit::apply`
+  ports the whole settings vocabulary (enable/disable, battery, closure hardware,
+  critical fits, hardware, openings, method/mount collections, dimensions, gasket
+  support placement, profiles, switch family, processes, stabilizers) with
+  validation, rollback on malformed input, precise changed ids and no-op detection.
+  Closure-mount initialization and clearance projection are deliberately deferred to
+  slice 07 (documented `TODO(slice 07)`); the Case controller still holds its own
+  `apply_patch` until slice 09.
+
+Verification: `cargo test -p boardstudio_core` 219 unit + 349 integration; Case WASM
+tests 77; host `page` tests 12; WASM `typecheck`; `fmt`; `clippy`; GitNexus
+`detect-changes` medium risk.
+
+Known follow-up for slice 08: instance persistence currently writes only
+`instance.mechanical`, so a Legacy instance overlaid from a distinct
+`shared_construction` can have an overlaid-field change reverted on the next read.
+Construction ownership and pair scope must settle that.
