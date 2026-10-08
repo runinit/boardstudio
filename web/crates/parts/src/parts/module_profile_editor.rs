@@ -732,6 +732,7 @@ pub fn ModuleProfileEditor(
 mod settlement_tests {
     use super::*;
     use boardstudio_core::model::ProjectDoc;
+    use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use wasm_bindgen_test::*;
 
@@ -752,9 +753,11 @@ mod settlement_tests {
         let mut changed = original_rotary.clone().unwrap();
         changed.steps = Some(24);
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let first = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
-            "rotary-test",
+            0_u64,
+            "rotary-change",
             None,
             module_profile_resolver(
                 owner.clone(),
@@ -766,9 +769,10 @@ mod settlement_tests {
         );
         support::drive_pending(&runtime);
         entered.await.unwrap();
-        let second = EditTicket::begin(
+        edits.begin(
             &runtime,
-            "rotary-test",
+            1_u64,
+            "rotary-restore",
             None,
             module_profile_resolver(
                 owner,
@@ -781,8 +785,14 @@ mod settlement_tests {
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&runtime).await;
-        assert!(matches!(first.settlement(true), Settlement::Landed { .. }));
-        assert!(matches!(second.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [
+                PendingEditResult::Landed { .. },
+                PendingEditResult::Landed { .. }
+            ],
+            "the queued restore runs behind the held change and both land"
+        ));
         assert_eq!(
             runtime
                 .model()

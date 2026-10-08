@@ -5,6 +5,8 @@ use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime}
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+#[cfg(test)]
+use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1876,8 +1878,10 @@ mod tests {
         let accepted = runtime.model().accepted.unwrap();
         let mut owner = owner;
         owner.session_epoch = accepted.session_epoch;
-        let ticket = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "generator-test",
             None,
             generator_apply_resolver(
@@ -1887,7 +1891,10 @@ mod tests {
             ),
         );
         support::run_pending(&runtime).await;
-        assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [PendingEditResult::Landed { .. }]
+        ));
         let accepted = runtime.model().accepted.unwrap();
         let applied = &accepted.document.definitions[0];
         assert_eq!(applied.name, "Latest accepted name");
@@ -1900,16 +1907,18 @@ mod tests {
         deleted.definitions.clear();
         support::open_document(&runtime, deleted).await;
         owner.session_epoch = runtime.model().accepted.unwrap().session_epoch;
-        let ticket = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "generator-test",
             None,
             generator_apply_resolver(owner, candidate, BTreeSet::from(["keycap_width".into()])),
         );
         support::run_pending(&runtime).await;
-        assert!(
-            matches!(ticket.settlement(true), Settlement::Failed { message } if message.contains("removed"))
-        );
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [PendingEditResult::Failed { message, .. }] if message.contains("removed")
+        ));
     }
 
     #[wasm_bindgen_test]
@@ -1928,8 +1937,10 @@ mod tests {
         )
         .await;
         let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
-        let _rename = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+        let mut renames = PendingEdits::default();
+        renames.begin(
             &fixture.runtime,
+            0_u64,
             "definition-name",
             Some("name".into()),
             boardstudio_application::EditResolver::new(
@@ -2194,8 +2205,10 @@ mod tests {
             source: None,
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let upload = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "upload-test",
             None,
             generator_model_upload_resolver(
@@ -2214,8 +2227,9 @@ mod tests {
             &BTreeMap::from([("keycap_width".into(), Value::from(20))]),
         )
         .unwrap();
-        let apply = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "apply-test",
             None,
             generator_apply_resolver(owner, prepared, BTreeSet::from(["keycap_width".into()])),
@@ -2223,8 +2237,14 @@ mod tests {
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&runtime).await;
-        assert!(matches!(upload.settlement(true), Settlement::Landed { .. }));
-        assert!(matches!(apply.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [
+                PendingEditResult::Landed { .. },
+                PendingEditResult::Landed { .. }
+            ],
+            "the queued apply runs behind the held upload and both land"
+        ));
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             accepted.document.definitions[0]
