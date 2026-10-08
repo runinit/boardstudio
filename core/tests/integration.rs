@@ -41,6 +41,8 @@ mod keymap_workflow;
 mod kicad_integration;
 #[path = "legacy_archive_migration.rs"]
 mod legacy_archive_migration;
+#[path = "mechanical_settings_edits.rs"]
+mod mechanical_settings_edits;
 #[path = "mechanical_workflow.rs"]
 mod mechanical_workflow;
 #[path = "mixed_project_acceptance.rs"]
