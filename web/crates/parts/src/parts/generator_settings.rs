@@ -2237,14 +2237,16 @@ mod tests {
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&runtime).await;
-        assert!(matches!(
-            edits.settle(true).as_slice(),
-            [
-                PendingEditResult::Landed { .. },
-                PendingEditResult::Landed { .. }
-            ],
+        assert!(
+            matches!(
+                edits.settle(true).as_slice(),
+                [
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. }
+                ]
+            ),
             "the queued apply runs behind the held upload and both land"
-        ));
+        );
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             accepted.document.definitions[0]

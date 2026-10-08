@@ -912,7 +912,7 @@ mod settlement_tests {
         let accepted = runtime.model().accepted.unwrap();
         let model = initial_model(&accepted.document.definitions[0]).unwrap();
         rsx! { ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false,
-            on_commit: move |(axis, submitted, value)| {
+            on_commit: move |(axis, submitted, value): (Axis, String, f64)| {
                 edits.begin_field(&runtime, ModelKey::Transform { field: VectorField::Offset, axis },
                     "model-test", Some("component model".into()), offset_edit(axis, value), &submitted);
                 true

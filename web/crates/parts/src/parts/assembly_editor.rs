@@ -2593,14 +2593,16 @@ mod resolution_tests {
             ),
         );
         release(&runtime, gate).await;
-        assert!(matches!(
-            edits.settle(true).as_slice(),
-            [
-                PendingEditResult::Landed { .. },
-                PendingEditResult::Landed { .. }
-            ],
+        assert!(
+            matches!(
+                edits.settle(true).as_slice(),
+                [
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. }
+                ]
+            ),
             "the queued recipe edit runs behind the held position edit"
-        ));
+        );
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.matrices[0].origin.x, 42.0);
         assert!(
@@ -2670,15 +2672,17 @@ mod resolution_tests {
             "the placement queues behind the held rename"
         );
         release(&runtime, gate).await;
-        assert!(matches!(
-            edits.settle(true).as_slice(),
-            [
-                PendingEditResult::Landed { .. },
-                PendingEditResult::Landed { .. },
-                PendingEditResult::Landed { .. }
-            ],
+        assert!(
+            matches!(
+                edits.settle(true).as_slice(),
+                [
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. }
+                ]
+            ),
             "rename, save and place all land in queue order"
-        ));
+        );
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.definitions[0].name, "Renamed");
         assert_eq!(accepted.document.assemblies.len(), 1);

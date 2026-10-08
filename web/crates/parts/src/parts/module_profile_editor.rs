@@ -785,14 +785,16 @@ mod settlement_tests {
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&runtime).await;
-        assert!(matches!(
-            edits.settle(true).as_slice(),
-            [
-                PendingEditResult::Landed { .. },
-                PendingEditResult::Landed { .. }
-            ],
+        assert!(
+            matches!(
+                edits.settle(true).as_slice(),
+                [
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. }
+                ]
+            ),
             "the queued restore runs behind the held change and both land"
-        ));
+        );
         assert_eq!(
             runtime
                 .model()
