@@ -1,17 +1,19 @@
 //! Scoped controls and file-backed editing for routed-board references.
 use boardstudio_core::model::{Asset, BoardReference};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, rc::Rc};
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{File, HtmlInputElement};
 
 use boardstudio_web_host::host::AssetBytes;
+
+use super::board_reference_owner::BoardReferenceKey;
 
 use crate::runtime::Runtime;
 
@@ -73,19 +75,21 @@ pub enum Action {
     Remove,
 }
 
-fn removal_pending(tickets: Signal<Vec<(Action, EditTicket)>>) -> bool {
-    tickets
-        .read()
-        .iter()
-        .any(|(action, ticket)| *action == Action::Remove && ticket.is_pending())
+fn removal_pending(edits: &RefCell<PendingEdits<BoardReferenceKey>>) -> bool {
+    edits.borrow().is_pending(&BoardReferenceKey::Remove)
 }
 
+/// The reference the form shows: the accepted one with every still-pending submission
+/// applied. A newer submission for the same control wins; landing and retirement drop
+/// the submission so the accepted value shows again.
 fn reference_with_drafts(
     mut reference: BoardReference,
-    tickets: &[(Action, EditTicket)],
+    submissions: &[(BoardReferenceKey, Action)],
+    edits: &RefCell<PendingEdits<BoardReferenceKey>>,
 ) -> BoardReference {
-    for (action, ticket) in tickets {
-        if !ticket.is_pending() {
+    let pending = edits.borrow();
+    for (key, action) in submissions {
+        if !pending.is_pending(key) {
             continue;
         }
         match action {
@@ -143,16 +147,18 @@ async fn wait_for_reference_ticket(
     owner: &super::LayoutOwnerIdentity,
     generation: Signal<u64>,
     request_generation: u64,
-    ticket: EditTicket,
+    mut edits: PendingEdits<BoardReferenceKey>,
 ) -> Result<(), String> {
     loop {
         let live = generation() == request_generation
             && super::board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner);
-        match ticket.settlement(live) {
-            Settlement::Pending => {}
-            Settlement::Landed { .. } => return Ok(()),
-            Settlement::Failed { message } => return Err(message),
-            Settlement::Retired => return Err(String::new()),
+        let mut results = edits.settle(live);
+        if let Some(result) = results.pop() {
+            return match result {
+                PendingEditResult::Landed { .. } => Ok(()),
+                PendingEditResult::Failed { message: error, .. } => Err(error),
+                PendingEditResult::Retired { .. } => Err(String::new()),
+            };
         }
         TimeoutFuture::new(25).await;
     }
@@ -340,13 +346,16 @@ async fn import_routed_board(
         .find(|current| current.id == reference_id && current.board_id == scope.board_id)
         .map(|current| current.asset_id.clone())
         .ok_or_else(|| "The routed-board reference could not be prepared.".to_owned())?;
-    let outcome = super::submit_board_reference_document(
+    let mut edits = PendingEdits::<BoardReferenceKey>::default();
+    super::submit_board_reference_document(
         runtime,
         workspace,
         adapter,
         owner,
         proposed,
         "board-reference-import",
+        &mut edits,
+        BoardReferenceKey::Import,
     )?
     .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
     wait_for_reference_ticket(
@@ -356,7 +365,7 @@ async fn import_routed_board(
         owner,
         generation,
         request_generation,
-        outcome,
+        edits,
     )
     .await?;
     Ok((reference_id, asset_id, paths))
@@ -481,13 +490,16 @@ async fn attach_model_files(
         current.model_assets.insert(path, asset.id.clone());
         proposed.assets.push(asset);
     }
-    let outcome = super::submit_board_reference_document(
+    let mut edits = PendingEdits::<BoardReferenceKey>::default();
+    super::submit_board_reference_document(
         runtime,
         workspace,
         adapter,
         owner,
         proposed,
         "board-reference-model-attach",
+        &mut edits,
+        BoardReferenceKey::ModelAttach,
     )?
     .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
     wait_for_reference_ticket(
@@ -497,7 +509,7 @@ async fn attach_model_files(
         owner,
         generation,
         request_generation,
-        outcome,
+        edits,
     )
     .await
 }
@@ -734,34 +746,43 @@ pub fn Editor(
         },
     ));
 
-    let action_tickets = use_signal(Vec::<(Action, EditTicket)>::new);
-    let action_latest = use_signal(|| None::<boardstudio_application::OperationId>);
+    // One keyed collection owns every reference-control ticket; keys are action kinds
+    // (plus the model path for model-asset controls). The submissions memory keeps the
+    // latest submitted action per key, so the form shows the pending value.
+    let action_edits =
+        use_hook(|| Rc::new(RefCell::new(PendingEdits::<BoardReferenceKey>::default())));
+    let action_submissions = use_signal(Vec::<(BoardReferenceKey, Action)>::new);
+    let action_latest = use_signal(|| None::<BoardReferenceKey>);
     let version = use_context::<Signal<u64>>()();
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = owner.clone();
-        let mut action_tickets = action_tickets;
+        let action_edits = action_edits.clone();
+        let mut action_submissions = action_submissions;
+        let action_latest = action_latest;
         let mut error = error;
         move |_| {
-            let mut entries = action_tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(_, ticket)| {
-                let message =
-                    match ticket.settlement(super::board_reference_owner_lineage_is_current(
-                        &runtime, workspace, &adapter, &owner,
-                    )) {
-                        Settlement::Pending => return true,
-                        Settlement::Failed { message } => Some(message),
-                        _ => None,
-                    };
-                if *action_latest.peek() == Some(ticket.operation()) {
+            let owner_is_live = workspace() == "Layout" || workspace() == "Case";
+            let owner_is_live = owner_is_live
+                && super::board_reference_owner_lineage_is_current(
+                    &runtime, workspace, &adapter, &owner,
+                );
+            let results = action_edits.borrow_mut().settle(owner_is_live);
+            for result in results {
+                let (key, message) = match result {
+                    PendingEditResult::Failed { key, message } => (key, Some(message)),
+                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                        (key, None)
+                    }
+                };
+                action_submissions
+                    .write()
+                    .retain(|(existing, _)| existing != &key);
+                if action_latest.peek().as_ref() == Some(&key) {
+                    // Landing and retirement show nothing; failures keep their message.
                     error.set(message);
                 }
-                false
-            });
-            if entries.len() != before {
-                action_tickets.set(entries);
             }
         }
     }));
@@ -769,28 +790,35 @@ pub fn Editor(
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = owner.clone();
+        let action_edits = action_edits.clone();
         let reference_id = reference.as_ref().map(|reference| reference.id.clone());
-        let mut action_tickets = action_tickets;
+        let mut action_submissions = action_submissions;
         let mut action_latest = action_latest;
         let mut error = error;
         move |action: Action| {
             let Some(reference_id) = reference_id.as_deref() else {
                 return;
             };
-            if action == Action::Remove && removal_pending(action_tickets) {
+            if action == Action::Remove && removal_pending(&action_edits) {
                 return;
             }
-            if let Some(ticket) = super::dispatch_board_reference_action(
+            if let Some(key) = super::dispatch_board_reference_action(
                 &runtime,
                 workspace,
                 &adapter,
                 &owner,
                 reference_id,
                 action.clone(),
+                &mut action_edits.borrow_mut(),
             ) {
-                action_latest.set(Some(ticket.operation()));
+                action_latest.set(Some(key.clone()));
+                let mut entries = action_submissions.write();
+                match entries.iter_mut().find(|(existing, _)| existing == &key) {
+                    Some(entry) => entry.1 = action,
+                    None => entries.push((key, action)),
+                }
+                drop(entries);
                 error.set(None);
-                action_tickets.write().push((action, ticket));
             }
         }
     });
@@ -865,8 +893,9 @@ pub fn Editor(
         }
     });
 
-    let reference =
-        reference.map(|reference| reference_with_drafts(reference, &action_tickets.read()));
+    let reference = reference.map(|reference| {
+        reference_with_drafts(reference, &action_submissions.read(), &action_edits)
+    });
     let options = assets
         .iter()
         .filter(|asset| matching::is_model_filename(&asset.name))
@@ -1031,7 +1060,7 @@ pub fn Editor(
                 }
                 button {
                     r#type: "button",
-                    disabled: disabled || busy || removal_pending(action_tickets),
+                    disabled: disabled || busy || removal_pending(&action_edits),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }

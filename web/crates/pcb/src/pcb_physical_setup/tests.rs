@@ -259,7 +259,7 @@ fn case_transport_keeps_the_rendered_scope() {
     assert_eq!(probe.edits(), 0);
 }
 #[test]
-fn exact_accepted_proposal_advances_only_its_feedback_attribution() {
+fn exact_accepted_proposal_lands_silently_without_leaking_to_another_context() {
     let (probe, mut dom) = mounted();
     let proposal = probe.changed_proposal();
     probe.runtime.hold_next_save();
@@ -269,9 +269,9 @@ fn exact_accepted_proposal_advances_only_its_feedback_attribution() {
     assert_eq!(probe.edits(), 1);
     probe.release_pending_operation();
     flush(&mut dom);
-    assert_eq!(
-        probe.mount().projection.project_feedback.as_deref(),
-        Some("Physical setup saved.")
+    assert!(
+        probe.mount().projection.project_feedback.is_none(),
+        "landing shows the accepted value without a status message"
     );
     assert!(
         probe.mount().projection.feedback.is_none(),
@@ -322,7 +322,7 @@ fn detached_normalization_and_outcome_survive_unmount_without_signal_access() {
 }
 
 #[test]
-fn hidden_success_restores_feedback_for_its_exact_accepted_proposal() {
+fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
     let (probe, mut dom) = mounted();
     let proposal = probe.changed_proposal();
     probe.runtime.hold_next_save();
@@ -336,9 +336,9 @@ fn hidden_success_restores_feedback_for_its_exact_accepted_proposal() {
     assert!(probe.mount().projection.project_feedback.is_none());
     probe.active.set(true);
     flush(&mut dom);
-    assert_eq!(
-        probe.mount().projection.project_feedback.as_deref(),
-        Some("Physical setup saved.")
+    assert!(
+        probe.mount().projection.project_feedback.is_none(),
+        "a success recorded while hidden still shows no status when the view returns"
     );
     assert_eq!(probe.edits(), 1);
 }

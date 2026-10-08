@@ -7,9 +7,42 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
 use boardstudio_core::model::EditOperation;
-use boardstudio_web_runtime::edit_ticket::EditTicket;
+use boardstudio_web_runtime::pending_edits::PendingEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
+
+/// One routed-board reference control's bounded logical key: its action kind, with the
+/// model path that identifies a model-asset field.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BoardReferenceKey {
+    Enabled,
+    PositionX,
+    PositionY,
+    Rotation,
+    Elevation,
+    ModelAsset(String),
+    Remove,
+    /// The routed-board import or replacement transaction.
+    Import,
+    /// The model-file attachment transaction.
+    ModelAttach,
+}
+
+impl BoardReferenceKey {
+    pub fn of(action: &pcb_board_reference::Action) -> Self {
+        match action {
+            pcb_board_reference::Action::SetEnabled(_) => Self::Enabled,
+            pcb_board_reference::Action::SetPositionX(_) => Self::PositionX,
+            pcb_board_reference::Action::SetPositionY(_) => Self::PositionY,
+            pcb_board_reference::Action::SetRotation(_) => Self::Rotation,
+            pcb_board_reference::Action::SetElevation(_) => Self::Elevation,
+            pcb_board_reference::Action::SetModelAsset { path, .. } => {
+                Self::ModelAsset(path.clone())
+            }
+            pcb_board_reference::Action::Remove => Self::Remove,
+        }
+    }
+}
 
 pub fn board_reference_owner_is_current(
     runtime: &Rc<Runtime>,
@@ -101,7 +134,9 @@ pub fn submit_board_reference_document(
     owner: &LayoutOwnerIdentity,
     proposed: boardstudio_core::model::ProjectDoc,
     transaction_label: &str,
-) -> Result<Option<EditTicket>, String> {
+    edits: &mut PendingEdits<BoardReferenceKey>,
+    key: BoardReferenceKey,
+) -> Result<Option<BoardReferenceKey>, String> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
@@ -208,12 +243,14 @@ pub fn submit_board_reference_document(
             )
         },
     );
-    Ok(Some(EditTicket::begin(
+    edits.begin(
         runtime,
+        key.clone(),
         transaction_label,
         Some("board reference".into()),
         resolver,
-    )))
+    );
+    Ok(Some(key))
 }
 
 pub fn dispatch_board_reference_action(
@@ -223,12 +260,14 @@ pub fn dispatch_board_reference_action(
     owner: &LayoutOwnerIdentity,
     reference_id: &str,
     action: pcb_board_reference::Action,
-) -> Option<EditTicket> {
+    edits: &mut PendingEdits<BoardReferenceKey>,
+) -> Option<BoardReferenceKey> {
     if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
         return None;
     }
     let scope = owner.scope.clone()?;
     let reference_id = reference_id.to_owned();
+    let key = BoardReferenceKey::of(&action);
     let resolver = EditResolver::new("board-reference", move |accepted: &AcceptedSnapshot| {
         let mut proposed = accepted.document.as_ref().clone();
         if matches!(&action, pcb_board_reference::Action::Remove) {
@@ -301,10 +340,12 @@ pub fn dispatch_board_reference_action(
             },
         )
     });
-    Some(EditTicket::begin(
+    edits.begin(
         runtime,
+        key.clone(),
         "board-reference",
         Some("board reference".into()),
         resolver,
-    ))
+    );
+    Some(key)
 }
