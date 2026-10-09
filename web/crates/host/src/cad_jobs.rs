@@ -551,6 +551,34 @@ fn effective_case_inputs(
     Ok((effective, effective_scene))
 }
 
+/// Whether the selected target's own accepted findings leave its Case output clear.
+///
+/// Uses the approved target-scoped effective read, so a finding naming a sibling half of
+/// the same board never blocks this target, and a finding naming this target does.
+#[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
+fn target_case_findings_are_clear(
+    document: &ProjectDoc,
+    scene: &SceneDelta,
+    scope: &Scope,
+) -> bool {
+    let target = match &scope.instance_id {
+        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
+    };
+    match boardstudio_core::mechanical::effective_inputs(document, &scene.board_contours, &target) {
+        Ok(inputs) => inputs.findings.iter().all(|finding| {
+            !(matches!(finding.severity, Severity::Error)
+                && matches!(finding.scope, boardstudio_core::model::Scope::Case))
+        }),
+        // An unresolvable target is decided by the shared board-level admission.
+        Err(_) => true,
+    }
+}
+
 #[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
 fn preparation_request(
     snapshot: &AcceptedSnapshot,
@@ -587,12 +615,17 @@ fn preparation_request(
         .mechanical
         .as_ref()
         .is_some_and(|case| case.board_id == scope.board_id);
+    // Admission is decided per selected target: the target-scoped effective read is the
+    // authority for this half's Case problems. A conflict that names a sibling half of
+    // the same PCB is not this target's problem, while this target's own conflict blocks
+    // its case generation even though the board-level admission cannot see the half.
     if !boardstudio_core::case_preparation_ready(
         &effective_document,
         &effective_scene,
         &scope.board_id,
         configured,
-    ) {
+    ) || !target_case_findings_are_clear(document, scene, scope)
+    {
         return Err(CadJobError::Blocked(
             "selected board is not ready for case generation".into(),
         ));
@@ -1069,6 +1102,202 @@ mod tests {
         assert!(matches!(
             preparation_request(&snapshot, &scope, "fixture"),
             Err(CadJobError::Stale(_))
+        ));
+    }
+
+    /// Two halves sharing one PCB where the reflected linked mount clashes with the
+    /// second half's own hardware. Admission must be decided per selected target.
+    #[cfg(feature = "page")]
+    #[test]
+    fn case_admission_is_scoped_to_the_selected_half_of_a_shared_pcb() {
+        use boardstudio_core::model::{
+            HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
+            MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureMember,
+            MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind,
+            PhysicalBoardInstance, Pose2,
+        };
+        fn configuration() -> MechanicalConfiguration {
+            serde_json::from_value(serde_json::json!({
+                "boardId": "board",
+                "method": "printed",
+                "mount": "rigid",
+                "plateThickness": 1.5,
+                "plateFoamThickness": 0.5,
+                "pcbThickness": 1.6,
+                "bottomFoamThickness": 0.4,
+                "batteryHeight": 4.0,
+                "bottomThickness": 3.0,
+                "plateToPcb": 3.5,
+                "wallThickness": 2.0,
+                "clearance": 0.3,
+                "bottomStyle": "shell",
+                "middleFrame": false,
+                "openingAllowance": 0.25,
+                "mounts": [],
+                "closureMounts": [],
+                "profiles": []
+            }))
+            .unwrap()
+        }
+        fn mount(id: &str, x: f64, y: f64) -> Mount {
+            Mount {
+                id: id.into(),
+                at: Vec2 { x, y },
+                kind: MountKind::Hole,
+                hole_diameter: 2.2,
+                boss_diameter: None,
+                height: None,
+            }
+        }
+        fn instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
+            let mut mechanical = configuration();
+            mechanical.mounts = mounts;
+            PhysicalBoardInstance {
+                id: id.into(),
+                name: id.into(),
+                board_id: "board".into(),
+                half: id.into(),
+                role: "controller".into(),
+                flipped: false,
+                controller_part_id: None,
+                mechanical: Some(mechanical),
+                construction_ownership: MechanicalConstructionOwnership::Local,
+            }
+        }
+
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.revision = 7;
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.case_bodies.push(CaseBody {
+            features: None,
+            openings: None,
+            id: "plate".into(),
+            name: "Plate".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Plate,
+            thickness: 2.0,
+            clearance: 0.0,
+            material_id: Some("pla".into()),
+            z: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: None,
+            gasket: None,
+        });
+        let left = instance("left", vec![mount("mount-1", 2.0, 3.0)]);
+        let right = instance(
+            "right",
+            vec![
+                mount("mount-1", 7.0, 3.0),
+                mount("mount-encoder", -2.0, 3.0),
+            ],
+        );
+        let construction = boardstudio_core::mechanical::features::shared_construction(
+            left.mechanical.as_ref().unwrap(),
+        );
+        document.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![left, right],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![MechanicalMirrorPair {
+                id: "pair-left-right".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction,
+                features: vec![MechanicalFeature {
+                    id: "mount-1".into(),
+                    kind: MechanicalFeatureKind::Mount,
+                    author: "left".into(),
+                    value: MechanicalFeatureValue::Mount {
+                        mount: mount("mount-1", 2.0, 3.0),
+                    },
+                    members: vec![
+                        MechanicalFeatureMember {
+                            instance_id: "left".into(),
+                            feature_id: "mount-1".into(),
+                            state: MechanicalFeatureState::Linked,
+                        },
+                        MechanicalFeatureMember {
+                            instance_id: "right".into(),
+                            feature_id: "mount-1".into(),
+                            state: MechanicalFeatureState::Linked,
+                        },
+                    ],
+                }],
+            }],
+        });
+        let scene = SceneDelta {
+            revision: 7,
+            transaction_id: String::new(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: -40.0, y: -30.0 },
+                        Vec2 { x: 40.0, y: -30.0 },
+                        Vec2 { x: 40.0, y: 30.0 },
+                        Vec2 { x: -40.0, y: 30.0 },
+                    ],
+                    hole: false,
+                }],
+            }],
+            board_readiness: vec![BoardReadiness {
+                board_id: "board".into(),
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            }],
+            board_outline_scenes: vec![],
+            module_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(9),
+            session_epoch: SessionEpoch(1),
+            document: std::sync::Arc::new(document),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = |instance_id: Option<&str>| Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: instance_id.map(str::to_string),
+        };
+
+        // The conflict belongs to the right half, so the left half is admitted.
+        assert!(
+            preparation_request(&snapshot, &scope(Some("left")), "fixture").is_ok(),
+            "a sibling half's conflict must not block this half"
+        );
+        // The half that owns the conflict is blocked.
+        assert!(matches!(
+            preparation_request(&snapshot, &scope(Some("right")), "fixture"),
+            Err(CadJobError::Blocked(_))
         ));
     }
 }
