@@ -550,6 +550,7 @@ impl CoreEngine {
             Err(message) => return self.error(id, &message),
         }
         outline_controls::detach_removed(&self.document.parts, &mut next);
+        changed.extend(prune_removed_components(&self.document.parts, &mut next));
         changed.sort();
         changed.dedup();
         // A committed mechanical edit that reports nothing changed is a no-op: return
@@ -628,6 +629,7 @@ impl CoreEngine {
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
+        let before_parts = self.document.parts.clone();
         let result = apply(&mut self.document, &[], &command.operation).and_then(|mut changed| {
             layout::validate(&self.document)?;
             changed.extend(constraints::resolve_edit(
@@ -641,6 +643,7 @@ impl CoreEngine {
             )?);
             changed.extend(layout::sync_components(&mut self.document)?);
             outline_controls::detach_removed(&attachments, &mut self.document);
+            changed.extend(prune_removed_components(&before_parts, &mut self.document));
             changed.sort();
             changed.dedup();
             Ok(changed)
@@ -1098,6 +1101,18 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
     )
+}
+
+/// Linked outline versions drop the authored choices that required a component the edit
+/// removed, whichever operation removed it, inside that same accepted edit and Undo step.
+fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
+    let present: BTreeSet<&str> = after.parts.iter().map(|part| part.id.as_str()).collect();
+    let removed: Vec<String> = before
+        .iter()
+        .filter(|part| !present.contains(part.id.as_str()))
+        .map(|part| part.id.clone())
+        .collect();
+    outline_versions::prune_removed_sources(after, &removed)
 }
 
 fn apply(

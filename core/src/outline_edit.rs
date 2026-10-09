@@ -547,6 +547,26 @@ fn settings_field(change: &OutlineChange) -> Option<SettingsField> {
     }
 }
 
+/// Refuses a value outside the field's range: every length is finite and non-negative,
+/// and a bridge needs a positive width.
+fn validate_settings_field(field: SettingsField) -> Result<(), String> {
+    let (label, value, positive) = match field {
+        SettingsField::Margin(value) => ("margin", value, false),
+        SettingsField::Size(value) => ("size", value, false),
+        SettingsField::BridgeWidth(value) => ("bridge width", value, true),
+        SettingsField::MaximumGapSpan(value) => ("maximum gap span", value, false),
+        SettingsField::MinimumConnectionWidth(value) => ("minimum connection width", value, false),
+        SettingsField::EdgeClearance(value) => ("edge clearance", value, false),
+        SettingsField::Corners(_) | SettingsField::RepairEnabled(_) => return Ok(()),
+    };
+    match (positive, value.is_finite()) {
+        (true, true) if value > 0.0 => Ok(()),
+        (false, true) if value >= 0.0 => Ok(()),
+        (true, _) => Err(format!("The outline {label} must be a positive number")),
+        (false, _) => Err(format!("The outline {label} must be zero or more")),
+    }
+}
+
 /// Applies a settings field to the outline settings owner.
 fn write_settings(settings: &mut OutlineSettings, field: SettingsField) {
     match field {
@@ -628,6 +648,7 @@ fn apply_settings(
     target: &OutlineEditTarget,
     field: SettingsField,
 ) -> Result<Vec<String>, String> {
+    validate_settings_field(field)?;
     match target {
         OutlineEditTarget::Board { board_id } => {
             let board_id = board_id.clone();
@@ -1044,10 +1065,12 @@ fn remove_feature(
     else {
         return Err(format!("Outline feature {feature_id} is missing"));
     };
-    if matches!(
-        version.geometry.features[index],
-        OutlineFeature::PartEnvelope { .. }
-    ) {
+    if index == 0
+        || matches!(
+            version.geometry.features[index],
+            OutlineFeature::PartEnvelope { .. }
+        )
+    {
         return Err("The base outline feature cannot be removed".into());
     }
     version.geometry.features.remove(index);

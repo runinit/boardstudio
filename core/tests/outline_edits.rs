@@ -1759,3 +1759,113 @@ impl ContourFromFeature for Contour {
         }
     }
 }
+
+/// Settings edits are validated by Core, not by whichever surface submits them: a value
+/// outside a field's range is refused with no mutation, on the Generated envelope and on a
+/// linked version alike.
+#[test]
+fn out_of_range_settings_are_refused_with_no_mutation() {
+    let (mut engine, opened) = open((14.0, 0.0));
+    let created = create_refined(&mut engine, opened.revision);
+    let before = serde_json::to_value(document(&mut engine)).unwrap();
+    let cases = [
+        ("set-margin", "margin", -1.0),
+        ("set-size", "size", -1.0),
+        ("set-bridge-width", "bridge_width", 0.0),
+        ("set-maximum-gap-span", "value", -1.0),
+        ("set-minimum-connection-width", "value", -1.0),
+        ("set-edge-clearance", "value", -1.0),
+    ];
+    let targets = [
+        serde_json::json!({ "kind": "board", "boardId": "board" }),
+        serde_json::json!({ "kind": "version", "boardId": "board", "versionId": "refined" }),
+    ];
+    for target in &targets {
+        for (change, field, value) in cases {
+            let refused = reply(
+                &mut engine,
+                created.revision,
+                serde_json::json!({
+                    "target": target,
+                    "change": { change: { field: value } },
+                    "seed": 90
+                }),
+            );
+            let CoreReply::Error {
+                message, revision, ..
+            } = refused
+            else {
+                panic!("{change} {value} on {target} must be refused");
+            };
+            assert!(message.contains("must be"), "{change}: {message}");
+            assert_eq!(revision, created.revision);
+        }
+    }
+    assert_eq!(
+        serde_json::to_value(document(&mut engine)).unwrap(),
+        before,
+        "a refused setting changes nothing"
+    );
+}
+
+/// A version's base contour cannot be removed, whatever its feature kind: removing it
+/// would leave the outline empty or hole-only.
+#[test]
+fn a_fixed_versions_base_contour_cannot_be_removed() {
+    let (mut engine, opened) = open((14.0, 0.0));
+    let created = create_refined(&mut engine, opened.revision);
+    let copied = edit(
+        &mut engine,
+        created.revision,
+        serde_json::json!({
+            "target": { "kind": "board", "boardId": "board" },
+            "change": { "copy": { "version_id": "fixed", "name": "Fixed" } },
+            "seed": 91
+        }),
+    );
+    // A perimeter edit turns the copy's envelope into a plain polygon contour.
+    let envelope = version_of(&document(&mut engine), "fixed")
+        .unwrap()
+        .geometry
+        .features[0]
+        .id()
+        .to_owned();
+    let ring = serde_json::json!([
+        { "x": -10.0, "y": -10.0 }, { "x": 30.0, "y": -10.0 },
+        { "x": 30.0, "y": 10.0 }, { "x": -10.0, "y": 10.0 }
+    ]);
+    let edited = edit(
+        &mut engine,
+        copied.revision,
+        serde_json::json!({
+            "target": { "kind": "version", "boardId": "board", "versionId": "fixed" },
+            "change": { "edit-feature-perimeter": { "feature_id": envelope, "points": ring } },
+            "seed": 92
+        }),
+    );
+    let accepted = document(&mut engine);
+    let base = version_of(&accepted, "fixed").unwrap().geometry.features[0].clone();
+    assert!(
+        !matches!(base, OutlineFeature::PartEnvelope { .. }),
+        "the base contour is now a plain polygon"
+    );
+    let before = serde_json::to_value(&accepted).unwrap();
+    let refused = reply(
+        &mut engine,
+        edited.revision,
+        serde_json::json!({
+            "target": { "kind": "version", "boardId": "board", "versionId": "fixed" },
+            "change": { "remove-feature": { "feature_id": base.id() } },
+            "seed": 93
+        }),
+    );
+    let CoreReply::Error { message, .. } = refused else {
+        panic!("the base contour must not be removable");
+    };
+    assert!(message.contains("base outline feature"), "{message}");
+    assert_eq!(
+        serde_json::to_value(document(&mut engine)).unwrap(),
+        before,
+        "a refused removal changes nothing"
+    );
+}
