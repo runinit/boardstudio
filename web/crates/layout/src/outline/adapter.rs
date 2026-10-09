@@ -116,9 +116,23 @@ fn update(
             },
             None,
         )),
-        // Creating the Generated envelope has no typed Core change yet; the hook keeps
-        // its existing landing path for this one action.
-        OutlineSettingEdit::CreateAutomatic => None,
+        // One typed Generated-envelope creation on the board: Core authors the envelope
+        // and its board membership in one accepted edit, and settles Unchanged when the
+        // board already has one.
+        OutlineSettingEdit::CreateAutomatic => {
+            let board = board(document, board_id)?;
+            Some((
+                OutlineEditTarget::Board {
+                    board_id: board_id.to_owned(),
+                },
+                OutlineChange::CreateGenerated {
+                    margin: 4.0,
+                    settings: crate::outline_settings::reference_outline_settings(),
+                    part_ids: board.part_ids.clone(),
+                },
+                None,
+            ))
+        }
         OutlineSettingEdit::SetMargin(value) => {
             generated_only(OutlineChange::SetMargin { margin: *value })
         }

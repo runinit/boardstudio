@@ -8,7 +8,7 @@ use crate::outline_settings::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
 use boardstudio_core::model::{
     Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
@@ -1167,42 +1167,6 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         return;
     }
     let seed = runtime.operation().0;
-    // Creating the Generated envelope has no typed Core change yet (reported to the
-    // parent); it keeps its existing single landing path until Core names it.
-    if let OutlineAction::Update {
-        edit: crate::outline_settings::OutlineEdit::CreateAutomatic,
-        ..
-    } = &action
-    {
-        let pending_key = action_pending_key(&action);
-        if one_shot_pending() {
-            return;
-        }
-        let board_id = board_id.clone();
-        let resolver = EditResolver::new("layout-outline", move |accepted: &AcceptedSnapshot| {
-            match crate::outline_settings::create_generated_outline(
-                accepted.document.as_ref(),
-                &board_id,
-                boardstudio_application::OperationId(seed),
-            ) {
-                Some(operation) => Resolution::submit(vec![board_id.clone()], operation),
-                None => Resolution::Unchanged,
-            }
-        });
-        pending_owner.set(outline_owner(
-            runtime,
-            selected_context.read().clone(),
-            captured_generation,
-        ));
-        pending.begin_one_shot(
-            runtime,
-            pending_key,
-            "layout-outline",
-            Some("outline".into()),
-            resolver,
-        );
-        return;
-    }
     // Admission at dispatch: an action the panel's snapshot cannot support is ignored early,
     // exactly as before. The typed edit is captured here with the shape the user reviewed,
     // and the resolver re-evaluates it against whatever is accepted at execution.

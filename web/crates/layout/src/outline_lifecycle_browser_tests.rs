@@ -1185,6 +1185,52 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
         created,
         "the mounted Inspector's generate action leaves a generated feature accepted"
     );
+    // One accepted edit registered the envelope and the board membership together.
+    let revision_after_generate = accepted_revision(&probe);
+    assert_eq!(
+        document.outline.len(),
+        1,
+        "Generate authors exactly one Generated envelope"
+    );
+    assert_eq!(
+        document.boards[0].outline_ids.len(),
+        1,
+        "the same accepted edit registers the board membership"
+    );
+
+    // A second Generate is Unchanged: no new envelope, no revision step.
+    button.click();
+    settle_dimension().await;
+    accept(&probe).await;
+    let repeated = accepted_document(&probe);
+    assert_eq!(
+        repeated.outline.len(),
+        1,
+        "a second Generate adds no second Generated envelope"
+    );
+    assert_eq!(
+        repeated.boards[0].outline_ids.len(),
+        1,
+        "a second Generate adds no second membership"
+    );
+    assert_eq!(
+        accepted_revision(&probe),
+        revision_after_generate,
+        "an already-generated outline settles Unchanged without a revision step"
+    );
+
+    // One Undo removes the envelope and its membership together.
+    undo(&probe.runtime).await;
+    accept(&probe).await;
+    let undone = accepted_document(&probe);
+    assert!(
+        undone.outline.is_empty(),
+        "one Undo removes the Generated envelope"
+    );
+    assert!(
+        undone.boards[0].outline_ids.is_empty(),
+        "the same Undo removes the board membership"
+    );
     root.remove();
 }
 

@@ -584,6 +584,181 @@ fn copy_names_and_identities_come_from_the_accepted_document() {
 }
 
 #[test]
+fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
+    let (scope, token, revision, generation, board_id) = envelope();
+    let document = generated_active();
+    let candidate = boardstudio_core::model::OutlineGap {
+        id: "gap-1".into(),
+        feature_id: "generated".into(),
+        span: 3.0,
+        points: vec![
+            boardstudio_core::model::OutlineControlPoint {
+                at: Vec2 { x: 1.0, y: 2.0 },
+                part_id: None,
+            },
+            boardstudio_core::model::OutlineControlPoint {
+                at: Vec2 { x: 4.0, y: 2.0 },
+                part_id: None,
+            },
+            boardstudio_core::model::OutlineControlPoint {
+                at: Vec2 { x: 1.0, y: 5.0 },
+                part_id: None,
+            },
+        ],
+        protected: false,
+        protected_ids: vec![],
+    };
+    let mut candidate_snapshot = snapshot(document.clone());
+    candidate_snapshot.scene = std::sync::Arc::new(SceneDelta {
+        board_outline_scenes: vec![boardstudio_core::model::BoardOutlineScene {
+            board_id: BOARD.into(),
+            source_contours: vec![],
+            bridges: vec![],
+            gaps: vec![candidate.clone()],
+        }],
+        ..(*candidate_snapshot.scene).clone()
+    });
+
+    let check = OutlineAction::Update {
+        scope: scope.clone(),
+        token,
+        revision,
+        generation,
+        board_id: board_id.clone(),
+        edit: OutlineEdit::SetProtectedGap {
+            gap_id: candidate.id.clone(),
+            protected: true,
+        },
+    };
+    let check_edit = adapter::outline_edit(&candidate_snapshot, &check, 21).unwrap();
+    let OutlineChange::SetProtectedGap { gap_id, points } = &check_edit.change else {
+        panic!("protecting a candidate is one typed SetProtectedGap change");
+    };
+    assert_eq!(gap_id, &candidate.id, "the candidate keeps its own id");
+    assert_eq!(points, &candidate.points);
+    let mut accepted = document.clone();
+    boardstudio_core::outline_edit::apply(&mut accepted, &check_edit).unwrap();
+
+    // Unchecking passes the same candidate id; Core clears every id protecting it and
+    // reports the removed ids, so the adapter needs no alias knowledge of its own.
+    let uncheck = OutlineAction::Update {
+        scope,
+        token,
+        revision,
+        generation,
+        board_id,
+        edit: OutlineEdit::RemoveProtectedGap {
+            gap_id: candidate.id.clone(),
+        },
+    };
+    let uncheck_edit = adapter::outline_edit(&snapshot(accepted.clone()), &uncheck, 22).unwrap();
+    let OutlineChange::RemoveProtectedGap { gap_id } = &uncheck_edit.change else {
+        panic!("unchecking a candidate is one typed RemoveProtectedGap change");
+    };
+    assert_eq!(gap_id, &candidate.id);
+    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &uncheck_edit).unwrap();
+    assert!(
+        changed.contains(&candidate.id),
+        "the removal reports the clear id: {changed:?}"
+    );
+    let OutlineFeature::PartEnvelope { settings, .. } =
+        generated_feature(&accepted, &accepted.boards[0]).unwrap()
+    else {
+        panic!("the generated envelope owns protected gaps");
+    };
+    assert!(
+        settings
+            .repair
+            .as_ref()
+            .is_none_or(|repair| repair.keep_gaps.is_empty()),
+        "unchecking clears the protected gap"
+    );
+}
+
+#[test]
+fn generate_is_one_typed_edit_that_registers_the_envelope_and_its_board_membership() {
+    let (scope, token, revision, generation, board_id) = envelope();
+    let mut document = document();
+    document.outline.clear();
+    document.boards[0].outline_ids.clear();
+    document.boards[0].part_ids = vec!["part-1".into()];
+    document.parts.push(boardstudio_core::model::Part {
+        id: "part-1".into(),
+        definition_id: "switch".into(),
+        reference: "SW1".into(),
+        pose: boardstudio_core::model::Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: boardstudio_core::model::Side::Front,
+        locked: None,
+        keycap: None,
+        outline: None,
+        properties: None,
+        generator_parameters: None,
+    });
+    let action = OutlineAction::Update {
+        scope,
+        token,
+        revision,
+        generation,
+        board_id: board_id.clone(),
+        edit: OutlineEdit::CreateAutomatic,
+    };
+    let edit = edit_for(&document, &action, 13);
+    assert!(matches!(edit.target, OutlineEditTarget::Board { .. }));
+    let OutlineChange::CreateGenerated {
+        margin,
+        part_ids,
+        settings,
+    } = &edit.change
+    else {
+        panic!("Generate is one typed CreateGenerated change");
+    };
+    assert_eq!(*margin, 4.0);
+    assert_eq!(*settings, reference_outline_settings());
+    assert_eq!(part_ids, &vec!["part-1".to_owned()]);
+    assert_eq!(
+        edit.seed, 13,
+        "the captured creation seed names the envelope"
+    );
+    assert!(edit.reviewed.is_none());
+    assert_eq!(
+        adapter::admission(&snapshot(document.clone()), &edit),
+        Admission::Submit
+    );
+
+    // One accepted edit registers the envelope and the board membership together.
+    let mut accepted = document.clone();
+    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    let feature_id = "board:board:automatic:outline:13";
+    assert_eq!(changed, vec![BOARD.to_owned(), feature_id.to_owned()]);
+    assert!(
+        accepted
+            .outline
+            .iter()
+            .any(|feature| feature.id() == feature_id),
+        "the Generated envelope exists"
+    );
+    assert!(
+        accepted.boards[0]
+            .outline_ids
+            .iter()
+            .any(|id| id == feature_id),
+        "the board owns the Generated envelope"
+    );
+    // A second Generate settles Unchanged rather than adding a second envelope.
+    assert_eq!(
+        adapter::admission(&snapshot(accepted.clone()), &edit),
+        Admission::Ignore
+    );
+    assert!(matches!(
+        boardstudio_core::outline_edit::evaluate(&accepted, &edit),
+        Ok(OutlineEditDisposition::Unchanged)
+    ));
+}
+
+#[test]
 fn freeze_is_one_typed_edit_that_keeps_the_linked_version_and_selects_the_copy() {
     let (scope, token, revision, generation, board_id) = envelope();
     let mut document = document();
