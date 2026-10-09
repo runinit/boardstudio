@@ -1326,6 +1326,13 @@ pub enum EditOperation {
     ApplyMechanicalEdit {
         edit: Box<crate::mechanical::change::MechanicalEdit>,
     },
+    /// Applies one typed outline change. Core owns target eligibility, validation,
+    /// identity allocation from the captured creation seed and mutation, so the
+    /// outline adapter submits named changes instead of a prepared replacement
+    /// document.
+    ApplyOutlineEdit {
+        edit: Box<crate::outline_edit::OutlineEdit>,
+    },
     CreateMirroredPair {
         left: Layout,
         right: Layout,
