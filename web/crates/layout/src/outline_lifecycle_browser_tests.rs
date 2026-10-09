@@ -2029,3 +2029,215 @@ mod ownership_presentation {
         root.remove();
     }
 }
+
+/// Product-context gestures on a generated outline: the panel's own controls must land
+/// through real Session/Core, never a silent dead click.
+mod product_context {
+    use super::*;
+
+    fn click_by_text(root: &web_sys::Element, selector: &str, text: &str) -> bool {
+        let nodes = root.query_selector_all(selector).unwrap();
+        for index in 0..nodes.length() {
+            let Some(node) = nodes.get(index) else {
+                continue;
+            };
+            let Some(element) = node.dyn_ref::<web_sys::HtmlElement>() else {
+                continue;
+            };
+            if node.text_content().as_deref().map(str::trim) == Some(text) {
+                element.click();
+                return true;
+            }
+        }
+        false
+    }
+
+    fn versions(runtime: &Rc<crate::runtime::Runtime>, board_id: &str) -> usize {
+        runtime
+            .model()
+            .accepted
+            .expect("accepted")
+            .document
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == board_id)
+            .map_or(0, |state| state.versions.len())
+    }
+
+    fn alert_text(root: &web_sys::Element) -> Option<String> {
+        root.query_selector("[role='alert']")
+            .ok()
+            .flatten()
+            .and_then(|node| node.text_content())
+    }
+
+    /// The real bundled Sofle v2 demo project, as the served app opens it (two boards,
+    /// a generated envelope per board, no persisted versions in the fixture).
+    fn sofle_v2() -> ProjectDoc {
+        serde_json::from_str(include_str!("../tests/fixtures/sofle-v2.json"))
+            .expect("the bundled Sofle v2 fixture is a typed document")
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_copy_outline_on_the_sofle_demo_project_creates_one_version() {
+        let document = sofle_v2();
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+        let scope = runtime
+            .scope()
+            .expect("the opened Sofle project has a scope");
+        let board = scope.board_id.clone();
+        let probe = InspectorProbe {
+            runtime,
+            scope,
+            connection_action: Rc::default(),
+            selected_context: Rc::default(),
+        };
+        let window_document = web_sys::window().unwrap().document().unwrap();
+        let root = window_document.create_element("div").unwrap();
+        root.set_id("outline-inspector-mount");
+        window_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_outline_inspector_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle_dimension().await;
+        assert!(
+            click_by_text(
+                &root,
+                "#outline-inspector-mount .m1-outline-actions button",
+                "Copy outline"
+            ),
+            "the Copy outline control is reachable; body: {}",
+            root.inner_html()
+        );
+        accept(&probe).await;
+        settle_dimension().await;
+        let accepted = accepted_document(&probe);
+        let state = accepted
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == board);
+        assert!(
+            state.is_some_and(|state| state.versions.len() == 1),
+            "Copy outline on the Sofle project lands one version for {board}; \
+             board_outlines={:?}, alert={:?}",
+            accepted
+                .board_outlines
+                .iter()
+                .map(|state| (state.board_id.clone(), state.versions.len()))
+                .collect::<Vec<_>>(),
+            alert_text(&root)
+        );
+        root.remove();
+    }
+
+    fn ownership_labels(root: &web_sys::Element) -> Vec<String> {
+        let nodes = root
+            .query_selector_all("select[aria-label='Active outline'] option")
+            .unwrap();
+        (0..nodes.length())
+            .filter_map(|index| nodes.get(index))
+            .map(|node| node.text_content().unwrap_or_default())
+            .collect()
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_refine_outline_creates_a_linked_refinement_with_one_undo() {
+        let (probe, root) = mounted_polygon_outline_inspector(false).await;
+        settle_dimension().await;
+        assert!(
+            click_by_text(
+                &root,
+                "#outline-points-inspector-mount .m1-outline-actions button",
+                "Refine outline"
+            ),
+            "the Refine outline control is reachable in the generated context; body: {}",
+            root.inner_html()
+        );
+        accept(&probe).await;
+        settle_dimension().await;
+        let accepted = accepted_document(&probe);
+        let state = accepted
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == probe.scope.board_id)
+            .expect("the refinement creates board outline state");
+        assert_eq!(state.versions.len(), 1, "one action creates one refinement");
+        let created = &state.versions[0];
+        assert_eq!(
+            created.ownership,
+            boardstudio_core::model::OutlineOwnership::Linked,
+            "accepting the alternative creates a linked refinement"
+        );
+        assert_eq!(
+            state.active_version_id.as_deref(),
+            Some(created.id.as_str()),
+            "the created refinement is selected"
+        );
+        let labels = ownership_labels(&root);
+        assert!(
+            labels
+                .iter()
+                .any(|label| label.starts_with("Linked refinement")),
+            "the refinement is presented as linked: {labels:?}"
+        );
+        let name_input = root
+            .query_selector("input[aria-label='Outline version name']")
+            .unwrap()
+            .expect("the version name control is mounted for the selected refinement")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        assert!(
+            !name_input.disabled(),
+            "its settings stay editable while linked"
+        );
+
+        // One Undo removes the refinement and restores the Generated selection.
+        undo(&probe.runtime).await;
+        accept(&probe).await;
+        settle_dimension().await;
+        let undone = accepted_document(&probe);
+        let state = undone
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == probe.scope.board_id);
+        assert!(
+            state.is_none_or(|state| state.versions.is_empty()),
+            "one Undo removes the refinement"
+        );
+        assert!(
+            undone
+                .board_outlines
+                .iter()
+                .all(|state| state.active_version_id.is_none()),
+            "one Undo restores the Generated selection"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_copy_outline_on_a_generated_outline_creates_one_version() {
+        let (probe, root) = mounted_polygon_outline_inspector(false).await;
+        settle_dimension().await;
+        assert!(
+            click_by_text(
+                &root,
+                "#outline-points-inspector-mount .m1-outline-actions button",
+                "Copy outline"
+            ),
+            "the Copy outline control is reachable"
+        );
+        accept(&probe).await;
+        settle_dimension().await;
+        let count = versions(&probe.runtime, &probe.scope.board_id);
+        assert!(
+            count == 1,
+            "Copy outline lands one version (got {count}); alert={:?}",
+            alert_text(&root)
+        );
+        root.remove();
+    }
+}

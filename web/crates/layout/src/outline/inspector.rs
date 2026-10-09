@@ -24,7 +24,9 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     let copy = projection.copy_action();
     let delete = projection.delete_action();
     let freeze = projection.freeze_action();
+    let refine = projection.refine_action();
     let copy_handler = projection.on_action;
+    let refine_handler = projection.on_action;
     let freeze_handler = projection.on_action;
     let delete_handler = projection.on_action;
     let mut version_name = projection.version_name_draft;
@@ -1007,6 +1009,16 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         title: "Create a separate edited copy and keep this linked refinement.",
                         onclick: move |_| freeze_handler.call(freeze.clone()),
                         "Freeze into an edited copy"
+                    }
+                }
+                if let Some(refine) = refine.clone() {
+                    button {
+                        r#type: "button",
+                        class: "m1-outline-refine",
+                        disabled: !projection.enabled || projection.one_shot_pending,
+                        title: "Accept this generated outline as a linked refinement that follows the components.",
+                        onclick: move |_| refine_handler.call(refine.clone()),
+                        "Refine outline"
                     }
                 }
                 if let Some(delete) = delete {

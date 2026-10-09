@@ -759,6 +759,79 @@ fn generate_is_one_typed_edit_that_registers_the_envelope_and_its_board_membersh
 }
 
 #[test]
+fn refine_is_one_typed_edit_that_creates_and_selects_a_linked_refinement() {
+    let (scope, token, revision, generation, board_id) = envelope();
+    // A refinement seeds from the board's generated projections, so the fixture needs a
+    // resolvable generated source (an authored generated polygon).
+    let document = generated_polygon();
+    let action = OutlineAction::Refine {
+        scope,
+        token,
+        revision,
+        generation,
+        board_id: board_id.clone(),
+    };
+    let edit = edit_for(&document, &action, 14);
+    assert!(matches!(edit.target, OutlineEditTarget::Board { .. }));
+    let OutlineChange::CreateLinkedRefinement { version_id, name } = &edit.change else {
+        panic!("accepting the generated alternative is one typed linked-refinement change");
+    };
+    assert_eq!(version_id, "outline-version-14");
+    assert!(name.starts_with("Edited outline "));
+    assert_eq!(
+        adapter::admission(&snapshot(document.clone()), &edit),
+        Admission::Submit
+    );
+    let mut accepted = document.clone();
+    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    assert_eq!(changed, vec![BOARD.to_owned(), version_id.clone()]);
+    let state = &accepted.board_outlines[0];
+    assert_eq!(
+        state.active_version_id.as_deref(),
+        Some(version_id.as_str())
+    );
+    let created = state
+        .versions
+        .iter()
+        .find(|version| &version.id == version_id)
+        .expect("the refinement is created");
+    assert_eq!(
+        created.ownership,
+        OutlineOwnership::Linked,
+        "accepting the alternative creates a linked refinement, not a copy"
+    );
+    // The link is live: the refinement resolves from the board's current components, so a
+    // component change is reflected in its resolved projection without re-creating it.
+    let before = created.geometry.features.clone();
+    accepted.boards[0].part_ids.push("part-1".into());
+    accepted.parts.push(boardstudio_core::model::Part {
+        id: "part-1".into(),
+        definition_id: "switch".into(),
+        reference: "SW1".into(),
+        pose: boardstudio_core::model::Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: boardstudio_core::model::Side::Front,
+        locked: None,
+        keycap: None,
+        outline: None,
+        properties: None,
+        generator_parameters: None,
+    });
+    let still_linked = accepted.board_outlines[0]
+        .versions
+        .iter()
+        .find(|version| &version.id == version_id)
+        .expect("the refinement is retained");
+    assert_eq!(still_linked.ownership, OutlineOwnership::Linked);
+    assert_eq!(
+        still_linked.geometry.features, before,
+        "the persisted recipe is untouched; resolution follows the components"
+    );
+}
+
+#[test]
 fn freeze_is_one_typed_edit_that_keeps_the_linked_version_and_selects_the_copy() {
     let (scope, token, revision, generation, board_id) = envelope();
     let mut document = document();
