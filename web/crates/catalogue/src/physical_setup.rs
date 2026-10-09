@@ -1477,27 +1477,29 @@ mod tests {
     #[test]
     fn a_reviewed_candidate_link_lists_the_derived_map_and_durable_matches() {
         let doc = document();
-        let mut hardware = HardwareConfiguration::default();
-        hardware.instances = vec![
-            feature_instance(
-                &doc,
-                "left",
-                "board-a",
-                "left",
-                false,
-                vec![mount("mount-1", 2.0, 1.0)],
-                vec![opening("opening-1")],
-            ),
-            feature_instance(
-                &doc,
-                "right",
-                "board-a",
-                "right",
-                true,
-                vec![mount("mount-1", -2.0, 1.0)],
-                vec![opening("opening-1")],
-            ),
-        ];
+        let hardware = HardwareConfiguration {
+            instances: vec![
+                feature_instance(
+                    &doc,
+                    "left",
+                    "board-a",
+                    "left",
+                    false,
+                    vec![mount("mount-1", 2.0, 1.0)],
+                    vec![opening("opening-1")],
+                ),
+                feature_instance(
+                    &doc,
+                    "right",
+                    "board-a",
+                    "right",
+                    true,
+                    vec![mount("mount-1", -2.0, 1.0)],
+                    vec![opening("opening-1")],
+                ),
+            ],
+            ..Default::default()
+        };
         let mut with_hardware = doc.clone();
         with_hardware.hardware = Some(hardware);
 
@@ -1594,27 +1596,29 @@ mod tests {
     #[test]
     fn a_reviewed_candidate_is_absent_for_ineligible_targets_and_blank_ids_are_malformed() {
         let doc = document();
-        let mut hardware = HardwareConfiguration::default();
-        hardware.instances = vec![
-            feature_instance(
-                &doc,
-                "left",
-                "board-a",
-                "left",
-                false,
-                vec![mount("mount-1", 2.0, 1.0)],
-                vec![],
-            ),
-            feature_instance(
-                &doc,
-                "right",
-                "board-a",
-                "right",
-                true,
-                vec![mount("mount-1", -2.0, 1.0)],
-                vec![],
-            ),
-        ];
+        let hardware = HardwareConfiguration {
+            instances: vec![
+                feature_instance(
+                    &doc,
+                    "left",
+                    "board-a",
+                    "left",
+                    false,
+                    vec![mount("mount-1", 2.0, 1.0)],
+                    vec![],
+                ),
+                feature_instance(
+                    &doc,
+                    "right",
+                    "board-a",
+                    "right",
+                    true,
+                    vec![mount("mount-1", -2.0, 1.0)],
+                    vec![],
+                ),
+            ],
+            ..Default::default()
+        };
         let mut with_hardware = doc.clone();
         with_hardware.hardware = Some(hardware);
 

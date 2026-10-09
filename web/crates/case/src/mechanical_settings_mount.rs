@@ -672,6 +672,13 @@ pub fn use_mechanical_settings_mount(
             .map(|projection| Rc::<[crate::mechanical_pair::MechanicalPairFeatureRow]>::from(
                 projection.features,
             ));
+        // An unpaired half offers the candidate links it could establish; a paired
+        // half uses its per-feature actions instead.
+        let pair_link_options = current.identity.scope.instance_id.as_deref().map(|instance_id| {
+            Rc::<[crate::mechanical_pair::MechanicalPairLinkOption]>::from(
+                crate::mechanical_pair::pair_link_options(&current.accepted.document, instance_id),
+            )
+        });
         MechanicalSettingsProps {
             identity: current.identity.clone(),
             request_sequence,
@@ -690,6 +697,7 @@ pub fn use_mechanical_settings_mount(
             suggested_mounts,
             findings,
             pair_features,
+            pair_link_options,
             selected_layer,
             mismatch,
             editable: enabled,

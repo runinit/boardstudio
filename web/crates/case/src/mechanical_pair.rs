@@ -8,7 +8,7 @@
 //! link consolidates it - so unrelated edits and revision changes leave a review valid
 //! while a relevant input change retires it.
 use boardstudio_core::mechanical::MechanicalTarget;
-use boardstudio_core::mechanical::change::MechanicalChange;
+use boardstudio_core::mechanical::change::{MechanicalChange, MechanicalFeatureCorrespondence};
 use boardstudio_core::mechanical::features;
 use boardstudio_core::mechanical::inputs::effective_inputs;
 use boardstudio_core::model::{
@@ -81,6 +81,91 @@ pub fn pair_projection(
         members: pair.members.clone(),
         features,
     })
+}
+
+/// One candidate link between the selected half and another physical instance.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MechanicalPairLinkOption {
+    pub pair_id: String,
+    /// The selected half.
+    pub instance_id: String,
+    pub other_instance_id: String,
+    pub other_name: String,
+    /// The map the halves' declared transforms imply. `None` means the review must
+    /// supply one for a translated or rotated distinct board frame.
+    pub derived_mapping: Option<Pose2>,
+    /// The construction source the review starts from.
+    pub construction_source: String,
+    /// The durable-id feature matches the link would consolidate. Features without a
+    /// match stay local on their half.
+    pub correspondences: Vec<MechanicalFeatureCorrespondence>,
+    /// A short description of those matches, for the review.
+    pub matched_features: String,
+}
+
+/// The candidate links the selected half can establish, from the accepted document.
+///
+/// Empty when the half already belongs to a pair or the document has no other
+/// instance. Each option is the reviewable content of the link; establishing it is a
+/// separate, reviewed submission.
+pub fn pair_link_options(
+    document: &ProjectDoc,
+    instance_id: &str,
+) -> Vec<MechanicalPairLinkOption> {
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Vec::new();
+    };
+    if hardware
+        .pairs
+        .iter()
+        .any(|pair| pair.members.iter().any(|member| member == instance_id))
+    {
+        return Vec::new();
+    }
+    hardware
+        .instances
+        .iter()
+        .filter(|other| other.id != instance_id)
+        .filter_map(|other| {
+            let pair_id = format!("pair/{instance_id}");
+            let review = boardstudio_web_catalogue::physical_setup::review_mirror_pair_link(
+                document,
+                &pair_id,
+                instance_id,
+                &other.id,
+            )
+            .ok()
+            .flatten()?;
+            Some(MechanicalPairLinkOption {
+                pair_id,
+                instance_id: instance_id.to_owned(),
+                other_instance_id: other.id.clone(),
+                other_name: other.name.clone(),
+                derived_mapping: review.derived_mapping,
+                construction_source: review.construction_source,
+                matched_features: matched_features(&review.correspondences),
+                correspondences: review.correspondences,
+            })
+        })
+        .collect()
+}
+
+/// A short description of the durable-id matches a reviewed link would consolidate.
+fn matched_features(correspondences: &[MechanicalFeatureCorrespondence]) -> String {
+    if correspondences.is_empty() {
+        return "No shared mechanical features yet.".to_owned();
+    }
+    correspondences
+        .iter()
+        .map(|correspondence| {
+            format!(
+                "{} {}",
+                feature_label(correspondence.kind),
+                correspondence.first_feature_id
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// What a rejoin would take from `source_instance_id`, for the review preview.
@@ -644,6 +729,104 @@ mod tests {
         let mut without_hardware = ProjectDoc::empty("doc", "Fixture");
         without_hardware.boards.push(doc.boards[0].clone());
         assert_eq!(pair_projection(&without_hardware, &[], "left"), None);
+    }
+
+    /// Two independent halves: one shared mount id and one half-local id.
+    fn independent_halves() -> ProjectDoc {
+        let mut doc = ProjectDoc::empty("doc", "Fixture");
+        doc.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let mut left = configuration("board");
+        left.mounts = vec![mount("mount-1", 2.0, 3.0), mount("mount-left", 8.0, 3.0)];
+        let mut right = configuration("board");
+        right.mounts = vec![mount("mount-1", -2.0, 3.0), mount("mount-right", -8.0, 3.0)];
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport: HardwareTransport::None,
+            instances: vec![
+                PhysicalBoardInstance {
+                    mechanical: Some(left),
+                    flipped: false,
+                    ..instance("left", "board")
+                },
+                PhysicalBoardInstance {
+                    mechanical: Some(right),
+                    flipped: true,
+                    ..instance("right", "board")
+                },
+            ],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+        doc
+    }
+
+    #[test]
+    fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
+        let doc = independent_halves();
+        let options = pair_link_options(&doc, "left");
+        assert_eq!(options.len(), 1, "the other half is the one candidate");
+        let option = &options[0];
+        assert_eq!(option.instance_id, "left");
+        assert_eq!(option.other_instance_id, "right");
+        assert_eq!(option.pair_id, "pair/left");
+        assert_eq!(
+            option.derived_mapping,
+            Some(Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            }),
+            "opposite declared transforms imply the physical reflection"
+        );
+        assert_eq!(
+            option.correspondences.len(),
+            1,
+            "only the shared durable id matches; the half-local mount stays local"
+        );
+        assert_eq!(option.matched_features, "Mount mount-1");
+        assert!(pair_link_options(&doc, "missing").is_empty());
+    }
+
+    #[test]
+    fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_paired() {
+        let mut doc = independent_halves();
+        doc.hardware.as_mut().unwrap().instances[1].flipped = false;
+        let options = pair_link_options(&doc, "left");
+        assert_eq!(
+            options[0].derived_mapping, None,
+            "equal declared transforms need the review to supply the map"
+        );
+        assert_eq!(
+            options[0].correspondences.len(),
+            1,
+            "the matches are still reviewable without a derived map"
+        );
+
+        let mut paired = doc.clone();
+        paired.hardware.as_mut().unwrap().pairs = vec![MechanicalMirrorPair {
+            id: "pair-1".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            construction: features::shared_construction(&configuration("board")),
+            features: vec![],
+        }];
+        assert!(
+            pair_link_options(&paired, "left").is_empty(),
+            "a paired half is linked through its pair actions instead"
+        );
+        assert!(pair_link_options(&paired, "right").is_empty());
     }
 
     fn rejoin(instance_id: &str, feature_id: &str, source: &str) -> MechanicalChange {
