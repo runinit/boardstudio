@@ -2589,3 +2589,90 @@ fn a_linked_gasket_support_reflects_through_the_inverse_map_for_a_second_member_
         "the author keeps its placement",
     );
 }
+
+#[test]
+fn a_generic_addition_on_a_paired_half_joins_the_pair() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+
+    // A generic addition on one half becomes a linked feature, not a private copy.
+    let changed = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::AddMount {
+                collection: MechanicalMountCollection::Suspension,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let added_id = changed
+        .iter()
+        .find(|id| id.starts_with("case-mechanical-mount-"))
+        .expect("the addition is reported")
+        .clone();
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    assert_eq!(pair.features.len(), 2, "the addition joined the pair");
+    let added = pair
+        .features
+        .iter()
+        .find(|feature| feature.id == added_id)
+        .expect("the addition is a pair feature");
+    assert_eq!(added.author, "right");
+    assert_eq!(added.kind, MechanicalFeatureKind::Mount);
+    assert_eq!(
+        features_member_state(pair, "left", &added_id),
+        Some(boardstudio_core::model::MechanicalFeatureState::Linked)
+    );
+
+    // Moving it from the authoring half reflects onto the other half, and neither half
+    // stores a private copy.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::SetMountPosition {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: added_id.clone(),
+                at: Vec2 { x: 5.0, y: 1.0 },
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let right = effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert_close(
+        mount_at(&right.configuration, &added_id),
+        Vec2 { x: 5.0, y: 1.0 },
+        "the authoring half keeps the added mount",
+    );
+    assert_close(
+        mount_at(&left.configuration, &added_id),
+        Vec2 { x: -5.0, y: 1.0 },
+        "the other half derives the reflected addition",
+    );
+    for instance in ["left", "right"] {
+        assert!(
+            stored_mounts(&document, instance)
+                .iter()
+                .all(|mount| mount.id != added_id),
+            "{instance} stores no private copy of the linked addition"
+        );
+    }
+}
+
+/// One member's state for a feature, by member feature id.
+fn features_member_state(
+    pair: &boardstudio_core::model::MechanicalMirrorPair,
+    instance_id: &str,
+    feature_id: &str,
+) -> Option<boardstudio_core::model::MechanicalFeatureState> {
+    boardstudio_core::mechanical::features::member_state(pair, instance_id, feature_id)
+}

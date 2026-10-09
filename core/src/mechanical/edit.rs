@@ -666,6 +666,41 @@ fn persist_edit(
                         remove_feature(&mut local, feature.kind, &member.feature_id);
                     }
                 }
+                // Generic additions on a paired half join the pair by default, so both
+                // halves show the new feature and neither keeps a private copy. Only
+                // explicit exceptions (Make local) stay local.
+                for kind in [
+                    MechanicalFeatureKind::Mount,
+                    MechanicalFeatureKind::ClosureMount,
+                    MechanicalFeatureKind::Opening,
+                    MechanicalFeatureKind::GasketSupport,
+                ] {
+                    let existing = feature_ids(before, kind);
+                    let added: Vec<String> = feature_ids(&after, kind)
+                        .into_iter()
+                        .filter(|id| !existing.contains(id))
+                        .collect();
+                    for id in added {
+                        let Some(value) = find_feature_value(&after, kind, &id) else {
+                            continue;
+                        };
+                        let pair = &mut doc.hardware.as_mut().unwrap().pairs[pair_index];
+                        if pair.features.iter().any(|feature| feature.id == id) {
+                            continue;
+                        }
+                        features::add_linked_feature(
+                            pair,
+                            MechanicalFeature {
+                                id: id.clone(),
+                                kind,
+                                author: instance_id.clone(),
+                                value,
+                                members: Vec::new(),
+                            },
+                        )?;
+                        remove_feature(&mut local, kind, &id);
+                    }
+                }
                 let before_shared = features::shared_construction(before);
                 let after_shared = features::shared_construction(&after);
                 if before_shared != after_shared {
@@ -1685,6 +1720,39 @@ fn feature_visible_value(
         }
         MechanicalFeatureState::Local | MechanicalFeatureState::Omitted => Ok(None),
     }
+}
+
+/// The durable ids one configuration carries for a feature kind.
+fn feature_ids(
+    configuration: &MechanicalConfiguration,
+    kind: MechanicalFeatureKind,
+) -> std::collections::BTreeSet<String> {
+    let ids = match kind {
+        MechanicalFeatureKind::Mount => configuration
+            .mounts
+            .iter()
+            .map(|mount| mount.id.clone())
+            .collect::<Vec<_>>(),
+        MechanicalFeatureKind::ClosureMount => configuration
+            .closure_mounts
+            .iter()
+            .flatten()
+            .map(|mount| mount.id.clone())
+            .collect(),
+        MechanicalFeatureKind::Opening => configuration
+            .openings
+            .iter()
+            .flatten()
+            .map(|opening| opening.id.clone())
+            .collect(),
+        MechanicalFeatureKind::GasketSupport => configuration
+            .gasket_layout
+            .iter()
+            .flat_map(|layout| layout.supports.iter())
+            .map(|anchor| anchor.id.clone())
+            .collect(),
+    };
+    ids.into_iter().collect()
 }
 
 fn find_feature_value(
