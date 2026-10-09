@@ -1,8 +1,9 @@
 //! Pure geometry helpers and the presentation outline action vocabulary.
 //!
 //! Every action here is turned into one typed Core outline edit by
-//! [`super::adapter`]; no planning, identity allocation or replacement document happens
-//! in this module.
+//! [`super::adapter`]; no planning or replacement document happens in this module. The
+//! unique-id helpers below feed the adapter for the version and connection ids it still
+//! chooses itself; Core validates them.
 
 use crate::outline_settings::OutlineEdit;
 use boardstudio_application::{AcceptedSnapshot, Scope};

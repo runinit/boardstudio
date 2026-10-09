@@ -112,6 +112,23 @@ fn update(
     let version_or_generated = |change: OutlineChange| -> Plan {
         (settings_target(board_id, active_version), change, None)
     };
+    // Fields tied to the envelope are editable on a linked refinement too, so a source
+    // change never forces a Freeze just to adjust them. A fixed edited copy has no
+    // envelope to apply them to.
+    let linked_or_generated = |change: OutlineChange| -> Option<Plan> {
+        match active_version {
+            None => generated_only(change),
+            Some(version_id) => document
+                .board_outlines
+                .iter()
+                .find(|state| state.board_id == board_id)?
+                .versions
+                .iter()
+                .find(|version| version.id == version_id)
+                .is_some_and(|version| !version.ownership.is_fixed())
+                .then(|| version_or_generated(change)),
+        }
+    };
     match edit {
         OutlineSettingEdit::RenameVersion { version_id, name } => Some((
             OutlineEditTarget::Version {
@@ -141,18 +158,18 @@ fn update(
             ))
         }
         OutlineSettingEdit::SetMargin(value) => {
-            generated_only(OutlineChange::SetMargin { margin: *value })
+            linked_or_generated(OutlineChange::SetMargin { margin: *value })
         }
         OutlineSettingEdit::SetBridgeWidth(value) => {
-            generated_only(OutlineChange::SetBridgeWidth {
+            linked_or_generated(OutlineChange::SetBridgeWidth {
                 bridge_width: *value,
             })
         }
         OutlineSettingEdit::SetRepairEnabled(value) => {
-            generated_only(OutlineChange::SetRepairEnabled { enabled: *value })
+            linked_or_generated(OutlineChange::SetRepairEnabled { enabled: *value })
         }
         OutlineSettingEdit::SetMaximumGapSpan(value) => {
-            generated_only(OutlineChange::SetMaximumGapSpan { value: *value })
+            linked_or_generated(OutlineChange::SetMaximumGapSpan { value: *value })
         }
         OutlineSettingEdit::SetCorners(value) => {
             Some(version_or_generated(OutlineChange::SetCorners {
@@ -185,22 +202,30 @@ fn update(
             if generated_envelope(document, board_id)?.id() != gap.feature_id {
                 return None;
             }
-            let change = if *protected {
-                OutlineChange::SetProtectedGap {
-                    gap_id: gap.id.clone(),
-                    points: gap.points.clone(),
-                }
+            // Protecting stores the candidate's points, so the edit reviews the source
+            // shape those points came from and retires if a queued change moved it.
+            let (change, reviewed) = if *protected {
+                (
+                    OutlineChange::SetProtectedGap {
+                        gap_id: gap.id.clone(),
+                        points: gap.points.clone(),
+                    },
+                    Some(reviewed_source(snapshot, board_id)?),
+                )
             } else {
-                OutlineChange::RemoveProtectedGap {
-                    gap_id: gap.id.clone(),
-                }
+                (
+                    OutlineChange::RemoveProtectedGap {
+                        gap_id: gap.id.clone(),
+                    },
+                    None,
+                )
             };
             Some((
                 OutlineEditTarget::Board {
                     board_id: board_id.to_owned(),
                 },
                 change,
-                None,
+                reviewed,
             ))
         }
         OutlineSettingEdit::RemoveProtectedGap { gap_id } => {

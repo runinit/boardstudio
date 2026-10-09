@@ -44,7 +44,7 @@ use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner
 use crate::outline_settings::OutlineEdit;
 #[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports these through `super::*`.
-use crate::outline_settings::{generated_feature, generated_margin, generated_settings};
+use crate::outline_settings::{envelope_margin, generated_feature, generated_settings};
 #[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports this through `super::*`.
 use crate::runtime::Runtime;

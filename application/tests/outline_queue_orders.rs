@@ -427,3 +427,177 @@ fn matrix_mechanical_and_outline_edits_queued_in_order_resolve_against_the_accep
 fn the_same_three_actions_queued_in_reverse_order_hold_the_same_contract() {
     run([Action::Outline, Action::Mechanical, Action::Matrix]);
 }
+
+/// The fixture plus two outline versions on the board: a linked refinement (active) that
+/// follows the board's components, and a fixed edited copy that keeps its authored shape.
+fn fixture_with_versions() -> ProjectDoc {
+    let mut document = fixture();
+    let sharp = json!({
+        "corners": "sharp", "size": 2.0, "bridgeWidth": 10.0,
+    });
+    document.board_outlines = vec![
+        serde_json::from_value(json!({
+            "boardId": "main",
+            "activeVersionId": "linked",
+            "versions": [
+                { "id": "linked", "name": "Linked", "source": { "revision": 0 },
+                  "ownership": "linked",
+                  "geometry": { "features": [{
+                        "kind": "part-envelope", "id": "board:main:version:linked:contour:0",
+                        "partIds": ["matrix/main/r0c0", "matrix/main/r0c1"],
+                        "margin": 1.0, "operation": "add", "settings": sharp
+                    }], "settings": sharp, "expectedRegions": 1 } },
+                { "id": "fixed", "name": "Fixed", "source": { "revision": 0 },
+                  "geometry": { "features": [{
+                        "kind": "polygon", "id": "board:main:version:fixed:contour:0",
+                        "points": [
+                            { "x": -30.0, "y": -30.0 }, { "x": 30.0, "y": -30.0 },
+                            { "x": 30.0, "y": 30.0 }, { "x": -30.0, "y": 30.0 }
+                        ], "operation": "add"
+                    }], "settings": sharp, "expectedRegions": 1 } }
+            ]
+        }))
+        .expect("the outline versions parse"),
+    ];
+    document
+}
+
+fn board_bounds(accepted: &AcceptedSnapshot) -> (f64, f64, f64, f64) {
+    accepted
+        .scene
+        .board_contours
+        .iter()
+        .find(|board| board.board_id == "main")
+        .expect("the board has a resolved boundary")
+        .contours
+        .iter()
+        .flat_map(|contour| &contour.points)
+        .fold(
+            (
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ),
+            |(min_x, min_y, max_x, max_y), point| {
+                (
+                    min_x.min(point.x),
+                    min_y.min(point.y),
+                    max_x.max(point.x),
+                    max_y.max(point.y),
+                )
+            },
+        )
+}
+
+fn version_json(accepted: &AcceptedSnapshot, id: &str) -> serde_json::Value {
+    let version = accepted.document.board_outlines[0]
+        .versions
+        .iter()
+        .find(|version| version.id == id)
+        .expect("the version exists");
+    serde_json::to_value(version).unwrap()
+}
+
+/// A matrix placement change and a settings edit on the linked refinement, queued in
+/// either order, leave the linked alternative following the new placement and settings
+/// while the fixed alternative keeps exactly the shape it was saved with. Expected
+/// extents are worked by hand: margin 2 makes a switch envelope 7 + 2 = 9 mm each side,
+/// the two switches sit 19 mm apart (x -9..28), and the 4.5 mm column stagger lifts the
+/// grid to y = 4.5, so the boundary spans y -4.5..13.5.
+fn run_linked(order: [bool; 2]) {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: fixture_with_versions(),
+    });
+    settle_one(&mut session, &mut engine, effects);
+    let opened = session.read_model().accepted.clone().unwrap();
+    let fixed_before = version_json(&opened, "fixed");
+    assert_eq!(board_bounds(&opened), (-8.0, -8.0, 27.0, 8.0));
+
+    let mut head = None;
+    for (index, is_matrix) in order.into_iter().enumerate() {
+        let resolver = if is_matrix {
+            EditResolver::new("matrix-stagger", |accepted: &AcceptedSnapshot| {
+                Resolution::Submit(EditCommand {
+                    base_revision: accepted.document.revision,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec!["main".into()],
+                    operation: operation(Action::Matrix, accepted),
+                })
+            })
+        } else {
+            EditResolver::new("linked-margin", |accepted: &AcceptedSnapshot| {
+                Resolution::Submit(EditCommand {
+                    base_revision: accepted.document.revision,
+                    transaction_id: String::new(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec!["main".into()],
+                    operation: EditOperation::ApplyOutlineEdit {
+                        edit: Box::new(OutlineEdit {
+                            target: OutlineEditTarget::Version {
+                                board_id: "main".into(),
+                                version_id: "linked".into(),
+                            },
+                            change: OutlineChange::SetMargin { margin: 2.0 },
+                            seed: 7,
+                            reviewed: None,
+                        }),
+                    },
+                })
+            })
+        };
+        let effects = session.submit(Event::ResolveEdit {
+            operation_id: OperationId(2 + index as u64),
+            label: if is_matrix {
+                "matrix-stagger"
+            } else {
+                "linked-margin"
+            }
+            .into(),
+            resolver,
+        });
+        if index == 0 {
+            head = Some(effects);
+        }
+    }
+    let effects = settle_one(
+        &mut session,
+        &mut engine,
+        head.expect("the first edit runs"),
+    );
+    settle_one(&mut session, &mut engine, effects);
+
+    let accepted = session.read_model().accepted.clone().unwrap();
+    assert!(
+        accepted
+            .document
+            .parts
+            .iter()
+            .all(|part| part.pose.at.y == 4.5),
+        "the stagger moved the components the linked refinement is built from"
+    );
+    assert_eq!(
+        board_bounds(&accepted),
+        (-9.0, -4.5, 28.0, 13.5),
+        "the linked refinement follows the moved components and its own margin"
+    );
+    assert_eq!(
+        version_json(&accepted, "fixed"),
+        fixed_before,
+        "the fixed alternative keeps the shape it was saved with"
+    );
+}
+
+#[test]
+fn a_linked_refinement_follows_a_queued_placement_and_its_fixed_alternative_stays() {
+    run_linked([true, false]);
+}
+
+#[test]
+fn the_same_linked_and_fixed_contract_holds_in_reverse_queue_order() {
+    run_linked([false, true]);
+}

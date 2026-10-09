@@ -35,7 +35,7 @@ pub fn generated_settings(feature: &OutlineFeature) -> Option<OutlineSettings> {
     }
 }
 
-pub fn generated_margin(feature: &OutlineFeature) -> Option<f64> {
+pub fn envelope_margin(feature: &OutlineFeature) -> Option<f64> {
     match feature {
         OutlineFeature::PartEnvelope { margin, .. } => Some(*margin),
         _ => None,

@@ -54,6 +54,9 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     let active_ownership = active_choice
         .as_ref()
         .map_or(OutlineVersionOwnership::Generated, |item| item.ownership);
+    // Margin, bridge width and cleanup belong to an envelope, which Generated and a linked
+    // refinement have and an edited (fixed) copy does not.
+    let envelope_editable = active_ownership != OutlineVersionOwnership::Edited;
     let active_problem = active_choice
         .clone()
         .filter(|item| item.problem_message.is_some());
@@ -411,8 +414,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             },
                         }
                     }
-                    if projection.active_version_id.is_none() {
-                        if let Some(margin) = projection.generated_margin {
+                    if envelope_editable {
+                        if let Some(margin) = projection.envelope_margin {
                             OutlineDimension {
                                 label: "Outline margin",
                                 value: margin,
@@ -472,7 +475,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                     }
                     fieldset { class: "m1-outline-controls", disabled: !enabled,
                         legend { "Advanced cleanup and clearance" }
-                        if projection.active_version_id.is_none() {
+                        if envelope_editable {
                             label { class: "m1-outline-field m1-outline-gap",
                                 input {
                                     r#type: "checkbox",

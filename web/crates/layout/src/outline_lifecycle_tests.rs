@@ -636,6 +636,10 @@ fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
     };
     assert_eq!(gap_id, &candidate.id, "the candidate keeps its own id");
     assert_eq!(points, &candidate.points);
+    assert!(
+        check_edit.reviewed.is_some(),
+        "protecting stores the candidate's points, so it reviews the source they came from"
+    );
     let mut accepted = document.clone();
     boardstudio_core::outline_edit::apply(&mut accepted, &check_edit).unwrap();
 
@@ -652,6 +656,10 @@ fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
         },
     };
     let uncheck_edit = adapter::outline_edit(&snapshot(accepted.clone()), &uncheck, 22).unwrap();
+    assert!(
+        uncheck_edit.reviewed.is_none(),
+        "removing a protected gap addresses it by id and reviews no shape"
+    );
     let OutlineChange::RemoveProtectedGap { gap_id } = &uncheck_edit.change else {
         panic!("unchecking a candidate is one typed RemoveProtectedGap change");
     };
@@ -956,4 +964,60 @@ fn a_draft_connection_width_is_refused_by_core_rather_than_defaulted() {
         edit: Box::new(edit),
     };
     assert!(matches!(operation, EditOperation::ApplyOutlineEdit { .. }));
+}
+
+/// A linked refinement keeps its envelope settings editable, so a source change never
+/// forces a Freeze just to adjust them; a fixed edited copy has no envelope for them.
+#[test]
+fn envelope_settings_follow_the_active_linked_version_and_refuse_a_fixed_copy() {
+    let (scope, token, revision, generation, board_id) = envelope();
+    let setting = |edit: OutlineEdit| OutlineAction::Update {
+        scope: scope.clone(),
+        token,
+        revision,
+        generation,
+        board_id: board_id.clone(),
+        edit,
+    };
+    let linked_edits = [
+        (OutlineEdit::SetMargin(3.0), "margin"),
+        (OutlineEdit::SetBridgeWidth(4.0), "bridge width"),
+        (OutlineEdit::SetRepairEnabled(false), "automatic cleanup"),
+        (OutlineEdit::SetMaximumGapSpan(9.0), "maximum gap span"),
+    ];
+
+    let mut linked = document();
+    linked.board_outlines[0].versions[0].ownership = OutlineOwnership::Linked;
+    for (edit, label) in &linked_edits {
+        let typed = adapter::outline_edit(&snapshot(linked.clone()), &setting(edit.clone()), 30)
+            .unwrap_or_else(|| panic!("{label} is editable on a linked refinement"));
+        assert_eq!(
+            typed.target,
+            OutlineEditTarget::Version {
+                board_id: BOARD.into(),
+                version_id: "v1".into(),
+            },
+            "{label} addresses the linked version, not the Generated envelope"
+        );
+    }
+
+    let fixed = document();
+    for (edit, label) in &linked_edits {
+        assert!(
+            adapter::outline_edit(&snapshot(fixed.clone()), &setting(edit.clone()), 31).is_none(),
+            "{label} has no envelope to edit on a fixed copy"
+        );
+    }
+
+    let generated = generated_active();
+    for (edit, label) in &linked_edits {
+        let typed = adapter::outline_edit(&snapshot(generated.clone()), &setting(edit.clone()), 32)
+            .unwrap_or_else(|| panic!("{label} stays editable on Generated"));
+        assert_eq!(
+            typed.target,
+            OutlineEditTarget::Board {
+                board_id: BOARD.into()
+            }
+        );
+    }
 }

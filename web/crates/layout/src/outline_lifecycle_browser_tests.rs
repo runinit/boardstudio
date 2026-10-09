@@ -1837,6 +1837,82 @@ mod ownership_presentation {
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_linked_refinement_edits_its_own_envelope_settings_and_a_fixed_copy_has_none() {
+        let envelope = |id: &str, margin: f64| OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: OutlineSettings::default(),
+            id: id.into(),
+            part_ids: vec!["missing-part".into()],
+            margin,
+            operation: boardstudio_core::model::Operation::Add,
+        };
+        let (_probe, root) = mounted(
+            vec![
+                version(
+                    "linked-v1",
+                    "Linked 1",
+                    OutlineOwnership::Linked,
+                    vec![envelope("linked-envelope", 4.0)],
+                ),
+                version(
+                    "fixed-v1",
+                    "Edited outline 1",
+                    OutlineOwnership::Fixed,
+                    vec![polygon("fixed-contour", 60.0)],
+                ),
+            ],
+            "linked-v1",
+        )
+        .await;
+        settle_dimension().await;
+
+        // The linked refinement shows and edits its own margin, bridge width and cleanup,
+        // so a source change never forces a Freeze just to adjust them.
+        let margin = input(&root, "input[aria-label='Outline margin']");
+        assert_eq!(margin.value().parse::<f64>().unwrap(), 4.0);
+        assert!(
+            !margin.disabled(),
+            "the linked refinement's margin is editable"
+        );
+        for selector in [
+            "input[aria-label='Bridge width']",
+            "input[aria-label='Automatic gap cleanup']",
+            "input[aria-label='Maximum gap span']",
+        ] {
+            assert!(
+                !input(&root, selector).disabled(),
+                "{selector} is editable on a linked refinement"
+            );
+        }
+        root.remove();
+
+        // A fixed edited copy has no envelope, so those controls are not offered.
+        let (_probe, root) = mounted(
+            vec![version(
+                "fixed-v1",
+                "Edited outline 1",
+                OutlineOwnership::Fixed,
+                vec![polygon("fixed-contour", 60.0)],
+            )],
+            "fixed-v1",
+        )
+        .await;
+        settle_dimension().await;
+        for selector in [
+            "input[aria-label='Outline margin']",
+            "input[aria-label='Bridge width']",
+            "input[aria-label='Automatic gap cleanup']",
+            "input[aria-label='Maximum gap span']",
+        ] {
+            assert!(
+                root.query_selector(selector).unwrap().is_none(),
+                "{selector} is not offered on a fixed copy"
+            );
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn mounted_freeze_creates_one_fixed_copy_retaining_the_link_and_one_undo_restores_both() {
         let (probe, root) = mounted(
             vec![version(

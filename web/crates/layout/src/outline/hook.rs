@@ -4,7 +4,7 @@ use super::adapter;
 use super::planner::{EditablePerimeter, PerimeterAnchor, connection_point_world};
 use super::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{
-    OutlineEdit, generated_feature, generated_margin, generated_settings,
+    OutlineEdit, envelope_margin, generated_feature, generated_settings,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -126,7 +126,8 @@ pub struct OutlineInspectorProjection {
     pub versions: Vec<OutlineVersionChoice>,
     pub settings: OutlineSettings,
     pub repair: OutlineRepairSettings,
-    pub generated_margin: Option<f64>,
+    /// The margin the envelope-tied controls edit: Generated's, or a linked refinement's own.
+    pub envelope_margin: Option<f64>,
     pub has_generated: bool,
     pub gaps: Vec<OutlineGap>,
     pub(super) action_context: Rc<OutlineActionContext>,
@@ -746,6 +747,19 @@ fn project_inspector(
             })
             .collect();
     let generated = generated_feature(&snapshot.document, board);
+    // The Generated envelope's margin, or the active linked refinement's own copy.
+    let margin = match active_version_id.as_ref() {
+        None => generated.and_then(envelope_margin),
+        Some(active_id) => outline
+            .and_then(|state| {
+                state
+                    .versions
+                    .iter()
+                    .find(|version| &version.id == active_id)
+            })
+            .filter(|version| !version.ownership.is_fixed())
+            .and_then(|version| version.geometry.features.iter().find_map(envelope_margin)),
+    };
     let settings = outline
         .and_then(|state| {
             active_version_id.as_ref().and_then(|active_id| {
@@ -915,7 +929,7 @@ fn project_inspector(
         versions,
         settings,
         repair,
-        generated_margin: generated.and_then(generated_margin),
+        envelope_margin: margin,
         has_generated: generated.is_some(),
         gaps,
         action_context: Rc::new(OutlineActionContext {
