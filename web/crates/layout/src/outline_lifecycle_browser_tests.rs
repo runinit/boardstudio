@@ -382,6 +382,7 @@ async fn mounted_outline_inspector_with_version(
                 active_version_id: Some(version.id.clone()),
                 versions: vec![version],
                 generated_last_valid: None,
+                retired_version_ids: vec![],
             });
     }
     let runtime = crate::runtime::project_name_test_support::new_runtime();
@@ -886,6 +887,7 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
                 ownership: boardstudio_core::model::OutlineOwnership::Fixed,
             }],
             generated_last_valid: None,
+            retired_version_ids: vec![],
         });
     } else {
         document.outline.push(OutlineFeature::PartEnvelope {
@@ -1365,6 +1367,7 @@ mod queued_actions {
                 ownership: boardstudio_core::model::OutlineOwnership::Fixed,
             }],
             generated_last_valid: None,
+            retired_version_ids: vec![],
         });
         document
     }

@@ -493,6 +493,14 @@ pub struct BoardOutline {
     pub versions: Vec<OutlineVersion>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generated_last_valid: Option<OutlineSnapshot>,
+    /// Version identities this board used and removed, in removal order.
+    ///
+    /// Core never reissues one, so a pending edit that names a removed version can never
+    /// land on the version created after it. Feature, connection and gap identities are
+    /// namespaced by their version identity, so reserving that identity reserves the
+    /// whole derived namespace. Omitted while empty, which keeps older documents' shape.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retired_version_ids: Vec<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

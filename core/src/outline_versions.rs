@@ -84,6 +84,7 @@ fn state_mut<'a>(doc: &'a mut ProjectDoc, board_id: &str) -> Result<&'a mut Boar
             active_version_id: None,
             versions: vec![],
             generated_last_valid: None,
+            retired_version_ids: vec![],
         });
         doc.board_outlines.len() - 1
     };
@@ -96,6 +97,64 @@ fn name(value: &str) -> Result<String, String> {
         return Err("Outline name must contain 1 to 120 characters".into());
     }
     Ok(value.into())
+}
+
+/// The persisted outline entity that already owns `identity`, if any.
+///
+/// Outline identities share one document namespace: `SetOutline` addresses a feature by
+/// ID across every version and the top-level outline, and a version's protected gaps,
+/// authored connections and bridges are addressed by ID inside their version. A new
+/// version identity that reused one of those names would address the wrong entity, so
+/// Core refuses it and names the namespace it found.
+fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
+    if doc.outline.iter().any(|feature| feature.id() == identity) {
+        return Some("a top-level outline feature".into());
+    }
+    for feature in &doc.outline {
+        if let OutlineFeature::PartEnvelope { connections, .. } = feature
+            && connections
+                .iter()
+                .any(|connection| connection.id == identity)
+        {
+            return Some("a generated outline connection".into());
+        }
+    }
+    for state in &doc.board_outlines {
+        for version in &state.versions {
+            if version
+                .geometry
+                .features
+                .iter()
+                .any(|feature| feature.id() == identity)
+            {
+                return Some(format!("a feature of outline version {}", version.id));
+            }
+            let authored_connection = version.geometry.features.iter().any(|feature| {
+                matches!(feature, OutlineFeature::PartEnvelope { connections, .. }
+                    if connections.iter().any(|connection| connection.id == identity))
+            });
+            if authored_connection {
+                return Some(format!("a connection of outline version {}", version.id));
+            }
+            if version
+                .geometry
+                .protected_gaps
+                .iter()
+                .any(|gap| gap.id == identity)
+            {
+                return Some(format!("a protected gap of outline version {}", version.id));
+            }
+            if version
+                .geometry
+                .bridges
+                .iter()
+                .any(|bridge| bridge.id == identity)
+            {
+                return Some(format!("a bridge of outline version {}", version.id));
+            }
+        }
+    }
+    None
 }
 
 fn snapshot(doc: &ProjectDoc, board_id: &str, prefix: &str) -> Result<OutlineSnapshot, String> {
@@ -249,6 +308,21 @@ pub(crate) fn apply(
             }) {
                 return Err(format!("Duplicate outline version {version_id}"));
             }
+            if doc.board_outlines.iter().any(|state| {
+                state
+                    .retired_version_ids
+                    .iter()
+                    .any(|retired| retired == version_id)
+            }) {
+                return Err(format!(
+                    "Outline version {version_id} was removed and its identity stays reserved; create the replacement under a new identity"
+                ));
+            }
+            if let Some(namespace) = identity_namespace(doc, version_id) {
+                return Err(format!(
+                    "Outline version {version_id} would collide with {namespace}"
+                ));
+            }
             let prefix = format!("board:{board_id}:version:{version_id}");
             let mut geometry = snapshot(doc, board_id, &prefix)?;
             if let Some(edit) = edit {
@@ -324,6 +398,9 @@ pub(crate) fn apply(
                 return Err("Outline version is missing".into());
             }
             state.versions.retain(|version| &version.id != version_id);
+            if !state.retired_version_ids.iter().any(|id| id == version_id) {
+                state.retired_version_ids.push(version_id.clone());
+            }
             if state.active_version_id.as_ref() == Some(version_id) {
                 state.active_version_id = None;
             }

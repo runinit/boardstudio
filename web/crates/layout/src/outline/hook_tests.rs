@@ -138,6 +138,7 @@ fn install_version(document: &mut ProjectDoc, id: &str) {
         board_id: "board".into(),
         active_version_id: Some(id.into()),
         generated_last_valid: None,
+        retired_version_ids: vec![],
         versions: vec![OutlineVersion {
             id: id.into(),
             name: "Edited outline 1".into(),

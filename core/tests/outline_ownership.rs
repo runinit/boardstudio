@@ -385,3 +385,222 @@ fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may
         "a fixed copy cannot contain live component attachments"
     );
 }
+
+fn error(reply: CoreReply) -> String {
+    match reply {
+        CoreReply::Error { message, .. } => message,
+        reply => panic!("expected a refused edit, got {reply:?}"),
+    }
+}
+
+fn copy(engine: &mut CoreEngine, revision: u64, version_id: &str) -> CoreReply {
+    engine.handle(CoreRequest::Edit {
+        id: "copy-outline".into(),
+        command: EditCommand {
+            base_revision: revision,
+            transaction_id: "copy-outline".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: serde_json::from_value(serde_json::json!({
+                "kind": "copy-outline", "boardId": "main", "versionId": version_id, "name": version_id
+            }))
+            .expect("outline command contract"),
+        },
+    })
+}
+
+#[test]
+fn a_removed_version_identity_cannot_be_reused_so_a_pending_edit_can_never_reach_a_later_version() {
+    let mut engine = CoreEngine::new();
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: fixture(),
+    }));
+    let first = edit(
+        &mut engine,
+        opened.revision,
+        serde_json::json!({
+            "kind": "copy-outline", "boardId": "main", "versionId": "refined", "name": "Refined"
+        }),
+    );
+    let feature_id = document(&mut engine).board_outlines[0].versions[0]
+        .geometry
+        .features[0]
+        .id()
+        .to_owned();
+    // An edit that names the version's feature identity lands while the version exists.
+    let mut feature = document(&mut engine).board_outlines[0].versions[0]
+        .geometry
+        .features[0]
+        .clone();
+    if let OutlineFeature::Polygon { points, .. } = &mut feature {
+        points[0].x -= 1.0;
+    }
+    let named = edit(
+        &mut engine,
+        first.revision,
+        serde_json::json!({ "kind": "set-outline", "feature": feature }),
+    );
+    let removed = edit(
+        &mut engine,
+        named.revision,
+        serde_json::json!({ "kind": "remove-outline", "boardId": "main", "versionId": "refined" }),
+    );
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_eq!(
+        after["boardOutlines"][0]["retiredVersionIds"],
+        serde_json::json!(["refined"]),
+        "a removed version identity is reserved"
+    );
+    // Reissuing the removed identity would let a queued edit that names `feature_id`
+    // reach whatever version took its place.
+    let refused = error(copy(&mut engine, removed.revision, "refined"));
+    assert!(
+        refused.contains("refined"),
+        "a removed identity is refused with a reason: {refused}"
+    );
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert!(
+        !after["boardOutlines"][0]["versions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|version| version["id"] == "refined"),
+        "the removed identity is not reissued"
+    );
+    assert!(
+        !after["boardOutlines"][0]["versions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|version| version["geometry"]["features"].as_array().unwrap())
+            .any(|feature| feature["id"] == feature_id.as_str()),
+        "no later version reuses the retired feature identity"
+    );
+    // A fresh identity is still accepted.
+    let fresh = copy(&mut engine, removed.revision, "replacement");
+    scene(fresh);
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_eq!(version(&after, "replacement")["name"], "replacement");
+}
+
+#[test]
+fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespace() {
+    let mut engine = CoreEngine::new();
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: fixture(),
+    }));
+    // A top-level authored feature already owns one identity.
+    let authored = edit(
+        &mut engine,
+        opened.revision,
+        serde_json::json!({
+            "kind": "set-outline",
+            "feature": {
+                "kind": "polygon", "id": "saved-shape",
+                "points": [
+                    { "x": 58.0, "y": -32.0 }, { "x": 62.0, "y": -32.0 }, { "x": 60.0, "y": -28.0 }
+                ],
+                "operation": "subtract"
+            }
+        }),
+    );
+    // Give the generated outline an authored connection and a protected gap; both are
+    // persisted identities beside version IDs.
+    let mut generated = document(&mut engine)
+        .outline
+        .iter()
+        .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
+        .expect("the generated outline")
+        .clone();
+    let OutlineFeature::PartEnvelope {
+        connections,
+        settings,
+        part_ids,
+        ..
+    } = &mut generated
+    else {
+        unreachable!()
+    };
+    connections.push(OutlineConnection {
+        id: "connection-identity".into(),
+        width: 2.0,
+        points: vec![
+            OutlineControlPoint {
+                at: Vec2 { x: 1.0, y: 2.0 },
+                part_id: part_ids.first().cloned(),
+            },
+            OutlineControlPoint {
+                at: Vec2 { x: 3.0, y: 4.0 },
+                part_id: None,
+            },
+        ],
+    });
+    settings.repair = Some(OutlineRepairSettings {
+        keep_gaps: vec![ProtectedOutlineGap {
+            id: "gap-identity".into(),
+            points: vec![
+                OutlineControlPoint {
+                    at: Vec2 { x: 1.0, y: 2.0 },
+                    part_id: part_ids.first().cloned(),
+                },
+                OutlineControlPoint {
+                    at: Vec2 { x: 4.0, y: 2.0 },
+                    part_id: None,
+                },
+                OutlineControlPoint {
+                    at: Vec2 { x: 1.0, y: 5.0 },
+                    part_id: None,
+                },
+            ],
+        }],
+        ..OutlineRepairSettings::default()
+    });
+    let generated = edit(
+        &mut engine,
+        authored.revision,
+        serde_json::json!({ "kind": "set-outline", "feature": generated }),
+    );
+    let copied = edit(
+        &mut engine,
+        generated.revision,
+        serde_json::json!({
+            "kind": "copy-outline", "boardId": "main", "versionId": "first", "name": "First"
+        }),
+    );
+    let accepted = document(&mut engine);
+    let saved_version = &accepted.board_outlines[0].versions[0];
+    let version_feature_id = saved_version.geometry.features[0].id().to_owned();
+    let gap_id = saved_version.geometry.protected_gaps[0].id.clone();
+    assert_eq!(gap_id, "gap-identity");
+
+    for identity in [
+        "saved-shape",
+        version_feature_id.as_str(),
+        "connection-identity",
+        gap_id.as_str(),
+    ] {
+        let message = error(copy(&mut engine, copied.revision, identity));
+        assert!(
+            message.contains(identity),
+            "the refusal names the colliding identity `{identity}`: {message}"
+        );
+    }
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_eq!(
+        after["boardOutlines"][0]["versions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "no refused creation added a version"
+    );
+    // A distinct identity beside those namespaces is accepted.
+    copy(&mut engine, copied.revision, "distinct-identity");
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_eq!(
+        version(&after, "distinct-identity")["name"],
+        "distinct-identity"
+    );
+}
