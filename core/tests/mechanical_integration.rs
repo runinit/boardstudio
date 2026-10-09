@@ -639,3 +639,110 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
         "the generated hole is removed without a template"
     );
 }
+
+#[test]
+fn an_ordinary_delete_of_a_linked_feature_removes_both_halves() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+
+    // Ordinary Delete is the linked deletion: it removes both counterparts and the
+    // relationship itself. Remove-on-this-half is the explicit Omit action.
+    apply(
+        &mut document,
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::RemoveMount {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "mount-1".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    assert!(
+        pair.features.is_empty(),
+        "a linked delete removes the relationship, not just one half"
+    );
+    for instance in ["left", "right"] {
+        let configuration = boardstudio_core::mechanical::effective_inputs(
+            &document,
+            &[],
+            &instance_target(instance),
+        )
+        .unwrap()
+        .configuration;
+        assert!(
+            configuration
+                .mounts
+                .iter()
+                .all(|mount| mount.id != "mount-1"),
+            "{instance} no longer shows the deleted linked mount"
+        );
+    }
+}
+
+#[test]
+fn a_local_delete_affects_only_that_half() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::features;
+    use boardstudio_core::model::MechanicalFeatureState;
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+    // Make the right half's mount an explicit per-feature exception.
+    apply(
+        &mut document,
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+
+    // Ordinary delete on the localized half affects only that half.
+    apply(
+        &mut document,
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::RemoveMount {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "mount-1".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    assert_eq!(pair.features.len(), 1, "the relationship survives");
+    assert_eq!(
+        features::member_state(pair, "right", "mount-1"),
+        Some(MechanicalFeatureState::Local)
+    );
+    let left =
+        boardstudio_core::mechanical::effective_inputs(&document, &[], &instance_target("left"))
+            .unwrap();
+    assert_eq!(
+        mount_at(&left.configuration, "mount-1"),
+        Vec2 { x: 2.0, y: 3.0 }
+    );
+    let right =
+        boardstudio_core::mechanical::effective_inputs(&document, &[], &instance_target("right"))
+            .unwrap();
+    assert!(
+        right
+            .configuration
+            .mounts
+            .iter()
+            .all(|mount| mount.id != "mount-1"),
+        "the localized half's delete stays local"
+    );
+}
