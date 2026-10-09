@@ -1597,6 +1597,42 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn a_create_generated_change_round_trips_through_its_wire_shape() {
+        let operation = EditOperation::ApplyOutlineEdit {
+            edit: Box::new(OutlineEdit {
+                target: OutlineEditTarget::Board {
+                    board_id: "board".into(),
+                },
+                change: OutlineChange::CreateGenerated {
+                    margin: 4.0,
+                    settings: OutlineSettings {
+                        corners: CornerStyle::Fillet,
+                        size: 2.0,
+                        bridge_width: 10.0,
+                        repair: None,
+                    },
+                    part_ids: vec!["a".into(), "b".into()],
+                },
+                seed: 91,
+                reviewed: None,
+            }),
+        };
+        let value = serde_json::to_value(&operation).unwrap();
+        assert_eq!(value["kind"], "apply-outline-edit");
+        let change = &value["edit"]["change"]["create-generated"];
+        // Struct-variant fields stay snake_case; the settings struct is camelCase and
+        // an absent repair block is omitted.
+        assert_eq!(change["margin"], json!(4.0));
+        assert_eq!(change["part_ids"], json!(["a", "b"]));
+        assert_eq!(change["settings"]["corners"], "fillet");
+        assert_eq!(change["settings"]["size"], json!(2.0));
+        assert_eq!(change["settings"]["bridgeWidth"], json!(10.0));
+        assert!(change["settings"].get("repair").is_none());
+        let parsed: EditOperation = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, operation);
+    }
+
+    #[test]
     fn an_outline_edit_round_trips_through_its_wire_shape() {
         let edit = OutlineEdit {
             target: OutlineEditTarget::Version {
