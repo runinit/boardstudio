@@ -92,7 +92,7 @@ pub fn effective_inputs(
                 configuration,
                 parts: effective_parts(document, board_id, false),
                 board_contours: contours,
-                findings: scoped_pair_findings(document, board_contours, board_id),
+                findings: scoped_pair_findings(document, board_contours, target),
             })
         }
         MechanicalTarget::Instance { instance_id } => {
@@ -123,7 +123,7 @@ pub fn effective_inputs(
                 } else {
                     contours
                 },
-                findings: scoped_pair_findings(document, board_contours, &instance.board_id),
+                findings: scoped_pair_findings(document, board_contours, target),
             })
         }
     }
@@ -185,14 +185,57 @@ pub(crate) fn mirror_parts(parts: &mut [Part], document: &ProjectDoc, board_id: 
 }
 
 /// The accepted mechanical pair findings that concern one board.
+/// The accepted pair findings that concern one target.
+///
+/// A reading for one physical half sees a finding that names that half, or a finding
+/// that names no half of the board at all (a board- or body-level problem). A finding
+/// that names a *different* half of the same board is not this half's problem: two
+/// halves sharing one PCB keep independent readiness, so a Case conflict on one half
+/// cannot block the other's output.
 fn scoped_pair_findings(
     document: &ProjectDoc,
     board_contours: &[BoardContours],
-    board_id: &str,
+    target: &MechanicalTarget,
 ) -> Vec<Finding> {
+    let (board_id, selected_instance) = match target {
+        MechanicalTarget::Board { board_id } => (board_id.clone(), None),
+        MechanicalTarget::Instance { instance_id } => {
+            let Some(instance) = document.hardware.as_ref().and_then(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .find(|instance| instance.id == *instance_id)
+            }) else {
+                return Vec::new();
+            };
+            (instance.board_id.clone(), Some(instance_id.clone()))
+        }
+    };
+    let siblings: Vec<&str> = document
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| hardware.instances.iter())
+        .filter(|instance| instance.board_id == board_id)
+        .map(|instance| instance.id.as_str())
+        .collect();
     pair_findings(document, board_contours)
         .into_iter()
-        .filter(|finding| finding.target_ids.iter().any(|id| id == board_id))
+        .filter(|finding| {
+            if !finding.target_ids.contains(&board_id) {
+                return false;
+            }
+            match &selected_instance {
+                None => true,
+                Some(instance_id) => {
+                    finding.target_ids.iter().any(|id| id == instance_id)
+                        || !finding
+                            .target_ids
+                            .iter()
+                            .any(|id| siblings.iter().any(|sibling| sibling == id))
+                }
+            }
+        })
         .collect()
 }
 

@@ -1961,3 +1961,173 @@ fn one_undo_restores_a_paired_disable_completely() {
             .is_none()
     );
 }
+
+#[test]
+fn a_case_conflict_on_one_half_does_not_scope_to_the_other_half() {
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = conflicting_pair_document();
+    link_pair(&mut document);
+
+    let right = effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert!(
+        right
+            .findings
+            .iter()
+            .any(|finding| finding.target_ids.contains(&"right".to_string())),
+        "the conflicting half carries the finding: {:?}",
+        right.findings
+    );
+    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert!(
+        left.findings.is_empty(),
+        "the other half on the same PCB is unaffected: {:?}",
+        left.findings
+    );
+    // A board-scoped read still sees it, because the violation is on that board.
+    let board = effective_inputs(
+        &document,
+        &[],
+        &MechanicalTarget::Board {
+            board_id: "board".into(),
+        },
+    )
+    .unwrap();
+    assert!(!board.findings.is_empty());
+}
+
+fn rect_contour(half_width: f64, half_height: f64) -> Contour {
+    Contour {
+        hole: false,
+        points: vec![
+            Vec2 {
+                x: -half_width,
+                y: -half_height,
+            },
+            Vec2 {
+                x: half_width,
+                y: -half_height,
+            },
+            Vec2 {
+                x: half_width,
+                y: half_height,
+            },
+            Vec2 {
+                x: -half_width,
+                y: half_height,
+            },
+        ],
+    }
+}
+
+/// Two halves on distinct boards, linked by a closure mount that reflects off the
+/// narrower board.
+fn cross_board_closure_document() -> ProjectDoc {
+    let mut document = ProjectDoc::empty("doc", "Fixture");
+    document.boards.push(board("wide"));
+    document.boards.push(board("narrow"));
+    let mut left = mirror_instance_on("left", "wide", vec![]);
+    let mut right = mirror_instance_on("right", "narrow", vec![]);
+    left.mechanical.as_mut().unwrap().closure_mounts = Some(vec![mount("closure-1", 30.0, 0.0)]);
+    right.mechanical.as_mut().unwrap().closure_mounts = Some(vec![mount("closure-1", 30.0, 0.0)]);
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![left, right],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+#[test]
+fn a_pcb_violation_blocks_only_its_own_board_export() {
+    use boardstudio_core::model::{ExportTarget, PrepareExportRequest};
+    use std::collections::BTreeMap;
+
+    let mut document = cross_board_closure_document();
+    boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: MechanicalTarget::Board {
+                board_id: "wide".into(),
+            },
+            change: MechanicalChange::LinkMirrorPair {
+                pair_id: "pair-left-right".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction_source: "left".into(),
+                correspondences: vec![correspondence(
+                    MechanicalFeatureKind::ClosureMount,
+                    "closure-1",
+                    "closure-1",
+                    Some("left"),
+                )],
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+
+    let request = |board_id: &str, contour: Contour| PrepareExportRequest {
+        snapshot_token: "token".into(),
+        expected_revision: document.revision,
+        document: document.clone(),
+        target: ExportTarget::Board {
+            board_id: board_id.into(),
+        },
+        contours: vec![contour],
+        model_paths: BTreeMap::new(),
+    };
+
+    // The reflected closure drill lands outside the narrow board: its fabrication
+    // export is blocked.
+    let blocked = boardstudio_core::artifact::kicad::prepare_export(request(
+        "narrow",
+        rect_contour(10.0, 5.0),
+    ));
+    assert!(blocked.is_err(), "{blocked:?}");
+
+    // The other board's export is unaffected.
+    let available = boardstudio_core::artifact::kicad::prepare_export(request(
+        "wide",
+        rect_contour(40.0, 30.0),
+    ));
+    assert!(available.is_ok(), "{available:?}");
+
+    // The preview of the affected board stays available.
+    let preview = boardstudio_core::artifact::kicad::prepare_preview(request(
+        "narrow",
+        rect_contour(10.0, 5.0),
+    ));
+    assert!(preview.is_ok(), "{preview:?}");
+}
+
+#[test]
+fn a_case_only_conflict_never_blocks_manufacturing_export() {
+    use boardstudio_core::model::{ExportTarget, PrepareExportRequest};
+    use std::collections::BTreeMap;
+
+    let mut document = conflicting_pair_document();
+    link_pair(&mut document);
+
+    let export = boardstudio_core::artifact::kicad::prepare_export(PrepareExportRequest {
+        snapshot_token: "token".into(),
+        expected_revision: document.revision,
+        document: document.clone(),
+        target: ExportTarget::Board {
+            board_id: "board".into(),
+        },
+        contours: vec![rect_contour(40.0, 30.0)],
+        model_paths: BTreeMap::new(),
+    });
+    assert!(
+        export.is_ok(),
+        "a Case-only clash must not block the board's manufacturing export: {export:?}"
+    );
+}
