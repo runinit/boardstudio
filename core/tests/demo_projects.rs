@@ -79,6 +79,18 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
             ))
             .unwrap();
             assert_eq!(opened["kind"], "scene", "{name}: {opened}");
+            // Shipped projects carry no generator parameter the schema rejects (ADR-0009).
+            assert!(
+                opened["scene"]["findings"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|finding| !finding["id"]
+                        .as_str()
+                        .unwrap()
+                        .starts_with("generator-parameter:")),
+                "{name}: {opened}"
+            );
             // (Opening may normalize a prebuilt archive's other hardware fields.)
             let pairs = |document: &Value| {
                 document["hardware"]["pairs"]

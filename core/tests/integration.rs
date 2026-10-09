@@ -33,6 +33,8 @@ mod firmware_local_build;
 mod gasket_features;
 #[path = "generator_export.rs"]
 mod generator_export;
+#[path = "generator_parameters.rs"]
+mod generator_parameters;
 #[path = "included_keyboards.rs"]
 mod included_keyboards;
 #[path = "keycaps.rs"]

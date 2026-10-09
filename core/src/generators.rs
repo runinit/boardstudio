@@ -3,6 +3,9 @@
 //! of generated parts. The generators themselves live in `boardstudio-footprints`.
 use std::collections::BTreeMap;
 
+use boardstudio_footprints::params::{ParamKind, ParameterProblem};
+use serde_json::Value;
+
 pub use boardstudio_footprints::definition::DEFINITION_ID_PREFIX;
 use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::geometry::{Geometry, geometry};
@@ -14,7 +17,7 @@ use boardstudio_footprints::types::{GeneratorRef, PartRef};
 use boardstudio_footprints::{GeneratorError, bundled};
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::model::{Part, PartDefinition, PartModel};
+use crate::model::{Finding, Part, PartDefinition, PartModel, ProjectDoc, Scope, Severity};
 
 /// Move a value between this crate's document types and the footprints crate's
 /// wire types, which share their serialized form.
@@ -93,6 +96,237 @@ pub fn render_forms(definition: &PartDefinition, part: Option<&Part>) -> Result<
 /// The rendered footprint's pads and outline, for drawing it.
 pub fn drawing(definition: &PartDefinition) -> Result<Geometry, String> {
     geometry(&render_forms(definition, None)?).map_err(message)
+}
+
+/// Where a generator's saved parameters are held.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ParameterOwner {
+    /// A generator-backed definition's own parameters.
+    Definition(String),
+    /// A placed part's own parameters, applied over its definition's at render.
+    Part(String),
+    /// An assembly member's parameters.
+    Member { assembly: String, member: String },
+}
+
+/// A saved generator parameter that the shared check rejects, with where it is held.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeneratorParameterProblem {
+    pub owner: ParameterOwner,
+    pub generator: String,
+    pub problem: ParameterProblem,
+}
+
+/// Every saved generator parameter of a document that its declared schema rejects.
+///
+/// Each map is checked where it is saved: a definition's own parameters at the definition, a
+/// part's at the part, a member's at the member. A value is never checked twice, and a
+/// definition's value that a part overrides is still checked, because it is stored.
+pub fn parameter_problems(doc: &ProjectDoc) -> Vec<GeneratorParameterProblem> {
+    let sources: BTreeMap<&str, &str> = doc
+        .definitions
+        .iter()
+        .filter_map(|definition| {
+            definition
+                .generator
+                .as_ref()
+                .map(|generator| (definition.id.as_str(), generator.source.as_str()))
+        })
+        .collect();
+    let mut problems = Vec::new();
+    let mut check = |owner: ParameterOwner, source: &str, parameters: &BTreeMap<String, Value>| {
+        // Unknown generators are reported where they fail to render, not here.
+        let Ok(found) = bundled().check_parameters(source, parameters) else {
+            return;
+        };
+        problems.extend(found.into_iter().map(|problem| GeneratorParameterProblem {
+            owner: owner.clone(),
+            generator: source.to_owned(),
+            problem,
+        }));
+    };
+    for definition in &doc.definitions {
+        if let Some(generator) = &definition.generator {
+            check(
+                ParameterOwner::Definition(definition.id.clone()),
+                &generator.source,
+                &generator.parameters,
+            );
+        }
+    }
+    for part in &doc.parts {
+        let (Some(source), Some(parameters)) = (
+            sources.get(part.definition_id.as_str()),
+            part.generator_parameters.as_ref(),
+        ) else {
+            continue;
+        };
+        check(ParameterOwner::Part(part.id.clone()), source, parameters);
+    }
+    for assembly in &doc.assemblies {
+        for member in &assembly.members {
+            let (Some(source), Some(parameters)) = (
+                member
+                    .definition_id
+                    .as_deref()
+                    .and_then(|id| sources.get(id)),
+                member.parameters.as_ref(),
+            ) else {
+                continue;
+            };
+            check(
+                ParameterOwner::Member {
+                    assembly: assembly.id.clone(),
+                    member: member.id.clone(),
+                },
+                source,
+                parameters,
+            );
+        }
+    }
+    problems
+}
+
+/// A non-empty text value for a list parameter. Saved data can hold it (version 4 keeps it as
+/// text), so Open and ReplaceDocument warn instead of refusing.
+fn is_list_text(problem: &ParameterProblem) -> bool {
+    matches!(
+        problem,
+        ParameterProblem::WrongType {
+            expected: ParamKind::Array,
+            found: Value::String(text),
+            ..
+        } if !text.trim().is_empty()
+    )
+}
+
+fn owner_text(owner: &ParameterOwner) -> String {
+    match owner {
+        ParameterOwner::Definition(id) => format!("definition {id}"),
+        ParameterOwner::Part(id) => format!("part {id}"),
+        ParameterOwner::Member { assembly, member } => {
+            format!("assembly {assembly} member {member}")
+        }
+    }
+}
+
+fn owner_key(owner: &ParameterOwner) -> String {
+    match owner {
+        ParameterOwner::Definition(id) => format!("definition:{id}"),
+        ParameterOwner::Part(id) => format!("part:{id}"),
+        ParameterOwner::Member { assembly, member } => format!("member:{assembly}/{member}"),
+    }
+}
+
+fn owner_targets(owner: &ParameterOwner) -> Vec<String> {
+    match owner {
+        ParameterOwner::Definition(id) | ParameterOwner::Part(id) => vec![id.clone()],
+        ParameterOwner::Member { assembly, member } => vec![assembly.clone(), member.clone()],
+    }
+}
+
+fn problem_message(problem: &GeneratorParameterProblem) -> String {
+    match &problem.problem {
+        ParameterProblem::WrongType {
+            parameter,
+            expected,
+            ..
+        } => format!(
+            "Generator {} parameter {parameter} on {} must be {}.",
+            problem.generator,
+            owner_text(&problem.owner),
+            expected.describe()
+        ),
+        ParameterProblem::Undeclared { parameter, .. } => format!(
+            "Generator {} has no parameter named {parameter} on {}; render ignores it.",
+            problem.generator,
+            owner_text(&problem.owner)
+        ),
+    }
+}
+
+/// Refuses a document whose saved generator parameters have a wrong type. List text and
+/// undeclared names do not refuse; they are warnings from [`parameter_findings`].
+pub fn document_error(doc: &ProjectDoc) -> Result<(), String> {
+    parameter_problems(doc)
+        .iter()
+        .find(|problem| {
+            matches!(problem.problem, ParameterProblem::WrongType { .. })
+                && !is_list_text(&problem.problem)
+        })
+        .map_or(Ok(()), |problem| Err(problem_message(problem)))
+}
+
+/// Refuses an edit that writes a wrong type or an undeclared name. `before` is the problem list
+/// of the document the edit starts from, so only a value the edit introduces or changes is
+/// judged: a legacy warning does not block an unrelated edit.
+pub fn introduced_error(
+    before: &[GeneratorParameterProblem],
+    after: &ProjectDoc,
+) -> Result<(), String> {
+    parameter_problems(after)
+        .iter()
+        .find(|problem| !before.contains(problem))
+        .map_or(Ok(()), |problem| Err(problem_message(problem)))
+}
+
+/// Refuses a definition whose own generator parameters the schema rejects at all, which is the
+/// strictest form: an edit submitted from the Parts editor must pass it.
+pub fn definition_error(definition: &PartDefinition) -> Result<(), String> {
+    let Some(generator) = &definition.generator else {
+        return Ok(());
+    };
+    let found = bundled()
+        .check_parameters(&generator.source, &generator.parameters)
+        .map_err(message)?;
+    match found.into_iter().next() {
+        None => Ok(()),
+        Some(problem) => Err(problem_message(&GeneratorParameterProblem {
+            owner: ParameterOwner::Definition(definition.id.clone()),
+            generator: generator.source.clone(),
+            problem,
+        })),
+    }
+}
+
+/// Findings for every saved generator parameter the schema rejects: wrong types are errors,
+/// undeclared names and list text are warnings, each located at its definition, part or member.
+pub fn parameter_findings(doc: &ProjectDoc) -> Vec<Finding> {
+    parameter_problems(doc)
+        .iter()
+        .map(|problem| {
+            let (kind, severity, message) = match &problem.problem {
+                ParameterProblem::Undeclared { .. } => {
+                    ("undeclared", Severity::Warning, problem_message(problem))
+                }
+                ParameterProblem::WrongType { .. } if is_list_text(&problem.problem) => (
+                    "list-text",
+                    Severity::Warning,
+                    format!(
+                        "{} The saved value is text, so the part does not generate until it is a list.",
+                        problem_message(problem)
+                    ),
+                ),
+                ParameterProblem::WrongType { .. } => {
+                    ("wrong-type", Severity::Error, problem_message(problem))
+                }
+            };
+            let parameter = match &problem.problem {
+                ParameterProblem::WrongType { parameter, .. }
+                | ParameterProblem::Undeclared { parameter, .. } => parameter,
+            };
+            Finding {
+                id: format!(
+                    "generator-parameter:{}:{parameter}:{kind}",
+                    owner_key(&problem.owner)
+                ),
+                severity,
+                scope: Scope::Pcb,
+                message,
+                target_ids: owner_targets(&problem.owner),
+            }
+        })
+        .collect()
 }
 
 /// Model assets of a rendered part, in order.

@@ -253,6 +253,9 @@ impl CoreEngine {
                 if let Err(message) = layout::sync_components(&mut document) {
                     return self.error(id, &message);
                 }
+                if let Err(message) = generators::document_error(&document) {
+                    return self.error(id, &message);
+                }
                 self.document = document;
                 self.undo.clear();
                 self.redo.clear();
@@ -553,6 +556,13 @@ impl CoreEngine {
         changed.extend(prune_removed_components(&self.document.parts, &mut next));
         changed.sort();
         changed.dedup();
+        // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
+        if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
+            && let Err(message) =
+                generators::introduced_error(&generators::parameter_problems(&self.document), &next)
+        {
+            return self.error(id, &message);
+        }
         // A committed mechanical edit that reports nothing changed is a no-op: return
         // the current committed scene without a revision bump, an undo entry or a redo
         // clear. The no-op policy of every other operation is unchanged.
@@ -627,6 +637,7 @@ impl CoreEngine {
     }
 
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
+        let accepted = generators::parameter_problems(&self.document);
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
         let before_parts = self.document.parts.clone();
@@ -646,6 +657,7 @@ impl CoreEngine {
             changed.extend(prune_removed_components(&before_parts, &mut self.document));
             changed.sort();
             changed.dedup();
+            generators::introduced_error(&accepted, &self.document)?;
             Ok(changed)
         });
         let reply = match result {
@@ -1624,6 +1636,7 @@ fn apply(
             let mut prepared = document.as_ref().clone();
             script::apply_scripts(&mut prepared)?;
             layout::resolve(&mut prepared)?;
+            generators::document_error(&prepared)?;
             *doc = prepared;
             // A wholesale replacement can add or remove a physical member without the
             // typed pair operations. Reconcile ownership against the accepted state so
