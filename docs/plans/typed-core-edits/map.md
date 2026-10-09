@@ -55,6 +55,11 @@ and for any bulk action a recorded decision permits.
 
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+- 14 the outline web adapter lands: the planner is replaced by the typed adapter
+  (zero `ReplaceDocument` consumers in the outline module, Generate through typed
+  `CreateGenerated`), ownership is presented distinctly with located findings and
+  blocked exports, one-shot Freeze retains the link, and hover/focus create no history:
+  [Outcome](issues/14-outline-web-adapter.md#outcome).
 - 13 typed Core outline edits land: one `ApplyOutlineEdit` operation with the
   kebab-case change vocabulary, Core-owned identity allocation and non-duplicating
   default names, atomic composite lifecycle, fingerprint-scoped retirement, and
@@ -86,8 +91,9 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- [14: Outline web adapter](issues/14-outline-web-adapter.md) is the unblocked
-  implementation frontier: 11, 12 and 13 are resolved.
+- [15: Integrated outline verification](issues/15-outline-integrated-verification.md)
+  is the unblocked implementation frontier: 11-14 are resolved. The parent owns the
+  transcript blessing, the full check, the product gesture pass and the reviews.
 
 ## Outline implementation frontier
 

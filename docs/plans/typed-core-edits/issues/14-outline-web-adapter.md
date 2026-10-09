@@ -1,6 +1,6 @@
 # 14: Outline web adapter and linked/fixed presentation
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 13
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Contract: [03 Answer](03-decide-outline-version-intents.md#answer)
@@ -51,3 +51,34 @@ Run affected native adapter tests, WASM page typecheck, mounted Layout browser t
 and format/lint. Take the coordinated Chrome lease; enum construction or native checks
 alone do not prove presentation delivery. Keep a concise real-product gesture pass for
 15; do not remove old rule tests until equivalent public Core coverage exists.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `9fac9a14c` (lane `typed-core-edits/outline-web-adapter`,
+commits `5b746939b`, `d652449ea`, `bf8cb72fa`, the approved `--no-ff` import of Core
+`069bc5f0c` at `ba694988a`, `31b9e2960`). The web planner is gone: one
+`OutlineAction` maps to exactly one typed `ApplyOutlineEdit` (target, named change,
+captured seed, target-specific `reviewed` source shape, adapter-supplied bridge width)
+through `outline/adapter.rs` (`outline_edit`, `admission`, `settle`); Core's
+`evaluate` decides Submit/Unchanged/Retire/Err, retirement stays explained for Core
+`Retire` per ADR-0005's amendment, and no adapter re-derives identity, validation or
+retirement rules. Generate creates the Generated envelope through the typed
+`CreateGenerated` change — `web/crates/layout/src/outline*` has zero `ReplaceDocument`
+consumers. Ownership is presented distinctly (Generated / Linked refinement / Edited
+outline from Core's persisted `OutlineOwnership`), with the linked refinement's located
+problem (finding-id contract + FindingMarker, never message parsing), affected blocked
+exports, saving/editing availability, unselected broken alternatives listed, one-shot
+Freeze retaining the link with one Undo restoring document and selection, and reopen
+displaying persisted ownership with legacy fixed versions never shown as linked.
+Hover/focus create no document history. Checks: native layout 63, mounted layout
+browser suite 143, WASM typecheck, fmt/clippy, core 459 isolated, application 30;
+GitNexus gates with the `create_generated` CRITICAL reported (Core's symbol, exercised
+by its own and this lane's tests).
+
+Accepted residuals: the gap check/uncheck UI is covered natively (no mounted fixture
+scene produces repair candidates) and the check-direction alias narrowing is
+unobserved by web; operation-kind assertions are native + zero-ReplaceDocument
+counts; hover/focus Undo depth uses revision equality as proxy; parallel-workspace
+boundary_parity interference reproduces (isolated runs pass — a shared-target
+artifact, documented at 15). Reports:
+`/tmp/tce-outline-reports/14-outline-web-adapter.md`.
