@@ -1,6 +1,6 @@
 # 06: Offset tool for row and column offsets
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 05
 Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)

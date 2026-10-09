@@ -1,6 +1,6 @@
 # 09: Relations shows structure, departures and authored constraints
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 07, 08
 Spec: [spec.md](../spec.md#relations) · Map: [map.md](../map.md)
