@@ -1,6 +1,6 @@
 # 05: Toolbar Stagger edits the column stagger; Shift-drag gives a quick offset
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 04
 Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)

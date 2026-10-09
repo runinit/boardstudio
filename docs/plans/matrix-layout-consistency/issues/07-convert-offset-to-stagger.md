@@ -1,6 +1,6 @@
 # 07: Convert a column offset to stagger, only when geometry is preserved
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 04
 Spec: [spec.md](../spec.md#core-owns-the-parameter-rules) · Map: [map.md](../map.md)
