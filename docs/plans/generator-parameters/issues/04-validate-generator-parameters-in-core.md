@@ -32,7 +32,7 @@ silently uses the default.
 - [ ] A string `hole_size` in an edit is refused with the generator and parameter named.
 - [ ] An unknown name in an edit is refused; on Open it is a warning finding.
 - [ ] Every bundled fixture opens with no new finding (or each one is recorded).
-- [ ] A short ADR (0008) records what Core now accepts.
+- [ ] A short ADR (0009) records what Core now accepts.
 
 ## Verification
 

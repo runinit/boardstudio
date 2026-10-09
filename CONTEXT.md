@@ -96,6 +96,9 @@ Two physical halves whose shared mechanical features stay reflected when edited
 from either half. They may use one reversible PCB design or different PCB designs,
 and individual features may be half-specific exceptions. New pairs share their
 construction settings within the pair; existing independent halves link explicitly.
+Everything in a pair is linked by default, including proposed and generated
+features; only an explicitly recorded exception is not
+([ADR-0008](docs/adr/0008-linked-halves-stay-linked.md)).
 
 **Linked mechanical feature**:
 A mechanical feature whose counterparts on mirrored halves remain related as
