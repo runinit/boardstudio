@@ -4,12 +4,17 @@
 //! then driven only through Core's public request interface and its effective-input
 //! read, as the Case workspace does: opening, typed mechanical edits, Undo and Redo,
 //! and reopening a saved project. Key positions are the measured layout's and are
-//! pinned separately by `demo_projects.rs`; here they only prove the pair map.
+//! pinned separately by `demo_projects.rs`; here they only prove the pair map. Each
+//! pair's closure holes are checked against what Core projects, and every half is
+//! exported to KiCad with those holes present.
 use crate::demo_projects::demo_projects;
 
 use boardstudio_core::CoreEngine;
+use boardstudio_core::artifact::kicad;
+use boardstudio_core::generators;
+use boardstudio_core::mechanical::inputs::effective_document;
 use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_core::model::{ExportTarget, PrepareExportRequest, ProjectDoc};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::OnceLock};
 
@@ -459,4 +464,283 @@ fn a_reused_flipped_pcb_pairs_through_the_reflection_its_opposite_flips_imply() 
         member_state(pair(&reopened), "opening-2", "flipped"),
         "omitted"
     );
+}
+
+/// Closure holes per half, `[left, right]`, as Core projects them for each shipped split.
+/// A closure mount linked through the pair projects one hole on each half; a half's own
+/// closure mount projects on that half only. The measured splits' left halves carry three
+/// local mounts and four linked ones; their right halves get only the linked four. Sofle
+/// RGB and Choc have no right-half closures, and Sofle v2 uses the internal gasket mount,
+/// which carries no closure mounts. Recorded as Core gives them: see ticket
+/// generator-parameters 02.
+const CLOSURE_HOLES: [(&str, [usize; 2]); 10] = [
+    ("corne", [7, 4]),
+    ("lily58", [7, 4]),
+    ("klor", [7, 4]),
+    ("sweep", [7, 4]),
+    ("chocofi", [7, 4]),
+    ("totem", [7, 4]),
+    ("cantor", [7, 4]),
+    ("sofle-v2", [0, 0]),
+    ("sofle-rgb", [4, 0]),
+    ("sofle-choc", [4, 0]),
+];
+
+/// Core's refusal when a linked closure mount maps outside a half's outline. It is
+/// pinned, not worked around: moving the mount would hide a fit conflict.
+const OUTSIDE_OUTLINE: &str = "lies outside this half's board outline";
+
+/// Each half's export, `[left, right]`: `None` exports, `Some(refusal)` is refused.
+/// The left half of every measured split is refused, because a right-half closure linked
+/// through the pair maps to a point beyond the left outline.
+const EXPORT_REFUSALS: [(&str, [Option<&str>; 2]); 10] = [
+    ("corne", [Some(OUTSIDE_OUTLINE), None]),
+    ("lily58", [Some(OUTSIDE_OUTLINE), None]),
+    ("klor", [Some(OUTSIDE_OUTLINE), None]),
+    ("sweep", [Some(OUTSIDE_OUTLINE), None]),
+    ("chocofi", [Some(OUTSIDE_OUTLINE), None]),
+    ("totem", [Some(OUTSIDE_OUTLINE), None]),
+    ("cantor", [Some(OUTSIDE_OUTLINE), None]),
+    ("sofle-v2", [None, None]),
+    ("sofle-rgb", [None, None]),
+    ("sofle-choc", [None, None]),
+];
+
+/// The generated closure-hole parts of one board.
+fn closure_parts<'a>(project: &'a Value, board: &str) -> Vec<&'a Value> {
+    let prefix = format!("case-closure/{board}/");
+    project["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| part["id"].as_str().unwrap().starts_with(&prefix))
+        .collect()
+}
+
+/// The authored mounting holes of one board: Sofle's measured `TH` parts.
+fn authored_holes<'a>(project: &'a Value, board: &str) -> Vec<&'a Value> {
+    let prefix = format!("{board}/TH");
+    project["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| part["id"].as_str().unwrap().starts_with(&prefix))
+        .collect()
+}
+
+/// A hole part's drill diameter, from its own definition.
+fn drill(project: &Value, part: &Value) -> f64 {
+    project["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|definition| definition["id"] == part["definitionId"])
+        .unwrap()["pads"][0]["drill"]
+        .as_f64()
+        .unwrap()
+}
+
+fn centre(part: &Value) -> (f64, f64) {
+    (
+        part["pose"]["at"]["x"].as_f64().unwrap(),
+        part["pose"]["at"]["y"].as_f64().unwrap(),
+    )
+}
+
+/// Clearance from a round hole to a key's 14 mm switch cutout, which turns with the key.
+/// Negative means the hole cuts into the cutout.
+fn cutout_clearance(hole: (f64, f64), radius: f64, key: (f64, f64, f64)) -> f64 {
+    const HALF: f64 = 7.0;
+    let (dx, dy) = (hole.0 - key.0, hole.1 - key.1);
+    let angle = (-key.2).to_radians();
+    let (lx, ly) = (
+        dx * angle.cos() - dy * angle.sin(),
+        dx * angle.sin() + dy * angle.cos(),
+    );
+    let (ox, oy) = ((lx.abs() - HALF).max(0.0), (ly.abs() - HALF).max(0.0));
+    if ox > 0.0 || oy > 0.0 {
+        ox.hypot(oy) - radius
+    } else {
+        -(HALF - lx.abs()).min(HALF - ly.abs()) - radius
+    }
+}
+
+/// Exports one half's board to KiCad with that half's effective outline, as the Case
+/// workspace does: the `.kicad_pcb` text, or Core's refusal message.
+fn export_board(project: &Value, half: &str) -> Result<String, String> {
+    let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
+    let (_, contours) = effective_document(
+        &typed,
+        &MechanicalTarget::Instance {
+            instance_id: half.into(),
+        },
+    )
+    .unwrap();
+    // Every bundled model the parts use, exported under the project's models folder.
+    let mut model_paths = BTreeMap::new();
+    for definition in typed.definitions.iter().filter(|d| d.generator.is_some()) {
+        for part in typed
+            .parts
+            .iter()
+            .filter(|p| p.definition_id == definition.id)
+        {
+            for id in generators::model_asset_ids(definition, Some(part)).unwrap() {
+                if let Some(path) = id.strip_prefix("bundled-model:") {
+                    model_paths.insert(id.clone(), format!("models/boardstudio/{path}"));
+                }
+            }
+        }
+    }
+    let request = PrepareExportRequest {
+        snapshot_token: "included-keyboards".into(),
+        expected_revision: typed.revision,
+        document: typed.clone(),
+        target: ExportTarget::Board {
+            board_id: half.into(),
+        },
+        contours,
+        model_paths,
+    };
+    let artifact = kicad::export(request).map_err(|error| error.message)?;
+    Ok(artifact
+        .files
+        .into_iter()
+        .find(|file| file.filename.ends_with(".kicad_pcb"))
+        .expect("board file")
+        .content)
+}
+
+#[test]
+fn every_split_half_projects_its_closure_holes_and_exports_or_is_refused_as_pinned() {
+    for ((name, counts), (refusal_name, refusals)) in CLOSURE_HOLES.into_iter().zip(EXPORT_REFUSALS)
+    {
+        assert_eq!(name, refusal_name);
+        let project = &projects()[name];
+        let mut holes = [0; 2];
+        for (index, half) in ["left", "right"].into_iter().enumerate() {
+            holes[index] = closure_parts(project, half).len();
+            match (export_board(project, half), refusals[index]) {
+                (Ok(board), None) => assert_eq!(
+                    board.matches("ceoloide:mounting_hole_npth").count(),
+                    holes[index] + authored_holes(project, half).len(),
+                    "{name} {half}: every closure hole and authored mounting hole is exported"
+                ),
+                (Err(message), Some(expected)) => assert!(
+                    message.contains(expected),
+                    "{name} {half}: refused for another reason: {message}"
+                ),
+                (Err(message), None) => panic!("{name} {half}: export refused: {message}"),
+                (Ok(_), Some(_)) => panic!(
+                    "{name} {half}: export now succeeds; update EXPORT_REFUSALS with the new record"
+                ),
+            }
+        }
+        assert_eq!(holes, counts, "{name}: closure holes per half");
+        // A linked mount projects one hole per half; a local mount projects on its half.
+        let linked = pair(project)["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|feature| feature["kind"] == "closure-mount")
+            .count();
+        let local: usize = project["hardware"]["instances"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|instance| {
+                instance["mechanical"]["closureMounts"]
+                    .as_array()
+                    .map_or(0, Vec::len)
+            })
+            .sum();
+        assert_eq!(
+            holes.iter().sum::<usize>(),
+            local + 2 * linked,
+            "{name}: holes = local mounts + two per linked mount"
+        );
+    }
+}
+
+#[test]
+fn every_linked_closure_mount_lands_on_its_mirror_on_the_other_half() {
+    for (name, project) in projects() {
+        if name == "reused-pcb" {
+            continue;
+        }
+        let offset = mapping_x(pair(project));
+        for feature in pair(project)["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|feature| feature["kind"] == "closure-mount")
+        {
+            let mount = &feature["value"]["mount"]["at"];
+            let (x, y) = (mount["x"].as_f64().unwrap(), mount["y"].as_f64().unwrap());
+            // The map is its own inverse: the author's point maps to (offset - x, y).
+            for half in ["left", "right"] {
+                let expected = if feature["author"] == half {
+                    (x, y)
+                } else {
+                    (offset - x, y)
+                };
+                assert!(
+                    closure_parts(project, half).iter().any(|hole| {
+                        let (hx, hy) = centre(hole);
+                        (hx - expected.0).abs() < 1e-6 && (hy - expected.1).abs() < 1e-6
+                    }),
+                    "{name}: {half} has no hole at {expected:?} for linked {}",
+                    feature["id"]
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn closure_holes_clear_the_authored_mounting_holes_they_share_a_board_with() {
+    for (name, project) in projects() {
+        if name == "reused-pcb" {
+            continue;
+        }
+        for half in ["left", "right"] {
+            for hole in closure_parts(project, half) {
+                for authored in authored_holes(project, half) {
+                    let (hx, hy) = centre(hole);
+                    let (ax, ay) = centre(authored);
+                    let gap = (hx - ax).hypot(hy - ay)
+                        - (drill(project, hole) + drill(project, authored)) / 2.0;
+                    assert!(
+                        gap > 0.0,
+                        "{name} {half}: {} overlaps {} by {gap}",
+                        hole["id"],
+                        authored["id"]
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn no_closure_hole_cuts_a_switch_cutout_on_its_half() {
+    for (name, project) in projects() {
+        if name == "reused-pcb" {
+            continue;
+        }
+        for half in ["left", "right"] {
+            let switches = keys(project, half);
+            for hole in closure_parts(project, half) {
+                let radius = drill(project, hole) / 2.0;
+                for key in &switches {
+                    let gap = cutout_clearance(centre(hole), radius, *key);
+                    assert!(
+                        gap > 0.0,
+                        "{name} {half}: {} cuts a switch cutout by {}",
+                        hole["id"],
+                        -gap
+                    );
+                }
+            }
+        }
+    }
 }
