@@ -710,6 +710,23 @@ pub fn use_mechanical_settings_mount(
                     })
                     .cloned()
             });
+        // The review's read-only projection: the mount owns the accepted document, its
+        // contours and the normalized template, so the panel never carries them and the
+        // transient projection result never reaches Session or the accepted state.
+        let pair_projection_port = crate::mechanical_pair::MechanicalPairProjectionPort(
+            Rc::new({
+                let document = current.accepted.document.clone();
+                let board_contours = current.accepted.scene.board_contours.clone();
+                let mounting_hole = review_mounting_hole.read().clone();
+                move |change: &boardstudio_core::mechanical::change::MechanicalChange| {
+                    crate::mechanical_pair::link_preview(
+                        &document,
+                        change,
+                        mounting_hole.as_deref(),
+                    )
+                }
+            }),
+        );
         // An unpaired half offers the candidate links it could establish; a paired
         // half uses its per-feature actions instead.
         let pair_link_options = current.identity.scope.instance_id.as_deref().map(|instance_id| {
@@ -742,6 +759,7 @@ pub fn use_mechanical_settings_mount(
             pair_features,
             pair_link_options,
             pair_counterpart,
+            pair_projection_port: Some(pair_projection_port),
             selected_layer,
             mismatch,
             editable: enabled,

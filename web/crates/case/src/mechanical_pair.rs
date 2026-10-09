@@ -20,6 +20,7 @@ use boardstudio_core::model::{
     MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, PartDefinition, Pose2,
     ProjectDoc, Vec2,
 };
+use std::rc::Rc;
 
 /// One linked feature of the selected half's pair, as the accepted document stores it.
 #[derive(Clone, Debug, PartialEq)]
@@ -420,6 +421,68 @@ pub fn link_preview(
         });
     }
     Ok(MechanicalLinkPreview { members: previews })
+}
+
+/// A read-only projection of a reviewed link's complete result, owned by the mount.
+///
+/// The mount captures the accepted document, its accepted contours and the normalized
+/// mounting-hole template, then applies the reviewed typed edit through a disposable
+/// Core engine and reads the result back through Core's effective-input path. The
+/// transient document never leaves the closure: it is never submitted to Session, never
+/// carried in a payload and never given ownership of accepted state. Calling the port
+/// is pure with respect to the accepted document.
+/// The projection function a mount supplies to the review.
+pub type LinkProjection = dyn Fn(&MechanicalChange) -> Result<MechanicalLinkPreview, String>;
+
+#[derive(Clone)]
+pub struct MechanicalPairProjectionPort(pub Rc<LinkProjection>);
+
+impl PartialEq for MechanicalPairProjectionPort {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// The typed link a review actually shows, from its own choices.
+///
+/// This is the one place the reviewed choices become a payload: the map (derived or
+/// entered), which half supplies construction, and which half supplies each matched
+/// feature. `None` means the review has no map yet, so there is nothing to project or
+/// submit. Nothing here computes geometry; it only names what the user chose.
+pub fn reviewed_link_change(
+    option: &MechanicalPairLinkOption,
+    mapping: Option<Pose2>,
+    construction_from_other: bool,
+    sources: &std::collections::BTreeMap<String, String>,
+) -> Option<MechanicalChange> {
+    let mapping = mapping.or(option.derived_mapping)?;
+    let construction_source = if construction_from_other {
+        option.other_instance_id.clone()
+    } else {
+        option.instance_id.clone()
+    };
+    let correspondences = option
+        .matched
+        .iter()
+        .map(|matched| MechanicalFeatureCorrespondence {
+            kind: matched.kind,
+            first_feature_id: matched.first_feature_id.clone(),
+            second_feature_id: matched.second_feature_id.clone(),
+            source_instance_id: Some(
+                sources
+                    .get(&matched.first_feature_id)
+                    .cloned()
+                    .unwrap_or_else(|| matched.source_instance_id.clone()),
+            ),
+        })
+        .collect();
+    Some(MechanicalChange::LinkMirrorPair {
+        pair_id: option.pair_id.clone(),
+        members: [option.instance_id.clone(), option.other_instance_id.clone()],
+        mapping,
+        construction_source,
+        correspondences,
+    })
 }
 
 /// A short description of the durable-id matches a reviewed link would consolidate.
@@ -1200,6 +1263,75 @@ mod tests {
                 .iter()
                 .all(|member| member.findings.is_empty()),
             "a clean link projects no findings"
+        );
+    }
+
+    #[test]
+    fn the_reviewed_choices_become_the_link_payload_the_review_shows() {
+        let doc = linkable_halves();
+        let option = pair_link_options(&doc, &[], "left", None)
+            .into_iter()
+            .next()
+            .expect("one candidate");
+        let mut sources = std::collections::BTreeMap::new();
+
+        // No map, no payload: a translated frame must supply one.
+        assert!(
+            reviewed_link_change(&option, None, false, &sources).is_some(),
+            "a derived map is enough"
+        );
+        let mut explicit = option.clone();
+        explicit.derived_mapping = None;
+        assert!(
+            reviewed_link_change(&explicit, None, false, &sources).is_none(),
+            "an entered map is required before anything is submitted"
+        );
+
+        let mapping = Pose2 {
+            at: Vec2 { x: 30.0, y: -5.0 },
+            rotation: 180.0,
+        };
+        let change = reviewed_link_change(&explicit, Some(mapping), true, &sources)
+            .expect("the entered map makes the payload");
+        let MechanicalChange::LinkMirrorPair {
+            members,
+            mapping: payload_mapping,
+            construction_source,
+            correspondences,
+            ..
+        } = change
+        else {
+            panic!("a reviewed link is a LinkMirrorPair");
+        };
+        assert_eq!(members, ["left".to_string(), "right".to_string()]);
+        assert_eq!(payload_mapping, mapping);
+        assert_eq!(
+            construction_source, "right",
+            "the construction source follows the review's choice"
+        );
+        assert_eq!(
+            correspondences[0].source_instance_id.as_deref(),
+            Some("left"),
+            "each match starts from the reviewed half"
+        );
+
+        // Choosing the other half per feature is the payload the review shows.
+        sources.insert("mount-1".to_owned(), "right".to_owned());
+        let change =
+            reviewed_link_change(&option, None, false, &sources).expect("a derived map is enough");
+        let MechanicalChange::LinkMirrorPair {
+            construction_source,
+            correspondences,
+            ..
+        } = change
+        else {
+            panic!("a reviewed link is a LinkMirrorPair");
+        };
+        assert_eq!(construction_source, "left");
+        assert_eq!(
+            correspondences[0].source_instance_id.as_deref(),
+            Some("right"),
+            "the per-feature choice reaches the payload"
         );
     }
 
