@@ -1155,6 +1155,32 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
             }
             p { class: "m1-mechanical-help", "{mapping_note}" }
             p { class: "m1-mechanical-help", "Matched features: {option.matched_features}" }
+            // The complete proposed result on both halves, read from Core.
+            if let Some(preview) = option.preview.clone() {
+                div { class: "m1-mechanical-pair-preview", aria_label: "Proposed result on both halves",
+                    for member in preview.members.iter() {
+                        div { class: "m1-mechanical-pair-preview-member", "data-instance": "{member.instance_id}",
+                            h4 { "{member.instance_id}" }
+                            if member.features.is_empty() {
+                                p { class: "m1-mechanical-help", "No mechanical features after linking." }
+                            } else {
+                                ul {
+                                    for feature in member.features.iter() {
+                                        li { "{feature}" }
+                                    }
+                                }
+                            }
+                            for finding in member.findings.iter() {
+                                p { role: "alert", class: "m1-mechanical-pair-preview-finding", "{finding}" }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(note) = option.preview_note.clone() {
+                p { class: "m1-mechanical-help",
+                    "The complete proposed result is unavailable until you confirm: {note}"
+                }
+            }
             button {
                 r#type: "button",
                 class: "m1-mechanical-quiet",
@@ -6052,6 +6078,21 @@ mod contextual_layer_tests {
                 ],
                 matched_features: "Mount mount-1".into(),
                 reviewed_fingerprint: Some("reviewed-link".into()),
+                preview: Some(crate::mechanical_pair::MechanicalLinkPreview {
+                    members: vec![
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "left".into(),
+                            features: vec!["Mount at (2.0, 3.0)".into()],
+                            findings: vec![],
+                        },
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "right".into(),
+                            features: vec!["Mount at (-2.0, 3.0)".into()],
+                            findings: vec![],
+                        },
+                    ],
+                }),
+                preview_note: None,
             },
             MechanicalPairLinkOption {
                 pair_id: "pair/left".into(),
@@ -6063,6 +6104,8 @@ mod contextual_layer_tests {
                 correspondences: vec![],
                 matched_features: "No shared mechanical features yet.".into(),
                 reviewed_fingerprint: Some("reviewed-link-explicit".into()),
+                preview: None,
+                preview_note: Some("the reviewed configuration needs a catalogue template".into()),
             },
         ])
     }
@@ -6146,6 +6189,20 @@ mod contextual_layer_tests {
             "the review submits nothing by itself"
         );
 
+        // Both halves of the complete proposed result are rendered before the commit,
+        // read from Core rather than computed in the panel.
+        let both_halves = element(".m1-mechanical-pair-preview")
+            .text_content()
+            .unwrap();
+        assert!(
+            both_halves.contains("left") && both_halves.contains("Mount at (2.0, 3.0)"),
+            "the review shows the authoring half's proposed result, got {both_halves}"
+        );
+        assert!(
+            both_halves.contains("right") && both_halves.contains("Mount at (-2.0, 3.0)"),
+            "the review shows the mirrored half's proposed result, got {both_halves}"
+        );
+
         element("button[aria-label='Link left with right']").click();
         rendered().await;
         let linked = element("#case-pair-link-last-request")
@@ -6178,6 +6235,13 @@ mod contextual_layer_tests {
         assert!(
             element("input[aria-label='Pair mapping X']").is_connected(),
             "a translated frame gets explicit mapping inputs"
+        );
+        assert!(
+            element(".m1-mechanical-pair-link")
+                .text_content()
+                .unwrap()
+                .contains("complete proposed result is unavailable"),
+            "a candidate without a projection says so instead of showing a partial result"
         );
         assert!(
             web_sys::window()

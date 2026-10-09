@@ -7,14 +7,18 @@
 //! the value the result is derived from, plus the pair's shared construction when a
 //! link consolidates it - so unrelated edits and revision changes leave a review valid
 //! while a relevant input change retires it.
+use boardstudio_core::CoreEngine;
 use boardstudio_core::mechanical::MechanicalTarget;
-use boardstudio_core::mechanical::change::{MechanicalChange, MechanicalFeatureCorrespondence};
+use boardstudio_core::mechanical::change::{
+    MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence,
+};
 use boardstudio_core::mechanical::features;
 use boardstudio_core::mechanical::inputs::effective_inputs;
 use boardstudio_core::model::{
-    BoardContours, MechanicalConfiguration, MechanicalFeature, MechanicalFeatureKind,
-    MechanicalFeatureMember, MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair,
-    Pose2, ProjectDoc, Vec2,
+    BoardContours, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase,
+    MechanicalConfiguration, MechanicalFeature, MechanicalFeatureKind, MechanicalFeatureMember,
+    MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, PartDefinition, Pose2,
+    ProjectDoc, Vec2,
 };
 
 /// One linked feature of the selected half's pair, as the accepted document stores it.
@@ -119,6 +123,11 @@ pub struct MechanicalPairLinkOption {
     /// The fingerprint of the accepted inputs this candidate's review was produced
     /// from. The link submission carries it for the same reason as a rejoin row's.
     pub reviewed_fingerprint: Option<String>,
+    /// The complete proposed result on both halves, read from Core's own read path.
+    /// `None` when the projection is unavailable; `preview_note` then says why.
+    pub preview: Option<MechanicalLinkPreview>,
+    /// Why the complete proposed result is unavailable, when it is.
+    pub preview_note: Option<String>,
 }
 
 /// The candidate links the selected half can establish, from the accepted document.
@@ -168,6 +177,13 @@ pub fn pair_link_options(
                 construction_source: review.construction_source.clone(),
                 correspondences: review.correspondences.clone(),
             };
+            // The complete proposed result comes from Core's own read path, read-only.
+            // Careful: a projection that must create generated closure holes needs the
+            // normalized template, which this commit-time offer does not load.
+            let (preview, preview_note) = match link_preview(document, &reviewed, None) {
+                Ok(preview) => (Some(preview), None),
+                Err(reason) => (None, Some(reason)),
+            };
             Some(MechanicalPairLinkOption {
                 pair_id,
                 instance_id: instance_id.to_owned(),
@@ -179,9 +195,148 @@ pub fn pair_link_options(
                 correspondences: review.correspondences,
                 reviewed_fingerprint: reviewed_fingerprint(document, board_contours, &reviewed)
                     .ok(),
+                preview,
+                preview_note,
             })
         })
         .collect()
+}
+
+/// One half's read-only view of what a reviewed link produces.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MechanicalLinkMemberPreview {
+    pub instance_id: String,
+    /// Every visible mechanical feature of that half after the link, described for the
+    /// review. These come from Core's effective read of the projected result.
+    pub features: Vec<String>,
+    /// Findings the projected result carries for that half.
+    pub findings: Vec<String>,
+}
+
+/// The complete proposed result of a reviewed link, for both halves.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MechanicalLinkPreview {
+    pub members: Vec<MechanicalLinkMemberPreview>,
+}
+
+/// Project what a reviewed link produces on both halves, read-only.
+///
+/// A disposable engine applies the reviewed typed edit to a clone of the accepted
+/// document; the resulting document and scene are then read through Core's
+/// effective-input path, so both halves' visible geometry and findings come from Core's
+/// own rules. The transient result is never submitted, stored, carried in a payload or
+/// given any ownership of accepted state: the confirmation still sends the typed
+/// choices, ids and template against the operation-time accepted document.
+pub fn link_preview(
+    document: &ProjectDoc,
+    change: &MechanicalChange,
+    mounting_hole: Option<&PartDefinition>,
+) -> Result<MechanicalLinkPreview, String> {
+    let MechanicalChange::LinkMirrorPair { members, .. } = change else {
+        return Err("Only a reviewed link has a two-half preview.".into());
+    };
+    let mut engine = CoreEngine::new();
+    match engine.handle(CoreRequest::Open {
+        id: "pair-review-open".into(),
+        document: document.clone(),
+    }) {
+        CoreReply::Scene { .. } => {}
+        CoreReply::Error { message, .. } => return Err(message),
+        _ => return Err("Core did not open the reviewed projection".into()),
+    }
+    let edit = MechanicalEdit {
+        target: MechanicalTarget::Instance {
+            instance_id: members[0].clone(),
+        },
+        change: change.clone(),
+        mounting_hole: mounting_hole.map(|template| Box::new(template.clone())),
+    };
+    let command = EditCommand {
+        base_revision: document.revision,
+        transaction_id: "pair-review".into(),
+        phase: EditPhase::Commit,
+        target_ids: members.to_vec(),
+        operation: EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(edit),
+        },
+    };
+    let (projected, scene) = match engine.handle(CoreRequest::Edit {
+        id: "pair-review-link".into(),
+        command,
+    }) {
+        CoreReply::Scene {
+            document, scene, ..
+        } => (*document, scene),
+        CoreReply::Error { message, .. } => return Err(message),
+        _ => return Err("Core did not project the reviewed link".into()),
+    };
+
+    let mut previews = Vec::with_capacity(members.len());
+    for instance_id in members {
+        let inputs = effective_inputs(
+            &projected,
+            &scene.board_contours,
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.clone(),
+            },
+        )?;
+        let configuration = inputs.configuration;
+        let mut features = Vec::new();
+        for mount in &configuration.mounts {
+            features.push(describe_value(
+                MechanicalFeatureKind::Mount,
+                &MechanicalFeatureValue::Mount {
+                    mount: mount.clone(),
+                },
+            ));
+        }
+        for mount in configuration.closure_mounts.as_deref().unwrap_or_default() {
+            features.push(describe_value(
+                MechanicalFeatureKind::ClosureMount,
+                &MechanicalFeatureValue::Mount {
+                    mount: mount.clone(),
+                },
+            ));
+        }
+        for opening in configuration.openings.as_deref().unwrap_or_default() {
+            features.push(describe_value(
+                MechanicalFeatureKind::Opening,
+                &MechanicalFeatureValue::Opening {
+                    opening: opening.clone(),
+                },
+            ));
+        }
+        for anchor in configuration
+            .gasket_layout
+            .as_ref()
+            .map(|layout| layout.supports.as_slice())
+            .unwrap_or_default()
+        {
+            features.push(describe_value(
+                MechanicalFeatureKind::GasketSupport,
+                &MechanicalFeatureValue::GasketSupport {
+                    anchor: anchor.clone(),
+                },
+            ));
+        }
+        let findings = scene
+            .findings
+            .iter()
+            .filter(|finding| {
+                finding
+                    .target_ids
+                    .iter()
+                    .any(|target| target == instance_id)
+            })
+            .map(|finding| format!("{:?}: {}", finding.severity, finding.message))
+            .collect();
+        previews.push(MechanicalLinkMemberPreview {
+            instance_id: instance_id.clone(),
+            features,
+            findings,
+        });
+    }
+    Ok(MechanicalLinkPreview { members: previews })
 }
 
 /// A short description of the durable-id matches a reviewed link would consolidate.
@@ -806,6 +961,79 @@ mod tests {
             pairs: vec![],
         });
         doc
+    }
+
+    /// Two pair-free halves with the same durable mount id at different positions, so a
+    /// projection that ran is distinguishable from one that returned the current state.
+    fn linkable_halves() -> ProjectDoc {
+        let mut doc = independent_halves();
+        doc.hardware.as_mut().unwrap().instances[1]
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .mounts[0] = mount("mount-1", 5.0, 5.0);
+        doc
+    }
+
+    #[test]
+    fn a_reviewed_link_projects_both_halves_through_core_without_touching_accepted_state() {
+        let doc = linkable_halves();
+        let change = MechanicalChange::LinkMirrorPair {
+            pair_id: "pair/left".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![MechanicalFeatureCorrespondence {
+                kind: MechanicalFeatureKind::Mount,
+                first_feature_id: "mount-1".into(),
+                second_feature_id: "mount-1".into(),
+            }],
+        };
+        let accepted = doc.clone();
+
+        let preview = link_preview(&doc, &change, None)
+            .expect("the reviewed link projects through the disposable engine");
+
+        assert_eq!(
+            doc, accepted,
+            "a read-only projection never mutates or stores the accepted document"
+        );
+        assert_eq!(preview.members.len(), 2);
+        assert_eq!(preview.members[0].instance_id, "left");
+        assert_eq!(preview.members[1].instance_id, "right");
+        assert!(
+            preview.members[0]
+                .features
+                .iter()
+                .any(|feature| feature == "Mount at (2.0, 3.0)"),
+            "the authoring half keeps its authored geometry, got {:?}",
+            preview.members[0].features
+        );
+        assert!(
+            preview.members[1]
+                .features
+                .iter()
+                .any(|feature| feature == "Mount at (-2.0, 3.0)"),
+            "the mirrored half shows the reflected counterpart, not its pre-link geometry, got {:?}",
+            preview.members[1].features
+        );
+        assert!(
+            !preview.members[1]
+                .features
+                .iter()
+                .any(|feature| feature == "Mount at (5.0, 5.0)"),
+            "the pre-link geometry is not part of the proposed result"
+        );
+        assert!(
+            preview
+                .members
+                .iter()
+                .all(|member| member.findings.is_empty()),
+            "a clean link projects no findings"
+        );
     }
 
     #[test]
