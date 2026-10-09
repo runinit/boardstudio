@@ -81,11 +81,63 @@ pub fn evaluate_edit(
     if !target_exists(document, &edit.target) {
         return Ok(MechanicalEditDisposition::Retire);
     }
+    // An edit that addresses a durable entity which is gone retires too: a queued
+    // intent must never be redirected at whatever later addition reused its place.
+    if addressed_entity_is_gone(document, board_contours, edit) {
+        return Ok(MechanicalEditDisposition::Retire);
+    }
     let mut next = document.clone();
     match apply_staged(&mut next, board_contours, edit) {
         Ok(changed) if changed.is_empty() => Ok(MechanicalEditDisposition::Unchanged),
         Ok(_) => Ok(MechanicalEditDisposition::Changed),
         Err(message) => Err(message),
+    }
+}
+
+/// Whether the change addresses an opening/vertex identity that no longer exists.
+///
+/// Only durable identities are considered; a change that names none, or whose target
+/// cannot be resolved at all, is left to the operation to reject.
+fn addressed_entity_is_gone(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+) -> bool {
+    let Ok(inputs) = effective_inputs(document, board_contours, &edit.target) else {
+        return false;
+    };
+    let configuration = inputs.configuration;
+    let opening = |id: &str| {
+        configuration
+            .openings
+            .as_ref()
+            .is_some_and(|openings| openings.iter().any(|entry| entry.id == id))
+    };
+    let vertex = |opening_id: &str, vertex_id: &str| {
+        configuration
+            .openings
+            .as_ref()
+            .and_then(|openings| openings.iter().find(|entry| entry.id == opening_id))
+            .is_some_and(|entry| entry.vertices.iter().any(|v| v.id == vertex_id))
+    };
+    match &edit.change {
+        MechanicalChange::RemoveOpening { opening_id }
+        | MechanicalChange::AddOpeningVertex { opening_id } => !opening(opening_id),
+        MechanicalChange::RemoveOpeningVertex {
+            opening_id,
+            vertex_id,
+        } => !opening(opening_id) || !vertex(opening_id, vertex_id),
+        MechanicalChange::SetOpeningDimension {
+            opening_id,
+            vertex_id,
+            ..
+        } => {
+            !opening(opening_id)
+                || vertex_id
+                    .as_deref()
+                    .is_some_and(|vertex_id| !vertex(opening_id, vertex_id))
+        }
+        _ => false,
     }
 }
 
@@ -1758,6 +1810,7 @@ pub(crate) fn default_configuration(
         gasket: None,
         closure_mounts: None,
         board_id: board_id.to_string(),
+        next_opening_identity: 0,
         integrated_plate_frame: false,
         battery: None,
         mounts: Vec::new(),
@@ -2168,21 +2221,31 @@ fn apply_change(
             changed.push(hardware_id.clone());
         }
         MechanicalChange::AddOpening => {
-            let openings = configuration.openings.get_or_insert_with(Vec::new);
-            push_mechanical_opening(
-                openings,
-                vec![
-                    Vec2 { x: -2.5, y: -2.5 },
-                    Vec2 { x: 2.5, y: -2.5 },
-                    Vec2 { x: 2.5, y: 2.5 },
-                    Vec2 { x: -2.5, y: 2.5 },
-                ],
-                0.0,
-                10.0,
-            );
-            if let Some(opening) = openings.last() {
-                changed.push(opening.id.clone());
+            let id = reserve_opening_identity(configuration);
+            let mut opening = MechanicalOpening {
+                id: id.clone(),
+                vertices: Vec::new(),
+                z: 0.0,
+                height: 10.0,
+                next_vertex_identity: 0,
+            };
+            for point in [
+                Vec2 { x: -2.5, y: -2.5 },
+                Vec2 { x: 2.5, y: -2.5 },
+                Vec2 { x: 2.5, y: 2.5 },
+                Vec2 { x: -2.5, y: 2.5 },
+            ] {
+                let vertex_id = reserve_vertex_identity(&mut opening);
+                opening.vertices.push(MechanicalOpeningVertex {
+                    id: vertex_id,
+                    point,
+                });
             }
+            configuration
+                .openings
+                .get_or_insert_with(Vec::new)
+                .push(opening);
+            changed.push(id);
         }
         MechanicalChange::RemoveOpening { opening_id } => {
             let openings = configuration
@@ -2205,7 +2268,9 @@ fn apply_change(
                 .iter_mut()
                 .find(|opening| opening.id == *opening_id)
                 .ok_or("The selected access opening is no longer available.")?;
-            let vertex_id = next_vertex_id(opening);
+            // Reserved from the opening's own monotonic counter, so a removed vertex
+            // id can never be handed out again within that opening.
+            let vertex_id = reserve_vertex_identity(opening);
             opening.vertices.push(MechanicalOpeningVertex {
                 id: vertex_id.clone(),
                 point: Vec2 { x: 0.0, y: 0.0 },
@@ -3152,52 +3217,45 @@ fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
     Ok(())
 }
 
-/// The lowest unused `opening-N` identity in this configuration.
-fn next_opening_id(openings: &[MechanicalOpening]) -> String {
-    let mut index = 1;
-    loop {
-        let candidate = format!("opening-{index}");
-        if !openings.iter().any(|opening| opening.id == candidate) {
-            return candidate;
-        }
-        index += 1;
-    }
-}
-
-/// The lowest unused `vertex-N` identity within one opening footprint.
-fn next_vertex_id(opening: &MechanicalOpening) -> String {
-    let mut index = 1;
-    loop {
-        let candidate = format!("vertex-{index}");
-        if !opening.vertices.iter().any(|vertex| vertex.id == candidate) {
-            return candidate;
-        }
-        index += 1;
-    }
-}
-
-/// Append a new authored opening with deterministic opening/vertex identities.
-fn push_mechanical_opening(
-    openings: &mut Vec<MechanicalOpening>,
-    points: Vec<Vec2>,
-    z: f64,
-    height: f64,
-) {
-    let id = next_opening_id(openings);
-    let vertices = points
+/// Reserves the next authored opening or vertex identity for a configuration.
+///
+/// The stored reservation is monotonic, so a removed opening or vertex identity is
+/// never handed out again and an intent queued against it can never reach a later
+/// addition. The first reservation for a configuration that predates the field
+/// normalizes to the highest identity it already carries, which preserves existing
+/// geometry and ids.
+fn reserve_opening_identity(configuration: &mut MechanicalConfiguration) -> String {
+    let highest = configuration
+        .openings
+        .as_ref()
         .into_iter()
-        .enumerate()
-        .map(|(index, point)| MechanicalOpeningVertex {
-            id: format!("vertex-{}", index + 1),
-            point,
-        })
-        .collect();
-    openings.push(MechanicalOpening {
-        id,
-        vertices,
-        z,
-        height,
-    });
+        .flatten()
+        .map(|opening| identity_index(&opening.id))
+        .max()
+        .unwrap_or(0);
+    let next = configuration.next_opening_identity.max(highest + 1).max(1);
+    configuration.next_opening_identity = next + 1;
+    format!("opening-{next}")
+}
+
+fn reserve_vertex_identity(opening: &mut MechanicalOpening) -> String {
+    let highest = opening
+        .vertices
+        .iter()
+        .map(|vertex| identity_index(&vertex.id))
+        .max()
+        .unwrap_or(0);
+    let next = opening.next_vertex_identity.max(highest + 1).max(1);
+    opening.next_vertex_identity = next + 1;
+    format!("vertex-{next}")
+}
+
+/// The numeric suffix of an `opening-N`/`vertex-N` identity, or zero.
+fn identity_index(id: &str) -> u64 {
+    id.rsplit('-')
+        .next()
+        .and_then(|index| index.parse().ok())
+        .unwrap_or(0)
 }
 
 fn validate_mount_positive(value: f64, label: &str) -> Result<(), String> {

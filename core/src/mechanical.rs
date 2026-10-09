@@ -2468,6 +2468,7 @@ mod tests {
             gasket: None,
             closure_mounts: None,
             board_id: "board".into(),
+            next_opening_identity: 0,
             method: PlateMethod::Printed,
             mount: MechanicalMount::Tray,
             integrated_plate_frame: false,

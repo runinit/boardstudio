@@ -1312,3 +1312,143 @@ fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
         "the same pair without a local conflict reports nothing: {control_findings:?}"
     );
 }
+
+fn add_opening(document: &mut ProjectDoc) -> String {
+    use boardstudio_core::mechanical::edit::apply;
+    apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::AddOpening,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    document
+        .mechanical
+        .as_ref()
+        .unwrap()
+        .openings
+        .as_ref()
+        .unwrap()
+        .last()
+        .unwrap()
+        .id
+        .clone()
+}
+
+#[test]
+fn a_removed_opening_identity_is_never_reused() {
+    let mut document = document();
+    let first = add_opening(&mut document);
+    boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemoveOpening {
+                opening_id: first.clone(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let second = add_opening(&mut document);
+    assert_ne!(
+        second, first,
+        "a removed opening identity must not be handed out again"
+    );
+
+    // A queued intent naming the removed opening cannot reach the later addition, and
+    // retires instead of being redirected.
+    let queued = MechanicalEdit {
+        target: board_target(),
+        change: MechanicalChange::SetOpeningDimension {
+            opening_id: first.clone(),
+            vertex_id: None,
+            field: MechanicalDimension::OpeningHeight,
+            value: 9.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    assert_eq!(
+        evaluate_edit(&document, &[], &queued).unwrap(),
+        MechanicalEditDisposition::Retire
+    );
+    assert!(
+        boardstudio_core::mechanical::edit::apply(&mut document, &[], &queued).is_err(),
+        "a commit against the removed opening is an error, not a redirected change"
+    );
+}
+
+#[test]
+fn a_removed_opening_vertex_identity_is_never_reused() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = document();
+    let opening = add_opening(&mut document);
+    let add_vertex = |document: &mut ProjectDoc| {
+        apply(
+            document,
+            &[],
+            &MechanicalEdit {
+                target: board_target(),
+                change: MechanicalChange::AddOpeningVertex {
+                    opening_id: opening.clone(),
+                },
+                mounting_hole: Some(Box::new(template())),
+            },
+        )
+        .unwrap();
+        document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .openings
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|candidate| candidate.id == opening)
+            .unwrap()
+            .vertices
+            .last()
+            .unwrap()
+            .id
+            .clone()
+    };
+    let first = add_vertex(&mut document);
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemoveOpeningVertex {
+                opening_id: opening.clone(),
+                vertex_id: first.clone(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let second = add_vertex(&mut document);
+    assert_ne!(
+        second, first,
+        "a removed vertex identity must not be handed out again"
+    );
+
+    let queued = MechanicalEdit {
+        target: board_target(),
+        change: MechanicalChange::SetOpeningDimension {
+            opening_id: opening.clone(),
+            vertex_id: Some(first.clone()),
+            field: MechanicalDimension::OpeningPointX,
+            value: 4.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    assert_eq!(
+        evaluate_edit(&document, &[], &queued).unwrap(),
+        MechanicalEditDisposition::Retire
+    );
+}

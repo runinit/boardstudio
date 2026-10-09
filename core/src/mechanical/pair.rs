@@ -80,6 +80,7 @@ pub fn reflect_opening(mapping: Pose2, opening: &MechanicalOpening) -> Mechanica
         vertices,
         z: opening.z,
         height: opening.height,
+        next_vertex_identity: opening.next_vertex_identity,
     }
 }
 
@@ -100,6 +101,7 @@ mod tests {
                 .collect(),
             z: 1.25,
             height: 3.5,
+            next_vertex_identity: 0,
         }
     }
 
