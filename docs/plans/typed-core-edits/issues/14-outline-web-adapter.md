@@ -75,6 +75,21 @@ browser suite 143, WASM typecheck, fmt/clippy, core 459 isolated, application 30
 GitNexus gates with the `create_generated` CRITICAL reported (Core's symbol, exercised
 by its own and this lane's tests).
 
+Fix round after 15's verification (lane commits `d3cfdd7cf`, `6f9b3e2e7`, merged at
+`75a761e34`): 15 found two acceptance gaps. (1) Linked refinements had no product entry
+point (test-only), so the phase's headline ADR-0002 behavior was unreachable; a
+**Refine outline** control now maps to the typed `OutlineChange::CreateLinkedRefinement`
+(created and selected, one Undo removes it), with Copy product-context mounted coverage
+(mounted layout browser 145, native layout 65, workspace 1137 including boundary parity).
+(2) The adapter never reissues a retired outline version identity. 15's "Copy outline
+silently produced no version" had no code defect: the cause was the stale core-worker wasm
+provider asset served by `scripts/dev-web.py`, which rebuilds providers only when a file is
+missing, never when stale; with providers rebuilt from source Copy lands live (live gesture
+evidence: reports second pass, screenshots 20-31). Not re-driven live: a Generated-active
+Copy click (covered mounted plus one live linked-context click), and the
+material-bridge-with-authored-connection gesture (no bundled demo has an authored
+connection; Core-level bridge coverage stands).
+
 Accepted residuals: the gap check/uncheck UI is covered natively (no mounted fixture
 scene produces repair candidates) and the check-direction alias narrowing is
 unobserved by web; operation-kind assertions are native + zero-ReplaceDocument
