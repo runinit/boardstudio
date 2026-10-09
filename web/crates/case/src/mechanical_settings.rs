@@ -6458,7 +6458,8 @@ mod contextual_layer_tests {
         assert!(
             explanation.contains("right")
                 && explanation.contains("keeps its geometry and settings")
-                && explanation.contains("neither PCB is removed"),
+                && explanation.contains("neither PCB is removed")
+                && explanation.contains("One Undo"),
             "the panel explains what disabling a linked half does, got {explanation}"
         );
         element("button[aria-label='Unlink and disable this half']").click();

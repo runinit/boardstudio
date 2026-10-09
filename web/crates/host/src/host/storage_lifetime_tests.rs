@@ -463,3 +463,237 @@ async fn a_mechanical_pair_round_trips_through_indexeddb() {
         .delete_database(&database_name)
         .unwrap();
 }
+
+/// A paired document whose linked half reserves opening identities, so the reservation
+/// has something to outlive.
+fn reserved_pair_document() -> ProjectDoc {
+    let mut document = ProjectDoc::empty("reserved-pair", "Reserved pair");
+    document.boards.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+            "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        }))
+        .unwrap(),
+    );
+    let instance = |id: &str, half: &str, flipped: bool| {
+        serde_json::json!({
+            "id": id, "name": id, "boardId": "board", "half": half,
+            "role": "peripheral", "flipped": flipped,
+            "mechanical": {
+                "boardId": "board", "method": "printed", "mount": "tray",
+                "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                "mounts": [], "closureMounts": [], "profiles": [],
+                "nextOpeningIdentity": 7,
+                "openings": [{
+                    "id": "opening-6",
+                    "vertices": [
+                        { "id": "vertex-3", "point": { "x": 0.0, "y": 0.0 } },
+                        { "id": "vertex-4", "point": { "x": 5.0, "y": 0.0 } },
+                        { "id": "vertex-5", "point": { "x": 5.0, "y": 5.0 } }
+                    ],
+                    "z": 1.0, "height": 2.0, "nextVertexIdentity": 6
+                }]
+            },
+            "constructionOwnership": "pair"
+        })
+    };
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "topology": "split", "transport": "none",
+            "instances": [instance("left", "left", false), instance("right", "right", true)],
+            "boards": [],
+            "sharedConstruction": {
+                "boardId": "board", "method": "printed", "mount": "tray",
+                "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                "mounts": [], "closureMounts": [], "profiles": []
+            },
+            "pairs": [{
+                "id": "pair-left-right",
+                "members": ["left", "right"],
+                "mapping": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+                "construction": {
+                    "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "bottomStyle": "shell", "middleFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0.5,
+                    "bottomFoamThickness": 2.0, "bottomThickness": 3.0,
+                    "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3
+                },
+                "features": []
+            }]
+        }))
+        .unwrap(),
+    );
+    document
+}
+
+/// Apply one typed mechanical edit to a document through the real Core operation.
+fn applied(
+    document: &ProjectDoc,
+    base_revision: u64,
+    target_ids: Vec<String>,
+    edit: boardstudio_core::mechanical::change::MechanicalEdit,
+) -> ProjectDoc {
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+    let mut engine = boardstudio_core::CoreEngine::new();
+    match engine.handle(CoreRequest::Open {
+        id: "storage-open".into(),
+        document: document.clone(),
+    }) {
+        CoreReply::Scene { .. } => {}
+        other => panic!("Core did not open the document: {other:?}"),
+    }
+    let command = EditCommand {
+        base_revision,
+        transaction_id: "storage".into(),
+        phase: EditPhase::Commit,
+        target_ids,
+        operation: EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(edit),
+        },
+    };
+    match engine.handle(CoreRequest::Edit {
+        id: "storage-edit".into(),
+        command,
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("Core did not apply the edit: {other:?}"),
+    }
+}
+
+/// A disabled half's identity reservation outlives its stack through the browser store.
+///
+/// The confirmed paired behaviour is unlink-and-disable: one Disable clears the pair and
+/// removes only that half's stack, and the reservations it had made move onto the
+/// instance. Enabling it again must not reuse an identity a queued intent may name, and
+/// the reservation has to survive a save and reopen for that promise to hold.
+#[wasm_bindgen_test]
+async fn a_disabled_pairs_identity_reservation_survives_indexeddb() {
+    use boardstudio_core::mechanical::change::{
+        MechanicalChange, MechanicalEdit, MechanicalTarget,
+    };
+    let database_name = format!("boardstudio-idb-reservation-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&database_name).unwrap();
+    let document = reserved_pair_document();
+
+    let edit = |change: MechanicalChange| MechanicalEdit {
+        target: MechanicalTarget::Instance {
+            instance_id: "left".into(),
+        },
+        change,
+        mounting_hole: None,
+    };
+    let disabled = applied(
+        &document,
+        document.revision,
+        vec!["left".into()],
+        edit(MechanicalChange::Disable),
+    );
+    assert!(
+        disabled
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .pairs
+            .is_empty(),
+        "the paired Disable clears the link"
+    );
+    let enabled = applied(
+        &disabled,
+        disabled.revision,
+        vec!["left".into()],
+        edit(MechanicalChange::Enable),
+    );
+
+    let left = enabled
+        .hardware
+        .as_ref()
+        .expect("hardware")
+        .instances
+        .iter()
+        .find(|instance| instance.id == "left")
+        .expect("the enabled half");
+    let reservation = left
+        .mechanical_identity_reservation
+        .expect("the reservation outlived the disabled stack");
+    assert!(
+        reservation.next_opening_identity >= 7,
+        "the highest reserved opening identity is kept, got {reservation:?}"
+    );
+    assert!(
+        left.mechanical.is_some(),
+        "Enable restored the half's own stack"
+    );
+    // The reservation is what stops reuse: a later addition cannot be handed an
+    // identity the disabled half already used.
+    let after_add = applied(
+        &enabled,
+        enabled.revision,
+        vec!["left".into()],
+        edit(MechanicalChange::AddOpening),
+    );
+    let added = after_add
+        .hardware
+        .as_ref()
+        .expect("hardware")
+        .instances
+        .iter()
+        .find(|instance| instance.id == "left")
+        .expect("the half")
+        .mechanical
+        .as_ref()
+        .expect("the half's configuration")
+        .openings
+        .as_ref()
+        .expect("openings")
+        .last()
+        .expect("the added opening");
+    let added_number = added
+        .id
+        .trim_start_matches("opening-")
+        .parse::<u64>()
+        .expect("opening ids carry their number");
+    assert!(
+        added_number >= reservation.next_opening_identity,
+        "an addition after re-enabling cannot reuse a reserved identity, got {}",
+        added.id
+    );
+    assert_ne!(
+        added.id, "opening-6",
+        "the removed opening identity is not reused"
+    );
+    assert!(
+        enabled
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .pairs
+            .is_empty(),
+        "enabling the half infers no relink"
+    );
+
+    store
+        .save_document(&enabled, &Default::default())
+        .await
+        .unwrap();
+    let loaded = store
+        .load_document("reserved-pair".into())
+        .await
+        .unwrap()
+        .expect("the saved project loads back");
+    assert_eq!(
+        loaded.hardware, enabled.hardware,
+        "the reservation and the enabled stack round-trip through the browser store"
+    );
+
+    window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}

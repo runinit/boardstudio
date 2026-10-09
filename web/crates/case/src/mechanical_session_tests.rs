@@ -182,6 +182,22 @@ fn matrix_resolver(
     })
 }
 
+/// The visible configuration, ignoring the identity reservations.
+///
+/// Reservations are bookkeeping that must persist and may advance when an operation
+/// reserves an identity; they never move geometry or change a setting.
+fn without_reservations(
+    mut configuration: boardstudio_core::model::MechanicalConfiguration,
+) -> boardstudio_core::model::MechanicalConfiguration {
+    configuration.next_opening_identity = 0;
+    if let Some(openings) = configuration.openings.as_mut() {
+        for opening in openings.iter_mut() {
+            opening.next_vertex_identity = 0;
+        }
+    }
+    configuration
+}
+
 fn undo(runtime: &Rc<Runtime>) {
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
@@ -766,11 +782,8 @@ fn reopening_a_project_without_pairs_infers_no_links_and_keeps_legacy_settings()
 /// The user's decision is "unlink and disable this half": one typed `Disable` carries it,
 /// the other half keeps its geometry and settings, no physical instance or PCB is removed,
 /// one Undo restores the link and the stack, a queued edit on the disabled stack retires,
-/// and Enable stays eligible without inferring a relink. Core's compound staged behaviour
-/// is pending (checkpoint after 5ffc555b6), so this records the required behaviour as a
-/// runnable, ignored demonstration.
+/// and Enable stays eligible without inferring a relink.
 #[test]
-#[ignore = "Core compound unlink-and-disable for a paired half pending; see the handoff"]
 fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
     let runtime = open_document(paired_document());
     let mut scope = runtime.scope().expect("the open document has a scope");
@@ -846,8 +859,8 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
         "no physical instance or PCB is removed"
     );
     assert_eq!(
-        configuration("right").expect("the survivor still resolves"),
-        survivor_before,
+        without_reservations(configuration("right").expect("the survivor still resolves")),
+        without_reservations(survivor_before.clone()),
         "the other half keeps its geometry and settings"
     );
     assert!(
@@ -871,9 +884,9 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
     // Undo restores the link and the stack; Redo re-applies the whole change.
     undo(&runtime);
     assert_eq!(pair_count(), 1, "one Undo restores the link");
-    assert_eq!(
-        configuration("left").expect("the stack is back"),
-        configuration("left").expect("the stack is back")
+    assert!(
+        configuration("left").is_some(),
+        "one Undo restores this half's mechanical stack"
     );
     redo(&runtime);
     assert_eq!(pair_count(), 0, "redo re-applies the whole change");
@@ -996,8 +1009,8 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
         "the survivor owns its materialized construction"
     );
     assert_eq!(
-        visible("right").expect("the survivor still resolves"),
-        survivor_visible_before,
+        without_reservations(visible("right").expect("the survivor still resolves")),
+        without_reservations(survivor_visible_before.clone()),
         "the survivor keeps the geometry and settings it showed while linked"
     );
     assert_eq!(
@@ -1030,14 +1043,17 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
         instances_before,
         "one Undo restores the removed assembly"
     );
+    let restored_left = restored
+        .instances
+        .iter()
+        .find(|instance| instance.id == "left")
+        .expect("the removed half is back")
+        .mechanical
+        .clone()
+        .expect("the removed half's stack is restored");
     assert_eq!(
-        restored
-            .instances
-            .iter()
-            .find(|instance| instance.id == "left")
-            .expect("the removed half is back")
-            .mechanical,
-        removed_stack_before,
+        without_reservations(restored_left),
+        without_reservations(removed_stack_before.expect("the removed half had a stack")),
         "the removed half's stack is restored unchanged"
     );
     redo(&runtime);
