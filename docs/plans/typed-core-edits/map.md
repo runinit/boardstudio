@@ -53,6 +53,12 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- 04 (partial, ticket still claimed) the ten split included keyboards open as explicit mechanical
+  mirror pairs through the typed operation (Sofle linked, measured splits with local right-half
+  bays, Sofle v2 gasket as the pair construction), unibody and review projects untouched, no key
+  moved, a reused flipped-PCB demonstration and six Core request tests landed; repo, lint, build
+  and native test pass, while mounted/live checks and the Standards/Spec reviews remain:
+  [Outcome](issues/04-refresh-included-keyboards.md#outcome).
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
 - 15 integrated outline verification closes the outline phase: the typed outline transcript is

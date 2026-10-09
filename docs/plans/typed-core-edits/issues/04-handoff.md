@@ -1,5 +1,7 @@
 # Handoff: ticket 04, refresh included keyboards
 
+> Progress since this handoff is recorded in the ticket's [Outcome](04-refresh-included-keyboards.md#outcome); the draft below was reviewed, repaired and committed.
+
 Ticket: [04-refresh-included-keyboards.md](04-refresh-included-keyboards.md) (`Status: claimed`, claim commit `f6a6a3a46`)
 Branch/worktree: `typed-core-edits/mechanical`, `.worktrees/tce-matrix`. Not merged to `dev`, not pushed (user instruction: do not merge into `dev` yet).
 

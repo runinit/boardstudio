@@ -57,3 +57,136 @@ have no mechanical configuration, so this follow-up includes configuration work.
 Run affected `python3 scripts/check.py` steps while iterating. Before accepting
 the complete set or opening a PR, run the full check, including browser and build,
 plus the per-keyboard app review above. Preserve result/source pins in the Outcome.
+
+## Outcome
+
+Status stays `claimed`: the data, recipes and Core tests are done and checked, but acceptance
+is not complete (see "Not done" below). Commits on `typed-core-edits/mechanical`: `0e6f1a1ad`
+(recipes, baseline, archive reopen check, README) and `c4673db3b` (Core tests).
+
+### Inventory (20 shipped projects, matches the Library cards and `demo-projects-baseline.json`)
+
+| Group | Projects | Result |
+| --- | --- | --- |
+| Symmetric splits, measured recipes | Corne, Ferris Sweep, Chocofi, TOTEM, Cantor | Paired; bay and TRRS local on the right |
+| Splits authored from the right half | Lily58, KLOR | Paired with the same map (a reflection is its own inverse); bay and TRRS local on the right |
+| Sofle | v2, RGB, Choc | Paired; bay and TRRS linked; v2 carries the gasket as the pair's construction |
+| Unibody | REVIUNG41 (measured), GH60, Discipline, Mysterium, Voyager97, Voyager104, Plaid, Lumberjack | Untouched |
+| Prebuilt archive | REVIUNG41 original (`content/archives/`) | Untouched (copied, not a recipe) |
+| Review | VIK module review | Untouched (a module review with no halves) |
+
+### Per-keyboard intentional changes
+
+Every paired project: both instances `constructionOwnership: pair` (was `legacy`) with the
+explicit map `second = (offset - first.x, first.y)`, rotation 0; one shared construction taken
+from the left half with Core's defaults (tray mount, 1.5 mm printed plate, 2 mm walls, 0.3 mm
+clearance, the default part processes); two Case openings, `opening-1` (controller bay, 20 x 36 mm
+around `U1`) and `opening-2` (TRRS jack around the jack part), each authored once by the left
+half; closure mounts left empty (see Findings). `revision` rises because each edit is one
+revision. No part, matrix, net, outline, definition or asset value changed, so no key position
+moved (the baseline comparison at 1e-9 passes with the same `parts` and `matrices`).
+
+| Keyboard | Map offset | Openings (left / right) | Revision |
+| --- | --- | --- | --- |
+| Corne | 348.125 | linked / local | 2 to 34 |
+| Lily58 | 347.8 | linked / local | 2 to 34 |
+| KLOR | 386.344 | linked / local | 2 to 34 |
+| Ferris Sweep | 284.16 | linked / local | 2 to 34 |
+| Chocofi | 296.6 | linked / local | 2 to 34 |
+| TOTEM | 329.75 | linked / local | 2 to 34 |
+| Cantor | 339.1 | linked / local | 2 to 34 |
+| Sofle (v2) | 317.0 | linked / linked | 3 to 25 |
+| Sofle RGB | 316.74 | linked / linked | 2 to 24 |
+| Sofle Choc | 316.74 | linked / linked | 2 to 24 |
+
+Deliberate half-specific hardware, named: on the seven measured splits the recipe puts the
+controller bay, reset switch and TRRS jack at each PCB's right edge on both halves, so the right
+half's bay is not the left half's reflection. Its two openings are made local on the right
+(`make-feature-local`) and re-placed around the right half's own parts, instead of silently
+mirroring a position the right PCB does not have. (The reset switch has no Case opening.) Sofle
+places every part from one measured half, so its reflected parts, including the encoder, display
+and mounting holes, match the map exactly and its openings stay linked; the recipe asserts this
+while building. No Case openings were invented for the Sofle encoder or display: no source fact
+gives their window size.
+
+Sofle v2 only: its project-level legacy gasket (`m1-fixture-gasket`, applied to the left board
+only; the right half had none) is gone. The pair's shared construction is now the settled
+internal-gasket mount (`set-mount gasket`), so both halves resolve it. This is a deliberate
+design change: the internal gasket defaults apply (4 supports, 0.1 mm travel against the legacy
+0.3 mm), so the v2 gasket geometry is regenerated, not preserved, and needs a fit review. The
+baseline now pins `mechanical: null` for it.
+
+Reused-PCB demonstration (not a shipped fixture, so the Library and the 20-project count are
+unchanged): `reused_pcb_project` builds one REVIUNG41 board with two physical copies, the second
+`flipped: true`, paired with the zero map their opposite flips imply (the same rule the physical
+setup uses). The controller bay is linked; the reset access exists only on the unflipped copy and
+is `omitted` on the flipped one. Core tests read each copy's frame (the flipped one mirrors X and
+walks the polygon the other way).
+
+### Tests and baseline
+
+- `core/tests/included_keyboards.rs` (6 tests, public requests plus the effective-input read):
+  all ten pairs open and reflect every measured key with mirrored orientation (a mutation that
+  moved the map by 1 mm fails it); reopening changes nothing; the per-keyboard link states; a
+  paired value (plate thickness) edited from the right half changes both in one Undo step, with
+  Undo/Redo; a linked opening edited from the right half moves the left by the reflected value;
+  a local exception stays local both ways while the construction stays shared and Undo walks back
+  to the opened project; the reused flipped PCB (mirrored frame, omitted opening, edit from the
+  flipped copy, Undo, reopen).
+- `core/tests/demo_projects.rs`: every exported archive now also reopens in a fresh engine with its
+  pairs unchanged. Baseline re-recorded only for `revision` and `hardware` of the ten paired
+  fixtures and `mechanical` of Sofle v2; the other ten fixtures and all `parts`, `matrices`,
+  `definitions` and `assets` are untouched.
+- The earlier agent draft was kept in approach but corrected: it stored prose notes in
+  `parameters.mechanicalPair` (dropped; the pair itself is the record), left the Sofle v2 gasket as
+  a project setting on one board that the paired halves do not read (now the pair's construction),
+  and had a `Bay` model with no way to express an omitted opening or a flipped copy (now a
+  `Counterpart` of linked, local or omitted, which the reused-PCB demonstration needs).
+
+### Commands and results
+
+- `python3 scripts/check.py repo`: passed.
+- `python3 scripts/check.py lint`: passed (rustfmt and Clippy, warnings denied).
+- `python3 scripts/check.py build`: passed in the worktree with the sandbox lifted for wasm-pack;
+  regenerated all 20 fixtures with their archives (`web/assets/fixtures`, 20 entries, Corne at
+  revision 34 with its pair).
+- `python3 scripts/check.py test`: passed at `c4673db3b` in a non-nested validation worktree
+  (`/tmp/claude-1000/boardstudio-tce-verify`, because `/tmp/boardstudio-tce-verify` is read-only
+  from the sandbox); Core integration 474 passed (the 468 existing plus these 6), CAD 51 passed,
+  4 ignored.
+- Not run: `typecheck`, `browser`, `tooling`, `deny`; no web or presentation source changed.
+  `release` was never run.
+
+### Findings kept open
+
+- Core defect: `core/src/mechanical/clearance.rs` `normalized_mounting_hole` writes the generated
+  closure hole's `hole_drill` and `hole_size` as text. The footprint generator rejects that
+  ("parameter hole_size must be a number"), so enabling a half and keeping its proposed closure
+  mounts failed the export step. The recipes therefore enable each half and then set an empty
+  closure collection. This means the shipped splits have no closure screws; add them once Core
+  is fixed (a task was raised for it).
+- Rebuilding does not establish physical fit or electrical qualification. The regenerated Sofle v2
+  gasket and every new bay opening need a fit review; the bay sizes (20 x 36 mm, jack 12 x 14 or
+  14 x 12) are recipe values, not measurements.
+- The right-half bay is local because the recipe places it at the PCB's outer edge; a recipe
+  that mirrors the controller (a placement change) would let it link. That is a separate decision.
+
+### Not done (why Status is still `claimed`)
+
+- Mounted browser tests and a live-product pass (open each paired fixture in the app, edit a paired
+  value and a local exception in the Case workspace): not run.
+- Independent Standards and Spec reviews of this source/data change: not run.
+- The full `python3 scripts/check.py` (including `browser`, `tooling`, `typecheck`) before a PR.
+- Not pushed, not merged to `dev`.
+
+### Decisions recorded
+
+- Pair all seven split keyboards, not only the symmetric ones: the map is a reflection and holds for
+  the right-authored KLOR and Lily58 too, which the key-reflection test shows. What differs is the
+  hardware placement, which stays a local exception.
+- Unibody keyboards stay without mechanical configuration. A default there would invent geometry
+  with no source fact, and the ticket only asks for independent configuration where it is clear.
+- The reused-PCB case is a Core-verified demonstration, not a 21st shipped project: the Library
+  card list, the 20-project baseline counts and the provenance would change with no product need.
+- The draft was kept after review and repaired, not restarted: its approach (typed edits through
+  `apply-mechanical-edit`) was right.
