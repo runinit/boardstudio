@@ -1677,60 +1677,66 @@ fn apply_change(
                 changed.push(opening.id.clone());
             }
         }
-        MechanicalChange::RemoveOpening { opening_index } => {
+        MechanicalChange::RemoveOpening { opening_id } => {
             let openings = configuration
                 .openings
                 .as_mut()
                 .ok_or("The selected access opening is no longer available.")?;
-            if *opening_index >= openings.len() {
-                return Err("The selected access opening is no longer available.".into());
-            }
-            let id = openings[*opening_index].id.clone();
-            openings.remove(*opening_index);
-            changed.push(id);
+            let position = openings
+                .iter()
+                .position(|opening| opening.id == *opening_id)
+                .ok_or("The selected access opening is no longer available.")?;
+            openings.remove(position);
+            changed.push(opening_id.clone());
         }
-        MechanicalChange::AddOpeningVertex { opening_index } => {
+        MechanicalChange::AddOpeningVertex { opening_id } => {
             let openings = configuration
                 .openings
                 .as_mut()
                 .ok_or("The selected access opening is no longer available.")?;
             let opening = openings
-                .get_mut(*opening_index)
+                .iter_mut()
+                .find(|opening| opening.id == *opening_id)
                 .ok_or("The selected access opening is no longer available.")?;
-            let id = next_vertex_id(opening);
+            let vertex_id = next_vertex_id(opening);
             opening.vertices.push(MechanicalOpeningVertex {
-                id,
+                id: vertex_id.clone(),
                 point: Vec2 { x: 0.0, y: 0.0 },
             });
             let opening_id = opening.id.clone();
             validate_openings(openings)?;
             changed.push(opening_id);
+            changed.push(vertex_id);
         }
         MechanicalChange::RemoveOpeningVertex {
-            opening_index,
-            point_index,
+            opening_id,
+            vertex_id,
         } => {
             let openings = configuration
                 .openings
                 .as_mut()
                 .ok_or("The selected access opening is no longer available.")?;
             let opening = openings
-                .get_mut(*opening_index)
+                .iter_mut()
+                .find(|opening| opening.id == *opening_id)
                 .ok_or("The selected access opening is no longer available.")?;
+            let position = opening
+                .vertices
+                .iter()
+                .position(|vertex| vertex.id == *vertex_id)
+                .ok_or("The selected opening vertex is no longer available.")?;
             if opening.vertices.len() <= 3 {
                 return Err("An opening footprint needs at least three vertices.".into());
             }
-            if *point_index >= opening.vertices.len() {
-                return Err("The selected opening vertex is no longer available.".into());
-            }
-            opening.vertices.remove(*point_index);
+            opening.vertices.remove(position);
             let opening_id = opening.id.clone();
             validate_openings(openings)?;
             changed.push(opening_id);
+            changed.push(vertex_id.clone());
         }
         MechanicalChange::SetOpeningDimension {
-            opening_index,
-            point_index,
+            opening_id,
+            vertex_id,
             field,
             value,
         } => {
@@ -1742,9 +1748,7 @@ fn apply_change(
                 *field,
                 MechanicalDimension::OpeningPointX | MechanicalDimension::OpeningPointY
             );
-            if !(is_volume_field && point_index.is_none()
-                || is_point_field && point_index.is_some())
-            {
+            if !(is_volume_field && vertex_id.is_none() || is_point_field && vertex_id.is_some()) {
                 return Err("The selected opening field is unavailable.".into());
             }
             validate_dimension(*field, *value)?;
@@ -1753,25 +1757,33 @@ fn apply_change(
                 .as_mut()
                 .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
             let opening = openings
-                .get_mut(*opening_index)
+                .iter_mut()
+                .find(|opening| opening.id == *opening_id)
                 .ok_or_else(|| "The selected access opening is no longer available.".to_owned())?;
-            if let Some(point_index) = point_index {
-                let point = opening.vertices.get_mut(*point_index).ok_or_else(|| {
-                    "The selected opening vertex is no longer available.".to_owned()
-                })?;
+            if let Some(vertex_id) = vertex_id {
+                let vertex = opening
+                    .vertices
+                    .iter_mut()
+                    .find(|vertex| vertex.id == *vertex_id)
+                    .ok_or_else(|| {
+                        "The selected opening vertex is no longer available.".to_owned()
+                    })?;
                 match field {
-                    MechanicalDimension::OpeningPointX => point.point.x = *value,
-                    MechanicalDimension::OpeningPointY => point.point.y = *value,
+                    MechanicalDimension::OpeningPointX => vertex.point.x = *value,
+                    MechanicalDimension::OpeningPointY => vertex.point.y = *value,
                     _ => return Err("The selected opening field is unavailable.".into()),
                 }
+                let opening_id = opening.id.clone();
+                changed.push(opening_id);
+                changed.push(vertex_id.clone());
             } else {
                 match field {
                     MechanicalDimension::OpeningBottomZ => opening.z = *value,
                     MechanicalDimension::OpeningHeight => opening.height = *value,
                     _ => return Err("The selected opening field is unavailable.".into()),
                 }
+                changed.push(opening.id.clone());
             }
-            changed.push(opening.id.clone());
         }
         MechanicalChange::SetMethod(method) => configuration.method = method.clone(),
         MechanicalChange::SetMount(mount) => {
@@ -3403,8 +3415,8 @@ mod tests {
             apply_change(
                 &mut doc,
                 MechanicalChange::SetOpeningDimension {
-                    opening_index: 9,
-                    point_index: None,
+                    opening_id: "missing".into(),
+                    vertex_id: None,
                     field: MechanicalDimension::OpeningHeight,
                     value: 4.0,
                 },
@@ -3587,7 +3599,7 @@ mod tests {
     }
 
     #[test]
-    fn the_opening_family_applies_and_reports_opening_ids() {
+    fn the_opening_family_applies_and_reports_opening_and_vertex_ids() {
         let mut doc = document();
         assert_eq!(
             apply_change(&mut doc, MechanicalChange::AddOpening).unwrap(),
@@ -3597,8 +3609,8 @@ mod tests {
             apply_change(
                 &mut doc,
                 MechanicalChange::SetOpeningDimension {
-                    opening_index: 0,
-                    point_index: None,
+                    opening_id: "opening-1".into(),
+                    vertex_id: None,
                     field: MechanicalDimension::OpeningHeight,
                     value: 12.0,
                 },
@@ -3610,30 +3622,154 @@ mod tests {
         assert_eq!(
             apply_change(
                 &mut doc,
-                MechanicalChange::AddOpeningVertex { opening_index: 0 },
+                MechanicalChange::SetOpeningDimension {
+                    opening_id: "opening-1".into(),
+                    vertex_id: Some("vertex-2".into()),
+                    field: MechanicalDimension::OpeningPointX,
+                    value: 7.0,
+                },
             )
             .unwrap(),
-            vec!["board", "opening-1"]
+            vec!["board", "opening-1", "vertex-2"]
+        );
+        assert_eq!(
+            stored(&doc).openings.as_ref().unwrap()[0].vertices[1]
+                .point
+                .x,
+            7.0
+        );
+        assert_eq!(
+            stored(&doc).openings.as_ref().unwrap()[0].vertices[0]
+                .point
+                .x,
+            -2.5,
+            "an edit addressed to one vertex must not land on another"
+        );
+        assert_eq!(
+            apply_change(
+                &mut doc,
+                MechanicalChange::AddOpeningVertex {
+                    opening_id: "opening-1".into(),
+                },
+            )
+            .unwrap(),
+            vec!["board", "opening-1", "vertex-5"]
         );
         assert_eq!(stored(&doc).openings.as_ref().unwrap()[0].vertices.len(), 5);
-        apply_change(
-            &mut doc,
-            MechanicalChange::RemoveOpeningVertex {
-                opening_index: 0,
-                point_index: 0,
-            },
-        )
-        .unwrap();
+        assert_eq!(
+            apply_change(
+                &mut doc,
+                MechanicalChange::RemoveOpeningVertex {
+                    opening_id: "opening-1".into(),
+                    vertex_id: "vertex-1".into(),
+                },
+            )
+            .unwrap(),
+            vec!["board", "opening-1", "vertex-1"]
+        );
         assert_eq!(stored(&doc).openings.as_ref().unwrap()[0].vertices.len(), 4);
         assert_eq!(
             apply_change(
                 &mut doc,
-                MechanicalChange::RemoveOpening { opening_index: 0 },
+                MechanicalChange::RemoveOpening {
+                    opening_id: "opening-1".into(),
+                },
             )
             .unwrap(),
             vec!["board", "opening-1"]
         );
         assert!(stored(&doc).openings.as_ref().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_removed_opening_or_vertex_retires_a_later_queued_edit_without_redirecting_it() {
+        // An earlier queued edit addressed to a surviving vertex must still hit
+        // that vertex after a different opening was removed before it.
+        let mut doc = document();
+        apply_change(&mut doc, MechanicalChange::AddOpening).unwrap();
+        apply_change(&mut doc, MechanicalChange::AddOpening).unwrap();
+        assert_eq!(
+            stored(&doc)
+                .openings
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|opening| opening.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["opening-1", "opening-2"]
+        );
+        apply_change(
+            &mut doc,
+            MechanicalChange::SetOpeningDimension {
+                opening_id: "opening-2".into(),
+                vertex_id: Some("vertex-1".into()),
+                field: MechanicalDimension::OpeningPointX,
+                value: 4.0,
+            },
+        )
+        .unwrap();
+        apply_change(
+            &mut doc,
+            MechanicalChange::RemoveOpening {
+                opening_id: "opening-1".into(),
+            },
+        )
+        .unwrap();
+        // The surviving opening keeps its durable id even though it is now index 0.
+        assert_eq!(stored(&doc).openings.as_ref().unwrap().len(), 1);
+        apply_change(
+            &mut doc,
+            MechanicalChange::SetOpeningDimension {
+                opening_id: "opening-2".into(),
+                vertex_id: Some("vertex-1".into()),
+                field: MechanicalDimension::OpeningPointX,
+                value: 9.0,
+            },
+        )
+        .unwrap();
+        let opening = &stored(&doc).openings.as_ref().unwrap()[0];
+        assert_eq!(opening.id, "opening-2");
+        assert_eq!(opening.vertices[0].id, "vertex-1");
+        assert_eq!(opening.vertices[0].point.x, 9.0);
+
+        // An edit whose addressed vertex was removed is a Core error and mutates nothing.
+        apply_change(
+            &mut doc,
+            MechanicalChange::RemoveOpeningVertex {
+                opening_id: "opening-2".into(),
+                vertex_id: "vertex-1".into(),
+            },
+        )
+        .unwrap();
+        let before = stored(&doc).clone();
+        assert!(
+            apply_change(
+                &mut doc,
+                MechanicalChange::SetOpeningDimension {
+                    opening_id: "opening-2".into(),
+                    vertex_id: Some("vertex-1".into()),
+                    field: MechanicalDimension::OpeningPointX,
+                    value: 5.0,
+                },
+            )
+            .is_err(),
+            "a removed vertex id is no longer a valid target"
+        );
+        assert_eq!(stored(&doc), &before);
+        assert!(
+            apply_change(
+                &mut doc,
+                MechanicalChange::SetOpeningDimension {
+                    opening_id: "opening-1".into(),
+                    vertex_id: Some("vertex-1".into()),
+                    field: MechanicalDimension::OpeningPointX,
+                    value: 5.0,
+                },
+            )
+            .is_err(),
+            "a removed opening id is no longer a valid target"
+        );
+        assert_eq!(stored(&doc), &before);
     }
 
     #[test]
@@ -4323,15 +4459,19 @@ mod tests {
             MechanicalChange::Disable,
             MechanicalChange::InitializeClosures,
             MechanicalChange::AddOpening,
-            MechanicalChange::RemoveOpening { opening_index: 0 },
-            MechanicalChange::AddOpeningVertex { opening_index: 0 },
+            MechanicalChange::RemoveOpening {
+                opening_id: "opening-2".into(),
+            },
+            MechanicalChange::AddOpeningVertex {
+                opening_id: "opening-2".into(),
+            },
             MechanicalChange::RemoveOpeningVertex {
-                opening_index: 0,
-                point_index: 0,
+                opening_id: "opening-2".into(),
+                vertex_id: "vertex-1".into(),
             },
             MechanicalChange::SetOpeningDimension {
-                opening_index: 0,
-                point_index: None,
+                opening_id: "opening-2".into(),
+                vertex_id: None,
                 field: MechanicalDimension::OpeningHeight,
                 value: 12.0,
             },

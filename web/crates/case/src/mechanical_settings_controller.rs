@@ -270,7 +270,7 @@ impl MechanicalSettingsController {
             helper.unbind_field(&field.key);
             helper.bind_field(field.key.clone(), field.view.draft, field.view.failure);
         }
-        let opening_guard = opening_target_guard(&current, &request.patch, &self.requests.borrow());
+        let opening_guard = opening_target_guard(&request.patch, &self.requests.borrow());
         self.requests.borrow_mut().push(SettingsEdit {
             request: request.clone(),
             phase: SettingsPhase::Preparing,
@@ -530,38 +530,46 @@ impl MechanicalSettingsController {
     }
 }
 
-// Openings and vertices currently have positional identities. Capture destructive
-// predecessors from this owner so their later fields cannot retarget a shifted row.
-// One-shot structural requests share a guard; a failed predecessor changes no count.
+// Authored openings and vertices carry durable ids, so a queued edit names the exact
+// target it was authored against and a reorder can never redirect it. The one local
+// retirement this guard owns is a target that no longer exists: an earlier queued
+// removal of that same opening or vertex, or a target already gone from the accepted
+// configuration. Both retire silently instead of surfacing a Core error.
 struct OpeningTargetGuard {
-    opening_index: usize,
-    point_index: Option<usize>,
-    opening_count: usize,
-    point_count: usize,
-    removals: Vec<(usize, Option<usize>)>,
+    opening_id: String,
+    vertex_id: Option<String>,
+    removals: Vec<(String, Option<String>)>,
 }
 
 impl OpeningTargetGuard {
     fn check(&self, accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
-        let effective = boardstudio_web_host::cad_jobs::captured_case_document(accepted, scope)
-            .map_err(|_| "The selected access opening is no longer available.".to_owned())?;
-        let openings = effective
-            .mechanical
-            .as_ref()
-            .and_then(|configuration| configuration.openings.as_ref());
-        let opening_count = openings.map_or(0, Vec::len);
-        let point_count = openings
-            .and_then(|openings| openings.get(self.opening_index))
-            .map_or(0, |opening| opening.vertices.len());
-        let shifted = self.removals.iter().any(|(opening, point)| match point {
-            None => *opening <= self.opening_index && opening_count < self.opening_count,
-            Some(removed) => {
-                *opening == self.opening_index
-                    && self.point_index.is_some_and(|target| *removed <= target)
-                    && point_count < self.point_count
-            }
+        let removed_earlier = self.removals.iter().any(|(opening_id, vertex_id)| {
+            *opening_id == self.opening_id
+                && vertex_id
+                    .as_deref()
+                    .is_none_or(|removed| self.vertex_id.as_deref() == Some(removed))
         });
-        if shifted {
+        let vanished = match boardstudio_web_host::cad_jobs::captured_case_document(accepted, scope)
+        {
+            Err(_) => true,
+            Ok(document) => {
+                let openings = document
+                    .mechanical
+                    .as_ref()
+                    .and_then(|configuration| configuration.openings.as_ref());
+                match openings.and_then(|openings| {
+                    openings
+                        .iter()
+                        .find(|opening| opening.id == self.opening_id)
+                }) {
+                    None => true,
+                    Some(opening) => self.vertex_id.as_deref().is_some_and(|vertex_id| {
+                        !opening.vertices.iter().any(|vertex| vertex.id == vertex_id)
+                    }),
+                }
+            }
+        };
+        if removed_earlier || vanished {
             Err("The selected opening or vertex was removed before this edit could run.".into())
         } else {
             Ok(())
@@ -570,51 +578,42 @@ impl OpeningTargetGuard {
 }
 
 fn opening_target_guard(
-    current: &MechanicalSettingsCurrent,
     patch: &MechanicalSettingsPatch,
     earlier: &[SettingsEdit],
 ) -> Option<OpeningTargetGuard> {
-    let (opening_index, point_index) = match patch {
+    let (opening_id, vertex_id) = match patch {
         MechanicalSettingsPatch::SetOpeningDimension {
-            opening_index,
-            point_index,
+            opening_id,
+            vertex_id,
             ..
-        } => (*opening_index, *point_index),
-        MechanicalSettingsPatch::RemoveOpening { opening_index }
-        | MechanicalSettingsPatch::AddOpeningVertex { opening_index } => (*opening_index, None),
+        } => (opening_id.clone(), vertex_id.clone()),
+        MechanicalSettingsPatch::RemoveOpening { opening_id }
+        | MechanicalSettingsPatch::AddOpeningVertex { opening_id } => (opening_id.clone(), None),
         MechanicalSettingsPatch::RemoveOpeningVertex {
-            opening_index,
-            point_index,
-        } => (*opening_index, Some(*point_index)),
+            opening_id,
+            vertex_id,
+        } => (opening_id.clone(), Some(vertex_id.clone())),
         _ => return None,
     };
     let removals = earlier
         .iter()
         .filter_map(|entry| match &entry.request.patch {
-            MechanicalSettingsPatch::RemoveOpening { opening_index } => {
-                Some((*opening_index, None))
+            MechanicalSettingsPatch::RemoveOpening { opening_id } => {
+                Some((opening_id.clone(), None))
             }
             MechanicalSettingsPatch::RemoveOpeningVertex {
-                opening_index,
-                point_index,
-            } => Some((*opening_index, Some(*point_index))),
+                opening_id,
+                vertex_id,
+            } => Some((opening_id.clone(), Some(vertex_id.clone()))),
             _ => None,
         })
         .collect::<Vec<_>>();
     if removals.is_empty() {
         return None;
     }
-    let openings = current
-        .configuration
-        .as_ref()
-        .and_then(|configuration| configuration.openings.as_ref());
     Some(OpeningTargetGuard {
-        opening_index,
-        point_index,
-        opening_count: openings.map_or(0, Vec::len),
-        point_count: openings
-            .and_then(|openings| openings.get(opening_index))
-            .map_or(0, |opening| opening.vertices.len()),
+        opening_id,
+        vertex_id,
         removals,
     })
 }
@@ -879,6 +878,38 @@ mod adapter_tests {
         (runtime, accepted)
     }
 
+    /// The same fixture with a second, differently placed opening so an edit can
+    /// prove it keeps its own durable id when the first one is removed or reordered.
+    async fn accepted_fixture_with_two_openings(
+        project_id: &str,
+    ) -> (Rc<Runtime>, AcceptedSnapshot) {
+        let mut document = fixture_document(project_id);
+        document
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .openings
+            .as_mut()
+            .unwrap()
+            .push(
+                serde_json::from_value(serde_json::json!({
+                    "id": "opening-2",
+                    "vertices": [
+                        { "id": "vertex-1", "point": { "x": 10.0, "y": 0.0 } },
+                        { "id": "vertex-2", "point": { "x": 15.0, "y": 0.0 } },
+                        { "id": "vertex-3", "point": { "x": 15.0, "y": 5.0 } }
+                    ],
+                    "z": 1.0,
+                    "height": 5.0
+                }))
+                .unwrap(),
+            );
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        (runtime, accepted)
+    }
+
     #[wasm_bindgen_test]
     async fn a_prepared_request_submits_one_apply_mechanical_edit_with_its_template() {
         let (_runtime, accepted) = accepted_fixture("adapter-one-edit").await;
@@ -1035,27 +1066,29 @@ mod adapter_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn a_retired_request_reports_without_submitting() {
-        let (_runtime, accepted) = accepted_fixture("adapter-retire").await;
+    async fn a_vertex_edit_retires_after_its_opening_is_removed() {
+        let (_runtime, accepted) = accepted_fixture("adapter-retire-opening").await;
         let port = RecordingPort::default();
         let feedback = Rc::new(RefCell::new(Vec::new()));
         let current = current(&accepted, None);
         let identity = current.identity.clone();
         let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-        // A destructive predecessor is queued first.
+        // A destructive predecessor is queued first, addressed to the whole opening.
         assert!(controller.submit(request(
             identity.clone(),
             1,
-            MechanicalSettingsPatch::RemoveOpening { opening_index: 0 },
+            MechanicalSettingsPatch::RemoveOpening {
+                opening_id: "opening-1".into(),
+            },
         )));
         loaded().await;
         assert!(controller.submit(request(
             identity,
             2,
             MechanicalSettingsPatch::SetOpeningDimension {
-                opening_index: 0,
-                point_index: Some(0),
+                opening_id: "opening-1".into(),
+                vertex_id: Some("vertex-1".into()),
                 field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointX,
                 value: 1.0,
             },
@@ -1064,18 +1097,109 @@ mod adapter_tests {
 
         let resolutions = port.resolutions.borrow();
         assert_eq!(resolutions.len(), 2);
-        // The accepted document now has no openings, as if the queued removal applied.
-        let mut removed = (*accepted.document).clone();
-        removed.mechanical.as_mut().unwrap().openings = Some(vec![]);
-        let shifted = AcceptedSnapshot {
-            document: std::sync::Arc::new(removed),
-            ..accepted.clone()
-        };
-        let resolution = resolutions[1].resolve(&shifted);
+        let resolution = resolutions[1].resolve(&accepted);
         let Resolution::Retire(reason) = resolution else {
-            panic!("a shifted opening target must retire, got {resolution:?}");
+            panic!("a queued edit to a removed opening must retire, got {resolution:?}");
         };
         assert!(reason.contains("removed before this edit could run"));
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_vertex_edit_retires_after_its_vertex_is_removed() {
+        let (_runtime, accepted) = accepted_fixture("adapter-retire-vertex").await;
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, None);
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        assert!(controller.submit(request(
+            identity.clone(),
+            1,
+            MechanicalSettingsPatch::RemoveOpeningVertex {
+                opening_id: "opening-1".into(),
+                vertex_id: "vertex-1".into(),
+            },
+        )));
+        loaded().await;
+        assert!(controller.submit(request(
+            identity,
+            2,
+            MechanicalSettingsPatch::SetOpeningDimension {
+                opening_id: "opening-1".into(),
+                vertex_id: Some("vertex-1".into()),
+                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointY,
+                value: 1.0,
+            },
+        )));
+        loaded().await;
+
+        let resolutions = port.resolutions.borrow();
+        let resolution = resolutions[1].resolve(&accepted);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a queued edit to a removed vertex must retire, got {resolution:?}");
+        };
+        assert!(reason.contains("removed before this edit could run"));
+    }
+
+    #[wasm_bindgen_test]
+    async fn removing_or_reordering_an_opening_does_not_redirect_an_earlier_edit() {
+        let (_runtime, accepted) = accepted_fixture_with_two_openings("adapter-reorder").await;
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, None);
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        // The destructive predecessor removes the *other* opening, so the queued
+        // edit must keep addressing its own durable vertex even after the shift.
+        assert!(controller.submit(request(
+            identity.clone(),
+            1,
+            MechanicalSettingsPatch::RemoveOpening {
+                opening_id: "opening-1".into(),
+            },
+        )));
+        loaded().await;
+        assert!(controller.submit(request(
+            identity,
+            2,
+            MechanicalSettingsPatch::SetOpeningDimension {
+                opening_id: "opening-2".into(),
+                vertex_id: Some("vertex-3".into()),
+                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointX,
+                value: 2.0,
+            },
+        )));
+        loaded().await;
+
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 2);
+        // The accepted document now has opening-2 moved to index 0.
+        let mut shifted_document = (*accepted.document).clone();
+        let openings = shifted_document
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .openings
+            .as_mut()
+            .unwrap();
+        openings.retain(|opening| opening.id != "opening-1");
+        let shifted = AcceptedSnapshot {
+            document: std::sync::Arc::new(shifted_document),
+            ..accepted.clone()
+        };
+        let edit = submitted_edit(&resolutions[1], &shifted);
+        assert_eq!(
+            edit.change,
+            MechanicalSettingsPatch::SetOpeningDimension {
+                opening_id: "opening-2".into(),
+                vertex_id: Some("vertex-3".into()),
+                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointX,
+                value: 2.0,
+            },
+            "the queued edit must keep its own opening id, not the shifted index"
+        );
     }
 
     #[wasm_bindgen_test]

@@ -159,18 +159,18 @@ pub enum MechanicalChange {
     },
     AddOpening,
     RemoveOpening {
-        opening_index: usize,
+        opening_id: String,
     },
     AddOpeningVertex {
-        opening_index: usize,
+        opening_id: String,
     },
     RemoveOpeningVertex {
-        opening_index: usize,
-        point_index: usize,
+        opening_id: String,
+        vertex_id: String,
     },
     SetOpeningDimension {
-        opening_index: usize,
-        point_index: Option<usize>,
+        opening_id: String,
+        vertex_id: Option<String>,
         field: MechanicalDimension,
         value: f64,
     },
@@ -447,6 +447,62 @@ mod tests {
         for (change, key) in lifecycle.into_iter().zip(keys) {
             let value = serde_json::to_value(&change).unwrap();
             assert!(value.get(key).is_some(), "{key} tags {change:?}");
+            let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
+            assert_eq!(parsed, change);
+        }
+    }
+
+    #[test]
+    fn the_opening_vocabulary_addresses_durable_ids() {
+        let changes = vec![
+            (
+                MechanicalChange::RemoveOpening {
+                    opening_id: "opening-2".into(),
+                },
+                "remove-opening",
+            ),
+            (
+                MechanicalChange::AddOpeningVertex {
+                    opening_id: "opening-2".into(),
+                },
+                "add-opening-vertex",
+            ),
+            (
+                MechanicalChange::RemoveOpeningVertex {
+                    opening_id: "opening-2".into(),
+                    vertex_id: "vertex-3".into(),
+                },
+                "remove-opening-vertex",
+            ),
+            (
+                MechanicalChange::SetOpeningDimension {
+                    opening_id: "opening-2".into(),
+                    vertex_id: Some("vertex-3".into()),
+                    field: MechanicalDimension::OpeningPointX,
+                    value: 4.5,
+                },
+                "set-opening-dimension",
+            ),
+            (
+                MechanicalChange::SetOpeningDimension {
+                    opening_id: "opening-2".into(),
+                    vertex_id: None,
+                    field: MechanicalDimension::OpeningHeight,
+                    value: 9.0,
+                },
+                "set-opening-dimension",
+            ),
+        ];
+        // Positional identities are gone: a queued or linked opening edit names
+        // only durable opening/vertex ids, never a vector index.
+        for (change, key) in changes {
+            let value = serde_json::to_value(&change).unwrap();
+            let payload = value
+                .get(key)
+                .unwrap_or_else(|| panic!("{key} tags {change:?}"));
+            assert_eq!(payload["opening_id"], json!("opening-2"), "{change:?}");
+            assert!(payload.get("opening_index").is_none(), "{change:?}");
+            assert!(payload.get("point_index").is_none(), "{change:?}");
             let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
             assert_eq!(parsed, change);
         }

@@ -12,8 +12,8 @@ use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
     MechanicalExtraction, MechanicalGasketAnchor, MechanicalGeometry,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
-    MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
+    MechanicalHardwareSpecification, MechanicalMount, MechanicalOpening, MechanicalPartProcess,
+    MechanicalPartProfile, MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
     MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
     ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
@@ -46,7 +46,7 @@ pub struct MechanicalSettingsValues {
     pub wall_thickness: f64,
     pub clearance: f64,
     pub opening_allowance: f64,
-    pub openings: Vec<CaseOpening>,
+    pub openings: Vec<MechanicalOpening>,
     pub internal_gasket: bool,
     pub closure_hardware: Option<InternalClosureHardware>,
     pub hardware: Vec<MechanicalHardwareSpecification>,
@@ -440,13 +440,16 @@ impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
             | Self::AddOpeningVertex { .. }
             | Self::RemoveOpeningVertex { .. } => "case-openings".to_owned(),
             Self::SetOpeningDimension {
-                opening_index,
-                point_index,
+                opening_id,
+                vertex_id,
                 field,
                 ..
             } => format!(
-                "opening:{opening_index}:{}:{}",
-                point_index.map_or_else(|| "volume".to_owned(), |index| format!("point:{index}")),
+                "opening:{opening_id}:{}:{}",
+                vertex_id.as_deref().map_or_else(
+                    || "volume".to_owned(),
+                    |vertex_id| format!("point:{vertex_id}")
+                ),
                 field.field_id(),
             ),
             Self::SetMethod(_) => "method".to_owned(),
@@ -2111,61 +2114,67 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                         let identity = identity.clone();
                         let remove_identity = identity.clone();
                         let owner = owner_key.clone();
+                        let opening_id = opening.id.clone();
                         rsx! {
-                            fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_index}", disabled: !props.editable,
+                            fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
                                 div { class: "m1-mechanical-opening-title",
                                     strong { "Volume {opening_index + 1}" }
                                     button {
                                         r#type: "button",
                                         class: "m1-mechanical-quiet",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
-                                        onclick: move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::RemoveOpening { opening_index }),
+                                        onclick: {
+                                            let opening_id = opening.id.clone();
+                                            move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::RemoveOpening { opening_id: opening_id.clone() })
+                                        },
                                         "Remove"
                                     }
                                 }
                                 div { class: "m1-mechanical-opening-fields",
                                     DimensionField {
-                                        key: "{owner}:opening:{opening_index}:bottom-z",
+                                        key: "{owner}:opening:{opening_id}:bottom-z",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                         field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z, editable: props.editable,
                                         accessible_label: Some(format!("Document-coordinate access opening {} bottom Z", opening_index + 1)),
-                                        opening_target: Some(OpeningDimensionTarget { opening_index, point_index: None }),
+                                        opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: None }),
                                     }
                                     DimensionField {
-                                        key: "{owner}:opening:{opening_index}:height",
+                                        key: "{owner}:opening:{opening_id}:height",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                         field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height, editable: props.editable,
                                         accessible_label: Some(format!("Document-coordinate access opening {} height", opening_index + 1)),
-                                        opening_target: Some(OpeningDimensionTarget { opening_index, point_index: None }),
+                                        opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: None }),
                                     }
                                 }
                                 h4 { "XY footprint" }
-                                for (point_index, point) in opening.points.iter().enumerate() {
+                                for (point_index, vertex) in opening.vertices.iter().enumerate() {
                                     div { class: "m1-mechanical-opening-vertex",
                                         span { "Vertex {point_index + 1}" }
                                         DimensionField {
-                                            key: "{owner}:opening:{opening_index}:point:{point_index}:x",
+                                            key: "{owner}:opening:{opening_id}:point:{point_index}:x",
                                             identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                                            field: MechanicalDimension::OpeningPointX, label: "X", value: point.x, editable: props.editable,
+                                            field: MechanicalDimension::OpeningPointX, label: "X", value: vertex.point.x, editable: props.editable,
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} X", opening_index + 1, point_index + 1)),
-                                            opening_target: Some(OpeningDimensionTarget { opening_index, point_index: Some(point_index) }),
+                                            opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
                                         }
                                         DimensionField {
-                                            key: "{owner}:opening:{opening_index}:point:{point_index}:y",
+                                            key: "{owner}:opening:{opening_id}:point:{point_index}:y",
                                             identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                                            field: MechanicalDimension::OpeningPointY, label: "Y", value: point.y, editable: props.editable,
+                                            field: MechanicalDimension::OpeningPointY, label: "Y", value: vertex.point.y, editable: props.editable,
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} Y", opening_index + 1, point_index + 1)),
-                                            opening_target: Some(OpeningDimensionTarget { opening_index, point_index: Some(point_index) }),
+                                            opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
                                         }
                                         button {
                                             r#type: "button",
                                             class: "m1-mechanical-quiet",
                                             aria_label: "Remove access opening vertex {point_index + 1}",
-                                            disabled: mechanical_action_pending("case-openings") || !props.editable || opening.points.len() <= 3,
+                                            disabled: mechanical_action_pending("case-openings") || !props.editable || opening.vertices.len() <= 3,
                                             onclick: {
                                                 let mut sequence = request_sequence;
                                                 let identity = identity.clone();
-                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveOpeningVertex { opening_index, point_index })
+                                                let opening_id = opening_id.clone();
+                                                let vertex_id = vertex.id.clone();
+                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveOpeningVertex { opening_id: opening_id.clone(), vertex_id: vertex_id.clone() })
                                             },
                                             "×"
                                         }
@@ -2178,11 +2187,12 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                     onclick: {
                                         let mut sequence = request_sequence;
                                         let identity = identity.clone();
-                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddOpeningVertex { opening_index })
+                                        let opening_id = opening_id.clone();
+                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddOpeningVertex { opening_id: opening_id.clone() })
                                     },
                                     "Add vertex"
                                 }
-                                if opening.points.len() < 3 {
+                                if opening.vertices.len() < 3 {
                                     p { role: "alert", "An opening footprint needs at least three vertices." }
                                 }
                             }
@@ -3548,8 +3558,8 @@ struct MountDimensionTarget {
 
 #[derive(Clone, Debug, PartialEq)]
 struct OpeningDimensionTarget {
-    opening_index: usize,
-    point_index: Option<usize>,
+    opening_id: String,
+    vertex_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -3589,7 +3599,7 @@ fn dimension_field_key(props: &DimensionFieldProps) -> String {
     } else if let Some(target) = &props.opening_target {
         format!(
             "field:opening:{}:{:?}:{field}",
-            target.opening_index, target.point_index
+            target.opening_id, target.vertex_id
         )
     } else if let Some(target) = &props.critical_fit_target {
         format!("field:critical-fit:{}:{field}", target.fit_id)
@@ -3698,8 +3708,8 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 MechanicalSettingsPatch::UpdateProfile(target.profile)
             } else if let Some(target) = opening_target.clone() {
                 MechanicalSettingsPatch::SetOpeningDimension {
-                    opening_index: target.opening_index,
-                    point_index: target.point_index,
+                    opening_id: target.opening_id,
+                    vertex_id: target.vertex_id,
                     field,
                     value,
                 }

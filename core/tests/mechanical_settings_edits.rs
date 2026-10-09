@@ -300,8 +300,8 @@ fn malformed_dimensions_error_and_mutate_nothing() {
         apply_change(
             &mut doc,
             MechanicalChange::SetOpeningDimension {
-                opening_index: 9,
-                point_index: None,
+                opening_id: "missing".into(),
+                vertex_id: None,
                 field: MechanicalDimension::OpeningHeight,
                 value: 4.0,
             },
@@ -930,8 +930,8 @@ fn openings_and_vertices_apply_and_report_opening_ids() {
         apply_change(
             &mut doc,
             MechanicalChange::SetOpeningDimension {
-                opening_index: 0,
-                point_index: None,
+                opening_id: "opening-1".into(),
+                vertex_id: None,
                 field: MechanicalDimension::OpeningHeight,
                 value: 12.0,
             },
@@ -943,17 +943,19 @@ fn openings_and_vertices_apply_and_report_opening_ids() {
     assert_eq!(
         apply_change(
             &mut doc,
-            MechanicalChange::AddOpeningVertex { opening_index: 0 },
+            MechanicalChange::AddOpeningVertex {
+                opening_id: "opening-1".into(),
+            },
         )
         .unwrap(),
-        vec!["board", "opening-1"]
+        vec!["board", "opening-1", "vertex-5"]
     );
     assert_eq!(stored(&doc).openings.as_ref().unwrap()[0].vertices.len(), 5);
     apply_change(
         &mut doc,
         MechanicalChange::RemoveOpeningVertex {
-            opening_index: 0,
-            point_index: 0,
+            opening_id: "opening-1".into(),
+            vertex_id: "vertex-1".into(),
         },
     )
     .unwrap();
@@ -961,7 +963,9 @@ fn openings_and_vertices_apply_and_report_opening_ids() {
     assert_eq!(
         apply_change(
             &mut doc,
-            MechanicalChange::RemoveOpening { opening_index: 0 },
+            MechanicalChange::RemoveOpening {
+                opening_id: "opening-1".into(),
+            },
         )
         .unwrap(),
         vec!["board", "opening-1"]
@@ -1748,15 +1752,19 @@ fn outline_classification_covers_the_projection_changes() {
         MechanicalChange::Disable,
         MechanicalChange::InitializeClosures,
         MechanicalChange::AddOpening,
-        MechanicalChange::RemoveOpening { opening_index: 0 },
-        MechanicalChange::AddOpeningVertex { opening_index: 0 },
+        MechanicalChange::RemoveOpening {
+            opening_id: "opening-2".into(),
+        },
+        MechanicalChange::AddOpeningVertex {
+            opening_id: "opening-2".into(),
+        },
         MechanicalChange::RemoveOpeningVertex {
-            opening_index: 0,
-            point_index: 0,
+            opening_id: "opening-2".into(),
+            vertex_id: "vertex-1".into(),
         },
         MechanicalChange::SetOpeningDimension {
-            opening_index: 0,
-            point_index: None,
+            opening_id: "opening-2".into(),
+            vertex_id: None,
             field: MechanicalDimension::OpeningHeight,
             value: 12.0,
         },

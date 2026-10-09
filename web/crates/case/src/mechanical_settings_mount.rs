@@ -1287,12 +1287,7 @@ fn settings_values(
         wall_thickness: configuration.wall_thickness,
         clearance: configuration.clearance,
         opening_allowance: configuration.opening_allowance.unwrap_or(0.0),
-        openings: configuration
-            .openings
-            .iter()
-            .flatten()
-            .map(|opening| opening.as_case_opening())
-            .collect(),
+        openings: configuration.openings.clone().unwrap_or_default(),
         internal_gasket: configuration.internal_gasket.is_some(),
         closure_hardware: configuration
             .internal_gasket
