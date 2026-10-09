@@ -152,6 +152,7 @@ fn install_version(document: &mut ProjectDoc, id: &str) {
                 bridges: vec![],
                 protected_gaps: vec![],
             },
+            ownership: boardstudio_core::model::OutlineOwnership::Fixed,
         }],
     }];
 }

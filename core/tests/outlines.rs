@@ -1063,6 +1063,7 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
                 bridges: vec![],
                 protected_gaps: vec![],
             },
+            ownership: OutlineOwnership::Fixed,
         }],
     }];
     let result = scene(CoreEngine::new().handle(CoreRequest::Open {

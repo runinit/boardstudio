@@ -466,6 +466,7 @@ mod tests {
                     bridges: vec![],
                     protected_gaps: vec![],
                 },
+                ownership: boardstudio_core::model::OutlineOwnership::Fixed,
             }],
         });
         let (operation, _) = apply_outline_edit(

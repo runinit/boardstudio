@@ -1,0 +1,387 @@
+//! Explicit outline ownership, identity and persistence (typed Core edits ticket 11).
+//!
+//! Ownership is persisted per outline version, not inferred from a copied snapshot or
+//! from origin provenance. A linked refinement records that it follows the board's
+//! current included components; an edited copy stays fixed. Documents written before
+//! this state existed keep their serialized shape and never gain a link.
+use boardstudio_core::{CoreEngine, model::*};
+
+fn fixture() -> ProjectDoc {
+    serde_json::from_str(include_str!("fixtures/reviung41-outline-original.json")).unwrap()
+}
+
+fn scene(reply: CoreReply) -> SceneDelta {
+    match reply {
+        CoreReply::Scene { scene, .. } => scene,
+        reply => panic!("{reply:?}"),
+    }
+}
+
+fn edit(engine: &mut CoreEngine, revision: u64, operation: serde_json::Value) -> SceneDelta {
+    let operation = serde_json::from_value(operation).expect("outline command contract");
+    scene(engine.handle(CoreRequest::Edit {
+        id: "outline-edit".into(),
+        command: EditCommand {
+            base_revision: revision,
+            transaction_id: "outline-edit".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        },
+    }))
+}
+
+fn version<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
+    document["boardOutlines"][0]["versions"]
+        .as_array()
+        .expect("saved versions")
+        .iter()
+        .find(|version| version["id"] == id)
+        .expect("the named version exists")
+}
+
+fn document(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Snapshot {
+        id: "snapshot".into(),
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        reply => panic!("{reply:?}"),
+    }
+}
+
+/// Two fixed versions created by this build; the serialized document is exactly the
+/// shape an older build wrote, because fixed ownership is the absent default.
+fn two_versions() -> (CoreEngine, serde_json::Value) {
+    let mut engine = CoreEngine::new();
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: fixture(),
+    }));
+    let first = edit(
+        &mut engine,
+        opened.revision,
+        serde_json::json!({
+            "kind": "copy-outline", "boardId": "main", "versionId": "refined", "name": "Linked refinement"
+        }),
+    );
+    edit(
+        &mut engine,
+        first.revision,
+        serde_json::json!({
+            "kind": "copy-outline", "boardId": "main", "versionId": "edited", "name": "Edited outline"
+        }),
+    );
+    let saved = serde_json::to_value(document(&mut engine)).unwrap();
+    (engine, saved)
+}
+
+#[test]
+fn a_legacy_project_reopens_with_its_generated_outline_versions_selection_and_identities_unchanged()
+{
+    let (_engine, legacy) = two_versions();
+    let state = &legacy["boardOutlines"][0];
+    assert_eq!(state["activeVersionId"], "edited");
+    for version in state["versions"].as_array().unwrap() {
+        assert!(
+            version.get("ownership").is_none(),
+            "the fixture is a legacy document: fixed ownership is not written"
+        );
+    }
+    assert!(state.get("retiredVersionIds").is_none());
+    let input: ProjectDoc = serde_json::from_value(legacy.clone()).unwrap();
+    let mut engine = CoreEngine::new();
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "legacy".into(),
+        document: input,
+    }));
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    let reopened = &after["boardOutlines"][0];
+
+    assert_eq!(
+        reopened["versions"], state["versions"],
+        "geometry, identities and source references are unchanged"
+    );
+    assert_eq!(
+        reopened["activeVersionId"], "edited",
+        "selection is unchanged"
+    );
+    for version in reopened["versions"].as_array().unwrap() {
+        assert!(
+            version.get("ownership").is_none(),
+            "absence of link state must not opt an existing fixed snapshot into linkage"
+        );
+    }
+    assert!(!opened.board_contours.is_empty(), "the saved shape renders");
+
+    // The permanent Generated version stays available and follows the layout, while the
+    // legacy fixed copies keep the geometry they were saved with.
+    let generated = edit(
+        &mut engine,
+        opened.revision,
+        serde_json::json!({"kind": "select-outline", "boardId": "main", "versionId": null}),
+    );
+    assert!(generated.board_readiness[0].outline);
+    let moved = edit(
+        &mut engine,
+        generated.revision,
+        serde_json::json!({
+            "kind": "move-parts",
+            "positions": [{ "id": "main/U1", "at": { "x": 310.0, "y": -15.0 } }]
+        }),
+    );
+    assert_ne!(
+        moved.board_contours, generated.board_contours,
+        "Generated follows the component layout"
+    );
+    let fixed = edit(
+        &mut engine,
+        moved.revision,
+        serde_json::json!({"kind": "select-outline", "boardId": "main", "versionId": "edited"}),
+    );
+    assert_eq!(
+        fixed.board_contours, opened.board_contours,
+        "an existing fixed copy keeps the geometry it was saved with"
+    );
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_eq!(
+        after["boardOutlines"][0]["versions"], state["versions"],
+        "moving components does not rewrite saved versions"
+    );
+}
+
+#[test]
+fn linked_and_fixed_versions_keep_their_own_ownership_settings_connections_gaps_and_sources() {
+    let (_engine, mut saved) = two_versions();
+    let versions = saved["boardOutlines"][0]["versions"]
+        .as_array_mut()
+        .expect("two saved versions");
+    assert_eq!(versions.len(), 2);
+    // A refinement follows components: it is linked and owns its own settings, protected
+    // gap and the component references those choices require.
+    versions[0]["ownership"] = serde_json::json!("linked");
+    versions[0]["geometry"]["settings"]["size"] = serde_json::json!(3.5);
+    versions[0]["geometry"]["settings"]["repair"]["keepGaps"] = serde_json::json!([]);
+    versions[0]["geometry"]["protectedGaps"] = serde_json::json!([{
+        "id": "refined-gap",
+        "points": [{ "at": { "x": 1.0, "y": 2.0 }, "partId": "main/U1" }]
+    }]);
+    versions[1]["geometry"]["settings"]["size"] = serde_json::json!(6.0);
+    saved["boardOutlines"][0]["activeVersionId"] = serde_json::json!("refined");
+    let input: ProjectDoc = serde_json::from_value(saved.clone()).unwrap();
+
+    let mut engine = CoreEngine::new();
+    scene(engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document: input,
+    }));
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    let _ = after["boardOutlines"][0]["versions"].as_array();
+
+    assert_eq!(
+        version(&after, "refined")["ownership"],
+        "linked",
+        "a linked refinement must reopen linked; origin provenance is not link authority"
+    );
+    assert!(
+        version(&after, "edited").get("ownership").is_none(),
+        "an edited copy stays fixed and keeps the older document's shape"
+    );
+    assert_eq!(version(&after, "refined")["name"], "Linked refinement");
+    assert_eq!(version(&after, "edited")["name"], "Edited outline");
+    assert_eq!(
+        version(&after, "refined")["geometry"]["settings"]["size"],
+        3.5,
+        "each version keeps its own settings"
+    );
+    assert_eq!(
+        version(&after, "edited")["geometry"]["settings"]["size"],
+        6.0
+    );
+    assert_eq!(
+        version(&after, "refined")["geometry"]["protectedGaps"][0]["points"][0]["partId"],
+        "main/U1",
+        "a linked version keeps the component references its choices require"
+    );
+    assert!(
+        version(&after, "edited")["geometry"]
+            .get("protectedGaps")
+            .is_none()
+    );
+    assert_eq!(
+        version(&after, "refined")["source"]["versionId"],
+        serde_json::Value::Null,
+        "the refinement was copied from Generated"
+    );
+    let source = &version(&after, "edited")["source"];
+    assert_eq!(
+        source["versionId"], "refined",
+        "a copy records its origin without gaining control over its shape"
+    );
+    assert_eq!(after["boardOutlines"][0]["activeVersionId"], "refined");
+}
+
+/// A linked refinement persisted by this format: it follows the board's components
+/// and owns its choices, and the fixture records that with explicit ownership.
+fn linked_source() -> (ProjectDoc, serde_json::Value) {
+    let (_engine, mut saved) = two_versions();
+    saved["boardOutlines"][0]["versions"][0]["ownership"] = serde_json::json!("linked");
+    saved["boardOutlines"][0]["versions"][0]["geometry"]["settings"]["size"] =
+        serde_json::json!(3.5);
+    saved["boardOutlines"][0]["versions"][0]["geometry"]["protectedGaps"] = serde_json::json!([{
+        "id": "refined-gap",
+        "points": [{ "at": { "x": 1.0, "y": 2.0 }, "partId": "main/U1" }]
+    }]);
+    saved["boardOutlines"][0]["activeVersionId"] = serde_json::json!("refined");
+    let input: ProjectDoc = serde_json::from_value(saved.clone()).unwrap();
+    (input, saved)
+}
+
+#[test]
+fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_components() {
+    let (input, saved) = linked_source();
+    let mut engine = CoreEngine::new();
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: input,
+    }));
+    let copied = edit(
+        &mut engine,
+        opened.revision,
+        serde_json::json!({
+            "kind": "copy-outline", "boardId": "main", "versionId": "copy", "name": "Edited copy"
+        }),
+    );
+    assert_eq!(copied.board_contours, opened.board_contours);
+    let accepted = document(&mut engine);
+    let after = serde_json::to_value(&accepted).unwrap();
+    assert_eq!(
+        version(&after, "refined")["ownership"],
+        "linked",
+        "the persisted refinement owns its link"
+    );
+    assert_eq!(
+        version(&after, "copy")["source"]["versionId"],
+        "refined",
+        "a copy records where it came from"
+    );
+    assert!(
+        version(&after, "copy").get("ownership").is_none(),
+        "origin information grants the source no control over the copy's shape"
+    );
+    let copy_geometry = version(&after, "copy")["geometry"].clone();
+
+    // Editing the source version leaves the copy's own choices alone.
+    let mut feature = accepted.board_outlines[0].versions[0].geometry.features[0].clone();
+    if let OutlineFeature::Polygon { points, .. } = &mut feature {
+        points[0].x -= 2.0;
+    }
+    let source_edited = edit(
+        &mut engine,
+        copied.revision,
+        serde_json::json!({ "kind": "set-outline", "feature": feature }),
+    );
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_ne!(
+        version(&after, "refined")["geometry"]["features"][0],
+        saved["boardOutlines"][0]["versions"][0]["geometry"]["features"][0],
+        "the source version really changed"
+    );
+    assert_eq!(
+        version(&after, "copy")["geometry"],
+        copy_geometry,
+        "the copy does not follow its source's later edits"
+    );
+
+    // Generated follows the layout while the edited copy stays where it was.
+    let generated = edit(
+        &mut engine,
+        source_edited.revision,
+        serde_json::json!({ "kind": "select-outline", "boardId": "main", "versionId": null }),
+    );
+    let moved = edit(
+        &mut engine,
+        generated.revision,
+        serde_json::json!({
+            "kind": "move-parts",
+            "positions": [{ "id": "main/U1", "at": { "x": 310.0, "y": -15.0 } }]
+        }),
+    );
+    assert_ne!(
+        moved.board_contours, generated.board_contours,
+        "Generated follows the component layout"
+    );
+    let fixed = edit(
+        &mut engine,
+        moved.revision,
+        serde_json::json!({ "kind": "select-outline", "boardId": "main", "versionId": "copy" }),
+    );
+    assert_eq!(
+        fixed.board_contours, opened.board_contours,
+        "the edited copy keeps the shape it was created with"
+    );
+    let after = serde_json::to_value(document(&mut engine)).unwrap();
+    assert_eq!(
+        version(&after, "copy")["geometry"],
+        copy_geometry,
+        "moving components does not reshape an edited copy"
+    );
+    assert_eq!(
+        version(&after, "copy")["source"]["versionId"],
+        "refined",
+        "origin information survives later edits"
+    );
+}
+
+#[test]
+fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may_not() {
+    let (mut input, _saved) = linked_source();
+    // An authored cutout that follows its component is legitimate for a refinement and
+    // invalid for a fixed copy, which cannot contain live attachments.
+    input.board_outlines[0].versions[0]
+        .geometry
+        .features
+        .push(OutlineFeature::Polygon {
+            anchor_part_id: Some("main/U1".into()),
+            id: "refined-cutout".into(),
+            points: vec![
+                Vec2 { x: 58.0, y: -32.0 },
+                Vec2 { x: 62.0, y: -32.0 },
+                Vec2 { x: 60.0, y: -28.0 },
+            ],
+            operation: Operation::Subtract,
+        });
+    input.board_outlines[0].active_version_id = Some("refined".into());
+    let mut engine = CoreEngine::new();
+    let refinement = scene(engine.handle(CoreRequest::Open {
+        id: "linked-attachment".into(),
+        document: input,
+    }));
+    assert!(
+        refinement.board_readiness[0].outline,
+        "a linked refinement's component attachment must not block its outline"
+    );
+    // The same attachment on a fixed copy stays an error.
+    let (mut fixed, _saved) = linked_source();
+    fixed.board_outlines[0].versions[1]
+        .geometry
+        .features
+        .push(OutlineFeature::Polygon {
+            anchor_part_id: Some("main/U1".into()),
+            id: "fixed-attachment".into(),
+            points: vec![
+                Vec2 { x: 58.0, y: -32.0 },
+                Vec2 { x: 62.0, y: -32.0 },
+                Vec2 { x: 60.0, y: -28.0 },
+            ],
+            operation: Operation::Subtract,
+        });
+    fixed.board_outlines[0].active_version_id = Some("edited".into());
+    let blocked = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "fixed-attachment".into(),
+        document: fixed,
+    }));
+    assert!(
+        !blocked.board_readiness[0].outline,
+        "a fixed copy cannot contain live component attachments"
+    );
+}

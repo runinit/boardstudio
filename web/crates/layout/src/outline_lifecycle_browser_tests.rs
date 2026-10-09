@@ -883,6 +883,7 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
                     bridges: vec![],
                     protected_gaps: vec![],
                 },
+                ownership: boardstudio_core::model::OutlineOwnership::Fixed,
             }],
             generated_last_valid: None,
         });
@@ -1120,6 +1121,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
             bridges: vec![],
             protected_gaps: vec![],
         },
+        ownership: boardstudio_core::model::OutlineOwnership::Fixed,
     }))
     .await;
     settle_dimension().await;
@@ -1360,6 +1362,7 @@ mod queued_actions {
                     bridges: vec![],
                     protected_gaps: vec![],
                 },
+                ownership: boardstudio_core::model::OutlineOwnership::Fixed,
             }],
             generated_last_valid: None,
         });

@@ -279,6 +279,7 @@ pub(crate) fn apply(
                 name: label,
                 source,
                 geometry,
+                ownership: OutlineOwnership::Fixed,
             });
             state.active_version_id = Some(version_id.clone());
             board_id

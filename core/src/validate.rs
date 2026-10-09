@@ -138,28 +138,32 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
             && let Some(id) = &state.active_version_id
         {
             if let Some(version) = state.versions.iter().find(|version| &version.id == id) {
-                for feature in &version.geometry.features {
-                    let fixed = matches!(
-                        feature,
-                        crate::model::OutlineFeature::Polygon {
-                            anchor_part_id: None,
-                            ..
-                        } | crate::model::OutlineFeature::Rect {
-                            anchor_part_id: None,
-                            ..
+                // A linked refinement follows the board's components, so its authored
+                // attachments are legitimate; a fixed edited copy cannot contain one.
+                if version.ownership.is_fixed() {
+                    for feature in &version.geometry.features {
+                        let fixed = matches!(
+                            feature,
+                            crate::model::OutlineFeature::Polygon {
+                                anchor_part_id: None,
+                                ..
+                            } | crate::model::OutlineFeature::Rect {
+                                anchor_part_id: None,
+                                ..
+                            }
+                        );
+                        if !fixed {
+                            findings.push(error(
+                                Scope::Pcb,
+                                format!(
+                                    "board:{}:outline:fixed-attachment:{}",
+                                    board.id,
+                                    feature.id()
+                                ),
+                                "A fixed version cannot contain live component attachments",
+                                vec![board.id.clone(), feature.id().into()],
+                            ));
                         }
-                    );
-                    if !fixed {
-                        findings.push(error(
-                            Scope::Pcb,
-                            format!(
-                                "board:{}:outline:fixed-attachment:{}",
-                                board.id,
-                                feature.id()
-                            ),
-                            "A fixed version cannot contain live component attachments",
-                            vec![board.id.clone(), feature.id().into()],
-                        ));
                     }
                 }
             } else {
