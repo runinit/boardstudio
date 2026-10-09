@@ -327,7 +327,7 @@ fn apply_settings(
     // Route each changed value to the ownership that owns it: the pair's single
     // authored value for linked features, the pair or shared source for shared
     // construction, and the member's own configuration for everything local.
-    persist_edit(doc, &edit.target, &before, configuration)?;
+    persist_edit(doc, &edit.target, &before, configuration, &mut changed)?;
     if projection_required {
         project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     }
@@ -616,6 +616,7 @@ fn persist_edit(
     target: &MechanicalTarget,
     before: &MechanicalConfiguration,
     after: MechanicalConfiguration,
+    changed: &mut Vec<String>,
 ) -> Result<(), String> {
     let mut local = after.clone();
     if let MechanicalTarget::Instance { instance_id } = target {
@@ -627,6 +628,10 @@ fn persist_edit(
         });
         match pair_index {
             Some(pair_index) => {
+                // A change to a linked feature or to the pair's shared construction
+                // changes the derived geometry both halves show, so the report names the
+                // pair and both member instances.
+                let mut pair_touched = false;
                 let pair = doc.hardware.as_ref().unwrap().pairs[pair_index].clone();
                 for feature in &pair.features {
                     let Some(member) = feature
@@ -642,6 +647,7 @@ fn persist_edit(
                         let before_value =
                             find_feature_value(before, feature.kind, &member.feature_id);
                         if after_value != before_value {
+                            pair_touched = true;
                             let pair = &mut doc.hardware.as_mut().unwrap().pairs[pair_index];
                             match after_value {
                                 Some(value) => {
@@ -694,6 +700,7 @@ fn persist_edit(
                         if pair.features.iter().any(|feature| feature.id == id) {
                             continue;
                         }
+                        pair_touched = true;
                         features::add_linked_feature(
                             pair,
                             MechanicalFeature {
@@ -710,7 +717,11 @@ fn persist_edit(
                 let before_shared = features::shared_construction(before);
                 let after_shared = features::shared_construction(&after);
                 if before_shared != after_shared {
+                    pair_touched = true;
                     doc.hardware.as_mut().unwrap().pairs[pair_index].construction = after_shared;
+                }
+                if pair_touched {
+                    changed.extend(pair_owner_ids(doc, pair_index));
                 }
             }
             None => {
@@ -1605,7 +1616,9 @@ fn make_feature_local(
         instance_id,
         feature_id,
     )?;
-    Ok(vec![feature_id.to_string(), instance_id.to_string()])
+    let mut changed = vec![feature_id.to_string(), instance_id.to_string()];
+    changed.extend(pair_owner_ids(doc, location.pair_index));
+    Ok(changed)
 }
 
 /// Removes one half's geometry and records a local omission.
@@ -1637,7 +1650,9 @@ fn omit_feature_member(
         instance_id,
         feature_id,
     )?;
-    Ok(vec![feature_id.to_string(), instance_id.to_string()])
+    let mut changed = vec![feature_id.to_string(), instance_id.to_string()];
+    changed.extend(pair_owner_ids(doc, location.pair_index));
+    Ok(changed)
 }
 
 /// Moves a feature's authorship off `instance_id` when that half was the author.
@@ -1798,11 +1813,13 @@ fn rejoin_feature_member(
     };
     let configuration = instance_configuration_mut(doc, instance_id)?;
     remove_feature(configuration, kind, &member_feature_id);
-    Ok(vec![
+    let mut changed = vec![
         feature_id.to_string(),
         instance_id.to_string(),
         source_instance_id.to_string(),
-    ])
+    ];
+    changed.extend(pair_owner_ids(doc, location.pair_index));
+    Ok(changed)
 }
 
 fn feature_member_id<'a>(feature: &'a MechanicalFeature, instance_id: &str) -> Option<&'a str> {
@@ -1841,6 +1858,14 @@ fn feature_visible_value(
         }
         MechanicalFeatureState::Local | MechanicalFeatureState::Omitted => Ok(None),
     }
+}
+
+/// The pair and both member instances a pair-record change touched.
+fn pair_owner_ids(doc: &ProjectDoc, pair_index: usize) -> Vec<String> {
+    let pair = &doc.hardware.as_ref().unwrap().pairs[pair_index];
+    let mut ids = vec![pair.id.clone()];
+    ids.extend(pair.members.iter().cloned());
+    ids
 }
 
 /// The durable ids one configuration carries for a feature kind.
@@ -5800,7 +5825,8 @@ mod tests {
             }),
         )
         .unwrap();
-        assert_eq!(changed, vec!["mount-1", "right"]);
+        // The pair and both member instances are affected, not just the edited half.
+        assert_eq!(changed, vec!["mount-1", "right", "pair-left-right", "left"]);
         // The reflected counterpart is materialized on the localized half.
         assert_point(
             mount_at(stored_instance(&doc, "right"), "mount-1"),
@@ -5830,7 +5856,7 @@ mod tests {
             }),
         )
         .unwrap();
-        assert_eq!(changed, vec!["mount-1", "left"]);
+        assert_eq!(changed, vec!["mount-1", "left", "pair-left-right", "right"]);
         // The author keeps its own visible geometry locally.
         assert_point(
             mount_at(stored_instance(&doc, "left"), "mount-1"),
@@ -5874,7 +5900,8 @@ mod tests {
             }),
         )
         .unwrap();
-        assert_eq!(changed, vec!["mount-1", "right"]);
+        // The pair and both member instances are affected, not just the edited half.
+        assert_eq!(changed, vec!["mount-1", "right", "pair-left-right", "left"]);
         assert!(stored_instance(&doc, "right").mounts.is_empty());
         // The omitted half shows nothing; the still-linked author keeps its geometry.
         assert!(
@@ -5974,7 +6001,7 @@ mod tests {
             }),
         )
         .unwrap();
-        assert_eq!(changed, vec!["mount-1", "right", "left"]);
+        assert_eq!(changed, vec!["mount-1", "right", "left", "pair-left-right"]);
         let pair = &pairs(&doc)[0];
         assert_eq!(pair.features[0].author, "left");
         let MechanicalFeatureValue::Mount { mount } = &pair.features[0].value else {
