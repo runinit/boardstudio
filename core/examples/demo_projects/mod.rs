@@ -1,3 +1,4 @@
+mod mechanical;
 mod physical;
 mod recipes;
 mod review;
@@ -241,6 +242,73 @@ fn pack(mut doc: Value, output: &Path, name: &str) -> Result<Value> {
         json!({"name":doc["name"],"fixture":name,"document_id":doc["id"],"revision":doc["revision"],"archive_sha256":digest(bytes),"assets":assets,"boards":doc["boards"],"key_count":typed.matrices.iter().flat_map(|m|&m.cells).filter(|c|c.enabled).count(),"modules":doc["modules"]}),
     )
 }
+/// One Sofle variant: the measured seed, wired, then the split's mechanical mirror
+/// pair. Sofle places every part from one measured half, so both halves' bays are
+/// true reflections and stay linked. The v2 fixture's gasket mount (once a
+/// project-level setting on the left board only) is the pair's shared construction.
+pub fn sofle_project(engine: &mut CoreEngine, variant: &str) -> Result<Value> {
+    let (seed, x_offset) = recipes::sofle(variant)?;
+    let opened = open(engine, seed)?;
+    let doc = wire(engine, opened)?;
+    mechanical::link_pair(
+        engine,
+        doc,
+        &mechanical::Pair {
+            id: "mirror-left-right",
+            members: ["left", "right"],
+            x_offset,
+            bays: &mechanical::SOFLE_BAYS,
+            gasket: variant == "v2",
+        },
+    )
+}
+
+/// One measured keyboard from `keyboard-layouts.json`. A split board becomes a
+/// mechanical mirror pair; the generated controller bay sits at each PCB's right
+/// edge, so its openings are local on the right half. Unibody boards are unchanged.
+pub fn measured_project(engine: &mut CoreEngine, id: &str, layout: &Value) -> Result<Value> {
+    let (seed, mirror) = recipes::keyboard(id, layout)?;
+    let opened = open(engine, seed)?;
+    let doc = wire(engine, opened)?;
+    match mirror {
+        Some(x_offset) => mechanical::link_pair(
+            engine,
+            doc,
+            &mechanical::Pair {
+                id: "mirror-left-right",
+                members: ["left", "right"],
+                x_offset,
+                bays: &mechanical::MEASURED_BAYS,
+                gasket: false,
+            },
+        ),
+        None => Ok(doc),
+    }
+}
+
+/// The reused-PCB demonstration: one reversible REVIUNG41 board used for both
+/// physical copies, the second flipped, joined by the reflection their opposite
+/// flips imply. It is a verification project, not one of the shipped fixtures.
+// The acceptance test that includes this module calls it; the fixture builder does not.
+#[allow(dead_code)]
+pub fn reused_pcb_project(engine: &mut CoreEngine) -> Result<Value> {
+    let layouts = read("content/layouts/keyboard-layouts.json")?;
+    let seed = recipes::reused_pcb(&layouts["reviung41"])?;
+    let opened = open(engine, seed)?;
+    let doc = wire(engine, opened)?;
+    mechanical::link_pair(
+        engine,
+        doc,
+        &mechanical::Pair {
+            id: "reused-pcb-mirror",
+            members: ["main", "flipped"],
+            x_offset: 0.,
+            bays: &mechanical::REUSED_BAYS,
+            gasket: false,
+        },
+    )
+}
+
 pub fn prepare(destination: Option<&str>) -> Result<()> {
     let output = destination
         .map(PathBuf::from)
@@ -278,17 +346,7 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
         let doc: Value = serde_json::from_str(s(&reply["projectJson"]))?;
         fixtures.push(json!({"name":"REVIUNG41","source":"content/archives/reviung41-original.boardstudio","source_sha256":digest(&bytes),"document_id":doc["id"],"revision":doc["revision"],"assets":assets}));
         for variant in ["v2", "rgb", "choc"] {
-            let seed = recipes::sofle(variant)?;
-            let opened = open(&mut engine, seed)?;
-            let mut doc = wire(&mut engine, opened)?;
-            if variant == "v2" {
-                doc = edit(
-                    &mut engine,
-                    doc,
-                    json!({"kind":"set-mechanical","configuration":recipes::gasket()}),
-                    "m1-fixture-gasket",
-                )?;
-            }
+            let doc = sofle_project(&mut engine, variant)?;
             fixtures.push(pack(
                 doc,
                 &staging,
@@ -301,9 +359,7 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
         }
         let layouts = read("content/layouts/keyboard-layouts.json")?;
         for (id, layout) in layouts.as_object().unwrap() {
-            let seed = recipes::keyboard(id, layout)?;
-            let opened = open(&mut engine, seed)?;
-            let doc = wire(&mut engine, opened)?;
+            let doc = measured_project(&mut engine, id, layout)?;
             fixtures.push(pack(doc, &staging, &format!("measured-{id}"))?);
         }
         let doc = review::build(&mut engine)?;
@@ -312,6 +368,7 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
         for file in [
             "core/examples/prepare_demo_projects.rs",
             "core/examples/demo_projects/mod.rs",
+            "core/examples/demo_projects/mechanical.rs",
             "core/examples/demo_projects/physical.rs",
             "core/examples/demo_projects/recipes.rs",
             "core/examples/demo_projects/review.rs",

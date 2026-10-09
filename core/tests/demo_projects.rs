@@ -1,9 +1,13 @@
 //! Acceptance baseline recorded at 323967ff; its source hashes also match 3cdeb2ac2.
 //! Identifiers are mechanically
 //! renamed; placements, source references, matrix recipes, wiring and model hashes are frozen.
+//! Typed-core-edits ticket 04 deliberately re-recorded `revision` and `hardware` (and the
+//! Sofle v2 project-level `mechanical`) for the ten split keyboards, which now carry a
+//! mechanical mirror pair; see that ticket's Outcome for the per-keyboard record. Every
+//! other recorded value, including all key positions, is unchanged.
 #[path = "../examples/demo_projects/mod.rs"]
 #[allow(clippy::module_inception)] // The module is the shared example source, included by path.
-mod demo_projects;
+pub(crate) mod demo_projects; // Shared with `included_keyboards`, which cannot include the files twice.
 use serde_json::Value;
 use std::fs;
 fn equivalent(actual: &Value, expected: &Value, path: &str) {
@@ -65,6 +69,21 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
             assert_eq!(reply["kind"], "unpacked", "{name}: {reply}");
             let unpacked: Value =
                 serde_json::from_str(reply["projectJson"].as_str().unwrap()).unwrap();
+            // The exported archive reopens with its mechanical pairs and exceptions intact.
+            let mut engine = boardstudio_core::CoreEngine::new();
+            let opened: Value = serde_json::from_str(&engine.request(
+                &serde_json::json!({"id":"open","kind":"open","document":unpacked}).to_string(),
+            ))
+            .unwrap();
+            assert_eq!(opened["kind"], "scene", "{name}: {opened}");
+            // (Opening may normalize a prebuilt archive's other hardware fields.)
+            let pairs = |document: &Value| {
+                document["hardware"]["pairs"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default()
+            };
+            assert_eq!(pairs(&opened["document"]), pairs(&doc), "{name}");
             let typed: boardstudio_core::model::ProjectDoc =
                 serde_json::from_value(unpacked).unwrap();
             for definition in &typed.definitions {

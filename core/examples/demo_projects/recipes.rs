@@ -36,7 +36,9 @@ fn board(
     );
     Ok(())
 }
-pub(super) fn keyboard(id: &str, layout: &Value) -> Result<Value> {
+/// Builds a measured keyboard seed and, for a split board, the X offset of the
+/// mirror map `right = (offset - left.x, left.y)` between its two halves.
+pub(super) fn keyboard(id: &str, layout: &Value) -> Result<(Value, Option<f64>)> {
     let mut doc = empty(&format!("m1-{id}-copy"), s(&layout["name"]));
     doc["parameters"] = json!({"demo":id,"source":format!("{}/blob/{}/{}",s(&layout["repository"]),s(&layout["revision"]),s(&layout["path"])),"sourceSha256":layout["sha256"],"adaptation":"Measured key layout; library switches, diode matrix, nice!nano controller bay, and a live generated outline. Source peripherals and routing are not reproduced."});
     let split = layout["split"].as_bool().unwrap();
@@ -134,9 +136,12 @@ pub(super) fn keyboard(id: &str, layout: &Value) -> Result<Value> {
             .collect();
         board(&mut doc, board_id, ids, parts, &format!("{board_id}/U1"))?;
     }
-    Ok(doc)
+    // Both halves place each key at `x - min_x + 6` or `max_x - x + 6`, the right
+    // one shifted by `width + 25`, so the reflection constant is their sum.
+    Ok((doc, split.then_some(max_x - min_x + 12. + width + 25.)))
 }
-pub(super) fn sofle(variant: &str) -> Result<Value> {
+/// Builds a Sofle seed and the X offset of its mirror map, as [`keyboard`].
+pub(super) fn sofle(variant: &str) -> Result<(Value, f64)> {
     let measurements = read("content/layouts/sofle-layouts.json")?;
     let layout = &measurements["layouts"][variant];
     let name = match variant {
@@ -307,8 +312,26 @@ pub(super) fn sofle(variant: &str) -> Result<Value> {
             .last_mut()
             .unwrap()["name"] = json!(format!("{half} half"));
     }
-    Ok(doc)
+    // Left is `max_x - x`, right is `x - min_x + width + 30`.
+    Ok((doc, 2. * width + 30.))
 }
-pub(super) fn gasket() -> Value {
-    json!({"boardId":"left","method":"printed","mount":"gasket","integratedPlateFrame":false,"bottomStyle":"shell","middleFrame":false,"plateThickness":1.5,"plateFoamThickness":3,"pcbThickness":1.6,"bottomFoamThickness":2,"batteryHeight":0,"bottomThickness":3,"plateToPcb":3.5,"wallThickness":2,"clearance":0.3,"mounts":[],"partProcesses":[{"partId":"plate","method":"printed","material":"PLA","thickness":1.5,"constraintsVersion":"2026-09-24"},{"partId":"plate-foam","method":"cut-sheet","material":"EVA","thickness":3,"constraintsVersion":"2026-09-24"},{"partId":"bottom-foam","method":"cut-sheet","material":"EVA","thickness":2,"constraintsVersion":"2026-09-24"},{"partId":"bottom","method":"printed","material":"PLA","thickness":3,"constraintsVersion":"2026-09-24"}],"profiles":[],"gasketTravel":0.3})
+/// Seed for the reused-PCB demonstration: REVIUNG41's one `main` board used by two
+/// physical copies, the second flipped. Neither copy has a mechanical configuration
+/// yet; the demonstration enables and pairs them through Core.
+pub(super) fn reused_pcb(layout: &Value) -> Result<Value> {
+    let (mut doc, _) = keyboard("reviung41", layout)?;
+    doc["id"] = json!("m1-reused-pcb-copy");
+    doc["name"] = json!("REVIUNG41 · one PCB used twice");
+    let hardware = &mut doc["hardware"];
+    hardware["topology"] = json!("split");
+    hardware["transport"] = json!("wired");
+    let first = &mut hardware["instances"][0];
+    first["half"] = json!("left");
+    first["role"] = json!("central");
+    push(
+        hardware,
+        "instances",
+        json!({"id":"flipped","name":"flipped","boardId":"main","half":"right","role":"peripheral","flipped":true,"controllerPartId":null,"mechanical":null,"constructionLinked":false}),
+    );
+    Ok(doc)
 }
