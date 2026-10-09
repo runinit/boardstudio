@@ -23,8 +23,6 @@ use super::inputs::{effective_document, effective_inputs};
 const GENERATED_PART_PREFIX: &str = "case-closure/";
 const GENERATED_DEFINITION_PREFIX: &str = "assembly-closure/definition/";
 const AUTO_CLOSURE_PREFIX: &str = "auto-closure/";
-const MISSING_TEMPLATE: &str =
-    "A normalized mounting-hole definition is required to project the generated closure clearance.";
 
 /// Applies one mechanical edit, returning the changed durable ids.
 ///
@@ -40,6 +38,67 @@ pub fn apply(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>,
     let changed = apply_staged(&mut next, edit)?;
     *doc = next;
     Ok(changed)
+}
+
+/// The disposition of a submitted mechanical edit against the accepted document.
+///
+/// The evaluator answers the settlement question the adapter asks before it
+/// commits: does this edit change durable state, does it equal the accepted value,
+/// or has its target gone so the queued intent must retire?
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MechanicalEditDisposition {
+    /// The edit changes durable state.
+    Changed,
+    /// The edit equals the accepted value and needs no initialization.
+    Unchanged,
+    /// The target has vanished or is ineligible, so the queued edit retires.
+    Retire,
+}
+
+/// Evaluates one typed mechanical edit against the accepted document.
+///
+/// This is the read-only half of the operation: it shares the private apply and
+/// evaluation implementation with [`apply`], so a resolver no-op is detected by
+/// the same rules the commit uses, and it never exposes a prepared replacement
+/// document. A missing or ineligible target is [`MechanicalEditDisposition::Retire`]
+/// (the queued intent is dropped silently); structural problems - malformed values
+/// or a missing or invalid mounting-hole template - are `Err` with no mutation.
+/// `board_contours` is the accepted board outline cache the contour-dependent
+/// projection and fit findings resolve against.
+pub fn evaluate_edit(
+    document: &ProjectDoc,
+    _board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+) -> Result<MechanicalEditDisposition, String> {
+    // A target that no longer exists retires: the queued intent was authored
+    // against an entity that has since been removed, so it must be dropped rather
+    // than redirected at whatever now occupies its place.
+    if !target_exists(document, &edit.target) {
+        return Ok(MechanicalEditDisposition::Retire);
+    }
+    let mut next = document.clone();
+    match apply_staged(&mut next, edit) {
+        Ok(changed) if changed.is_empty() => Ok(MechanicalEditDisposition::Unchanged),
+        Ok(_) => Ok(MechanicalEditDisposition::Changed),
+        Err(message) => Err(message),
+    }
+}
+
+/// Whether the edit target still exists in the accepted document.
+fn target_exists(document: &ProjectDoc, target: &MechanicalTarget) -> bool {
+    match target {
+        MechanicalTarget::Board { board_id } => {
+            document.boards.iter().any(|board| board.id == *board_id)
+        }
+        MechanicalTarget::Instance { instance_id } => {
+            document.hardware.as_ref().is_some_and(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .any(|instance| instance.id == *instance_id)
+            })
+        }
+    }
 }
 
 fn apply_staged(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>, String> {
@@ -146,7 +205,12 @@ fn apply_settings(
     change: &MechanicalChange,
     board_id: &str,
 ) -> Result<Vec<String>, String> {
-    let inputs = effective_inputs(doc, &edit.target)?;
+    // A supplied template is validated even when the edit is settings-only and the
+    // projection never runs, so a malformed catalogue entry is always an error.
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
+    }
+    let inputs = effective_inputs(doc, &[], &edit.target)?;
     let mut configuration = inputs.configuration;
     let before = configuration.clone();
     let mut changed = Vec::new();
@@ -158,16 +222,18 @@ fn apply_settings(
     if configuration == before && !needs_initialization {
         return Ok(Vec::new());
     }
+    // Whether projection needs a template is decided by the actual generated holes,
+    // not by the change kind: removing the final generated hole creates nothing.
     let projection_required = requires_projection(change) || needs_initialization;
-    if projection_required && edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
-    }
     changed.insert(0, owner_id(&edit.target, board_id));
     if needs_initialization {
-        persist(doc, &edit.target, configuration)?;
+        persist(doc, &edit.target, configuration.clone())?;
         configuration = initialize_closure_mounts(doc, &edit.target)?;
     }
-    persist(doc, &edit.target, configuration)?;
+    // Route each changed value to the ownership that owns it: the pair's single
+    // authored value for linked features, the pair or shared source for shared
+    // construction, and the member's own configuration for everything local.
+    persist_edit(doc, &edit.target, &before, configuration)?;
     if projection_required {
         project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     }
@@ -176,17 +242,49 @@ fn apply_settings(
 }
 
 /// Runs the owned projection and records only the generated ids it changed.
+///
+/// The optional template is validated by [`validate_mounting_hole`] before use. No
+/// template is required when the projected hole set is empty (for example when the
+/// final generated hole is removed): the old generated parts, definitions and
+/// memberships are still cleaned up.
 fn project(
     doc: &mut ProjectDoc,
     mounting_hole: Option<&PartDefinition>,
     changed: &mut Vec<String>,
 ) -> Result<(), String> {
-    let template = mounting_hole.ok_or_else(|| MISSING_TEMPLATE.to_string())?;
+    if let Some(template) = mounting_hole {
+        validate_mounting_hole(template)?;
+    }
     let before = doc.clone();
     let projected =
-        crate::mechanical::clearance::project_owned_closure_clearance(before.clone(), template)?;
+        crate::mechanical::clearance::project_owned_closure_clearance_with_optional_template(
+            before.clone(),
+            mounting_hole,
+        )?;
     changed.extend(generated_change_ids(&before, &projected));
     *doc = projected;
+    Ok(())
+}
+
+/// Validates a supplied normalized mounting-hole definition.
+///
+/// The projection derives its generated footprints from the bundled
+/// `ceoloide/mounting_hole_npth` entry, so a definition from another source or one
+/// without a drilled pad is rejected before anything mutates.
+fn validate_mounting_hole(template: &PartDefinition) -> Result<(), String> {
+    let source = template
+        .generator
+        .as_ref()
+        .map(|generator| generator.source.as_str());
+    if source != Some("ceoloide/mounting_hole_npth") {
+        return Err(
+            "The mounting-hole definition must be the normalized ceoloide/mounting_hole_npth catalogue entry."
+                .into(),
+        );
+    }
+    if !template.pads.iter().any(|pad| pad.drill.is_some()) {
+        return Err("The mounting-hole definition has no drilled pad.".into());
+    }
     Ok(())
 }
 
@@ -372,6 +470,107 @@ fn persist(
     }
 }
 
+/// Persists an edited effective configuration to the ownership that owns each part.
+///
+/// A linked feature belongs to its pair, so a change made from either member updates
+/// the pair's single authored value (stored in the editing member's frame) and never
+/// a second writable copy on the member; removing a linked feature on this half
+/// stores a local omission instead. A `Pair` member's shared construction change is
+/// written to the pair, a `Legacy` member's overlay change is written to the shared
+/// source so the next effective read returns it, and every other field stays local.
+fn persist_edit(
+    doc: &mut ProjectDoc,
+    target: &MechanicalTarget,
+    before: &MechanicalConfiguration,
+    after: MechanicalConfiguration,
+) -> Result<(), String> {
+    let mut local = after.clone();
+    if let MechanicalTarget::Instance { instance_id } = target {
+        let pair_index = doc.hardware.as_ref().and_then(|hardware| {
+            hardware
+                .pairs
+                .iter()
+                .position(|pair| pair.members.contains(instance_id))
+        });
+        match pair_index {
+            Some(pair_index) => {
+                let pair = doc.hardware.as_ref().unwrap().pairs[pair_index].clone();
+                for (index, feature) in pair.features.iter().enumerate() {
+                    let Some(member) = feature
+                        .members
+                        .iter()
+                        .find(|member| member.instance_id == *instance_id)
+                    else {
+                        continue;
+                    };
+                    if member.state == MechanicalFeatureState::Linked {
+                        let after_value =
+                            find_feature_value(&after, feature.kind, &member.feature_id);
+                        let before_value =
+                            find_feature_value(before, feature.kind, &member.feature_id);
+                        if after_value != before_value {
+                            let pair = &mut doc.hardware.as_mut().unwrap().pairs[pair_index];
+                            match after_value {
+                                Some(value) => {
+                                    // The editing member's frame authors the pair's
+                                    // single value; the other half derives from it.
+                                    pair.features[index].value = value;
+                                    pair.features[index].author = instance_id.clone();
+                                }
+                                None => {
+                                    // Removing a linked feature on this half stores a
+                                    // local omission; the other half keeps its link.
+                                    features::set_member_state(
+                                        pair,
+                                        instance_id,
+                                        &member.feature_id,
+                                        MechanicalFeatureState::Omitted,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
+                    // A linked feature is never persisted on the member; a `Local`
+                    // exception stays in its ordinary configuration.
+                    if member.state != MechanicalFeatureState::Local {
+                        remove_feature(&mut local, feature.kind, &member.feature_id);
+                    }
+                }
+                let before_shared = features::shared_construction(before);
+                let after_shared = features::shared_construction(&after);
+                if before_shared != after_shared {
+                    doc.hardware.as_mut().unwrap().pairs[pair_index].construction = after_shared;
+                }
+            }
+            None => {
+                let ownership = doc
+                    .hardware
+                    .as_ref()
+                    .and_then(|hardware| {
+                        hardware
+                            .instances
+                            .iter()
+                            .find(|instance| instance.id == *instance_id)
+                    })
+                    .map(|instance| instance.construction_ownership);
+                let before_shared = features::shared_construction(before);
+                let after_shared = features::shared_construction(&after);
+                if ownership == Some(MechanicalConstructionOwnership::Legacy)
+                    && before_shared != after_shared
+                    && let Some(hardware) = doc.hardware.as_mut()
+                    && let Some(shared) = hardware.shared_construction.as_mut()
+                {
+                    // The shared overlay owns these fields for every Legacy instance,
+                    // so writing them here keeps the edit from being reverted on the
+                    // next effective read.
+                    features::apply_construction(shared, &after_shared);
+                }
+            }
+        }
+    }
+    persist(doc, target, local)
+}
+
 /// Enables a target that has no effective configuration yet.
 ///
 /// The fresh configuration is closure-initialized and projected like any other
@@ -382,12 +581,22 @@ fn enable(
     board_id: &str,
     edit: &MechanicalEdit,
 ) -> Result<Vec<String>, String> {
-    // An already-effective target is unchanged; the edit reports nothing.
-    if effective_inputs(doc, target).is_ok() {
+    // A target that already carries its own effective configuration is unchanged;
+    // the edit reports nothing. A board with no stored configuration is still
+    // eligible and gets the Core-owned defaults, so eligibility is not the same as
+    // "has stored settings" for a canonical board.
+    let already_effective = match target {
+        MechanicalTarget::Board { board_id } => doc
+            .mechanical
+            .as_ref()
+            .is_some_and(|configuration| configuration.board_id == *board_id),
+        MechanicalTarget::Instance { .. } => effective_inputs(doc, &[], target).is_ok(),
+    };
+    if already_effective {
         return Ok(Vec::new());
     }
-    if edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
     }
     let configuration = default_configuration(doc, board_id)?;
     let mut changed = vec![owner_id(target, board_id)];
@@ -428,8 +637,8 @@ fn disable(
     if !present {
         return Ok(Vec::new());
     }
-    if edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
     }
     match target {
         MechanicalTarget::Board { .. } => doc.mechanical = None,
@@ -462,14 +671,14 @@ fn initialize_closures(
     board_id: &str,
     edit: &MechanicalEdit,
 ) -> Result<Vec<String>, String> {
-    let inputs = effective_inputs(doc, target)?;
+    let inputs = effective_inputs(doc, &[], target)?;
     if inputs.configuration.closure_mounts.is_some()
         || inputs.configuration.mount == MechanicalMount::Gasket
     {
         return Err("The current stack no longer needs mounting-location initialization.".into());
     }
-    if edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
     }
     persist(doc, target, inputs.configuration)?;
     let configuration = initialize_closure_mounts(doc, target)?;
@@ -491,7 +700,7 @@ fn initialize_closures(
 /// local base for the fields the pair does not own.
 fn link_mirror_pair(
     doc: &mut ProjectDoc,
-    board_id: &str,
+    _board_id: &str,
     edit: &MechanicalEdit,
 ) -> Result<Vec<String>, String> {
     let MechanicalChange::LinkMirrorPair {
@@ -518,13 +727,11 @@ fn link_mirror_pair(
         return Err("A mechanical pair requires two distinct physical instances.".into());
     }
     for member in members {
-        let Some(instance) = hardware.instances.iter().find(|entry| entry.id == *member) else {
+        // The members may belong to different boards: one reversible PCB used twice
+        // and distinct left/right PCB designs are both supported explicit pairs. The
+        // map is supplied, never inferred from names, coordinates or flip flags.
+        if !hardware.instances.iter().any(|entry| entry.id == *member) {
             return Err(format!("Physical instance {member:?} is unavailable."));
-        };
-        if instance.board_id != board_id {
-            return Err(format!(
-                "Physical instance {member:?} belongs to another board."
-            ));
         }
         if hardware
             .pairs
@@ -551,6 +758,7 @@ fn link_mirror_pair(
     let configurations = [
         effective_inputs(
             doc,
+            &[],
             &MechanicalTarget::Instance {
                 instance_id: members[0].clone(),
             },
@@ -558,6 +766,7 @@ fn link_mirror_pair(
         .configuration,
         effective_inputs(
             doc,
+            &[],
             &MechanicalTarget::Instance {
                 instance_id: members[1].clone(),
             },
@@ -635,21 +844,21 @@ fn link_mirror_pair(
         instance.construction_ownership = MechanicalConstructionOwnership::Pair;
     }
     {
-        let second_configuration = hardware
-            .instances
-            .iter_mut()
-            .find(|entry| entry.id == *second)
-            .and_then(|instance| instance.mechanical.as_mut())
-            .ok_or("Physical instance is unavailable")?;
         for correspondence in correspondences {
-            remove_feature(
-                second_configuration,
-                correspondence.kind,
-                &correspondence.second_feature_id,
-            );
-        }
-        for (kind, feature_id, value) in second_installs {
-            install_feature(second_configuration, kind, &feature_id, &value)?;
+            for (index, member) in members.iter().enumerate() {
+                let feature_id = if index == 0 {
+                    correspondence.first_feature_id.as_str()
+                } else {
+                    correspondence.second_feature_id.as_str()
+                };
+                let configuration = hardware
+                    .instances
+                    .iter_mut()
+                    .find(|entry| &entry.id == member)
+                    .and_then(|instance| instance.mechanical.as_mut())
+                    .ok_or("Physical instance is unavailable")?;
+                remove_feature(configuration, correspondence.kind, feature_id);
+            }
         }
     }
     hardware.pairs.push(pair);
@@ -694,7 +903,7 @@ fn unlink_mirror_pair(
         let target = MechanicalTarget::Instance {
             instance_id: member.clone(),
         };
-        let mut configuration = effective_inputs(doc, &target)?.configuration;
+        let mut configuration = effective_inputs(doc, &[], &target)?.configuration;
         for feature in &pair.features {
             let Some(member_feature_id) = feature_member_id(feature, member) else {
                 continue;
@@ -961,6 +1170,7 @@ fn rejoin_feature_member(
         MechanicalFeatureState::Local => find_feature_value(
             &effective_inputs(
                 doc,
+                &[],
                 &MechanicalTarget::Instance {
                     instance_id: source_instance_id.into(),
                 },
@@ -1002,14 +1212,29 @@ fn rejoin_feature_member(
             )?
         }
     };
-    if let Some(derived) = derived {
-        if derived.instance_id != instance_id {
-            return Err("The rejoin source did not derive the selected half.".into());
-        }
-        let member_feature_id = derived.feature_id.clone();
-        let configuration = instance_configuration_mut(doc, instance_id)?;
-        install_feature(configuration, kind, &member_feature_id, &derived.value)?;
+    // The pair is the single source for this feature again, so the rejoined half
+    // derives its reflected geometry on read; no copy is written back to its local
+    // configuration. The derivation is still checked so a source that cannot derive
+    // the selected half is rejected.
+    if let Some(derived) = derived
+        && derived.instance_id != instance_id
+    {
+        return Err("The rejoin source did not derive the selected half.".into());
     }
+    // The pair owns the rejoined feature again, so the half's local copy must go:
+    // a `Linked` member stores no geometry of its own.
+    let member_feature_id = {
+        let pair = &doc.hardware.as_ref().unwrap().pairs[location.pair_index];
+        feature_member_id(&pair.features[location.feature_index], instance_id)
+            .map(str::to_string)
+            .ok_or_else(|| {
+                format!(
+                    "Physical instance {instance_id:?} has no record for feature {feature_id:?}."
+                )
+            })?
+    };
+    let configuration = instance_configuration_mut(doc, instance_id)?;
+    remove_feature(configuration, kind, &member_feature_id);
     Ok(vec![
         feature_id.to_string(),
         instance_id.to_string(),
@@ -1092,7 +1317,7 @@ fn find_feature_value(
     }
 }
 
-fn install_feature(
+pub(crate) fn install_feature(
     configuration: &mut MechanicalConfiguration,
     kind: MechanicalFeatureKind,
     feature_id: &str,
@@ -1151,7 +1376,7 @@ fn replace_mount(mounts: &mut Vec<Mount>, id: &str, mount: Mount) {
     }
 }
 
-fn remove_feature(
+pub(crate) fn remove_feature(
     configuration: &mut MechanicalConfiguration,
     kind: MechanicalFeatureKind,
     feature_id: &str,
@@ -1202,7 +1427,7 @@ fn instance_configuration_mut<'a>(
 /// Ports the adapter's `case_settings::initial_settings` family selection, plate
 /// and foam derivation, board thickness and standard process overrides onto the
 /// Core-owned default helpers.
-fn default_configuration(
+pub(crate) fn default_configuration(
     document: &ProjectDoc,
     board_id: &str,
 ) -> Result<MechanicalConfiguration, String> {
@@ -3911,9 +4136,14 @@ mod tests {
     }
 
     /// Case 5: a required projection without a template rolls back the configuration.
+    ///
+    /// The stored closure mount makes the projection genuinely create a generated
+    /// hole, so the normalized entry is required; a change whose projected hole set is
+    /// empty would not need one.
     #[test]
     fn a_missing_required_template_rolls_back_the_configuration() {
         let mut doc = document();
+        doc.mechanical.as_mut().unwrap().closure_mounts = Some(vec![mount("closure-1", 4.0, 0.0)]);
         let before = doc.clone();
         let error = apply(
             &mut doc,
@@ -4392,17 +4622,31 @@ mod tests {
     fn vanished_or_ineligible_targets_error() {
         let mut doc = ProjectDoc::empty("doc", "Fixture");
         doc.boards.push(board("board", vec![]));
-        assert!(
-            apply_change(
-                &mut doc,
-                MechanicalChange::SetDimension {
-                    field: MechanicalDimension::WallThickness,
-                    value: 3.0,
+        // An eligible board with no stored configuration resolves the Core-owned
+        // defaults, so a settings edit applies to them and persists them instead of
+        // erroring. The adapter no longer needs its own `initial_settings` builder.
+        let changed = apply_change(
+            &mut doc,
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )
+        .unwrap();
+        assert_eq!(changed, vec!["board"]);
+        assert_eq!(stored(&doc).wall_thickness, 3.0);
+        // A board that is not in the document stays ineligible.
+        let missing = apply(
+            &mut doc,
+            &MechanicalEdit {
+                target: MechanicalTarget::Board {
+                    board_id: "ghost".into(),
                 },
-            )
-            .is_err(),
-            "no stored configuration and no enable"
+                change: MechanicalChange::Enable,
+                mounting_hole: None,
+            },
         );
+        assert!(missing.is_err(), "{missing:?}");
         assert!(
             apply_instance(&mut doc, MechanicalChange::Enable).is_err(),
             "an unknown instance is unavailable"
@@ -4683,6 +4927,34 @@ mod tests {
             .at
     }
 
+    /// The visible geometry a physical half shows for a mount, resolved through the
+    /// effective read path (pair-derived when the feature is linked).
+    fn visible_mount(doc: &ProjectDoc, instance_id: &str, id: &str) -> Vec2 {
+        mount_at(
+            &effective_inputs(
+                doc,
+                &[],
+                &MechanicalTarget::Instance {
+                    instance_id: instance_id.into(),
+                },
+            )
+            .unwrap()
+            .configuration,
+            id,
+        )
+    }
+
+    /// Whether a physical half stores its own copy of a feature.
+    ///
+    /// A `Linked` feature is owned by the pair, so neither half may store a second
+    /// writable copy that could drift from the authored value.
+    fn stores_mount(doc: &ProjectDoc, instance_id: &str, id: &str) -> bool {
+        stored_instance(doc, instance_id)
+            .mounts
+            .iter()
+            .any(|mount| mount.id == id)
+    }
+
     fn assert_point(actual: Vec2, expected: Vec2) {
         assert!(
             (actual.x - expected.x).abs() < 1e-9 && (actual.y - expected.y).abs() < 1e-9,
@@ -4734,16 +5006,19 @@ mod tests {
             ownership(&doc, "right"),
             MechanicalConstructionOwnership::Pair
         );
-        // The source keeps its authored geometry and the second half shows the
-        // reflected counterpart immediately.
+        // The pair owns the single authored value. Both halves read it - the author
+        // its stored value and the other half the reflected counterpart - and neither
+        // keeps a second writable copy.
         assert_point(
-            mount_at(stored_instance(&doc, "left"), "mount-1"),
+            visible_mount(&doc, "left", "mount-1"),
             Vec2 { x: 2.0, y: 3.0 },
         );
         assert_point(
-            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            visible_mount(&doc, "right", "mount-1"),
             Vec2 { x: -2.0, y: 3.0 },
         );
+        assert!(!stores_mount(&doc, "left", "mount-1"));
+        assert!(!stores_mount(&doc, "right", "mount-1"));
     }
 
     #[test]
@@ -4765,8 +5040,8 @@ mod tests {
         doc.hardware.as_mut().unwrap().pairs[0]
             .construction
             .plate_thickness = 2.5;
-        let before_right = mount_at(stored_instance(&doc, "right"), "mount-1");
-        let before_left = mount_at(stored_instance(&doc, "left"), "mount-1");
+        let before_right = visible_mount(&doc, "right", "mount-1");
+        let before_left = visible_mount(&doc, "left", "mount-1");
         let changed = apply(
             &mut doc,
             &lifecycle_edit(MechanicalChange::UnlinkMirrorPair {
@@ -4860,11 +5135,13 @@ mod tests {
         };
         assert_point(mount.at, Vec2 { x: -2.0, y: 3.0 });
         features::validate(&doc).unwrap();
-        // The surviving linked half keeps the geometry it showed.
+        // The surviving linked half keeps the geometry it showed, derived from the
+        // pair rather than stored on the half.
         assert_point(
-            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            visible_mount(&doc, "right", "mount-1"),
             Vec2 { x: -2.0, y: 3.0 },
         );
+        assert!(!stores_mount(&doc, "right", "mount-1"));
     }
 
     #[test]
@@ -4880,7 +5157,26 @@ mod tests {
         .unwrap();
         assert_eq!(changed, vec!["mount-1", "right"]);
         assert!(stored_instance(&doc, "right").mounts.is_empty());
-        assert_eq!(stored_instance(&doc, "left").mounts.len(), 1);
+        // The omitted half shows nothing; the still-linked author keeps its geometry.
+        assert!(
+            !effective_inputs(
+                &doc,
+                &[],
+                &MechanicalTarget::Instance {
+                    instance_id: "right".into(),
+                },
+            )
+            .unwrap()
+            .configuration
+            .mounts
+            .iter()
+            .any(|mount| mount.id == "mount-1"),
+            "an omitted half shows no linked geometry"
+        );
+        assert_point(
+            visible_mount(&doc, "left", "mount-1"),
+            Vec2 { x: 2.0, y: 3.0 },
+        );
         let pair = &pairs(&doc)[0];
         assert_eq!(
             features::member_state(pair, "right", "mount-1"),
@@ -4904,7 +5200,11 @@ mod tests {
         )
         .unwrap();
         assert!(stored_instance(&doc, "left").mounts.is_empty());
-        assert_eq!(stored_instance(&doc, "right").mounts.len(), 1);
+        // The surviving linked half keeps deriving its geometry.
+        assert_point(
+            visible_mount(&doc, "right", "mount-1"),
+            Vec2 { x: -2.0, y: 3.0 },
+        );
         let pair = &pairs(&doc)[0];
         assert_eq!(
             features::member_state(pair, "left", "mount-1"),
@@ -4963,11 +5263,13 @@ mod tests {
             features::member_state(pair, "right", "mount-1"),
             Some(MechanicalFeatureState::Linked)
         );
-        // The reflected counterpart replaced the drifted local geometry.
+        // The reflected counterpart replaced the drifted local geometry, and the
+        // rejoined half derives it from the pair instead of storing a copy.
         assert_point(
-            mount_at(stored_instance(&doc, "right"), "mount-1"),
+            visible_mount(&doc, "right", "mount-1"),
             Vec2 { x: -2.0, y: 3.0 },
         );
+        assert!(!stores_mount(&doc, "right", "mount-1"));
     }
 
     #[test]

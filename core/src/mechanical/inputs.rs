@@ -42,27 +42,47 @@ const SHARED_OVERLAY_FIELDS: [&str; 20] = [
 pub struct MechanicalInputs {
     pub board_id: String,
     pub configuration: MechanicalConfiguration,
+    /// The target's accepted board contours, mirrored in X for a flipped physical
+    /// half, so a resolver reads the same accepted geometry the scene carried.
+    pub board_contours: Vec<Contour>,
 }
 
 /// Resolves the effective mechanical configuration for a board or physical half.
+///
+/// This is the single read path apply, evaluation and presentation share. A board
+/// that exists but has no stored canonical configuration resolves to the Core-owned
+/// defaults, so the adapter no longer needs its own `initial_settings` builder before
+/// Enable. A missing board or physical instance is an error; the mechanical evaluator
+/// retires such queued edits before they reach here.
+///
+/// For a member of an explicit mechanical pair the visible mounts, closure mounts and
+/// authored openings are derived from the pair's single authored values here, so a
+/// linked feature is never stored as a second writable copy on the member.
+/// `board_contours` is the accepted outline projection this read is based on.
 pub fn effective_inputs(
     document: &ProjectDoc,
+    board_contours: &[BoardContours],
     target: &MechanicalTarget,
 ) -> Result<MechanicalInputs, String> {
     match target {
         MechanicalTarget::Board { board_id } => {
-            let configuration = document
+            if !document.boards.iter().any(|board| board.id == *board_id) {
+                return Err(format!("Board {board_id:?} is unavailable"));
+            }
+            let stored = document
                 .mechanical
                 .as_ref()
                 .filter(|configuration| configuration.board_id == *board_id)
-                .cloned()
-                .ok_or_else(|| {
-                    format!("board {board_id:?} has no canonical mechanical configuration")
-                })?;
+                .cloned();
+            let configuration = match stored {
+                Some(configuration) => configuration,
+                None => super::edit::default_configuration(document, board_id)?,
+            };
             let configuration = apply_mechanical_defaults(document, configuration, board_id, false);
             Ok(MechanicalInputs {
                 board_id: board_id.clone(),
                 configuration,
+                board_contours: declared_contours(board_contours, board_id),
             })
         }
         MechanicalTarget::Instance { instance_id } => {
@@ -76,18 +96,98 @@ pub fn effective_inputs(
                 .ok_or_else(|| format!("physical instance {instance_id:?} is unavailable"))?;
             let thickness = board_thickness(document, &instance.board_id)?;
             let configuration = resolve_instance_configuration(hardware, instance, thickness)?;
+            let configuration = project_linked_features(hardware, instance, configuration)?;
             let configuration = apply_mechanical_defaults(
                 document,
                 configuration,
                 &instance.board_id,
                 instance.flipped,
             );
+            let contours = declared_contours(board_contours, &instance.board_id);
             Ok(MechanicalInputs {
                 board_id: instance.board_id.clone(),
                 configuration,
+                board_contours: if instance.flipped {
+                    mirror_contours(contours)
+                } else {
+                    contours
+                },
             })
         }
     }
+}
+
+/// The accepted contours of one board, or none when the projection lacks them.
+fn declared_contours(board_contours: &[BoardContours], board_id: &str) -> Vec<Contour> {
+    board_contours
+        .iter()
+        .find(|entry| entry.board_id == board_id)
+        .map(|entry| entry.contours.clone())
+        .unwrap_or_default()
+}
+
+/// Mirrors accepted board contours into a flipped physical half's Case frame.
+fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
+    for contour in &mut contours {
+        for point in &mut contour.points {
+            point.x = -point.x;
+        }
+        contour.points.reverse();
+    }
+    contours
+}
+
+/// Projects a pair's linked features into one member's visible configuration.
+///
+/// A linked feature has exactly one authored value, stored on the pair in the
+/// author's Case frame. Each member's visible geometry is derived from it here, so a
+/// `Linked` feature is never also a second writable copy in the member's ordinary
+/// configuration. A `Local` half keeps its own geometry (already in its ordinary
+/// configuration) and an `Omitted` half shows none.
+pub(crate) fn project_linked_features(
+    hardware: &HardwareConfiguration,
+    instance: &PhysicalBoardInstance,
+    mut configuration: MechanicalConfiguration,
+) -> Result<MechanicalConfiguration, String> {
+    let Some(pair) = owning_pair(hardware, &instance.id) else {
+        return Ok(configuration);
+    };
+    for feature in &pair.features {
+        let member = feature
+            .members
+            .iter()
+            .find(|member| member.instance_id == instance.id);
+        let Some(member) = member else {
+            continue;
+        };
+        match member.state {
+            MechanicalFeatureState::Linked => {
+                // The authored half shows the stored value; the other half shows the
+                // derived counterpart. Gasket support anchors keep their
+                // author-contour fraction: reflecting the resolved placement is the
+                // assembly resolver's job, not a reinterpretation here.
+                let value = if feature.author == instance.id {
+                    feature.value.clone()
+                } else {
+                    match super::features::counterpart(pair, feature, &feature.author)? {
+                        Some(derived) => derived.value,
+                        None => continue,
+                    }
+                };
+                super::edit::install_feature(
+                    &mut configuration,
+                    feature.kind,
+                    &member.feature_id,
+                    &value,
+                )?;
+            }
+            MechanicalFeatureState::Local => {}
+            MechanicalFeatureState::Omitted => {
+                super::edit::remove_feature(&mut configuration, feature.kind, &member.feature_id);
+            }
+        }
+    }
+    Ok(configuration)
 }
 
 fn board_thickness(document: &ProjectDoc, board_id: &str) -> Result<f64, String> {
@@ -393,20 +493,31 @@ pub fn effective_document(
     document: &ProjectDoc,
     target: &MechanicalTarget,
 ) -> Result<(ProjectDoc, Vec<Contour>), String> {
+    // `geometry::board_contours` reads the outline path cache, so build it from the
+    // source document first; a default (empty) cache would resolve no contours. The
+    // accepted contours feed the effective read and are mirrored by it for a flipped
+    // instance, so the same geometry the scene carried is used here.
+    let (cache, _, _) = crate::geometry::outlines(document, None, &[]);
+    let (per_board, _, _) = board_contours(document, &cache);
     let mut effective = document.clone();
-    let (board_id, flipped) = match target {
+    let (board_id, flipped, contours) = match target {
         MechanicalTarget::Board { board_id } => {
             // A canonical configuration that belongs to another board is still
             // projected with this board's defaults, matching the host's previous
             // unconditional `document.mechanical.clone()` behaviour.
+            let inputs = effective_inputs(document, &per_board, target).ok();
             effective.mechanical = document.mechanical.clone().map(|configuration| {
-                effective_inputs(document, target)
-                    .map(|inputs| inputs.configuration)
-                    .unwrap_or_else(|_| {
+                inputs
+                    .as_ref()
+                    .map(|inputs| inputs.configuration.clone())
+                    .unwrap_or_else(|| {
                         apply_mechanical_defaults(document, configuration, board_id, false)
                     })
             });
-            (board_id.clone(), false)
+            let contours = inputs
+                .map(|inputs| inputs.board_contours)
+                .unwrap_or_else(|| declared_contours(&per_board, board_id));
+            (board_id.clone(), false, contours)
         }
         MechanicalTarget::Instance { instance_id } => {
             let instance = document
@@ -420,10 +531,20 @@ pub fn effective_document(
                 })
                 .ok_or("The selected physical instance is unavailable")?;
             effective.physical_instance_id = Some(instance_id.clone());
-            effective.mechanical = effective_inputs(document, target)
-                .ok()
-                .map(|inputs| inputs.configuration);
-            (instance.board_id.clone(), instance.flipped)
+            let inputs = effective_inputs(document, &per_board, target).ok();
+            let contours = match &inputs {
+                Some(inputs) => inputs.board_contours.clone(),
+                None => {
+                    let declared = declared_contours(&per_board, &instance.board_id);
+                    if instance.flipped {
+                        mirror_contours(declared)
+                    } else {
+                        declared
+                    }
+                }
+            };
+            effective.mechanical = inputs.map(|inputs| inputs.configuration);
+            (instance.board_id.clone(), instance.flipped, contours)
         }
     };
 
@@ -464,25 +585,6 @@ pub fn effective_document(
         }
     }
 
-    // `geometry::board_contours` reads the outline path cache, so build it from the
-    // source document first; a default (empty) cache would resolve no contours. The
-    // contours are taken before mirroring so a flipped instance reflects the same
-    // accepted geometry the host scene carried.
-    let (cache, _, _) = crate::geometry::outlines(document, None, &[]);
-    let (per_board, _, _) = board_contours(document, &cache);
-    let mut contours = per_board
-        .into_iter()
-        .find(|entry| entry.board_id == board_id)
-        .map(|entry| entry.contours)
-        .unwrap_or_default();
-    if flipped {
-        for contour in &mut contours {
-            for point in &mut contour.points {
-                point.x = -point.x;
-            }
-            contour.points.reverse();
-        }
-    }
     Ok((effective, contours))
 }
 
@@ -494,6 +596,15 @@ mod tests {
         MechanicalConstructionOwnership, MechanicalGasketAnchor, MechanicalGasketLayout,
         MechanicalMirrorPair, Part, PhysicalBoardInstance, Pose2, Side, Vec2,
     };
+
+    /// Test adapter: these configuration cases are independent of the accepted
+    /// contours, so they resolve without a contour projection.
+    fn resolve_inputs(
+        document: &ProjectDoc,
+        target: &MechanicalTarget,
+    ) -> Result<MechanicalInputs, String> {
+        effective_inputs(document, &[], target)
+    }
 
     fn board(id: &str, thickness: f64) -> Board {
         Board {
@@ -686,7 +797,7 @@ mod tests {
         canonical.stabilizers = Some(vec![]);
         document.mechanical = Some(canonical.clone());
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Board {
                 board_id: "board".into(),
@@ -733,7 +844,7 @@ mod tests {
             ),
         );
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Instance {
                 instance_id: "left".into(),
@@ -798,7 +909,7 @@ mod tests {
             ),
         );
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Instance {
                 instance_id: "secondary".into(),
@@ -842,7 +953,7 @@ mod tests {
             ),
         );
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Instance {
                 instance_id: "left".into(),
@@ -883,7 +994,7 @@ mod tests {
         ));
         let document = document_with(board("board", 1.6), hardware_with_pair);
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Instance {
                 instance_id: "left".into(),
@@ -922,7 +1033,7 @@ mod tests {
             }),
         ));
         let document = document_with(board("board", 1.6), hardware_with_pair);
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Instance {
                 instance_id: "solo".into(),
@@ -948,7 +1059,7 @@ mod tests {
         flipped.flipped = true;
         document.hardware = Some(hardware(vec![flipped], None, HardwareTransport::Wireless));
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Instance {
                 instance_id: "left".into(),
@@ -974,7 +1085,7 @@ mod tests {
         document.mechanical = Some(configuration("board"));
         document.hardware = Some(hardware(vec![], None, HardwareTransport::Wireless));
 
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Board {
                 board_id: "board".into(),
@@ -989,7 +1100,7 @@ mod tests {
 
         // A stored battery is never replaced by the default.
         document.mechanical.as_mut().unwrap().battery = Some(battery());
-        let inputs = effective_inputs(
+        let inputs = resolve_inputs(
             &document,
             &MechanicalTarget::Board {
                 board_id: "board".into(),
@@ -1004,7 +1115,7 @@ mod tests {
         // No canonical configuration at all.
         let empty = ProjectDoc::empty("doc", "Fixture");
         assert!(
-            effective_inputs(
+            resolve_inputs(
                 &empty,
                 &MechanicalTarget::Board {
                     board_id: "board".into(),
@@ -1013,23 +1124,39 @@ mod tests {
             .is_err()
         );
 
-        // Canonical configuration belongs to another board.
+        // An eligible board resolves the Core-owned defaults when it has no stored
+        // canonical configuration (so the adapter can drop its own defaults builder).
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.boards.push(board("board", 1.6));
-        document.mechanical = Some(configuration("other"));
+        let defaults = resolve_inputs(
+            &document,
+            &MechanicalTarget::Board {
+                board_id: "board".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(defaults.board_id, "board");
+        assert_eq!(defaults.configuration.board_id, "board");
         assert!(
-            effective_inputs(
-                &document,
-                &MechanicalTarget::Board {
-                    board_id: "board".into(),
-                },
-            )
-            .is_err()
+            defaults.configuration.mounts.is_empty(),
+            "a defaulted board keeps no authored mounts"
         );
+
+        // A canonical configuration that belongs to another board is not borrowed:
+        // the requested board still resolves its own defaults.
+        document.mechanical = Some(configuration("other"));
+        let other = resolve_inputs(
+            &document,
+            &MechanicalTarget::Board {
+                board_id: "board".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(other.configuration.board_id, "board");
 
         // No hardware configuration at all.
         assert!(
-            effective_inputs(
+            resolve_inputs(
                 &document,
                 &MechanicalTarget::Instance {
                     instance_id: "left".into(),
@@ -1041,7 +1168,7 @@ mod tests {
         // Hardware without the requested instance.
         document.hardware = Some(hardware(vec![], None, HardwareTransport::None));
         assert!(
-            effective_inputs(
+            resolve_inputs(
                 &document,
                 &MechanicalTarget::Instance {
                     instance_id: "left".into(),
@@ -1062,7 +1189,7 @@ mod tests {
             HardwareTransport::None,
         ));
         assert!(
-            effective_inputs(
+            resolve_inputs(
                 &document,
                 &MechanicalTarget::Instance {
                     instance_id: "left".into(),

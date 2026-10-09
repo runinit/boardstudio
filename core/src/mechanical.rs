@@ -8,8 +8,10 @@ mod gasket;
 pub mod inputs;
 pub mod pair;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
+pub use edit::{MechanicalEditDisposition, evaluate_edit};
 use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
 use i_overlay::float::single::SingleFloatOverlay;
+pub use inputs::{MechanicalInputs, effective_inputs};
 
 type FloatPath = Vec<[f64; 2]>;
 type FloatShapes = Vec<Vec<FloatPath>>;

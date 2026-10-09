@@ -604,8 +604,11 @@ fn mirror_pair_link(
         }
         None => first_instance_id.to_string(),
     };
+    // Comparing the halves' effective configuration does not read the accepted
+    // contour projection.
     let first_inputs = match effective_inputs(
         document,
+        &[],
         &MechanicalTarget::Instance {
             instance_id: first_instance_id.into(),
         },
@@ -615,6 +618,7 @@ fn mirror_pair_link(
     };
     let second_inputs = match effective_inputs(
         document,
+        &[],
         &MechanicalTarget::Instance {
             instance_id: second_instance_id.into(),
         },
@@ -1486,13 +1490,30 @@ mod tests {
             ownership("right-new"),
             MechanicalConstructionOwnership::Pair
         );
-        let right = hardware
-            .instances
+        // The linked value is stored once, with its author; the counterpart's visible
+        // geometry is derived by Core's effective read rather than persisted twice.
+        let feature = pair
+            .features
             .iter()
-            .find(|instance| instance.id == "right-new")
-            .unwrap();
+            .find(|feature| feature.kind == MechanicalFeatureKind::Mount)
+            .expect("the shared mount is linked");
+        assert_eq!(feature.author, "left-new");
         assert_eq!(
-            right.mechanical.as_ref().unwrap().mounts[0].at,
+            feature.value,
+            boardstudio_core::model::MechanicalFeatureValue::Mount {
+                mount: mount("mount-1", 12.0, 3.0),
+            }
+        );
+        let right = boardstudio_core::mechanical::effective_inputs(
+            &document,
+            &[],
+            &MechanicalTarget::Instance {
+                instance_id: "right-new".into(),
+            },
+        )
+        .expect("the mirrored half stays resolvable");
+        assert_eq!(
+            right.configuration.mounts[0].at,
             Vec2 { x: -12.0, y: 3.0 },
             "the counterpart mount is the reflection of the authored one"
         );
