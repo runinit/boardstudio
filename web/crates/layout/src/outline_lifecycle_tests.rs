@@ -759,6 +759,35 @@ fn generate_is_one_typed_edit_that_registers_the_envelope_and_its_board_membersh
 }
 
 #[test]
+fn a_created_version_identity_never_reuses_a_retired_one() {
+    let (scope, token, revision, generation, board_id) = envelope();
+    let mut document = document();
+    document.board_outlines[0]
+        .retired_version_ids
+        .push("outline-version-13".into());
+    let action = OutlineAction::Copy {
+        scope,
+        token,
+        revision,
+        generation,
+        board_id,
+    };
+    let edit = edit_for(&document, &action, 13);
+    let OutlineChange::Copy { version_id, .. } = &edit.change else {
+        panic!("a copy action is one typed copy change");
+    };
+    assert_ne!(
+        version_id, "outline-version-13",
+        "a retired identity stays reserved and is never reissued"
+    );
+    assert_eq!(version_id, "outline-version-13-2");
+    // Core agrees: the edit applies rather than being refused for a reserved identity.
+    let mut accepted = document.clone();
+    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    assert!(changed.contains(version_id));
+}
+
+#[test]
 fn refine_is_one_typed_edit_that_creates_and_selects_a_linked_refinement() {
     let (scope, token, revision, generation, board_id) = envelope();
     // A refinement seeds from the board's generated projections, so the fixture needs a

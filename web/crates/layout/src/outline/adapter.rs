@@ -28,12 +28,19 @@ fn generated_envelope<'a>(document: &'a ProjectDoc, board_id: &str) -> Option<&'
     generated_feature(document, board)
 }
 
+/// Every identity a new outline version must avoid: the persisted versions plus the
+/// retired ones, whose identities stay reserved forever (Core refuses to reissue them).
 fn all_version_ids(document: &ProjectDoc) -> Vec<String> {
     document
         .board_outlines
         .iter()
-        .flat_map(|state| &state.versions)
-        .map(|version| version.id.clone())
+        .flat_map(|state| {
+            state
+                .versions
+                .iter()
+                .map(|version| version.id.clone())
+                .chain(state.retired_version_ids.iter().cloned())
+        })
         .collect()
 }
 
