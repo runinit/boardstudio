@@ -227,23 +227,49 @@ pub fn pair_link_options(
                     ..correspondence.clone()
                 })
                 .collect::<Vec<_>>();
-            let reviewed = MechanicalChange::LinkMirrorPair {
-                pair_id: pair_id.clone(),
-                members: [instance_id.to_owned(), other.id.clone()],
-                mapping: review.derived_mapping.unwrap_or(Pose2 {
-                    at: Vec2::default(),
-                    rotation: 0.0,
-                }),
-                construction_source: review.construction_source.clone(),
-                correspondences: reviewed_correspondences.clone(),
+            // The complete proposed result comes from Core's own read path, read-only, and
+            // only for the map the review actually uses. A candidate whose map the user
+            // still has to enter is not projected here: showing a result computed from a
+            // placeholder map would misstate a translated or rotated frame.
+            let (preview, preview_note) = match review.derived_mapping {
+                Some(mapping) => {
+                    let reviewed = MechanicalChange::LinkMirrorPair {
+                        pair_id: pair_id.clone(),
+                        members: [instance_id.to_owned(), other.id.clone()],
+                        mapping,
+                        construction_source: review.construction_source.clone(),
+                        correspondences: reviewed_correspondences.clone(),
+                    };
+                    match link_preview(document, &reviewed, mounting_hole) {
+                        Ok(preview) => (Some(preview), None),
+                        Err(reason) => (None, Some(reason)),
+                    }
+                }
+                None => (
+                    None,
+                    Some(
+                        "the reviewed map for this board frame is entered before the result is projected"
+                            .to_owned(),
+                    ),
+                ),
             };
-            // The complete proposed result comes from Core's own read path, read-only.
-            // Careful: a projection that must create generated closure holes needs the
-            // normalized template, which this commit-time offer does not load.
-            let (preview, preview_note) = match link_preview(document, &reviewed, mounting_hole) {
-                Ok(preview) => (Some(preview), None),
-                Err(reason) => (None, Some(reason)),
-            };
+            // The fingerprint covers the accepted inputs the review was produced from;
+            // the map and the source choices are the payload it is confirmed with.
+            let reviewed_fingerprint = reviewed_fingerprint(
+                document,
+                board_contours,
+                &MechanicalChange::LinkMirrorPair {
+                    pair_id: pair_id.clone(),
+                    members: [instance_id.to_owned(), other.id.clone()],
+                    mapping: review.derived_mapping.unwrap_or(Pose2 {
+                        at: Vec2::default(),
+                        rotation: 0.0,
+                    }),
+                    construction_source: review.construction_source.clone(),
+                    correspondences: reviewed_correspondences.clone(),
+                },
+            )
+            .ok();
             Some(MechanicalPairLinkOption {
                 pair_id,
                 instance_id: instance_id.to_owned(),
@@ -254,8 +280,7 @@ pub fn pair_link_options(
                 matched_features: matched_features(&review.correspondences),
                 matched,
                 correspondences: reviewed_correspondences,
-                reviewed_fingerprint: reviewed_fingerprint(document, board_contours, &reviewed)
-                    .ok(),
+                reviewed_fingerprint,
                 preview,
                 preview_note,
             })
