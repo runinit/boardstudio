@@ -1,209 +1,330 @@
-# Implementation handoff: outline phase completion, then remaining matrix work
+# Full handoff: typed Core edits — finish the outline phase, then the remaining matrix work
 
-## Start here
+Written 2026-10-09 for a fresh agent (Claude). Self-contained: everything below is
+verifiable from the repository; do not rely on any prior conversation. Verify each
+claimed state with the given commands before acting — states can drift.
 
-The typed Core edits effort has two phases resolved and one in final verification:
+Repository: `/home/chris/01_Projects/ts-boardstudio2`.
 
-- **Mechanical phase — RESOLVED.** Ticket 02 and children 05-10 are resolved with
-  recorded Outcomes (see [map](map.md) Progress). The integrated parent branch
-  holds everything through the legacy shared-construction read-back fix and the
-  review fixes; the full check passed on the integrated source; the boundary
-  transcript was unchanged through that phase.
-- **Outline phase — near completion.** Decision 03 and tickets 11-14 are resolved
-  with recorded Outcomes. Ticket 15's verification artifacts are done (see below);
-  two acceptance gaps found by that verification are being fixed on the 14 lane
-  RIGHT NOW by a live background worker; the phase then needs integration, a full
-  check, independent reviews and final Outcomes.
+## 0. Where to start — checkouts, worktrees, branches
 
-Repository: `/home/chris/01_Projects/ts-boardstudio2`. All work happens in the
-parent worktree `.worktrees/tce-matrix` on branch `typed-core-edits/mechanical`
-plus per-ticket lane worktrees. Do not use the main checkout (it holds unrelated
-user edits: `AGENTS.md`, `DESIGN.md`, `PRODUCT.md`, `docs/README.md`, untracked
-research docs — preserve untouched).
+**Main checkout** (`/home/chris/01_Projects/ts-boardstudio2`, branch `dev`):
+NOT used for this work. It holds unrelated user edits (`AGENTS.md`, `DESIGN.md`,
+`PRODUCT.md`, `docs/README.md`, untracked `docs/design/` and `docs/research/`
+files). Never stage, reset or clean them.
 
-## Live state at pause (2026-10-09)
+**Parent worktree** (the integration point): `.worktrees/tce-matrix`, branch
+`typed-core-edits/mechanical`, tip `a8c77581c`. All merged work and docs live here.
+Run parent-side checks from this worktree. It has its own GitNexus index
+(`node .gitnexus/run.cjs …` from inside it).
 
-- Parent branch `typed-core-edits/mechanical` at `4fc15897f` (all docs current;
-  contains tickets 11-14 fully merged). The last doc commits resolved 14 and set
-  the frontier to 15.
-- Lane branches (all based on the parent, all clean unless noted):
-  - `typed-core-edits/outline-ownership` `562ede9db` — merged (11).
-  - `typed-core-edits/outline-resolution` `8bba73280` — merged (12).
-  - `typed-core-edits/outline-edits` `069bc5f0c` — merged via lane merge `ba694988a` (13 + CreateGenerated).
-  - `typed-core-edits/outline-web-adapter` — **IN FLIGHT** (14 fix round). A GLM
-    5.3 Flash implementer (async child, fresh context) is working in
-    `.worktrees/tce-outline14` from clean `6f9b3e2e7`, which already carries
-    `d3cfdd7cf` (linked-refinement creation control + Copy product-context
-    coverage) and `6f9b3e2e7` (never reissue a retired outline version identity
-    from the adapter). When its completion notification arrives, read its report
-    (output target `/tmp/tce-outline-reports/14-outline-web-adapter.md`), verify
-    its claims, then continue with the integration steps below. It holds the
-    Chrome lease until it releases it.
-  - `typed-core-edits/outline-verification` `b8bcc687a` — ticket 15's commits,
-    NOT yet merged into the parent: `39c0a6c06` (transcript append +20607/−0,
-    red-before-bless with semantic assertions, native + WASM parity green),
-    `80147bf69` (application/tests/outline_queue_orders.rs: both queue orders,
-    one Undo per action), `b8bcc687a` (test-only serde_json dev-dependency + lock).
-- Worktrees: `.worktrees/tce-outline` (11, merged, idle), `tce-outline12` (12,
-  merged, idle), `tce-outline13` (13, merged, idle), `tce-outline14` (in flight),
-  `tce-outline15` (15 branch). Old mechanical writer worktrees were removed;
-  branches retained.
-- Non-nested validation worktree `/tmp/boardstudio-tce-verify` detached at
-  `b8bcc687a` (used for the native `test` half of the full check; see environment
-  constraints). Its untracked `cad/.cache` symlink is expected state.
-- Ticket 15's report: `/tmp/tce-outline-reports/15-integrated-verification.md`
-  (transcript evidence, full-check results, product gesture pass with honest
-  gaps, per-case evidence map). Lane reports live in `/tmp/tce-outline-reports/`;
-  the mechanical phase's reports are in `/tmp/tce-next-reports/` and
-  `/tmp/tce-reviews/`.
+**Lane worktrees** (each has its own branch; check each with
+`git -C <path> status --short && git -C <path> log --oneline -3`):
 
-## Next steps, in order
+| Worktree | Branch | State |
+| --- | --- | --- |
+| `.worktrees/tce-outline` | `typed-core-edits/outline-ownership` `562ede9db` | ticket 11 — MERGED into parent, idle |
+| `.worktrees/tce-outline12` | `typed-core-edits/outline-resolution` `8bba73280` | ticket 12 — MERGED, idle |
+| `.worktrees/tce-outline13` | `typed-core-edits/outline-edits` `069bc5f0c` | ticket 13 (+CreateGenerated) — MERGED, idle |
+| `.worktrees/tce-outline14` | `typed-core-edits/outline-web-adapter` `6f9b3e2e7` | ticket 14 fix round — **NOT yet merged** (see §2) |
+| `.worktrees/tce-outline15` | `typed-core-edits/outline-verification` `b8bcc687a` | ticket 15 verification — **NOT yet merged** (see §2) |
 
-### 0. Pending user-requested cleanup review (run FIRST when resuming)
+Old mechanical writer worktrees were removed; their branches
+(`typed-core-edits/mechanical-{integration,actions,boundary}`) are retained with
+all their commits (already merged into the parent).
 
-The user requested a fresh-context parallel cleanup review of the current work
-before further integration. Run it exactly as specified:
+**Non-nested validation worktree**: `/tmp/boardstudio-tce-verify`, detached at
+`b8bcc687a`, untracked `cad/.cache` symlink (expected). Used ONLY for the native
+`test` half of the full check (see §6). It exists because nested worktrees break
+the native CAD test's cargo workspace discovery.
 
-- Launch TWO reviewer subagents in parallel with `context: "fresh"` (never fork).
-  Reviewers must inspect the repository, relevant instructions (AGENTS.md,
-  CONTEXT.md, ticket contracts) and the current diff directly from files and
-  commands — NOT the main conversation history. Review-only: they must not edit
-  files. Prefer `output: false` for each reviewer; do not write reviewer output
-  files into the repository. Their response is review feedback, not a context
-  summary: concise, evidence-backed findings with file/line references and the
-  smallest safe fix.
-- **Reviewer 1 — deslop pass** (agent: `standards-reviewer` or equivalent
-  read-only reviewer): AI-slop patterns in the changed scope: comments that
-  restate code, placeholder text, stale rationale, debug leftovers; defensive
-  checks that hide useful errors, vague defaults, validating trusted internal
-  data after a real boundary; type escapes, broad casts, duplicated type
-  definitions, object-bag typing where a local source-of-truth type exists;
-  style drift from nearby non-slop code and project instructions;
-  generated-sounding docs/changelog/UI copy/status text/test names;
-  pass-through wrappers, dead helpers, duplicate helper signatures, duplicated
-  test harness setup, abstractions that enforce no invariant; noisy/vague/
-  brittle UI or CLI copy. Tool output and slop-scan findings are leads, not
-  verdicts — flag only concrete issues with evidence, severity, file/line and
-  the smallest safe fix.
+**No live subagents; Chrome is free.** The last worker (GLM 5.3 Flash, the 14
+lane) completed and released the browser lease.
+
+## 1. Effort state
+
+Resolved, fully gated (behavior + full check + reviews, Outcomes recorded — see
+`docs/plans/typed-core-edits/map.md` Progress):
+
+- Matrix Core 01-03 (`../matrix-layout-consistency/…` — see that map).
+- Mechanical: this effort's ticket 01, parent 02 and children 05-10.
+- Outline: decision 03, tickets 11-14.
+
+NOT yet done (this handoff's work):
+
+1. The user-requested fresh-context parallel cleanup review (§4 step 0) — never run.
+2. Merge the 14-lane fix commits + amend ticket 14's Outcome (§4 step 1).
+3. Merge the 15 branch (§4 step 2).
+4. Re-run the full check at the final integrated tip (§4 step 3).
+5. Independent Standards + Spec reviews of the outline phase (§4 step 4).
+6. Record ticket 15's Outcome and the final map update (§4 step 5).
+7. Then the separate follow-ups: matrix tickets 04-11 (see
+   `docs/plans/matrix-layout-consistency/map.md`) and this effort's
+   keyboard ticket 04 (blocked by matrix 11 — NOT by mechanical 02, which is done).
+
+## 2. Unmerged work — exact commits to merge
+
+**14-lane fix round** (branch `typed-core-edits/outline-web-adapter`, tip
+`6f9b3e2e7`, tree clean, web-only). Its base `31b9e2960` is already merged; the
+two unmerged commits fix the two acceptance gaps that ticket 15's verification
+found:
+
+- `d3cfdd7cf` — adds the reachable **Refine outline** control (maps to the typed
+  `OutlineChange::CreateLinkedRefinement`: created + selected, one Undo removes
+  it) and Copy product-context mounted coverage. Before this, linked refinements
+  were unreachable in the product (test-only) — the phase's headline ADR-0002
+  behavior had no UI entry.
+- `6f9b3e2e7` — the adapter never reissues a retired outline version identity.
+
+The same round root-caused ticket 15's "Copy outline silently produced no
+version": it was the **stale core-worker wasm provider asset** (see §6, the
+dev-web staleness hazard), not a code defect; with providers rebuilt from source,
+Copy lands live. Evidence: report
+`/tmp/tce-outline-reports/14-outline-web-adapter.md` (second pass), 21
+screenshots under `/tmp/tce-outline-reports/screenshots/` (20-31), the
+save/reopen artifacts, contour capture files, and all-green checks (native
+layout 65, mounted layout browser 145, workspace 1137 incl. boundary parity,
+fmt/clippy/wasm-typecheck).
+
+**15 branch** (`typed-core-edits/outline-verification`, tip `b8bcc687a`, clean):
+
+- `39c0a6c06` — the intentional boundary-transcript golden update: 28
+  `apply-outline-edit` entries appended (+20607/−0, prior matrix/mechanical
+  entries byte-identical), red-before-bless with semantic assertions green
+  first, native + WASM host parity green. Transcript now has 60 core entries.
+- `80147bf69` — `application/tests/outline_queue_orders.rs`: matrix, mechanical
+  and outline typed actions in BOTH queue orders through real Session/Core,
+  three Undos walking back one action at a time.
+- `b8bcc687a` — test-only `serde_json` dev-dependency for the application crate
+  (+ the lock edge).
+
+Ticket 15's full report: `/tmp/tce-outline-reports/15-integrated-verification.md`
+(transcript evidence, full-check results, product gesture pass, per-case
+evidence map). `/tmp` artifacts may not survive a reboot; the durable record is
+the ticket Outcomes in the repo plus these files while they exist.
+
+## 3. Issues and findings from the recent work
+
+**Blocking the phase close (handled by §4):** the pending cleanup review; the
+two unmerged branches; the full check at the final tip; the phase reviews; the
+15 Outcome + map.
+
+**Ticket 14's Outcome needs amending** after the merge: as recorded it omits the
+Refine-outline creation control and the Copy root cause/fix — add them, and
+note the mounted product-context coverage.
+
+**Deferred/accepted items (already recorded in the ticket Outcomes — do not
+"fix" without a product decision):**
+- Outline 12: last-valid display after a failed resolution is the last
+  persisted projection; inactive alternatives are recomputed at source level only
+  (compose-level failures of unselected alternatives surface when selected);
+  per-version recompute perf unmeasured; pre-existing duplicate-findings pattern.
+- Outline 13: queued edits on a FIXED version retire on active-version/entity
+  changes only (authored shape has no independent source); `RemoveFeature`
+  refuses the base generated envelope (no product path submits it); `reviewed`
+  carries full contours on the wire (a digest is an optional optimization);
+  no matrix-transform fixture for version-target retirement (matrix moves settle
+  as component moves — same rule); protected-gap equality is exact.
+- Outline 14: the gap check/uncheck UI has no mounted test (no web fixture scene
+  produces repair candidates — native adapter coverage only); a live
+  Generated-active Copy click was not re-driven (coverage is mounted + one live
+  linked-context click); the material-bridge-with-authored-connection gesture is
+  not drivable in the bundled demos (no authored connection exists; `Connect
+  points` disabled — Core-level bridge coverage stands).
+- Mechanical 02 (recorded in its Outcome): paired-only physical removal;
+  single-half legacy conversion; `UnlinkMirrorPair` Core-tested but unsurfaced;
+  static outline classification; host-crate storage tests; Legacy ownership
+  stamped only by migration.
+- `SetProtectedGap` no longer clears stale alias ids on the check direction
+  (removal clears all aliases); unobserved by web tests — confirm before any
+  UI work on gaps.
+
+**Environment/tooling issues (see §6 for the disciplines):** the
+verify-worktree cadrum build failure (symlink-in-container, no outbound
+network); the dev-web.py provider staleness hazard (manual rebuild discipline —
+a hash/mtime staleness check in `dev-web.py` is a worthwhile product-tooling
+follow-up, outside the outline lane's scope); the transcript golden is now
+~1.0 MB (a future trim needs its own bless); GitNexus incremental-index quirk;
+shared-target artifact leak; boundary_parity parallel-run flake; 7 pre-existing
+wasm typecheck warnings in `web-catalogue`/`web-case` (unrelated to this work).
+
+**Schema note:** `CURRENT_VERSION` is 3; the outline phase added only
+serde-default additive fields (absence-equals-fixed ownership, retired ids) so
+legacy documents stay byte-identical. Any future format change appends the next
+ordered migration under ADR-0004 and needs an explicit decision.
+
+## 4. Next steps, in order
+
+### Step 0 — the user-requested cleanup review (run FIRST)
+
+Launch TWO reviewer subagents in parallel with `context: "fresh"` (never fork).
+Reviewers must inspect the repository, relevant instructions (AGENTS.md,
+CONTEXT.md, ticket contracts) and the current diff directly from files and
+commands — never the main conversation history. Review-only: they must not edit
+files. Prefer `output: false`; do not write reviewer output into the repo. They
+return concise, evidence-backed findings with file/line references and the
+smallest safe fix.
+
+- **Reviewer 1 — deslop pass**: AI-slop patterns in the changed scope: comments
+  restating code, placeholder text, stale rationale, debug leftovers; defensive
+  checks hiding useful errors, vague defaults, validating trusted internal data
+  after a real boundary; type escapes, broad casts, duplicated type definitions,
+  object-bag typing where a local source-of-truth type exists; style drift from
+  nearby non-slop code and project instructions; generated-sounding docs,
+  changelog/UI copy/status text/test names; pass-through wrappers, dead helpers,
+  duplicate helper signatures, duplicated test harness setup, abstractions
+  enforcing no invariant; noisy/vague/brittle UI copy. Tool output and
+  slop-scan-style findings are leads, not verdicts — flag only concrete issues
+  with evidence, severity, file/line and the smallest safe fix.
 - **Reviewer 2 — verbosity pass**: needless verbosity in code, tests, docs,
-  status text, receipts, changelog wording: single-use helpers that paraphrase an
-  expression; temporary variables naming obvious expressions; nested returns/
-  branches that can become direct returns without hiding intent; multi-line
-  cleanup scaffolding replaceable by a local direct pattern; repeated boilerplate
-  that could use an existing fixture or small local helper; tests restating
-  formatter details covered at a cheaper layer; regression tests where one
-  focused assertion would cover the bug but wrapper tests repeat the same claim;
-  prose that says the same thing twice or buries the important rule. Shorter is
-  only better when clearer AND it preserves behavior, error signals, cleanup
-  semantics, useful invariants and local style.
-- After both return: synthesize into fixes worth doing now / optional
-  improvements / feedback to ignore or defer (with a short reason each). Do not
-  blindly apply. **Without an explicit `autofix` word from the user, ASK before
-  applying any fixes**, ending with a compact numbered menu:
-  `[1] Apply only the fixes worth doing now. [2] Apply fixes plus optional improvements.`
-  (`autofix` in an invocation is workflow control, not scope — strip it first.)
+  status text, receipts, changelog wording: single-use helpers paraphrasing an
+  expression; temporary variables naming obvious expressions; nested
+  returns/branches replaceable by direct returns without hiding intent;
+  multi-line cleanup scaffolding replaceable by a local direct pattern; repeated
+  boilerplate that could use an existing fixture or small local helper; tests
+  restating formatter details covered at a cheaper layer; regression tests
+  where one focused assertion would cover the bug but wrapper tests repeat the
+  claim; prose saying the same thing twice or burying the important rule.
+  Shorter is only better when clearer AND it preserves behavior, error signals,
+  cleanup semantics, useful invariants and local style.
 
-### 1. Finish ticket 14's fix round
+Suggested review range: the outline phase `71e159d91..` the then-current tip
+(include the unmerged §2 branches by reviewing each branch separately or after
+merging). After both return, synthesize into: fixes worth doing now / optional
+improvements / ignore-with-reason. Do not blindly apply. **Without an explicit
+`autofix` word from the user, ASK before applying any fixes**, ending with a
+compact numbered menu (`[1] Apply only the fixes worth doing now. [2] Apply
+fixes plus optional improvements.`). Treat the literal word `autofix` in an
+invocation as workflow control, not scope — strip it first.
 
-When the GLM worker's report arrives: verify its claims at the seams (mounted
-tests, product screenshots/artifact in `/tmp/tce-outline-reports/`), merge its
-tip into the parent with a normal `--no-ff` merge, rerun affected gates
-(fmt/clippy, workspace native tests post-touch, WASM page typecheck, mounted
-layout browser suites — take the Chrome lease only after the worker released
-it), and AMEND ticket 14's Outcome if the fixes changed its recorded picture
-(the Outcome currently omits the linked-refinement creation control and the Copy
-fix — both must appear). If the worker found a Core-side defect, route it to a
-Core lane worker (13's lane) rather than editing `core/src/**` from the web
-worktree; a Core behavior change to the copy path requires an intentional
-transcript re-bless (see transcript discipline below).
+### Step 1 — merge the 14-lane fixes and amend ticket 14
 
-### 2. Merge ticket 15 and re-run the full gate
+1. Verify `.worktrees/tce-outline14` is clean at `6f9b3e2e7`.
+2. From `.worktrees/tce-matrix`: `git merge --no-ff typed-core-edits/outline-web-adapter`
+   (inspect any conflict; stop for scoped resolution if one appears).
+3. Re-run affected gates (post-`touch core/src/lib.rs`): fmt/clippy workspace,
+   `cargo test --workspace --locked --exclude boardstudio-footprints`, wasm page
+   typecheck, mounted layout browser suite
+   (`wasm-pack test --headless --chrome web/crates/layout --locked --lib`).
+4. Amend `docs/plans/typed-core-edits/issues/14-outline-web-adapter.md`'s
+   Outcome with the refine control, the Copy root cause/fix and the gesture
+   evidence; run `python3 scripts/check.py repo`; GitNexus staged
+   detect-changes; commit.
 
-- Merge `typed-core-edits/outline-verification` (`b8bcc687a`) into the parent.
-- Re-run the FULL check at the final integrated tip with the split-worktree
-  discipline (below). The transcript golden from `39c0a6c06` must reproduce
-  unchanged at the merge; if any later commit changed wire behavior, that is an
-  intentional re-bless, never accidental.
+### Step 2 — merge the 15 branch
 
-### 3. Independent Standards + Spec reviews of the outline phase
+Same discipline: merge `typed-core-edits/outline-verification` (`b8bcc687a`),
+then verify the boundary transcript reproduces unchanged at the merge
+(`cargo test -p boardstudio_core --test integration boundary_parity` — 2 tests;
+WASM host parity `boundary_parity::` — 1 test). If any later commit changed wire
+behavior, that is an intentional re-bless (never accidental) — investigate
+before blessing.
 
-Two fresh-context reviewers over the phase range `71e159d91..<final tip>`
-(71e159d91 = post-mechanical docs commit; the outline phase base), following the
-same two-axis pattern the mechanical phase used (`standards-reviewer` +
-`spec-reviewer`; use the user's preferred fast models — see models below —
-different model per axis). Spec axis: tickets 11-15 contracts + the 03 Answer +
-ADR-0001/0002 + map; Standards axis: AGENTS.md, CONTEXT.md, DESIGN.md outline
-sections, the smell baseline (Mysterious Name, Duplicated Code, Feature Envy,
-Data Clumps, Primitive Obsession, Repeated Switches, Shotgun Surgery, Divergent
-Change, Speculative Generality, Message Chains, Middle Man, Refused Bequest —
-judgement calls, repo standards override, skip what tooling enforces). Fix any
-blockers with lane workers, rerun gates, then record outcomes.
+### Step 3 — full check at the final integrated tip
 
-### 4. Record final Outcomes and resolve the phase
+Split-worktree discipline (§6): parent checkout runs
+`CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target python3 scripts/check.py repo tooling lint build typecheck browser`;
+`/tmp/boardstudio-tce-verify` (checkout the exact final tip there first) runs
+the same with `test`. All steps must pass. The `test` step includes native CAD
+(51 passed/4 ignored at baseline).
 
-Ticket 15 Outcome (transcript stat, full-check evidence, product gesture pass,
-review dispositions), map update (phase complete; frontier moves to the matrix
-effort), then the remaining planned work: **matrix tickets 04-11**
-(Inspector/toolbar/offset/conversion/Relations/highlighting/integrated product
-verification — see `docs/plans/matrix-layout-consistency/map.md`) and
-**keyboard refresh 04** (this effort's ticket 04, blocked by matrix 11). Matrix
-11 requires a real product gesture pass at `http://127.0.0.1:4173/` (root path —
-`/boardstudio/` 404s in this build), save/reopen and screenshots.
+### Step 4 — independent Standards + Spec reviews of the outline phase
 
-## Environment constraints (verified, do not re-derive)
+Two fresh-context read-only reviewers over `71e159d91..<final tip>`, following
+the mechanical phase's two-axis pattern (`standards-reviewer` + `spec-reviewer`
+or equivalents). Spec axis: tickets 11-15 contracts, the 03 Answer,
+ADR-0001/0002 (+0004/0005), the map. Standards axis: AGENTS.md, CONTEXT.md,
+DESIGN.md's outline sections, plus the smell baseline (Mysterious Name,
+Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession, Repeated
+Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message
+Chains, Middle Man, Refused Bequest — judgement calls; repo standards override;
+skip what tooling enforces). Fix blockers with lane workers (never
+cross-worktree edits), rerun gates.
 
-- **Full check split discipline**: the parent checkout runs
-  `repo tooling lint build typecheck browser` (real `cad/.cache`); the non-nested
-  `/tmp/boardstudio-tce-verify` runs `test` (native CAD needs non-nested cwd).
+### Step 5 — record outcomes, then the follow-up efforts
+
+Record ticket 15's Outcome (transcript stat, full-check evidence, product
+gesture pass, review dispositions), update the map (phase complete), then the
+remaining work is the separate efforts: **matrix tickets 04-11** (their own map
+and owners; matrix 11's integrated verification needs a real product gesture
+pass at `http://127.0.0.1:4173/` — the root path; `/boardstudio/` 404s in this
+build — with save/reopen and screenshots) and **keyboard ticket 04** (this
+effort, blocked only by matrix 11 now).
+
+## 5. Verification conventions
+
+- TDD at public seams only (CoreEngine Open/Edit/Scene/evaluator, archive,
+  browser persistence, real Session/Core, mounted controls, native/WASM
+  exports). One behavioral red → minimal green; compilation errors are not
+  reds. Geometry expectations are hand-worked, never computed by the code under
+  test.
+- Lane workers never resolve their own tickets: the parent (integrator) merges,
+  re-runs gates, then records Outcomes with honest accepted deviations.
+- The boundary transcript: golden updates only via behavioral RED (golden
+  mismatch with semantic assertions already green), then `BOUNDARY_BLESS=1`,
+  then native + WASM host parity; prior entries byte-identical (append-only);
+  one transcript blessing owner at a time.
+- Browser/WASM presentation is only proven by the actual browser suites
+  (wasm-pack headless chrome) — native cargo tests never prove WASM UI.
+
+## 6. Environment constraints (verified — do not re-derive)
+
+- **Full-check split**: the parent checkout has a real `cad/.cache` and runs
+  `build`/`browser`; `/tmp/boardstudio-tce-verify` runs the native `test` half.
   The verify worktree CANNOT run `build`: its `cad/.cache` symlink dangles inside
-  the podman container and cadrum falls through to a blocked OCCT download.
-  Parent covers it. A permanent fix (real cache dir in the verify worktree) is
-  optional and not yet user-approved.
-- **Shared target**: `CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target`
-  for ALL cargo/wasm commands; `touch core/src/lib.rs` before each run to defeat
-  the sibling-artifact leak; `CARGO_BUILD_JOBS=2` for full-check runs; no
-  `cargo clean` (shared cache). Parallel-workspace runs can flake
-  `boundary_parity` — always re-run isolated before believing a failure.
-- **Transcript discipline**: golden updates only via behavioral RED (golden
-  mismatch with semantic assertions green first), then `BOUNDARY_BLESS=1`, then
-  native + WASM host parity; prior entries must stay byte-identical (append-only).
-  One transcript blessing owner at a time.
-- **GitNexus**: each worktree needs its own index
-  (`node /home/chris/01_Projects/ts-boardstudio2/.worktrees/tce-matrix/.gitnexus/run.cjs analyze --index-only`,
-  run from that worktree; add `--force --no-parse-cache` when `outline_edit`
-  symbols go unresolvable — known incremental-index quirk). Impact before
-  symbol edits, detect-changes before commits, `--repo <that cwd>`. HIGH/CRITICAL
-  must be reported; UNKNOWN requires targeted source confirmation, never treated
-  as safe.
-- **Stale web worker assets** (product gesture passes): `scripts/dev-web.py`
-  rebuilds providers only when an asset is MISSING, never when stale — re-seed
-  freshly built workers (parent checkout, same commit) before serving, or
-  outline controls fail with `unknown variant 'apply-outline-edit'`.
-- **Models**: the user wants fast/cheap subagents — `opencode-go/deepseek-v4.1-flash`
-  and `opencode-go/glm-5.3-flash`. The current 14-lane worker was explicitly
-  switched to glm-5.3-flash. Switch models only on explicit user request
-  (stop the run at a clean commit boundary, relaunch fresh with the new model
-  and a task that inherits the landed commits).
-- **Git safety**: stage explicit paths only; never `git add -A`/`git add .`,
-  `stash`, `reset`, force cleanup, push, dev merge or PR without authorization.
-- **Chrome lease**: one owner at a time (currently the GLM worker); wasm-pack
-  headless suites also count as browser use.
+  the podman container (only its `cad/` dir is mounted) and cadrum falls through
+  to a GitHub OCCT download that this machine's network blocks. Parent covers
+  it. Materializing a real cache there is optional and needs user approval.
+- **Shared target leak**: `CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target`
+  for ALL cargo/wasm commands; `touch core/src/lib.rs` before each run; no
+  `cargo clean`. Parallel-workspace runs can flake `boundary_parity` — rerun
+  isolated before believing a failure.
+- **dev-web staleness hazard**: `scripts/dev-web.py` rebuilds provider assets
+  only when a REQUIRED file is MISSING, never when stale. Before any product
+  gesture pass, rebuild providers from the exact source
+  (`python3 scripts/build-web.py --providers-only` from the checkout being
+  served), or outline controls fail with `unknown variant 'apply-outline-edit'`.
+- **GitNexus**: every worktree needs its own index — from that worktree run
+  `node /home/chris/01_Projects/ts-boardstudio2/.worktrees/tce-matrix/.gitnexus/run.cjs analyze --index-only`
+  (add `--force --no-parse-cache` when `outline_edit` symbols go unresolvable —
+  known incremental-index quirk). Impact before symbol edits, detect-changes
+  before commits, with `--repo <that cwd>`. Report HIGH/CRITICAL; treat UNKNOWN
+  as unresolved and confirm by targeted source search.
+- **Chrome lease**: one browser owner at a time; currently free.
+- **No outbound network** (GitHub downloads fail); podman is available; the CAD
+  wasm build runs through podman.
 
-## Verification conventions
+## 7. Operational rules
 
-TDD at public seams (CoreEngine Open/Edit/Scene/evaluator, archive, browser
-persistence, real Session/Core, mounted controls, native/WASM exports). One
-behavioral red → minimal green; compilation errors are not reds. Independent
-expectations for geometry (never values computed by the code under test).
-Ticket status changes and Outcomes are recorded by the parent after merge +
-gates, with honest accepted deviations. Lane workers never resolve their own
-tickets.
+- Follow AGENTS.md and the tracker conventions
+  (`docs/agents/issue-tracker.md`). Stage explicit paths only; never
+  `git add -A`/`git add .`, `stash`, `reset`, force cleanup, `push`, dev merge
+  or PRs without authorization. Never touch the main checkout's unrelated edits.
+- Subagent models: the user wants fast/cheap workers — `opencode-go/deepseek-v4.1-flash`
+  and `opencode-go/glm-5.3-flash`. Switch a live worker's model only on an
+  explicit user request (stop at a clean commit boundary, relaunch fresh with
+  the new model and a task that inherits the landed commits).
+- Send concise progress updates: active ticket, evidence from the current TDD
+  cycle, checks completed, any real blocker. Do not report worker "done"
+  claims as acceptance — verify at the seams.
+
+## 8. Commit inventory (trace)
+
+- Mechanical phase: parent branch history `8054e4a82` → … → `71e159d91`
+  (02 + 05-10 resolved there; the map lists the key lane commits per ticket).
+- Outline phase on the parent: `5d29d63dd` (03 approval + tickets 11-15
+  charted) → `99b03179` (Q14) → `4ab266e64` (11 merge) → `04e794bcf` (11
+  outcome) → `08bbc3975` (12 merge) → `ab60df7a0` (12 outcome) → `dede916a0`
+  (13 merge) → `e26bdbc32` (13 outcome) → `9fac9a14c` (14 merge) →
+  `4fc15897f` (14 outcome) → `a8c77581c` (this handoff's predecessor).
+- Unmerged: `typed-core-edits/outline-web-ownership`-family branches listed in
+  §0/§2 (`d3cfdd7cf`, `6f9b3e2e7`; `39c0a6c06`, `80147bf69`, `b8bcc687a`).
 
 ## Last verified state — 2026-10-09
 
-Resolved: matrix 01-03, mechanical 01-02 + children 05-10, outline decision 03,
-outline 11-14. In flight: 14 fix round (GLM worker, `tce-outline14`).
-Pending merge: 15 branch `b8bcc687a`. Full check last passed at `39c0a6c06`
-(parent: repo/tooling/lint/build/typecheck/browser; verify: native test half).
-Boundary transcript: 60 core entries (32 matrix/mechanical + 28 outline), native
-+ WASM parity green. Recheck all of this rather than assuming it is unchanged.
+All worktrees clean; 14 lane at `6f9b3e2e7` and 15 branch at `b8bcc687a` both
+verified complete by their reports; no live subagents; Chrome free; parent at
+`a8c77581c`. The full check last passed at `39c0a6c06` (parent steps) and
+`b8bcc687a` (verify native test); the unmerged 14 fixes have per-suite green
+(native 65 / mounted 145 / workspace 1137) but no full-check run yet — that is
+§4 step 3. Recheck everything before acting.
