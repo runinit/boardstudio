@@ -73,6 +73,10 @@ Saved projects keep their geometry.
   [Outcome](issues/04-web-placement-module-and-inspector.md#outcome).
 - 08 the pure Relations projection lands:
   [Outcome](issues/08-matrix-relations-projection.md#outcome).
+- 05 the toolbar Stagger and Shift quick offset use the placement module:
+  [Outcome](issues/05-toolbar-stagger-and-quick-offset.md#outcome).
+- 07 Core converts an offset to stagger when geometry is preserved:
+  [Outcome](issues/07-convert-offset-to-stagger.md#outcome).
 
 ## Still open
 

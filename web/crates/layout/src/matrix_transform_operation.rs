@@ -1,7 +1,7 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
 use boardstudio_core::model::{
     EditOperation, Matrix, MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene,
-    MatrixSplayAffect, MatrixSplayChange, Mirror, PartDefinition, Vec2,
+    MatrixSplayAffect, MatrixSplayChange, Mirror, PartDefinition, Vec2, convert_offset_available,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,6 +16,7 @@ pub enum MatrixTransformField {
     ColumnOffsetX,
     ColumnOffsetY,
     ColumnOffsetReset,
+    ColumnOffsetConvert,
     ColumnStagger,
     ColumnSplay,
     SplayOriginMode,
@@ -65,6 +66,9 @@ pub enum MatrixTransformFields {
         splay_angle: f64,
         splay_origin: Vec2,
         custom_origin: bool,
+        /// Core's verdict on `ColumnOffsetToStagger` for this column, from the accepted
+        /// matrix, so the Inspector shows Core's reason instead of re-deriving the rule.
+        convert: Result<(), String>,
     },
     Key {
         row: u32,
@@ -313,6 +317,10 @@ pub fn build_operation(
             PlacementParameter::ColumnOffset { column: *column },
             PlacementValue::Offset(offset),
         )),
+        (MatrixTransformFields::Column { column, .. }, Field::ColumnOffsetConvert, _) => {
+            convert_offset_available(matrix, *column)?;
+            Ok(convert_offset_operation(&matrix.id, *column))
+        }
         (
             MatrixTransformFields::Column { column, .. },
             Field::ColumnStagger,
@@ -577,6 +585,15 @@ pub fn placement_operation(
     EditOperation::SetMatrixPlacement {
         matrix_id: matrix_id.to_owned(),
         change,
+    }
+}
+
+/// The one-shot conversion of a column's offset Y into stagger. Core refuses it when the
+/// geometry would move; the Inspector asks `convert_offset_available` first.
+pub fn convert_offset_operation(matrix_id: &str, column: u32) -> EditOperation {
+    EditOperation::SetMatrixPlacement {
+        matrix_id: matrix_id.to_owned(),
+        change: MatrixPlacementChange::ColumnOffsetToStagger { column },
     }
 }
 
@@ -1116,6 +1133,39 @@ mod tests {
     }
 
     #[test]
+    fn convert_offset_builds_the_one_shot_placement_and_follows_core_availability() {
+        let mut matrix = matrix();
+        let fields = |column| MatrixTransformFields::Column {
+            column,
+            offset: Vec2 { x: 0.0, y: -9.525 },
+            stagger: 0.0,
+            splay_angle: 0.0,
+            splay_origin: Vec2::default(),
+            custom_origin: false,
+            convert: Ok(()),
+        };
+        let build = |matrix: &Matrix| {
+            build_operation(
+                matrix,
+                &fields(0),
+                MatrixTransformField::ColumnOffsetConvert,
+                MatrixTransformValue::Number(0.0),
+                MatrixSplayAffect::Following,
+            )
+        };
+        assert_eq!(
+            placement_result(build(&matrix).unwrap()),
+            MatrixPlacementChange::ColumnOffsetToStagger { column: 0 }
+        );
+        // A splayed column with a default origin is refused with Core's own reason.
+        matrix.column_splays = vec![12.0];
+        assert_eq!(
+            build(&matrix),
+            Err(convert_offset_available(&matrix, 0).unwrap_err())
+        );
+    }
+
+    #[test]
     fn row_offset_changes_only_the_selected_row_and_preserves_other_matrix_data() {
         let matrix = matrix();
         let fields = MatrixTransformFields::Row {
@@ -1153,6 +1203,7 @@ mod tests {
             splay_angle: 4.0,
             splay_origin: Vec2 { x: 10.0, y: 20.0 },
             custom_origin: true,
+            convert: Ok(()),
         };
         let point = Vec2 { x: 33.5, y: -12.0 };
         assert!(matches!(
@@ -1559,6 +1610,7 @@ mod tests {
             splay_angle: 8.0,
             splay_origin: Vec2 { x: 11.0, y: 12.0 },
             custom_origin: false,
+            convert: Ok(()),
         };
         let operation = build_operation(
             &matrix,
@@ -1711,6 +1763,7 @@ mod tests {
             splay_angle: 8.0,
             splay_origin: Vec2 { x: 11.0, y: 12.0 },
             custom_origin: true,
+            convert: Ok(()),
         };
         for (field, value, expected) in [
             (

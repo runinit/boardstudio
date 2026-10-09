@@ -1462,3 +1462,127 @@ async fn the_column_context_label_is_one_based() {
     assert_eq!(label.as_deref(), Some("Column 1"));
     root.remove();
 }
+
+fn button_named(root: &web_sys::Element, label: &str) -> Option<web_sys::HtmlElement> {
+    let buttons = root.query_selector_all("button").unwrap();
+    (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some(label))
+        .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+}
+
+fn field_number(root: &web_sys::Element, label: &str) -> f64 {
+    root.query_selector(&format!("input[aria-label='{label}']"))
+        .unwrap()
+        .unwrap_or_else(|| panic!("the {label} field is mounted"))
+        .dyn_into::<HtmlInputElement>()
+        .unwrap()
+        .value()
+        .parse()
+        .unwrap_or_else(|_| panic!("the {label} field holds a number"))
+}
+
+#[wasm_bindgen_test]
+async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_step() {
+    // No offset Y: no action.
+    let (document, _) = two_key_fixture(false);
+    let (_probe, root) = mount_selection_probe(
+        "matrix-transform-convert-hidden-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle().await;
+    assert!(button_named(&root, "Convert to stagger").is_none());
+    root.remove();
+
+    let (mut document, _) = two_key_fixture(false);
+    document.matrices[0].column_offsets = vec![Vec2 { x: 0.0, y: -9.525 }];
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-convert-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle().await;
+    let button = button_named(&root, "Convert to stagger").expect("the action is mounted");
+    assert!(!button.has_attribute("disabled"));
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+    button.click();
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    let matrix = &accepted.document.matrices[0];
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    assert_eq!(matrix.column_staggers, vec![-9.525, 9.525]);
+    assert_eq!(matrix.column_offsets[0].y, 0.0);
+    // The probe host re-renders only when its version signal moves.
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+    assert_eq!(field_number(&root, "Stagger"), -9.525);
+    assert_eq!(field_number(&root, "Offset Y"), 0.0);
+    assert!(
+        button_named(&root, "Convert to stagger").is_none(),
+        "nothing left to convert"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    let undone = probe.runtime.model().accepted.unwrap();
+    assert_eq!(undone.document.matrices[0].column_offsets[0].y, -9.525);
+    assert!(
+        undone.document.matrices[0]
+            .column_staggers
+            .iter()
+            .all(|value| *value == 0.0)
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
+    let (mut document, _) = two_key_fixture(false);
+    document.matrices[0].column_offsets = vec![Vec2 { x: 0.0, y: -9.525 }];
+    document.matrices[0].column_splays = vec![10.0];
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-convert-splayed-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle().await;
+    let button = button_named(&root, "Convert to stagger").expect("the action is mounted");
+    assert!(
+        button.has_attribute("disabled"),
+        "a splayed column cannot convert"
+    );
+    let reason = boardstudio_core::model::convert_offset_available(
+        &probe.runtime.model().accepted.unwrap().document.matrices[0],
+        0,
+    )
+    .unwrap_err();
+    let shown = root
+        .query_selector(".m1-matrix-transform-unavailable")
+        .unwrap()
+        .expect("the reason is shown")
+        .text_content();
+    assert_eq!(shown.as_deref(), Some(reason.as_str()));
+    assert_eq!(
+        reason,
+        "Converting would move this column: its splay pivots with the stagger."
+    );
+    root.remove();
+}

@@ -14,6 +14,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{
     EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
+    convert_offset_available,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
@@ -430,6 +431,7 @@ pub fn use_workspace_matrix_transform(
         [
             MatrixTransformField::RowOffsetReset,
             MatrixTransformField::ColumnOffsetReset,
+            MatrixTransformField::ColumnOffsetConvert,
             MatrixTransformField::KeyTransformReset,
             MatrixTransformField::KeyAssembliesLocal,
             MatrixTransformField::KeyAttached,
@@ -1044,6 +1046,7 @@ fn transform_fields(
                 splay_angle: basis.splay_angle,
                 splay_origin: basis.splay_origin,
                 custom_origin: basis.custom_origin,
+                convert: convert_offset_available(matrix, *column),
             }
         }
         TreeContext::Key { row, column, .. } => {
@@ -1163,6 +1166,11 @@ fn field_value(
         }
         (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetReset) => {
             Some(Value::Offset(*offset))
+        }
+        // The action is done once the offset Y is zero, so the resolver reports
+        // `Unchanged` against a button value of 0.
+        (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetConvert) => {
+            Some(Value::Number(offset.y))
         }
         (MatrixTransformFields::Column { stagger, .. }, Field::ColumnStagger) => {
             Some(Value::Number(*stagger))

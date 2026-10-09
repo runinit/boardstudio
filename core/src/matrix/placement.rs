@@ -2,7 +2,9 @@
 //! owns the index and value rules; a gesture and an Inspector field reach the same
 //! matrix for a given value.
 use super::{OVERRIDE, member_id, valid_projection_matrix};
-use crate::model::{Matrix, MatrixPlacementChange, Part, ProjectDoc, Vec2};
+use crate::model::{
+    Matrix, MatrixPlacementChange, Part, ProjectDoc, Vec2, convert_offset_available,
+};
 use std::collections::BTreeMap;
 
 fn grow<T: Clone + Default>(values: &mut Vec<T>, index: usize) {
@@ -77,6 +79,28 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
             }
             grow(&mut after.row_offsets, *row as usize);
             after.row_offsets[*row as usize] = *value;
+        }
+        MatrixPlacementChange::ColumnOffsetToStagger { column } => {
+            if *column >= matrix.columns {
+                return Err("Matrix placement column is out of bounds".into());
+            }
+            let index = *column as usize;
+            let amount = after
+                .column_offsets
+                .get(index)
+                .map_or(0.0, |offset| offset.y);
+            // Nothing to convert is a valid no-op, whatever the splay.
+            if amount == 0.0 {
+                return Ok(matrix.clone());
+            }
+            convert_offset_available(matrix, *column)?;
+            grow(&mut after.column_staggers, index);
+            after.column_staggers[index] += amount;
+            if *column + 1 < matrix.columns {
+                grow(&mut after.column_staggers, index + 1);
+                after.column_staggers[index + 1] -= amount;
+            }
+            after.column_offsets[index].y = 0.0;
         }
     }
     Ok(after)

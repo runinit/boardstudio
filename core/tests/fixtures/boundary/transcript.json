@@ -39349,6 +39349,2849 @@
           }
         ]
       }
+    },
+    {
+      "document": {
+        "assets": [],
+        "boardOutlines": [
+          {
+            "activeVersionId": "v-copy",
+            "boardId": "board",
+            "generatedLastValid": {
+              "expectedRegions": 1,
+              "features": [
+                {
+                  "id": "board:board:generated:last-valid:contour:0",
+                  "kind": "polygon",
+                  "operation": "add",
+                  "points": [
+                    {
+                      "x": -13.0,
+                      "y": 13.0
+                    },
+                    {
+                      "x": -13.0,
+                      "y": -13.0
+                    },
+                    {
+                      "x": 13.0,
+                      "y": -13.0
+                    },
+                    {
+                      "x": 13.0,
+                      "y": 13.0
+                    }
+                  ]
+                },
+                {
+                  "id": "board:board:generated:last-valid:contour:1",
+                  "kind": "polygon",
+                  "operation": "subtract",
+                  "points": [
+                    {
+                      "x": -4.0,
+                      "y": -4.0
+                    },
+                    {
+                      "x": -4.0,
+                      "y": 4.0
+                    },
+                    {
+                      "x": 4.0,
+                      "y": 4.0
+                    },
+                    {
+                      "x": 4.0,
+                      "y": -4.0
+                    }
+                  ]
+                }
+              ],
+              "protectedGaps": [
+                {
+                  "id": "gap-a",
+                  "points": [
+                    {
+                      "at": {
+                        "x": -4.0,
+                        "y": -4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": 4.0,
+                        "y": -4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": 4.0,
+                        "y": 4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": -4.0,
+                        "y": 4.0
+                      }
+                    }
+                  ]
+                }
+              ],
+              "settings": {
+                "bridgeWidth": 3.0,
+                "corners": "sharp",
+                "repair": {
+                  "edgeClearance": 0.0,
+                  "enabled": true,
+                  "maximumGapSpan": 20.0,
+                  "minimumConnectionWidth": 2.0
+                },
+                "size": 2.0
+              }
+            },
+            "versions": [
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-12:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -12.0,
+                          "y": -12.0
+                        },
+                        {
+                          "x": 12.0,
+                          "y": -12.0
+                        },
+                        {
+                          "x": 12.0,
+                          "y": 12.0
+                        },
+                        {
+                          "x": -12.0,
+                          "y": 12.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 1.5,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-12",
+                "name": "Renamed",
+                "source": {
+                  "revision": 28
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:v-refined:contour:0",
+                      "kind": "part-envelope",
+                      "margin": 7.0,
+                      "operation": "add",
+                      "partIds": [
+                        "outline-part"
+                      ],
+                      "settings": {
+                        "bridgeWidth": 3.0,
+                        "corners": "sharp",
+                        "repair": {
+                          "edgeClearance": 0.0,
+                          "enabled": true,
+                          "maximumGapSpan": 20.0,
+                          "minimumConnectionWidth": 2.0
+                        },
+                        "size": 2.0
+                      }
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "v-refined",
+                "name": "Refined",
+                "ownership": "linked",
+                "source": {
+                  "revision": 34
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-19:contour:0",
+                      "kind": "part-envelope",
+                      "margin": 7.0,
+                      "operation": "add",
+                      "partIds": [
+                        "outline-part"
+                      ],
+                      "settings": {
+                        "bridgeWidth": 3.0,
+                        "corners": "sharp",
+                        "repair": {
+                          "edgeClearance": 0.0,
+                          "enabled": true,
+                          "maximumGapSpan": 20.0,
+                          "minimumConnectionWidth": 2.0
+                        },
+                        "size": 2.0
+                      }
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-19",
+                "name": "Frozen",
+                "source": {
+                  "revision": 36,
+                  "versionId": "v-refined"
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-21:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": 13.0
+                        },
+                        {
+                          "x": -13.0,
+                          "y": 13.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-21",
+                "name": "Edited outline 1",
+                "source": {
+                  "revision": 38,
+                  "versionId": "v-refined"
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:v-copy:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": 13.0
+                        },
+                        {
+                          "x": -13.0,
+                          "y": 13.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "v-copy",
+                "name": "Copy",
+                "source": {
+                  "revision": 39,
+                  "versionId": "outline-version-21"
+                }
+              }
+            ]
+          }
+        ],
+        "boards": [
+          {
+            "id": "board",
+            "name": "Boundary board",
+            "netIds": [],
+            "outlineIds": [
+              "board:board:automatic:outline:1"
+            ],
+            "partIds": [
+              "outline-part"
+            ],
+            "thickness": 1.6
+          }
+        ],
+        "caseBodies": [],
+        "constraints": [],
+        "definitions": [
+          {
+            "courtyard": [],
+            "id": "switch",
+            "kind": "switch",
+            "name": "Switch",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "diode",
+            "kind": "passive",
+            "name": "Diode",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "led",
+            "kind": "passive",
+            "name": "LED",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "sensor",
+            "kind": "passive",
+            "name": "Sensor",
+            "pads": []
+          },
+          {
+            "courtyard": [
+              {
+                "x": -7.0,
+                "y": -7.0
+              },
+              {
+                "x": 7.0,
+                "y": -7.0
+              },
+              {
+                "x": 7.0,
+                "y": 7.0
+              },
+              {
+                "x": -7.0,
+                "y": 7.0
+              }
+            ],
+            "id": "outline-switch",
+            "kind": "switch",
+            "name": "Outline switch",
+            "pads": [
+              {
+                "at": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "p0",
+                "number": "1",
+                "shape": "rect",
+                "size": {
+                  "x": 4.0,
+                  "y": 4.0
+                }
+              }
+            ]
+          }
+        ],
+        "format": "boardstudio/v2",
+        "formatVersion": 3,
+        "hardware": {
+          "boards": [
+            {
+              "assignments": {},
+              "boardId": "board",
+              "controllerPartId": null,
+              "jumperStates": {},
+              "keyBindings": {
+                "matrix/matrix/r0c0": "&kp A"
+              },
+              "locks": {},
+              "mode": "matrix",
+              "protectedHandoff": null
+            }
+          ],
+          "instances": [],
+          "sharedConstruction": null,
+          "topology": "unibody",
+          "transport": "none"
+        },
+        "id": "boundary-fixture",
+        "keycaps": {
+          "boards": {
+            "board": {
+              "clearance": 0.5,
+              "color": "#123456",
+              "legendColor": "#202630"
+            }
+          },
+          "keys": {
+            "matrix/matrix/r0c0": {
+              "color": null,
+              "legend": "",
+              "mount": null,
+              "profile": null,
+              "row": null,
+              "units": null
+            }
+          },
+          "matrices": {
+            "matrix": {
+              "firstRow": 1,
+              "mount": null,
+              "profile": "dsa",
+              "wallThickness": 1.2
+            }
+          }
+        },
+        "materials": [],
+        "matrices": [
+          {
+            "boardId": "board",
+            "cells": [
+              {
+                "assemblies": [
+                  {
+                    "definitionId": "diode",
+                    "id": "diode",
+                    "offset": {
+                      "x": 2.0,
+                      "y": 5.0
+                    }
+                  },
+                  {
+                    "definitionId": "led",
+                    "id": "led",
+                    "offset": {
+                      "x": -3.0,
+                      "y": 6.0
+                    }
+                  },
+                  {
+                    "definitionId": "sensor",
+                    "id": "sensor",
+                    "offset": {
+                      "x": 1.0,
+                      "y": -4.0
+                    }
+                  }
+                ],
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              }
+            ],
+            "columnOffsets": [
+              {
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "x": 0.0,
+                "y": 3.0
+              }
+            ],
+            "columnOrigins": [
+              null,
+              {
+                "x": 4.0,
+                "y": -20.0
+              }
+            ],
+            "columnSplays": [
+              0.0,
+              15.0,
+              -8.0
+            ],
+            "columnStaggers": [
+              0.0,
+              2.0,
+              -1.0
+            ],
+            "columns": 3,
+            "definitionId": "switch",
+            "edgeGap": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "id": "matrix",
+            "origin": {
+              "x": 7.0,
+              "y": -3.0
+            },
+            "partIds": [],
+            "pitch": {
+              "x": 19.0,
+              "y": 19.0
+            },
+            "rows": 3
+          }
+        ],
+        "mechanical": {
+          "batteryHeight": 0.0,
+          "boardId": "board",
+          "bottomFoamThickness": 2.0,
+          "bottomStyle": "shell",
+          "bottomThickness": 3.0,
+          "clearance": 0.3,
+          "closureMounts": [],
+          "integratedPlateFrame": false,
+          "method": "printed",
+          "middleFrame": false,
+          "mount": "tray",
+          "mounts": [],
+          "partProcesses": [
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "PLA",
+              "method": "printed",
+              "partId": "plate",
+              "thickness": 1.5
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "EVA",
+              "method": "cut-sheet",
+              "partId": "plate-foam",
+              "thickness": 3.0
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "EVA",
+              "method": "cut-sheet",
+              "partId": "bottom-foam",
+              "thickness": 2.0
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "PLA",
+              "method": "printed",
+              "partId": "bottom",
+              "thickness": 3.0
+            }
+          ],
+          "pcbThickness": 1.6,
+          "plateFoamThickness": 3.0,
+          "plateThickness": 1.5,
+          "plateToPcb": 3.5,
+          "profiles": [],
+          "stabilizers": [],
+          "wallThickness": 2.0
+        },
+        "name": "Boundary fixture",
+        "nets": [],
+        "outline": [
+          {
+            "id": "board:board:automatic:outline:1",
+            "kind": "part-envelope",
+            "margin": 6.0,
+            "operation": "add",
+            "partIds": [
+              "outline-part"
+            ],
+            "settings": {
+              "bridgeWidth": 3.0,
+              "corners": "sharp",
+              "repair": {
+                "edgeClearance": 0.0,
+                "enabled": true,
+                "maximumGapSpan": 20.0,
+                "minimumConnectionWidth": 2.0
+              },
+              "size": 2.0
+            }
+          }
+        ],
+        "parameters": {},
+        "parts": [
+          {
+            "definitionId": "outline-switch",
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "OSW1",
+            "side": "front"
+          }
+        ],
+        "revision": 43,
+        "scripts": []
+      },
+      "id": "convert-offset-1",
+      "kind": "scene",
+      "scene": {
+        "boardContours": [
+          {
+            "boardId": "board",
+            "contours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardOutlineScenes": [
+          {
+            "boardId": "board",
+            "bridges": [],
+            "gaps": [],
+            "sourceContours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardReadiness": [
+          {
+            "boardId": "board",
+            "case": false,
+            "outline": true,
+            "pcb": true
+          }
+        ],
+        "changedIds": [
+          "matrix"
+        ],
+        "contours": [
+          {
+            "hole": false,
+            "points": [
+              {
+                "x": -13.0,
+                "y": 13.0
+              },
+              {
+                "x": -13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": 13.0
+              }
+            ]
+          }
+        ],
+        "findings": [],
+        "matrixScenes": [
+          {
+            "cells": [],
+            "columns": [
+              {
+                "axisX": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "axisY": {
+                  "x": -0.0,
+                  "y": 1.0
+                },
+                "column": 0,
+                "customOrigin": false,
+                "splayAngle": 0.0,
+                "splayOrigin": {
+                  "x": 7.0,
+                  "y": -3.0
+                },
+                "staggerAxis": {
+                  "x": 0.0,
+                  "y": 1.0
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
+                },
+                "axisY": {
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
+                },
+                "column": 1,
+                "customOrigin": true,
+                "splayAngle": 15.0,
+                "splayOrigin": {
+                  "x": 11.0,
+                  "y": -23.0
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.992546151641322,
+                  "y": 0.12186934340514748
+                },
+                "axisY": {
+                  "x": -0.12186934340514748,
+                  "y": 0.992546151641322
+                },
+                "column": 2,
+                "customOrigin": false,
+                "splayAngle": -8.0,
+                "splayOrigin": {
+                  "x": 38.40627814667539,
+                  "y": 6.0842898855561405
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510252696,
+                  "y": 0.965925826289066
+                }
+              }
+            ],
+            "matrixId": "matrix"
+          }
+        ],
+        "readiness": {
+          "case": false,
+          "layout": true,
+          "outline": true,
+          "pcb": true
+        },
+        "revision": 43,
+        "transactionId": "convert-offset-1",
+        "transforms": [
+          {
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "convert-preview",
+      "kind": "preview",
+      "scene": {
+        "boardContours": [
+          {
+            "boardId": "board",
+            "contours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardOutlineScenes": [
+          {
+            "boardId": "board",
+            "bridges": [],
+            "gaps": [],
+            "sourceContours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardReadiness": [
+          {
+            "boardId": "board",
+            "case": false,
+            "outline": true,
+            "pcb": true
+          }
+        ],
+        "changedIds": [
+          "matrix"
+        ],
+        "contours": [
+          {
+            "hole": false,
+            "points": [
+              {
+                "x": -13.0,
+                "y": 13.0
+              },
+              {
+                "x": -13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": 13.0
+              }
+            ]
+          }
+        ],
+        "findings": [],
+        "matrixScenes": [
+          {
+            "cells": [],
+            "columns": [
+              {
+                "axisX": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "axisY": {
+                  "x": -0.0,
+                  "y": 1.0
+                },
+                "column": 0,
+                "customOrigin": false,
+                "splayAngle": 0.0,
+                "splayOrigin": {
+                  "x": 7.0,
+                  "y": -3.0
+                },
+                "staggerAxis": {
+                  "x": 0.0,
+                  "y": 1.0
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
+                },
+                "axisY": {
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
+                },
+                "column": 1,
+                "customOrigin": true,
+                "splayAngle": 15.0,
+                "splayOrigin": {
+                  "x": 11.0,
+                  "y": -23.0
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.992546151641322,
+                  "y": 0.12186934340514748
+                },
+                "axisY": {
+                  "x": -0.12186934340514748,
+                  "y": 0.992546151641322
+                },
+                "column": 2,
+                "customOrigin": false,
+                "splayAngle": -8.0,
+                "splayOrigin": {
+                  "x": 38.40627814667539,
+                  "y": 6.0842898855561405
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510252696,
+                  "y": 0.965925826289066
+                }
+              }
+            ],
+            "matrixId": "matrix"
+          }
+        ],
+        "readiness": {
+          "case": false,
+          "layout": true,
+          "outline": true,
+          "pcb": true
+        },
+        "revision": 43,
+        "transactionId": "convert-preview",
+        "transforms": [
+          {
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "document": {
+        "assets": [],
+        "boardOutlines": [
+          {
+            "activeVersionId": "v-copy",
+            "boardId": "board",
+            "generatedLastValid": {
+              "expectedRegions": 1,
+              "features": [
+                {
+                  "id": "board:board:generated:last-valid:contour:0",
+                  "kind": "polygon",
+                  "operation": "add",
+                  "points": [
+                    {
+                      "x": -13.0,
+                      "y": 13.0
+                    },
+                    {
+                      "x": -13.0,
+                      "y": -13.0
+                    },
+                    {
+                      "x": 13.0,
+                      "y": -13.0
+                    },
+                    {
+                      "x": 13.0,
+                      "y": 13.0
+                    }
+                  ]
+                },
+                {
+                  "id": "board:board:generated:last-valid:contour:1",
+                  "kind": "polygon",
+                  "operation": "subtract",
+                  "points": [
+                    {
+                      "x": -4.0,
+                      "y": -4.0
+                    },
+                    {
+                      "x": -4.0,
+                      "y": 4.0
+                    },
+                    {
+                      "x": 4.0,
+                      "y": 4.0
+                    },
+                    {
+                      "x": 4.0,
+                      "y": -4.0
+                    }
+                  ]
+                }
+              ],
+              "protectedGaps": [
+                {
+                  "id": "gap-a",
+                  "points": [
+                    {
+                      "at": {
+                        "x": -4.0,
+                        "y": -4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": 4.0,
+                        "y": -4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": 4.0,
+                        "y": 4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": -4.0,
+                        "y": 4.0
+                      }
+                    }
+                  ]
+                }
+              ],
+              "settings": {
+                "bridgeWidth": 3.0,
+                "corners": "sharp",
+                "repair": {
+                  "edgeClearance": 0.0,
+                  "enabled": true,
+                  "maximumGapSpan": 20.0,
+                  "minimumConnectionWidth": 2.0
+                },
+                "size": 2.0
+              }
+            },
+            "versions": [
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-12:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -12.0,
+                          "y": -12.0
+                        },
+                        {
+                          "x": 12.0,
+                          "y": -12.0
+                        },
+                        {
+                          "x": 12.0,
+                          "y": 12.0
+                        },
+                        {
+                          "x": -12.0,
+                          "y": 12.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 1.5,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-12",
+                "name": "Renamed",
+                "source": {
+                  "revision": 28
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:v-refined:contour:0",
+                      "kind": "part-envelope",
+                      "margin": 7.0,
+                      "operation": "add",
+                      "partIds": [
+                        "outline-part"
+                      ],
+                      "settings": {
+                        "bridgeWidth": 3.0,
+                        "corners": "sharp",
+                        "repair": {
+                          "edgeClearance": 0.0,
+                          "enabled": true,
+                          "maximumGapSpan": 20.0,
+                          "minimumConnectionWidth": 2.0
+                        },
+                        "size": 2.0
+                      }
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "v-refined",
+                "name": "Refined",
+                "ownership": "linked",
+                "source": {
+                  "revision": 34
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-19:contour:0",
+                      "kind": "part-envelope",
+                      "margin": 7.0,
+                      "operation": "add",
+                      "partIds": [
+                        "outline-part"
+                      ],
+                      "settings": {
+                        "bridgeWidth": 3.0,
+                        "corners": "sharp",
+                        "repair": {
+                          "edgeClearance": 0.0,
+                          "enabled": true,
+                          "maximumGapSpan": 20.0,
+                          "minimumConnectionWidth": 2.0
+                        },
+                        "size": 2.0
+                      }
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-19",
+                "name": "Frozen",
+                "source": {
+                  "revision": 36,
+                  "versionId": "v-refined"
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-21:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": 13.0
+                        },
+                        {
+                          "x": -13.0,
+                          "y": 13.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-21",
+                "name": "Edited outline 1",
+                "source": {
+                  "revision": 38,
+                  "versionId": "v-refined"
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:v-copy:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": 13.0
+                        },
+                        {
+                          "x": -13.0,
+                          "y": 13.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "v-copy",
+                "name": "Copy",
+                "source": {
+                  "revision": 39,
+                  "versionId": "outline-version-21"
+                }
+              }
+            ]
+          }
+        ],
+        "boards": [
+          {
+            "id": "board",
+            "name": "Boundary board",
+            "netIds": [],
+            "outlineIds": [
+              "board:board:automatic:outline:1"
+            ],
+            "partIds": [
+              "outline-part"
+            ],
+            "thickness": 1.6
+          }
+        ],
+        "caseBodies": [],
+        "constraints": [],
+        "definitions": [
+          {
+            "courtyard": [],
+            "id": "switch",
+            "kind": "switch",
+            "name": "Switch",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "diode",
+            "kind": "passive",
+            "name": "Diode",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "led",
+            "kind": "passive",
+            "name": "LED",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "sensor",
+            "kind": "passive",
+            "name": "Sensor",
+            "pads": []
+          },
+          {
+            "courtyard": [
+              {
+                "x": -7.0,
+                "y": -7.0
+              },
+              {
+                "x": 7.0,
+                "y": -7.0
+              },
+              {
+                "x": 7.0,
+                "y": 7.0
+              },
+              {
+                "x": -7.0,
+                "y": 7.0
+              }
+            ],
+            "id": "outline-switch",
+            "kind": "switch",
+            "name": "Outline switch",
+            "pads": [
+              {
+                "at": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "p0",
+                "number": "1",
+                "shape": "rect",
+                "size": {
+                  "x": 4.0,
+                  "y": 4.0
+                }
+              }
+            ]
+          }
+        ],
+        "format": "boardstudio/v2",
+        "formatVersion": 3,
+        "hardware": {
+          "boards": [
+            {
+              "assignments": {},
+              "boardId": "board",
+              "controllerPartId": null,
+              "jumperStates": {},
+              "keyBindings": {
+                "matrix/matrix/r0c0": "&kp A"
+              },
+              "locks": {},
+              "mode": "matrix",
+              "protectedHandoff": null
+            }
+          ],
+          "instances": [],
+          "sharedConstruction": null,
+          "topology": "unibody",
+          "transport": "none"
+        },
+        "id": "boundary-fixture",
+        "keycaps": {
+          "boards": {
+            "board": {
+              "clearance": 0.5,
+              "color": "#123456",
+              "legendColor": "#202630"
+            }
+          },
+          "keys": {
+            "matrix/matrix/r0c0": {
+              "color": null,
+              "legend": "",
+              "mount": null,
+              "profile": null,
+              "row": null,
+              "units": null
+            }
+          },
+          "matrices": {
+            "matrix": {
+              "firstRow": 1,
+              "mount": null,
+              "profile": "dsa",
+              "wallThickness": 1.2
+            }
+          }
+        },
+        "materials": [],
+        "matrices": [
+          {
+            "boardId": "board",
+            "cells": [
+              {
+                "assemblies": [
+                  {
+                    "definitionId": "diode",
+                    "id": "diode",
+                    "offset": {
+                      "x": 2.0,
+                      "y": 5.0
+                    }
+                  },
+                  {
+                    "definitionId": "led",
+                    "id": "led",
+                    "offset": {
+                      "x": -3.0,
+                      "y": 6.0
+                    }
+                  },
+                  {
+                    "definitionId": "sensor",
+                    "id": "sensor",
+                    "offset": {
+                      "x": 1.0,
+                      "y": -4.0
+                    }
+                  }
+                ],
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              }
+            ],
+            "columnOffsets": [
+              {
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "columnOrigins": [
+              null,
+              {
+                "x": 4.0,
+                "y": -20.0
+              }
+            ],
+            "columnSplays": [
+              0.0,
+              15.0,
+              -8.0
+            ],
+            "columnStaggers": [
+              0.0,
+              5.0,
+              -4.0
+            ],
+            "columns": 3,
+            "definitionId": "switch",
+            "edgeGap": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "id": "matrix",
+            "origin": {
+              "x": 7.0,
+              "y": -3.0
+            },
+            "partIds": [],
+            "pitch": {
+              "x": 19.0,
+              "y": 19.0
+            },
+            "rows": 3
+          }
+        ],
+        "mechanical": {
+          "batteryHeight": 0.0,
+          "boardId": "board",
+          "bottomFoamThickness": 2.0,
+          "bottomStyle": "shell",
+          "bottomThickness": 3.0,
+          "clearance": 0.3,
+          "closureMounts": [],
+          "integratedPlateFrame": false,
+          "method": "printed",
+          "middleFrame": false,
+          "mount": "tray",
+          "mounts": [],
+          "partProcesses": [
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "PLA",
+              "method": "printed",
+              "partId": "plate",
+              "thickness": 1.5
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "EVA",
+              "method": "cut-sheet",
+              "partId": "plate-foam",
+              "thickness": 3.0
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "EVA",
+              "method": "cut-sheet",
+              "partId": "bottom-foam",
+              "thickness": 2.0
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "PLA",
+              "method": "printed",
+              "partId": "bottom",
+              "thickness": 3.0
+            }
+          ],
+          "pcbThickness": 1.6,
+          "plateFoamThickness": 3.0,
+          "plateThickness": 1.5,
+          "plateToPcb": 3.5,
+          "profiles": [],
+          "stabilizers": [],
+          "wallThickness": 2.0
+        },
+        "name": "Boundary fixture",
+        "nets": [],
+        "outline": [
+          {
+            "id": "board:board:automatic:outline:1",
+            "kind": "part-envelope",
+            "margin": 6.0,
+            "operation": "add",
+            "partIds": [
+              "outline-part"
+            ],
+            "settings": {
+              "bridgeWidth": 3.0,
+              "corners": "sharp",
+              "repair": {
+                "edgeClearance": 0.0,
+                "enabled": true,
+                "maximumGapSpan": 20.0,
+                "minimumConnectionWidth": 2.0
+              },
+              "size": 2.0
+            }
+          }
+        ],
+        "parameters": {},
+        "parts": [
+          {
+            "definitionId": "outline-switch",
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "OSW1",
+            "side": "front"
+          }
+        ],
+        "revision": 44,
+        "scripts": []
+      },
+      "id": "convert-commit",
+      "kind": "scene",
+      "scene": {
+        "boardContours": [
+          {
+            "boardId": "board",
+            "contours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardOutlineScenes": [
+          {
+            "boardId": "board",
+            "bridges": [],
+            "gaps": [],
+            "sourceContours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardReadiness": [
+          {
+            "boardId": "board",
+            "case": false,
+            "outline": true,
+            "pcb": true
+          }
+        ],
+        "changedIds": [
+          "matrix"
+        ],
+        "contours": [
+          {
+            "hole": false,
+            "points": [
+              {
+                "x": -13.0,
+                "y": 13.0
+              },
+              {
+                "x": -13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": 13.0
+              }
+            ]
+          }
+        ],
+        "findings": [],
+        "matrixScenes": [
+          {
+            "cells": [],
+            "columns": [
+              {
+                "axisX": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "axisY": {
+                  "x": -0.0,
+                  "y": 1.0
+                },
+                "column": 0,
+                "customOrigin": false,
+                "splayAngle": 0.0,
+                "splayOrigin": {
+                  "x": 7.0,
+                  "y": -3.0
+                },
+                "staggerAxis": {
+                  "x": 0.0,
+                  "y": 1.0
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
+                },
+                "axisY": {
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
+                },
+                "column": 1,
+                "customOrigin": true,
+                "splayAngle": 15.0,
+                "splayOrigin": {
+                  "x": 11.0,
+                  "y": -23.0
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.992546151641322,
+                  "y": 0.12186934340514748
+                },
+                "axisY": {
+                  "x": -0.12186934340514748,
+                  "y": 0.992546151641322
+                },
+                "column": 2,
+                "customOrigin": false,
+                "splayAngle": -8.0,
+                "splayOrigin": {
+                  "x": 38.40627814667539,
+                  "y": 6.0842898855561405
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510252696,
+                  "y": 0.965925826289066
+                }
+              }
+            ],
+            "matrixId": "matrix"
+          }
+        ],
+        "readiness": {
+          "case": false,
+          "layout": true,
+          "outline": true,
+          "pcb": true
+        },
+        "revision": 44,
+        "transactionId": "convert-commit",
+        "transforms": [
+          {
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "document": {
+        "assets": [],
+        "boardOutlines": [
+          {
+            "activeVersionId": "v-copy",
+            "boardId": "board",
+            "generatedLastValid": {
+              "expectedRegions": 1,
+              "features": [
+                {
+                  "id": "board:board:generated:last-valid:contour:0",
+                  "kind": "polygon",
+                  "operation": "add",
+                  "points": [
+                    {
+                      "x": -13.0,
+                      "y": 13.0
+                    },
+                    {
+                      "x": -13.0,
+                      "y": -13.0
+                    },
+                    {
+                      "x": 13.0,
+                      "y": -13.0
+                    },
+                    {
+                      "x": 13.0,
+                      "y": 13.0
+                    }
+                  ]
+                },
+                {
+                  "id": "board:board:generated:last-valid:contour:1",
+                  "kind": "polygon",
+                  "operation": "subtract",
+                  "points": [
+                    {
+                      "x": -4.0,
+                      "y": -4.0
+                    },
+                    {
+                      "x": -4.0,
+                      "y": 4.0
+                    },
+                    {
+                      "x": 4.0,
+                      "y": 4.0
+                    },
+                    {
+                      "x": 4.0,
+                      "y": -4.0
+                    }
+                  ]
+                }
+              ],
+              "protectedGaps": [
+                {
+                  "id": "gap-a",
+                  "points": [
+                    {
+                      "at": {
+                        "x": -4.0,
+                        "y": -4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": 4.0,
+                        "y": -4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": 4.0,
+                        "y": 4.0
+                      }
+                    },
+                    {
+                      "at": {
+                        "x": -4.0,
+                        "y": 4.0
+                      }
+                    }
+                  ]
+                }
+              ],
+              "settings": {
+                "bridgeWidth": 3.0,
+                "corners": "sharp",
+                "repair": {
+                  "edgeClearance": 0.0,
+                  "enabled": true,
+                  "maximumGapSpan": 20.0,
+                  "minimumConnectionWidth": 2.0
+                },
+                "size": 2.0
+              }
+            },
+            "versions": [
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-12:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -12.0,
+                          "y": -12.0
+                        },
+                        {
+                          "x": 12.0,
+                          "y": -12.0
+                        },
+                        {
+                          "x": 12.0,
+                          "y": 12.0
+                        },
+                        {
+                          "x": -12.0,
+                          "y": 12.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 1.5,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-12",
+                "name": "Renamed",
+                "source": {
+                  "revision": 28
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:v-refined:contour:0",
+                      "kind": "part-envelope",
+                      "margin": 7.0,
+                      "operation": "add",
+                      "partIds": [
+                        "outline-part"
+                      ],
+                      "settings": {
+                        "bridgeWidth": 3.0,
+                        "corners": "sharp",
+                        "repair": {
+                          "edgeClearance": 0.0,
+                          "enabled": true,
+                          "maximumGapSpan": 20.0,
+                          "minimumConnectionWidth": 2.0
+                        },
+                        "size": 2.0
+                      }
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "v-refined",
+                "name": "Refined",
+                "ownership": "linked",
+                "source": {
+                  "revision": 34
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-19:contour:0",
+                      "kind": "part-envelope",
+                      "margin": 7.0,
+                      "operation": "add",
+                      "partIds": [
+                        "outline-part"
+                      ],
+                      "settings": {
+                        "bridgeWidth": 3.0,
+                        "corners": "sharp",
+                        "repair": {
+                          "edgeClearance": 0.0,
+                          "enabled": true,
+                          "maximumGapSpan": 20.0,
+                          "minimumConnectionWidth": 2.0
+                        },
+                        "size": 2.0
+                      }
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-19",
+                "name": "Frozen",
+                "source": {
+                  "revision": 36,
+                  "versionId": "v-refined"
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:outline-version-21:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": 13.0
+                        },
+                        {
+                          "x": -13.0,
+                          "y": 13.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "outline-version-21",
+                "name": "Edited outline 1",
+                "source": {
+                  "revision": 38,
+                  "versionId": "v-refined"
+                }
+              },
+              {
+                "geometry": {
+                  "expectedRegions": 1,
+                  "features": [
+                    {
+                      "id": "board:board:version:v-copy:contour:0",
+                      "kind": "polygon",
+                      "operation": "add",
+                      "points": [
+                        {
+                          "x": -13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": -13.0
+                        },
+                        {
+                          "x": 13.0,
+                          "y": 13.0
+                        },
+                        {
+                          "x": -13.0,
+                          "y": 13.0
+                        }
+                      ]
+                    }
+                  ],
+                  "settings": {
+                    "bridgeWidth": 3.0,
+                    "corners": "sharp",
+                    "repair": {
+                      "edgeClearance": 0.0,
+                      "enabled": true,
+                      "maximumGapSpan": 20.0,
+                      "minimumConnectionWidth": 2.0
+                    },
+                    "size": 2.0
+                  }
+                },
+                "id": "v-copy",
+                "name": "Copy",
+                "source": {
+                  "revision": 39,
+                  "versionId": "outline-version-21"
+                }
+              }
+            ]
+          }
+        ],
+        "boards": [
+          {
+            "id": "board",
+            "name": "Boundary board",
+            "netIds": [],
+            "outlineIds": [
+              "board:board:automatic:outline:1"
+            ],
+            "partIds": [
+              "outline-part"
+            ],
+            "thickness": 1.6
+          }
+        ],
+        "caseBodies": [],
+        "constraints": [],
+        "definitions": [
+          {
+            "courtyard": [],
+            "id": "switch",
+            "kind": "switch",
+            "name": "Switch",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "diode",
+            "kind": "passive",
+            "name": "Diode",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "led",
+            "kind": "passive",
+            "name": "LED",
+            "pads": []
+          },
+          {
+            "courtyard": [],
+            "id": "sensor",
+            "kind": "passive",
+            "name": "Sensor",
+            "pads": []
+          },
+          {
+            "courtyard": [
+              {
+                "x": -7.0,
+                "y": -7.0
+              },
+              {
+                "x": 7.0,
+                "y": -7.0
+              },
+              {
+                "x": 7.0,
+                "y": 7.0
+              },
+              {
+                "x": -7.0,
+                "y": 7.0
+              }
+            ],
+            "id": "outline-switch",
+            "kind": "switch",
+            "name": "Outline switch",
+            "pads": [
+              {
+                "at": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "id": "p0",
+                "number": "1",
+                "shape": "rect",
+                "size": {
+                  "x": 4.0,
+                  "y": 4.0
+                }
+              }
+            ]
+          }
+        ],
+        "format": "boardstudio/v2",
+        "formatVersion": 3,
+        "hardware": {
+          "boards": [
+            {
+              "assignments": {},
+              "boardId": "board",
+              "controllerPartId": null,
+              "jumperStates": {},
+              "keyBindings": {
+                "matrix/matrix/r0c0": "&kp A"
+              },
+              "locks": {},
+              "mode": "matrix",
+              "protectedHandoff": null
+            }
+          ],
+          "instances": [],
+          "sharedConstruction": null,
+          "topology": "unibody",
+          "transport": "none"
+        },
+        "id": "boundary-fixture",
+        "keycaps": {
+          "boards": {
+            "board": {
+              "clearance": 0.5,
+              "color": "#123456",
+              "legendColor": "#202630"
+            }
+          },
+          "keys": {
+            "matrix/matrix/r0c0": {
+              "color": null,
+              "legend": "",
+              "mount": null,
+              "profile": null,
+              "row": null,
+              "units": null
+            }
+          },
+          "matrices": {
+            "matrix": {
+              "firstRow": 1,
+              "mount": null,
+              "profile": "dsa",
+              "wallThickness": 1.2
+            }
+          }
+        },
+        "materials": [],
+        "matrices": [
+          {
+            "boardId": "board",
+            "cells": [
+              {
+                "assemblies": [
+                  {
+                    "definitionId": "diode",
+                    "id": "diode",
+                    "offset": {
+                      "x": 2.0,
+                      "y": 5.0
+                    }
+                  },
+                  {
+                    "definitionId": "led",
+                    "id": "led",
+                    "offset": {
+                      "x": -3.0,
+                      "y": 6.0
+                    }
+                  },
+                  {
+                    "definitionId": "sensor",
+                    "id": "sensor",
+                    "offset": {
+                      "x": 1.0,
+                      "y": -4.0
+                    }
+                  }
+                ],
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 0
+              },
+              {
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 1
+              },
+              {
+                "column": 0,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              },
+              {
+                "column": 1,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              },
+              {
+                "column": 2,
+                "deleted": true,
+                "enabled": false,
+                "row": 2
+              }
+            ],
+            "columnOffsets": [
+              {
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "x": 0.0,
+                "y": 1.0
+              }
+            ],
+            "columnOrigins": [
+              null,
+              {
+                "x": 4.0,
+                "y": -20.0
+              }
+            ],
+            "columnSplays": [
+              0.0,
+              15.0,
+              -8.0
+            ],
+            "columnStaggers": [
+              0.0,
+              5.0,
+              -4.0
+            ],
+            "columns": 3,
+            "definitionId": "switch",
+            "edgeGap": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "id": "matrix",
+            "origin": {
+              "x": 7.0,
+              "y": -3.0
+            },
+            "partIds": [],
+            "pitch": {
+              "x": 19.0,
+              "y": 19.0
+            },
+            "rows": 3
+          }
+        ],
+        "mechanical": {
+          "batteryHeight": 0.0,
+          "boardId": "board",
+          "bottomFoamThickness": 2.0,
+          "bottomStyle": "shell",
+          "bottomThickness": 3.0,
+          "clearance": 0.3,
+          "closureMounts": [],
+          "integratedPlateFrame": false,
+          "method": "printed",
+          "middleFrame": false,
+          "mount": "tray",
+          "mounts": [],
+          "partProcesses": [
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "PLA",
+              "method": "printed",
+              "partId": "plate",
+              "thickness": 1.5
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "EVA",
+              "method": "cut-sheet",
+              "partId": "plate-foam",
+              "thickness": 3.0
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "EVA",
+              "method": "cut-sheet",
+              "partId": "bottom-foam",
+              "thickness": 2.0
+            },
+            {
+              "constraintsVersion": "2026-09-24",
+              "material": "PLA",
+              "method": "printed",
+              "partId": "bottom",
+              "thickness": 3.0
+            }
+          ],
+          "pcbThickness": 1.6,
+          "plateFoamThickness": 3.0,
+          "plateThickness": 1.5,
+          "plateToPcb": 3.5,
+          "profiles": [],
+          "stabilizers": [],
+          "wallThickness": 2.0
+        },
+        "name": "Boundary fixture",
+        "nets": [],
+        "outline": [
+          {
+            "id": "board:board:automatic:outline:1",
+            "kind": "part-envelope",
+            "margin": 6.0,
+            "operation": "add",
+            "partIds": [
+              "outline-part"
+            ],
+            "settings": {
+              "bridgeWidth": 3.0,
+              "corners": "sharp",
+              "repair": {
+                "edgeClearance": 0.0,
+                "enabled": true,
+                "maximumGapSpan": 20.0,
+                "minimumConnectionWidth": 2.0
+              },
+              "size": 2.0
+            }
+          }
+        ],
+        "parameters": {},
+        "parts": [
+          {
+            "definitionId": "outline-switch",
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            },
+            "reference": "OSW1",
+            "side": "front"
+          }
+        ],
+        "revision": 45,
+        "scripts": []
+      },
+      "id": "convert-offset-2",
+      "kind": "scene",
+      "scene": {
+        "boardContours": [
+          {
+            "boardId": "board",
+            "contours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardOutlineScenes": [
+          {
+            "boardId": "board",
+            "bridges": [],
+            "gaps": [],
+            "sourceContours": [
+              {
+                "hole": false,
+                "points": [
+                  {
+                    "x": -13.0,
+                    "y": 13.0
+                  },
+                  {
+                    "x": -13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": -13.0
+                  },
+                  {
+                    "x": 13.0,
+                    "y": 13.0
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "boardReadiness": [
+          {
+            "boardId": "board",
+            "case": false,
+            "outline": true,
+            "pcb": true
+          }
+        ],
+        "changedIds": [
+          "matrix"
+        ],
+        "contours": [
+          {
+            "hole": false,
+            "points": [
+              {
+                "x": -13.0,
+                "y": 13.0
+              },
+              {
+                "x": -13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": -13.0
+              },
+              {
+                "x": 13.0,
+                "y": 13.0
+              }
+            ]
+          }
+        ],
+        "findings": [],
+        "matrixScenes": [
+          {
+            "cells": [],
+            "columns": [
+              {
+                "axisX": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "axisY": {
+                  "x": -0.0,
+                  "y": 1.0
+                },
+                "column": 0,
+                "customOrigin": false,
+                "splayAngle": 0.0,
+                "splayOrigin": {
+                  "x": 7.0,
+                  "y": -3.0
+                },
+                "staggerAxis": {
+                  "x": 0.0,
+                  "y": 1.0
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
+                },
+                "axisY": {
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
+                },
+                "column": 1,
+                "customOrigin": true,
+                "splayAngle": 15.0,
+                "splayOrigin": {
+                  "x": 11.0,
+                  "y": -23.0
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              },
+              {
+                "axisX": {
+                  "x": 0.992546151641322,
+                  "y": 0.12186934340514748
+                },
+                "axisY": {
+                  "x": -0.12186934340514748,
+                  "y": 0.992546151641322
+                },
+                "column": 2,
+                "customOrigin": false,
+                "splayAngle": -8.0,
+                "splayOrigin": {
+                  "x": 38.40627814667539,
+                  "y": 6.0842898855561405
+                },
+                "staggerAxis": {
+                  "x": -0.25881904510251985,
+                  "y": 0.9659258262890695
+                }
+              }
+            ],
+            "matrixId": "matrix"
+          }
+        ],
+        "readiness": {
+          "case": false,
+          "layout": true,
+          "outline": true,
+          "pcb": true
+        },
+        "revision": 45,
+        "transactionId": "convert-offset-2",
+        "transforms": [
+          {
+            "id": "outline-part",
+            "pose": {
+              "at": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "convert-refused",
+      "kind": "error",
+      "message": "Converting would move this column: its splay pivots with the stagger.",
+      "revision": 45
     }
   ]
 }

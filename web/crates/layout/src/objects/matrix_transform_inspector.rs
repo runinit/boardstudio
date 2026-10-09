@@ -159,6 +159,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             splay_angle,
             splay_origin,
             custom_origin,
+            convert,
         } => (
             "Column properties",
             rsx! {
@@ -247,6 +248,18 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
                         request_sequence, editable: props.mount.editable,
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                    }
+                    if offset.y != 0.0 {
+                        ResetTransformButton {
+                            label: "Convert to stagger", owner: owner.clone(), snapshot_token, revision,
+                            field: MatrixTransformField::ColumnOffsetConvert,
+                            pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetConvert),
+                            baseline: MatrixTransformValue::Number(offset.y),
+                            value: MatrixTransformValue::Number(0.0),
+                            blocked: convert.clone().err(),
+                            request_sequence, editable: props.mount.editable,
+                            feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                        }
                     }
                     span { class: "m1-matrix-field-context", {format!("Column {}", column + 1)} }
                 }
@@ -929,6 +942,9 @@ struct ResetTransformButtonProps {
     feedback: Vec<MatrixTransformFeedback>,
     splay_affect: Signal<MatrixSplayAffect>,
     on_edit: EventHandler<MatrixTransformRequest>,
+    /// Why the action is unavailable; disables the button and is shown beside it.
+    #[props(default)]
+    blocked: Option<String>,
 }
 
 #[component]
@@ -955,7 +971,7 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 && item.message.is_some()
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable || (props.pending_disabled)();
+    let disabled = !props.editable || (props.pending_disabled)() || props.blocked.is_some();
     let mut sequence = props.request_sequence;
     let owner = props.owner.clone();
     let baseline = props.baseline.clone();
@@ -981,6 +997,7 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
             },
             "{props.label}"
         }
+        if let Some(reason) = props.blocked.as_deref() { small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" } }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }
 }

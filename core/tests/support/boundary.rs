@@ -227,6 +227,32 @@ pub fn core_requests() -> Vec<Value> {
     }));
     requests.push(json!({ "id": "mechanical-undo", "kind": "undo" }));
     requests.extend(outline_requests());
+    // One-shot conversion crosses the seam last, so earlier requests keep their
+    // revisions. Column 1 pivots on a custom origin, so the conversion is exact;
+    // column 2 is splayed about its default origin, so Core refuses it.
+    let placement = |id: &str, base: u64, phase: &str, change: Value| {
+        json!({
+            "id": id, "kind": "edit",
+            "command": { "baseRevision": base, "transactionId": id, "phase": phase, "targetIds": ["matrix"],
+                "operation": { "kind": "set-matrix-placement", "matrixId": "matrix", "change": change } },
+        })
+    };
+    let convert = |column: u64| json!({ "kind": "column-offset-to-stagger", "column": column });
+    requests.push(placement(
+        "convert-offset-1",
+        42,
+        "commit",
+        json!({ "kind": "column-offset", "column": 1, "value": { "x": 0, "y": 3 } }),
+    ));
+    requests.push(placement("convert-preview", 43, "preview", convert(1)));
+    requests.push(placement("convert-commit", 43, "commit", convert(1)));
+    requests.push(placement(
+        "convert-offset-2",
+        44,
+        "commit",
+        json!({ "kind": "column-offset", "column": 2, "value": { "x": 0, "y": 1 } }),
+    ));
+    requests.push(placement("convert-refused", 45, "commit", convert(2)));
     requests
 }
 

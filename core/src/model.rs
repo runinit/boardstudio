@@ -1149,9 +1149,43 @@ pub enum MatrixSplayChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MatrixPlacementChange {
-    ColumnStagger { column: u32, value: f64 },
-    ColumnOffset { column: u32, value: Vec2 },
-    RowOffset { row: u32, value: Vec2 },
+    ColumnStagger {
+        column: u32,
+        value: f64,
+    },
+    ColumnOffset {
+        column: u32,
+        value: Vec2,
+    },
+    RowOffset {
+        row: u32,
+        value: Vec2,
+    },
+    /// One-shot: move the column's offset Y into its stagger and compensate the next
+    /// column, so every pose is unchanged. See [`convert_offset_available`].
+    ColumnOffsetToStagger {
+        column: u32,
+    },
+}
+
+/// Why `ColumnOffsetToStagger` is refused for this column, or `Ok` when the
+/// conversion keeps every pose. The stagger moves a default-origin splay pivot,
+/// so a splayed column with a default origin would move. One source for Core and
+/// the Inspector.
+pub fn convert_offset_available(matrix: &Matrix, column: u32) -> Result<(), String> {
+    if column >= matrix.columns {
+        return Err("Matrix placement column is out of bounds".into());
+    }
+    let index = column as usize;
+    let splay = matrix.column_splays.get(index).copied().unwrap_or(0.0);
+    let custom = matrix
+        .column_origins
+        .get(index)
+        .is_some_and(Option::is_some);
+    if splay != 0.0 && !custom {
+        return Err("Converting would move this column: its splay pivots with the stagger.".into());
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

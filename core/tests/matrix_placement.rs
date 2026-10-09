@@ -682,3 +682,152 @@ fn changed_ids_are_precise() {
     assert!(!reply.changed_ids.contains(&member("main", 0, 0)));
     assert!(!reply.changed_ids.iter().any(|id| id == "spare"));
 }
+
+fn poses(doc: &ProjectDoc) -> Vec<(String, Vec2, f64)> {
+    doc.parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose.at, part.pose.rotation))
+        .collect()
+}
+
+fn assert_same_poses(before: &ProjectDoc, after: &ProjectDoc, label: &str) {
+    let (before, after) = (poses(before), poses(after));
+    assert_eq!(before.len(), after.len(), "{label}: part count");
+    for (a, b) in before.iter().zip(&after) {
+        assert_eq!(a.0, b.0, "{label}: order");
+        assert!(
+            close(a.1, b.1),
+            "{label}: {} moved {:?} -> {:?}",
+            a.0,
+            a.1,
+            b.1
+        );
+        assert!((a.2 - b.2).abs() < 1e-9, "{label}: {} rotated", a.0);
+    }
+}
+
+fn convert(matrix_id: &str, column: u32) -> EditOperation {
+    EditOperation::SetMatrixPlacement {
+        matrix_id: matrix_id.into(),
+        change: MatrixPlacementChange::ColumnOffsetToStagger { column },
+    }
+}
+
+/// Open a 2x3 matrix configured by `configure`, then convert `column`.
+fn convert_case(label: &str, column: u32, configure: impl FnOnce(&mut Matrix)) -> Matrix {
+    let (mut engine, _, doc) = fixture(2, 3);
+    let mut matrix = doc.matrices[0].clone();
+    configure(&mut matrix);
+    let (_, before) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix,
+            definitions: None,
+        },
+    );
+    assert_eq!(
+        convert_offset_available(&before.matrices[0], column),
+        Ok(()),
+        "{label}"
+    );
+    let (_, after) = edit(
+        &mut engine,
+        &before,
+        convert(&before.matrices[0].id, column),
+    );
+    assert_same_poses(&before, &after, label);
+    assert_eq!(after.matrices[0].column_offsets[column as usize].y, 0.0);
+    after.matrices[0].clone()
+}
+
+#[test]
+fn convert_preserves_poses_on_an_unsplayed_column() {
+    let matrix = convert_case("middle", 1, |matrix| {
+        matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 1.5, y: -9.525 }, Vec2::default()];
+        matrix.column_staggers = vec![0.0, 2.0, 1.0];
+    });
+    assert_eq!(matrix.column_staggers, vec![0.0, 2.0 - 9.525, 1.0 + 9.525]);
+    assert_eq!(matrix.column_offsets[1].x, 1.5);
+}
+
+#[test]
+fn convert_preserves_poses_on_the_last_column_and_a_custom_origin() {
+    let matrix = convert_case("last", 2, |matrix| {
+        matrix.column_offsets = vec![Vec2::default(), Vec2::default(), Vec2 { x: 0.0, y: 4.0 }];
+    });
+    assert_eq!(matrix.column_staggers, vec![0.0, 0.0, 4.0]);
+    convert_case("custom origin with splay", 1, |matrix| {
+        matrix.rotation = Some(20.0);
+        matrix.mirror = Some(Mirror::X);
+        matrix.column_splays = vec![10.0, -15.0, 5.0];
+        matrix.column_origins = vec![None, Some(Vec2 { x: 25.0, y: -12.0 }), None];
+        matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 0.5, y: 3.0 }, Vec2::default()];
+    });
+    // Converting column 1: a splayed default-origin neighbour (column 2) must not move.
+    convert_case("splay on a later column only", 1, |matrix| {
+        matrix.column_splays = vec![0.0, 0.0, 12.0];
+        matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 0.0, y: -2.0 }, Vec2::default()];
+    });
+}
+
+#[test]
+fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
+    let (mut engine, _, doc) = fixture(1, 3);
+    let mut matrix = doc.matrices[0].clone();
+    matrix.column_splays = vec![0.0, 15.0, 0.0];
+    matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 0.0, y: 3.0 }, Vec2::default()];
+    let (_, before) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix,
+            definitions: None,
+        },
+    );
+    let reason = "Converting would move this column: its splay pivots with the stagger.";
+    assert_eq!(
+        convert_offset_available(&before.matrices[0], 1),
+        Err(reason.to_string())
+    );
+    let reply = engine.handle(CoreRequest::Edit {
+        id: "convert".into(),
+        command: EditCommand {
+            base_revision: before.revision,
+            transaction_id: "convert".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: convert("main", 1),
+        },
+    });
+    match reply {
+        CoreReply::Error { message, .. } => assert_eq!(message, reason),
+        other => panic!("expected an error: {other:?}"),
+    }
+    assert_eq!(snapshot(&mut engine), before);
+}
+
+#[test]
+fn convert_applies_to_both_linked_halves() {
+    let (mut engine, doc) = linked_pair();
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "left-matrix".into(),
+            change: MatrixPlacementChange::ColumnOffset {
+                column: 1,
+                value: Vec2 { x: 0.0, y: -9.525 },
+            },
+        },
+    );
+    let (_, after) = edit(&mut engine, &doc, convert("left-matrix", 1));
+    assert_same_poses(&doc, &after, "linked");
+    for id in ["left-matrix", "right-matrix"] {
+        let matrix = after.matrices.iter().find(|item| item.id == id).unwrap();
+        assert_eq!(matrix.column_offsets[1].y, 0.0, "{id}");
+        assert_eq!(matrix.column_staggers[1], -9.525, "{id}");
+        assert_eq!(matrix.column_staggers[2], 9.525, "{id}");
+    }
+    assert_reflected_keys(&after);
+}
