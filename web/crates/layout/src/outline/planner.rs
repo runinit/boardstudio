@@ -75,6 +75,13 @@ pub enum OutlineAction {
         board_id: String,
         edit: OutlineEdit,
     },
+    Refine {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+    },
     Freeze {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
@@ -335,6 +342,13 @@ impl OutlineAction {
                 generation,
                 board_id,
                 ..
+            }
+            | OutlineAction::Refine {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
             }
             | OutlineAction::Freeze {
                 scope,

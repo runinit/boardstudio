@@ -28,12 +28,19 @@ fn generated_envelope<'a>(document: &'a ProjectDoc, board_id: &str) -> Option<&'
     generated_feature(document, board)
 }
 
+/// Every identity a new outline version must avoid: the persisted versions plus the
+/// retired ones, whose identities stay reserved forever (Core refuses to reissue them).
 fn all_version_ids(document: &ProjectDoc) -> Vec<String> {
     document
         .board_outlines
         .iter()
-        .flat_map(|state| &state.versions)
-        .map(|version| version.id.clone())
+        .flat_map(|state| {
+            state
+                .versions
+                .iter()
+                .map(|version| version.id.clone())
+                .chain(state.retired_version_ids.iter().cloned())
+        })
         .collect()
 }
 
@@ -260,6 +267,22 @@ pub(crate) fn outline_edit(
             active_version.as_deref(),
             edit,
         )?,
+        // Accepting the Generated outline as an alternative creates a linked refinement:
+        // Core seeds it from the board's current generated projections, so it follows the
+        // components and its settings stay editable while linked.
+        OutlineAction::Refine { .. } => (
+            OutlineEditTarget::Board {
+                board_id: board_id.clone(),
+            },
+            OutlineChange::CreateLinkedRefinement {
+                version_id: super::planner::unique_outline_version_id(
+                    seed,
+                    all_version_ids(document),
+                ),
+                name: next_edited_outline_name(state),
+            },
+            None,
+        ),
         OutlineAction::Freeze { version_id, .. } => (
             OutlineEditTarget::Version {
                 board_id: board_id.clone(),
@@ -495,6 +518,9 @@ pub(crate) fn retire_reason(action: &OutlineAction) -> &'static str {
             _ => "The outline changed before this edit was applied.",
         },
         OutlineAction::Copy { .. } => "The outline changed before this copy was applied.",
+        OutlineAction::Refine { .. } => {
+            "Resolve the generated outline before making a linked refinement."
+        }
         OutlineAction::Freeze { .. } => "That outline version no longer exists.",
         OutlineAction::AddFeature { .. } | OutlineAction::AddConnection { .. } => {
             "The outline changed before this addition was applied."

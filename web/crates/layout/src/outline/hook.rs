@@ -1309,6 +1309,7 @@ fn action_pending_key(action: &OutlineAction) -> OutlinePendingKey {
         }
         OutlineAction::Activate { .. }
         | OutlineAction::Copy { .. }
+        | OutlineAction::Refine { .. }
         | OutlineAction::Freeze { .. }
         | OutlineAction::Delete { .. }
         | OutlineAction::AddFeature { .. }
@@ -1432,6 +1433,17 @@ impl OutlineInspectorProjection {
                 board_id: self.board_id.clone(),
                 version_id: version_id.clone(),
             })
+    }
+
+    /// Accept the Generated outline as a linked refinement that follows the components.
+    pub(super) fn refine_action(&self) -> Option<OutlineAction> {
+        (self.has_generated && self.active_version_id.is_none()).then(|| OutlineAction::Refine {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+        })
     }
 
     /// Freeze the selected version into a separate fixed edited copy, retaining it.
