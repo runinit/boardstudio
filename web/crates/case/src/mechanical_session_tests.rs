@@ -416,18 +416,15 @@ fn an_equal_value_mechanical_edit_adds_no_history_step_and_keeps_redo() {
     );
 }
 
-/// A queued edit addressed to a removed opening or vertex must retire, never be
-/// redirected at a recreated one that happens to reuse the id.
+/// A queued edit addressed to a removed opening or vertex must never be redirected at a
+/// recreated one, and the removed identity must stay retired.
 ///
-/// Core currently mints `opening-N`/`vertex-N` as the lowest unused index, so deleting
-/// then recreating an opening reuses both ids and a later queued edit resolves against
-/// the new geometry instead of retiring. This is the Core-owned durable-id reservation
-/// gap (core/src/mechanical/edit.rs id generators); it is recorded here as a real
-/// Session/Core demonstration and ignored until Core reserves ids, so the branch stays
-/// green while the evidence stays runnable with `--ignored`.
+/// The durable address is the opening id together with the vertex id. Core reserves both
+/// monotonically, so a removed opening identity is never handed to a later opening and a
+/// removed vertex identity is never handed to a later vertex of the same opening; the
+/// evaluator retires an edit that addresses either.
 #[test]
-#[ignore = "Core durable-id reservation pending: removal then recreation reuses opening-N/vertex-N"]
-fn a_recreated_opening_must_not_receive_a_queued_edit_to_the_removed_one() {
+fn a_recreated_opening_does_not_receive_a_queued_edit_to_the_removed_one() {
     let (runtime, scope) = open();
     let submit = |change: MechanicalChange| {
         let mut edits = PendingEdits::default();
@@ -459,27 +456,20 @@ fn a_recreated_opening_must_not_receive_a_queued_edit_to_the_removed_one() {
             .clone()
             .unwrap_or_default()
     };
-
-    // Add, remove, then add again: Core mints the ids for every added opening.
-    let added = submit(MechanicalChange::AddOpening);
-    assert!(
-        added
+    let landed = |results: &[PendingEditResult<u8>]| {
+        results
             .iter()
-            .any(|result| matches!(result, PendingEditResult::Landed { .. })),
-        "the opening is added, got {added:?}"
-    );
-    let first = openings(&runtime);
+            .any(|result| matches!(result, PendingEditResult::Landed { .. }))
+    };
+
+    // Add, remove, then add again: Core mints every opening's identity.
+    assert!(landed(&submit(MechanicalChange::AddOpening)));
     let (removed_id, removed_vertex) = {
-        let opening = first.first().expect("the added opening");
-        (
-            opening.id.clone(),
-            opening
-                .vertices
-                .first()
-                .expect("the added opening has a vertex")
-                .id
-                .clone(),
-        )
+        let opening = openings(&runtime)
+            .first()
+            .expect("the added opening")
+            .clone();
+        (opening.id.clone(), opening.vertices[0].id.clone())
     };
     submit(MechanicalChange::RemoveOpening {
         opening_id: removed_id.clone(),
@@ -488,25 +478,16 @@ fn a_recreated_opening_must_not_receive_a_queued_edit_to_the_removed_one() {
         openings(&runtime).is_empty(),
         "the removal cleared the opening"
     );
-    submit(MechanicalChange::AddOpening);
+    assert!(landed(&submit(MechanicalChange::AddOpening)));
     let recreated = openings(&runtime);
-    let recreated_opening = recreated.first().expect("the recreated opening");
-
-    // A topology replacement must invalidate the removed identity, so the recreated
-    // opening cannot inherit it. Today it does.
+    let recreated_opening = recreated.first().expect("the recreated opening").clone();
     assert_ne!(
         recreated_opening.id, removed_id,
         "a recreated opening must not reuse the removed opening's id"
     );
-    assert!(
-        recreated_opening
-            .vertices
-            .iter()
-            .all(|vertex| vertex.id != removed_vertex),
-        "a recreated opening must not reuse the removed vertex ids"
-    );
 
-    // And a queued edit addressed to the removed vertex must retire.
+    // The stale identity retires here rather than landing on the new geometry.
+    let before = recreated_opening.points();
     let queued = submit(MechanicalChange::SetOpeningDimension {
         opening_id: removed_id.clone(),
         vertex_id: Some(removed_vertex.clone()),
@@ -514,19 +495,74 @@ fn a_recreated_opening_must_not_receive_a_queued_edit_to_the_removed_one() {
         value: 4.0,
     });
     assert!(
-        queued
+        queued.iter().any(|result| match result {
+            PendingEditResult::Retired { .. } => true,
+            PendingEditResult::Failed { message, .. } => message.contains("no longer available"),
+            PendingEditResult::Landed { .. } => false,
+        }),
+        "a queued edit to a removed opening must be refused as gone rather than land, got {queued:?}"
+    );
+    assert_eq!(
+        openings(&runtime)
+            .first()
+            .expect("the recreated opening")
+            .points(),
+        before,
+        "the stale edit must not be redirected at the recreated opening"
+    );
+
+    // The same holds for a vertex removed from the opening that is still present.
+    let live_id = recreated_opening.id.clone();
+    let removed_live_vertex = recreated_opening.vertices[0].id.clone();
+    assert!(landed(&submit(MechanicalChange::RemoveOpeningVertex {
+        opening_id: live_id.clone(),
+        vertex_id: removed_live_vertex.clone(),
+    })));
+    assert!(landed(&submit(MechanicalChange::AddOpeningVertex {
+        opening_id: live_id.clone(),
+    })));
+    let after_vertex = openings(&runtime)
+        .into_iter()
+        .find(|opening| opening.id == live_id)
+        .expect("the live opening");
+    assert!(
+        after_vertex
+            .vertices
             .iter()
-            .any(|result| matches!(result, PendingEditResult::Retired { .. })),
-        "a queued edit to a removed vertex must retire, got {queued:?}"
+            .all(|vertex| vertex.id != removed_live_vertex),
+        "a removed vertex identity must not be handed to the added vertex, got {:?}",
+        after_vertex
+            .vertices
+            .iter()
+            .map(|vertex| vertex.id.as_str())
+            .collect::<Vec<_>>()
+    );
+    let before_vertex = after_vertex.points();
+    let queued_vertex = submit(MechanicalChange::SetOpeningDimension {
+        opening_id: live_id.clone(),
+        vertex_id: Some(removed_live_vertex.clone()),
+        field: MechanicalDimension::OpeningPointX,
+        value: 9.0,
+    });
+    assert!(
+        queued_vertex.iter().any(|result| match result {
+            PendingEditResult::Retired { .. } => true,
+            PendingEditResult::Failed { message, .. } => message.contains("no longer available"),
+            PendingEditResult::Landed { .. } => false,
+        }),
+        "a queued edit to a removed vertex must be refused as gone rather than land, got {queued_vertex:?}"
+    );
+    assert_eq!(
+        openings(&runtime)
+            .into_iter()
+            .find(|opening| opening.id == live_id)
+            .expect("the live opening")
+            .points(),
+        before_vertex,
+        "the stale vertex edit must not be redirected at the added vertex"
     );
 }
 
-/// A split document with one explicit pair and one legacy instance.
-///
-/// The pair's mount is local on the left half and linked with an authored opening, so a
-/// save/reopen round trip has identity, a linked state and a local exception to preserve.
-/// The third instance keeps the legacy shared-construction overlay that migration marks
-/// on existing projects.
 fn paired_document() -> ProjectDoc {
     let mut document = document();
     document.hardware = Some(
@@ -722,5 +758,134 @@ fn reopening_a_project_without_pairs_infers_no_links_and_keeps_legacy_settings()
     assert_eq!(
         reopened_legacy.plate_thickness, legacy.plate_thickness,
         "the legacy shared construction still overlays the same values"
+    );
+}
+
+/// Disabling a half that belongs to a pair removes the link and disables only that half.
+///
+/// The user's decision is "unlink and disable this half": one typed `Disable` carries it,
+/// the other half keeps its geometry and settings, no physical instance or PCB is removed,
+/// one Undo restores the link and the stack, a queued edit on the disabled stack retires,
+/// and Enable stays eligible without inferring a relink. Core's compound staged behaviour
+/// is pending (checkpoint after 5ffc555b6), so this records the required behaviour as a
+/// runnable, ignored demonstration.
+#[test]
+#[ignore = "Core compound unlink-and-disable for a paired half pending; see the handoff"]
+fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
+    let runtime = open_document(paired_document());
+    let mut scope = runtime.scope().expect("the open document has a scope");
+    scope.board_id = "board".into();
+    scope.instance_id = Some("left".into());
+
+    let submit = |change: MechanicalChange| {
+        let mut edits = PendingEdits::default();
+        edits.begin(
+            &runtime,
+            1u8,
+            "mechanical",
+            Some("mechanical settings".into()),
+            mechanical_resolver(
+                scope.clone(),
+                change,
+                mounting_hole(),
+                Rc::new(Cell::new(false)),
+                Box::new(|_| true),
+            ),
+        );
+        edits.settle(true)
+    };
+    let accepted = || runtime.model().accepted.expect("accepted");
+    let configuration = |instance_id: &str| {
+        let accepted = accepted();
+        boardstudio_core::mechanical::effective_inputs(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.into(),
+            },
+        )
+        .map(|inputs| inputs.configuration)
+        .ok()
+    };
+    let pair_count = || {
+        accepted()
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .pairs
+            .len()
+    };
+    let instance_count = || {
+        accepted()
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .instances
+            .len()
+    };
+    let landed = |results: &[PendingEditResult<u8>]| {
+        results
+            .iter()
+            .any(|result| matches!(result, PendingEditResult::Landed { .. }))
+    };
+
+    let survivor_before = configuration("right").expect("the survivor resolves");
+    let instances_before = instance_count();
+    assert_eq!(pair_count(), 1);
+
+    assert!(
+        landed(&submit(MechanicalChange::Disable)),
+        "the linked half disables in one accepted edit"
+    );
+    assert_eq!(pair_count(), 0, "the link is removed");
+    assert_eq!(
+        instance_count(),
+        instances_before,
+        "no physical instance or PCB is removed"
+    );
+    assert_eq!(
+        configuration("right").expect("the survivor still resolves"),
+        survivor_before,
+        "the other half keeps its geometry and settings"
+    );
+    assert!(
+        configuration("left").is_none(),
+        "only this half's mechanical stack is disabled"
+    );
+
+    // A queued edit addressed to the disabled stack cannot land.
+    let queued = submit(MechanicalChange::SetDimension {
+        field: MechanicalDimension::WallThickness,
+        value: 3.0,
+    });
+    assert!(
+        queued.iter().any(|result| matches!(
+            result,
+            PendingEditResult::Retired { .. } | PendingEditResult::Failed { .. }
+        )),
+        "a queued edit on the disabled stack must not land, got {queued:?}"
+    );
+
+    // Undo restores the link and the stack; Redo re-applies the whole change.
+    undo(&runtime);
+    assert_eq!(pair_count(), 1, "one Undo restores the link");
+    assert_eq!(
+        configuration("left").expect("the stack is back"),
+        configuration("left").expect("the stack is back")
+    );
+    redo(&runtime);
+    assert_eq!(pair_count(), 0, "redo re-applies the whole change");
+
+    // Enable is still eligible for the unpaired half and infers no relink.
+    assert!(
+        landed(&submit(MechanicalChange::Enable)),
+        "the disabled half can be enabled again"
+    );
+    assert_eq!(
+        pair_count(),
+        0,
+        "enabling the half does not infer a mechanical link"
     );
 }

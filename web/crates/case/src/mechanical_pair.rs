@@ -102,6 +102,23 @@ pub fn pair_projection(
     })
 }
 
+/// One matched feature of a candidate link, with the geometry each half shows.
+///
+/// The reviewed source choice is per feature: it selects which half's accepted geometry
+/// becomes the shared authored value, independently of the pair's construction source.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MechanicalPairMatchedFeature {
+    pub kind: MechanicalFeatureKind,
+    pub first_feature_id: String,
+    pub second_feature_id: String,
+    /// The geometry the first (reviewed) half shows today.
+    pub first_geometry: Option<String>,
+    /// The geometry the other half shows today.
+    pub second_geometry: Option<String>,
+    /// The source this review starts from; the user may choose the other half per feature.
+    pub source_instance_id: String,
+}
+
 /// One candidate link between the selected half and another physical instance.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MechanicalPairLinkOption {
@@ -120,6 +137,8 @@ pub struct MechanicalPairLinkOption {
     pub correspondences: Vec<MechanicalFeatureCorrespondence>,
     /// A short description of those matches, for the review.
     pub matched_features: String,
+    /// The same matches with each half's geometry and the reviewed per-feature source.
+    pub matched: Vec<MechanicalPairMatchedFeature>,
     /// The fingerprint of the accepted inputs this candidate's review was produced
     /// from. The link submission carries it for the same reason as a rejoin row's.
     pub reviewed_fingerprint: Option<String>,
@@ -164,18 +183,58 @@ pub fn pair_link_options(
             )
             .ok()
             .flatten()?;
+            // Each match names the geometry both halves show today and starts from the
+            // reviewed half as its source; the user may choose the other half per feature.
+            let matched = review
+                .correspondences
+                .iter()
+                .map(|correspondence| {
+                    let geometry = |half: &str, feature_id: &str| {
+                        effective_inputs(
+                            document,
+                            board_contours,
+                            &MechanicalTarget::Instance {
+                                instance_id: half.to_owned(),
+                            },
+                        )
+                        .ok()
+                        .and_then(|inputs| {
+                            configuration_feature(
+                                &inputs.configuration,
+                                correspondence.kind,
+                                feature_id,
+                            )
+                            .map(|value| describe_value(correspondence.kind, &value))
+                        })
+                    };
+                    MechanicalPairMatchedFeature {
+                        kind: correspondence.kind,
+                        first_feature_id: correspondence.first_feature_id.clone(),
+                        second_feature_id: correspondence.second_feature_id.clone(),
+                        first_geometry: geometry(instance_id, &correspondence.first_feature_id),
+                        second_geometry: geometry(&other.id, &correspondence.second_feature_id),
+                        source_instance_id: instance_id.to_owned(),
+                    }
+                })
+                .collect::<Vec<_>>();
+            // The reviewed payload names the source per feature explicitly.
+            let reviewed_correspondences = review
+                .correspondences
+                .iter()
+                .map(|correspondence| MechanicalFeatureCorrespondence {
+                    source_instance_id: Some(instance_id.to_owned()),
+                    ..correspondence.clone()
+                })
+                .collect::<Vec<_>>();
             let reviewed = MechanicalChange::LinkMirrorPair {
                 pair_id: pair_id.clone(),
                 members: [instance_id.to_owned(), other.id.clone()],
-                // The reviewed map and construction source are the user's payload and
-                // are excluded from the fingerprint, so this offer only needs a
-                // well-formed placeholder for them.
                 mapping: review.derived_mapping.unwrap_or(Pose2 {
                     at: Vec2::default(),
                     rotation: 0.0,
                 }),
                 construction_source: review.construction_source.clone(),
-                correspondences: review.correspondences.clone(),
+                correspondences: reviewed_correspondences.clone(),
             };
             // The complete proposed result comes from Core's own read path, read-only.
             // Careful: a projection that must create generated closure holes needs the
@@ -192,7 +251,8 @@ pub fn pair_link_options(
                 derived_mapping: review.derived_mapping,
                 construction_source: review.construction_source,
                 matched_features: matched_features(&review.correspondences),
-                correspondences: review.correspondences,
+                matched,
+                correspondences: reviewed_correspondences,
                 reviewed_fingerprint: reviewed_fingerprint(document, board_contours, &reviewed)
                     .ok(),
                 preview,
@@ -260,6 +320,7 @@ pub fn link_preview(
             edit: Box::new(edit),
         },
     };
+    // The scene carries the projected accepted contours the effective read uses.
     let (projected, scene) = match engine.handle(CoreRequest::Edit {
         id: "pair-review-link".into(),
         command,
@@ -319,15 +380,11 @@ pub fn link_preview(
                 },
             ));
         }
-        let findings = scene
+        // Core's accepted mechanical findings for this half, recomputed against the
+        // projected state; the panel does not invent or filter findings itself.
+        let findings = inputs
             .findings
             .iter()
-            .filter(|finding| {
-                finding
-                    .target_ids
-                    .iter()
-                    .any(|target| target == instance_id)
-            })
             .map(|finding| format!("{:?}: {}", finding.severity, finding.message))
             .collect();
         previews.push(MechanicalLinkMemberPreview {
@@ -825,6 +882,7 @@ mod tests {
                             vertices: vec![],
                             z: 1.0,
                             height: 2.0,
+                            next_vertex_identity: 0,
                         },
                     },
                     MechanicalFeatureState::Linked,
@@ -990,6 +1048,7 @@ mod tests {
                 kind: MechanicalFeatureKind::Mount,
                 first_feature_id: "mount-1".into(),
                 second_feature_id: "mount-1".into(),
+                source_instance_id: None,
             }],
         };
         let accepted = doc.clone();
@@ -1062,6 +1121,32 @@ mod tests {
         assert!(
             option.reviewed_fingerprint.is_some(),
             "the review carries the fingerprint of the inputs it was produced from"
+        );
+        assert_eq!(
+            option.matched.len(),
+            1,
+            "each match is reviewable on its own"
+        );
+        let matched = &option.matched[0];
+        assert_eq!(matched.first_feature_id, "mount-1");
+        assert_eq!(matched.second_feature_id, "mount-1");
+        assert_eq!(
+            matched.source_instance_id, "left",
+            "the review starts each match from the half being reviewed"
+        );
+        assert_eq!(
+            matched.first_geometry.as_deref(),
+            Some("Mount at (2.0, 3.0)")
+        );
+        assert_eq!(
+            matched.second_geometry.as_deref(),
+            Some("Mount at (-2.0, 3.0)"),
+            "the other half's current geometry is shown for the choice"
+        );
+        assert_eq!(
+            option.correspondences[0].source_instance_id.as_deref(),
+            Some("left"),
+            "the reviewed payload names a source per feature explicitly"
         );
         assert!(pair_link_options(&doc, &[], "missing").is_empty());
     }
@@ -1194,6 +1279,7 @@ mod tests {
                 kind: MechanicalFeatureKind::Mount,
                 first_feature_id: "mount-1-left".into(),
                 second_feature_id: "mount-1-right".into(),
+                source_instance_id: None,
             },
         ]
     }

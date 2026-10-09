@@ -673,6 +673,29 @@ pub fn use_mechanical_settings_mount(
             .map(|projection| Rc::<[crate::mechanical_pair::MechanicalPairFeatureRow]>::from(
                 projection.features,
             ));
+        // A paired half disables by unlinking and disabling only itself; the panel needs
+        // the counterpart to say so explicitly.
+        let pair_counterpart = current
+            .identity
+            .scope
+            .instance_id
+            .as_deref()
+            .and_then(|instance_id| {
+                crate::mechanical_pair::pair_projection(
+                    &current.accepted.document,
+                    &current.accepted.scene.board_contours,
+                    instance_id,
+                )
+            })
+            .and_then(|projection| {
+                projection
+                    .members
+                    .iter()
+                    .find(|member| {
+                        Some(member.as_str()) != current.identity.scope.instance_id.as_deref()
+                    })
+                    .cloned()
+            });
         // An unpaired half offers the candidate links it could establish; a paired
         // half uses its per-feature actions instead.
         let pair_link_options = current.identity.scope.instance_id.as_deref().map(|instance_id| {
@@ -703,6 +726,7 @@ pub fn use_mechanical_settings_mount(
             findings,
             pair_features,
             pair_link_options,
+            pair_counterpart,
             selected_layer,
             mismatch,
             editable: enabled,

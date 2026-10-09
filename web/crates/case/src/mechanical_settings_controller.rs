@@ -718,6 +718,7 @@ fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
             | MechanicalSettingsPatch::AssignSwitchProfile { .. }
             | MechanicalSettingsPatch::AssignStabilizerProfile { .. }
             | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. }
+            | MechanicalSettingsPatch::RemovePhysicalInstance
     )
 }
 
@@ -1148,6 +1149,55 @@ mod adapter_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn a_per_feature_source_choice_is_reviewed_payload_not_accepted_state() {
+        let mut document = pair_fixture_document("adapter-feature-source");
+        document.hardware.as_mut().unwrap().pairs.clear();
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let source = |instance: Option<&str>| MechanicalSettingsPatch::LinkMirrorPair {
+            pair_id: "pair-new".into(),
+            members: ["left".into(), "right".into()],
+            mapping: boardstudio_core::model::Pose2 {
+                at: boardstudio_core::model::Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![
+                boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                    kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    source_instance_id: instance.map(str::to_owned),
+                },
+            ],
+        };
+        for choice in [Some("right"), Some("left"), None] {
+            let patch = source(choice);
+            let fingerprint = crate::mechanical_pair::reviewed_fingerprint(
+                &accepted.document,
+                &accepted.scene.board_contours,
+                &patch,
+            )
+            .expect("the reviewed inputs fingerprint");
+            let port = RecordingPort::default();
+            let feedback = Rc::new(RefCell::new(Vec::new()));
+            let current = current(&accepted, Some("left"));
+            let identity = current.identity.clone();
+            let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+            assert!(controller.submit(reviewed_request(identity, 1, patch, fingerprint)));
+            loaded().await;
+            let resolutions = port.resolutions.borrow();
+            assert_eq!(resolutions.len(), 1);
+            let resolution = resolutions[0].resolve(&accepted);
+            assert!(
+                matches!(resolution, Resolution::Submit(_)),
+                "a per-feature source choice is payload, so it stays valid, got {resolution:?}"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
     async fn a_confirmed_action_uses_the_reviewed_basis_not_the_state_at_confirmation() {
         let document = pair_fixture_document("adapter-reviewed-basis");
         let runtime = support::new_runtime();
@@ -1294,6 +1344,7 @@ mod adapter_tests {
                     kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1-left".into(),
                     second_feature_id: "mount-1-right".into(),
+                    source_instance_id: None,
                 },
             ],
         };
