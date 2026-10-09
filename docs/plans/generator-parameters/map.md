@@ -57,6 +57,10 @@ and enum kinds (option C) is out of scope.
   pair and `enable` still skips a legacy second half; ticket 06 asks for that decision, and a
   known-gap test pins current behaviour. Fit findings (holes inside the controller bay, tight
   switch gaps) are in the [ticket Outcome](issues/02-restore-closure-mounts-in-recipes.md).
+- 03 implemented, awaiting verification (commit `fd7640a9a`): format version 4 converts the
+  saved numeric strings and list text in generator parameters, and the boundary transcript is
+  re-blessed. Not resolved until its verification is reviewed; see the
+  [ticket Outcome](issues/03-migrate-saved-generator-strings.md).
 
 ## Not yet specified
 

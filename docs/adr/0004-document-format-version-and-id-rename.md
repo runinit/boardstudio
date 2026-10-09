@@ -18,3 +18,11 @@ keeps the name.
 Rejected: permanent aliases for old identifiers, which would leave two names in
 every lookup, and an unversioned rewrite on each load, which gives later schema
 changes no ordering.
+
+## Follow-up
+
+Format version 4 (generator parameters ticket 03) converts the numeric and list text that
+version 2 and 3 documents saved for generator parameters, on definitions, parts and assembly
+members. The step is ordered like the others, so version 1 documents pass through it too, and
+the rewritten document is written back once. Names no generator declares and values that cannot
+be converted are kept for Core's validation to report.
