@@ -235,23 +235,14 @@ fn frame_position(doc: &Value, instance_id: &str, part: &str) -> Result<(f64, f6
 pub(super) fn link_pair(engine: &mut CoreEngine, mut doc: Value, pair: &Pair) -> Result<Value> {
     let [first, second] = pair.members;
     for half in pair.members {
+        // Enabling proposes closure mounts from the outline; they are kept as Core
+        // proposes them, so each shipped half carries its closure holes.
         doc = instance_edit(
             engine,
             doc,
             half,
             json!("enable"),
             &format!("enable-{half}"),
-        )?;
-        // Enabling proposes closure mounts from the outline, and projecting those
-        // writes a string `hole_size` that the footprint generator rejects
-        // ("parameter hole_size must be a number"). Until Core fixes that, the
-        // shipped projects leave closures to the user.
-        doc = instance_edit(
-            engine,
-            doc,
-            half,
-            json!({"set-mount-collection":{"collection":"closure","mounts":[]}}),
-            &format!("no-closures-{half}"),
         )?;
     }
     if pair.gasket {
