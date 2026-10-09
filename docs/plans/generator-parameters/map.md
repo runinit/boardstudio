@@ -32,11 +32,13 @@ and enum kinds (option C) is out of scope.
 ## Frontier
 
 1. [01](issues/01-closure-holes-via-generator-normalization.md) (resolved)
-2. [02](issues/02-restore-closure-mounts-in-recipes.md) after 01. It must land before
-   keyboard 04's reviews so they review final data.
+2. [02](issues/02-restore-closure-mounts-in-recipes.md) (resolved; Sofle v2 keeps no
+   closure mounts, a user decision)
 3. [03](issues/03-migrate-saved-generator-strings.md) after 01
 4. [04](issues/04-validate-generator-parameters-in-core.md) after 03
 5. [05](issues/05-parameter-lint-and-conventions.md) after 04
+6. [06](issues/06-paired-half-closure-proposals.md) (ready for the user; does not block
+   03 to 05)
 
 ## Progress
 
@@ -45,12 +47,16 @@ and enum kinds (option C) is out of scope.
   string code and pass now; boundary transcript re-blessed (16 lines: the 8 parameter lines
   plus `-0.0` pad `y` and rotation from the normalizer), native and WASM parity pass.
   Commit `46610e2a8`; evidence in the
-  [ticket Outcome](issues/01-closure-holes-via-generator-normalization.md). Next: 02 and 03.
-- 02 implemented, awaiting verification (commits `aadded82b`, `c0bbfdb9c` and the Outcome
-  commit): the split recipes keep Core's closure mounts. Core still refuses the export of
-  every measured split's left half, and Sofle RGB and Choc have no right-half closures; the
-  Outcome records both. The closure policy is a user decision; a follow-up Core task is suggested, not started.
-  Evidence in the [ticket Outcome](issues/02-restore-closure-mounts-in-recipes.md).
+  [ticket Outcome](issues/01-closure-holes-via-generator-normalization.md). Next: 03.
+- 02 resolved (commit `e5f253fab` and the Outcome commit): every half of the seven measured
+  splits and of Sofle RGB and Choc keeps the closure mounts Core proposes from its own outline
+  (4 per half) and all 20 halves export. A first attempt that only removed the empty-closure
+  edits made Core refuse every measured left half; the cause was recipe order (the right half's
+  proposals joined the pair after the link), so the recipe now initializes closures before
+  linking. Sofle v2 has none (gasket mount). Core still links initialization proposals to the
+  pair and `enable` still skips a legacy second half; ticket 06 asks for that decision, and a
+  known-gap test pins current behaviour. Fit findings (holes inside the controller bay, tight
+  switch gaps) are in the [ticket Outcome](issues/02-restore-closure-mounts-in-recipes.md).
 
 ## Not yet specified
 

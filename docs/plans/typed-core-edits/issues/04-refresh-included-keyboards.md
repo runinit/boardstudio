@@ -82,22 +82,29 @@ explicit map `second = (offset - first.x, first.y)`, rotation 0; one shared cons
 from the left half with Core's defaults (tray mount, 1.5 mm printed plate, 2 mm walls, 0.3 mm
 clearance, the default part processes); two Case openings, `opening-1` (controller bay, 20 x 36 mm
 around `U1`) and `opening-2` (TRRS jack around the jack part), each authored once by the left
-half; closure mounts left empty (see Findings). `revision` rises because each edit is one
-revision. No part, matrix, net, outline, definition or asset value changed, so no key position
-moved (the baseline comparison at 1e-9 passes with the same `parts` and `matrices`).
+half. Closure mounts: this commit left them empty, and generator-parameters
+[ticket 02](../../generator-parameters/issues/02-restore-closure-mounts-in-recipes.md) then
+restored them, so each half of the seven measured splits and of Sofle RGB and Choc now stores
+the four mounts Core proposes from its own outline (Sofle v2's gasket mount carries none).
+`revision` rises because each edit is one revision. No matrix, net, outline or asset value
+changed, and no existing part moved (the baseline comparison at 1e-9 passes with the same
+`matrices` and every pre-existing `parts` entry). Correction after 02: the
+`case-closure/*` parts, the `assembly-closure/*` definitions and the boards' `partIds` for them
+were added, and `hardware` carries the closure mounts; the first version of this paragraph said
+no part or definition value changed.
 
 | Keyboard | Map offset | Openings (left / right) | Revision |
 | --- | --- | --- | --- |
-| Corne | 348.125 | linked / local | 2 to 34 |
-| Lily58 | 347.8 | linked / local | 2 to 34 |
-| KLOR | 386.344 | linked / local | 2 to 34 |
-| Ferris Sweep | 284.16 | linked / local | 2 to 34 |
-| Chocofi | 296.6 | linked / local | 2 to 34 |
-| TOTEM | 329.75 | linked / local | 2 to 34 |
-| Cantor | 339.1 | linked / local | 2 to 34 |
-| Sofle (v2) | 317.0 | linked / linked | 3 to 25 |
-| Sofle RGB | 316.74 | linked / linked | 2 to 24 |
-| Sofle Choc | 316.74 | linked / linked | 2 to 24 |
+| Corne | 348.125 | linked / local | 2 to 33 |
+| Lily58 | 347.8 | linked / local | 2 to 33 |
+| KLOR | 386.344 | linked / local | 2 to 33 |
+| Ferris Sweep | 284.16 | linked / local | 2 to 33 |
+| Chocofi | 296.6 | linked / local | 2 to 33 |
+| TOTEM | 329.75 | linked / local | 2 to 33 |
+| Cantor | 339.1 | linked / local | 2 to 33 |
+| Sofle (v2) | 317.0 | linked / linked | 3 to 23 |
+| Sofle RGB | 316.74 | linked / linked | 2 to 23 |
+| Sofle Choc | 316.74 | linked / linked | 2 to 23 |
 
 Deliberate half-specific hardware, named: on the seven measured splits the recipe puts the
 controller bay, reset switch and TRRS jack at each PCB's right edge on both halves, so the right
@@ -134,9 +141,10 @@ walks the polygon the other way).
   to the opened project; the reused flipped PCB (mirrored frame, omitted opening, edit from the
   flipped copy, Undo, reopen).
 - `core/tests/demo_projects.rs`: every exported archive now also reopens in a fresh engine with its
-  pairs unchanged. Baseline re-recorded only for `revision` and `hardware` of the ten paired
-  fixtures and `mechanical` of Sofle v2; the other ten fixtures and all `parts`, `matrices`,
-  `definitions` and `assets` are untouched.
+  pairs unchanged. Baseline re-recorded for `revision` and `hardware` of the ten paired
+  fixtures and `mechanical` of Sofle v2; the other ten fixtures and all `matrices` and `assets`
+  are untouched. Ticket 02 later re-recorded `parts`, `definitions` and the boards' `partIds`
+  for the added closure holes (no existing part moved).
 - The earlier agent draft was kept in approach but corrected: it stored prose notes in
   `parameters.mechanicalPair` (dropped; the pair itself is the record), left the Sofle v2 gasket as
   a project setting on one board that the paired halves do not read (now the pair's construction),
@@ -149,7 +157,7 @@ walks the polygon the other way).
 - `python3 scripts/check.py lint`: passed (rustfmt and Clippy, warnings denied).
 - `python3 scripts/check.py build`: passed in the worktree with the sandbox lifted for wasm-pack;
   regenerated all 20 fixtures with their archives (`web/assets/fixtures`, 20 entries, Corne at
-  revision 34 with its pair).
+  revision 34 with its pair; 33 after ticket 02).
 - `python3 scripts/check.py test`: passed at `c4673db3b` in a non-nested validation worktree
   (`/tmp/claude-1000/boardstudio-tce-verify`, because `/tmp/boardstudio-tce-verify` is read-only
   from the sandbox); Core integration 474 passed (the 468 existing plus these 6), CAD 51 passed,
@@ -159,12 +167,14 @@ walks the polygon the other way).
 
 ### Findings kept open
 
-- Core defect: `core/src/mechanical/clearance.rs` `normalized_mounting_hole` writes the generated
-  closure hole's `hole_drill` and `hole_size` as text. The footprint generator rejects that
-  ("parameter hole_size must be a number"), so enabling a half and keeping its proposed closure
-  mounts failed the export step. The recipes therefore enable each half and then set an empty
-  closure collection. This means the shipped splits have no closure screws; add them once Core
-  is fixed (a task was raised for it).
+- Core defect (resolved by generator-parameters
+  [01](../../generator-parameters/issues/01-closure-holes-via-generator-normalization.md) and
+  [02](../../generator-parameters/issues/02-restore-closure-mounts-in-recipes.md)):
+  `normalized_mounting_hole` wrote the generated closure hole's `hole_drill` and `hole_size`
+  as text, which the footprint generator rejects, so this ticket's recipes first set an empty
+  closure collection after enabling each half. 01 fixed the type; 02 removed the workaround.
+  The shipped splits now carry closure screws, except Sofle v2 (gasket mount). Open fit
+  findings (closure holes inside the controller bay, tight switch gaps) are in 02's Outcome.
 - Rebuilding does not establish physical fit or electrical qualification. The regenerated Sofle v2
   gasket and every new bay opening need a fit review; the bay sizes (20 x 36 mm, jack 12 x 14 or
   14 x 12) are recipe values, not measurements.
