@@ -520,3 +520,207 @@ fn a_recreated_opening_must_not_receive_a_queued_edit_to_the_removed_one() {
         "a queued edit to a removed vertex must retire, got {queued:?}"
     );
 }
+
+/// A split document with one explicit pair and one legacy instance.
+///
+/// The pair's mount is local on the left half and linked with an authored opening, so a
+/// save/reopen round trip has identity, a linked state and a local exception to preserve.
+/// The third instance keeps the legacy shared-construction overlay that migration marks
+/// on existing projects.
+fn paired_document() -> ProjectDoc {
+    let mut document = document();
+    document.hardware = Some(
+        serde_json::from_value(json!({
+            "topology": "split", "transport": "none",
+            "instances": [
+                {
+                    "id": "left", "name": "Left", "boardId": "board", "half": "left",
+                    "role": "central", "flipped": false,
+                    "mechanical": {
+                        "boardId": "board", "method": "printed", "mount": "tray",
+                        "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                        "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                        "mounts": [{
+                            "id": "mount-left", "at": { "x": 2.0, "y": 3.0 },
+                            "kind": "hole", "holeDiameter": 2.2
+                        }],
+                        "closureMounts": [], "openings": [], "profiles": []
+                    },
+                    "constructionOwnership": "pair"
+                },
+                {
+                    "id": "right", "name": "Right", "boardId": "board", "half": "right",
+                    "role": "peripheral", "flipped": true,
+                    "mechanical": {
+                        "boardId": "board", "method": "printed", "mount": "tray",
+                        "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                        "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                        "mounts": [], "closureMounts": [], "openings": [], "profiles": []
+                    },
+                    "constructionOwnership": "pair"
+                },
+                {
+                    "id": "third", "name": "Third", "boardId": "board", "half": "third",
+                    "role": "peripheral", "flipped": false,
+                    "constructionOwnership": "legacy"
+                }
+            ],
+            "boards": [],
+            "sharedConstruction": {
+                "boardId": "board", "method": "printed", "mount": "tray",
+                "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                "mounts": [], "closureMounts": [], "openings": [], "profiles": []
+            },
+            "pairs": [{
+                "id": "pair-left-right",
+                "members": ["left", "right"],
+                "mapping": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+                "construction": {
+                    "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "bottomStyle": "shell", "middleFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0.5,
+                    "bottomFoamThickness": 2.0, "bottomThickness": 3.0,
+                    "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3
+                },
+                "features": [{
+                    "id": "mount-left",
+                    "kind": "mount",
+                    "author": "left",
+                    "value": {
+                        "kind": "mount",
+                        "mount": {
+                            "id": "mount-left", "at": { "x": 2.0, "y": 3.0 },
+                            "kind": "hole", "holeDiameter": 2.2
+                        }
+                    },
+                    "members": [
+                        { "instanceId": "left", "featureId": "mount-left", "state": "local" },
+                        { "instanceId": "right", "featureId": "mount-right", "state": "linked" }
+                    ]
+                }]
+            }]
+        }))
+        .expect("the paired fixture parses"),
+    );
+    document
+}
+
+fn open_document(document: ProjectDoc) -> Rc<Runtime> {
+    let runtime = Runtime::new();
+    runtime.submit(Event::Open {
+        operation_id: runtime.operation(),
+        document,
+    });
+    runtime
+}
+
+#[test]
+fn a_pairs_identity_states_and_geometry_survive_save_and_reopen() {
+    let runtime = open_document(paired_document());
+    let saved = runtime
+        .saved_document("mechanical-session")
+        .expect("an accepted edit is saved to the in-memory store");
+
+    // Reopening the saved project is the real reopen path: a fresh engine over the
+    // persisted document, not a serde round trip of a struct.
+    let reopened = open_document(saved);
+    let before = runtime.model().accepted.expect("accepted").document;
+    let after = reopened.model().accepted.expect("accepted").document;
+
+    let pair = |document: &ProjectDoc| document.hardware.as_ref().unwrap().pairs[0].clone();
+    assert_eq!(
+        pair(&after),
+        pair(&before),
+        "pair identity, mapping, construction and linked features round-trip"
+    );
+    assert_eq!(
+        after.hardware.as_ref().unwrap().instances,
+        before.hardware.as_ref().unwrap().instances,
+        "member identities, configuration and construction ownership round-trip"
+    );
+
+    // The linked feature still derives the same visible geometry on both halves, and
+    // the half-local exception is still local.
+    let geometry = |runtime: &Runtime, instance_id: &str| {
+        let accepted = runtime.model().accepted.expect("accepted");
+        boardstudio_core::mechanical::effective_inputs(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.into(),
+            },
+        )
+        .expect("the member resolves")
+        .configuration
+    };
+    assert_eq!(geometry(&reopened, "left"), geometry(&runtime, "left"));
+    assert_eq!(geometry(&reopened, "right"), geometry(&runtime, "right"));
+    assert_eq!(
+        pair(&after).features[0].members[0].state,
+        boardstudio_core::model::MechanicalFeatureState::Local,
+        "the local exception survives the round trip"
+    );
+}
+
+#[test]
+fn reopening_a_project_without_pairs_infers_no_links_and_keeps_legacy_settings() {
+    // An existing project: one instance with the legacy shared-construction overlay and
+    // no pair. Opening it must not invent a mechanical relationship.
+    let mut document = paired_document();
+    {
+        let hardware = document.hardware.as_mut().unwrap();
+        hardware.pairs.clear();
+        hardware.instances.truncate(2);
+        for instance in &mut hardware.instances {
+            instance.construction_ownership =
+                boardstudio_core::model::MechanicalConstructionOwnership::Legacy;
+            instance.mechanical = None;
+        }
+    }
+    let legacy = {
+        let hardware = document.hardware.as_ref().unwrap();
+        boardstudio_core::mechanical::effective_inputs(
+            &document,
+            &[],
+            &MechanicalTarget::Instance {
+                instance_id: hardware.instances[1].id.clone(),
+            },
+        )
+        .expect("the legacy member resolves its shared construction")
+        .configuration
+    };
+
+    let runtime = open_document(document);
+    let accepted = runtime.model().accepted.expect("accepted");
+    assert!(
+        accepted
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .pairs
+            .is_empty(),
+        "opening an existing project infers no mechanical links"
+    );
+    let reopened_legacy = boardstudio_core::mechanical::effective_inputs(
+        &accepted.document,
+        &accepted.scene.board_contours,
+        &MechanicalTarget::Instance {
+            instance_id: "right".into(),
+        },
+    )
+    .expect("the legacy member still resolves")
+    .configuration;
+    assert_eq!(
+        reopened_legacy.wall_thickness, legacy.wall_thickness,
+        "the legacy effective settings are unchanged by opening the project"
+    );
+    assert_eq!(
+        reopened_legacy.plate_thickness, legacy.plate_thickness,
+        "the legacy shared construction still overlays the same values"
+    );
+}
