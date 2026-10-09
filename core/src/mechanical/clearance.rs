@@ -86,7 +86,16 @@ pub fn project_owned_closure_clearance(
     if let Some(hardware) = document.hardware.as_ref() {
         for instance in &hardware.instances {
             if let Some(configuration) = instance.mechanical.as_ref() {
-                add_configuration(configuration, instance.flipped);
+                // A linked closure mount is owned by its pair rather than stored on
+                // the half, so the generated holes are derived from the half's
+                // visible geometry, not only its ordinary configuration.
+                let configuration = super::inputs::project_linked_features(
+                    hardware,
+                    instance,
+                    configuration.clone(),
+                )
+                .unwrap_or_else(|_| configuration.clone());
+                add_configuration(&configuration, instance.flipped);
             }
         }
     }

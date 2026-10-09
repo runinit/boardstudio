@@ -467,8 +467,11 @@ fn feature_correspondences(
     first_instance_id: &str,
     second_instance_id: &str,
 ) -> Option<Vec<MechanicalFeatureCorrespondence>> {
+    // The reviewed correspondences compare each half's effective configuration, so
+    // the accepted contour projection is not read here.
     let first = effective_inputs(
         document,
+        &[],
         &MechanicalTarget::Instance {
             instance_id: first_instance_id.into(),
         },
@@ -476,6 +479,7 @@ fn feature_correspondences(
     .ok()?;
     let second = effective_inputs(
         document,
+        &[],
         &MechanicalTarget::Instance {
             instance_id: second_instance_id.into(),
         },

@@ -1686,17 +1686,31 @@ fn an_instance_target_persists_to_that_instance() {
 fn vanished_or_ineligible_targets_error() {
     let mut doc = ProjectDoc::empty("doc", "Fixture");
     doc.boards.push(board("board", vec![]));
-    assert!(
-        apply_change(
-            &mut doc,
-            MechanicalChange::SetDimension {
-                field: MechanicalDimension::WallThickness,
-                value: 3.0,
+    // An eligible board with no stored configuration resolves the Core-owned
+    // defaults, so a settings edit applies to them instead of erroring. The adapter
+    // no longer needs its own `initial_settings` builder.
+    let changed = apply_change(
+        &mut doc,
+        MechanicalChange::SetDimension {
+            field: MechanicalDimension::WallThickness,
+            value: 3.0,
+        },
+    )
+    .unwrap();
+    assert_eq!(changed, vec!["board"]);
+    assert_eq!(stored(&doc).wall_thickness, 3.0);
+    // A board that is not in the document stays ineligible.
+    let missing = apply(
+        &mut doc,
+        &MechanicalEdit {
+            target: MechanicalTarget::Board {
+                board_id: "ghost".into(),
             },
-        )
-        .is_err(),
-        "no stored configuration and no enable"
+            change: MechanicalChange::Enable,
+            mounting_hole: None,
+        },
     );
+    assert!(missing.is_err(), "{missing:?}");
     assert!(
         apply_instance(&mut doc, MechanicalChange::Enable).is_err(),
         "an unknown instance is unavailable"
