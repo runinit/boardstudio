@@ -46,22 +46,35 @@ build or cleanup commands.
 
 ## Checks
 
+Two commands, by purpose:
+
 ```sh
-python3 scripts/check.py
+python3 scripts/check.py quick   # the routine loop: only what your changes touch
+python3 scripts/check.py         # the full pre-PR check
 ```
 
-This runs documentation link checks, build and content tool tests, rustfmt and Clippy, native
-Rust and provider tests, WASM page compilation, release packaging, native/WASM
-boundary checks and mounted headless browser tests. Name steps (`python3 scripts/check.py --list`) to run
-only the affected checks during development. The browser runner checks
-that every listed test actually executes, grouped into broad batches to avoid repeated
-WASM/browser startup costs. Each presentation crate under `web/crates/` runs its own browser
-tests (`wasm-pack test --headless --chrome web/crates/<crate> --lib`); the Case workspace,
-panel and setup guide tests run separately because their mounted fixtures need an isolated
-DOM. Each batch has a bounded two-minute timeout, overridable with
-`WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile
-WASM-only presentation code. Browser setup installs the locked wasm-bindgen runner
-before executing tests.
+**Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
+them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
+the native tests of the changed crates and everything that depends on them, and the browser tests
+of the affected presentation crates (page tests by file). It never runs `build`. A shared input
+(`Cargo.toml`, `Cargo.lock`, `.cargo/`) or a path it cannot place falls back to every Rust check and
+says so. Documentation-only changes run only the documentation checks.
+
+**Full check.** The default runs documentation link checks, build and content tool tests, rustfmt and
+Clippy, native Rust and provider tests, a checked web build, native/WASM boundary checks and mounted
+headless browser tests. Name steps (`python3 scripts/check.py --list`) to run only some. Each command
+and step prints its wall time. The checked `build` skips `wasm-opt` and the optimized page build; the
+opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
+
+**Browser tests.** The runner checks that every listed test actually executes. Each presentation crate
+under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
+which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
+separately because their mounted fixtures need an isolated DOM. The check runs up to four crate launches
+at once (`BOARDSTUDIO_CHECK_BROWSER_JOBS`, `1` for serial) and builds test wasm without debug info
+(`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
+without the variable, for source-level debugging). Each batch has a bounded two-minute timeout,
+overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
+presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
 
 ## Source layout
 

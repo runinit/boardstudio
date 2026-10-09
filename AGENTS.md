@@ -2,7 +2,7 @@
 
 - Architecture (ownership across Rust and browser providers): [docs/architecture.md](docs/architecture.md). Domain terms: [CONTEXT.md](CONTEXT.md). Directory map: Source layout in [README.md](README.md).
 - Development and check commands: [README.md](README.md). Browser presentation compiles only for WASM; native tests alone do not validate it.
-- Before finishing, run the affected steps of `python3 scripts/check.py` (`--list` shows them: `repo`, `tooling`, `lint`, `build`, `test`, `typecheck`, `browser`; `deny` after dependency changes). Presentation changes need `typecheck` and `browser`. Run the full check before a PR.
+- Before finishing, run `python3 scripts/check.py quick` (checks only what your changes touch; never `build`). `--list` shows every step: `repo`, `tooling`, `lint`, `build`, `test`, `typecheck`, `browser`, and the opt-in `release`; `deny` after dependency changes. Presentation changes need `typecheck` and `browser`, which `quick` includes. Run the full check (`python3 scripts/check.py`) before a PR, and `release` before shipping.
 - Components, footprints, modules, models: read [component onboarding](docs/hardware/component-onboarding.md) before changing.
 - UI or visual work: read [DESIGN.md](DESIGN.md) (large; only for UI). Product scope and users: [PRODUCT.md](PRODUCT.md). Other docs: [docs/README.md](docs/README.md); deferred issues: [docs/backlog.md](docs/backlog.md).
 - Preserve unrelated work and user project data. Keep fixes and their verification within the affected behavior.

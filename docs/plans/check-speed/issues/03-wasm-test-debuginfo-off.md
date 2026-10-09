@@ -1,6 +1,6 @@
 # 03: Turn debug info off for wasm test runs
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 02
 Map: [map.md](../map.md)
@@ -28,6 +28,17 @@ directory: about 86% of each test wasm was debug info, and a launch fell from 17
 Executed counts equal the [02](02-timing-and-count-baseline.md) baseline; the browser step time
 before and after is recorded; `python3 scripts/check.py repo tooling typecheck browser` passes.
 
+
 ## Outcome
 
-Commits, before/after times, counts, and the panic-location check.
+Resolved 2026-10-09 (commit `12f37299b`). `check.py` sets `CARGO_PROFILE_DEV_DEBUG=false` for the
+`browser` step and `run-wasm-tests.py` sets it for its runs, each only when the caller has not
+set it. A by-hand `wasm-pack test` and dev-web keep debug info; the other steps are unchanged
+(pinned by `test_browser_checks_build_test_wasm_without_debug_info_unless_overridden`).
+
+Measured per launch with warm caches: catalogue 17.3 s to 6.2 s, keycaps 25.1 s to 10.9 s,
+layout 49.0 s to 23.6 s; test wasm 198 / 309 / 560 MB down to 35 / 47 / 72 MB. Panic locations
+come from the compiled-in `Location`, not DWARF, so failing tests still report file and line.
+Executed counts equal the baseline. The profile differs from dev-web's, so the target directory
+holds both sets of dependency artifacts (extra disk, no invalidation of dev-web's cache).
+

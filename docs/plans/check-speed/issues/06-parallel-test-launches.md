@@ -1,6 +1,6 @@
 # 06: Run browser test launches in parallel
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 03
 Map: [map.md](../map.md)
@@ -29,6 +29,18 @@ against roughly 70 s serial with debug info, and 24.5 s without it; each launch 
 Three repeated full `browser` runs with identical executed counts and no timeout or flake,
 recorded with their times. Compare to the serial time from [03](03-wasm-test-debuginfo-off.md).
 
+
 ## Outcome
 
-Commits, three run times, counts, peak memory, and any crate that must stay serial and why.
+Resolved 2026-10-09 (commit `12f37299b`). Consecutive crate launches in `browser` run in a pool of
+`BOARDSTUDIO_CHECK_BROWSER_JOBS` (default 4, `1` is serial); heavy crates (layout, case, pcb,
+parts) start first; each launch's output prints whole with its time; a failure names the launch
+and stops the step. The page-bin commands and the isolated batches stay serial after the pool.
+Pinned by `test_crate_launches_run_together_and_a_failure_names_the_launch` and
+`test_the_browser_job_cap_defaults_to_four_and_one_means_serial`.
+
+Three full `browser` runs (debug info off, 4 parallel): 337.0 s cold in a fresh worktree, then 157.6 s
+and 189.3 s warm, against 598.0 s serial with debug info. Executed counts equal the baseline in
+all three (crate suites 8/29/5/26+1/30/16/40/12/81/65/49/146+1, 60 page tests); no timeout or
+flake. Every crate was safe to run concurrently. Warm run-to-run variance is about 30 s.
+

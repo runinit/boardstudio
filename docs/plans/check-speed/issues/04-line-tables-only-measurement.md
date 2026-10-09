@@ -21,3 +21,5 @@ function and line. Do not change repo config.
 
 Record the numbers and a recommendation: keep ticket 03's setting, or switch to
 `line-tables-only`. If switching, say which scripts change; a follow-up build ticket makes it.
+
+Optional follow-up, not needed for the destination: [03](03-wasm-test-debuginfo-off.md) already meets the browser target with debug info off.

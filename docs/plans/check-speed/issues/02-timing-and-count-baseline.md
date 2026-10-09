@@ -1,6 +1,6 @@
 # 02: Timing and test-count baseline
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 01
 Map: [map.md](../map.md)
@@ -35,6 +35,24 @@ browser checks; native core 271 + 463, CAD 51 passed / 4 ignored.
 `python3 scripts/check.py repo tooling` passes, the timing summary prints, and one full baseline
 run is recorded. The `build` and `browser` steps need the sandbox lifted.
 
+
 ## Outcome
 
-Record commits, the baseline table with counts, and anything the timing exposed.
+Resolved 2026-10-09 (commit `825b46d71`). `check.py` prints each command's wall time and a
+per-step summary; `test-check.py` pins the summary format.
+
+Baseline of the old check (same machine, warm caches, 12 jobs, no `touch`):
+
+| Step | Time |
+| --- | --- |
+| `repo` | 0.1 s |
+| `tooling` | 3.3 s |
+| `lint` | 4.3 s |
+| `build` | 192.0 s |
+| `test` (verify worktree) | 91.9 s |
+| `browser` | 598.0 s |
+| **Total** | **889.7 s (14.8 min)** |
+
+Executed counts: browser crate suites 8/29/5/26+1/30/16/40/12/81/65/49/146+1, 60 page tests,
+15 CAD browser checks; native core 271 + 463; CAD 51 passed / 4 ignored.
+

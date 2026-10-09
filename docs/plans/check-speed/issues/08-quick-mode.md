@@ -1,6 +1,6 @@
 # 08: `check.py quick`, the routine loop
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 03
 Map: [map.md](../map.md)
@@ -32,6 +32,19 @@ Three representative edits (a `core` change, a `web/crates/layout` change, a doc
 each run `quick` within the target and run the tests that cover them; the executed browser tests
 for the layout edit are a superset of the layout module's tests.
 
+
 ## Outcome
 
-Commits, the mapping table, the three timings, and fallbacks that fired.
+Resolved 2026-10-09 (commit `12f37299b`). `check.py quick [--files F...]` selects checks from the
+changed files (git diff against the merge base with `main`, plus untracked files) through
+`scripts/check_quick.py`: docs-only changes run `repo`; scripts add `tooling`; a path under a
+workspace crate selects that crate plus its dependents (from `cargo metadata`) for `lint`,
+`typecheck`, native `test -p ...` and the matching browser launches; `web/src` and `web/tests`
+add the page runner by file; `cad/` adds the CAD native test; `Cargo.toml`, `Cargo.lock`, `.cargo/`
+or an unplaceable path fall back to every Rust check and are named. Data such as `web/assets/`
+prints a note that `build` covers it. Never runs `build`. Pinned by `scripts/test-check-quick.py`.
+
+Timings (warm): docs-only 0.1 s; a layout edit (`web/crates/layout/src/outline/hook.rs`) 85.7 s;
+a core edit (`core/src/outline_edit.rs`) 213.8 s (native test 106.8 s, browser 103.4 s), 34 s
+over the 3-minute target because nearly every crate depends on core. No fallback fired in these.
+

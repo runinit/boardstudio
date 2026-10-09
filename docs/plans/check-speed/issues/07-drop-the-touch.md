@@ -1,6 +1,6 @@
 # 07: Test dropping `touch core/src/lib.rs`
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: 02
 Map: [map.md](../map.md)
@@ -25,3 +25,16 @@ Record whether results and executed counts match, how much time the touch costs 
 decision. If identical, remove the touch from the live docs (the README, AGENTS.md and any
 current handoff; superseded plans stay as history) and note the cause as undocumented. If not,
 keep it and document the cause.
+
+## Answer
+
+2026-10-09: the `touch` is not needed. Every run in this effort (baseline, new full check, quick
+and browser reruns) omitted it, and results and executed counts matched the earlier runs that used it,
+including `boundary_parity` inside the 463 core integration tests. Cargo behavior without it:
+`cargo build -p boardstudio_core` with no change did not recompile core; appending a line to
+`core/src/lib.rs` recompiled it; reverting recompiled it again. The old handoff's "shared target
+leak" had no recorded mechanism and this evidence found none. The `touch` appears only in the
+superseded outline-phase handoff and past plan records, which stay as history; README and
+AGENTS.md never carried it. Cost avoided: core and everything downstream rebuilding in each
+configuration on every run (about a minute per configuration).
+

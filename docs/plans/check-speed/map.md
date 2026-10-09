@@ -34,7 +34,7 @@ out with a recorded reason), without running fewer tests.
 
 ## Decisions so far
 
-- [01: Destination, scope and the eight settled choices](issues/01-destination-and-scope.md):
+- [Destination, scope and the eight settled choices](issues/01-destination-and-scope.md):
   targets of 3 and 6 minutes; debug info off for test runs only; fast `build` plus an opt-in
   `release` step; a `quick` routine loop; up to 4 parallel launches; test dropping `touch`; four
   options out of scope; coverage parity required.
@@ -43,17 +43,30 @@ out with a recorded reason), without running fewer tests.
 
 <!-- one line per resolved build ticket -->
 
+- Timing baseline and per-step output: [Timing and test-count baseline](issues/02-timing-and-count-baseline.md#outcome)
+  (old check 889.7 s).
+- [Debug info off for wasm test runs](issues/03-wasm-test-debuginfo-off.md#outcome): test wasm 198-560 MB
+  down to 35-72 MB; launches 2-3x faster.
+- [Fast build and opt-in release step](issues/05-fast-build-and-release-steps.md#outcome): warm `build`
+  192 s to 52.5 s.
+- [Parallel test launches](issues/06-parallel-test-launches.md#outcome): `browser` 598 s to 157.6-189.3 s.
+- [`check.py quick`](issues/08-quick-mode.md#outcome): docs 0.1 s, layout edit 85.7 s, core edit 213.8 s.
+- [Docs, final timing and closing the map](issues/09-docs-final-timing-and-close.md#outcome): full check
+  14.8 min to about 5.2-5.7 min.
+
+- [Test whether dropping `touch core/src/lib.rs` is safe](issues/07-drop-the-touch.md): it is not needed;
+  cargo rebuilds on a real edit and results match without it.
+
 ## Ready for implementation
 
-- [02: Timing and test-count baseline](issues/02-timing-and-count-baseline.md) is the frontier.
+- Nothing is required. [Optional: measure `line-tables-only`](issues/04-line-tables-only-measurement.md)
+  is the only open ticket. The map's destination is reached; the next lever is the 96 s native `test` step
+  and core-edit `quick` runs.
 
 ## Not yet specified
 
-- **Overlapping the release `wasm-pack` builds.** Only worth doing if the opt-in `release` step
-  stays slow after [05](issues/05-fast-build-and-release-steps.md). Revisit with 05's timings.
-- **Native test selection for workspace-wide edits** (`Cargo.lock`, `.cargo/config.toml`, shared
-  `core` types) in the routine loop. [08](issues/08-quick-mode.md) decides the mapping; the edge
-  cases it cannot place come back here.
+- **Narrowing native tests for a core edit** in the routine loop (213.8 s today): the dependents of
+  `core` are nearly the whole workspace, so a finer map would need module-level test selection.
 
 ## Out of scope
 

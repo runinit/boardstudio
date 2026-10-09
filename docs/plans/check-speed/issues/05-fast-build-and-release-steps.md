@@ -1,6 +1,6 @@
 # 05: Fast `build` step and an opt-in `release` step
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 02
 Map: [map.md](../map.md)
@@ -29,7 +29,19 @@ The full check's `build` step stops paying for optimization it does not need, wh
 `check.py build` and `check.py release` both pass; the fast `build` time before and after is
 recorded; the executed counts of the following `browser` step match the baseline.
 
+
 ## Outcome
 
-Commits, timings for both steps, what the fast build no longer proves, and what `release` still
-proves.
+Resolved 2026-10-09 (commit `12f37299b`). `check.py build` runs `build-web.py --fast`: the four
+`wasm-pack build` commands gain `--no-opt` and `dx build` runs without `--release`. New opt-in
+`check.py release` runs `build-web.py` unchanged (optimized workers, `dx build --release`); it is
+in `--list` but not in the default check. Pinned by `test_build_is_fast_and_release_is_opt_in` and
+`test_fast_provider_commands_skip_wasm_opt_and_the_shipped_ones_keep_it`.
+
+Warm `build`: 192.0 s to 52.5 s. The first build in a fresh worktree took 191.5 s because it
+compiled everything cold; the saving there is the skipped `wasm-opt` (core worker 62 s total, CAD
+worker 3.4 s). The following `browser` step ran on the fast build with counts equal to the baseline.
+What the fast build no longer proves: that `wasm-opt` accepts the workers and that the optimized
+page builds. `release` still proves both. The `release` step itself was not run in this effort; its
+commands are the unchanged previous `build`.
+
