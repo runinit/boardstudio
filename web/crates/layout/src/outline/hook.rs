@@ -1,16 +1,17 @@
 //! Runtime and Dioxus adapter for outline lifecycle actions.
 
+use super::adapter;
 use super::planner::{EditablePerimeter, PerimeterAnchor, connection_point_world};
-use super::planner::{OutlineAction, OutlinePointTarget, Skip, plan_action};
+use super::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{
     OutlineEdit, generated_feature, generated_margin, generated_settings,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
+    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
 use boardstudio_core::model::{
-    Contour, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
+    Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
@@ -284,10 +285,80 @@ impl OutlineActionContext {
     }
 }
 
+/// How one outline version came to exist.
+///
+/// Core owns the persisted ownership; the presentation only names it, and a version
+/// written before ownership existed is `Edited` (a fixed copy), never presented as linked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutlineVersionOwnership {
+    /// The permanent Generated outline: the select's empty version id.
+    Generated,
+    /// A linked refinement that follows the board's current components.
+    Linked,
+    /// An edited outline: an authored, fixed copy.
+    Edited,
+}
+
+impl OutlineVersionOwnership {
+    /// The short ownership label the Inspector shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Generated => "Generated",
+            Self::Linked => "Linked refinement",
+            Self::Edited => "Edited outline",
+        }
+    }
+}
+
+/// One selectable outline: its Core-owned ownership plus the accepted scene's located
+/// problem for it, if any.
+///
+/// The problem is looked up by Core's finding-id contract
+/// (`board:{board}:outline:linked:{version}`) and the board's readiness; message text is
+/// displayed exactly as Core wrote it and is never parsed for status.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutlineVersionChoice {
     pub id: String,
     pub name: String,
+    pub ownership: OutlineVersionOwnership,
+    /// The located finding id when this refinement cannot resolve.
+    pub problem_finding_id: Option<String>,
+    /// That finding's own message.
+    pub problem_message: Option<String>,
+    /// A marker exists for the finding, so the user can select and navigate to it.
+    pub problem_selectable: bool,
+    /// Exports the accepted scene currently blocks for this board.
+    pub blocked_exports: Vec<String>,
+}
+
+impl OutlineVersionChoice {
+    /// `Generated`, `Linked refinement · name` or `Edited outline · name`.
+    pub fn label(&self) -> String {
+        format!("{} \u{b7} {}", self.ownership.label(), self.name)
+    }
+}
+
+/// The board's currently blocked export labels, from the accepted scene's readiness.
+fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<String> {
+    let Some(readiness) = snapshot
+        .scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == board_id)
+    else {
+        return Vec::new();
+    };
+    let mut labels = Vec::new();
+    if !readiness.outline {
+        labels.push("Outline".to_owned());
+    }
+    if !readiness.pcb {
+        labels.push("PCB".to_owned());
+    }
+    if !readiness.case_ready {
+        labels.push("Case".to_owned());
+    }
+    labels
 }
 
 impl OutlineAction {
@@ -638,14 +709,42 @@ fn project_inspector(
         .boards
         .iter()
         .find(|board| board.id == board_id)?;
-    let versions = outline
-        .into_iter()
-        .flat_map(|state| state.versions.iter())
-        .map(|version| OutlineVersionChoice {
-            id: version.id.clone(),
-            name: version.name.clone(),
-        })
-        .collect();
+    // The board's currently blocked exports, read from the accepted scene's readiness.
+    let blocked_exports = blocked_export_labels(snapshot, &board_id);
+    let versions =
+        outline
+            .into_iter()
+            .flat_map(|state| state.versions.iter())
+            .map(|version| {
+                let finding_id = format!("board:{board_id}:outline:linked:{}", version.id);
+                let problem = snapshot
+                    .scene
+                    .findings
+                    .iter()
+                    .find(|finding| finding.id == finding_id);
+                OutlineVersionChoice {
+                    id: version.id.clone(),
+                    name: version.name.clone(),
+                    // A version written before ownership existed is Fixed, so it reads as an
+                    // edited outline rather than being silently presented as linked.
+                    ownership: if version.ownership.is_fixed() {
+                        OutlineVersionOwnership::Edited
+                    } else {
+                        OutlineVersionOwnership::Linked
+                    },
+                    problem_finding_id: problem.map(|_| finding_id.clone()),
+                    problem_message: problem.map(|finding| finding.message.clone()),
+                    problem_selectable: snapshot.scene.finding_markers.iter().any(|marker| {
+                        marker.finding_id == finding_id && marker.board_id == board_id
+                    }),
+                    blocked_exports: if problem.is_some() {
+                        blocked_exports.clone()
+                    } else {
+                        Vec::new()
+                    },
+                }
+            })
+            .collect();
     let generated = generated_feature(&snapshot.document, board);
     let settings = outline
         .and_then(|state| {
@@ -970,6 +1069,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     let mut feedback = state.feedback;
     let one_shot_pending = state.one_shot_pending;
     let version_name_draft = state.version_name_draft;
+    let mut version_name_failure = state.version_name_failure;
     let mut selected_context = selected_context;
     let workspace = state.workspace;
     let scope_generation = state.scope_generation;
@@ -1068,13 +1168,38 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     }
     let seed = runtime.operation().0;
     // Admission at dispatch: an action the panel's snapshot cannot support is ignored early,
-    // exactly as before. The resolver plans again against whatever is accepted at execution.
-    if plan_action(snapshot, &action, seed).is_err() {
+    // exactly as before. The typed edit is captured here with the shape the user reviewed,
+    // and the resolver re-evaluates it against whatever is accepted at execution.
+    let pending_key = action_pending_key(&action);
+    let is_version_name = matches!(&pending_key, OutlinePendingKey::VersionName);
+    let Some(edit) = adapter::outline_edit(snapshot, &action, seed) else {
+        return;
+    };
+    let admission = adapter::admission(snapshot, &edit);
+    if admission == adapter::Admission::Ignore {
         return;
     }
-    let pending_key = action_pending_key(&action);
+    if admission == adapter::Admission::Malformed {
+        // Core owns the message; surface it rather than queueing a ticket that can only
+        // fail. A malformed edit leaves the accepted document untouched.
+        let message =
+            match boardstudio_core::outline_edit::evaluate(snapshot.document.as_ref(), &edit) {
+                Err(message) => message,
+                Ok(_) => unreachable!("a malformed admission evaluates to an error"),
+            };
+        if is_version_name {
+            version_name_failure.set(Some(message));
+        } else {
+            feedback.set(Some(OutlineFeedback {
+                scope: action_scope.clone(),
+                generation: captured_generation,
+                board_id: board_id.clone(),
+                message: Some(message),
+            }));
+        }
+        return;
+    }
     let one_shot = matches!(&pending_key, OutlinePendingKey::OneShot);
-    let is_version_name = matches!(&pending_key, OutlinePendingKey::VersionName);
     if one_shot && one_shot_pending() {
         return;
     }
@@ -1092,14 +1217,13 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         ..
     } = &action
     {
-        let Ok((operation, target_ids)) = plan_action(snapshot, &action, seed) else {
-            return;
-        };
         runtime.submit(Event::PreviewEdit {
             operation_id: runtime.operation(),
             transaction_id: transaction_id.clone(),
-            target_ids,
-            operation,
+            target_ids: adapter::target_ids(&action),
+            operation: EditOperation::ApplyOutlineEdit {
+                edit: Box::new(edit),
+            },
         });
         return;
     }
@@ -1107,7 +1231,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         OutlineAction::EditPerimeter { transaction_id, .. } => transaction_id.clone(),
         _ => String::new(),
     };
-    let resolver = action_resolver(action.clone(), seed, transaction_id);
+    let resolver = action_resolver(edit, action.clone(), transaction_id);
     feedback.set(None);
     pending_owner.set(outline_owner(
         runtime,
@@ -1185,6 +1309,7 @@ fn action_pending_key(action: &OutlineAction) -> OutlinePendingKey {
         }
         OutlineAction::Activate { .. }
         | OutlineAction::Copy { .. }
+        | OutlineAction::Freeze { .. }
         | OutlineAction::Delete { .. }
         | OutlineAction::AddFeature { .. }
         | OutlineAction::AddConnection { .. }
@@ -1275,24 +1400,15 @@ fn connection_edit_field(
     OutlineFeatureField::Whole
 }
 
-/// Resolve one outline action against the accepted document at execution time.
+/// Resolve one captured typed outline edit against the accepted document at execution.
 pub(super) fn action_resolver(
+    edit: boardstudio_core::outline_edit::OutlineEdit,
     action: OutlineAction,
-    seed: u64,
     transaction_id: String,
 ) -> EditResolver {
-    EditResolver::new(
-        "layout-outline",
-        move |accepted: &AcceptedSnapshot| match plan_action(accepted, &action, seed) {
-            Ok((operation, target_ids)) => Resolution::submit_with_transaction_id(
-                target_ids,
-                transaction_id.clone(),
-                operation,
-            ),
-            Err(Skip::Unchanged) => Resolution::Unchanged,
-            Err(Skip::Retire(reason)) => Resolution::Retire(reason),
-        },
-    )
+    EditResolver::new("layout-outline", move |accepted: &AcceptedSnapshot| {
+        adapter::settle(accepted, &edit, &action, transaction_id.clone())
+    })
 }
 impl OutlineInspectorProjection {
     pub(super) fn copy_action(&self) -> OutlineAction {
@@ -1316,6 +1432,23 @@ impl OutlineInspectorProjection {
                 board_id: self.board_id.clone(),
                 version_id: version_id.clone(),
             })
+    }
+
+    /// Freeze the selected version into a separate fixed edited copy, retaining it.
+    pub(super) fn freeze_action(&self) -> Option<OutlineAction> {
+        let linked = self.active_version_id.as_ref().is_some_and(|version_id| {
+            self.versions.iter().any(|choice| {
+                &choice.id == version_id && choice.ownership == OutlineVersionOwnership::Linked
+            })
+        });
+        linked.then(|| OutlineAction::Freeze {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            version_id: self.active_version_id.clone().unwrap_or_default(),
+        })
     }
 }
 
