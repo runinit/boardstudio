@@ -14,7 +14,7 @@ use boardstudio_core::mechanical::inputs::effective_inputs;
 use boardstudio_core::model::{
     BoardContours, MechanicalConfiguration, MechanicalFeature, MechanicalFeatureKind,
     MechanicalFeatureMember, MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair,
-    Pose2, ProjectDoc,
+    Pose2, ProjectDoc, Vec2,
 };
 
 /// One linked feature of the selected half's pair, as the accepted document stores it.
@@ -34,6 +34,11 @@ pub struct MechanicalPairFeatureRow {
     /// The geometry a rejoin would take from the counterpart, described for review.
     /// `None` when the counterpart owns no linked value to take.
     pub preview: Option<String>,
+    /// The fingerprint of the accepted inputs this row's review was produced from. The
+    /// rejoin submission carries it, so a relevant change between the displayed review
+    /// and its execution retires the action instead of applying newer state.
+    /// `None` when the reviewed inputs cannot be fingerprinted, which also disables it.
+    pub rejoin_fingerprint: Option<String>,
 }
 
 /// The selected half's pair, with one row per linked feature.
@@ -73,6 +78,16 @@ pub fn pair_projection(
                 counterpart_instance_id: counterpart.clone(),
                 counterpart_feature_id: counterpart_member.feature_id.clone(),
                 preview: rejoin_preview(document, board_contours, pair, feature, counterpart),
+                rejoin_fingerprint: reviewed_fingerprint(
+                    document,
+                    board_contours,
+                    &MechanicalChange::RejoinFeatureMember {
+                        feature_id: member.feature_id.clone(),
+                        instance_id: instance_id.to_owned(),
+                        source_instance_id: counterpart.clone(),
+                    },
+                )
+                .ok(),
             })
         })
         .collect();
@@ -101,6 +116,9 @@ pub struct MechanicalPairLinkOption {
     pub correspondences: Vec<MechanicalFeatureCorrespondence>,
     /// A short description of those matches, for the review.
     pub matched_features: String,
+    /// The fingerprint of the accepted inputs this candidate's review was produced
+    /// from. The link submission carries it for the same reason as a rejoin row's.
+    pub reviewed_fingerprint: Option<String>,
 }
 
 /// The candidate links the selected half can establish, from the accepted document.
@@ -110,6 +128,7 @@ pub struct MechanicalPairLinkOption {
 /// separate, reviewed submission.
 pub fn pair_link_options(
     document: &ProjectDoc,
+    board_contours: &[BoardContours],
     instance_id: &str,
 ) -> Vec<MechanicalPairLinkOption> {
     let Some(hardware) = document.hardware.as_ref() else {
@@ -136,6 +155,19 @@ pub fn pair_link_options(
             )
             .ok()
             .flatten()?;
+            let reviewed = MechanicalChange::LinkMirrorPair {
+                pair_id: pair_id.clone(),
+                members: [instance_id.to_owned(), other.id.clone()],
+                // The reviewed map and construction source are the user's payload and
+                // are excluded from the fingerprint, so this offer only needs a
+                // well-formed placeholder for them.
+                mapping: review.derived_mapping.unwrap_or(Pose2 {
+                    at: Vec2::default(),
+                    rotation: 0.0,
+                }),
+                construction_source: review.construction_source.clone(),
+                correspondences: review.correspondences.clone(),
+            };
             Some(MechanicalPairLinkOption {
                 pair_id,
                 instance_id: instance_id.to_owned(),
@@ -145,6 +177,8 @@ pub fn pair_link_options(
                 construction_source: review.construction_source,
                 matched_features: matched_features(&review.correspondences),
                 correspondences: review.correspondences,
+                reviewed_fingerprint: reviewed_fingerprint(document, board_contours, &reviewed)
+                    .ok(),
             })
         })
         .collect()
@@ -239,34 +273,26 @@ pub fn reviewed_fingerprint(
         MechanicalChange::RejoinFeatureMember {
             feature_id,
             instance_id,
-            source_instance_id,
-        } => rejoin_fingerprint(document, feature_id, instance_id, source_instance_id),
+            ..
+        } => rejoin_fingerprint(document, feature_id, instance_id),
         MechanicalChange::LinkMirrorPair {
             pair_id,
             members,
-            mapping,
-            construction_source,
             correspondences,
-        } => link_fingerprint(
-            document,
-            board_contours,
-            pair_id,
-            members,
-            *mapping,
-            construction_source,
-            correspondences,
-        ),
+            ..
+        } => link_fingerprint(document, board_contours, pair_id, members, correspondences),
         _ => Err("The reviewed-input fingerprint only covers link and rejoin actions.".into()),
     }
 }
 
-/// The rejoin inputs: the pair's membership and map, the feature's authored value with
-/// its author, both halves' feature ids and states, and the chosen source half.
+/// The rejoin inputs the accepted document contributes: the pair's membership and map,
+/// the feature's authored value with its author, and both halves' feature ids and
+/// states. The half the user picked as the source is the reviewed payload and is
+/// excluded, so choosing a source after the review was produced is not staleness.
 fn rejoin_fingerprint(
     document: &ProjectDoc,
     feature_id: &str,
     instance_id: &str,
-    source_instance_id: &str,
 ) -> Result<String, String> {
     let hardware = document
         .hardware
@@ -312,7 +338,6 @@ fn rejoin_fingerprint(
         quoted(instance_id),
         format!("{:?}", destination.state),
         quoted(&destination.feature_id),
-        quoted(source_instance_id),
         quoted(&counterpart_record.feature_id),
         format!("{:?}", counterpart_record.state),
     ];
@@ -320,16 +345,21 @@ fn rejoin_fingerprint(
     Ok(parts.join("|"))
 }
 
-/// The link inputs: the reviewed pair id, members, map, construction source and
-/// correspondences, plus the source geometry and shared construction the link would
-/// consolidate. A later edit to any of those changes the fingerprint.
+/// The link inputs the accepted document contributes to a reviewed link.
+///
+/// This covers exactly the document-derived inputs the reviewed result rests on: the
+/// pair id and members, each half's declared transform (which is what a derived map
+/// comes from), both halves' shared construction and each matched feature's geometry
+/// on both halves. The reviewed *choices* - the map the user reviewed or typed, which
+/// half supplies construction, and (once Core carries it) which half supplies each
+/// matched feature - are the payload the user confirmed and travel with the
+/// submission, so changing them is not document staleness and does not change this
+/// fingerprint.
 fn link_fingerprint(
     document: &ProjectDoc,
     board_contours: &[BoardContours],
     pair_id: &str,
     members: &[String; 2],
-    mapping: Pose2,
-    construction_source: &str,
     correspondences: &[boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence],
 ) -> Result<String, String> {
     let hardware = document
@@ -341,11 +371,14 @@ fn link_fingerprint(
             "A mechanical pair named {pair_id:?} already exists."
         ));
     }
-    if !members.contains(&construction_source.to_owned()) {
-        return Err(format!(
-            "The construction source {construction_source:?} is not a pair member."
-        ));
-    }
+    let declared = |instance_id: &str| {
+        hardware
+            .instances
+            .iter()
+            .find(|instance| instance.id == instance_id)
+            .map(|instance| instance.flipped)
+            .ok_or_else(|| format!("Physical instance {instance_id:?} is unavailable."))
+    };
     let configuration = |instance_id: &str| {
         effective_inputs(
             document,
@@ -356,7 +389,8 @@ fn link_fingerprint(
         )
         .map(|inputs| inputs.configuration)
     };
-    let source = configuration(construction_source)?;
+    let first_flipped = declared(&members[0])?;
+    let second_flipped = declared(&members[1])?;
     let first = configuration(&members[0])?;
     let second = configuration(&members[1])?;
     let mut matched = Vec::with_capacity(correspondences.len());
@@ -395,9 +429,9 @@ fn link_fingerprint(
         quoted(pair_id),
         quoted(&members[0]),
         quoted(&members[1]),
-        pose(&mapping),
-        quoted(construction_source),
-        encoded(&features::shared_construction(&source))?,
+        format!("flipped:{first_flipped}:{second_flipped}"),
+        encoded(&features::shared_construction(&first))?,
+        encoded(&features::shared_construction(&second))?,
         matched.join(","),
     ]
     .join("|"))
@@ -712,6 +746,10 @@ mod tests {
             projection.features[0].counterpart_feature_id,
             "mount-1-right"
         );
+        assert!(
+            projection.features[0].rejoin_fingerprint.is_some(),
+            "each row carries the fingerprint of the reviewed rejoin inputs"
+        );
         assert_eq!(
             projection.features[0].preview.as_deref(),
             Some("Mount at (-2.0, 3.0)"),
@@ -773,7 +811,7 @@ mod tests {
     #[test]
     fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
         let doc = independent_halves();
-        let options = pair_link_options(&doc, "left");
+        let options = pair_link_options(&doc, &[], "left");
         assert_eq!(options.len(), 1, "the other half is the one candidate");
         let option = &options[0];
         assert_eq!(option.instance_id, "left");
@@ -793,14 +831,18 @@ mod tests {
             "only the shared durable id matches; the half-local mount stays local"
         );
         assert_eq!(option.matched_features, "Mount mount-1");
-        assert!(pair_link_options(&doc, "missing").is_empty());
+        assert!(
+            option.reviewed_fingerprint.is_some(),
+            "the review carries the fingerprint of the inputs it was produced from"
+        );
+        assert!(pair_link_options(&doc, &[], "missing").is_empty());
     }
 
     #[test]
     fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_paired() {
         let mut doc = independent_halves();
         doc.hardware.as_mut().unwrap().instances[1].flipped = false;
-        let options = pair_link_options(&doc, "left");
+        let options = pair_link_options(&doc, &[], "left");
         assert_eq!(
             options[0].derived_mapping, None,
             "equal declared transforms need the review to supply the map"
@@ -823,10 +865,10 @@ mod tests {
             features: vec![],
         }];
         assert!(
-            pair_link_options(&paired, "left").is_empty(),
+            pair_link_options(&paired, &[], "left").is_empty(),
             "a paired half is linked through its pair actions instead"
         );
-        assert!(pair_link_options(&paired, "right").is_empty());
+        assert!(pair_link_options(&paired, &[], "right").is_empty());
     }
 
     fn rejoin(instance_id: &str, feature_id: &str, source: &str) -> MechanicalChange {
@@ -897,10 +939,10 @@ mod tests {
             reviewed
         );
 
-        assert_ne!(
+        assert_eq!(
             reviewed_fingerprint(&doc, &[], &rejoin("left", "mount-1-left", "right")).unwrap(),
             reviewed_fingerprint(&doc, &[], &rejoin("left", "mount-1-left", "left")).unwrap(),
-            "the chosen source half is part of the reviewed inputs"
+            "the reviewed source choice is the user's payload, not accepted-document state"
         );
     }
 
@@ -940,52 +982,66 @@ mod tests {
     }
 
     #[test]
-    fn the_link_fingerprint_covers_the_reviewed_payload_and_its_source_geometry() {
+    fn the_link_fingerprint_covers_the_accepted_inputs_and_ignores_the_reviewed_choices() {
         let mut doc = document();
         doc.hardware.as_mut().unwrap().pairs.clear();
-        let mapping = Pose2 {
-            at: Vec2 { x: 30.0, y: -5.0 },
-            rotation: 180.0,
-        };
-        let change = link(&doc, mapping);
+        let change = link(
+            &doc,
+            Pose2 {
+                at: Vec2 { x: 30.0, y: -5.0 },
+                rotation: 180.0,
+            },
+        );
         let reviewed = reviewed_fingerprint(&doc, &[], &change).expect("the reviewed inputs exist");
 
         let mut renamed = doc.clone();
         renamed.name = "Renamed".into();
         renamed.revision += 3;
+        renamed.parameters.insert("unrelated".into(), json!("keep"));
         assert_eq!(
             reviewed_fingerprint(&renamed, &[], &change).unwrap(),
             reviewed,
-            "renaming the project does not retire a reviewed link"
+            "unrelated project edits and a revision change do not retire a reviewed link"
         );
 
-        let mut other_mapping = doc.clone();
-        assert_ne!(
-            reviewed_fingerprint(
-                &other_mapping,
-                &[],
-                &link(
-                    &other_mapping,
-                    Pose2 {
-                        at: Vec2::default(),
-                        rotation: 0.0,
-                    }
-                )
-            )
-            .unwrap(),
+        // The map, the construction source and the source choices are the reviewed
+        // payload: changing them is not document staleness.
+        let other_choices = MechanicalChange::LinkMirrorPair {
+            pair_id: "pair-new".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "right".into(),
+            correspondences: correspondences(),
+        };
+        assert_eq!(
+            reviewed_fingerprint(&doc, &[], &other_choices).unwrap(),
             reviewed,
-            "a different reviewed map is a different review"
+            "the reviewed map and construction source are the user's own choices"
         );
 
-        other_mapping.hardware.as_mut().unwrap().instances[0]
+        // A declared-transform change alters the map a review derives, so it retires.
+        let mut reoriented = doc.clone();
+        reoriented.hardware.as_mut().unwrap().instances[1].flipped = true;
+        assert_ne!(
+            reviewed_fingerprint(&reoriented, &[], &change).unwrap(),
+            reviewed,
+            "changing a half's declared transform retires the review"
+        );
+
+        // Moving the geometry a match consolidates retires it too.
+        let mut moved = doc.clone();
+        moved.hardware.as_mut().unwrap().instances[0]
             .mechanical
             .as_mut()
             .unwrap()
             .mounts = vec![mount("mount-1-left", 8.0, 1.0)];
         assert_ne!(
-            reviewed_fingerprint(&other_mapping, &[], &change).unwrap(),
+            reviewed_fingerprint(&moved, &[], &change).unwrap(),
             reviewed,
-            "moving the source geometry retires the review"
+            "moving a matched feature retires the review"
         );
 
         let mut already_paired = doc.clone();

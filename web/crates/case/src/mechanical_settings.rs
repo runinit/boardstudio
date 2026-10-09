@@ -572,6 +572,12 @@ pub struct MechanicalSettingsRequest {
     pub request_id: u64,
     pub field_id: String,
     pub patch: MechanicalSettingsPatch,
+    /// The fingerprint of the accepted inputs the reviewed result was produced from,
+    /// for actions whose submission previews its result. The controller compares it
+    /// against the accepted document when Session executes the submission, so a
+    /// relevant change between the displayed review and its execution retires the
+    /// action and refreshes the review. `None` for actions without a reviewed result.
+    pub reviewed_fingerprint: Option<String>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -1079,7 +1085,8 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
     };
     let blocked = mechanical_action_pending(&format!("mechanical-pair:{}:link", option.pair_id))
         || !props.editable
-        || mapping.is_none();
+        || mapping.is_none()
+        || option.reviewed_fingerprint.is_none();
     rsx! {
         section { class: "m1-mechanical-pair m1-mechanical-pair-link", aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
@@ -1158,11 +1165,12 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     let identity = props.identity.clone();
                     let callback = props.on_request;
                     let option = option.clone();
+                    let reviewed = option.reviewed_fingerprint.clone();
                     move |_| {
                         let Some(mapping) = mapping else {
                             return;
                         };
-                        send_request(
+                        send_request_with_review(
                             &mut sequence,
                             &identity,
                             callback,
@@ -1173,6 +1181,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                                 construction_source: construction_source.clone(),
                                 correspondences: option.correspondences.clone(),
                             },
+                            reviewed.clone(),
                         );
                     }
                 },
@@ -1243,7 +1252,9 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                     };
                     let local_blocked = blocked(&local_patch);
                     let omit_blocked = blocked(&omit_patch);
-                    let rejoin_blocked = blocked(&rejoin_patch) || row.preview.is_none();
+                    let rejoin_blocked = blocked(&rejoin_patch)
+                        || row.preview.is_none()
+                        || row.rejoin_fingerprint.is_none();
                     let state = match row.state {
                         MechanicalFeatureState::Linked => "linked to the other half",
                         MechanicalFeatureState::Local => "local to this half",
@@ -1305,7 +1316,19 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                         let identity = props.identity.clone();
                                         let callback = props.on_request;
                                         let patch = rejoin_patch.clone();
-                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                        // The reviewed fingerprint the row was produced with
+                                        // travels with the submission, so a relevant change
+                                        // between this review and its execution retires it.
+                                        let reviewed = row.rejoin_fingerprint.clone();
+                                        move |_| {
+                                            send_request_with_review(
+                                                &mut sequence,
+                                                &identity,
+                                                callback,
+                                                patch.clone(),
+                                                reviewed.clone(),
+                                            )
+                                        }
                                     },
                                     "Rejoin from the other half"
                                 }
@@ -4071,6 +4094,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 request_id,
                 field_id: patch.field_id(),
                 patch,
+                reviewed_fingerprint: None,
             };
             dirty.set(false);
             if let Some(controller) = controller.as_ref() {
@@ -4221,6 +4245,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 request_id,
                 field_id: patch.field_id(),
                 patch,
+                reviewed_fingerprint: None,
             };
             dirty.set(false);
             error.set(None);
@@ -4407,11 +4432,27 @@ fn send_request(
         return;
     };
     sequence.set(request_id);
+    send_request_with_review(sequence, identity, on_request, patch, None)
+}
+
+/// Send one request, optionally binding it to the reviewed result the user saw.
+fn send_request_with_review(
+    sequence: &mut Signal<u64>,
+    identity: &MechanicalSettingsIdentity,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    patch: MechanicalSettingsPatch,
+    reviewed_fingerprint: Option<String>,
+) {
+    let Some(request_id) = sequence().checked_add(1) else {
+        return;
+    };
+    sequence.set(request_id);
     on_request.call(MechanicalSettingsRequest {
         identity: identity.clone(),
         request_id,
         field_id: patch.field_id(),
         patch,
+        reviewed_fingerprint,
     });
 }
 
@@ -4937,7 +4978,10 @@ mod contextual_layer_tests {
                                 saved_profile.set(choice);
                             }
                         }
-                        last_request.set(format!("{:?}", request.patch));
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
                     },
                 }
                 p { id: "case-custom-profile-last-request", "{last_request}" }
@@ -5830,6 +5874,7 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "mount-1-right".into(),
                 preview: Some("Mount at (2.0, 3.0)".into()),
+                rejoin_fingerprint: Some("reviewed-mount".into()),
             },
             MechanicalPairFeatureRow {
                 feature_id: "opening-1-left".into(),
@@ -5839,6 +5884,7 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "opening-1-right".into(),
                 preview: Some("Opening with 3 vertices".into()),
+                rejoin_fingerprint: Some("reviewed-opening".into()),
             },
             MechanicalPairFeatureRow {
                 feature_id: "support-1-left".into(),
@@ -5848,6 +5894,7 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "support-1-right".into(),
                 preview: None,
+                rejoin_fingerprint: Some("reviewed-support".into()),
             },
         ]);
         rsx! {
@@ -5875,7 +5922,10 @@ mod contextual_layer_tests {
                     feedback: Rc::from([]),
                     summary_feedback: None,
                     on_request: move |request: MechanicalSettingsRequest| {
-                        last_request.set(format!("{:?}", request.patch));
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
                     },
                     on_select_layer: move |_| {},
                     on_show_finding: move |_| {},
@@ -5948,6 +5998,10 @@ mod contextual_layer_tests {
                 && rejoin.contains("\"right\""),
             "rejoin submits the reviewed source half, got {rejoin}"
         );
+        assert!(
+            rejoin.contains("reviewed=Some(\"reviewed-opening\")"),
+            "the rejoin submission carries the fingerprint of the row the user reviewed, got {rejoin}"
+        );
 
         // Omitted without counterpart geometry: reachable but not committable.
         let document = web_sys::window().unwrap().document().unwrap();
@@ -5997,6 +6051,7 @@ mod contextual_layer_tests {
                     },
                 ],
                 matched_features: "Mount mount-1".into(),
+                reviewed_fingerprint: Some("reviewed-link".into()),
             },
             MechanicalPairLinkOption {
                 pair_id: "pair/left".into(),
@@ -6007,6 +6062,7 @@ mod contextual_layer_tests {
                 construction_source: "left".into(),
                 correspondences: vec![],
                 matched_features: "No shared mechanical features yet.".into(),
+                reviewed_fingerprint: Some("reviewed-link-explicit".into()),
             },
         ])
     }
@@ -6040,7 +6096,10 @@ mod contextual_layer_tests {
                     feedback: Rc::from([]),
                     summary_feedback: None,
                     on_request: move |request: MechanicalSettingsRequest| {
-                        last_request.set(format!("{:?}", request.patch));
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
                     },
                     on_select_layer: move |_| {},
                     on_show_finding: move |_| {},
@@ -6102,6 +6161,10 @@ mod contextual_layer_tests {
             linked.contains("rotation: 0.0"),
             "the submitted link carries the reviewed map, got {linked}"
         );
+        assert!(
+            linked.contains("reviewed=Some(\"reviewed-link\")"),
+            "the link submission carries the fingerprint of the candidate the user reviewed, got {linked}"
+        );
 
         // A translated frame has no derived map: the review asks for one explicitly.
         let select = element("select[aria-label='Link with']");
@@ -6152,6 +6215,10 @@ mod contextual_layer_tests {
                 && explicit.contains("y: -5.0")
                 && explicit.contains("rotation: 180.0"),
             "the explicit reviewed map is submitted for a translated frame, got {explicit}"
+        );
+        assert!(
+            explicit.contains("reviewed=Some(\"reviewed-link-explicit\")"),
+            "the explicit-map candidate's own review fingerprint travels with it, got {explicit}"
         );
         root.remove();
     }

@@ -2756,6 +2756,7 @@ fn SharedViewer(
                                     request_id,
                                     field_id: patch.field_id(),
                                     patch,
+                                    reviewed_fingerprint: None,
                                 });
                             },
                             "Unlink selected support"

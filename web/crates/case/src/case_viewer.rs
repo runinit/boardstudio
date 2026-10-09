@@ -1308,6 +1308,7 @@ fn submit_settings_patch(
             request_id,
             field_id,
             patch,
+            reviewed_fingerprint: None,
         });
     true
 }

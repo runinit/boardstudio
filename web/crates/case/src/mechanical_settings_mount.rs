@@ -332,6 +332,7 @@ pub fn use_mechanical_settings_mount(
                 request_id,
                 field_id: "initialize-closures".into(),
                 patch: super::mechanical_settings::MechanicalSettingsPatch::InitializeClosures,
+                reviewed_fingerprint: None,
             };
             let admitted = controller.submit(request);
             // submit() sets the in-flight owner synchronously only after all admission guards
@@ -676,7 +677,11 @@ pub fn use_mechanical_settings_mount(
         // half uses its per-feature actions instead.
         let pair_link_options = current.identity.scope.instance_id.as_deref().map(|instance_id| {
             Rc::<[crate::mechanical_pair::MechanicalPairLinkOption]>::from(
-                crate::mechanical_pair::pair_link_options(&current.accepted.document, instance_id),
+                crate::mechanical_pair::pair_link_options(
+                    &current.accepted.document,
+                    &current.accepted.scene.board_contours,
+                    instance_id,
+                ),
             )
         });
         MechanicalSettingsProps {
