@@ -1218,11 +1218,20 @@ mod adapter_tests {
         unrelated_document
             .parameters
             .insert("unrelated".into(), serde_json::json!("keep"));
+        // A genuinely unrelated edit: a matrix on another board, which cannot change the
+        // reviewed half's contour, source geometry, materials or proposed fit findings.
+        unrelated_document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "unrelated-board", "name": "Unrelated", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .expect("an unrelated board parses"),
+        );
         unrelated_document.matrices.push(
             serde_json::from_value(serde_json::json!({
-                "id": "m", "rows": 1, "columns": 1,
+                "id": "unrelated-matrix", "rows": 1, "columns": 1,
                 "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 0.0, "y": 0.0 },
-                "definitionId": "switch-definition", "partIds": [], "boardId": "board",
+                "definitionId": "switch-definition", "partIds": [], "boardId": "unrelated-board",
                 "diodeDirection": "row2col", "rowOffsets": [], "columnOffsets": [],
                 "columnStaggers": [], "columnSplays": [], "columnOrigins": [], "cells": []
             }))
