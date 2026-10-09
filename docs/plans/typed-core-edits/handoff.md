@@ -223,7 +223,7 @@ before blessing.
 ### Step 3 — full check at the final integrated tip
 
 Split-worktree discipline (§6): parent checkout runs
-`CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target python3 scripts/check.py repo tooling lint build typecheck browser`;
+`CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target python3 scripts/check.py repo tooling lint build typecheck browser`;
 `/tmp/boardstudio-tce-verify` (checkout the exact final tip there first) runs
 the same with `test`. All steps must pass. The `test` step includes native CAD
 (51 passed/4 ignored at baseline).
