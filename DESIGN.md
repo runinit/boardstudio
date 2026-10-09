@@ -709,8 +709,14 @@ straight TRRS cable, sleeve ground, and an unused ring 1.
 
 Physical assembly selection is separate from the PCB design. A split may share one
 reversible PCB or use two boards. Turning a half over changes its face and reflects
-its physical X/Z placement. Construction dimensions may be linked; openings, mounts,
-and battery space remain local. PCB thickness remains authoritative. Case geometry
+its physical X/Z placement. Mechanical features stay local to each half by
+default. An explicit mechanical
+mirror pair links mounts, closure mounts, authored Case openings and gasket
+support anchors across both halves by default, shares construction dimensions,
+materials and processes within the pair, and settles linked edits from either
+half in one Undo step. Per-feature exceptions are explicit: Make local, remove
+on one half, or rejoin with a chosen source. Battery space remains local. PCB
+thickness remains authoritative. Case geometry
 is retained across electrical-only edits only when its exact physical dependency
 signature and project/instance identity still match.
 The Case preview uses that instance's reflected parts and outline together. Layout
