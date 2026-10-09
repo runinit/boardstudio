@@ -923,6 +923,34 @@ pub struct PhysicalBoardInstance {
     /// `constructionLinked` flag, whose value never affected the effective overlay.
     #[serde(default)]
     pub construction_ownership: MechanicalConstructionOwnership,
+    /// Monotonic identity reservations that outlive this half's mechanical
+    /// configuration, so disabling a half cannot let a later addition reuse an opening
+    /// or vertex identity that a queued intent may still name. Absent for legacy
+    /// documents and for halves that never reserved one, which keeps their serialized
+    /// shape unchanged, so no document-version migration is required.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mechanical_identity_reservation: Option<MechanicalIdentityReservation>,
+}
+
+/// Monotonic high-water marks for a physical half's authored opening and vertex
+/// identities. See [`PhysicalBoardInstance::mechanical_identity_reservation`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalIdentityReservation {
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_opening_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_vertex_identity: u64,
+}
+
+impl MechanicalIdentityReservation {
+    /// The pointwise maximum of two reservations.
+    pub fn merged(self, other: Self) -> Self {
+        Self {
+            next_opening_identity: self.next_opening_identity.max(other.next_opening_identity),
+            next_vertex_identity: self.next_vertex_identity.max(other.next_vertex_identity),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]

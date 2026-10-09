@@ -291,6 +291,18 @@ pub enum MechanicalChange {
     /// materialized locally, and the pair is cleared. The target must be the
     /// removed half's instance; a board target is malformed.
     RemovePhysicalInstance,
+    /// Converts selected legacy-ownership physical instances to local ownership.
+    ///
+    /// Each named member's current effective values are materialized into its own
+    /// configuration - including the overlaid hardware, critical fits and profiles -
+    /// before its ownership becomes `Local`, so nothing it showed changes. When the
+    /// remaining legacy members' shared source is one of the converted members, the
+    /// prior common construction is captured as the legacy source first, so their
+    /// baseline survives conversion and later edits to the converted member cannot
+    /// feed back into it.
+    MaterializeLegacyConstruction {
+        instance_ids: Vec<String>,
+    },
     /// Makes one linked feature local on one half without moving its visible
     /// geometry; the other half and every other feature keep their link.
     MakeFeatureLocal {

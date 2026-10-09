@@ -621,6 +621,7 @@ mod tests {
         ));
         document.hardware = Some(HardwareConfiguration {
             instances: vec![PhysicalBoardInstance {
+                mechanical_identity_reservation: None,
                 id: "right".into(),
                 name: "Right".into(),
                 board_id: "board".into(),
@@ -783,6 +784,7 @@ mod tests {
         ));
         document.hardware = Some(HardwareConfiguration {
             instances: vec![PhysicalBoardInstance {
+                mechanical_identity_reservation: None,
                 id: "right".into(),
                 name: "Right".into(),
                 board_id: "board".into(),
