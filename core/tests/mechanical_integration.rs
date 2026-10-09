@@ -3547,3 +3547,41 @@ fn a_linked_change_reports_the_pair_and_both_halves() {
         );
     }
 }
+
+#[test]
+fn case_findings_are_clear_is_scoped_to_the_target() {
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = conflicting_pair_document();
+    link_pair(&mut document);
+    let right = effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert!(
+        !right.case_findings_are_clear(),
+        "the half that owns the conflict is not clear: {:?}",
+        right.findings
+    );
+    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert!(
+        left.case_findings_are_clear(),
+        "a sibling half's conflict is not this half's problem: {:?}",
+        left.findings
+    );
+    let board = effective_inputs(
+        &document,
+        &[],
+        &MechanicalTarget::Board {
+            board_id: "board".into(),
+        },
+    )
+    .unwrap();
+    assert!(
+        !board.case_findings_are_clear(),
+        "a board-scoped read still carries the conflict"
+    );
+
+    // A pair without a conflict leaves every target clear.
+    let mut clean = pair_document();
+    link_pair(&mut clean);
+    let clean = effective_inputs(&clean, &[], &instance_target("right")).unwrap();
+    assert!(clean.case_findings_are_clear(), "{:?}", clean.findings);
+}
