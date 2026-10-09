@@ -21,6 +21,8 @@ use boardstudio_core::model::{
     MountKind, Operation, OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2,
     PrepareExportRequest, ProjectDoc, Vec2,
 };
+use boardstudio_core::model::{CoreReply, CoreRequest};
+use boardstudio_core::{CoreEngine, migrate};
 use serde_json::{Value, json};
 
 const SOURCE: &str = "ceoloide/mounting_hole_npth";
@@ -286,4 +288,56 @@ fn a_boss_diameter_that_is_not_a_clean_decimal_renders_on_a_flipped_linked_pair(
     );
     assert_numeric_parameters(&document);
     assert_renders_previews_and_exports(&document);
+}
+
+/// A project saved by the string writer: format version 3 with its closure holes as text.
+/// Browser storage and archive import migrate it, Core opens it, and it exports.
+#[test]
+fn a_version_3_closure_project_with_saved_strings_migrates_opens_and_exports() {
+    let mut document = document();
+    document.mechanical.as_mut().unwrap().closure_mounts = None;
+    apply(
+        &mut document,
+        MechanicalChange::SetDimension {
+            field: MechanicalDimension::WallThickness,
+            value: 3.0,
+        },
+    );
+    let mut saved = serde_json::to_value(&document).unwrap();
+    saved["formatVersion"] = json!(3);
+    for definition in saved["definitions"].as_array_mut().unwrap() {
+        if !definition["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("assembly-closure/definition/"))
+        {
+            continue;
+        }
+        let parameters = definition["generator"]["parameters"]
+            .as_object_mut()
+            .unwrap();
+        for name in ["hole_drill", "hole_size"] {
+            let number = parameters[name]
+                .as_f64()
+                .expect("a numeric closure parameter");
+            parameters.insert(name.into(), Value::String(number.to_string()));
+        }
+    }
+    assert!(saved.to_string().contains("\"hole_drill\":\""));
+
+    let (text, changed) = migrate::migrate_json(&saved.to_string()).unwrap();
+    assert!(changed, "a version 3 project is written back at version 4");
+    let migrated: ProjectDoc = serde_json::from_str(&text).unwrap();
+    assert_eq!(migrated.format_version, migrate::CURRENT_VERSION);
+    assert_numeric_parameters(&migrated);
+
+    let mut engine = CoreEngine::new();
+    let reply = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: migrated.clone(),
+    });
+    assert!(
+        matches!(reply, CoreReply::Scene { .. }),
+        "the migrated closure project opens"
+    );
+    assert_renders_previews_and_exports(&migrated);
 }

@@ -268,9 +268,9 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .await
         .unwrap();
     let listed = store.list_documents().await.unwrap();
-    assert_eq!(listed[0].format_version, 3);
+    assert_eq!(listed[0].format_version, 4);
     let loaded = store.load_document("legacy".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, 3);
+    assert_eq!(loaded.format_version, 4);
     assert_eq!(
         loaded.parts[0].definition_id,
         "generator:ceoloide/mounting_hole_npth"
@@ -290,7 +290,7 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .unwrap()
         .unwrap();
     let raw: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
-    assert_eq!(raw["formatVersion"], 3, "migration writes back immediately");
+    assert_eq!(raw["formatVersion"], 4, "migration writes back immediately");
     assert!(!raw.to_string().contains("ergogen"));
     assert_eq!(
         store.load_asset(hash).await.unwrap().unwrap().to_vec(),
