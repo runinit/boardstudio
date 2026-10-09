@@ -1523,9 +1523,8 @@ fn rejoin_feature_member(
             pair.id
         ));
     }
-    if source_instance_id == instance_id {
-        return Err("A feature can only be rejoined from the other pair member.".into());
-    }
+    // The selected half may deliberately choose its own current geometry as the source,
+    // so the reviewed result can keep that half's placement and re-derive the other.
     let kind = pair.features[location.feature_index].kind;
     let source_state =
         features::member_state(&pair, source_instance_id, feature_id).ok_or_else(|| {
@@ -1592,14 +1591,23 @@ fn rejoin_feature_member(
             )?
         }
     };
-    // The pair is the single source for this feature again, so the rejoined half
-    // derives its reflected geometry on read; no copy is written back to its local
-    // configuration. The derivation is still checked so a source that cannot derive
-    // the selected half is rejected.
+    // The pair is the single source for this feature again, so the half that is not the
+    // source derives its reflected geometry on read; no copy is written back to a local
+    // configuration. The derivation is still checked, so a source that cannot derive the
+    // counterpart half is rejected. Choosing the selected half's own geometry makes the
+    // other half the one that derives.
+    let expected_counterpart = if source_instance_id == instance_id {
+        pair.members
+            .iter()
+            .find(|member| *member != instance_id)
+            .cloned()
+    } else {
+        Some(instance_id.to_string())
+    };
     if let Some(derived) = derived
-        && derived.instance_id != instance_id
+        && expected_counterpart.as_deref() != Some(derived.instance_id.as_str())
     {
-        return Err("The rejoin source did not derive the selected half.".into());
+        return Err("The rejoin source did not derive the counterpart half.".into());
     }
     // The pair owns the rejoined feature again, so the half's local copy must go:
     // a `Linked` member stores no geometry of its own.

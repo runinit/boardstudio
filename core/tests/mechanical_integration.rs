@@ -2131,3 +2131,70 @@ fn a_case_only_conflict_never_blocks_manufacturing_export() {
         "a Case-only clash must not block the board's manufacturing export: {export:?}"
     );
 }
+
+#[test]
+fn rejoining_can_take_the_selected_halves_own_geometry_as_the_source() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+    // The right half keeps its own placement as an explicit exception, then drifts.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    document
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == "right")
+        .unwrap()
+        .mechanical
+        .as_mut()
+        .unwrap()
+        .mounts[0]
+        .at = Vec2 { x: -5.0, y: 1.0 };
+
+    // A deliberate own-half source is allowed when that half has geometry.
+    let changed = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+                source_instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert_eq!(changed, vec!["mount-1", "right"]);
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    assert_eq!(pair.features[0].author, "right");
+    let MechanicalFeatureValue::Mount { mount } = &pair.features[0].value else {
+        panic!("a linked mount stores a mount");
+    };
+    assert_eq!(mount.at, Vec2 { x: -5.0, y: 1.0 });
+
+    // The other half now derives the exact inverse of that geometry.
+    let left =
+        boardstudio_core::mechanical::effective_inputs(&document, &[], &instance_target("left"))
+            .unwrap();
+    assert_eq!(
+        mount_at(&left.configuration, "mount-1"),
+        Vec2 { x: 5.0, y: 1.0 }
+    );
+}
