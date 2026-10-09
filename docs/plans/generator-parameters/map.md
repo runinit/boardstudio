@@ -38,7 +38,8 @@ and enum kinds (option C) is out of scope.
 2. [02](issues/02-restore-closure-mounts-in-recipes.md) (resolved; Sofle v2 keeps no
    closure mounts, a user decision)
 3. [03](issues/03-migrate-saved-generator-strings.md) (resolved)
-4. [04](issues/04-validate-generator-parameters-in-core.md) (next ready ticket; 03 is resolved)
+4. [04](issues/04-validate-generator-parameters-in-core.md) (implemented, awaiting verification;
+   decided by [ADR-0009](../../adr/0009-generator-parameters-checked-in-core.md))
 5. [05](issues/05-parameter-lint-and-conventions.md) after 04
 6. [06](issues/06-paired-half-closure-proposals.md) (decided by
    [ADR-0008](../../adr/0008-linked-halves-stay-linked.md), awaiting implementation; does not
@@ -70,6 +71,13 @@ and enum kinds (option C) is out of scope.
   IndexedDB (red with the step disabled, green with it); `repo lint typecheck browser`, `build` and
   the native `test` pass (`quick` did not complete: environment limits, see the ticket); evidence and limits in the
   [ticket Outcome](issues/03-migrate-saved-generator-strings.md). Next: 04.
+- 04 implemented, awaiting verification (commits `322f4c20c`, `0f62b2ea3`, `71b23c165` and the
+  docs commit after them): one check (`footprints` `Registry::check_parameters`, wrapped by
+  `core::generators`) over every saved parameter map. Open and ReplaceDocument refuse a wrong
+  type and warn on an undeclared name or on non-empty list text; edits refuse all three and judge
+  only what they write. Inventory of shipped data: no undeclared name, no wrong type and no list
+  text. Evidence and limits in the [ticket Outcome](issues/04-validate-generator-parameters-in-core.md).
+  Next: 05, after the verification is recorded.
 - 06 decided (user, 2026-10-09, [ADR-0008](../../adr/0008-linked-halves-stay-linked.md)): a mechanical
   pair keeps everything linked; the known-gap test from 02 and the shipped split data still follow
   the superseded behaviour until 06 is implemented.
