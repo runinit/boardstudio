@@ -483,6 +483,130 @@ fn derived_mapping(first_flipped: bool, second_flipped: bool) -> Option<Pose2> {
     })
 }
 
+/// The two halves a candidate link may join, with the map their declared transforms
+/// imply and their resolved effective configurations.
+struct EligibleHalves {
+    /// `None` when the declared transforms cannot express the map, so a review of
+    /// translated or rotated board frames must supply one explicitly.
+    derived_mapping: Option<Pose2>,
+    first: MechanicalConfiguration,
+    second: MechanicalConfiguration,
+}
+
+/// The halves a candidate link may join, or `None` when the targets are ineligible.
+///
+/// Ineligible targets are the same or a missing instance, an instance whose board is
+/// not in the document, an instance already owned by a pair, a taken pair id, or an
+/// instance whose effective configuration cannot be resolved. Nothing here reads
+/// names, `half` labels or part coordinates.
+fn eligible_halves(
+    document: &ProjectDoc,
+    pair_id: &str,
+    first_instance_id: &str,
+    second_instance_id: &str,
+) -> Option<EligibleHalves> {
+    if first_instance_id == second_instance_id {
+        return None;
+    }
+    let hardware = document.hardware.as_ref()?;
+    if hardware.pairs.iter().any(|pair| pair.id == pair_id) {
+        return None;
+    }
+    let first = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == first_instance_id)?;
+    let second = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == second_instance_id)?;
+    if !document
+        .boards
+        .iter()
+        .any(|board| board.id == first.board_id)
+        || !document
+            .boards
+            .iter()
+            .any(|board| board.id == second.board_id)
+    {
+        return None;
+    }
+    if hardware.pairs.iter().any(|pair| {
+        pair.members
+            .iter()
+            .any(|member| member == first_instance_id || member == second_instance_id)
+    }) {
+        return None;
+    }
+    // Comparing the halves' effective configuration does not read the accepted
+    // contour projection.
+    let first_inputs = effective_inputs(
+        document,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: first_instance_id.into(),
+        },
+    )
+    .ok()?;
+    let second_inputs = effective_inputs(
+        document,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: second_instance_id.into(),
+        },
+    )
+    .ok()?;
+    Some(EligibleHalves {
+        derived_mapping: derived_mapping(first.flipped, second.flipped),
+        first: first_inputs.configuration,
+        second: second_inputs.configuration,
+    })
+}
+
+/// The reviewable content of a candidate link between two existing halves.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReviewedLink {
+    pub pair_id: String,
+    pub members: [String; 2],
+    /// The map the halves' declared transforms imply. `None` means they are not
+    /// representable from the declared transforms alone, so the review must supply
+    /// the map for a translated or rotated board frame.
+    pub derived_mapping: Option<Pose2>,
+    /// The construction source the review starts from; it may choose the other half.
+    pub construction_source: String,
+    /// The durable-id feature matches the link would consolidate. Features without a
+    /// match stay local.
+    pub correspondences: Vec<MechanicalFeatureCorrespondence>,
+}
+
+/// The candidate link a review shows before it is submitted, or `None` when the
+/// targets are ineligible.
+///
+/// The review is computed from the accepted document alone: catalogue definitions are
+/// not involved, the map comes from the halves' declared transforms (or must be
+/// supplied), and the matches are durable feature ids. A blank pair id is malformed.
+pub fn review_mirror_pair_link(
+    document: &ProjectDoc,
+    pair_id: &str,
+    first_instance_id: &str,
+    second_instance_id: &str,
+) -> Result<Option<ReviewedLink>, String> {
+    if pair_id.trim().is_empty() {
+        return Err("A mechanical mirror pair needs a non-empty id".into());
+    }
+    let Some(halves) = eligible_halves(document, pair_id, first_instance_id, second_instance_id)
+    else {
+        return Ok(None);
+    };
+    Ok(Some(ReviewedLink {
+        pair_id: pair_id.into(),
+        members: [first_instance_id.into(), second_instance_id.into()],
+        derived_mapping: halves.derived_mapping,
+        construction_source: first_instance_id.into(),
+        correspondences: correspondences_between(&halves.first, &halves.second),
+    }))
+}
+
 /// The explicit link proposal for a setup intent that names two halves.
 ///
 /// A blank pair id is a malformed request. A reviewed mapping that is not finite, a
@@ -531,50 +655,10 @@ fn mirror_pair_link(
     reviewed_construction_source: Option<&str>,
     reviewed_correspondences: Option<Vec<MechanicalFeatureCorrespondence>>,
 ) -> Result<Option<MirrorPairLink>, String> {
-    if first_instance_id == second_instance_id {
+    let Some(halves) = eligible_halves(document, pair_id, first_instance_id, second_instance_id)
+    else {
         return Ok(None);
-    }
-    let hardware = match document.hardware.as_ref() {
-        Some(hardware) => hardware,
-        None => return Ok(None),
     };
-    if hardware.pairs.iter().any(|pair| pair.id == pair_id) {
-        return Ok(None);
-    }
-    let first = match hardware
-        .instances
-        .iter()
-        .find(|instance| instance.id == first_instance_id)
-    {
-        Some(instance) => instance,
-        None => return Ok(None),
-    };
-    let second = match hardware
-        .instances
-        .iter()
-        .find(|instance| instance.id == second_instance_id)
-    {
-        Some(instance) => instance,
-        None => return Ok(None),
-    };
-    if !document
-        .boards
-        .iter()
-        .any(|board| board.id == first.board_id)
-        || !document
-            .boards
-            .iter()
-            .any(|board| board.id == second.board_id)
-    {
-        return Ok(None);
-    }
-    if hardware.pairs.iter().any(|pair| {
-        pair.members
-            .iter()
-            .any(|member| member == first_instance_id || member == second_instance_id)
-    }) {
-        return Ok(None);
-    }
     let mapping = match reviewed_mapping {
         Some(mapping) => {
             if !mapping.at.x.is_finite()
@@ -588,7 +672,7 @@ fn mirror_pair_link(
         // Without a reviewed map only the halves' declared transforms can supply
         // one: opposite flips are the physical reflection, and equal flips are not
         // representable, so those halves have no eligible map.
-        None => match derived_mapping(first.flipped, second.flipped) {
+        None => match halves.derived_mapping {
             Some(mapping) => mapping,
             None => return Ok(None),
         },
@@ -604,38 +688,12 @@ fn mirror_pair_link(
         }
         None => first_instance_id.to_string(),
     };
-    // Comparing the halves' effective configuration does not read the accepted
-    // contour projection.
-    let first_inputs = match effective_inputs(
-        document,
-        &[],
-        &MechanicalTarget::Instance {
-            instance_id: first_instance_id.into(),
-        },
-    ) {
-        Ok(inputs) => inputs,
-        Err(_) => return Ok(None),
-    };
-    let second_inputs = match effective_inputs(
-        document,
-        &[],
-        &MechanicalTarget::Instance {
-            instance_id: second_instance_id.into(),
-        },
-    ) {
-        Ok(inputs) => inputs,
-        Err(_) => return Ok(None),
-    };
     let correspondences = match reviewed_correspondences {
         Some(correspondences) => {
-            validate_correspondences(
-                &first_inputs.configuration,
-                &second_inputs.configuration,
-                &correspondences,
-            )?;
+            validate_correspondences(&halves.first, &halves.second, &correspondences)?;
             correspondences
         }
-        None => correspondences_between(&first_inputs.configuration, &second_inputs.configuration),
+        None => correspondences_between(&halves.first, &halves.second),
     };
     Ok(Some(MirrorPairLink {
         pair_id: pair_id.into(),
@@ -1414,6 +1472,186 @@ mod tests {
                 "a malformed reviewed link must not propose {intent:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_reviewed_candidate_link_lists_the_derived_map_and_durable_matches() {
+        let doc = document();
+        let mut hardware = HardwareConfiguration::default();
+        hardware.instances = vec![
+            feature_instance(
+                &doc,
+                "left",
+                "board-a",
+                "left",
+                false,
+                vec![mount("mount-1", 2.0, 1.0)],
+                vec![opening("opening-1")],
+            ),
+            feature_instance(
+                &doc,
+                "right",
+                "board-a",
+                "right",
+                true,
+                vec![mount("mount-1", -2.0, 1.0)],
+                vec![opening("opening-1")],
+            ),
+        ];
+        let mut with_hardware = doc.clone();
+        with_hardware.hardware = Some(hardware);
+
+        let review = review_mirror_pair_link(&with_hardware, "pair-1", "left", "right")
+            .unwrap()
+            .expect("opposite-flip halves have a reviewable candidate link");
+        assert_eq!(review.members, ["left".to_string(), "right".to_string()]);
+        assert_eq!(
+            review.derived_mapping,
+            Some(Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            }),
+            "the declared transforms imply the physical reflection"
+        );
+        assert_eq!(review.construction_source, "left");
+        assert_eq!(
+            review.correspondences,
+            vec![
+                MechanicalFeatureCorrespondence {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1".into(),
+                    second_feature_id: "mount-1".into(),
+                },
+                MechanicalFeatureCorrespondence {
+                    kind: MechanicalFeatureKind::Opening,
+                    first_feature_id: "opening-1".into(),
+                    second_feature_id: "opening-1".into(),
+                },
+            ],
+            "the candidate matches durable feature ids only"
+        );
+        assert!(
+            with_hardware.hardware.as_ref().unwrap().pairs.is_empty(),
+            "a review never establishes the pair"
+        );
+    }
+
+    #[test]
+    fn a_reviewed_candidate_for_translated_board_frames_still_lists_matches_without_a_map() {
+        let mut doc = document();
+        doc.boards.push(Board {
+            id: "board-b".into(),
+            name: "Board B".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport: HardwareTransport::None,
+            instances: vec![
+                feature_instance(
+                    &doc,
+                    "left",
+                    "board-a",
+                    "left",
+                    false,
+                    vec![mount("mount-shared", 2.0, 1.0)],
+                    vec![],
+                ),
+                feature_instance(
+                    &doc,
+                    "right",
+                    "board-b",
+                    "right",
+                    false,
+                    vec![mount("mount-shared", 12.0, 4.0)],
+                    vec![],
+                ),
+            ],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+
+        let review = review_mirror_pair_link(&doc, "pair-1", "left", "right")
+            .unwrap()
+            .expect("distinct boards with no declared transform are still reviewable");
+        assert_eq!(
+            review.derived_mapping, None,
+            "an upright translated frame needs the review to supply its map"
+        );
+        assert_eq!(
+            review.correspondences.len(),
+            1,
+            "the durable-id matches are still shown so the review can choose"
+        );
+    }
+
+    #[test]
+    fn a_reviewed_candidate_is_absent_for_ineligible_targets_and_blank_ids_are_malformed() {
+        let doc = document();
+        let mut hardware = HardwareConfiguration::default();
+        hardware.instances = vec![
+            feature_instance(
+                &doc,
+                "left",
+                "board-a",
+                "left",
+                false,
+                vec![mount("mount-1", 2.0, 1.0)],
+                vec![],
+            ),
+            feature_instance(
+                &doc,
+                "right",
+                "board-a",
+                "right",
+                true,
+                vec![mount("mount-1", -2.0, 1.0)],
+                vec![],
+            ),
+        ];
+        let mut with_hardware = doc.clone();
+        with_hardware.hardware = Some(hardware);
+
+        assert!(
+            review_mirror_pair_link(&with_hardware, "pair-1", "left", "left")
+                .unwrap()
+                .is_none(),
+            "one half cannot link with itself"
+        );
+        assert!(
+            review_mirror_pair_link(&with_hardware, "pair-1", "left", "missing")
+                .unwrap()
+                .is_none(),
+            "a missing half is ineligible"
+        );
+        assert!(
+            review_mirror_pair_link(&doc, "pair-1", "left", "right")
+                .unwrap()
+                .is_none(),
+            "a document without physical instances has no candidate"
+        );
+        with_hardware.hardware.as_mut().unwrap().pairs = vec![stored_pair(
+            &with_hardware,
+            "pair-existing",
+            "left",
+            "right",
+        )];
+        assert!(
+            review_mirror_pair_link(&with_hardware, "pair-new", "left", "right")
+                .unwrap()
+                .is_none(),
+            "an instance already owned by a pair is ineligible"
+        );
+        assert!(
+            review_mirror_pair_link(&with_hardware, "  ", "left", "right").is_err(),
+            "a blank pair id is malformed, not an ineligible target"
+        );
     }
 
     #[test]
