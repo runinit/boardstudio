@@ -1,6 +1,6 @@
 # 08: Project matrix relationships for Relations
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 03
 Spec: [spec.md](../spec.md#relations) · Map: [map.md](../map.md)

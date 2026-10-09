@@ -1,6 +1,6 @@
 # 04: One web module builds placement edits; Inspector uses it
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 02
 Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)
