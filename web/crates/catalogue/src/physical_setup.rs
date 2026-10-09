@@ -1,17 +1,21 @@
 //! Private physical-setup proposal rules. This code prepares values only; it never submits edits.
 
-use boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence;
+use boardstudio_core::CoreEngine;
+use boardstudio_core::mechanical::change::{
+    MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence,
+};
 use boardstudio_core::mechanical::inputs::effective_inputs;
 use boardstudio_core::mechanical::{MechanicalTarget, pair};
 use boardstudio_core::model::{
-    HardwareTopology, HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
+    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, HardwareTopology,
+    HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
     MechanicalFeatureKind, PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::Value;
 use std::collections::BTreeSet;
 
 /// Presentation-owned event data; generated IDs are captured before proposal work starts.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SetupIntent {
     Topology {
         board_id: String,
@@ -24,10 +28,21 @@ pub enum SetupIntent {
     ReversibleLayout(bool),
     /// Establishes an explicit mechanical mirror pair between two physical halves
     /// that already exist, such as independently created or distinct-PCB halves.
+    ///
+    /// The reviewed choices travel with the intent. `mapping` is required whenever
+    /// the halves' declared transforms do not imply a representable map (translated
+    /// or rotated distinct board frames); `None` accepts only the physical
+    /// reflection opposite flips already imply. `None` for `construction_source`
+    /// takes the first member, and `None` for `correspondences` matches features
+    /// that share a durable id. Nothing is inferred from coordinates, names or
+    /// `half` labels.
     LinkMirrorPair {
         pair_id: String,
         first_instance_id: String,
         second_instance_id: String,
+        mapping: Option<Pose2>,
+        construction_source: Option<String>,
+        correspondences: Option<Vec<MechanicalFeatureCorrespondence>>,
     },
 }
 
@@ -56,6 +71,80 @@ pub struct PhysicalSetupProposal {
     pub document: ProjectDoc,
     /// The pair this setup establishes, if the targets are eligible.
     pub mirror_pair: Option<MirrorPairLink>,
+}
+
+impl PhysicalSetupProposal {
+    /// The single replacement document this setup submits.
+    ///
+    /// A proposal with an eligible mirror pair applies the reviewed
+    /// `MechanicalChange::LinkMirrorPair` through Core's typed mechanical operation
+    /// on the proposed document, so Core derives the pair's construction, linked
+    /// features and generated clearance parts. The result then travels as the
+    /// setup's existing single `ReplaceDocument`: the new halves and the
+    /// established pair become one accepted edit with one Undo step. Any Core error
+    /// aborts the whole proposal, so nothing is submitted.
+    pub fn into_submission(
+        self,
+        mounting_hole: Option<&PartDefinition>,
+    ) -> Result<ProjectDoc, String> {
+        let Some(link) = self.mirror_pair else {
+            return Ok(self.document);
+        };
+        let template = mounting_hole.ok_or_else(|| MISSING_MOUNTING_HOLE.to_string())?;
+        let edit = MechanicalEdit {
+            target: MechanicalTarget::Instance {
+                instance_id: link.members[0].clone(),
+            },
+            change: MechanicalChange::LinkMirrorPair {
+                pair_id: link.pair_id.clone(),
+                members: link.members.clone(),
+                mapping: link.mapping,
+                construction_source: link.construction_source.clone(),
+                correspondences: link.correspondences.clone(),
+            },
+            mounting_hole: Some(Box::new(template.clone())),
+        };
+        let mut engine = CoreEngine::new();
+        match engine.handle(CoreRequest::Open {
+            id: "physical-setup-open".into(),
+            document: self.document.clone(),
+        }) {
+            CoreReply::Scene { .. } => {}
+            CoreReply::Error { message, .. } => return Err(message),
+            _ => return Err("Core did not open the physical-setup proposal".into()),
+        }
+        let command = EditCommand {
+            base_revision: self.document.revision,
+            transaction_id: "physical-setup-pair".into(),
+            phase: EditPhase::Commit,
+            target_ids: link.members.to_vec(),
+            operation: EditOperation::ApplyMechanicalEdit {
+                edit: Box::new(edit),
+            },
+        };
+        match engine.handle(CoreRequest::Edit {
+            id: "physical-setup-link".into(),
+            command,
+        }) {
+            CoreReply::Scene { document, .. } => Ok(*document),
+            CoreReply::Error { message, .. } => Err(message),
+            _ => Err("Core did not establish the physical-setup mirror pair".into()),
+        }
+    }
+}
+
+const MISSING_MOUNTING_HOLE: &str =
+    "A normalized mounting-hole definition is required to establish a mechanical pair.";
+
+/// Catalogue-prepared resources for one physical-setup intent.
+///
+/// The proposal itself is recomputed against the accepted snapshot when Session
+/// executes the intent, so preparation owns only the asynchronous catalogue work:
+/// the normalized mounting-hole template Core needs when this setup establishes a
+/// pair. `None` means the commit-time proposal established no pair.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreparedSetup {
+    pub mounting_hole: Option<PartDefinition>,
 }
 
 /// Build a reference-compatible proposal from an immutable accepted document.
@@ -101,6 +190,9 @@ pub fn propose_with_mirror_pair(
             pair_id,
             first_instance_id,
             second_instance_id,
+            mapping,
+            construction_source,
+            correspondences,
         } => Ok(PhysicalSetupProposal {
             document: accepted.clone(),
             mirror_pair: propose_explicit_mirror_pair(
@@ -108,6 +200,9 @@ pub fn propose_with_mirror_pair(
                 &pair_id,
                 &first_instance_id,
                 &second_instance_id,
+                mapping,
+                construction_source.as_deref(),
+                correspondences,
             )?,
         }),
         intent => Ok(PhysicalSetupProposal {
@@ -274,16 +369,23 @@ fn propose_topology(
     proposed.hardware = Some(hardware);
     // The pair travels as typed change data for the Case adapter; the proposed
     // document never carries it, so it cannot be applied twice. A reused-PCB split
-    // pairs the two halves only while both remain on the setup's board.
-    let mirror_pair = (split && primary_on_board).then(|| {
+    // pairs the two halves only while both remain on the setup's board, and the map
+    // is the physical reflection the halves' declared transforms imply: this setup
+    // creates one board's two halves, so it never needs a translated/rotated map.
+    let mirror_pair = if split && primary_on_board {
         mirror_pair_link(
             &proposed,
             &format!("pair/{new_secondary_id}"),
             &primary_id,
             new_secondary_id,
-        )
-    });
-    Ok((proposed, mirror_pair.flatten()))
+            None,
+            None,
+            None,
+        )?
+    } else {
+        None
+    };
+    Ok((proposed, mirror_pair))
 }
 
 fn propose_transport(
@@ -382,21 +484,32 @@ fn derived_mapping(first_flipped: bool, second_flipped: bool) -> Option<Pose2> {
 }
 
 /// The explicit link proposal for a setup intent that names two halves.
+///
+/// A blank pair id is a malformed request. A reviewed mapping that is not finite, a
+/// reviewed construction source that is not a member, or a reviewed correspondence
+/// naming a feature a half does not have are malformed too, so they are errors rather
+/// than a silently different link.
 fn propose_explicit_mirror_pair(
     accepted: &ProjectDoc,
     pair_id: &str,
     first_instance_id: &str,
     second_instance_id: &str,
+    mapping: Option<Pose2>,
+    construction_source: Option<&str>,
+    correspondences: Option<Vec<MechanicalFeatureCorrespondence>>,
 ) -> Result<Option<MirrorPairLink>, String> {
     if pair_id.trim().is_empty() {
         return Err("A mechanical mirror pair needs a non-empty id".into());
     }
-    Ok(mirror_pair_link(
+    mirror_pair_link(
         accepted,
         pair_id,
         first_instance_id,
         second_instance_id,
-    ))
+        mapping,
+        construction_source,
+        correspondences,
+    )
 }
 
 /// The typed `LinkMirrorPair` payload for two eligible halves, or `None`.
@@ -404,29 +517,46 @@ fn propose_explicit_mirror_pair(
 /// A target is ineligible (and proposes nothing) when the halves are the same or
 /// missing instance, an instance is already owned by a pair, an instance's board is
 /// not in the document, the declared transforms do not imply a representable pair
-/// map, or either half's effective configuration cannot be resolved. `pair_id` is
-/// never invented from a half label; callers pass the id they captured at submit.
+/// map and the review supplied none, or either half's effective configuration cannot
+/// be resolved. `pair_id` is never invented from a half label; callers pass the id
+/// they captured at review. The reviewed mapping, construction source and feature
+/// correspondences are carried as the review chose them; nothing is guessed from
+/// coordinates, names, `half` labels or `flipped` flags.
 fn mirror_pair_link(
     document: &ProjectDoc,
     pair_id: &str,
     first_instance_id: &str,
     second_instance_id: &str,
-) -> Option<MirrorPairLink> {
+    reviewed_mapping: Option<Pose2>,
+    reviewed_construction_source: Option<&str>,
+    reviewed_correspondences: Option<Vec<MechanicalFeatureCorrespondence>>,
+) -> Result<Option<MirrorPairLink>, String> {
     if first_instance_id == second_instance_id {
-        return None;
+        return Ok(None);
     }
-    let hardware = document.hardware.as_ref()?;
+    let hardware = match document.hardware.as_ref() {
+        Some(hardware) => hardware,
+        None => return Ok(None),
+    };
     if hardware.pairs.iter().any(|pair| pair.id == pair_id) {
-        return None;
+        return Ok(None);
     }
-    let first = hardware
+    let first = match hardware
         .instances
         .iter()
-        .find(|instance| instance.id == first_instance_id)?;
-    let second = hardware
+        .find(|instance| instance.id == first_instance_id)
+    {
+        Some(instance) => instance,
+        None => return Ok(None),
+    };
+    let second = match hardware
         .instances
         .iter()
-        .find(|instance| instance.id == second_instance_id)?;
+        .find(|instance| instance.id == second_instance_id)
+    {
+        Some(instance) => instance,
+        None => return Ok(None),
+    };
     if !document
         .boards
         .iter()
@@ -436,57 +566,155 @@ fn mirror_pair_link(
             .iter()
             .any(|board| board.id == second.board_id)
     {
-        return None;
+        return Ok(None);
     }
     if hardware.pairs.iter().any(|pair| {
         pair.members
             .iter()
             .any(|member| member == first_instance_id || member == second_instance_id)
     }) {
-        return None;
+        return Ok(None);
     }
-    let mapping = derived_mapping(first.flipped, second.flipped)?;
-    let correspondences = feature_correspondences(document, first_instance_id, second_instance_id)?;
-    Some(MirrorPairLink {
-        pair_id: pair_id.into(),
-        members: [first_instance_id.into(), second_instance_id.into()],
-        mapping,
-        construction_source: first_instance_id.into(),
-        correspondences,
-    })
-}
-
-/// The reviewed matches between two halves' effective mechanical features.
-///
-/// Features match on their durable identity (mount/closure-mount/opening/anchor id),
-/// never on their position. The first half's order is preserved. `None` when either
-/// half's effective configuration cannot be resolved, so the caller proposes nothing
-/// rather than a partial link.
-fn feature_correspondences(
-    document: &ProjectDoc,
-    first_instance_id: &str,
-    second_instance_id: &str,
-) -> Option<Vec<MechanicalFeatureCorrespondence>> {
-    let first = effective_inputs(
+    let mapping = match reviewed_mapping {
+        Some(mapping) => {
+            if !mapping.at.x.is_finite()
+                || !mapping.at.y.is_finite()
+                || !mapping.rotation.is_finite()
+            {
+                return Err("The mechanical pair mapping must be finite".into());
+            }
+            mapping
+        }
+        // Without a reviewed map only the halves' declared transforms can supply
+        // one: opposite flips are the physical reflection, and equal flips are not
+        // representable, so those halves have no eligible map.
+        None => match derived_mapping(first.flipped, second.flipped) {
+            Some(mapping) => mapping,
+            None => return Ok(None),
+        },
+    };
+    let construction_source = match reviewed_construction_source {
+        Some(source) => {
+            if source != first_instance_id && source != second_instance_id {
+                return Err(
+                    "The construction source must be one of the two physical instances".into(),
+                );
+            }
+            source.to_string()
+        }
+        None => first_instance_id.to_string(),
+    };
+    let first_inputs = match effective_inputs(
         document,
         &MechanicalTarget::Instance {
             instance_id: first_instance_id.into(),
         },
-    )
-    .ok()?;
-    let second = effective_inputs(
+    ) {
+        Ok(inputs) => inputs,
+        Err(_) => return Ok(None),
+    };
+    let second_inputs = match effective_inputs(
         document,
         &MechanicalTarget::Instance {
             instance_id: second_instance_id.into(),
         },
-    )
-    .ok()?;
-    Some(correspondences_between(
-        &first.configuration,
-        &second.configuration,
-    ))
+    ) {
+        Ok(inputs) => inputs,
+        Err(_) => return Ok(None),
+    };
+    let correspondences = match reviewed_correspondences {
+        Some(correspondences) => {
+            validate_correspondences(
+                &first_inputs.configuration,
+                &second_inputs.configuration,
+                &correspondences,
+            )?;
+            correspondences
+        }
+        None => correspondences_between(&first_inputs.configuration, &second_inputs.configuration),
+    };
+    Ok(Some(MirrorPairLink {
+        pair_id: pair_id.into(),
+        members: [first_instance_id.into(), second_instance_id.into()],
+        mapping,
+        construction_source,
+        correspondences,
+    }))
 }
 
+/// Rejects a reviewed feature match whose durable ids are not present on the halves.
+///
+/// The review selects the source geometry for each matched feature; a match naming a
+/// feature a half does not have is malformed rather than a silently weaker link.
+fn validate_correspondences(
+    first: &MechanicalConfiguration,
+    second: &MechanicalConfiguration,
+    correspondences: &[MechanicalFeatureCorrespondence],
+) -> Result<(), String> {
+    for correspondence in correspondences {
+        if find_feature(first, correspondence.kind, &correspondence.first_feature_id).is_none() {
+            return Err(format!(
+                "The first half has no {:?} feature {:?}",
+                correspondence.kind, correspondence.first_feature_id
+            ));
+        }
+        if find_feature(
+            second,
+            correspondence.kind,
+            &correspondence.second_feature_id,
+        )
+        .is_none()
+        {
+            return Err(format!(
+                "The second half has no {:?} feature {:?}",
+                correspondence.kind, correspondence.second_feature_id
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn find_feature(
+    configuration: &MechanicalConfiguration,
+    kind: MechanicalFeatureKind,
+    feature_id: &str,
+) -> Option<()> {
+    match kind {
+        MechanicalFeatureKind::Mount => configuration
+            .mounts
+            .iter()
+            .any(|mount| mount.id == feature_id)
+            .then_some(()),
+        MechanicalFeatureKind::ClosureMount => configuration
+            .closure_mounts
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .any(|mount| mount.id == feature_id)
+            .then_some(()),
+        MechanicalFeatureKind::Opening => configuration
+            .openings
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .any(|opening| opening.id == feature_id)
+            .then_some(()),
+        MechanicalFeatureKind::GasketSupport => configuration
+            .gasket_layout
+            .as_ref()
+            .map(|layout| layout.supports.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .any(|support| support.id == feature_id)
+            .then_some(()),
+    }
+}
+
+/// The matches between two halves' effective mechanical features.
+///
+/// Features match on their durable identity (mount/closure-mount/opening/anchor id),
+/// never on their position. The first half's order is preserved, so the reviewed
+/// default correspondence list is deterministic.
 fn correspondences_between(
     first: &MechanicalConfiguration,
     second: &MechanicalConfiguration,
@@ -998,6 +1226,331 @@ mod tests {
         }
     }
 
+    /// A reviewed explicit link with no extra reviewed choice: the map comes from the
+    /// halves' declared transforms and the construction source is the first member.
+    fn link_intent(pair_id: &str, first: &str, second: &str) -> SetupIntent {
+        SetupIntent::LinkMirrorPair {
+            pair_id: pair_id.into(),
+            first_instance_id: first.into(),
+            second_instance_id: second.into(),
+            mapping: None,
+            construction_source: None,
+            correspondences: None,
+        }
+    }
+
+    fn mounting_hole_template() -> PartDefinition {
+        serde_json::from_value(json!({
+            "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+            "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+                "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+            "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+            "envelopeSource":{"courtyard":"generated"},
+            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_reviewed_mapping_links_distinct_board_halves_with_no_representable_declared_transform() {
+        let mut doc = document();
+        doc.boards.push(Board {
+            id: "board-b".into(),
+            name: "Board B".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        // Both halves are upright and scoped to different boards: the declared
+        // transforms imply no map at all, so only a reviewed map can link them.
+        let left = feature_instance(
+            &doc,
+            "left",
+            "board-a",
+            "left",
+            false,
+            vec![mount("mount-a", 2.0, 1.0)],
+            vec![],
+        );
+        let right = feature_instance(
+            &doc,
+            "right",
+            "board-b",
+            "right",
+            false,
+            vec![mount("mount-b", 12.0, 4.0)],
+            vec![],
+        );
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport: HardwareTransport::None,
+            instances: vec![left, right],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+        let reviewed_mapping = Pose2 {
+            at: Vec2 { x: 30.0, y: -5.0 },
+            rotation: 180.0,
+        };
+        let reviewed = MechanicalFeatureCorrespondence {
+            kind: MechanicalFeatureKind::Mount,
+            first_feature_id: "mount-a".into(),
+            second_feature_id: "mount-b".into(),
+        };
+        let accepted = doc.clone();
+
+        let proposal = propose_with_mirror_pair(
+            &doc,
+            SetupIntent::LinkMirrorPair {
+                pair_id: "pair-reviewed".into(),
+                first_instance_id: "left".into(),
+                second_instance_id: "right".into(),
+                mapping: Some(reviewed_mapping),
+                construction_source: Some("right".into()),
+                correspondences: Some(vec![reviewed.clone()]),
+            },
+            keep_definition,
+        )
+        .unwrap();
+
+        assert_eq!(doc, accepted, "accepted input remains immutable");
+        let link = proposal
+            .mirror_pair
+            .expect("an explicit reviewed map makes the halves eligible");
+        assert_eq!(link.members, ["left".to_string(), "right".to_string()]);
+        assert_eq!(link.mapping, reviewed_mapping, "the reviewed map is stored");
+        assert_ne!(
+            link.mapping,
+            Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            "the review's translated/rotated map is not an inferred identity transform"
+        );
+        assert_eq!(link.construction_source, "right");
+        assert_eq!(link.correspondences, vec![reviewed]);
+    }
+
+    #[test]
+    fn a_malformed_reviewed_link_is_an_error_not_a_silently_different_pair() {
+        let mut doc = document();
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport: HardwareTransport::None,
+            instances: vec![
+                feature_instance(
+                    &doc,
+                    "left",
+                    "board-a",
+                    "left",
+                    false,
+                    vec![mount("mount-1", 2.0, 1.0)],
+                    vec![],
+                ),
+                feature_instance(
+                    &doc,
+                    "right",
+                    "board-a",
+                    "right",
+                    true,
+                    vec![mount("mount-1", -2.0, 1.0)],
+                    vec![],
+                ),
+            ],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+
+        let cases = [
+            SetupIntent::LinkMirrorPair {
+                pair_id: "pair-1".into(),
+                first_instance_id: "left".into(),
+                second_instance_id: "right".into(),
+                mapping: Some(Pose2 {
+                    at: Vec2 {
+                        x: f64::NAN,
+                        y: 0.0,
+                    },
+                    rotation: 0.0,
+                }),
+                construction_source: None,
+                correspondences: None,
+            },
+            SetupIntent::LinkMirrorPair {
+                pair_id: "pair-1".into(),
+                first_instance_id: "left".into(),
+                second_instance_id: "right".into(),
+                mapping: None,
+                construction_source: Some("other".into()),
+                correspondences: None,
+            },
+            SetupIntent::LinkMirrorPair {
+                pair_id: "pair-1".into(),
+                first_instance_id: "left".into(),
+                second_instance_id: "right".into(),
+                mapping: None,
+                construction_source: None,
+                correspondences: Some(vec![MechanicalFeatureCorrespondence {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-missing".into(),
+                    second_feature_id: "mount-1".into(),
+                }]),
+            },
+        ];
+        for intent in cases {
+            let outcome = propose_with_mirror_pair(&doc, intent.clone(), keep_definition);
+            assert!(
+                outcome.is_err(),
+                "a malformed reviewed link must not propose {intent:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_eligible_setup_proposal_establishes_its_pair_on_the_proposed_document() {
+        let mut doc = document();
+        doc.parameters
+            .insert("reversibleLayout".into(), Value::Bool(true));
+        let mut settings = mechanical(&doc, 4.2);
+        settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+        settings.openings = Some(vec![opening("opening-1")]);
+        doc.mechanical = Some(settings);
+
+        let proposal = propose_with_mirror_pair(
+            &doc,
+            SetupIntent::Topology {
+                board_id: "board-a".into(),
+                selected_instance_id: None,
+                split: true,
+                new_primary_id: "left-new".into(),
+                new_secondary_id: "right-new".into(),
+            },
+            keep_definition,
+        )
+        .unwrap();
+        assert!(
+            proposal
+                .document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .pairs
+                .is_empty(),
+            "the proposal document alone never carries the pair"
+        );
+
+        let document = proposal
+            .into_submission(Some(&mounting_hole_template()))
+            .expect("the eligible pair is established through Core");
+
+        let hardware = document.hardware.as_ref().unwrap();
+        assert_eq!(hardware.instances.len(), 2);
+        assert_eq!(
+            hardware.pairs.len(),
+            1,
+            "the new halves and their pair land in one submission"
+        );
+        let pair = &hardware.pairs[0];
+        assert_eq!(pair.id, "pair/right-new");
+        assert_eq!(
+            pair.members,
+            ["left-new".to_string(), "right-new".to_string()]
+        );
+        assert_eq!(
+            pair.construction,
+            boardstudio_core::mechanical::features::shared_construction(&mechanical(&doc, 4.2)),
+            "Core derives the pair's shared construction from the reviewed source"
+        );
+        assert!(
+            pair.features
+                .iter()
+                .any(|feature| feature.kind == MechanicalFeatureKind::Mount),
+            "the shared mount is linked"
+        );
+        let ownership = |id: &str| {
+            hardware
+                .instances
+                .iter()
+                .find(|instance| instance.id == id)
+                .unwrap()
+                .construction_ownership
+        };
+        assert_eq!(ownership("left-new"), MechanicalConstructionOwnership::Pair);
+        assert_eq!(
+            ownership("right-new"),
+            MechanicalConstructionOwnership::Pair
+        );
+        let right = hardware
+            .instances
+            .iter()
+            .find(|instance| instance.id == "right-new")
+            .unwrap();
+        assert_eq!(
+            right.mechanical.as_ref().unwrap().mounts[0].at,
+            Vec2 { x: -12.0, y: 3.0 },
+            "the counterpart mount is the reflection of the authored one"
+        );
+    }
+
+    #[test]
+    fn a_setup_proposal_without_a_pair_needs_no_mounting_hole() {
+        // Equal declared transforms imply no representable map, so this split has no
+        // eligible pair and therefore needs no mounting-hole template.
+        let doc = document();
+        let proposal = propose_with_mirror_pair(
+            &doc,
+            SetupIntent::Topology {
+                board_id: "board-a".into(),
+                selected_instance_id: None,
+                split: true,
+                new_primary_id: "left-new".into(),
+                new_secondary_id: "right-new".into(),
+            },
+            keep_definition,
+        )
+        .unwrap();
+        assert!(proposal.mirror_pair.is_none());
+        let expected = proposal.document.clone();
+        assert_eq!(
+            proposal.into_submission(None).unwrap(),
+            expected,
+            "an ineligible pair changes nothing and needs no template"
+        );
+    }
+
+    #[test]
+    fn a_pair_application_failure_aborts_the_whole_proposal() {
+        let mut doc = document();
+        doc.parameters
+            .insert("reversibleLayout".into(), Value::Bool(true));
+        let mut settings = mechanical(&doc, 4.2);
+        settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+        doc.mechanical = Some(settings);
+        let proposal = propose_with_mirror_pair(
+            &doc,
+            SetupIntent::Topology {
+                board_id: "board-a".into(),
+                selected_instance_id: None,
+                split: true,
+                new_primary_id: "left-new".into(),
+                new_secondary_id: "right-new".into(),
+            },
+            keep_definition,
+        )
+        .unwrap();
+        assert!(proposal.mirror_pair.is_some());
+        assert!(
+            proposal.into_submission(None).is_err(),
+            "a pair that needs projection without its template publishes nothing"
+        );
+    }
+
     fn stored_pair(doc: &ProjectDoc, id: &str, first: &str, second: &str) -> MechanicalMirrorPair {
         MechanicalMirrorPair {
             id: id.into(),
@@ -1174,11 +1727,7 @@ mod tests {
 
         let proposal = propose_with_mirror_pair(
             &doc,
-            SetupIntent::LinkMirrorPair {
-                pair_id: "pair-1".into(),
-                first_instance_id: "left".into(),
-                second_instance_id: "right".into(),
-            },
+            link_intent("pair-1", "left", "right"),
             keep_definition,
         )
         .unwrap();
@@ -1254,11 +1803,7 @@ mod tests {
 
         let proposal = propose_with_mirror_pair(
             &doc,
-            SetupIntent::LinkMirrorPair {
-                pair_id: "pair-1".into(),
-                first_instance_id: "left".into(),
-                second_instance_id: "right".into(),
-            },
+            link_intent("pair-1", "left", "right"),
             keep_definition,
         )
         .unwrap();
@@ -1291,11 +1836,7 @@ mod tests {
             assert_eq!(
                 propose_with_mirror_pair(
                     &doc,
-                    SetupIntent::LinkMirrorPair {
-                        pair_id: "pair-new".into(),
-                        first_instance_id: first.into(),
-                        second_instance_id: second.into(),
-                    },
+                    link_intent("pair-new", first, second),
                     keep_definition,
                 )
                 .unwrap()
@@ -1312,11 +1853,7 @@ mod tests {
         assert_eq!(
             propose_with_mirror_pair(
                 &missing_board,
-                SetupIntent::LinkMirrorPair {
-                    pair_id: "pair-new".into(),
-                    first_instance_id: "left".into(),
-                    second_instance_id: "right".into(),
-                },
+                link_intent("pair-new", "left", "right"),
                 keep_definition,
             )
             .unwrap()
@@ -1330,11 +1867,7 @@ mod tests {
             assert_eq!(
                 propose_with_mirror_pair(
                     &doc,
-                    SetupIntent::LinkMirrorPair {
-                        pair_id: "pair-new".into(),
-                        first_instance_id: first.into(),
-                        second_instance_id: second.into(),
-                    },
+                    link_intent("pair-new", first, second),
                     keep_definition,
                 )
                 .unwrap()
@@ -1360,16 +1893,8 @@ mod tests {
         });
         let accepted = doc.clone();
         assert!(
-            propose_with_mirror_pair(
-                &doc,
-                SetupIntent::LinkMirrorPair {
-                    pair_id: "  ".into(),
-                    first_instance_id: "left".into(),
-                    second_instance_id: "right".into(),
-                },
-                keep_definition,
-            )
-            .is_err()
+            propose_with_mirror_pair(&doc, link_intent("  ", "left", "right"), keep_definition,)
+                .is_err()
         );
         assert_eq!(doc, accepted);
     }

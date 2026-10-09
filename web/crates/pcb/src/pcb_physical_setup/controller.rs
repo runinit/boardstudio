@@ -4,12 +4,13 @@ use boardstudio_application::{
     SnapshotToken,
 };
 use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
+use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
-pub type ProposalFuture = Pin<Box<dyn Future<Output = Result<ProjectDoc, String>>>>;
+pub type ProposalFuture = Pin<Box<dyn Future<Output = Result<PreparedSetup, String>>>>;
 pub type ProposalPreparer = Rc<dyn Fn(ProjectDoc, SetupIntent) -> ProposalFuture>;
 pub type CurrentOwner = Rc<dyn Fn(&OwnerIdentity, bool) -> bool>;
 
@@ -233,8 +234,12 @@ pub fn use_controller(
             ui.feedback.set(None);
             spawn_local(async move {
                 let prepared = match preparation {
-                    Some(future) => future.await.map(|_| ()),
-                    None => Ok(()),
+                    Some(future) => future.await,
+                    // A non-project intent (Case assembly setup) resolves from the accepted
+                    // snapshot alone and prepares no catalogue resource.
+                    None => Ok(PreparedSetup {
+                        mounting_hole: None,
+                    }),
                 };
                 if !ui.alive.get() {
                     return;
@@ -662,12 +667,13 @@ fn setup_resolver(
     owner: OwnerIdentity,
     intent: PhysicalSetupIntent,
     seed: u64,
-    prepared: Result<(), String>,
+    prepared: Result<PreparedSetup, String>,
 ) -> EditResolver {
     EditResolver::new("physical-setup", move |accepted: &AcceptedSnapshot| {
-        if let Err(reason) = &prepared {
-            return Resolution::Retire(reason.clone());
-        }
+        let prepared = match &prepared {
+            Ok(prepared) => prepared,
+            Err(reason) => return Resolution::Retire(reason.clone()),
+        };
         if !accepted
             .document
             .boards
@@ -691,10 +697,17 @@ fn setup_resolver(
             | PhysicalSetupIntent::ProjectTransport(_)
             | PhysicalSetupIntent::ProjectReversibleLayout(_)
             | PhysicalSetupIntent::CaseTransport(_)) => {
-                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
+                let setup = setup_intent(&accepted.document, &owner, intent, seed)
+                    .expect("every project setup intent maps to a catalogue intent");
+                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal_with_pair(
                     &accepted.document,
-                    setup_intent(&accepted.document, &owner, intent, seed).unwrap(),
+                    setup,
                 )
+                // A topology setup establishes its mirror pair through Core's typed
+                // mechanical operation on the proposed document, so the new halves and
+                // the pair are one accepted replacement with one Undo step. A Core error
+                // aborts the whole proposal: nothing is submitted.
+                .and_then(|proposal| proposal.into_submission(prepared.mounting_hole.as_ref()))
             }
         };
         let proposal = match proposal {

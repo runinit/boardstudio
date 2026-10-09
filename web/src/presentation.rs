@@ -2957,7 +2957,7 @@ fn Editor() -> Element {
             }
         }),
         Rc::new(|accepted, intent| {
-            Box::pin(parts::prepare_physical_setup_proposal(accepted, intent))
+            Box::pin(parts::prepare_physical_setup_resources(accepted, intent))
         }),
     );
     // Keep the operation observer alive even when the workspace panel is hidden.

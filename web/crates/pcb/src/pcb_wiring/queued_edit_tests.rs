@@ -134,9 +134,12 @@ fn host() -> Element {
         }),
         Rc::new(|document, intent| {
             Box::pin(async move {
-                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
-                    &document, intent,
+                // The catalogued mounting-hole template a topology pair needs is the
+                // bundled definition; the resolver recomputes the proposal itself.
+                boardstudio_web_catalogue::bundled::prepare_physical_setup_resources(
+                    document, intent,
                 )
+                .await
             })
         }),
     ));
