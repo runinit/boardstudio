@@ -31,11 +31,15 @@ const AUTO_CLOSURE_PREFIX: &str = "auto-closure/";
 /// mount and process ids follow when the ported code changes them, then the
 /// generated clearance part ids, definition ids and membership owners the
 /// projection actually changed.
-pub fn apply(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>, String> {
+pub fn apply(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
     // Stage the whole edit on a clone so any later failure leaves the accepted
     // document - configuration, initialization and projection - untouched.
     let mut next = doc.clone();
-    let changed = apply_staged(&mut next, edit)?;
+    let changed = apply_staged(&mut next, board_contours, edit)?;
     *doc = next;
     Ok(changed)
 }
@@ -63,11 +67,12 @@ pub enum MechanicalEditDisposition {
 /// document. A missing or ineligible target is [`MechanicalEditDisposition::Retire`]
 /// (the queued intent is dropped silently); structural problems - malformed values
 /// or a missing or invalid mounting-hole template - are `Err` with no mutation.
-/// `board_contours` is the accepted board outline cache the contour-dependent
-/// projection and fit findings resolve against.
+/// `board_contours` is the accepted board outline projection: absent closure
+/// mounts are proposed from it (never from a fresh recompute of the proposed
+/// document), and contour-dependent projection and fit findings resolve against it.
 pub fn evaluate_edit(
     document: &ProjectDoc,
-    _board_contours: &[BoardContours],
+    board_contours: &[BoardContours],
     edit: &MechanicalEdit,
 ) -> Result<MechanicalEditDisposition, String> {
     // A target that no longer exists retires: the queued intent was authored
@@ -77,7 +82,7 @@ pub fn evaluate_edit(
         return Ok(MechanicalEditDisposition::Retire);
     }
     let mut next = document.clone();
-    match apply_staged(&mut next, edit) {
+    match apply_staged(&mut next, board_contours, edit) {
         Ok(changed) if changed.is_empty() => Ok(MechanicalEditDisposition::Unchanged),
         Ok(_) => Ok(MechanicalEditDisposition::Changed),
         Err(message) => Err(message),
@@ -101,20 +106,24 @@ fn target_exists(document: &ProjectDoc, target: &MechanicalTarget) -> bool {
     }
 }
 
-fn apply_staged(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>, String> {
+fn apply_staged(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
     let board_id = target_board_id(doc, &edit.target)?;
     match &edit.change {
-        MechanicalChange::Enable => enable(doc, &edit.target, &board_id, edit),
+        MechanicalChange::Enable => enable(doc, board_contours, &edit.target, &board_id, edit),
         MechanicalChange::Disable => disable(doc, &edit.target, &board_id, edit),
         MechanicalChange::InitializeClosures => {
-            initialize_closures(doc, &edit.target, &board_id, edit)
+            initialize_closures(doc, board_contours, &edit.target, &board_id, edit)
         }
         MechanicalChange::LinkMirrorPair { .. } => link_mirror_pair(doc, &board_id, edit),
         MechanicalChange::UnlinkMirrorPair { .. } => unlink_mirror_pair(doc, &board_id, edit),
         MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
-        change => apply_settings(doc, edit, change, &board_id),
+        change => apply_settings(doc, board_contours, edit, change, &board_id),
     }
 }
 
@@ -201,6 +210,7 @@ pub fn affects_outline(change: &MechanicalChange) -> bool {
 
 fn apply_settings(
     doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
     edit: &MechanicalEdit,
     change: &MechanicalChange,
     board_id: &str,
@@ -228,7 +238,7 @@ fn apply_settings(
     changed.insert(0, owner_id(&edit.target, board_id));
     if needs_initialization {
         persist(doc, &edit.target, configuration.clone())?;
-        configuration = initialize_closure_mounts(doc, &edit.target)?;
+        configuration = initialize_closure_mounts(doc, board_contours, &edit.target)?;
     }
     // Route each changed value to the ownership that owns it: the pair's single
     // authored value for linked features, the pair or shared source for shared
@@ -298,13 +308,20 @@ fn validate_mounting_hole(template: &PartDefinition) -> Result<(), String> {
 /// resolver returned.
 fn initialize_closure_mounts(
     doc: &ProjectDoc,
+    board_contours: &[BoardContours],
     target: &MechanicalTarget,
 ) -> Result<MechanicalConfiguration, String> {
-    let (effective, contours) = effective_document(doc, target)?;
+    let (effective, recomputed) = effective_document(doc, target)?;
     let mut configuration = effective
         .mechanical
         .clone()
         .ok_or("The mechanical configuration no longer exists.")?;
+    // The accepted outline projection is the geometry the user saw, so absent
+    // closure mounts are proposed from it rather than from a fresh recompute of the
+    // proposed document. Falling back to the recomputed contours keeps callers that
+    // have no accepted projection (or a board without one) working.
+    let accepted = accepted_target_contours(doc, board_contours, target);
+    let contours = accepted.unwrap_or(recomputed);
     let assembly = crate::mechanical::resolve(&effective, &contours);
     let height = configuration.plate_to_pcb
         + configuration.pcb_thickness
@@ -325,6 +342,39 @@ fn initialize_closure_mounts(
             .collect(),
     );
     Ok(configuration)
+}
+
+/// The accepted contours of the edit target's board, mirrored for a flipped half.
+///
+/// `None` when the accepted projection has no entry for that board, so initialization
+/// falls back to the contours recomputed from the proposed document.
+fn accepted_target_contours(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+) -> Option<Vec<Contour>> {
+    let (board_id, flipped) = match target {
+        MechanicalTarget::Board { board_id } => (board_id.as_str(), false),
+        MechanicalTarget::Instance { instance_id } => {
+            let instance = document
+                .hardware
+                .as_ref()?
+                .instances
+                .iter()
+                .find(|instance| instance.id == *instance_id)?;
+            (instance.board_id.as_str(), instance.flipped)
+        }
+    };
+    let declared = board_contours
+        .iter()
+        .find(|entry| entry.board_id == board_id)?
+        .contours
+        .clone();
+    Some(if flipped {
+        super::inputs::mirror_contours(declared)
+    } else {
+        declared
+    })
 }
 
 /// The generated part ids, generated definition ids and membership owners that
@@ -582,6 +632,7 @@ fn persist_edit(
 /// change, because its `closure_mounts` starts absent.
 fn enable(
     doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
     target: &MechanicalTarget,
     board_id: &str,
     edit: &MechanicalEdit,
@@ -606,7 +657,7 @@ fn enable(
     let configuration = default_configuration(doc, board_id)?;
     let mut changed = vec![owner_id(target, board_id)];
     persist(doc, target, configuration)?;
-    let configuration = initialize_closure_mounts(doc, target)?;
+    let configuration = initialize_closure_mounts(doc, board_contours, target)?;
     persist(doc, target, configuration)?;
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     dedup_changed(&mut changed);
@@ -672,6 +723,7 @@ fn disable(
 /// adapter's message; explicit `Some(vec![])` therefore stays deliberate.
 fn initialize_closures(
     doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
     target: &MechanicalTarget,
     board_id: &str,
     edit: &MechanicalEdit,
@@ -686,7 +738,7 @@ fn initialize_closures(
         validate_mounting_hole(template)?;
     }
     persist(doc, target, inputs.configuration)?;
-    let configuration = initialize_closure_mounts(doc, target)?;
+    let configuration = initialize_closure_mounts(doc, board_contours, target)?;
     persist(doc, target, configuration)?;
     let mut changed = vec![owner_id(target, board_id)];
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
@@ -3491,6 +3543,7 @@ mod tests {
     fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<String>, String> {
         apply(
             doc,
+            &[],
             &MechanicalEdit {
                 target: board_target(),
                 change,
@@ -3505,6 +3558,7 @@ mod tests {
     ) -> Result<Vec<String>, String> {
         apply(
             doc,
+            &[],
             &MechanicalEdit {
                 target: instance_target(),
                 change,
@@ -4152,6 +4206,7 @@ mod tests {
         let before = doc.clone();
         let error = apply(
             &mut doc,
+            &[],
             &MechanicalEdit {
                 target: board_target(),
                 change: MechanicalChange::AddOpening,
@@ -4643,6 +4698,7 @@ mod tests {
         // A board that is not in the document stays ineligible.
         let missing = apply(
             &mut doc,
+            &[],
             &MechanicalEdit {
                 target: MechanicalTarget::Board {
                     board_id: "ghost".into(),
@@ -4971,6 +5027,7 @@ mod tests {
         let mut doc = mirror_document();
         apply(
             &mut doc,
+            &[],
             &link_edit(board_target(), "pair-left-right", "left"),
         )
         .unwrap();
@@ -4982,6 +5039,7 @@ mod tests {
         let mut doc = mirror_document();
         let changed = apply(
             &mut doc,
+            &[],
             &link_edit(board_target(), "pair-left-right", "left"),
         )
         .unwrap();
@@ -5030,7 +5088,12 @@ mod tests {
     fn linking_an_already_paired_instance_errors_and_mutates_nothing() {
         let mut doc = linked_document();
         let before = doc.clone();
-        let error = apply(&mut doc, &link_edit(board_target(), "pair-second", "left")).unwrap_err();
+        let error = apply(
+            &mut doc,
+            &[],
+            &link_edit(board_target(), "pair-second", "left"),
+        )
+        .unwrap_err();
         assert!(
             error.contains("already belongs to a mechanical pair"),
             "{error}"
@@ -5049,6 +5112,7 @@ mod tests {
         let before_left = visible_mount(&doc, "left", "mount-1");
         let changed = apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::UnlinkMirrorPair {
                 instance_id: "right".into(),
             }),
@@ -5082,6 +5146,7 @@ mod tests {
         let mut doc = linked_document();
         let changed = apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::MakeFeatureLocal {
                 feature_id: "mount-1".into(),
                 instance_id: "right".into(),
@@ -5111,6 +5176,7 @@ mod tests {
         let mut doc = linked_document();
         let changed = apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::MakeFeatureLocal {
                 feature_id: "mount-1".into(),
                 instance_id: "left".into(),
@@ -5154,6 +5220,7 @@ mod tests {
         let mut doc = linked_document();
         let changed = apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::OmitFeatureMember {
                 feature_id: "mount-1".into(),
                 instance_id: "right".into(),
@@ -5198,6 +5265,7 @@ mod tests {
         let mut doc = linked_document();
         apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::OmitFeatureMember {
                 feature_id: "mount-1".into(),
                 instance_id: "left".into(),
@@ -5228,6 +5296,7 @@ mod tests {
         let mut doc = linked_document();
         apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::MakeFeatureLocal {
                 feature_id: "mount-1".into(),
                 instance_id: "right".into(),
@@ -5250,6 +5319,7 @@ mod tests {
 
         let changed = apply(
             &mut doc,
+            &[],
             &lifecycle_edit(MechanicalChange::RejoinFeatureMember {
                 feature_id: "mount-1".into(),
                 instance_id: "right".into(),
@@ -5284,6 +5354,7 @@ mod tests {
         assert!(
             apply(
                 &mut doc,
+                &[],
                 &lifecycle_edit(MechanicalChange::RejoinFeatureMember {
                     feature_id: "mount-1".into(),
                     instance_id: "right".into(),
@@ -5300,6 +5371,7 @@ mod tests {
         assert!(
             apply(
                 &mut doc,
+                &[],
                 &lifecycle_edit(MechanicalChange::OmitFeatureMember {
                     feature_id: "mount-1".into(),
                     instance_id: "right".into(),
@@ -5334,7 +5406,7 @@ mod tests {
             },
         ] {
             assert!(
-                apply(&mut doc, &lifecycle_edit(change.clone())).is_err(),
+                apply(&mut doc, &[], &lifecycle_edit(change.clone())).is_err(),
                 "{change:?} must error"
             );
             assert_eq!(doc, before, "{change:?} must mutate nothing");
@@ -5342,7 +5414,7 @@ mod tests {
         let mut missing_template = link_edit(board_target(), "pair-left-right", "left");
         missing_template.mounting_hole = None;
         assert!(
-            apply(&mut doc, &missing_template).is_err(),
+            apply(&mut doc, &[], &missing_template).is_err(),
             "the projection template is required"
         );
         assert_eq!(doc, before);

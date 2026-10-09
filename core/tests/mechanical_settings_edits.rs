@@ -132,6 +132,7 @@ fn instance_target() -> MechanicalTarget {
 fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<String>, String> {
     apply(
         doc,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change,
@@ -143,6 +144,7 @@ fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<St
 fn apply_instance(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<String>, String> {
     apply(
         doc,
+        &[],
         &MechanicalEdit {
             target: instance_target(),
             change,
@@ -1702,6 +1704,7 @@ fn vanished_or_ineligible_targets_error() {
     // A board that is not in the document stays ineligible.
     let missing = apply(
         &mut doc,
+        &[],
         &MechanicalEdit {
             target: MechanicalTarget::Board {
                 board_id: "ghost".into(),

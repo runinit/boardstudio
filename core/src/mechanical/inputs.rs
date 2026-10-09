@@ -127,7 +127,7 @@ fn declared_contours(board_contours: &[BoardContours], board_id: &str) -> Vec<Co
 }
 
 /// Mirrors accepted board contours into a flipped physical half's Case frame.
-fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
+pub(crate) fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
     for contour in &mut contours {
         for point in &mut contour.points {
             point.x = -point.x;

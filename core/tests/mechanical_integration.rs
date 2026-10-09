@@ -12,10 +12,10 @@ use boardstudio_core::mechanical::change::{
 };
 use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
-    Board, BoardContours, HardwareConfiguration, HardwareTopology, HardwareTransport,
+    Board, BoardContours, Contour, HardwareConfiguration, HardwareTopology, HardwareTransport,
     MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalFeatureKind,
-    MechanicalFeatureValue, Mount, MountKind, PartDefinition, PhysicalBoardInstance, Pose2,
-    ProjectDoc, Vec2,
+    MechanicalFeatureValue, Mount, MountKind, Operation, OutlineFeature, PartDefinition,
+    PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -216,6 +216,7 @@ fn template() -> PartDefinition {
 fn link_pair(document: &mut ProjectDoc) {
     boardstudio_core::mechanical::edit::apply(
         document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::LinkMirrorPair {
@@ -330,6 +331,7 @@ fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
     // flip flags. Distinct boards are a supported explicit pair.
     let changed = boardstudio_core::mechanical::edit::apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: MechanicalTarget::Board {
                 board_id: "left-board".into(),
@@ -383,6 +385,7 @@ fn an_ordinary_edit_from_either_half_updates_the_single_authored_value() {
     fn move_mount(document: &mut ProjectDoc, instance_id: &str, x: f64, y: f64) {
         apply(
             document,
+            &[],
             &MechanicalEdit {
                 target: instance_target(instance_id),
                 change: MechanicalChange::SetMountPosition {
@@ -470,6 +473,7 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
     }
     boardstudio_core::mechanical::edit::apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::LinkMirrorPair {
@@ -543,6 +547,7 @@ fn a_settings_only_edit_validates_a_supplied_mounting_hole_template() {
     let mut rejected = document.clone();
     let result = apply(
         &mut rejected,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetDimension {
@@ -562,6 +567,7 @@ fn a_settings_only_edit_validates_a_supplied_mounting_hole_template() {
     let mut accepted = document.clone();
     apply(
         &mut accepted,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetDimension {
@@ -599,6 +605,7 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     document.boards[0].outline_ids = vec!["outline".into()];
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetDimension {
@@ -621,6 +628,7 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     // template even though it is a projection change.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetMountCollection {
@@ -651,6 +659,7 @@ fn an_ordinary_delete_of_a_linked_feature_removes_both_halves() {
     // relationship itself. Remove-on-this-half is the explicit Omit action.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: instance_target("right"),
             change: MechanicalChange::RemoveMount {
@@ -696,6 +705,7 @@ fn a_local_delete_affects_only_that_half() {
     // Make the right half's mount an explicit per-feature exception.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: instance_target("right"),
             change: MechanicalChange::MakeFeatureLocal {
@@ -710,6 +720,7 @@ fn a_local_delete_affects_only_that_half() {
     // Ordinary delete on the localized half affects only that half.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: instance_target("right"),
             change: MechanicalChange::RemoveMount {
@@ -745,4 +756,91 @@ fn a_local_delete_affects_only_that_half() {
             .all(|mount| mount.id != "mount-1"),
         "the localized half's delete stays local"
     );
+}
+
+#[test]
+fn accepted_contours_drive_absent_closure_mount_initialization() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    // The document's own outline is a large board...
+    let mut document = ProjectDoc::empty("doc", "Fixture");
+    document.outline.push(OutlineFeature::Rect {
+        anchor_part_id: None,
+        id: "outline".into(),
+        center: Vec2 { x: 0.0, y: 0.0 },
+        size: Vec2 { x: 80.0, y: 60.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Add,
+    });
+    document.boards.push(board("board"));
+    document.boards[0].outline_ids = vec!["outline".into()];
+    let mut configuration = configuration();
+    configuration.closure_mounts = None;
+    document.mechanical = Some(configuration);
+
+    // ...but the accepted scene projection for that board is a small outline.
+    let accepted = vec![BoardContours {
+        board_id: "board".into(),
+        contours: vec![small_rect()],
+    }];
+
+    let initialization = MechanicalEdit {
+        target: board_target(),
+        change: MechanicalChange::SetDimension {
+            field: MechanicalDimension::WallThickness,
+            value: 3.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+
+    let mut from_accepted = document.clone();
+    apply(&mut from_accepted, &accepted, &initialization).unwrap();
+    let mut from_recomputed = document.clone();
+    apply(&mut from_recomputed, &[], &initialization).unwrap();
+
+    let accepted_mounts = closure_mounts(&from_accepted);
+    let recomputed_mounts = closure_mounts(&from_recomputed);
+    assert!(
+        !accepted_mounts.is_empty(),
+        "the accepted outline proposes closure mounts"
+    );
+    assert!(
+        accepted_mounts
+            .iter()
+            .all(|mount| mount.at.x.abs() < 15.0 && mount.at.y.abs() < 10.0),
+        "initialization follows the accepted projection: {accepted_mounts:?}"
+    );
+    assert!(
+        recomputed_mounts
+            .iter()
+            .any(|mount| mount.at.x.abs() > 15.0),
+        "the document's own outline would have proposed wider mounts: {recomputed_mounts:?}"
+    );
+    assert_ne!(
+        accepted_mounts, recomputed_mounts,
+        "the accepted projection is what initialization consumes"
+    );
+}
+
+fn small_rect() -> Contour {
+    Contour {
+        hole: false,
+        points: vec![
+            Vec2 { x: -10.0, y: -5.0 },
+            Vec2 { x: 10.0, y: -5.0 },
+            Vec2 { x: 10.0, y: 5.0 },
+            Vec2 { x: -10.0, y: 5.0 },
+        ],
+    }
+}
+
+fn closure_mounts(document: &ProjectDoc) -> Vec<Mount> {
+    document
+        .mechanical
+        .as_ref()
+        .unwrap()
+        .closure_mounts
+        .clone()
+        .expect("closure mounts were initialized")
 }
