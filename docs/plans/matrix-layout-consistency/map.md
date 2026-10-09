@@ -83,6 +83,8 @@ Saved projects keep their geometry.
   [Outcome](issues/09-relations-panel.md#outcome).
 - 10 Relations references highlight their parts on the canvas without changing selection:
   [Outcome](issues/10-relations-canvas-highlight.md#outcome).
+- 11 integrated checks, save/reopen test and a real product gesture pass (with gaps):
+  [Outcome](issues/11-integrated-verification.md#outcome).
 
 ## Still open
 

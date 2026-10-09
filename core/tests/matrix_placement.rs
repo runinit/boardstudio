@@ -831,3 +831,47 @@ fn convert_applies_to_both_linked_halves() {
     }
     assert_reflected_keys(&after);
 }
+
+/// Save and reopen: the placement parameters survive a JSON round trip through a fresh
+/// engine with nothing normalized, including an old-toolbar `column_offsets[c].y`.
+#[test]
+fn placement_survives_save_and_reopen_unnormalized() {
+    let mut doc = ProjectDoc::empty("roundtrip", "Roundtrip");
+    doc.definitions = definitions();
+    let (mut engine, _, doc) = open(doc);
+    let mut configured = companion_matrix();
+    configured.rows = 2;
+    configured.columns = 3;
+    configured.column_staggers = vec![0.0, 4.5, -2.0];
+    configured.column_offsets = vec![
+        Vec2::default(),
+        Vec2 { x: 0.0, y: -9.525 },
+        Vec2 { x: 1.5, y: 0.0 },
+    ];
+    configured.row_offsets = vec![Vec2::default(), Vec2 { x: 2.0, y: 1.0 }];
+    configured.cells[0].offset = Some(Vec2 { x: 0.75, y: -0.5 });
+    configured.cells[0].rotation = Some(5.0);
+    let (_, laid_out) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: configured,
+            definitions: None,
+        },
+    );
+
+    let saved = serde_json::to_string(&laid_out).unwrap();
+    let reloaded: ProjectDoc = serde_json::from_str(&saved).unwrap();
+    let (mut reopened_engine, _, reopened) = open(reloaded);
+    let again = snapshot(&mut reopened_engine);
+
+    assert_eq!(laid_out.matrices, reopened.matrices, "matrix values");
+    assert_eq!(laid_out.matrices, again.matrices, "after the open settles");
+    assert_same_poses(&laid_out, &reopened, "reopened poses");
+    assert_same_poses(&laid_out, &again, "settled poses");
+    assert_eq!(
+        reopened.matrices[0].column_offsets[1],
+        Vec2 { x: 0.0, y: -9.525 },
+        "the old-toolbar offset is kept, not converted"
+    );
+}
