@@ -69,6 +69,10 @@ Saved projects keep their geometry.
   [Outcome](issues/02-core-set-matrix-placement.md#outcome).
 - 03 Core publishes companion placement modes:
   [Outcome](issues/03-core-companion-placement-modes.md#outcome).
+- 04 one web module builds every placement edit and the Inspector uses it:
+  [Outcome](issues/04-web-placement-module-and-inspector.md#outcome).
+- 08 the pure Relations projection lands:
+  [Outcome](issues/08-matrix-relations-projection.md#outcome).
 
 ## Still open
 

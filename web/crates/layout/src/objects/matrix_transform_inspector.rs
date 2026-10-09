@@ -248,7 +248,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         request_sequence, editable: props.mount.editable,
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                     }
-                    span { class: "m1-matrix-field-context", "Column {column}" }
+                    span { class: "m1-matrix-field-context", {format!("Column {}", column + 1)} }
                 }
             },
         ),

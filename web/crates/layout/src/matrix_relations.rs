@@ -1,0 +1,788 @@
+//! Matrix relationships for the Relations panel: a pure projection of the accepted
+//! document and Core's matrix scene into a view model, with no state and no Core calls.
+//!
+//! Structure is what the matrix and its assemblies place by inheritance. Departures
+//! are the values that override it, each with the actions that undo or convert them.
+//! Constraints are separately authored. Companion placement modes come from the scene
+//! (Core classifies them once); this module never re-reads constraints or overrides to
+//! decide precedence.
+
+use boardstudio_core::model::{
+    Constraint, Matrix, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, Mirror,
+    ProjectDoc, Vec2,
+};
+use boardstudio_web_ui_model::tree::TreeContext;
+
+/// One inherited fact, with an optional object to navigate to and the parts to highlight.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RelationItem {
+    pub label: String,
+    pub value: String,
+    pub target: Option<TreeContext>,
+    pub highlight: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DepartureAction {
+    Reset,
+    /// Column offsets only: move the Y offset into the column's stagger.
+    Convert,
+}
+
+/// A value that overrides what the matrix would inherit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Departure {
+    /// The parameter it overrides, for example "Column offset".
+    pub parameter: String,
+    pub value: String,
+    pub target: Option<TreeContext>,
+    pub highlight: Vec<String>,
+    pub actions: Vec<DepartureAction>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PartReference {
+    pub part_id: String,
+    pub label: String,
+    pub context: TreeContext,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConstraintKind {
+    Offset,
+    Mirror,
+}
+
+/// A separately authored constraint touching the selection.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConstraintItem {
+    pub id: String,
+    pub kind: ConstraintKind,
+    pub source: PartReference,
+    pub target: PartReference,
+    /// The constraint wins over the target companion's attachment to its key.
+    pub takes_precedence: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatrixRelations {
+    pub structure: Vec<RelationItem>,
+    pub departures: Vec<Departure>,
+    pub constraints: Vec<ConstraintItem>,
+}
+
+/// The relationships of one matrix selection, or `None` when the context does not name a
+/// live object of this matrix (another matrix, or a removed row, column, key or component).
+pub fn matrix_relations(
+    document: &ProjectDoc,
+    scene: &MatrixScene,
+    context: &TreeContext,
+) -> Option<MatrixRelations> {
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == scene.matrix_id)?;
+    let view = View {
+        document,
+        scene,
+        matrix,
+    };
+    match context {
+        TreeContext::Matrix { matrix_id } if *matrix_id == matrix.id => Some(view.matrix()),
+        TreeContext::Row { matrix_id, row } if *matrix_id == matrix.id => view.row(*row),
+        TreeContext::Column { matrix_id, column } if *matrix_id == matrix.id => {
+            view.column(*column)
+        }
+        TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        } if *matrix_id == matrix.id => view.key(*row, *column),
+        TreeContext::Component {
+            part_id: Some(part_id),
+            ..
+        } => view.component(part_id),
+        _ => None,
+    }
+}
+
+struct View<'a> {
+    document: &'a ProjectDoc,
+    scene: &'a MatrixScene,
+    matrix: &'a Matrix,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum KeyState {
+    Enabled,
+    Disabled,
+    Removed,
+}
+
+impl View<'_> {
+    fn key_state(&self, row: u32, column: u32) -> KeyState {
+        match self
+            .matrix
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column)
+        {
+            Some(cell) if cell.deleted => KeyState::Removed,
+            Some(cell) if !cell.enabled => KeyState::Disabled,
+            _ => KeyState::Enabled,
+        }
+    }
+
+    fn member(&self, row: u32, column: u32) -> Option<&str> {
+        self.scene
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column)
+            .and_then(|cell| cell.member_id.as_deref())
+    }
+
+    fn members(&self, keep: impl Fn(u32, u32) -> bool) -> Vec<String> {
+        self.scene
+            .cells
+            .iter()
+            .filter(|cell| keep(cell.row, cell.column))
+            .filter_map(|cell| cell.member_id.clone())
+            .collect()
+    }
+
+    fn companions_of(&self, key_id: &str) -> Vec<&MatrixCompanionPlacement> {
+        self.scene
+            .companions
+            .iter()
+            .filter(|companion| companion.key_id == key_id)
+            .collect()
+    }
+
+    fn label(&self, part_id: &str) -> String {
+        self.document
+            .parts
+            .iter()
+            .find(|part| part.id == part_id)
+            .map_or_else(|| part_id.to_owned(), |part| part.reference.clone())
+    }
+
+    /// Where a part lives in the tree: a key, a matrix companion, or a plain component.
+    fn context_of(&self, part_id: &str) -> TreeContext {
+        if let Some(cell) = self
+            .scene
+            .cells
+            .iter()
+            .find(|cell| cell.member_id.as_deref() == Some(part_id))
+        {
+            return TreeContext::Key {
+                matrix_id: self.matrix.id.clone(),
+                row: cell.row,
+                column: cell.column,
+            };
+        }
+        let key = self
+            .scene
+            .companions
+            .iter()
+            .find(|companion| companion.part_id == part_id)
+            .and_then(|companion| {
+                self.scene
+                    .cells
+                    .iter()
+                    .find(|cell| cell.member_id.as_deref() == Some(companion.key_id.as_str()))
+            });
+        TreeContext::Component {
+            part_id: Some(part_id.to_owned()),
+            matrix_id: key.map(|_| self.matrix.id.clone()),
+            row: key.map(|cell| cell.row),
+            column: key.map(|cell| cell.column),
+            assembly_id: None,
+        }
+    }
+
+    fn reference(&self, part_id: &str) -> PartReference {
+        PartReference {
+            part_id: part_id.to_owned(),
+            label: self.label(part_id),
+            context: self.context_of(part_id),
+        }
+    }
+
+    fn partner(&self) -> Option<(&boardstudio_core::model::Layout, &Matrix)> {
+        let owner = self
+            .document
+            .layouts
+            .iter()
+            .find(|layout| layout.matrix_id == self.matrix.id)?;
+        let partner = match &owner.mirror_link {
+            Some(link) => self
+                .document
+                .layouts
+                .iter()
+                .find(|layout| layout.id == link.source_id)?,
+            None => self.document.layouts.iter().find(|layout| {
+                layout
+                    .mirror_link
+                    .as_ref()
+                    .is_some_and(|link| link.source_id == owner.id)
+            })?,
+        };
+        let matrix = self
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == partner.matrix_id)?;
+        Some((partner, matrix))
+    }
+
+    fn column_context(&self, column: u32) -> TreeContext {
+        TreeContext::Column {
+            matrix_id: self.matrix.id.clone(),
+            column,
+        }
+    }
+
+    fn row_context(&self, row: u32) -> TreeContext {
+        TreeContext::Row {
+            matrix_id: self.matrix.id.clone(),
+            row,
+        }
+    }
+
+    fn stagger(&self, column: u32) -> f64 {
+        self.matrix
+            .column_staggers
+            .get(column as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    fn cumulative(&self, column: u32) -> f64 {
+        (0..=column).map(|index| self.stagger(index)).sum()
+    }
+
+    fn splay(&self, column: u32) -> f64 {
+        self.matrix
+            .column_splays
+            .get(column as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    fn custom_origin(&self, column: u32) -> bool {
+        self.matrix
+            .column_origins
+            .get(column as usize)
+            .is_some_and(Option::is_some)
+    }
+
+    fn column_offset(&self, column: u32) -> Vec2 {
+        self.matrix
+            .column_offsets
+            .get(column as usize)
+            .copied()
+            .unwrap_or(ZERO)
+    }
+
+    fn row_offset(&self, row: u32) -> Vec2 {
+        self.matrix
+            .row_offsets
+            .get(row as usize)
+            .copied()
+            .unwrap_or(ZERO)
+    }
+
+    /// Constraints whose source or target is one of `parts` or an attached companion of one.
+    fn constraints_touching(&self, parts: &[String]) -> Vec<ConstraintItem> {
+        let mut touched: Vec<&str> = parts.iter().map(String::as_str).collect();
+        for part in parts {
+            touched.extend(
+                self.companions_of(part)
+                    .into_iter()
+                    .map(|companion| companion.part_id.as_str()),
+            );
+        }
+        self.document
+            .constraints
+            .iter()
+            .filter(|constraint| {
+                touched.contains(&constraint.source()) || touched.contains(&constraint.target())
+            })
+            .map(|constraint| self.constraint_item(constraint))
+            .collect()
+    }
+
+    fn constraint_item(&self, constraint: &Constraint) -> ConstraintItem {
+        let takes_precedence = self.scene.companions.iter().any(|companion| {
+            matches!(&companion.mode,
+                MatrixCompanionMode::Constrained { constraint_id, .. }
+                    if constraint_id == constraint.id())
+        });
+        ConstraintItem {
+            id: constraint.id().to_owned(),
+            kind: match constraint {
+                Constraint::Offset { .. } => ConstraintKind::Offset,
+                Constraint::Mirror { .. } => ConstraintKind::Mirror,
+            },
+            source: self.reference(constraint.source()),
+            target: self.reference(constraint.target()),
+            takes_precedence,
+        }
+    }
+
+    fn mode_text(&self, mode: &MatrixCompanionMode) -> String {
+        match mode {
+            MatrixCompanionMode::Follows => "follows key".to_owned(),
+            MatrixCompanionMode::Authored => "authored position relative to key".to_owned(),
+            MatrixCompanionMode::Constrained { source_part_id, .. } => format!(
+                "explicit constraint takes priority (source {})",
+                self.label(source_part_id)
+            ),
+        }
+    }
+
+    fn matrix(&self) -> MatrixRelations {
+        let matrix = self.matrix;
+        let (mut enabled, mut disabled, mut removed) = (0u32, 0u32, 0u32);
+        for row in 0..matrix.rows {
+            for column in 0..matrix.columns {
+                match self.key_state(row, column) {
+                    KeyState::Enabled => enabled += 1,
+                    KeyState::Disabled => disabled += 1,
+                    KeyState::Removed => removed += 1,
+                }
+            }
+        }
+        let mut size = format!("{} × {}, {} keys", matrix.rows, matrix.columns, enabled);
+        if disabled > 0 {
+            size.push_str(&format!(", {disabled} disabled"));
+        }
+        if removed > 0 {
+            size.push_str(&format!(", {removed} removed"));
+        }
+        let all = self.members(|_, _| true);
+        let mut structure = vec![
+            item("Matrix", size, None, all.clone()),
+            item(
+                "Pitch",
+                format!("{} × {} mm", mm(matrix.pitch.x), mm(matrix.pitch.y)),
+                None,
+                vec![],
+            ),
+        ];
+        if let Some(gap) = matrix.edge_gap {
+            structure.push(item(
+                "Edge gap",
+                format!("{} × {} mm", mm(gap.x), mm(gap.y)),
+                None,
+                vec![],
+            ));
+        }
+        structure.push(item(
+            "Origin",
+            format!("{}, {} mm", mm(matrix.origin.x), mm(matrix.origin.y)),
+            None,
+            vec![],
+        ));
+        if let Some(rotation) = matrix.rotation.filter(|angle| *angle != 0.0) {
+            structure.push(item("Rotation", format!("{}°", mm(rotation)), None, vec![]));
+        }
+        match matrix.mirror {
+            Some(Mirror::X) => structure.push(item("Mirror", "X".into(), None, vec![])),
+            Some(Mirror::Y) => structure.push(item("Mirror", "Y".into(), None, vec![])),
+            _ => {}
+        }
+        for column in 0..matrix.columns {
+            let members = self.members(|_, c| c == column);
+            if self.stagger(column) != 0.0 {
+                structure.push(item(
+                    &format!("Column {} stagger", column + 1),
+                    format!("{} mm", mm(self.stagger(column))),
+                    Some(self.column_context(column)),
+                    members.clone(),
+                ));
+            }
+            if self.splay(column) != 0.0 {
+                structure.push(item(
+                    &format!("Column {} splay", column + 1),
+                    format!("{}°", mm(self.splay(column))),
+                    Some(self.column_context(column)),
+                    members,
+                ));
+            }
+        }
+        structure.push(match self.partner() {
+            Some((layout, _)) => item("Linked half", layout.name.clone(), None, vec![]),
+            None => item("Linked half", "Independent".into(), None, vec![]),
+        });
+
+        let mut departures = Vec::new();
+        let rows = (0..matrix.rows)
+            .filter(|row| self.row_offset(*row) != ZERO)
+            .count();
+        let columns = (0..matrix.columns)
+            .filter(|column| self.column_offset(*column) != ZERO)
+            .count();
+        let local = matrix
+            .cells
+            .iter()
+            .filter(|cell| {
+                !cell.deleted
+                    && (cell.offset.is_some_and(|offset| offset != ZERO)
+                        || cell.rotation.is_some_and(|angle| angle != 0.0))
+            })
+            .count();
+        let authored = self
+            .scene
+            .companions
+            .iter()
+            .filter(|companion| companion.mode == MatrixCompanionMode::Authored)
+            .count();
+        for (parameter, count) in [
+            ("Rows with an offset", rows),
+            ("Columns with an offset", columns),
+            ("Keys with a local offset or rotation", local),
+            ("Authored companions", authored),
+        ] {
+            if count > 0 {
+                departures.push(Departure {
+                    parameter: parameter.to_owned(),
+                    value: count.to_string(),
+                    target: None,
+                    highlight: vec![],
+                    actions: vec![],
+                });
+            }
+        }
+        MatrixRelations {
+            structure,
+            departures,
+            constraints: self.constraints_touching(&all),
+        }
+    }
+
+    fn row(&self, row: u32) -> Option<MatrixRelations> {
+        if row >= self.matrix.rows {
+            return None;
+        }
+        let members = self.members(|r, _| r == row);
+        let keys = (0..self.matrix.columns)
+            .filter(|column| self.key_state(row, *column) == KeyState::Enabled)
+            .count();
+        let structure = vec![
+            item(
+                "Keys",
+                format!("{keys} keys in Row {}", row + 1),
+                None,
+                members.clone(),
+            ),
+            if row == 0 {
+                item("Spacing", "from the matrix origin".into(), None, vec![])
+            } else {
+                item(
+                    "Spacing",
+                    format!("{} mm from Row {}", mm(self.matrix.pitch.y), row),
+                    Some(self.row_context(row - 1)),
+                    self.members(|r, _| r == row - 1),
+                )
+            },
+            item("Column staggers", "apply to each key".into(), None, vec![]),
+        ];
+        let offset = self.row_offset(row);
+        let departures = (offset != ZERO)
+            .then(|| Departure {
+                parameter: "Row offset".into(),
+                value: format!("{}, {} mm", mm(offset.x), mm(offset.y)),
+                target: Some(self.row_context(row)),
+                highlight: members.clone(),
+                actions: vec![DepartureAction::Reset],
+            })
+            .into_iter()
+            .collect();
+        Some(MatrixRelations {
+            structure,
+            departures,
+            constraints: self.constraints_touching(&members),
+        })
+    }
+
+    fn column(&self, column: u32) -> Option<MatrixRelations> {
+        if column >= self.matrix.columns {
+            return None;
+        }
+        let members = self.members(|_, c| c == column);
+        let stagger = self.stagger(column);
+        let cumulative = self.cumulative(column);
+        let reference = if column == 0 {
+            "the matrix origin".to_owned()
+        } else {
+            format!("Column {column}")
+        };
+        let mut value = format!("{} mm from {reference}", mm(stagger));
+        if cumulative != 0.0 {
+            value.push_str(&format!(", cumulative {} mm", mm(cumulative)));
+        }
+        let mut structure = vec![item("Stagger", value, None, members.clone())];
+        for later in column + 1..self.matrix.columns {
+            structure.push(item(
+                "Inherited by",
+                format!("Column {}", later + 1),
+                Some(self.column_context(later)),
+                self.members(|_, c| c == later),
+            ));
+        }
+        if self.splay(column) != 0.0 || self.custom_origin(column) {
+            structure.push(item(
+                "Splay",
+                format!(
+                    "{}°, {} pivot",
+                    mm(self.splay(column)),
+                    if self.custom_origin(column) {
+                        "custom"
+                    } else {
+                        "default"
+                    }
+                ),
+                None,
+                members.clone(),
+            ));
+        }
+        let offset = self.column_offset(column);
+        let departures = (offset != ZERO)
+            .then(|| Departure {
+                parameter: "Column offset".into(),
+                value: format!("{}, {} mm", mm(offset.x), mm(offset.y)),
+                target: Some(self.column_context(column)),
+                highlight: members.clone(),
+                actions: vec![DepartureAction::Reset, DepartureAction::Convert],
+            })
+            .into_iter()
+            .collect();
+        Some(MatrixRelations {
+            structure,
+            departures,
+            constraints: self.constraints_touching(&members),
+        })
+    }
+
+    fn key(&self, row: u32, column: u32) -> Option<MatrixRelations> {
+        if row >= self.matrix.rows
+            || column >= self.matrix.columns
+            || self.key_state(row, column) == KeyState::Removed
+        {
+            return None;
+        }
+        let member = self.member(row, column).map(str::to_owned);
+        let highlight: Vec<String> = member.iter().cloned().collect();
+        let row_offset = self.row_offset(row);
+        let column_offset = self.column_offset(column);
+        let mirror = match self.matrix.mirror {
+            Some(Mirror::X) => "X",
+            Some(Mirror::Y) => "Y",
+            _ => "none",
+        };
+        let mut structure = vec![
+            item(
+                "Pitch cell",
+                format!("Row {}, Column {}", row + 1, column + 1),
+                None,
+                highlight.clone(),
+            ),
+            item(
+                "Row offset",
+                offset_text(row_offset),
+                Some(self.row_context(row)),
+                self.members(|r, _| r == row),
+            ),
+            item(
+                "Column offset",
+                offset_text(column_offset),
+                Some(self.column_context(column)),
+                self.members(|_, c| c == column),
+            ),
+            item(
+                "Cumulative stagger",
+                format!("{} mm", mm(self.cumulative(column))),
+                Some(self.column_context(column)),
+                self.members(|_, c| c == column),
+            ),
+            item(
+                "Splay",
+                format!("{}°", mm(self.splay(column))),
+                Some(self.column_context(column)),
+                vec![],
+            ),
+            item(
+                "Matrix frame",
+                format!(
+                    "rotation {}°, mirror {mirror}",
+                    mm(self.matrix.rotation.unwrap_or(0.0))
+                ),
+                Some(TreeContext::Matrix {
+                    matrix_id: self.matrix.id.clone(),
+                }),
+                self.members(|_, _| true),
+            ),
+        ];
+        if let Some((layout, partner)) = self.partner() {
+            let partner_member = format!("matrix/{}/r{row}c{column}", partner.id);
+            structure.push(item(
+                "Linked partner",
+                format!("{}, Row {}, Column {}", layout.name, row + 1, column + 1),
+                Some(TreeContext::Key {
+                    matrix_id: partner.id.clone(),
+                    row,
+                    column,
+                }),
+                vec![partner_member],
+            ));
+        }
+        let companions = member
+            .as_deref()
+            .map(|key| self.companions_of(key))
+            .unwrap_or_default();
+        for companion in &companions {
+            structure.push(item(
+                &format!("Companion {}", self.label(&companion.part_id)),
+                self.mode_text(&companion.mode),
+                Some(self.context_of(&companion.part_id)),
+                vec![companion.part_id.clone()],
+            ));
+        }
+
+        let mut departures = Vec::new();
+        let cell = self
+            .matrix
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column);
+        if let Some(offset) = cell.and_then(|cell| cell.offset).filter(|v| *v != ZERO) {
+            departures.push(Departure {
+                parameter: "Key local offset".into(),
+                value: format!("{}, {} mm", mm(offset.x), mm(offset.y)),
+                target: None,
+                highlight: highlight.clone(),
+                actions: vec![DepartureAction::Reset],
+            });
+        }
+        if let Some(rotation) = cell.and_then(|cell| cell.rotation).filter(|v| *v != 0.0) {
+            departures.push(Departure {
+                parameter: "Key local rotation".into(),
+                value: format!("{}°", mm(rotation)),
+                target: None,
+                highlight: highlight.clone(),
+                actions: vec![DepartureAction::Reset],
+            });
+        }
+        for companion in companions
+            .iter()
+            .filter(|companion| companion.mode == MatrixCompanionMode::Authored)
+        {
+            departures.push(Departure {
+                parameter: "Authored companion".into(),
+                value: self.label(&companion.part_id),
+                target: Some(self.context_of(&companion.part_id)),
+                highlight: vec![companion.part_id.clone()],
+                actions: vec![],
+            });
+        }
+        let touched: Vec<String> = member.into_iter().collect();
+        Some(MatrixRelations {
+            structure,
+            departures,
+            constraints: self.constraints_touching(&touched),
+        })
+    }
+
+    fn component(&self, part_id: &str) -> Option<MatrixRelations> {
+        let companion = self
+            .scene
+            .companions
+            .iter()
+            .find(|companion| companion.part_id == part_id)?;
+        let key = self
+            .scene
+            .cells
+            .iter()
+            .find(|cell| cell.member_id.as_deref() == Some(companion.key_id.as_str()))?;
+        let structure = vec![
+            item(
+                "Attached to",
+                self.label(&companion.key_id),
+                Some(TreeContext::Key {
+                    matrix_id: self.matrix.id.clone(),
+                    row: key.row,
+                    column: key.column,
+                }),
+                vec![companion.key_id.clone()],
+            ),
+            item(
+                "Placement",
+                self.mode_text(&companion.mode),
+                None,
+                vec![part_id.to_owned()],
+            ),
+        ];
+        let departures = (companion.mode == MatrixCompanionMode::Authored)
+            .then(|| Departure {
+                parameter: "Authored position".into(),
+                value: format!("relative to {}", self.label(&companion.key_id)),
+                target: None,
+                highlight: vec![part_id.to_owned()],
+                actions: vec![],
+            })
+            .into_iter()
+            .collect();
+        let constraints = self
+            .document
+            .constraints
+            .iter()
+            .filter(|constraint| constraint.source() == part_id || constraint.target() == part_id)
+            .map(|constraint| self.constraint_item(constraint))
+            .collect();
+        Some(MatrixRelations {
+            structure,
+            departures,
+            constraints,
+        })
+    }
+}
+
+const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
+
+fn item(
+    label: &str,
+    value: String,
+    target: Option<TreeContext>,
+    highlight: Vec<String>,
+) -> RelationItem {
+    RelationItem {
+        label: label.to_owned(),
+        value,
+        target,
+        highlight,
+    }
+}
+
+fn offset_text(offset: Vec2) -> String {
+    if offset == ZERO {
+        "none".to_owned()
+    } else {
+        format!("{}, {} mm", mm(offset.x), mm(offset.y))
+    }
+}
+
+/// A millimetre or degree value without trailing zeros; a minus sign is U+2212.
+fn mm(value: f64) -> String {
+    let text = format!("{value:.3}");
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    let text = if text.is_empty() || text == "-0" {
+        "0"
+    } else {
+        text
+    };
+    text.replacen('-', "\u{2212}", 1)
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;

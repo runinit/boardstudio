@@ -1,7 +1,7 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
 use boardstudio_core::model::{
-    EditOperation, Matrix, MatrixCell, MatrixSplayAffect, MatrixSplayChange, Mirror,
-    PartDefinition, Vec2,
+    EditOperation, Matrix, MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene,
+    MatrixSplayAffect, MatrixSplayChange, Mirror, PartDefinition, Vec2,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -265,61 +265,63 @@ pub fn build_operation(
             next.mirror = mirror;
             Ok(set_matrix(next))
         }
-        (MatrixTransformFields::Row { row, offset }, Field::RowOffsetX, Value::Number(x)) => Ok(
-            set_matrix_offset(matrix, true, *row, Vec2 { x, y: offset.y }),
-        ),
-        (MatrixTransformFields::Row { row, offset }, Field::RowOffsetY, Value::Number(y)) => Ok(
-            set_matrix_offset(matrix, true, *row, Vec2 { x: offset.x, y }),
-        ),
+        (MatrixTransformFields::Row { row, offset }, Field::RowOffsetX, Value::Number(x)) => {
+            Ok(placement_operation(
+                &matrix.id,
+                PlacementParameter::RowOffset { row: *row },
+                PlacementValue::Offset(Vec2 { x, y: offset.y }),
+            ))
+        }
+        (MatrixTransformFields::Row { row, offset }, Field::RowOffsetY, Value::Number(y)) => {
+            Ok(placement_operation(
+                &matrix.id,
+                PlacementParameter::RowOffset { row: *row },
+                PlacementValue::Offset(Vec2 { x: offset.x, y }),
+            ))
+        }
         (MatrixTransformFields::Row { row, .. }, Field::RowOffsetReset, Value::Offset(offset)) => {
-            Ok(set_matrix_offset(matrix, true, *row, offset))
+            Ok(placement_operation(
+                &matrix.id,
+                PlacementParameter::RowOffset { row: *row },
+                PlacementValue::Offset(offset),
+            ))
         }
         (
             MatrixTransformFields::Column { column, offset, .. },
             Field::ColumnOffsetX,
             Value::Number(x),
-        ) => Ok(set_matrix_offset(
-            matrix,
-            false,
-            *column,
-            Vec2 { x, y: offset.y },
+        ) => Ok(placement_operation(
+            &matrix.id,
+            PlacementParameter::ColumnOffset { column: *column },
+            PlacementValue::Offset(Vec2 { x, y: offset.y }),
         )),
         (
             MatrixTransformFields::Column { column, offset, .. },
             Field::ColumnOffsetY,
             Value::Number(y),
-        ) => Ok(set_matrix_offset(
-            matrix,
-            false,
-            *column,
-            Vec2 { x: offset.x, y },
+        ) => Ok(placement_operation(
+            &matrix.id,
+            PlacementParameter::ColumnOffset { column: *column },
+            PlacementValue::Offset(Vec2 { x: offset.x, y }),
         )),
         (
             MatrixTransformFields::Column { column, .. },
             Field::ColumnOffsetReset,
             Value::Offset(offset),
-        ) => Ok(set_matrix_offset(matrix, false, *column, offset)),
+        ) => Ok(placement_operation(
+            &matrix.id,
+            PlacementParameter::ColumnOffset { column: *column },
+            PlacementValue::Offset(offset),
+        )),
         (
             MatrixTransformFields::Column { column, .. },
             Field::ColumnStagger,
             Value::Number(stagger),
-        ) => {
-            let mut next = matrix.clone();
-            next.column_staggers = (0..matrix.columns)
-                .map(|index| {
-                    if index == *column {
-                        stagger
-                    } else {
-                        matrix
-                            .column_staggers
-                            .get(index as usize)
-                            .copied()
-                            .unwrap_or(0.0)
-                    }
-                })
-                .collect();
-            Ok(set_matrix(next))
-        }
+        ) => Ok(placement_operation(
+            &matrix.id,
+            PlacementParameter::Stagger { column: *column },
+            PlacementValue::Stagger(stagger),
+        )),
         (
             MatrixTransformFields::Column { column, .. },
             Field::ColumnSplay,
@@ -494,25 +496,201 @@ pub fn build_operation(
     }
 }
 
+/// The matrix parameter a placement edit names. Core owns the rules for each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlacementParameter {
+    /// Relative Y step of a column, inherited by every later column.
+    Stagger { column: u32 },
+    /// Independent X/Y adjustment of one column, in that column's frame.
+    ColumnOffset { column: u32 },
+    /// Independent X/Y adjustment of one row, in column 0's frame.
+    RowOffset { row: u32 },
+}
+
+/// An absolute parameter value in matrix coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PlacementValue {
+    Stagger(f64),
+    Offset(Vec2),
+}
+
+/// The arrow keys a nudge can consume.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArrowKey {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// The frame a parameter is edited in, taken from Core's scene: the stagger axis and the
+/// column's offset axes. A row offset uses column 0's frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SceneBasis {
+    pub stagger_axis: Vec2,
+    pub axis_x: Vec2,
+    pub axis_y: Vec2,
+}
+
+impl SceneBasis {
+    pub fn from_column(basis: &MatrixColumnBasis) -> Self {
+        Self {
+            stagger_axis: basis.stagger_axis,
+            axis_x: basis.axis_x,
+            axis_y: basis.axis_y,
+        }
+    }
+
+    /// The basis for a parameter, or `None` when the scene has no such column.
+    pub fn for_parameter(scene: &MatrixScene, parameter: PlacementParameter) -> Option<Self> {
+        let column = match parameter {
+            PlacementParameter::Stagger { column }
+            | PlacementParameter::ColumnOffset { column } => column,
+            PlacementParameter::RowOffset { .. } => 0,
+        };
+        scene
+            .columns
+            .iter()
+            .find(|basis| basis.column == column)
+            .map(Self::from_column)
+    }
+}
+
+/// The only place a web intent becomes a `SetMatrixPlacement`.
+pub fn placement_operation(
+    matrix_id: &str,
+    parameter: PlacementParameter,
+    value: PlacementValue,
+) -> EditOperation {
+    let change = match (parameter, value) {
+        (PlacementParameter::Stagger { column }, PlacementValue::Stagger(value)) => {
+            MatrixPlacementChange::ColumnStagger { column, value }
+        }
+        (PlacementParameter::ColumnOffset { column }, PlacementValue::Offset(value)) => {
+            MatrixPlacementChange::ColumnOffset { column, value }
+        }
+        (PlacementParameter::RowOffset { row }, PlacementValue::Offset(value)) => {
+            MatrixPlacementChange::RowOffset { row, value }
+        }
+        (parameter, value) => panic!("{value:?} is not a value of {parameter:?}"),
+    };
+    EditOperation::SetMatrixPlacement {
+        matrix_id: matrix_id.to_owned(),
+        change,
+    }
+}
+
+/// An Inspector field value: the typed number replaces one component of the current value.
+pub fn placement_value(
+    parameter: PlacementParameter,
+    current: PlacementValue,
+    set: PlacementSet,
+) -> PlacementValue {
+    match (parameter, current, set) {
+        (PlacementParameter::Stagger { .. }, _, PlacementSet::Stagger(value)) => {
+            PlacementValue::Stagger(value)
+        }
+        (_, PlacementValue::Offset(offset), PlacementSet::OffsetX(x)) => {
+            PlacementValue::Offset(Vec2 { x, y: offset.y })
+        }
+        (_, PlacementValue::Offset(offset), PlacementSet::OffsetY(y)) => {
+            PlacementValue::Offset(Vec2 { x: offset.x, y })
+        }
+        (_, _, set) => panic!("{set:?} does not fit {parameter:?}"),
+    }
+}
+
+/// What an Inspector field edit sets.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PlacementSet {
+    Stagger(f64),
+    OffsetX(f64),
+    OffsetY(f64),
+}
+
+/// A drag sample: the world delta since pointer-down, projected onto the scene axes and
+/// added to the start value, then snapped to the grid step (`None` skips snapping, as Alt
+/// does). Returns the absolute value, so it equals the Inspector's value for the same place.
+pub fn gesture_value(
+    basis: &SceneBasis,
+    parameter: PlacementParameter,
+    start: PlacementValue,
+    world_delta: Vec2,
+    snap: Option<Vec2>,
+) -> PlacementValue {
+    match (parameter, start) {
+        (PlacementParameter::Stagger { .. }, PlacementValue::Stagger(start)) => {
+            let axis = basis.stagger_axis;
+            let along = dot(world_delta, axis) / dot(axis, axis);
+            PlacementValue::Stagger(snapped(start + along, snap.map(|step| step.y)))
+        }
+        (_, PlacementValue::Offset(start)) => {
+            let local = solve(basis.axis_x, basis.axis_y, world_delta);
+            PlacementValue::Offset(Vec2 {
+                x: snapped(start.x + local.x, snap.map(|step| step.x)),
+                y: snapped(start.y + local.y, snap.map(|step| step.y)),
+            })
+        }
+        (parameter, start) => panic!("{start:?} is not a value of {parameter:?}"),
+    }
+}
+
+/// A keyboard step (0.1 mm, Shift 1 mm), exact and not grid-snapped. Stagger consumes the
+/// arrow pair closest to the stagger axis on screen and ignores the perpendicular pair;
+/// offsets step in screen directions converted through the frame.
+pub fn nudge_value(
+    basis: &SceneBasis,
+    parameter: PlacementParameter,
+    current: PlacementValue,
+    key: ArrowKey,
+    big: bool,
+) -> Option<PlacementValue> {
+    let step = if big { 1.0 } else { 0.1 };
+    let delta = match key {
+        ArrowKey::Left => Vec2 { x: -step, y: 0.0 },
+        ArrowKey::Right => Vec2 { x: step, y: 0.0 },
+        ArrowKey::Up => Vec2 { x: 0.0, y: step },
+        ArrowKey::Down => Vec2 { x: 0.0, y: -step },
+    };
+    if matches!(parameter, PlacementParameter::Stagger { .. }) {
+        let axis = basis.stagger_axis;
+        let vertical = axis.y.abs() >= axis.x.abs();
+        if vertical != matches!(key, ArrowKey::Up | ArrowKey::Down) {
+            return None;
+        }
+    }
+    Some(gesture_value(basis, parameter, current, delta, None))
+}
+
+fn dot(a: Vec2, b: Vec2) -> f64 {
+    a.x * b.x + a.y * b.y
+}
+
+/// Coordinates of `delta` in the frame `(x_axis, y_axis)`: `delta = a * x_axis + b * y_axis`.
+fn solve(x_axis: Vec2, y_axis: Vec2, delta: Vec2) -> Vec2 {
+    let determinant = x_axis.x * y_axis.y - x_axis.y * y_axis.x;
+    if determinant.abs() < f64::EPSILON {
+        return Vec2 { x: 0.0, y: 0.0 };
+    }
+    Vec2 {
+        x: (delta.x * y_axis.y - delta.y * y_axis.x) / determinant,
+        y: (x_axis.x * delta.y - x_axis.y * delta.x) / determinant,
+    }
+}
+
+/// Rounds to the nearest multiple of `step`; no step, or a non-positive one, leaves the value.
+fn snapped(value: f64, step: Option<f64>) -> f64 {
+    match step {
+        Some(step) if step > 0.0 => (value / step).round() * step,
+        _ => value,
+    }
+}
+
 fn set_matrix(matrix: Matrix) -> EditOperation {
     EditOperation::SetMatrix {
         matrix,
         definitions: None,
     }
-}
-
-fn set_matrix_offset(matrix: &Matrix, row_axis: bool, index: u32, value: Vec2) -> EditOperation {
-    let mut next = matrix.clone();
-    let offsets = if row_axis {
-        &mut next.row_offsets
-    } else {
-        &mut next.column_offsets
-    };
-    while offsets.len() <= index as usize {
-        offsets.push(Vec2 { x: 0.0, y: 0.0 });
-    }
-    offsets[index as usize] = value;
-    set_matrix(next)
 }
 
 fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> EditOperation {
@@ -952,21 +1130,17 @@ mod tests {
             MatrixSplayAffect::Following,
         )
         .expect("row offset is a supported accepted edit");
-        let EditOperation::SetMatrix {
-            matrix: next,
-            definitions,
-        } = operation
-        else {
-            panic!("row edits use SetMatrix");
-        };
         assert_eq!(
-            next.row_offsets,
-            vec![Vec2 { x: 2.0, y: 3.0 }, Vec2 { x: -2.5, y: 5.0 }]
+            operation,
+            EditOperation::SetMatrixPlacement {
+                matrix_id: matrix.id.clone(),
+                change: MatrixPlacementChange::RowOffset {
+                    row: 1,
+                    value: Vec2 { x: -2.5, y: 5.0 },
+                },
+            },
+            "a row edit sends the absolute row offset and nothing else"
         );
-        assert_eq!(next.cells, matrix.cells);
-        assert_eq!(next.column_staggers, matrix.column_staggers);
-        assert_eq!(next.origin, matrix.origin);
-        assert!(definitions.is_none());
     }
 
     #[test]
@@ -1495,7 +1669,7 @@ mod tests {
             row: 0,
             offset: Vec2 { x: 2.0, y: 3.0 },
         };
-        let next = set_matrix_result(
+        let change = placement_result(
             build_operation(
                 &matrix,
                 &row_fields,
@@ -1505,8 +1679,14 @@ mod tests {
             )
             .unwrap(),
         );
-        assert_eq!(next.row_offsets[0], Vec2 { x: 2.0, y: -6.0 });
-        let next = set_matrix_result(
+        assert_eq!(
+            change,
+            MatrixPlacementChange::RowOffset {
+                row: 0,
+                value: Vec2 { x: 2.0, y: -6.0 }
+            }
+        );
+        let change = placement_result(
             build_operation(
                 &matrix,
                 &row_fields,
@@ -1516,7 +1696,13 @@ mod tests {
             )
             .unwrap(),
         );
-        assert_eq!(next.row_offsets[0], Vec2 { x: 0.0, y: 0.0 });
+        assert_eq!(
+            change,
+            MatrixPlacementChange::RowOffset {
+                row: 0,
+                value: Vec2 { x: 0.0, y: 0.0 }
+            }
+        );
 
         let column_fields = MatrixTransformFields::Column {
             column: 2,
@@ -1538,7 +1724,7 @@ mod tests {
                 Vec2 { x: 1.0, y: -3.0 },
             ),
         ] {
-            let next = set_matrix_result(
+            let change = placement_result(
                 build_operation(
                     &matrix,
                     &column_fields,
@@ -1548,9 +1734,15 @@ mod tests {
                 )
                 .unwrap(),
             );
-            assert_eq!(next.column_offsets[2], expected);
+            assert_eq!(
+                change,
+                MatrixPlacementChange::ColumnOffset {
+                    column: 2,
+                    value: expected
+                }
+            );
         }
-        let next = set_matrix_result(
+        let change = placement_result(
             build_operation(
                 &matrix,
                 &column_fields,
@@ -1560,8 +1752,14 @@ mod tests {
             )
             .unwrap(),
         );
-        assert_eq!(next.column_offsets[2], Vec2 { x: 0.0, y: 0.0 });
-        let next = set_matrix_result(
+        assert_eq!(
+            change,
+            MatrixPlacementChange::ColumnOffset {
+                column: 2,
+                value: Vec2 { x: 0.0, y: 0.0 }
+            }
+        );
+        let change = placement_result(
             build_operation(
                 &matrix,
                 &column_fields,
@@ -1571,7 +1769,13 @@ mod tests {
             )
             .unwrap(),
         );
-        assert_eq!(next.column_staggers, vec![0.25, 0.5, -1.5]);
+        assert_eq!(
+            change,
+            MatrixPlacementChange::ColumnStagger {
+                column: 2,
+                value: -1.5
+            }
+        );
 
         for (field, value, expected) in [
             (
@@ -1638,10 +1842,274 @@ mod tests {
         assert_eq!(next.cells[0].rotation, Some(45.0));
     }
 
+    fn placement_result(operation: EditOperation) -> MatrixPlacementChange {
+        let EditOperation::SetMatrixPlacement { change, .. } = operation else {
+            panic!("this field maps to SetMatrixPlacement");
+        };
+        change
+    }
+
     fn set_matrix_result(operation: EditOperation) -> Matrix {
         let EditOperation::SetMatrix { matrix, .. } = operation else {
             panic!("this field maps to SetMatrix");
         };
         matrix
+    }
+
+    // --- Placement: one module builds every placement edit -----------------------------
+
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
+
+    /// A rotated, mirrored, splayed (custom origin) matrix, opened in a real `CoreEngine`.
+    fn transformed_scene() -> (MatrixScene, Matrix) {
+        let mut document =
+            serde_json::to_value(boardstudio_core::model::ProjectDoc::empty("p", "P")).unwrap();
+        document["definitions"] = serde_json::json!([{
+            "id": "switch", "name": "switch", "kind": "switch",
+            "courtyard": [{ "x": -7.0, "y": -7.0 }, { "x": 7.0, "y": -7.0 },
+                          { "x": 7.0, "y": 7.0 }, { "x": -7.0, "y": 7.0 }],
+            "pads": [{ "id": "p0", "number": "1", "at": { "x": 0.0, "y": 0.0 },
+                       "size": { "x": 2.0, "y": 2.0 }, "shape": "rect" }],
+        }]);
+        document["boards"] = serde_json::json!([{ "id": "board", "name": "Board",
+            "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6 }]);
+        let mut engine = CoreEngine::new();
+        let CoreReply::Scene { scene: opened, .. } = engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document: serde_json::from_value(document).unwrap(),
+        }) else {
+            panic!("the fixture opens");
+        };
+        let matrix: Matrix = serde_json::from_value(serde_json::json!({
+            "id": "m", "rows": 3, "columns": 4,
+            "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 10.0, "y": 5.0 },
+            "definitionId": "switch", "boardId": "board", "partIds": [],
+            "rotation": 20.0, "mirror": "x",
+            "columnStaggers": [0.0, 3.0, -2.0, 1.0],
+            "columnSplays": [0.0, 8.0, 0.0, -6.0],
+            "columnOrigins": [null, { "x": 30.0, "y": 12.0 }, null, null]
+        }))
+        .unwrap();
+        let CoreReply::Scene { scene, .. } = engine.handle(CoreRequest::Edit {
+            id: "edit".into(),
+            command: EditCommand {
+                base_revision: opened.revision,
+                transaction_id: "edit".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation: EditOperation::SetMatrix {
+                    matrix: matrix.clone(),
+                    definitions: None,
+                },
+            },
+        }) else {
+            panic!("the matrix lands");
+        };
+        let scene: SceneDelta = scene;
+        (scene.matrix_scenes.into_iter().next().unwrap(), matrix)
+    }
+
+    #[test]
+    fn inspector_and_gesture_send_the_same_operation() {
+        let (scene, _) = transformed_scene();
+        for (parameter, start, target) in [
+            (
+                PlacementParameter::Stagger { column: 1 },
+                PlacementValue::Stagger(3.0),
+                PlacementValue::Stagger(7.5),
+            ),
+            (
+                PlacementParameter::ColumnOffset { column: 3 },
+                PlacementValue::Offset(Vec2 { x: 1.0, y: -2.0 }),
+                PlacementValue::Offset(Vec2 { x: -4.0, y: 6.5 }),
+            ),
+            (
+                PlacementParameter::RowOffset { row: 2 },
+                PlacementValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
+                PlacementValue::Offset(Vec2 { x: 2.5, y: -3.0 }),
+            ),
+        ] {
+            let basis = SceneBasis::for_parameter(&scene, parameter).unwrap();
+            // The world delta that moves the parameter from `start` to `target` is worked
+            // from the scene axes, not from the function under test.
+            let world_delta = match (start, target) {
+                (PlacementValue::Stagger(from), PlacementValue::Stagger(to)) => Vec2 {
+                    x: (to - from) * basis.stagger_axis.x,
+                    y: (to - from) * basis.stagger_axis.y,
+                },
+                (PlacementValue::Offset(from), PlacementValue::Offset(to)) => Vec2 {
+                    x: (to.x - from.x) * basis.axis_x.x + (to.y - from.y) * basis.axis_y.x,
+                    y: (to.x - from.x) * basis.axis_x.y + (to.y - from.y) * basis.axis_y.y,
+                },
+                _ => unreachable!(),
+            };
+            let gesture = gesture_value(&basis, parameter, start, world_delta, None);
+            let from_inspector = match target {
+                PlacementValue::Stagger(value) => {
+                    placement_value(parameter, start, PlacementSet::Stagger(value))
+                }
+                PlacementValue::Offset(value) => {
+                    let x = placement_value(parameter, start, PlacementSet::OffsetX(value.x));
+                    placement_value(parameter, x, PlacementSet::OffsetY(value.y))
+                }
+            };
+            let (gesture_op, inspector_op) = (
+                placement_operation("m", parameter, gesture),
+                placement_operation("m", parameter, from_inspector),
+            );
+            match (gesture_op, inspector_op) {
+                (
+                    EditOperation::SetMatrixPlacement { change: a, .. },
+                    EditOperation::SetMatrixPlacement { change: b, .. },
+                ) => assert_placement_close(&a, &b),
+                _ => panic!("both build SetMatrixPlacement"),
+            }
+        }
+    }
+
+    fn assert_placement_close(a: &MatrixPlacementChange, b: &MatrixPlacementChange) {
+        let close = |x: f64, y: f64| (x - y).abs() < 1e-9;
+        match (a, b) {
+            (
+                MatrixPlacementChange::ColumnStagger {
+                    column: ca,
+                    value: va,
+                },
+                MatrixPlacementChange::ColumnStagger {
+                    column: cb,
+                    value: vb,
+                },
+            ) => assert!(ca == cb && close(*va, *vb), "{a:?} vs {b:?}"),
+            (
+                MatrixPlacementChange::ColumnOffset {
+                    column: ca,
+                    value: va,
+                },
+                MatrixPlacementChange::ColumnOffset {
+                    column: cb,
+                    value: vb,
+                },
+            ) => assert!(
+                ca == cb && close(va.x, vb.x) && close(va.y, vb.y),
+                "{a:?} vs {b:?}"
+            ),
+            (
+                MatrixPlacementChange::RowOffset { row: ra, value: va },
+                MatrixPlacementChange::RowOffset { row: rb, value: vb },
+            ) => assert!(
+                ra == rb && close(va.x, vb.x) && close(va.y, vb.y),
+                "{a:?} vs {b:?}"
+            ),
+            _ => panic!("{a:?} vs {b:?}"),
+        }
+    }
+
+    #[test]
+    fn gesture_value_snaps_the_resulting_value() {
+        let basis = SceneBasis {
+            stagger_axis: Vec2 { x: 0.0, y: 1.0 },
+            axis_x: Vec2 { x: 1.0, y: 0.0 },
+            axis_y: Vec2 { x: 0.0, y: 1.0 },
+        };
+        let parameter = PlacementParameter::Stagger { column: 0 };
+        let step = Some(Vec2 {
+            x: 4.7625,
+            y: 4.7625,
+        });
+        // Off the grid: the first snap brings the value onto it.
+        let value = gesture_value(
+            &basis,
+            parameter,
+            PlacementValue::Stagger(0.3),
+            Vec2 { x: 0.0, y: 4.5 },
+            step,
+        );
+        assert_eq!(value, PlacementValue::Stagger(4.7625));
+        // On the grid: the change is a whole number of steps.
+        let value = gesture_value(
+            &basis,
+            parameter,
+            PlacementValue::Stagger(4.7625),
+            Vec2 { x: 0.0, y: 4.7 },
+            step,
+        );
+        assert_eq!(value, PlacementValue::Stagger(2.0 * 4.7625));
+        // Alt skips the snap and returns the raw value.
+        let value = gesture_value(
+            &basis,
+            parameter,
+            PlacementValue::Stagger(0.3),
+            Vec2 { x: 0.0, y: 4.5 },
+            None,
+        );
+        let PlacementValue::Stagger(raw) = value else {
+            panic!("a stagger stays a stagger");
+        };
+        assert!((raw - 4.8).abs() < 1e-12);
+        // Motion across the stagger axis is ignored.
+        let value = gesture_value(
+            &basis,
+            parameter,
+            PlacementValue::Stagger(0.0),
+            Vec2 { x: 50.0, y: 0.0 },
+            step,
+        );
+        assert_eq!(value, PlacementValue::Stagger(0.0));
+    }
+
+    #[test]
+    fn nudge_pairs_follow_the_axis() {
+        // An axis rotated 90 degrees on screen consumes Left/Right, not Up/Down.
+        let rotated = SceneBasis {
+            stagger_axis: Vec2 { x: 1.0, y: 0.0 },
+            axis_x: Vec2 { x: 0.0, y: 1.0 },
+            axis_y: Vec2 { x: -1.0, y: 0.0 },
+        };
+        let stagger = PlacementParameter::Stagger { column: 0 };
+        let start = PlacementValue::Stagger(0.0);
+        assert_eq!(
+            nudge_value(&rotated, stagger, start, ArrowKey::Up, false),
+            None
+        );
+        assert_eq!(
+            nudge_value(&rotated, stagger, start, ArrowKey::Down, false),
+            None
+        );
+        let right = nudge_value(&rotated, stagger, start, ArrowKey::Right, false).unwrap();
+        let PlacementValue::Stagger(right) = right else {
+            panic!()
+        };
+        assert!(
+            (right - 0.1).abs() < 1e-12,
+            "Right moves the column along its axis"
+        );
+        let left = nudge_value(&rotated, stagger, start, ArrowKey::Left, true).unwrap();
+        let PlacementValue::Stagger(left) = left else {
+            panic!()
+        };
+        assert!((left + 1.0).abs() < 1e-12, "Shift steps 1 mm");
+
+        // A mirror-Y frame's ArrowUp increases the on-screen Y, which lowers its local Y.
+        let mirrored = SceneBasis {
+            stagger_axis: Vec2 { x: 0.0, y: -1.0 },
+            axis_x: Vec2 { x: 1.0, y: 0.0 },
+            axis_y: Vec2 { x: 0.0, y: -1.0 },
+        };
+        let offset = PlacementParameter::ColumnOffset { column: 0 };
+        let zero = PlacementValue::Offset(Vec2 { x: 0.0, y: 0.0 });
+        let up = nudge_value(&mirrored, offset, zero, ArrowKey::Up, false).unwrap();
+        let PlacementValue::Offset(up) = up else {
+            panic!()
+        };
+        assert!((up.y + 0.1).abs() < 1e-12 && up.x.abs() < 1e-12, "{up:?}");
+        let right = nudge_value(&mirrored, offset, zero, ArrowKey::Right, false).unwrap();
+        let PlacementValue::Offset(right) = right else {
+            panic!()
+        };
+        assert!(
+            (right.x - 0.1).abs() < 1e-12 && right.y.abs() < 1e-12,
+            "{right:?}"
+        );
     }
 }

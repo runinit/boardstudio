@@ -1,6 +1,6 @@
 # 04: One web module builds placement edits; Inspector uses it
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 02
 Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)
@@ -67,3 +67,37 @@ web code writes `column_staggers`, `column_offsets` or `row_offsets`. Check with
 
 Owner of `matrix_transform_operation.rs`, `objects/matrix_transform_controller.rs`,
 `objects/matrix_transform_inspector.rs` and `matrix_transform_inspector_tests.rs`.
+
+## Outcome
+
+Resolved 2026-10-09. `matrix_transform_operation.rs` now builds every placement edit through one
+function, `placement_operation(matrix_id, PlacementParameter, PlacementValue)`, and offers
+`placement_value` (an Inspector field replaces one component), `gesture_value` (world delta
+projected onto Core's `staggerAxis`, or solved in the column's `axisX`/`axisY` frame, then snapped
+to the grid step, `None` skipping the snap) and `nudge_value` (0.1 mm, Shift 1 mm, exact; stagger
+consumes the arrow pair closest to its on-screen axis and returns `None` for the perpendicular pair).
+`SceneBasis::for_parameter` reads the frame from the scene; a row offset uses column 0's. The
+`ColumnStagger`, `ColumnOffsetX/Y/Reset` and `RowOffsetX/Y/Reset` arms of `build_operation` return
+`SetMatrixPlacement`; `set_matrix_offset` is deleted. The Inspector's Column context label is
+1-based (no existing assertion used the old label; Row and Key labels are unchanged, as the ticket
+says).
+
+Tests: native `inspector_and_gesture_send_the_same_operation` (rotated, mirrored, splayed,
+custom-origin matrix from `CoreEngine`; the world delta is worked from the scene axes, equality to
+1e-9 because the two paths round differently), `gesture_value_snaps_the_resulting_value`,
+`nudge_pairs_follow_the_axis`; the two existing row and column tests now assert
+`SetMatrixPlacement` payloads. Mounted: `inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_with_one_undo`
+(real Session and Core; the first edit syncs the fixture's unlaid poses, so the test measures the
+second) and `the_column_context_label_is_one_based`. Gates: `check.py quick` ran lint, typecheck,
+native tests (layout 75) and the layout browser batch (147 passed, 1 failed: the Stagger test's own
+baseline, since fixed; the 15 inspector tests then passed on a targeted rerun; the full layout batch
+was not rerun after that test-only fix). GitNexus: `build_operation` HIGH, 23 symbols, signature
+unchanged; change analysis low risk.
+
+Differences from the ticket sketch: `placement_value` takes the current value and a `PlacementSet`
+(field and number), because an offset field changes one component. The toolbar still writes offsets
+itself (`layout_transform_toolbar.rs`, tickets 05 and 06), and `layout_align_controller.rs` also adds
+to `column_offsets` through `SetMatrix`; that second writer is not named in the plan, so 11's
+verification should either route it through `SetMatrixPlacement` or record it as an accepted
+exception. `ColumnOffsetToStagger` does not exist yet (ticket 07).
+

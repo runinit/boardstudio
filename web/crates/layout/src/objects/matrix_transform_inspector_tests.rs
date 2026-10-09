@@ -1343,3 +1343,122 @@ async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selecti
     assert!(accepted_cell(&probe, 1).enabled);
     root.remove();
 }
+
+fn column_context(column: u32) -> TreeContext {
+    TreeContext::Column {
+        matrix_id: "matrix".into(),
+        column,
+    }
+}
+
+fn set_numeric_field(root: &web_sys::Element, label: &str, value: &str) {
+    let input = root
+        .query_selector(&format!("input[aria-label='{label}']"))
+        .unwrap()
+        .unwrap_or_else(|| panic!("the {label} field is mounted"))
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    input.set_value(value);
+    let typed = DomEvent::new("input").unwrap();
+    typed.init_event_with_bubbles("input", true);
+    input.dispatch_event(&typed).unwrap();
+    let enter = web_sys::KeyboardEventInit::new();
+    enter.set_bubbles(true);
+    enter.set_key("Enter");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
+        )
+        .unwrap();
+}
+
+fn second_column_y(runtime: &Rc<Runtime>) -> f64 {
+    runtime.model().accepted.unwrap().scene.matrix_scenes[0]
+        .cells
+        .iter()
+        .find(|cell| cell.column == 1)
+        .expect("the second column has a key")
+        .pose
+        .at
+        .y
+}
+
+#[wasm_bindgen_test]
+async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_with_one_undo() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-stagger-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle().await;
+    // The fixture's key poses were never laid out by Core; the first edit syncs them, so
+    // measure the second change from that synced state.
+    set_numeric_field(&root, "Stagger", "1");
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    let before = second_column_y(&probe.runtime);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Stagger", "4");
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .column_staggers
+            .first()
+            .copied(),
+        Some(4.0),
+        "the Inspector value is the matrix's column stagger"
+    );
+    let axis = accepted.scene.matrix_scenes[0].columns[0].stagger_axis;
+    let moved = second_column_y(&probe.runtime) - before;
+    assert!(
+        (moved - 3.0 * axis.y).abs() < 1e-9 && axis.y != 0.0,
+        "the later column moved 3 mm along Core's stagger axis ({moved} vs {})",
+        3.0 * axis.y
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    let undone = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        undone.document.matrices[0].column_staggers.first().copied(),
+        Some(1.0),
+        "one Undo reverts the whole second stagger edit"
+    );
+    assert!((second_column_y(&probe.runtime) - before).abs() < 1e-9);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn the_column_context_label_is_one_based() {
+    let (document, _) = two_key_fixture(false);
+    let (_probe, root) = mount_selection_probe(
+        "matrix-transform-column-label-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle().await;
+    let label = root
+        .query_selector(".m1-matrix-field-context")
+        .unwrap()
+        .expect("the column context label is mounted")
+        .text_content();
+    assert_eq!(label.as_deref(), Some("Column 1"));
+    root.remove();
+}
