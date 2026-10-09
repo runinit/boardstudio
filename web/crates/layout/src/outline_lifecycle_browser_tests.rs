@@ -1717,6 +1717,20 @@ mod ownership_presentation {
             .unwrap()
     }
 
+    /// The DOM `disabled` property, so a `<select>` and an `<input>` are read the same way.
+    fn is_disabled(element: &web_sys::Element) -> bool {
+        js_sys::Reflect::get(element, &"disabled".into())
+            .ok()
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    }
+
+    fn element(root: &web_sys::Element, selector: &str) -> web_sys::Element {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("{selector} is mounted"))
+    }
+
     fn button(root: &web_sys::Element, selector: &str) -> web_sys::HtmlElement {
         root.query_selector(selector)
             .unwrap()
@@ -1766,8 +1780,12 @@ mod ownership_presentation {
         );
         // Settings stay editable while a linked refinement is selected.
         assert!(
-            !input(&root, "input[aria-label='Chamfer size']").disabled(),
+            !is_disabled(&element(&root, "select[aria-label='Outline corners']")),
             "the linked refinement's settings remain editable"
+        );
+        assert!(
+            !input(&root, "input[aria-label='Outline version name']").disabled(),
+            "the linked refinement's own choices stay editable"
         );
         root.remove();
     }
