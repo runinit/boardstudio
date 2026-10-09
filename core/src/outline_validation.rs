@@ -400,19 +400,7 @@ pub(crate) fn validate(
             .iter()
             .filter(|contour| !contour.hole)
             .count();
-        let expected = outline_versions::active_snapshot(doc, &board.id)
-            .map(|snapshot| snapshot.expected_regions as usize)
-            .unwrap_or_else(|| {
-                if doc
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.board_id == board.id && layout.mirror_link.is_some())
-                {
-                    2
-                } else {
-                    1
-                }
-            });
+        let expected = outline_versions::expected_regions(doc, &board.id);
         if regions > expected {
             report(
                 "disconnected".into(),
@@ -626,6 +614,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
     let mut markers = vec![];
     for board in &doc.boards {
         for feature in outline_versions::features(doc, board) {
+            let feature_id = feature.id().to_owned();
             let points = match feature {
                 OutlineFeature::Polygon {
                     points,
@@ -636,7 +625,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(part, points)).points
+                        contour(world(part, &points)).points
                     } else {
                         points.clone()
                     }
@@ -648,12 +637,8 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                     anchor_part_id,
                     ..
                 } => {
-                    let points = pad_path(
-                        *center,
-                        *size,
-                        &PadShape::Rect,
-                        rotation.unwrap_or_default(),
-                    );
+                    let points =
+                        pad_path(center, size, &PadShape::Rect, rotation.unwrap_or_default());
                     if let Some(part) = anchor_part_id
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
@@ -670,7 +655,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
             }
             for finding in findings.iter().filter(|finding| {
                 finding.severity == Severity::Error
-                    && finding.target_ids.iter().any(|id| id == feature.id())
+                    && finding.target_ids.iter().any(|id| id == &feature_id)
             }) {
                 markers.push(FindingMarker {
                     finding_id: finding.id.clone(),

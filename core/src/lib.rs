@@ -788,17 +788,23 @@ impl CoreEngine {
                 });
             }
         }
+        // A finding attributed to a linked alternative the board has not selected is
+        // visible but never blocks the selected outline or another board (ADR-0001/0002).
+        let active =
+            |finding: &Finding| !outline_versions::is_inactive_version_finding(doc, &finding.id);
         let layout = !findings
             .iter()
+            .filter(|finding| active(finding))
             .any(|f| matches!(f.scope, Scope::Layout) && matches!(f.severity, Severity::Error));
         let outline = !contours.is_empty()
-            && !findings.iter().any(|f| {
+            && !findings.iter().filter(|finding| active(finding)).any(|f| {
                 matches!(f.scope, Scope::Outline) && matches!(f.severity, Severity::Error)
             });
         let pcb = layout
             && !doc.boards.is_empty()
             && !findings
                 .iter()
+                .filter(|finding| active(finding))
                 .any(|f| matches!(f.scope, Scope::Pcb) && matches!(f.severity, Severity::Error));
         let board_readiness: Vec<BoardReadiness> = board_contours
             .iter()
@@ -817,27 +823,39 @@ impl CoreEngine {
                                 || owner.net_ids.contains(id)
                         })
                 };
-                let invalid_pcb = findings.iter().any(|finding| {
-                    matches!(finding.severity, Severity::Error)
-                        && matches!(finding.scope, Scope::Pcb)
-                        && relevant(finding)
-                });
-                let invalid_outline = findings.iter().any(|finding| {
-                    matches!(finding.severity, Severity::Error)
-                        && matches!(finding.scope, Scope::Pcb)
-                        && finding
-                            .id
-                            .starts_with(&format!("board:{}:", board.board_id))
-                        && (finding.id.contains(":outline")
-                            || finding.id.contains(":feature:")
-                            || finding.id.ends_with(":empty-outline"))
-                });
+                let invalid_pcb =
+                    findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            matches!(finding.severity, Severity::Error)
+                                && matches!(finding.scope, Scope::Pcb)
+                                && relevant(finding)
+                        });
+                let invalid_outline =
+                    findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            matches!(finding.severity, Severity::Error)
+                                && matches!(finding.scope, Scope::Pcb)
+                                && finding
+                                    .id
+                                    .starts_with(&format!("board:{}:", board.board_id))
+                                && (finding.id.contains(":outline")
+                                    || finding.id.contains(":feature:")
+                                    || finding.id.ends_with(":empty-outline"))
+                        });
                 let outline = !board.contours.is_empty() && !invalid_outline;
-                let valid_layout = !findings.iter().any(|finding| {
-                    finding.severity == Severity::Error
-                        && finding.scope == Scope::Layout
-                        && relevant(finding)
-                });
+                let valid_layout =
+                    !findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            finding.severity == Severity::Error
+                                && finding.scope == Scope::Layout
+                                && relevant(finding)
+                        });
                 let pcb = valid_layout && outline && !invalid_pcb;
                 let bodies: Vec<_> = doc
                     .case_bodies
@@ -1351,7 +1369,12 @@ fn apply(
             for layout in &mut doc.layouts {
                 layout.part_ids.retain(|id| !ids.contains(id));
             }
+            // A linked refinement drops exactly the authored choices that required a
+            // removed component, inside this same accepted edit, so the cleanup and the
+            // removal share one Undo step and never retarget onto another component.
             let mut changed = ids;
+            let cleanup = outline_versions::prune_removed_sources(doc, &changed);
+            changed.extend(cleanup);
             for matrix_id in affected {
                 changed.extend(layout::sync(doc, &matrix_id)?);
             }
