@@ -467,44 +467,25 @@ fn a_reused_flipped_pcb_pairs_through_the_reflection_its_opposite_flips_imply() 
 }
 
 /// Closure holes per half, `[left, right]`, as Core projects them for each shipped split.
-/// A closure mount linked through the pair projects one hole on each half; a half's own
-/// closure mount projects on that half only. The measured splits' left halves carry three
-/// local mounts and four linked ones; their right halves get only the linked four. Sofle
-/// RGB and Choc have no right-half closures, and Sofle v2 uses the internal gasket mount,
-/// which carries no closure mounts. Recorded as Core gives them: see ticket
+/// Every half holds the closure mounts Core proposed from its own outline, stored on that
+/// half and linked to nothing, so each projects its own four holes. Sofle v2 uses the
+/// internal gasket mount, which carries no closure mounts. See ticket
 /// generator-parameters 02.
 const CLOSURE_HOLES: [(&str, [usize; 2]); 10] = [
-    ("corne", [7, 4]),
-    ("lily58", [7, 4]),
-    ("klor", [7, 4]),
-    ("sweep", [7, 4]),
-    ("chocofi", [7, 4]),
-    ("totem", [7, 4]),
-    ("cantor", [7, 4]),
+    ("corne", [4, 4]),
+    ("lily58", [4, 4]),
+    ("klor", [4, 4]),
+    ("sweep", [4, 4]),
+    ("chocofi", [4, 4]),
+    ("totem", [4, 4]),
+    ("cantor", [4, 4]),
     ("sofle-v2", [0, 0]),
-    ("sofle-rgb", [4, 0]),
-    ("sofle-choc", [4, 0]),
+    ("sofle-rgb", [4, 4]),
+    ("sofle-choc", [4, 4]),
 ];
 
-/// Core's refusal when a linked closure mount maps outside a half's outline. It is
-/// pinned, not worked around: moving the mount would hide a fit conflict.
+/// Core's refusal when a linked closure mount maps outside a half's outline.
 const OUTSIDE_OUTLINE: &str = "lies outside this half's board outline";
-
-/// Each half's export, `[left, right]`: `None` exports, `Some(refusal)` is refused.
-/// The left half of every measured split is refused, because a right-half closure linked
-/// through the pair maps to a point beyond the left outline.
-const EXPORT_REFUSALS: [(&str, [Option<&str>; 2]); 10] = [
-    ("corne", [Some(OUTSIDE_OUTLINE), None]),
-    ("lily58", [Some(OUTSIDE_OUTLINE), None]),
-    ("klor", [Some(OUTSIDE_OUTLINE), None]),
-    ("sweep", [Some(OUTSIDE_OUTLINE), None]),
-    ("chocofi", [Some(OUTSIDE_OUTLINE), None]),
-    ("totem", [Some(OUTSIDE_OUTLINE), None]),
-    ("cantor", [Some(OUTSIDE_OUTLINE), None]),
-    ("sofle-v2", [None, None]),
-    ("sofle-rgb", [None, None]),
-    ("sofle-choc", [None, None]),
-];
 
 /// The generated closure-hole parts of one board.
 fn closure_parts<'a>(project: &'a Value, board: &str) -> Vec<&'a Value> {
@@ -611,38 +592,30 @@ fn export_board(project: &Value, half: &str) -> Result<String, String> {
 }
 
 #[test]
-fn every_split_half_projects_its_closure_holes_and_exports_or_is_refused_as_pinned() {
-    for ((name, counts), (refusal_name, refusals)) in CLOSURE_HOLES.into_iter().zip(EXPORT_REFUSALS)
-    {
-        assert_eq!(name, refusal_name);
+fn every_split_half_exports_to_kicad_with_its_own_closure_holes() {
+    for (name, counts) in CLOSURE_HOLES {
         let project = &projects()[name];
         let mut holes = [0; 2];
         for (index, half) in ["left", "right"].into_iter().enumerate() {
             holes[index] = closure_parts(project, half).len();
-            match (export_board(project, half), refusals[index]) {
-                (Ok(board), None) => assert_eq!(
-                    board.matches("ceoloide:mounting_hole_npth").count(),
-                    holes[index] + authored_holes(project, half).len(),
-                    "{name} {half}: every closure hole and authored mounting hole is exported"
-                ),
-                (Err(message), Some(expected)) => assert!(
-                    message.contains(expected),
-                    "{name} {half}: refused for another reason: {message}"
-                ),
-                (Err(message), None) => panic!("{name} {half}: export refused: {message}"),
-                (Ok(_), Some(_)) => panic!(
-                    "{name} {half}: export now succeeds; update EXPORT_REFUSALS with the new record"
-                ),
-            }
+            let board = export_board(project, half)
+                .unwrap_or_else(|message| panic!("{name} {half}: export refused: {message}"));
+            assert_eq!(
+                board.matches("ceoloide:mounting_hole_npth").count(),
+                holes[index] + authored_holes(project, half).len(),
+                "{name} {half}: every closure hole and authored mounting hole is exported"
+            );
         }
         assert_eq!(holes, counts, "{name}: closure holes per half");
-        // A linked mount projects one hole per half; a local mount projects on its half.
+        // Each half keeps the mounts Core proposed from its own outline. None is linked
+        // to the pair, so every hole comes from a mount the half stores itself.
         let linked = pair(project)["features"]
             .as_array()
             .unwrap()
             .iter()
             .filter(|feature| feature["kind"] == "closure-mount")
             .count();
+        assert_eq!(linked, 0, "{name}: no closure mount is linked");
         let local: usize = project["hardware"]["instances"]
             .as_array()
             .unwrap()
@@ -655,43 +628,84 @@ fn every_split_half_projects_its_closure_holes_and_exports_or_is_refused_as_pinn
             .sum();
         assert_eq!(
             holes.iter().sum::<usize>(),
-            local + 2 * linked,
-            "{name}: holes = local mounts + two per linked mount"
+            local,
+            "{name}: holes = stored mounts"
         );
     }
 }
 
+/// Known Core gap, generator-parameters ticket 06: closure mounts proposed for a paired
+/// half join the pair as linked features, and the pair map places them where the other
+/// half has no board. The shipped recipes initialize each half's closures before linking
+/// to avoid it. This reproduces the order they avoid, from each measured split with its
+/// right half's closure mounts removed, and records Core's behavior as it is: the first
+/// edit on that half proposes four mounts, links them to the pair, and the left half's
+/// export is refused. If Core changes this, the test fails; update ticket 06.
 #[test]
-fn every_linked_closure_mount_lands_on_its_mirror_on_the_other_half() {
-    for (name, project) in projects() {
-        if name == "reused-pcb" {
-            continue;
-        }
-        let offset = mapping_x(pair(project));
-        for feature in pair(project)["features"]
+fn closures_proposed_on_a_paired_half_link_to_the_pair_and_block_the_other_halfs_export() {
+    // Sofle's halves are exact reflections, so its linked proposals stay inside; only the
+    // measured splits, whose controller sits at each PCB's right edge, are refused.
+    for name in MEASURED_SPLITS {
+        let mut project = projects()[name].clone();
+        let right = project["hardware"]["instances"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|instance| instance["id"] == "right")
+            .unwrap();
+        right["mechanical"]
+            .as_object_mut()
+            .unwrap()
+            .remove("closureMounts");
+        let (mut engine, document) = reopen(&project);
+        let document = change(&mut engine, &document, "right", json!("add-opening"));
+        let linked = pair(&document)["features"]
             .as_array()
             .unwrap()
             .iter()
             .filter(|feature| feature["kind"] == "closure-mount")
-        {
-            let mount = &feature["value"]["mount"]["at"];
-            let (x, y) = (mount["x"].as_f64().unwrap(), mount["y"].as_f64().unwrap());
-            // The map is its own inverse: the author's point maps to (offset - x, y).
-            for half in ["left", "right"] {
-                let expected = if feature["author"] == half {
-                    (x, y)
-                } else {
-                    (offset - x, y)
-                };
-                assert!(
-                    closure_parts(project, half).iter().any(|hole| {
-                        let (hx, hy) = centre(hole);
-                        (hx - expected.0).abs() < 1e-6 && (hy - expected.1).abs() < 1e-6
-                    }),
-                    "{name}: {half} has no hole at {expected:?} for linked {}",
-                    feature["id"]
-                );
-            }
+            .collect::<Vec<_>>();
+        assert_eq!(
+            linked.len(),
+            4,
+            "{name}: the right half's proposals join the pair"
+        );
+        assert!(linked.iter().all(|feature| feature["author"] == "right"));
+        assert_linked_closures_land_on_their_mirror(name, &document);
+        export_board(&document, "right").expect("the right half exports");
+        let refusal = export_board(&document, "left")
+            .expect_err(&format!("{name}: the left export is refused"));
+        assert!(refusal.contains(OUTSIDE_OUTLINE), "{name}: {refusal}");
+    }
+}
+
+/// Every linked closure mount projects one hole per half: the author's point on its own
+/// half and the pair map's image, `(offset - x, y)`, on the other. No shipped pair links a
+/// closure mount, so this checks the project the known-gap test builds.
+fn assert_linked_closures_land_on_their_mirror(name: &str, project: &Value) {
+    let offset = mapping_x(pair(project));
+    for feature in pair(project)["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|feature| feature["kind"] == "closure-mount")
+    {
+        let mount = &feature["value"]["mount"]["at"];
+        let (x, y) = (mount["x"].as_f64().unwrap(), mount["y"].as_f64().unwrap());
+        for half in ["left", "right"] {
+            let expected = if feature["author"] == half {
+                (x, y)
+            } else {
+                (offset - x, y)
+            };
+            assert!(
+                closure_parts(project, half).iter().any(|hole| {
+                    let (hx, hy) = centre(hole);
+                    (hx - expected.0).abs() < 1e-6 && (hy - expected.1).abs() < 1e-6
+                }),
+                "{name}: {half} has no hole at {expected:?} for linked {}",
+                feature["id"]
+            );
         }
     }
 }

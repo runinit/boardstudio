@@ -4,7 +4,10 @@
 //! Typed-core-edits ticket 04 deliberately re-recorded `revision` and `hardware` (and the
 //! Sofle v2 project-level `mechanical`) for the ten split keyboards, which now carry a
 //! mechanical mirror pair; see that ticket's Outcome for the per-keyboard record. Every
-//! other recorded value, including all key positions, is unchanged.
+//! other recorded value, including all key positions, is unchanged. Generator-parameters
+//! ticket 02 re-recorded `revision`, `hardware`, `parts`, `definitions` and the boards'
+//! `partIds` for the same ten: each half keeps its own `case-closure/*` holes (none on
+//! Sofle v2, whose gasket mount carries no closure mounts). No existing part moved.
 #[path = "../examples/demo_projects/mod.rs"]
 #[allow(clippy::module_inception)] // The module is the shared example source, included by path.
 pub(crate) mod demo_projects; // Shared with `included_keyboards`, which cannot include the files twice.

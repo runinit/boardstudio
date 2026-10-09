@@ -235,8 +235,14 @@ fn frame_position(doc: &Value, instance_id: &str, part: &str) -> Result<(f64, f6
 pub(super) fn link_pair(engine: &mut CoreEngine, mut doc: Value, pair: &Pair) -> Result<Value> {
     let [first, second] = pair.members;
     for half in pair.members {
-        // Enabling proposes closure mounts from the outline; they are kept as Core
-        // proposes them, so each shipped half carries its closure holes.
+        // Enabling proposes closure mounts from the half's own outline, and they are
+        // kept as Core proposes them. Enabling a legacy second half is a no-op (it
+        // already resolves from the shared source), so its closures stay absent until
+        // initialized here. Initializing later, after the link, would join the
+        // proposals to the pair as linked features, and a proposal made from one
+        // outline maps outside the other half's outline: Core then refuses that half's
+        // export. A gasket carries no closure mounts, so there is nothing to
+        // initialize. See generator-parameters ticket 06.
         doc = instance_edit(
             engine,
             doc,
@@ -244,6 +250,15 @@ pub(super) fn link_pair(engine: &mut CoreEngine, mut doc: Value, pair: &Pair) ->
             json!("enable"),
             &format!("enable-{half}"),
         )?;
+        if !pair.gasket && instance(&doc, half)?["mechanical"]["closureMounts"].is_null() {
+            doc = instance_edit(
+                engine,
+                doc,
+                half,
+                json!("initialize-closures"),
+                &format!("closures-{half}"),
+            )?;
+        }
     }
     if pair.gasket {
         doc = instance_edit(
