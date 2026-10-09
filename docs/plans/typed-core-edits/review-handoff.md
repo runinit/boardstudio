@@ -20,7 +20,7 @@ After edit settlement, every product edit is submitted as intent and resolved ag
 3. **Matrix layout consistency** (separate map: [matrix-layout-consistency](../matrix-layout-consistency/map.md), tickets 01-11): `SetMatrixPlacement` with Stagger vs Offset meanings, a single web placement builder, the Relations panel ([ADR-0007](../../adr/0007-matrix-gestures-edit-named-parameters.md)).
 4. **Check speed** (separate map: [check-speed](../check-speed/map.md)): faster `scripts/check.py`; unrelated to the architecture but on the branch.
 5. **Included keyboards** (ticket [04](issues/04-refresh-included-keyboards.md), still `claimed`): split keyboards shipped as mirror pairs ([04-handoff](issues/04-handoff.md)).
-6. **Generator parameters** ([generator-parameters](../generator-parameters/map.md)): found while doing 5. Closure holes were written as text where the generator wants numbers; tickets 01-02 resolved, 03 in flight (v3→v4 migration), 04-06 planned. Standard recorded in [ADR-0008](../../adr/0008-linked-halves-stay-linked.md): a pair keeps everything linked, exceptions are explicit.
+6. **Generator parameters** ([generator-parameters](../generator-parameters/map.md)): found while doing 5. Closure holes were written as text where the generator wants numbers; tickets 01-03 resolved (03 is the v3→v4 migration), 04-05 planned, 06 decided by ADR-0008 and awaiting implementation. Standard recorded in [ADR-0008](../../adr/0008-linked-halves-stay-linked.md): a pair keeps everything linked, exceptions are explicit.
 
 ## Questions I would like a second opinion on
 

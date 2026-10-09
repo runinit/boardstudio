@@ -1,6 +1,6 @@
 # 03: Repair saved numeric strings with a v3 to v4 migration
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: 01
 Map: [map.md](../map.md) · Decision: [ADR-0004](../../../adr/0004-document-format-version-and-id-rename.md)
@@ -42,9 +42,10 @@ Use an ordered `version_3_to_4`, `CURRENT_VERSION = 4`:
 
 ## Acceptance
 
-- [ ] A saved v3 closure project loads, is written back as v4 and exports. (Partly: the native test
-  loads, opens and exports a v3 closure project; the browser write-back test covers a v1 document,
-  not a v3 closure project through IndexedDB.)
+- [x] A saved v3 closure project loads, is written back as v4 and exports. (The native test loads,
+  opens and exports a v3 closure project; the browser test
+  `version_3_closure_project_with_saved_strings_migrates_and_is_written_back` loads one through
+  IndexedDB and checks the written-back record.)
 - [x] `legacy_archive_migration` and `outline_persistence` pass with the new version.
 - [x] ADR-0004 follow-up line and the investigation's deviations table updated.
 
@@ -62,20 +63,24 @@ preferred instead, it needs an ADR amendment and explicit `changed` plumbing in
 
 ## Outcome
 
-Status: implemented (awaiting verification). Code, tests, fixtures and the transcript are in
-`fd7640a9a` (`Migrate saved generator strings to numbers at format version 4`). The ADR, the
-investigation's deviations table, the map progress line and this Outcome are in the docs commit
-that follows it.
+Status: resolved. Implemented by the Haiku implementation lane in `fd7640a9a` (`Migrate saved
+generator strings to numbers at format version 4`) with the docs commit `a115b4c31`. A Sonnet
+verifier reviewed it and found no functional defect; its two follow-ups (a wording correction and
+a browser test for acceptance 1) are in `0e5a4369f` and `f5def9feb`. The final verification below
+was run by the integrating Sonnet session on `f5def9feb`.
 
 ### What changed
 
 - `core/src/migrate.rs`: `CURRENT_VERSION` 3 to 4. `version_3_to_4` runs `convert_generator_values`,
-  which coerces numeric and list text over definitions, `parts[].generatorParameters` and
+  which converts numeric text to numbers and removes empty or whitespace-only number and list
+  text, over definitions, `parts[].generatorParameters` and
   `assemblies[].members[].parameters`. `version_1_to_2` now runs only `state_back_sides` (the
   `side` default for back-side parts) before the renames.
 - Names no generator declares and values that cannot be converted are kept (for example `"two"`
-  for `hole_size`). Empty text for a number parameter is still removed, which is what the old
-  1 to 2 step did; I kept that behaviour and did not decide it here.
+  for `hole_size`). Non-empty list text such as `"[1,2,3]"` is not converted: it stays text, as
+  in the old 1 to 2 step, so ticket 04 meets it as a wrong type. Empty or whitespace-only text for a
+  number or list parameter is removed, which is what the old 1 to 2 step did; that behaviour was
+  kept and not decided here.
 - Literal version 3 moved to 4: `core/src/archive.rs` (the fixture document and the version 1
   unpack assertion), `core/tests/outlines.rs`, `core/tests/demo_projects.rs`,
   `core/tests/fixtures/reviung41-outline-original.json`,
@@ -135,11 +140,29 @@ I did not compare the archive bytes, so this rests on the transcript diff, not a
   before the commit: 9 files, 17 symbols, 0 affected processes, risk low. The index is stale (GitNexus
   reports it was last indexed at `4b372b2`), so these results come from an older graph.
 
+### Verification at `f5def9feb` (integrating session)
+
+- New browser test `host::storage::lifetime_tests::version_3_closure_project_with_saved_strings_migrates_and_is_written_back`
+  (IndexedDB): saves a v3 document with `"6.6"` for `hole_drill` and `hole_size` on a
+  `assembly-closure/definition/board/...` definition and a part parameter, checks the stored record
+  is still `formatVersion` 3 with text, loads it (format 4, numbers, `render_forms` ok), checks the
+  stored record is `formatVersion` 4 with a numeric `hole_drill`, and that a second load returns the
+  same document and leaves the record unchanged. Red first: with the `version_3_to_4` body disabled
+  it failed (stored `"6.6"` instead of `6.6`); with the body restored it passed.
+- Nested worktree, sandbox disabled: `python3 scripts/check.py repo lint typecheck browser` passed
+  (browser `run-wasm-tests` executed 70, failed 0), and `check.py build` passed.
+- Non-nested `/tmp/claude-1000/boardstudio-tce-verify` at `f5def9feb`: `check.py test` passed
+  (exit 0).
+- `check.py quick` did not complete in either checkout, so it is not a pass. In the nested worktree
+  its `test` step failed because the CAD step-oracle cannot build as a nested workspace member
+  (cargo reports the manifest is outside the root workspace), the known nested limit. In the
+  non-nested checkout its Rust tests ran and passed, then its `browser` step stopped at
+  `cad/wasm/pkg is missing` (that checkout has no prebuilt CAD WASM package). The full `browser`
+  step above did pass in the nested worktree, which has the package.
+
 ### Not verified
 
-- `check.py quick`, `security` and `deny` were not run (no dependency change). `release` is not
-  allowed. Acceptance item 1 is only partly covered (see above).
-- No saved v3 closure project was loaded through IndexedDB in a browser.
+- `security` and `deny` were not run (no dependency change). `release` is not allowed.
 - The archive byte comparison was not done (see the transcript scope above).
 - The `formatVersion: 1` manifests under `catalogue/`, `cad/` and `scripts/` are different
   manifests and were not touched.
@@ -150,3 +173,7 @@ I did not compare the archive bytes, so this rests on the transcript diff, not a
   on Open and errors on edit.
 - Open already refuses documents that are not at format 4, so 04 can rely on clean types at the
   boundary.
+- Not fully clean: non-empty list text (`"[1,2,3]"`) survives migration, and 04 says a wrong type on
+  Open is an error. Before making that an error, 04's inventory should check whether any shipped or
+  previously saved data can hold list text for an array parameter; if it can, Open should warn for
+  that case instead of refusing the project.

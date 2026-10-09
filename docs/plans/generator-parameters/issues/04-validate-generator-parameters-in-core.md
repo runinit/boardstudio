@@ -21,7 +21,8 @@ silently uses the default.
 - Edits (`apply` path, `core/src/lib.rs:~522-535`, and `preview_edit`): wrong types and
   unknown names are errors with no mutation, the same pattern as `layout::validate`.
 - Open and ReplaceDocument: a wrong type is an error (after 03 only hand-edited data can
-  have one). An unknown name becomes a located warning finding through
+  have one, except non-empty list text for an array parameter, which 03 leaves as text; check
+  whether real data can hold it and warn instead of refusing if so). An unknown name becomes a located warning finding through
   `validate::validate`, not a refusal. First inventory bundled fixtures and
   `content/archives/reviung41-original.boardstudio` for unknown names and record the result.
 - Keep the web editor's form coercion (it parses user text); add a test that what it

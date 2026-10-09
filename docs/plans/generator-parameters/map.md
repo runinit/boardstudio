@@ -26,6 +26,9 @@ and enum kinds (option C) is out of scope.
 - Repair saved strings with a v3 to v4 migration, not per-load coercion: ADR-0004 rejects
   an unversioned rewrite on each load, and `migrate_json` does not detect change at the
   current version. Detail in [03](issues/03-migrate-saved-generator-strings.md).
+- A mechanical pair keeps everything linked, with explicit exceptions (user, 2026-10-09,
+  [ADR-0008](../../adr/0008-linked-halves-stay-linked.md)); this replaces the recommendation
+  in 06 and in the 02 progress note.
 - Unknown parameter names are warnings on Open and errors on edit, so real user projects
   are not refused: [04](issues/04-validate-generator-parameters-in-core.md).
 
@@ -34,11 +37,12 @@ and enum kinds (option C) is out of scope.
 1. [01](issues/01-closure-holes-via-generator-normalization.md) (resolved)
 2. [02](issues/02-restore-closure-mounts-in-recipes.md) (resolved; Sofle v2 keeps no
    closure mounts, a user decision)
-3. [03](issues/03-migrate-saved-generator-strings.md) after 01
-4. [04](issues/04-validate-generator-parameters-in-core.md) after 03
+3. [03](issues/03-migrate-saved-generator-strings.md) (resolved)
+4. [04](issues/04-validate-generator-parameters-in-core.md) (next ready ticket; 03 is resolved)
 5. [05](issues/05-parameter-lint-and-conventions.md) after 04
-6. [06](issues/06-paired-half-closure-proposals.md) (ready for the user; does not block
-   03 to 05)
+6. [06](issues/06-paired-half-closure-proposals.md) (decided by
+   [ADR-0008](../../adr/0008-linked-halves-stay-linked.md), awaiting implementation; does not
+   block 04 and 05)
 
 ## Progress
 
@@ -55,12 +59,20 @@ and enum kinds (option C) is out of scope.
   proposals joined the pair after the link), so the recipe now initializes closures before
   linking. Sofle v2 has none (gasket mount). Core still links initialization proposals to the
   pair and `enable` still skips a legacy second half; ticket 06 asks for that decision, and a
-  known-gap test pins current behaviour. Fit findings (holes inside the controller bay, tight
+  known-gap test pins current behaviour (superseded by ADR-0008, see 06). Fit findings (holes inside the controller bay, tight
   switch gaps) are in the [ticket Outcome](issues/02-restore-closure-mounts-in-recipes.md).
-- 03 implemented, awaiting verification (commit `fd7640a9a`): format version 4 converts the
-  saved numeric strings and list text in generator parameters, and the boundary transcript is
-  re-blessed. Not resolved until its verification is reviewed; see the
-  [ticket Outcome](issues/03-migrate-saved-generator-strings.md).
+- 03 resolved (implementation `fd7640a9a`, docs `a115b4c31`, verification follow-ups `0e5a4369f`
+  and `f5def9feb`): format version 4 converts the saved numeric strings in generator parameters to
+  numbers on definitions, parts and assembly members, and removes empty or whitespace-only number
+  and list text. Non-empty list text such as `"[1,2,3]"` is not converted; it stays text, as in the
+  old 1 to 2 step. Implemented by Haiku, reviewed by a Sonnet verifier (no functional defect), and
+  re-run by the integrating Sonnet session: a browser test loads a saved v3 closure project through
+  IndexedDB (red with the step disabled, green with it); `repo lint typecheck browser`, `build` and
+  the native `test` pass (`quick` did not complete: environment limits, see the ticket); evidence and limits in the
+  [ticket Outcome](issues/03-migrate-saved-generator-strings.md). Next: 04.
+- 06 decided (user, 2026-10-09, [ADR-0008](../../adr/0008-linked-halves-stay-linked.md)): a mechanical
+  pair keeps everything linked; the known-gap test from 02 and the shipped split data still follow
+  the superseded behaviour until 06 is implemented.
 
 ## Not yet specified
 

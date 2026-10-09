@@ -1,15 +1,15 @@
 # 06: Decide how closure proposals behave on a paired half
 
 Status: ready-for-agent
+Type: task
+Blocked by: none
+Map: [map.md](../map.md) · Found by: [02](02-restore-closure-mounts-in-recipes.md)
 
 Decision (user, 2026-10-09): [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md). Closures and
 openings stay linked and mirrored; A1 and the recommendation below are superseded. Fix the
 shipped data's geometry (reflect the bay/reset/TRRS on the second half), propose closures
 once from the construction source and map them, initialize on `enable` for a legacy half
 (B1), and make the refusal text say a mount is linked and from which half.
-Type: task
-Blocked by: none
-Map: [map.md](../map.md) · Found by: [02](02-restore-closure-mounts-in-recipes.md)
 
 ## Request
 
