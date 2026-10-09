@@ -1,6 +1,6 @@
 # 11: Core outline ownership, identity and persistence
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 03
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Contract: [03 Answer](03-decide-outline-version-intents.md#answer)
@@ -53,3 +53,24 @@ Record schema changes, migration/version order and red/green evidence. Run Core 
 application tests, affected persistence browser tests, repo links and WASM typecheck.
 Keep the ticket open until these behaviors pass; source type additions alone are not
 acceptance. Linked resolution and typed creation actions follow in 12/13.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `4ab266e64` (lane `typed-core-edits/outline-ownership`,
+commits `9a7d29a1d`, `6b6543cdd`, `562ede9db`). `OutlineOwnership { Fixed (default), Linked }`
+persists per outline version with absence-equals-fixed serde defaults (byte-identical legacy
+documents, `CURRENT_VERSION` stays 3, no migration added); origin provenance
+(`source.version_id`) never grants link authority and copies are always constructed Fixed.
+Version-local settings/features/protected-gap choices persist and survive reopen
+independently. `BoardOutline.retired_version_ids` reserves removed version identities;
+`CopyOutline` refuses retired identities and any collision across persisted outline
+namespaces; Core-authored derived identities are version-namespaced so one reservation
+covers features/connections/gaps. Native archive pack/unpack and the browser-persistence
+migrate/writeback boundary agree on ownership, reservation, provenance, geometry and
+identities; legacy reopen changes nothing and invents no links. Checks: core 268+432,
+workspace, footprints, fmt/clippy, WASM typecheck, host (16) and layout (138) browser
+suites; GitNexus gates low per commit (`OutlineVersion` HIGH and `state_mut` CRITICAL
+impacts were pre-reported and contained to Core's outline-version module). Ticket 13's
+allocation entry point is documented as a handoff (`identity_namespace` as the single
+collision source of truth, retired identities never reissued, freeze/create paths set
+ownership explicitly); linked resolution stays ticket 12's.

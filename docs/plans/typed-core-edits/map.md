@@ -55,6 +55,11 @@ and for any bulk action a recorded decision permits.
 
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+- 11 Core outline ownership lands: explicit `OutlineOwnership` per version with
+  absence-equals-fixed defaults (no migration), retired-identity reservation,
+  cross-namespace collision refusal, version-namespaced derived identities, archive
+  and browser-persistence parity, and no inferred links on legacy reopen:
+  [Outcome](issues/11-core-outline-ownership.md#outcome).
 - 02 typed mechanical edits land complete: Core-owned rules/inputs/findings, mirror pairs
   with per-feature sources, atomic lifecycle (removal, Q14 paired disable, legacy
   conversion), durable identity reservations, author-contour gasket resolution,
@@ -71,8 +76,8 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- [11: Core outline ownership](issues/11-core-outline-ownership.md) is the unblocked
-  implementation frontier: mechanical 02 and decision 03 are both resolved.
+- [12: Linked outline resolution](issues/12-linked-outline-resolution.md) is the
+  unblocked implementation frontier: 11 is resolved.
 
 ## Outline implementation frontier
 
