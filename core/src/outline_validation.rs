@@ -400,19 +400,7 @@ pub(crate) fn validate(
             .iter()
             .filter(|contour| !contour.hole)
             .count();
-        let expected = outline_versions::active_snapshot(doc, &board.id)
-            .map(|snapshot| snapshot.expected_regions as usize)
-            .unwrap_or_else(|| {
-                if doc
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.board_id == board.id && layout.mirror_link.is_some())
-                {
-                    2
-                } else {
-                    1
-                }
-            });
+        let expected = outline_versions::expected_regions(doc, &board.id);
         if regions > expected {
             report(
                 "disconnected".into(),

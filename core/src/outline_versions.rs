@@ -132,6 +132,36 @@ pub(crate) fn resolved_features(
         .collect()
 }
 
+/// Number of separate board regions the board's current outline owner expects.
+///
+/// A fixed edited outline is authored, so its persisted count stays authoritative; a
+/// generated outline keeps its current behavior, including the retained last valid
+/// projection while a protected gap has no source region. A linked refinement follows
+/// the board's current components, so its count is derived from the current structure
+/// exactly as the permanent Generated version derives it: a mirrored pair resolves
+/// each half independently and therefore expects two regions. A refinement accepted
+/// before its board split must not inherit the older count and block its own valid
+/// geometry, and the fallback display of a failed resolution uses the same derived
+/// count so it never adds a second, false blocker.
+pub(crate) fn expected_regions(doc: &ProjectDoc, board_id: &str) -> usize {
+    if let Some(version) = active_version(doc, board_id) {
+        if version.ownership.is_fixed() {
+            return version.geometry.expected_regions as usize;
+        }
+    } else if let Some(snapshot) = active_snapshot(doc, board_id) {
+        return snapshot.expected_regions as usize;
+    }
+    if doc
+        .layouts
+        .iter()
+        .any(|layout| layout.board_id == board_id && layout.mirror_link.is_some())
+    {
+        2
+    } else {
+        1
+    }
+}
+
 pub(crate) fn features(doc: &ProjectDoc, board: &Board) -> Vec<OutlineFeature> {
     if let Some(version) = active_version(doc, &board.id) {
         return resolved_features(doc, &board.id, version);

@@ -698,3 +698,227 @@ fn protecting_a_linked_gap_cannot_waive_required_pad_support() {
     );
     assert!(!readiness(&protected, "board").pcb);
 }
+
+/// A mirror-linked board: `a`/`c` form the left half, their mirrored copies the right.
+/// The two halves resolve independently, so the current structure has two islands even
+/// though the refinement was accepted with a single expected region before the split.
+fn split_fixture(broken: bool) -> serde_json::Value {
+    let mut document = fixture((100.0, 0.0), 0.0);
+    document["parts"] = serde_json::json!([
+        { "id": "a", "definitionId": "switch", "reference": "SW1", "side": "front",
+          "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 } },
+        { "id": "c", "definitionId": "switch", "reference": "SW2", "side": "front",
+          "pose": { "at": { "x": 40.0, "y": 0.0 }, "rotation": 0.0 } },
+        { "id": "mirror-a", "definitionId": "switch", "reference": "SW1_M", "side": "front",
+          "pose": { "at": { "x": 100.0, "y": 0.0 }, "rotation": 180.0 },
+          "properties": { "boardstudio.mirroredComponentSource": "a" } },
+        { "id": "mirror-c", "definitionId": "switch", "reference": "SW2_M", "side": "front",
+          "pose": { "at": { "x": 60.0, "y": 0.0 }, "rotation": 180.0 },
+          "properties": { "boardstudio.mirroredComponentSource": "c" } }
+    ]);
+    let members = serde_json::json!(["a", "c", "mirror-a", "mirror-c"]);
+    document["boards"][0]["partIds"] = members.clone();
+    document["outline"][0]["partIds"] = members.clone();
+    document["boardOutlines"][0]["versions"][0]["geometry"]["features"][0]["partIds"] =
+        members.clone();
+    document["layouts"] = serde_json::json!([
+        { "id": "left-keys", "name": "Left keys", "boardId": "board",
+          "matrixId": "left-matrix", "partIds": ["a", "c"] },
+        { "id": "right-keys", "name": "Right keys", "boardId": "board",
+          "matrixId": "right-matrix", "partIds": ["mirror-a", "mirror-c"],
+          "mirrorLink": { "sourceId": "left-keys", "axisX": 50.0 } }
+    ]);
+    let matrix = |id: &str, origin: f64| {
+        serde_json::json!({
+            "id": id, "boardId": "board", "definitionId": "switch",
+            "rows": 1, "columns": 1, "origin": { "x": origin, "y": 0.0 },
+            "pitch": { "x": 19.05, "y": 19.05 }, "partIds": [],
+            "cells": [{ "row": 0, "column": 0, "enabled": false }]
+        })
+    };
+    document["matrices"] =
+        serde_json::json!([matrix("left-matrix", 0.0), matrix("right-matrix", 100.0)]);
+    if broken {
+        document["boardOutlines"][0]["versions"][0]["geometry"]["features"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "kind": "polygon", "id": "board:board:version:refined:cutout:bad",
+                "anchorPartId": "a", "operation": "add",
+                "points": [{ "x": 0.0, "y": 0.0 }, { "x": 4.0, "y": 4.0 },
+                           { "x": 4.0, "y": 0.0 }, { "x": 0.0, "y": 4.0 }]
+            }));
+    }
+    document
+}
+
+/// The same four components in one layout: the structure is a single island again.
+fn merged_fixture() -> serde_json::Value {
+    let mut document = split_fixture(false);
+    document["layouts"] = serde_json::json!([
+        { "id": "keys", "name": "Keys", "boardId": "board",
+          "matrixId": "keys-matrix",
+          "partIds": ["a", "c", "mirror-a", "mirror-c"] }
+    ]);
+    document["matrices"] = serde_json::json!([{
+        "id": "keys-matrix", "boardId": "board", "definitionId": "switch",
+        "rows": 1, "columns": 1, "origin": { "x": 0.0, "y": 0.0 },
+        "pitch": { "x": 19.05, "y": 19.05 }, "partIds": [],
+        "cells": [{ "row": 0, "column": 0, "enabled": false }]
+    }]);
+    document
+}
+
+fn islands(scene: &SceneDelta, board_id: &str) -> usize {
+    scene
+        .board_contours
+        .iter()
+        .find(|entry| entry.board_id == board_id)
+        .expect("the board has contours")
+        .contours
+        .iter()
+        .filter(|contour| !contour.hole)
+        .count()
+}
+
+fn findings_ending(scene: &SceneDelta, suffix: &str) -> Vec<String> {
+    scene
+        .findings
+        .iter()
+        .filter(|finding| finding.id.ends_with(suffix))
+        .map(|finding| finding.id.clone())
+        .collect()
+}
+
+/// A linked refinement of a split board is valid: the expected region count comes from
+/// the current structure, not from the value accepted before the split.
+#[test]
+fn a_split_linked_refinement_derives_its_region_count_and_never_blocks_as_disconnected() {
+    let mut engine = CoreEngine::new();
+    let opened = open(&mut engine, split_fixture(false));
+    assert_eq!(
+        islands(&opened, "board"),
+        2,
+        "one island per mirrored half: {:?}",
+        opened
+            .findings
+            .iter()
+            .map(|finding| finding.id.clone())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        findings_ending(&opened, ":disconnected"),
+        Vec::<String>::new(),
+        "the derived count accepts the two islands"
+    );
+    assert!(
+        readiness(&opened, "board").outline && readiness(&opened, "board").pcb,
+        "a split refinement stays valid output"
+    );
+    // Bridges are recalculated inside each half; none crosses the split axis at x = 50.
+    let bridges = &opened
+        .board_outline_scenes
+        .iter()
+        .find(|scene| scene.board_id == "board")
+        .expect("the board has an outline scene")
+        .bridges;
+    assert!(
+        bridges.len() >= 2,
+        "each half recalculates its own bridges: {:?}",
+        bridges
+    );
+    for bridge in bridges {
+        assert!(
+            bridge.points.iter().all(|point| point.x < 50.0)
+                || bridge.points.iter().all(|point| point.x > 50.0),
+            "bridge {} crosses the split axis: {:?}",
+            bridge.id,
+            bridge.points
+        );
+    }
+}
+
+/// Merging the halves back into one layout is valid again, and neither a fixed edited
+/// version nor a generated outline changes its region-count semantics.
+#[test]
+fn merged_fixed_and_generated_outlines_keep_their_region_count_semantics() {
+    let mut engine = CoreEngine::new();
+    let merged = open(&mut engine, merged_fixture());
+    assert_eq!(islands(&merged, "board"), 1);
+    assert_eq!(
+        findings_ending(&merged, ":disconnected"),
+        Vec::<String>::new()
+    );
+    assert!(readiness(&merged, "board").outline && readiness(&merged, "board").pcb);
+
+    // A fixed edited version keeps the count its authored geometry was saved with.
+    let mut accepted = fixture((14.0, 0.0), 0.0);
+    accepted["boardOutlines"][0]["activeVersionId"] = serde_json::json!("edited");
+    accepted["boardOutlines"][0]["versions"][1]["geometry"]["features"] = serde_json::json!([
+        { "kind": "polygon", "id": "board:board:version:edited:contour:0", "operation": "add",
+          "points": [{ "x": -30.0, "y": -30.0 }, { "x": -10.0, "y": -30.0 },
+                     { "x": -10.0, "y": -10.0 }, { "x": -30.0, "y": -10.0 }] },
+        { "kind": "polygon", "id": "board:board:version:edited:contour:1", "operation": "add",
+          "points": [{ "x": 10.0, "y": 10.0 }, { "x": 30.0, "y": 10.0 },
+                     { "x": 30.0, "y": 30.0 }, { "x": 10.0, "y": 30.0 }] }
+    ]);
+    accepted["boardOutlines"][0]["versions"][1]["geometry"]["expectedRegions"] =
+        serde_json::json!(2);
+    let mut engine = CoreEngine::new();
+    let authored = open(&mut engine, accepted.clone());
+    assert_eq!(islands(&authored, "board"), 2);
+    assert_eq!(
+        findings_ending(&authored, ":disconnected"),
+        Vec::<String>::new(),
+        "the authored count of two covers the authored two islands"
+    );
+    accepted["boardOutlines"][0]["versions"][1]["geometry"]["expectedRegions"] =
+        serde_json::json!(1);
+    let mut engine = CoreEngine::new();
+    let narrowed = open(&mut engine, accepted);
+    assert_eq!(
+        findings_ending(&narrowed, ":disconnected").len(),
+        1,
+        "a fixed version keeps its persisted count, so one expected island blocks two"
+    );
+
+    // Generated outlines keep today's derived behaviour.
+    let mut generated = split_fixture(false);
+    generated["boardOutlines"][0]["activeVersionId"] = serde_json::json!(null);
+    let mut engine = CoreEngine::new();
+    let generated = open(&mut engine, generated);
+    assert_eq!(islands(&generated, "board"), 2);
+    assert_eq!(
+        findings_ending(&generated, ":disconnected"),
+        Vec::<String>::new()
+    );
+    assert!(readiness(&generated, "board").pcb);
+}
+
+/// The last-valid fallback display must not crash or falsely block on the derived count.
+#[test]
+fn a_failed_split_resolution_keeps_its_last_valid_display_without_a_false_blocker() {
+    let mut engine = CoreEngine::new();
+    let failed = open(&mut engine, split_fixture(true));
+    assert!(
+        failed
+            .findings
+            .iter()
+            .any(|finding| finding.id == "board:board:outline:linked:refined"),
+        "the resolution failure is still reported: {:?}",
+        failed
+            .findings
+            .iter()
+            .map(|finding| finding.id.clone())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        findings_ending(&failed, ":disconnected"),
+        Vec::<String>::new(),
+        "the derived count must not add a second, false blocker on the fallback display"
+    );
+    assert!(
+        !failed.board_contours[0].contours.is_empty(),
+        "a display remains"
+    );
+}
