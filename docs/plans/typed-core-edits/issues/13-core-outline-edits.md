@@ -1,6 +1,6 @@
 # 13: Typed Core outline edits and atomic version lifecycle
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 12
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Contract: [03 Answer](03-decide-outline-version-intents.md#answer)
@@ -65,3 +65,35 @@ private helpers are not additional interfaces. Use `Result<_, String>` conventio
 Run Core/application tests, format/lint, affected WASM typecheck and graph gates. Keep
 wire-fixture edits for the coordinated ticket 15 owner. Source operation presence alone
 is not acceptance; record per-behavior red/green evidence and remaining integration work.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `dede916a0` (lane `typed-core-edits/outline-edits`,
+commits `66fc853c2`, `09ce52115`). `EditOperation::ApplyOutlineEdit { edit: Box<OutlineEdit> }`
+with an externally-tagged kebab-case change vocabulary (payload fields snake_case, target
+camelCase with `kind`, captured `seed`, optional target-specific `reviewed` source shape)
+covers settings, protected gaps, features, connections, linked-refinement creation, Freeze,
+generated/feature perimeter editing, copy, activation, rename and deletion. `evaluate` and
+`apply` share one private staged implementation (no prepared replacement document); equal
+field edits settle `Unchanged` with no revision/history step; metadata-only renames preserve
+the outline cache. Composite create/edit/activate and the linked freeze-on-perimeter-edit
+are one operation, one revision, one Undo. Core allocates identities from the captured seed
+through one `version_identity_problem` rule (retired ids never reissued, cross-namespace
+collisions refused), and default names follow the planner's non-duplicating
+"Edited outline N" rule. Retirement is identity/fingerprint-scoped, never document-revision
+equality: active-version changes, vanished entities, and relevant reviewed source-shape
+changes (Board target: generated source; Version target: that version's current resolved
+projection) retire; unrelated boards/metadata do not. Malformed geometry (too few points,
+nonfinite coordinates, non-positive/non-finite connection width) errors with no mutation;
+self-intersection stays a located finding. Checks: core 270+457, application 30, fmt/clippy,
+WASM typecheck; GitNexus gates with HIGH results (`default_version_name`, `set_protected_gap`,
+detect-changes high on `evaluate` flows) reported and contained to Core's outline-edit paths.
+
+Accepted deviations/limits: `RemoveFeature` refuses the base generated envelope (no product
+path submits it); a queued edit on a fixed version retires on active-version/entity changes
+(its authored shape has no independent source); `reviewed` carries full contours on the wire
+(a digest remains a 15 optimization); no matrix-transform fixture for version-target
+retirement (matrix moves settle as component moves, same rule); protected-gap equality is
+exact. The web adapter (14) owns `plan_action`/`action_resolver` replacement and the
+`reviewed`/bridge-width/default-name contract recorded in
+`/tmp/tce-outline-reports/13-core-outline-edits.md`.

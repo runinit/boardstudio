@@ -55,6 +55,11 @@ and for any bulk action a recorded decision permits.
 
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+- 13 typed Core outline edits land: one `ApplyOutlineEdit` operation with the
+  kebab-case change vocabulary, Core-owned identity allocation and non-duplicating
+  default names, atomic composite lifecycle, fingerprint-scoped retirement, and
+  malformed-input errors without mutation:
+  [Outcome](issues/13-core-outline-edits.md#outcome).
 - 12 linked outline resolution lands: linked refinements rebuild from the board's
   current included components with version-local choices, source cleanup rides the
   same accepted edit/Undo, failed resolution keeps the link with a located last-valid
@@ -81,8 +86,8 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- [13: Typed Core outline edits](issues/13-core-outline-edits.md) is the unblocked
-  implementation frontier: 11 and 12 are resolved.
+- [14: Outline web adapter](issues/14-outline-web-adapter.md) is the unblocked
+  implementation frontier: 11, 12 and 13 are resolved.
 
 ## Outline implementation frontier
 
