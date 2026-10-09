@@ -1,6 +1,6 @@
 # 10: Highlight Relations references on the Layout canvas
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 09
 Spec: [spec.md](../spec.md#relations) · Map: [map.md](../map.md)
