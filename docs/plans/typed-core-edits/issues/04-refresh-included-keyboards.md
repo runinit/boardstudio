@@ -1,6 +1,6 @@
 # 04: Redo all included keyboards using the settled editing model
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: 02, [matrix integrated verification](../../matrix-layout-consistency/issues/11-integrated-verification.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
