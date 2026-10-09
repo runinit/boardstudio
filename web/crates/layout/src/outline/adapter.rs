@@ -246,6 +246,16 @@ pub(crate) fn outline_edit(
             active_version.as_deref(),
             edit,
         )?,
+        OutlineAction::Freeze { version_id, .. } => (
+            OutlineEditTarget::Version {
+                board_id: board_id.clone(),
+                version_id: version_id.clone(),
+            },
+            OutlineChange::Freeze {
+                name: next_edited_outline_name(state),
+            },
+            None,
+        ),
         OutlineAction::EditPerimeter { target, points, .. } => {
             let reviewed = Some(reviewed_source(snapshot, &board_id)?);
             match target {
@@ -416,6 +426,7 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
             ..
         }
         | OutlineAction::Delete { version_id, .. } => ids.push(version_id.clone()),
+        OutlineAction::Freeze { version_id, .. } => ids.push(version_id.clone()),
         OutlineAction::EditPerimeter {
             target:
                 OutlinePointTarget::Fixed {
@@ -470,6 +481,7 @@ pub(crate) fn retire_reason(action: &OutlineAction) -> &'static str {
             _ => "The outline changed before this edit was applied.",
         },
         OutlineAction::Copy { .. } => "The outline changed before this copy was applied.",
+        OutlineAction::Freeze { .. } => "That outline version no longer exists.",
         OutlineAction::AddFeature { .. } | OutlineAction::AddConnection { .. } => {
             "The outline changed before this addition was applied."
         }

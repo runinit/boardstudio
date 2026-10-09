@@ -584,6 +584,49 @@ fn copy_names_and_identities_come_from_the_accepted_document() {
 }
 
 #[test]
+fn freeze_is_one_typed_edit_that_keeps_the_linked_version_and_selects_the_copy() {
+    let (scope, token, revision, generation, board_id) = envelope();
+    let mut document = document();
+    document.board_outlines[0].versions[0].ownership = OutlineOwnership::Linked;
+    let action = OutlineAction::Freeze {
+        scope,
+        token,
+        revision,
+        generation,
+        board_id,
+        version_id: "v1".into(),
+    };
+    let edit = edit_for(&document, &action, 12);
+    assert!(matches!(edit.target, OutlineEditTarget::Version { .. }));
+    let OutlineChange::Freeze { name } = &edit.change else {
+        panic!("a freeze action is one typed freeze change");
+    };
+    assert_eq!(name, "Edited outline 2");
+    let mut accepted = document.clone();
+    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    let state = &accepted.board_outlines[0];
+    assert_eq!(state.versions.len(), 2, "one operation creates one copy");
+    let linked = state
+        .versions
+        .iter()
+        .find(|version| version.id == "v1")
+        .expect("the linked refinement is retained");
+    assert_eq!(linked.ownership, OutlineOwnership::Linked);
+    let frozen = state
+        .versions
+        .iter()
+        .find(|version| version.id != "v1")
+        .expect("the fixed copy exists");
+    assert_eq!(frozen.ownership, OutlineOwnership::Fixed);
+    assert_eq!(state.active_version_id.as_deref(), Some(frozen.id.as_str()));
+    assert_eq!(
+        changed,
+        vec![BOARD.to_owned(), frozen.id.clone()],
+        "the changed owners are the board and the created copy"
+    );
+}
+
+#[test]
 fn a_gap_focus_is_not_an_edit() {
     let (scope, token, revision, generation, board_id) = envelope();
     let action = OutlineAction::FocusGap {

@@ -13,7 +13,7 @@ pub(crate) mod overlays;
 #[cfg(target_arch = "wasm32")]
 pub use hook::{
     OutlineDrawTool, OutlineFeedback, OutlineInspectorProjection, OutlineVersionChoice,
-    use_outline_lifecycle,
+    OutlineVersionOwnership, use_outline_lifecycle,
 };
 #[cfg(target_arch = "wasm32")]
 pub use inspector::OutlineVersionInspector;

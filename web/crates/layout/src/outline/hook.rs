@@ -285,10 +285,80 @@ impl OutlineActionContext {
     }
 }
 
+/// How one outline version came to exist.
+///
+/// Core owns the persisted ownership; the presentation only names it, and a version
+/// written before ownership existed is `Edited` (a fixed copy), never presented as linked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutlineVersionOwnership {
+    /// The permanent Generated outline: the select's empty version id.
+    Generated,
+    /// A linked refinement that follows the board's current components.
+    Linked,
+    /// An edited outline: an authored, fixed copy.
+    Edited,
+}
+
+impl OutlineVersionOwnership {
+    /// The short ownership label the Inspector shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Generated => "Generated",
+            Self::Linked => "Linked refinement",
+            Self::Edited => "Edited outline",
+        }
+    }
+}
+
+/// One selectable outline: its Core-owned ownership plus the accepted scene's located
+/// problem for it, if any.
+///
+/// The problem is looked up by Core's finding-id contract
+/// (`board:{board}:outline:linked:{version}`) and the board's readiness; message text is
+/// displayed exactly as Core wrote it and is never parsed for status.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutlineVersionChoice {
     pub id: String,
     pub name: String,
+    pub ownership: OutlineVersionOwnership,
+    /// The located finding id when this refinement cannot resolve.
+    pub problem_finding_id: Option<String>,
+    /// That finding's own message.
+    pub problem_message: Option<String>,
+    /// A marker exists for the finding, so the user can select and navigate to it.
+    pub problem_selectable: bool,
+    /// Exports the accepted scene currently blocks for this board.
+    pub blocked_exports: Vec<String>,
+}
+
+impl OutlineVersionChoice {
+    /// `Generated`, `Linked refinement · name` or `Edited outline · name`.
+    pub fn label(&self) -> String {
+        format!("{} \u{b7} {}", self.ownership.label(), self.name)
+    }
+}
+
+/// The board's currently blocked export labels, from the accepted scene's readiness.
+fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<String> {
+    let Some(readiness) = snapshot
+        .scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == board_id)
+    else {
+        return Vec::new();
+    };
+    let mut labels = Vec::new();
+    if !readiness.outline {
+        labels.push("Outline".to_owned());
+    }
+    if !readiness.pcb {
+        labels.push("PCB".to_owned());
+    }
+    if !readiness.case_ready {
+        labels.push("Case".to_owned());
+    }
+    labels
 }
 
 impl OutlineAction {
@@ -639,14 +709,42 @@ fn project_inspector(
         .boards
         .iter()
         .find(|board| board.id == board_id)?;
-    let versions = outline
-        .into_iter()
-        .flat_map(|state| state.versions.iter())
-        .map(|version| OutlineVersionChoice {
-            id: version.id.clone(),
-            name: version.name.clone(),
-        })
-        .collect();
+    // The board's currently blocked exports, read from the accepted scene's readiness.
+    let blocked_exports = blocked_export_labels(snapshot, &board_id);
+    let versions =
+        outline
+            .into_iter()
+            .flat_map(|state| state.versions.iter())
+            .map(|version| {
+                let finding_id = format!("board:{board_id}:outline:linked:{}", version.id);
+                let problem = snapshot
+                    .scene
+                    .findings
+                    .iter()
+                    .find(|finding| finding.id == finding_id);
+                OutlineVersionChoice {
+                    id: version.id.clone(),
+                    name: version.name.clone(),
+                    // A version written before ownership existed is Fixed, so it reads as an
+                    // edited outline rather than being silently presented as linked.
+                    ownership: if version.ownership.is_fixed() {
+                        OutlineVersionOwnership::Edited
+                    } else {
+                        OutlineVersionOwnership::Linked
+                    },
+                    problem_finding_id: problem.map(|_| finding_id.clone()),
+                    problem_message: problem.map(|finding| finding.message.clone()),
+                    problem_selectable: snapshot.scene.finding_markers.iter().any(|marker| {
+                        marker.finding_id == finding_id && marker.board_id == board_id
+                    }),
+                    blocked_exports: if problem.is_some() {
+                        blocked_exports.clone()
+                    } else {
+                        Vec::new()
+                    },
+                }
+            })
+            .collect();
     let generated = generated_feature(&snapshot.document, board);
     let settings = outline
         .and_then(|state| {
@@ -1247,6 +1345,7 @@ fn action_pending_key(action: &OutlineAction) -> OutlinePendingKey {
         }
         OutlineAction::Activate { .. }
         | OutlineAction::Copy { .. }
+        | OutlineAction::Freeze { .. }
         | OutlineAction::Delete { .. }
         | OutlineAction::AddFeature { .. }
         | OutlineAction::AddConnection { .. }
@@ -1369,6 +1468,23 @@ impl OutlineInspectorProjection {
                 board_id: self.board_id.clone(),
                 version_id: version_id.clone(),
             })
+    }
+
+    /// Freeze the selected version into a separate fixed edited copy, retaining it.
+    pub(super) fn freeze_action(&self) -> Option<OutlineAction> {
+        let linked = self.active_version_id.as_ref().is_some_and(|version_id| {
+            self.versions.iter().any(|choice| {
+                &choice.id == version_id && choice.ownership == OutlineVersionOwnership::Linked
+            })
+        });
+        linked.then(|| OutlineAction::Freeze {
+            scope: self.scope.clone(),
+            token: self.token,
+            revision: self.revision,
+            generation: self.generation,
+            board_id: self.board_id.clone(),
+            version_id: self.active_version_id.clone().unwrap_or_default(),
+        })
     }
 }
 

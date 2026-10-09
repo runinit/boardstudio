@@ -1598,3 +1598,370 @@ mod queued_actions {
         assert!(!add.is_pending());
     }
 }
+
+/// Ownership presentation: the Inspector names Core's persisted ownership, shows a
+/// linked refinement's located finding and affected exports, and never presents a
+/// legacy fixed version as linked (ADR-0002/0003).
+mod ownership_presentation {
+    use super::*;
+    use boardstudio_core::model::{OutlineOwnership, OutlineSettings};
+
+    const BOARD: &str = "ownership-board";
+
+    fn polygon(id: &str, x: f64) -> OutlineFeature {
+        OutlineFeature::Polygon {
+            anchor_part_id: None,
+            id: id.into(),
+            points: vec![
+                Vec2 { x, y: 0.0 },
+                Vec2 {
+                    x: x + 20.0,
+                    y: 0.0,
+                },
+                Vec2 {
+                    x: x + 20.0,
+                    y: 20.0,
+                },
+                Vec2 { x, y: 20.0 },
+            ],
+            operation: boardstudio_core::model::Operation::Add,
+        }
+    }
+
+    fn version(
+        id: &str,
+        name: &str,
+        ownership: OutlineOwnership,
+        features: Vec<OutlineFeature>,
+    ) -> OutlineVersion {
+        OutlineVersion {
+            id: id.into(),
+            name: name.into(),
+            source: OutlineProvenance {
+                revision: 0,
+                version_id: None,
+            },
+            geometry: OutlineSnapshot {
+                features,
+                settings: OutlineSettings::default(),
+                expected_regions: 1,
+                bridges: vec![],
+                protected_gaps: vec![],
+            },
+            ownership,
+        }
+    }
+
+    /// A linked refinement that resolves from its own authored contour, plus a legacy
+    /// fixed version (written before ownership existed, so its serde default is Fixed).
+    async fn mounted(
+        versions: Vec<OutlineVersion>,
+        active: &str,
+    ) -> (InspectorProbe, web_sys::Element) {
+        let mut document = ProjectDoc::empty("ownership-doc", "Ownership fixture");
+        document.revision = 5;
+        document.boards.push(Board {
+            id: BOARD.into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.board_outlines.push(BoardOutline {
+            board_id: BOARD.into(),
+            active_version_id: Some(active.into()),
+            versions,
+            generated_last_valid: None,
+            retired_version_ids: vec![],
+        });
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+        let scope = runtime.scope().expect("the fixture has a scope");
+        let probe = InspectorProbe {
+            runtime,
+            scope,
+            connection_action: Rc::default(),
+            selected_context: Rc::default(),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("outline-inspector-mount");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_outline_inspector_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        (probe, root)
+    }
+
+    fn option_labels(root: &web_sys::Element) -> Vec<String> {
+        let nodes = root
+            .query_selector_all("select[aria-label='Active outline'] option")
+            .unwrap();
+        (0..nodes.length())
+            .filter_map(|index| nodes.get(index))
+            .map(|node| node.text_content().unwrap_or_default())
+            .collect()
+    }
+
+    fn input(root: &web_sys::Element, selector: &str) -> web_sys::HtmlInputElement {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("{selector} is mounted"))
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    }
+
+    fn button(root: &web_sys::Element, selector: &str) -> web_sys::HtmlElement {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("{selector} is mounted"))
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_linked_and_legacy_fixed_versions_are_distinct_ownership_choices() {
+        let (_probe, root) = mounted(
+            vec![
+                version(
+                    "linked-v1",
+                    "Linked 1",
+                    OutlineOwnership::Linked,
+                    vec![polygon("linked-contour", 0.0)],
+                ),
+                version(
+                    "legacy-fixed",
+                    "Edited outline 1",
+                    OutlineOwnership::Fixed,
+                    vec![polygon("legacy-contour", 60.0)],
+                ),
+            ],
+            "linked-v1",
+        )
+        .await;
+        settle_dimension().await;
+
+        let labels = option_labels(&root);
+        assert!(
+            labels.iter().any(|label| label.contains("Generated")),
+            "the permanent Generated outline stays a distinct choice: {labels:?}"
+        );
+        assert!(
+            labels
+                .iter()
+                .any(|label| label == "Linked refinement \u{b7} Linked 1"),
+            "a persisted linked refinement is named as linked: {labels:?}"
+        );
+        assert!(
+            labels
+                .iter()
+                .any(|label| label == "Edited outline \u{b7} Edited outline 1"),
+            "a legacy fixed version is presented as an edited outline, never as linked: {labels:?}"
+        );
+        // Settings stay editable while a linked refinement is selected.
+        assert!(
+            !input(&root, "input[aria-label='Chamfer size']").disabled(),
+            "the linked refinement's settings remain editable"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_freeze_creates_one_fixed_copy_retaining_the_link_and_one_undo_restores_both() {
+        let (probe, root) = mounted(
+            vec![version(
+                "linked-v1",
+                "Linked 1",
+                OutlineOwnership::Linked,
+                vec![polygon("linked-contour", 0.0)],
+            )],
+            "linked-v1",
+        )
+        .await;
+        settle_dimension().await;
+        let revision_before = accepted_revision(&probe);
+        let freeze = button(&root, "button.m1-outline-freeze");
+        freeze.click();
+        accept(&probe).await;
+
+        let accepted = accepted_document(&probe);
+        let state = &accepted.board_outlines[0];
+        assert_eq!(
+            state.versions.len(),
+            2,
+            "one action creates exactly one copy"
+        );
+        let linked = state
+            .versions
+            .iter()
+            .find(|version| version.id == "linked-v1")
+            .expect("the linked refinement is retained");
+        assert_eq!(
+            linked.ownership,
+            OutlineOwnership::Linked,
+            "Freeze keeps the linked refinement linked"
+        );
+        let frozen = state
+            .versions
+            .iter()
+            .find(|version| version.id != "linked-v1")
+            .expect("the frozen copy exists");
+        assert_eq!(frozen.ownership, OutlineOwnership::Fixed);
+        assert!(
+            frozen.name.starts_with("Edited outline "),
+            "the copy is named as an edited outline: {}",
+            frozen.name
+        );
+        assert_eq!(
+            state.active_version_id.as_deref(),
+            Some(frozen.id.as_str()),
+            "the frozen copy becomes the selected version"
+        );
+        assert!(
+            accepted.revision > revision_before,
+            "Freeze is one accepted revision"
+        );
+        settle_dimension().await;
+        let labels = option_labels(&root);
+        assert!(
+            labels
+                .iter()
+                .any(|label| label == "Linked refinement \u{b7} Linked 1"),
+            "the linked refinement stays visibly available after the freeze copy: {labels:?}"
+        );
+        assert!(
+            root.query_selector(".m1-outline-problem")
+                .unwrap()
+                .is_none(),
+            "a resolvable linked refinement reports no problem"
+        );
+
+        // One Undo restores both the document state and the selection.
+        undo(&probe.runtime).await;
+        accept(&probe).await;
+        let restored = accepted_document(&probe);
+        assert_eq!(
+            restored.board_outlines[0].versions.len(),
+            1,
+            "one Undo removes only the freeze copy"
+        );
+        assert_eq!(
+            restored.board_outlines[0].active_version_id.as_deref(),
+            Some("linked-v1"),
+            "one Undo restores the selected version as well"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_linked_refinement_that_cannot_resolve_shows_its_located_finding() {
+        // The selected refinement owns a generated envelope whose included components are
+        // gone, so it cannot resolve and Core keeps its last valid shape.
+        let (_probe, root) = mounted(
+            vec![version(
+                "linked-v1",
+                "Linked 1",
+                OutlineOwnership::Linked,
+                vec![OutlineFeature::PartEnvelope {
+                    connections: vec![],
+                    settings: OutlineSettings::default(),
+                    id: "linked-envelope".into(),
+                    part_ids: vec!["missing-part".into()],
+                    margin: 4.0,
+                    operation: boardstudio_core::model::Operation::Add,
+                }],
+            )],
+            "linked-v1",
+        )
+        .await;
+        settle_dimension().await;
+
+        let finding_id = format!("board:{BOARD}:outline:linked:linked-v1");
+        let problem = root
+            .query_selector(&format!(".m1-outline-problem[data-finding-id='{finding_id}']"))
+            .unwrap()
+            .unwrap_or_else(|| {
+                panic!(
+                    "the located finding is presented by its id contract, not by message text; body: {}",
+                    root.inner_html()
+                )
+            });
+        assert_eq!(
+            problem.get_attribute("role").as_deref(),
+            Some("alert"),
+            "the located finding is announced"
+        );
+        let text = problem.text_content().unwrap_or_default();
+        assert!(
+            text.contains("cannot resolve"),
+            "Core's message is shown as-is: {text}"
+        );
+        assert!(
+            text.contains("PCB"),
+            "the affected export is named (only the affected exports are disabled): {text}"
+        );
+        assert!(
+            text.contains("Saving and further editing stay available"),
+            "saving and editing stay available: {text}"
+        );
+        // The linked choice stays selectable and its settings stay editable.
+        let labels = option_labels(&root);
+        assert!(
+            labels
+                .iter()
+                .any(|label| label == "Linked refinement \u{b7} Linked 1"),
+            "a broken refinement remains an available choice: {labels:?}"
+        );
+        assert!(
+            !input(&root, "input[aria-label='Outline version name']").disabled(),
+            "editing stays possible while the refinement cannot resolve"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_hover_and_focus_do_not_create_document_history() {
+        let (probe, root) = mounted(
+            vec![version(
+                "linked-v1",
+                "Linked 1",
+                OutlineOwnership::Linked,
+                vec![polygon("linked-contour", 0.0)],
+            )],
+            "linked-v1",
+        )
+        .await;
+        settle_dimension().await;
+        let before = accepted_document(&probe);
+        let revision_before = accepted_revision(&probe);
+
+        let select = button(&root, "select[aria-label='Active outline']");
+        select.focus().unwrap();
+        let name = button(&root, "input[aria-label='Outline version name']");
+        name.focus().unwrap();
+        if let Ok(Some(canvas)) = root.query_selector("#outline-point-canvas-test") {
+            if let Ok(event) = web_sys::PointerEvent::new("pointermove") {
+                let _ = canvas.dispatch_event(&event);
+            }
+        }
+        accept(&probe).await;
+
+        assert_eq!(
+            accepted_revision(&probe),
+            revision_before,
+            "hover and focus create no revision"
+        );
+        assert_eq!(
+            accepted_document(&probe),
+            before,
+            "hover and focus change neither the accepted document nor its history"
+        );
+        root.remove();
+    }
+}

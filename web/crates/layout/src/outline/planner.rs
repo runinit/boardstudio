@@ -75,6 +75,14 @@ pub enum OutlineAction {
         board_id: String,
         edit: OutlineEdit,
     },
+    Freeze {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        version_id: String,
+    },
     EditPerimeter {
         scope: Scope,
         token: boardstudio_application::SnapshotToken,
@@ -321,6 +329,14 @@ impl OutlineAction {
                 ..
             }
             | OutlineAction::Update {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
+            | OutlineAction::Freeze {
                 scope,
                 token,
                 revision,
