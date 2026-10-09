@@ -401,6 +401,7 @@ pub fn use_mechanical_settings_mount(
                     .is_some_and(|configuration| {
                         configuration.board_id == current.identity.active_board_id
                     }),
+                current.identity.scope.instance_id.as_deref(),
             )
             && current.lifecycle == Lifecycle::Ready
             && current.durability
