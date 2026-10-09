@@ -711,6 +711,29 @@ pub fn use_mechanical_settings_mount(
                     })
                     .cloned()
             });
+        // Whether the selected half still uses the legacy shared-construction overlay.
+        let construction_is_legacy = current
+            .identity
+            .scope
+            .instance_id
+            .as_deref()
+            .and_then(|instance_id| {
+                current
+                    .accepted
+                    .document
+                    .hardware
+                    .as_ref()
+                    .and_then(|hardware| {
+                        hardware
+                            .instances
+                            .iter()
+                            .find(|instance| instance.id == instance_id)
+                    })
+            })
+            .is_some_and(|instance| {
+                instance.construction_ownership
+                    == boardstudio_core::model::MechanicalConstructionOwnership::Legacy
+            });
         // The review's read-only projection: the mount owns the accepted document, its
         // contours and the normalized template, so the panel never carries them and the
         // transient projection result never reaches Session or the accepted state.
@@ -761,6 +784,7 @@ pub fn use_mechanical_settings_mount(
             pair_features,
             pair_link_options,
             pair_counterpart,
+            construction_is_legacy,
             pair_projection_port: Some(pair_projection_port),
             selected_layer,
             mismatch,

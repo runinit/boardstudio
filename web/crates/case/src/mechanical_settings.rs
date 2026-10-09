@@ -558,10 +558,10 @@ impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
             // The removal names its member through the edit target, so this key is the
             // panel's stable identity for the selected half's removal action.
             Self::RemovePhysicalInstance => "remove-physical-instance".to_owned(),
-            // The conversion names its members in the change and acts on the selected
-            // board, so this key is the panel's stable identity for the action.
-            Self::MaterializeLegacyConstruction { .. } => {
-                "materialize-legacy-construction".to_owned()
+            // The conversion names exactly the members it converts, so its key follows
+            // them and a per-half action cannot share another half's pending gate.
+            Self::MaterializeLegacyConstruction { instance_ids } => {
+                format!("materialize-legacy-construction:{}", instance_ids.join(","))
             }
         }
     }
@@ -619,6 +619,10 @@ pub struct MechanicalSettingsProps {
     /// The other half when the selected half belongs to a mechanical pair.
     #[props(default)]
     pub pair_counterpart: Option<String>,
+    /// Whether the selected half still uses the legacy shared-construction overlay, so
+    /// its construction can be converted to its own local values.
+    #[props(default)]
+    pub construction_is_legacy: bool,
     /// The mount's read-only Core projection, so the review shows the complete result
     /// for the choices the user has actually made.
     #[props(default)]
@@ -875,6 +879,14 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     on_request: props.on_request,
                 }
+                if props.construction_is_legacy {
+                    MechanicalLegacyConstructionControl {
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
+                }
                 ProfileGuidance {
                     identity: props.identity.clone(),
                     owner_key: owner_key.clone(),
@@ -1049,6 +1061,78 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalLegacyConstructionControlProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Converting one legacy half's construction to its own local values.
+///
+/// The confirmation states the whole change before anything is submitted: this half's
+/// current effective construction (including the overlaid hardware, critical fits and
+/// profiles) becomes its own local values, its ownership becomes local, the other legacy
+/// halves keep the baseline they had, and one Undo restores the ownership and the overlay.
+/// Exactly one instance is named, and Core validates it.
+#[component]
+fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionControlProps) -> Element {
+    let confirming = use_signal(|| false);
+    let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
+    let patch = MechanicalSettingsPatch::MaterializeLegacyConstruction {
+        instance_ids: vec![instance_id.clone()],
+    };
+    let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
+    let mut confirming_state = confirming;
+    rsx! {
+        fieldset { class: "m1-mechanical-legacy-construction", disabled: !props.editable,
+            legend { "Shared construction" }
+            if confirming() {
+                p { class: "m1-mechanical-help",
+                    "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Confirm making construction local for {instance_id}",
+                    disabled: pending,
+                    onclick: {
+                        let identity = props.identity.clone();
+                        let mut sequence = props.request_sequence;
+                        let on_request = props.on_request;
+                        let patch = patch.clone();
+                        move |_| {
+                            confirming_state.set(false);
+                            send_request(&mut sequence, &identity, on_request, patch.clone());
+                        }
+                    },
+                    "Make construction local"
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Keep shared construction for {instance_id}",
+                    onclick: move |_| confirming_state.set(false),
+                    "Keep it shared"
+                }
+            } else {
+                p { class: "m1-mechanical-help",
+                    "This half still uses the shared construction baseline."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Make construction local for {instance_id}",
+                    disabled: pending,
+                    onclick: move |_| confirming_state.set(true),
+                    "Make construction local…"
                 }
             }
         }
@@ -6460,6 +6544,125 @@ mod contextual_layer_tests {
                 p { id: "case-paired-removal-count", "{requests}" }
             }
         }
+    }
+
+    #[component]
+    fn LegacyConstructionTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-legacy-construction-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    construction_is_legacy: true,
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-legacy-construction-last-request", "{last_request}" }
+                p { id: "case-legacy-construction-count", "{requests}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_legacy_half_converts_its_construction_only_after_confirming_the_change() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-legacy-construction-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(LegacyConstructionTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // Reachable only for a legacy half, and it submits nothing on its own.
+        let make_local = element("button[aria-label='Make construction local for left']");
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "showing the conversion control submits nothing"
+        );
+
+        // The confirmation states the whole change before anything is submitted.
+        make_local.click();
+        rendered().await;
+        let confirmation = element(".m1-mechanical-legacy-construction")
+            .text_content()
+            .unwrap();
+        assert!(
+            confirmation.contains("left")
+                && confirmation.contains("this half's local values")
+                && confirmation.contains("Other legacy halves keep their previous baseline")
+                && confirmation.contains("One Undo"),
+            "the confirmation states what converting construction does, got {confirmation}"
+        );
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "asking for confirmation submits nothing"
+        );
+
+        // Cancelling keeps the shared construction.
+        element("button[aria-label='Keep shared construction for left']").click();
+        rendered().await;
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "cancelling submits nothing"
+        );
+
+        // Confirming submits exactly one typed conversion naming one instance.
+        element("button[aria-label='Make construction local for left']").click();
+        rendered().await;
+        element("button[aria-label='Confirm making construction local for left']").click();
+        rendered().await;
+        let submitted = element("#case-legacy-construction-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("MaterializeLegacyConstruction")
+                && submitted.contains("instance_ids: [\"left\"]"),
+            "one typed conversion names exactly this half, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-legacy-construction-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "exactly one conversion edit is submitted"
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]

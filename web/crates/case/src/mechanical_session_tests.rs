@@ -1164,3 +1164,282 @@ fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
         "the other half re-derives the reflection of the chosen source"
     );
 }
+
+/// Converting one legacy half's construction materializes exactly what it showed.
+///
+/// The half's own values become local (including the overlaid hardware, critical fits
+/// and profiles), the other legacy halves keep their baseline, one typed edit carries the
+/// whole change with one Undo, and a queued construction edit for a half that was not
+/// converted still lands.
+#[test]
+fn converting_a_legacy_halves_construction_materializes_it_without_moving_anything() {
+    use boardstudio_core::model::MechanicalConstructionOwnership;
+    let mut document = paired_document();
+    {
+        let hardware = document.hardware.as_mut().expect("hardware");
+        hardware.pairs.clear();
+        hardware.instances.truncate(3);
+        for instance in hardware.instances.iter_mut() {
+            instance.construction_ownership = MechanicalConstructionOwnership::Legacy;
+            instance.mechanical = None;
+        }
+    }
+    let runtime = open_document(document);
+    let scope_for = |instance_id: &str| {
+        let mut scope = runtime.scope().expect("the open document has a scope");
+        scope.board_id = "board".into();
+        scope.instance_id = Some(instance_id.into());
+        scope
+    };
+    let submit = |instance_id: &str, change: MechanicalChange| {
+        let mut edits = PendingEdits::default();
+        edits.begin(
+            &runtime,
+            1u8,
+            "mechanical",
+            Some("mechanical settings".into()),
+            mechanical_resolver(
+                scope_for(instance_id),
+                change,
+                mounting_hole(),
+                Rc::new(Cell::new(false)),
+                Box::new(|_| true),
+            ),
+        );
+        edits.settle(true)
+    };
+    let accepted = || runtime.model().accepted.expect("accepted");
+    let visible = |instance_id: &str| {
+        let accepted = accepted();
+        boardstudio_core::mechanical::effective_inputs(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.into(),
+            },
+        )
+        .ok()
+        .map(|inputs| without_reservations(inputs.configuration))
+    };
+    let ownership = |instance_id: &str| {
+        accepted()
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .instances
+            .iter()
+            .find(|instance| instance.id == instance_id)
+            .expect("the half")
+            .construction_ownership
+    };
+    let landed = |results: &[PendingEditResult<u8>]| {
+        results
+            .iter()
+            .any(|result| matches!(result, PendingEditResult::Landed { .. }))
+    };
+    let conversion = || MechanicalChange::MaterializeLegacyConstruction {
+        instance_ids: vec!["left".into()],
+    };
+
+    let before_left = visible("left").expect("the half resolves through the overlay");
+    let before_third = visible("third").expect("the third half resolves");
+    let before_shared = accepted()
+        .document
+        .hardware
+        .as_ref()
+        .expect("hardware")
+        .shared_construction
+        .clone();
+    assert_eq!(ownership("left"), MechanicalConstructionOwnership::Legacy);
+
+    assert!(
+        landed(&submit("left", conversion())),
+        "one typed conversion converts the selected half"
+    );
+    assert_eq!(
+        ownership("left"),
+        MechanicalConstructionOwnership::Local,
+        "the converted half owns its construction"
+    );
+    assert_eq!(
+        visible("left"),
+        Some(before_left.clone()),
+        "the converted half shows exactly the values it showed before"
+    );
+    assert_eq!(
+        visible("third"),
+        Some(before_third.clone()),
+        "a legacy half that was not converted keeps its baseline"
+    );
+    assert_eq!(
+        accepted()
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .shared_construction,
+        before_shared,
+        "the legacy shared construction stays the baseline for the remaining halves"
+    );
+
+    // Queued construction edits keep working after the conversion. A converted half is
+    // Local, so its own values are authoritative and read back.
+    assert!(
+        landed(&submit(
+            "left",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )),
+        "a converted half's construction edit is unaffected"
+    );
+    assert_eq!(
+        visible("left")
+            .expect("the converted half still resolves")
+            .wall_thickness,
+        3.0,
+        "the converted half's own value is authoritative"
+    );
+    // A legacy half that was not converted stays legacy and keeps its baseline.
+    assert!(
+        landed(&submit(
+            "third",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 4.0,
+            },
+        )),
+        "an edit for a half that was not converted still lands"
+    );
+    assert_eq!(
+        ownership("third"),
+        MechanicalConstructionOwnership::Legacy,
+        "editing a legacy half's construction does not convert it"
+    );
+    assert_eq!(
+        ownership("left"),
+        MechanicalConstructionOwnership::Local,
+        "another half's edit does not disturb the conversion"
+    );
+
+    // One Undo restores the ownership and the overlay state; redo re-applies it.
+    // Three edits are accepted (the conversion, then the two construction edits), so
+    // each Undo reverts exactly one of them.
+    undo(&runtime);
+    undo(&runtime);
+    assert_eq!(
+        ownership("left"),
+        MechanicalConstructionOwnership::Local,
+        "undoing the later edits leaves the conversion"
+    );
+    undo(&runtime);
+    assert_eq!(
+        ownership("left"),
+        MechanicalConstructionOwnership::Legacy,
+        "undoing past the conversion restores the legacy ownership"
+    );
+    assert_eq!(
+        visible("left"),
+        Some(before_left.clone()),
+        "and restores the overlaid values exactly"
+    );
+    redo(&runtime);
+    assert_eq!(
+        ownership("left"),
+        MechanicalConstructionOwnership::Local,
+        "redo re-applies the conversion"
+    );
+
+    // An ineligible or missing target surfaces Core's error and mutates nothing.
+    let before = accepted().document.hardware.clone();
+    for ids in [vec!["left".to_owned()], vec!["ghost".to_owned()], vec![]] {
+        let results = submit(
+            "left",
+            MechanicalChange::MaterializeLegacyConstruction { instance_ids: ids },
+        );
+        assert!(
+            results.iter().any(|result| match result {
+                PendingEditResult::Failed { .. } | PendingEditResult::Retired { .. } => true,
+                PendingEditResult::Landed { .. } => false,
+            }),
+            "an ineligible conversion must not land, got {results:?}"
+        );
+        assert_eq!(
+            accepted().document.hardware,
+            before,
+            "a rejected conversion mutates nothing"
+        );
+    }
+}
+
+/// A shared construction field edited on a legacy half reads back.
+///
+/// The overlay owns shared fields for a legacy half, so the write has to reach the shared
+/// source; otherwise the next effective read silently reverts what the user accepted.
+///
+/// Reproduction (recorded for the Core lane, 2026-10-09): three legacy halves with a
+/// shared-construction overlay and no per-instance configuration; apply
+/// `SetDimension { WallThickness, 4.0 }` targeted at one half. The edit lands (a new
+/// revision) and `hardware.shared_construction` still reads the old value, so the
+/// effective read returns the old wall thickness. Isolation: no pair, no conversion.
+/// Ignored until Core routes a shared field write for a legacy ownership to the source
+/// the effective read consults.
+#[test]
+#[ignore = "Core: a legacy half's shared-construction write is reverted by the effective read"]
+fn a_legacy_halves_shared_field_edit_reads_back() {
+    use boardstudio_core::model::MechanicalConstructionOwnership;
+    let mut document = paired_document();
+    {
+        let hardware = document.hardware.as_mut().expect("hardware");
+        hardware.pairs.clear();
+        hardware.instances.truncate(3);
+        for instance in hardware.instances.iter_mut() {
+            instance.construction_ownership = MechanicalConstructionOwnership::Legacy;
+            instance.mechanical = None;
+        }
+    }
+    let runtime = open_document(document);
+    let mut scope = runtime.scope().expect("the open document has a scope");
+    scope.board_id = "board".into();
+    scope.instance_id = Some("third".into());
+    let mut edits = PendingEdits::default();
+    edits.begin(
+        &runtime,
+        1u8,
+        "mechanical",
+        Some("mechanical settings".into()),
+        mechanical_resolver(
+            scope,
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 4.0,
+            },
+            mounting_hole(),
+            Rc::new(Cell::new(false)),
+            Box::new(|_| true),
+        ),
+    );
+    let results = edits.settle(true);
+    assert!(
+        results
+            .iter()
+            .any(|result| matches!(result, PendingEditResult::Landed { .. })),
+        "the edit lands, got {results:?}"
+    );
+    let accepted = runtime.model().accepted.expect("accepted");
+    let configuration = boardstudio_core::mechanical::effective_inputs(
+        &accepted.document,
+        &accepted.scene.board_contours,
+        &MechanicalTarget::Instance {
+            instance_id: "third".into(),
+        },
+    )
+    .expect("the legacy half resolves")
+    .configuration;
+    assert_eq!(
+        configuration.wall_thickness, 4.0,
+        "a legacy half reads back the shared field the user accepted"
+    );
+}
