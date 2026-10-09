@@ -1384,10 +1384,9 @@ fn converting_a_legacy_halves_construction_materializes_it_without_moving_anythi
 /// `SetDimension { WallThickness, 4.0 }` targeted at one half. The edit lands (a new
 /// revision) and `hardware.shared_construction` still reads the old value, so the
 /// effective read returns the old wall thickness. Isolation: no pair, no conversion.
-/// Ignored until Core routes a shared field write for a legacy ownership to the source
-/// the effective read consults.
+/// Fixed by the Core lane (commit 3db8ba142): the Legacy branch of persist_edit now
+/// writes the shared source the effective read consults. Enabled at integration.
 #[test]
-#[ignore = "Core: a legacy half's shared-construction write is reverted by the effective read"]
 fn a_legacy_halves_shared_field_edit_reads_back() {
     use boardstudio_core::model::MechanicalConstructionOwnership;
     let mut document = paired_document();
