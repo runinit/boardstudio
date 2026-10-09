@@ -33,7 +33,7 @@ recorded with their times. Compare to the serial time from [03](03-wasm-test-deb
 ## Outcome
 
 Resolved 2026-10-09 (commit `12f37299b`). Consecutive crate launches in `browser` run in a pool of
-`BOARDSTUDIO_CHECK_BROWSER_JOBS` (default 4, `1` is serial); heavy crates (layout, case, pcb,
+`BOARDSTUDIO_CHECK_JOBS` (default 4, `1` is serial); heavy crates (layout, case, pcb,
 parts) start first; each launch's output prints whole with its time; a failure names the launch
 and stops the step. The page-bin commands and the isolated batches stay serial after the pool.
 Pinned by `test_crate_launches_run_together_and_a_failure_names_the_launch` and

@@ -70,7 +70,7 @@ opt-in `release` step (`python3 scripts/check.py release`) keeps both and is wha
 under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
 which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
 separately because their mounted fixtures need an isolated DOM. The check runs up to four crate launches
-at once (`BOARDSTUDIO_CHECK_BROWSER_JOBS`, `1` for serial) and builds test wasm without debug info
+at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
 (`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
 without the variable, for source-level debugging). Each batch has a bounded two-minute timeout,
 overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only

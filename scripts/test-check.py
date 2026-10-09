@@ -124,7 +124,7 @@ class CheckTests(unittest.TestCase):
 
         error = io.StringIO()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
-                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_BROWSER_JOBS": "3"}), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "3"}), \
                 mock.patch.dict(check.STEPS, {"browser": (True, [serial, *launches, serial])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.run(["browser"]), 1)
@@ -136,17 +136,39 @@ class CheckTests(unittest.TestCase):
 
     def test_the_browser_job_cap_defaults_to_four_and_one_means_serial(self):
         with mock.patch.dict(os.environ):
-            os.environ.pop("BOARDSTUDIO_CHECK_BROWSER_JOBS", None)
-            self.assertEqual(check.browser_jobs(), 4)
-            os.environ["BOARDSTUDIO_CHECK_BROWSER_JOBS"] = "junk"
-            self.assertEqual(check.browser_jobs(), 4)
-            os.environ["BOARDSTUDIO_CHECK_BROWSER_JOBS"] = "0"
-            self.assertEqual(check.browser_jobs(), 1)
+            os.environ.pop("BOARDSTUDIO_CHECK_JOBS", None)
+            self.assertEqual(check.check_jobs(), 4)
+            os.environ["BOARDSTUDIO_CHECK_JOBS"] = "junk"
+            self.assertEqual(check.check_jobs(), 4)
+            os.environ["BOARDSTUDIO_CHECK_JOBS"] = "0"
+            self.assertEqual(check.check_jobs(), 1)
 
     def test_build_is_fast_and_release_is_opt_in(self):
         self.assertIn("--fast", check.STEPS["build"][1][0])
         self.assertNotIn("--fast", check.STEPS["release"][1][0])
         self.assertNotIn("release", check.DEFAULT)
+
+    def test_independent_native_test_commands_run_together(self):
+        commands = [[sys.executable, "-c", f"print({index})"] for index in range(3)]
+        launched = []
+
+        def fake(command, **kwargs):
+            launched.append(command)
+            return mock.Mock(returncode=0, stdout="ok\n")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(check.STEPS, {"test": (True, commands)}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check.run(["test"]), 0)
+        self.assertEqual(sorted(launched), sorted(commands))
+
+        launched.clear()
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+                mock.patch.dict(check.STEPS, {"test": (True, commands)}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check.run(["test"]), 0)
+        self.assertEqual(launched, commands, "one job runs them in order")
 
 
 if __name__ == "__main__":

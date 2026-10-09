@@ -16,7 +16,8 @@ Steps:
   lint*       rustfmt and Clippy with warnings denied (workspace lints live in Cargo.toml)
   typecheck   WASM page compilation (the build step already compiles the page for WASM)
   browser*    mounted headless-browser tests and the real-browser CAD smoke gate; crate launches
-              run up to BOARDSTUDIO_CHECK_BROWSER_JOBS (default 4) at once, without debug info
+              run up to BOARDSTUDIO_CHECK_JOBS (default 4) at once, without debug info;
+              the independent native test commands also run together
   security    dependency audit of every Rust lockfile (separate CI workflow)
   deny        cargo-deny license, ban and source policy from deny.toml (separate CI workflow)
   precommit   typecheck the page
@@ -120,9 +121,9 @@ def is_crate_launch(command: Command) -> bool:
     return command[:2] == ["wasm-pack", "test"] and any(part.startswith("web/crates/") for part in command)
 
 
-def browser_jobs() -> int:
+def check_jobs() -> int:
     try:
-        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_BROWSER_JOBS", "4")))
+        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "4")))
     except ValueError:
         return 4
 
@@ -151,7 +152,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str]) -> tuple[flo
     ordered = sorted(batch, key=launch_order)
     started = time.monotonic()
     failed: list[Command] = []
-    with ThreadPoolExecutor(max_workers=browser_jobs()) as pool:
+    with ThreadPoolExecutor(max_workers=check_jobs()) as pool:
         futures = [(command, pool.submit(launch, command)) for command in ordered]
         for command, future in futures:
             code, output, elapsed = future.result()
@@ -164,12 +165,18 @@ def run_parallel(batch: list[Command], environment: dict[str, str]) -> tuple[flo
 
 
 def run_commands(name: str, commands: list[Command], environment: dict[str, str]) -> tuple[float, bool]:
-    """Runs a step's commands; consecutive crate launches in `browser` run together."""
+    """Runs a step's commands; consecutive crate launches in `browser`, and the independent
+    workspaces of `test`, run together."""
+    if name == "test" and check_jobs() > 1 and len(commands) > 1:
+        elapsed, failed = run_parallel(commands, environment)
+        for command in failed:
+            print("check: command failed: " + shlex.join(command), file=sys.stderr)
+        return elapsed, not failed
     total = 0.0
     index = 0
     while index < len(commands):
         command = commands[index]
-        if name == "browser" and browser_jobs() > 1 and is_crate_launch(command):
+        if name == "browser" and check_jobs() > 1 and is_crate_launch(command):
             end = index
             while end < len(commands) and is_crate_launch(commands[end]):
                 end += 1

@@ -54,14 +54,14 @@ out with a recorded reason), without running fewer tests.
 - [Docs, final timing and closing the map](issues/09-docs-final-timing-and-close.md#outcome): full check
   14.8 min to about 5.2-5.7 min.
 
+- [Measure `line-tables-only` against debug info off](issues/04-line-tables-only-measurement.md): keep debug
+  info off; `line-tables-only` is about 48% slower per launch and twice the size.
 - [Test whether dropping `touch core/src/lib.rs` is safe](issues/07-drop-the-touch.md): it is not needed;
   cargo rebuilds on a real edit and results match without it.
 
 ## Ready for implementation
 
-- Nothing is required. [Optional: measure `line-tables-only`](issues/04-line-tables-only-measurement.md)
-  is the only open ticket. The map's destination is reached; the next lever is the 96 s native `test` step
-  and core-edit `quick` runs.
+- Nothing is open. The destination is reached; see the final timings in the closing ticket's Outcome.
 
 ## Not yet specified
 
