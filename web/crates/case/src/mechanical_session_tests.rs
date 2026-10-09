@@ -1062,3 +1062,105 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
         "redo re-applies the whole removal"
     );
 }
+
+/// Rejoining a local exception can deliberately take that half's own geometry.
+///
+/// The selected half's placement becomes the pair's single authored value and the other
+/// half re-derives from it, instead of the selected half being forced to accept the
+/// counterpart's geometry.
+#[test]
+fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
+    use boardstudio_core::model::{MechanicalFeatureState, Mount, MountKind, Vec2};
+    let mut document = paired_document();
+    {
+        let hardware = document.hardware.as_mut().expect("hardware");
+        let feature = &mut hardware.pairs[0].features[0];
+        feature.members[0].state = MechanicalFeatureState::Linked;
+        feature.members[1].state = MechanicalFeatureState::Local;
+        let right = hardware
+            .instances
+            .iter_mut()
+            .find(|instance| instance.id == "right")
+            .expect("the right half");
+        right
+            .mechanical
+            .as_mut()
+            .expect("the right half's configuration")
+            .mounts = vec![Mount {
+            id: "mount-right".into(),
+            at: Vec2 { x: 7.0, y: 1.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        }];
+    }
+    let runtime = open_document(document);
+    let mut scope = runtime.scope().expect("the open document has a scope");
+    scope.board_id = "board".into();
+    scope.instance_id = Some("right".into());
+    let mut edits = PendingEdits::default();
+    edits.begin(
+        &runtime,
+        1u8,
+        "mechanical",
+        Some("mechanical settings".into()),
+        mechanical_resolver(
+            scope.clone(),
+            MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-right".into(),
+                instance_id: "right".into(),
+                source_instance_id: "right".into(),
+            },
+            mounting_hole(),
+            Rc::new(Cell::new(false)),
+            Box::new(|_| true),
+        ),
+    );
+    let results = edits.settle(true);
+    assert!(
+        results
+            .iter()
+            .any(|result| matches!(result, PendingEditResult::Landed { .. })),
+        "the own-source rejoin lands, got {results:?}"
+    );
+
+    let accepted = runtime.model().accepted.expect("accepted");
+    let pair = &accepted.document.hardware.as_ref().expect("hardware").pairs[0];
+    let feature = &pair.features[0];
+    assert_eq!(
+        feature.author, "right",
+        "the selected half now authors the shared value"
+    );
+    match &feature.value {
+        boardstudio_core::model::MechanicalFeatureValue::Mount { mount } => {
+            assert_eq!(
+                mount.at,
+                Vec2 { x: 7.0, y: 1.0 },
+                "the shared value is the selected half's own geometry"
+            );
+        }
+        other => panic!("a mount feature keeps a mount value, got {other:?}"),
+    }
+    assert!(
+        feature
+            .members
+            .iter()
+            .all(|member| member.state == MechanicalFeatureState::Linked),
+        "the exception is cleared on the rejoined half"
+    );
+    let left_visible = boardstudio_core::mechanical::effective_inputs(
+        &accepted.document,
+        &accepted.scene.board_contours,
+        &MechanicalTarget::Instance {
+            instance_id: "left".into(),
+        },
+    )
+    .expect("the other half resolves")
+    .configuration;
+    assert_eq!(
+        left_visible.mounts[0].at,
+        Vec2 { x: -7.0, y: 1.0 },
+        "the other half re-derives the reflection of the chosen source"
+    );
+}

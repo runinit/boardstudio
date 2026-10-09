@@ -39,6 +39,10 @@ pub struct MechanicalPairFeatureRow {
     /// The geometry a rejoin would take from the counterpart, described for review.
     /// `None` when the counterpart owns no linked value to take.
     pub preview: Option<String>,
+    /// The geometry this half itself shows, described for review. A local exception can
+    /// be rejoined from its own current geometry, keeping this half's placement and
+    /// re-deriving the other; an omitted half has none.
+    pub own_geometry: Option<String>,
     /// The fingerprint of the accepted inputs this row's review was produced from. The
     /// rejoin submission carries it, so a relevant change between the displayed review
     /// and its execution retires the action instead of applying newer state.
@@ -83,6 +87,7 @@ pub fn pair_projection(
                 counterpart_instance_id: counterpart.clone(),
                 counterpart_feature_id: counterpart_member.feature_id.clone(),
                 preview: rejoin_preview(document, board_contours, pair, feature, counterpart),
+                own_geometry: rejoin_preview(document, board_contours, pair, feature, instance_id),
                 rejoin_fingerprint: reviewed_fingerprint(
                     document,
                     board_contours,
@@ -1052,6 +1057,20 @@ mod tests {
         assert!(
             projection.features[0].rejoin_fingerprint.is_some(),
             "each row carries the fingerprint of the reviewed rejoin inputs"
+        );
+        assert_eq!(
+            projection.features[0].own_geometry.as_deref(),
+            Some("Mount at (2.0, 3.0)"),
+            "a local half carries its own geometry for a deliberate own-source rejoin"
+        );
+        let omitted = projection
+            .features
+            .iter()
+            .find(|row| row.state == MechanicalFeatureState::Omitted)
+            .expect("the omitted anchor row");
+        assert_eq!(
+            omitted.own_geometry, None,
+            "an omitted half has no geometry of its own to take"
         );
         assert_eq!(
             projection.features[0].preview.as_deref(),

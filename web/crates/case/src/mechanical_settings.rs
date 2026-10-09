@@ -1453,6 +1453,8 @@ struct MechanicalPairControlsProps {
 #[component]
 fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
     let features = props.features.clone();
+    // Per-feature rejoin source choices, keyed by this half's durable feature id.
+    let rejoin_sources = use_signal(std::collections::BTreeMap::<String, String>::new);
     rsx! {
         section { class: "m1-mechanical-pair", aria_label: "Mirrored pair features",
             h3 { "Mirrored pair" }
@@ -1472,10 +1474,26 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                         feature_id: row.feature_id.clone(),
                         instance_id: row.instance_id.clone(),
                     };
+                    // A local half may deliberately rejoin from its own current geometry,
+                    // keeping this half's placement and re-deriving the other half; an
+                    // omitted half has no geometry of its own to take.
+                    let offers_own_source = row.state == MechanicalFeatureState::Local
+                        && row.own_geometry.is_some();
+                    let chosen_source = rejoin_sources
+                        .read()
+                        .get(&row.feature_id)
+                        .cloned()
+                        .unwrap_or_else(|| row.counterpart_instance_id.clone());
+                    let source_is_own = chosen_source == row.instance_id;
+                    let source_geometry = if source_is_own {
+                        row.own_geometry.clone()
+                    } else {
+                        row.preview.clone()
+                    };
                     let rejoin_patch = MechanicalSettingsPatch::RejoinFeatureMember {
                         feature_id: row.feature_id.clone(),
                         instance_id: row.instance_id.clone(),
-                        source_instance_id: row.counterpart_instance_id.clone(),
+                        source_instance_id: chosen_source.clone(),
                     };
                     let row_fields = [
                         local_patch.field_id(),
@@ -1496,8 +1514,18 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                     let local_blocked = blocked(&local_patch);
                     let omit_blocked = blocked(&omit_patch);
                     let rejoin_blocked = blocked(&rejoin_patch)
-                        || row.preview.is_none()
+                        || source_geometry.is_none()
                         || row.rejoin_fingerprint.is_none();
+                    let source_label = if source_is_own {
+                        "this half"
+                    } else {
+                        "the other half"
+                    };
+                    let rejoin_label = if source_is_own {
+                        "Rejoin from this half"
+                    } else {
+                        "Rejoin from the other half"
+                    };
                     let state = match row.state {
                         MechanicalFeatureState::Linked => "linked to the other half",
                         MechanicalFeatureState::Local => "local to this half",
@@ -1540,19 +1568,44 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     "Remove on this half"
                                 }
                             } else {
-                                if let Some(preview) = row.preview.clone() {
+                                if offers_own_source {
+                                    label { class: "m1-mechanical-field",
+                                        span { "Rejoin from" }
+                                        select {
+                                            "aria-label": "Rejoin source for {row.feature_id}",
+                                            disabled: !props.editable,
+                                            value: "{chosen_source}",
+                                            onchange: {
+                                                let mut rejoin_sources = rejoin_sources;
+                                                let feature_id = row.feature_id.clone();
+                                                move |event: FormEvent| {
+                                                    rejoin_sources
+                                                        .write()
+                                                        .insert(feature_id.clone(), event.value());
+                                                }
+                                            },
+                                            option { value: "{row.instance_id}",
+                                                "this half · {row.own_geometry.clone().unwrap_or_default()}"
+                                            }
+                                            option { value: "{row.counterpart_instance_id}",
+                                                "the other half · {row.preview.clone().unwrap_or_else(|| \"no geometry\".to_owned())}"
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(geometry) = source_geometry.clone() {
                                     p { class: "m1-mechanical-help",
-                                        "Rejoin takes {preview} from the other half."
+                                        "Rejoin takes {geometry} from {chosen_source}."
                                     }
                                 } else {
                                     p { class: "m1-mechanical-help",
-                                        "The other half has no geometry for this feature, so it cannot be rejoined yet."
+                                        "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
                                     }
                                 }
                                 button {
                                     r#type: "button",
                                     class: "m1-mechanical-quiet",
-                                    "aria-label": "Rejoin {row.feature_id} from the other half",
+                                    "aria-label": "Rejoin {row.feature_id} from {source_label}",
                                     disabled: rejoin_blocked,
                                     onclick: {
                                         let mut sequence = props.request_sequence;
@@ -1573,7 +1626,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                             )
                                         }
                                     },
-                                    "Rejoin from the other half"
+                                    "{rejoin_label}"
                                 }
                             }
                         }
@@ -6123,6 +6176,7 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "mount-1-right".into(),
                 preview: Some("Mount at (2.0, 3.0)".into()),
+                own_geometry: Some("Mount at (2.0, 3.0)".into()),
                 rejoin_fingerprint: Some("reviewed-mount".into()),
             },
             MechanicalPairFeatureRow {
@@ -6133,6 +6187,7 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "opening-1-right".into(),
                 preview: Some("Opening with 3 vertices".into()),
+                own_geometry: Some("Opening with 4 vertices".into()),
                 rejoin_fingerprint: Some("reviewed-opening".into()),
             },
             MechanicalPairFeatureRow {
@@ -6143,6 +6198,7 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "support-1-right".into(),
                 preview: None,
+                own_geometry: None,
                 rejoin_fingerprint: Some("reviewed-support".into()),
             },
         ]);
@@ -6252,7 +6308,49 @@ mod contextual_layer_tests {
             "the rejoin submission carries the fingerprint of the row the user reviewed, got {rejoin}"
         );
 
+        // A local half can deliberately take its OWN geometry as the shared value.
+        let rejoin_source = element("select[aria-label='Rejoin source for opening-1-left']");
+        assert!(
+            element(".m1-mechanical-pair-row:nth-of-type(2)")
+                .text_content()
+                .unwrap()
+                .contains("Opening with 4 vertices"),
+            "the review shows this half's own geometry as a source choice"
+        );
+        js_sys::Reflect::set(&rejoin_source, &"value".into(), &"left".into()).unwrap();
+        let source_change = web_sys::EventInit::new();
+        source_change.set_bubbles(true);
+        rejoin_source
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("change", &source_change).unwrap(),
+            )
+            .unwrap();
+        rendered().await;
+        assert!(
+            element(".m1-mechanical-pair-row:nth-of-type(2)")
+                .text_content()
+                .unwrap()
+                .contains("Rejoin takes Opening with 4 vertices from left"),
+            "the preview follows the chosen source, got {}",
+            element(".m1-mechanical-pair-row:nth-of-type(2)")
+                .text_content()
+                .unwrap()
+        );
+        element("button[aria-label='Rejoin opening-1-left from this half']").click();
+        rendered().await;
+        let own_source = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            own_source.contains("RejoinFeatureMember")
+                && own_source.contains("source_instance_id: \"left\""),
+            "the deliberate own-source rejoin is submitted as reviewed, got {own_source}"
+        );
+
         // Omitted without counterpart geometry: reachable but not committable.
+        let last_reviewed = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
         let document = web_sys::window().unwrap().document().unwrap();
         assert!(
             document
@@ -6273,7 +6371,7 @@ mod contextual_layer_tests {
             .text_content()
             .unwrap();
         assert_eq!(
-            after, rejoin,
+            after, last_reviewed,
             "the disabled rejoin submits nothing when clicked or left alone"
         );
         let _ = MechanicalFeatureKind::GasketSupport;
