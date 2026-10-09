@@ -173,6 +173,7 @@ fn mirror_instance_on(id: &str, board_id: &str, mounts: Vec<Mount>) -> PhysicalB
         controller_part_id: None,
         mechanical: Some(mechanical),
         construction_ownership: MechanicalConstructionOwnership::Local,
+        mechanical_identity_reservation: None,
     }
 }
 
@@ -2197,4 +2198,133 @@ fn rejoining_can_take_the_selected_halves_own_geometry_as_the_source() {
         mount_at(&left.configuration, "mount-1"),
         Vec2 { x: 5.0, y: 1.0 }
     );
+}
+
+#[test]
+fn a_re_enabled_half_never_reuses_an_identity_its_removed_stack_reserved() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = pair_document_with_openings();
+    link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::Opening,
+            "opening-1",
+            "opening-1",
+            Some("left"),
+        )],
+    )
+    .unwrap();
+    // The right half is unlinked and disabled (Q14), which removes its stack.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::Disable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert!(
+        document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "right")
+            .unwrap()
+            .mechanical_identity_reservation
+            .is_some(),
+        "the removed stack's reservations are kept on the half"
+    );
+
+    // Re-enabling builds fresh defaults, and the next authored addition must still avoid
+    // the identity the removed stack reserved.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::Enable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let new_id = add_instance_opening(&mut document, "right");
+    assert_ne!(
+        new_id, "opening-1",
+        "a re-enabled half must not hand out a removed opening identity"
+    );
+
+    // The same holds for a half that was disabled without ever being paired.
+    let mut unpaired = document_with_an_opening();
+    apply(
+        &mut unpaired,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::Disable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    apply(
+        &mut unpaired,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::Enable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let new_id = add_instance_opening(&mut unpaired, "left");
+    assert_ne!(
+        new_id, "opening-1",
+        "an unpaired disabled half keeps its reservations too"
+    );
+}
+
+/// One unpaired physical half that already carries an authored opening.
+fn document_with_an_opening() -> ProjectDoc {
+    let mut document = document();
+    let mut instance = mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]);
+    instance.mechanical.as_mut().unwrap().openings = Some(vec![opening_json("opening-1")]);
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![instance],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+#[test]
+fn a_legacy_instance_serializes_without_an_identity_reservation() {
+    let document = document_with_an_opening();
+    let encoded = serde_json::to_value(&document).unwrap();
+    let instance = &encoded["hardware"]["instances"][0];
+    assert!(
+        instance.get("mechanicalIdentityReservation").is_none(),
+        "a half that never reserved an identity keeps its serialized shape: {instance}"
+    );
+
+    // A reservation that exists round-trips and keeps working after reload.
+    let mut document = document_with_an_opening();
+    document.hardware.as_mut().unwrap().instances[0].mechanical_identity_reservation =
+        Some(boardstudio_core::model::MechanicalIdentityReservation {
+            next_opening_identity: 4,
+            next_vertex_identity: 7,
+        });
+    let reloaded: ProjectDoc =
+        serde_json::from_str(&serde_json::to_string(&document).unwrap()).unwrap();
+    let stored = reloaded.hardware.as_ref().unwrap().instances[0]
+        .mechanical_identity_reservation
+        .unwrap();
+    assert_eq!(stored.next_opening_identity, 4);
+    assert_eq!(stored.next_vertex_identity, 7);
 }

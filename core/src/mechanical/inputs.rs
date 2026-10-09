@@ -965,6 +965,7 @@ mod tests {
             controller_part_id: None,
             mechanical,
             construction_ownership: ownership,
+            mechanical_identity_reservation: None,
         }
     }
 

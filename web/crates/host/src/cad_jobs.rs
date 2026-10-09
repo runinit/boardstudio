@@ -863,6 +863,7 @@ mod tests {
                 mechanical: None,
                 construction_ownership:
                     boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
+                mechanical_identity_reservation: None,
             }],
             ..HardwareConfiguration::default()
         });
@@ -1162,6 +1163,7 @@ mod tests {
                 controller_part_id: None,
                 mechanical: Some(mechanical),
                 construction_ownership: MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
             }
         }
 

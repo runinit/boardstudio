@@ -796,6 +796,16 @@ fn disable(
                 .iter_mut()
                 .find(|instance| instance.id == *instance_id)
                 .ok_or("The selected physical instance is unavailable")?;
+            // The reservations outlive the removed stack, so re-enabling this half can
+            // never hand a removed opening or vertex identity to a later addition.
+            if let Some(configuration) = instance.mechanical.as_ref() {
+                let reservation = identity_reservation_of(configuration);
+                instance.mechanical_identity_reservation =
+                    Some(match instance.mechanical_identity_reservation {
+                        Some(existing) => existing.merged(reservation),
+                        None => reservation,
+                    });
+            }
             instance.mechanical = None;
         }
     }
@@ -1229,7 +1239,15 @@ fn materialize_survivor(
     else {
         return Ok(());
     };
-    if let Some(configuration) = materialized {
+    if let Some(mut configuration) = materialized {
+        // Keep the reservations high enough for every identity the pair made visible.
+        let floor = reserved_identity_floor(
+            before,
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.to_string(),
+            },
+        );
+        merge_identity_floor(&mut configuration, floor);
         instance.mechanical = Some(configuration);
     }
     instance.construction_ownership = MechanicalConstructionOwnership::Local;
@@ -1295,7 +1313,8 @@ fn dissolve_pair_ownership(
         // The accepted effective configuration already carries this half's visible
         // linked geometry, shared construction and local hardware, so writing it
         // locally makes that model authoritative without moving anything.
-        let configuration = effective_inputs(doc, &[], &target)?.configuration;
+        let mut configuration = effective_inputs(doc, &[], &target)?.configuration;
+        merge_identity_floor(&mut configuration, reserved_identity_floor(doc, &target));
         persist(doc, &target, configuration)?;
         let hardware = doc
             .hardware
@@ -3339,7 +3358,62 @@ fn reserved_identity_floor(document: &ProjectDoc, target: &MechanicalTarget) -> 
             .max()
             .unwrap_or(0)
     };
-    (floor("opening"), floor("vertex"))
+    // A half that outlived its own configuration (a disabled half) keeps the highest
+    // identity it ever reserved, so re-enabling cannot reuse a removed one.
+    let stored = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == *instance_id)
+        .and_then(|instance| instance.mechanical_identity_reservation)
+        .unwrap_or_default();
+    (
+        floor("opening").max(stored.next_opening_identity.saturating_sub(1)),
+        floor("vertex").max(stored.next_vertex_identity.saturating_sub(1)),
+    )
+}
+
+/// The highest opening and vertex identity a configuration can already hand out.
+fn identity_reservation_of(
+    configuration: &MechanicalConfiguration,
+) -> MechanicalIdentityReservation {
+    let openings = configuration.openings.as_ref();
+    let highest_opening = openings
+        .into_iter()
+        .flatten()
+        .map(|opening| identity_index(&opening.id))
+        .max()
+        .unwrap_or(0);
+    let highest_vertex = openings
+        .into_iter()
+        .flatten()
+        .flat_map(|opening| opening.vertices.iter())
+        .map(|vertex| identity_index(&vertex.id))
+        .max()
+        .unwrap_or(0);
+    MechanicalIdentityReservation {
+        next_opening_identity: configuration.next_opening_identity.max(highest_opening + 1),
+        next_vertex_identity: openings
+            .into_iter()
+            .flatten()
+            .map(|opening| opening.next_vertex_identity)
+            .max()
+            .unwrap_or(0)
+            .max(highest_vertex + 1),
+    }
+}
+
+/// Raises a materialized configuration's reservations to cover pair-owned identities.
+///
+/// Used when ownership ends and a half keeps the model it showed: the persisted counters
+/// then cover every identity that was visible through the pair, so a later local addition
+/// cannot take one of them.
+fn merge_identity_floor(configuration: &mut MechanicalConfiguration, floor: (u64, u64)) {
+    configuration.next_opening_identity = configuration.next_opening_identity.max(floor.0 + 1);
+    if let Some(openings) = configuration.openings.as_mut() {
+        for opening in openings {
+            opening.next_vertex_identity = opening.next_vertex_identity.max(floor.1 + 1);
+        }
+    }
 }
 
 /// The numeric suffix of a `prefix-N` identity, or `None` for another prefix.
@@ -5025,6 +5099,7 @@ mod tests {
             controller_part_id: None,
             mechanical: Some(configuration()),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         };
         instance.mechanical.as_mut().unwrap().wall_thickness = 2.0;
         doc.hardware = Some(HardwareConfiguration {
@@ -5265,6 +5340,7 @@ mod tests {
             controller_part_id: None,
             mechanical: Some(mechanical),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         }
     }
 

@@ -1640,6 +1640,7 @@ fn profile_assignment_rejects_a_part_on_another_board_and_a_duplicate_target() {
 fn an_instance_target_persists_to_that_instance() {
     let mut doc = document();
     let mut instance = PhysicalBoardInstance {
+        mechanical_identity_reservation: None,
         id: "left".into(),
         name: "Left".into(),
         board_id: "board".into(),
