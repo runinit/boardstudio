@@ -1,6 +1,6 @@
 # 02: Core owns mechanical settings and linked mirrored features
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 01, [matrix Core placement](../../matrix-layout-consistency/issues/02-core-set-matrix-placement.md), [matrix companion modes](../../matrix-layout-consistency/issues/03-core-companion-placement-modes.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [module deepening](../../module-deepening/map.md), [review candidate 04](../../../investigations/architecture-review-2026-10-07.html#c4)
@@ -664,3 +664,52 @@ Known follow-up for slice 08: instance persistence currently writes only
 `instance.mechanical`, so a Legacy instance overlaid from a distinct
 `shared_construction` can have an overlaid-field change reverted on the next read.
 Construction ownership and pair scope must settle that.
+
+### Progress — implementation finished and reviewed (2026-10-09)
+
+All slices 05-10 completed across two implementation lanes (Core: `typed-core-edits/mechanical-integration`;
+Case/UI: `typed-core-edits/mechanical-actions`) and integrated on this branch through `2a8d5e076`.
+The complete `python3 scripts/check.py` passed on the integrated source (parent checkout + non-nested
+validation worktree, same commit, each owning the steps its environment supports), the boundary
+transcript reproduces byte-for-byte (native golden + WASM host parity), and real Session/Core queue,
+Undo/Redo, save/reopen and browser IndexedDB round-trips pass. Independent Standards and Spec reviews
+ran over the phase range `d543201a8...3a00845c`; every blocker they raised was fixed and re-verified
+(new-instance `Local` stamping `a67c266a2`, linked changed-id completeness `acf3d332b`, Core-owned
+case-admission predicate `d6ef1715b` with the page adoption `2a8d5e076`), and the full check repassed
+after the fixes. Per-ticket evidence is in the Outcomes of 05-10.
+
+### Ratified wire shape
+
+The mechanical change vocabulary is frozen with this consciously ratified naming: variant tags are
+kebab-case (`remove-physical-instance`, `materialize-legacy-construction`), struct-variant payload
+fields retain snake_case (`pair_id`, `construction_source`), and `MechanicalTarget` plus the
+correspondence records use camelCase (`boardId`, `instanceId`, `sourceInstanceId`) with `kind` tags.
+The mixed spelling between the target and the change payload is deliberate; do not "fix" it without
+a new wire-format decision, because persisted documents and the boundary transcript encode this shape.
+
+### Accepted deviations and limits (from the reviews)
+
+- `UnlinkMirrorPair` is a Core-tested primitive with no reachable UI control this phase: Q14's compound
+  unlink-and-disable is the surfaced pair-dissolution path. Surfacing a pure unlink remains a product
+  decision, not a defect.
+- Physical-instance removal is paired-only; removing an unpaired instance stays with the topology
+  replacement path, which reconciles pairs and materializes survivors.
+- The Legacy construction conversion is a single-half UI action by design (Core accepts a member
+  list; no batch control is specified).
+- Outline cache classification for mechanical edits is static (`affects_outline` aliases projection
+  need) and the cache recomputes projecting inputs; the projection implies the composer inputs that
+  changed, so per-input rebuild bookkeeping is not required for correctness.
+- Browser storage round-trip tests live in the host crate (`storage_lifetime_tests.rs`), which the
+  browser step of the full check covers.
+- Legacy ownership is stamped exclusively by the v2-to-v3 migration; newly created instances are
+  `Local` until an eligible pair link promotes them.
+
+## Outcome
+
+Resolved 2026-10-09. The typed mechanical interface, Core-owned defaults/validation/effective
+inputs/findings, mirror pairs with per-feature sources, atomic lifecycle (link/unlink, make local,
+omit, rejoin, removal, Q14 paired disable, legacy conversion), durable identity reservations,
+author-contour gasket resolution, per-target Case admission and selected-board export gating, and
+the Case adapters with reviewed fingerprints and a read-only projection port are implemented,
+integrated, fully checked and independently reviewed with all blockers fixed. The included-keyboards
+refresh (ticket 04) remains blocked by matrix integrated verification (matrix 11).

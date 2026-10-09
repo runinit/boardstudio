@@ -1,6 +1,6 @@
 # 07: Core closure-mount initialization and clearance projection
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 06
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [02](02-mechanical-settings-patch.md)
@@ -37,3 +37,16 @@ in the doc comment.
 
 `cargo test -p boardstudio_core --locked`; WASM `typecheck`; regenerate the boundary
 transcript for the combined integration.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `2a8d5e076`. `initialize_closure_mounts` proposes
+closure mounts from the accepted outline projection (mirrored for a flipped half) and
+callers apply the suggestion to their own edited configuration; absent closure mounts
+are proposed from the accepted projection rather than re-derived from the proposed
+document. `project_owned_closure_clearance` owns prefixing, deduplication by board and
+rounded XY with the largest required diameter, ordering and error shape. Generated
+closure holes/memberships refresh atomically; a normalized mounting-hole template is
+required only for actual generated-hole creation/update and is validated whenever
+supplied. Key commits: `7a20f835a`, `925f0083a`/`c844b6e38`, the initialization
+re-read fix inside `3db8ba142`.

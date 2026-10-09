@@ -1,6 +1,6 @@
 # 05: Core effective mechanical inputs
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: none
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [02](02-mechanical-settings-patch.md)
@@ -45,3 +45,17 @@ Case `initial_settings` defaults.
 `cargo test -p boardstudio_core --locked` and `cargo test -p boardstudio-web-case
 --locked`; WASM `typecheck`. Update the boundary transcript only if the wire shape
 changes.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `2a8d5e076`. `effective_inputs(document, board_contours,
+target) -> Result<MechanicalInputs, String>` carries the resolved configuration, the
+target's effective parts/contour projection (mirrored for a flipped half), gasket
+supports resolved on their author's accepted contours and reflected through
+`features::mirror_support`, and findings scoped to the read target.
+`MechanicalInputs::case_findings_are_clear` owns the Case-admission findings rule.
+Core defaults (`default_material`, `mounting_datum`, plate/foam/gasket defaults) live in
+Core only. Canonical, Legacy overlay with first-instance fallback, Local isolation and
+pair construction all resolve through one private implementation
+(`core/src/mechanical/inputs.rs`). Key commits: `043a0604e`, `e1de79af7`, `f1a1049af`,
+`e70e057d1`, `3cc20f1ef`, `d6ef1715b`.

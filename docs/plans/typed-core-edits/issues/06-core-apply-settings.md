@@ -1,6 +1,6 @@
 # 06: Core applies mechanical settings changes
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 05
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [02](02-mechanical-settings-patch.md)
@@ -36,3 +36,15 @@ Case controller keeps its ports, drafts and `flush_prepared` ordering but submit
 
 `cargo test -p boardstudio_core --locked`, `cargo test -p boardstudio-web-case
 --locked`, `wasm-pack test --headless --chrome web/crates/case --locked --lib`.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `2a8d5e076`. `evaluate_edit` and Core apply share one
+private staged implementation against the accepted outline projection; apply evaluates
+against operation-time state, mutates atomically and reports precise changed ids
+(including the pair and both member instances whenever a linked value changes: ordinary
+edits, additions, deletions, Make local, Omit, Rejoin, Unlink, member removal and the
+Q14 paired disable). Equal-value edits stay `Unchanged` with no history/revision step.
+A Legacy-targeted shared-construction field edit writes the shared source the effective
+read consults. Key commits: `00851d5de`, `3fbce5418`, `f1a1049af`, `035dbc8de`,
+`acf3d332b`, `3db8ba142`.

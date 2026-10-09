@@ -55,14 +55,24 @@ and for any bulk action a recorded decision permits.
 
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+- 02 typed mechanical edits land complete: Core-owned rules/inputs/findings, mirror pairs
+  with per-feature sources, atomic lifecycle (removal, Q14 paired disable, legacy
+  conversion), durable identity reservations, author-contour gasket resolution,
+  per-target admission/export gating, Case adapters with reviewed fingerprints and a
+  read-only projection port — integrated, fully checked, boundary transcript unchanged,
+  independently reviewed with all blockers fixed through `2a8d5e076`:
+  [Outcome](issues/02-mechanical-settings-patch.md#outcome). Children 05-10:
+  [05](issues/05-core-effective-inputs.md#outcome),
+  [06](issues/06-core-apply-settings.md#outcome),
+  [07](issues/07-core-closure-projection.md#outcome),
+  [08](issues/08-core-mirror-pairs.md#outcome),
+  [09](issues/09-case-adapter-and-setup.md#outcome),
+  [10](issues/10-integrated-verification.md#outcome).
 
 ## Ready for implementation
 
-- [02: Mechanical settings and linked features](issues/02-mechanical-settings-patch.md)
-  is `claimed` and remains open. Q1-Q13 and the complete interface, ownership/migration,
-  coordinate conventions and build order are confirmed in its
-  [Answer](issues/02-mechanical-settings-patch.md#answer). Shared Core work integrates
-  after matrix-layout-consistency 02/03; the build and its verification remain open.
+- [11: Core outline ownership](issues/11-core-outline-ownership.md) is the unblocked
+  implementation frontier: mechanical 02 and decision 03 are both resolved.
 
 ## Outline implementation frontier
 
@@ -79,16 +89,14 @@ refinements is superseded by the confirmed scope.
                 └── 15 integrated verification / reviews
 ```
 
-- [11: Core ownership and persistence](issues/11-core-outline-ownership.md) is the
-  unblocked outline implementation frontier.
 - [12: Linked resolution](issues/12-linked-outline-resolution.md),
   [13: Typed edits](issues/13-core-outline-edits.md),
   [14: Web adapter](issues/14-outline-web-adapter.md) and
   [15: Integrated verification](issues/15-outline-integrated-verification.md)
   follow the dependency chain. No build is claimed complete by design approval.
-- Mechanical child tickets 05-10 remain under parent 02's acceptance; outline
-  tickets do not close or replace those gates.
-- Work can proceed alongside mechanical 02 in separate worktrees. The parent
+- Mechanical tickets 02 and 05-10 are resolved; outline tickets own their own gates
+  from here.
+- Work proceeds in separate worktrees. The parent
   coordinates leases for shared Core model/migration/dispatch/geometry files and
   the boundary transcript; append migrations in actual integrated version order.
   Keep one Chrome owner and one transcript blessing owner.
