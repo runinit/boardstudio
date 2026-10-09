@@ -2293,7 +2293,7 @@ fn same_ring(a: &Contour, b: &Contour) -> bool {
     })
 }
 
-fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
+pub(crate) fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
     let contains = |ring: &Contour| {
         let mut inside = false;
         for i in 0..ring.points.len() {
@@ -2468,6 +2468,7 @@ mod tests {
             gasket: None,
             closure_mounts: None,
             board_id: "board".into(),
+            next_opening_identity: 0,
             method: PlateMethod::Printed,
             mount: MechanicalMount::Tray,
             integrated_plate_frame: false,

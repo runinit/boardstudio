@@ -2348,6 +2348,14 @@ pub struct MechanicalConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closure_mounts: Option<Vec<Mount>>,
     pub board_id: String,
+    /// Monotonic reservation for authored opening identities.
+    ///
+    /// Zero means nothing has been reserved yet: the first allocation normalizes to
+    /// the highest identity the configuration already carries, so a legacy document
+    /// keeps its geometry. Once reserved, an identity is never handed out again, so a
+    /// queued intent naming a removed opening can never reach a later addition.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_opening_identity: u64,
     #[serde(default)]
     pub integrated_plate_frame: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2366,6 +2374,11 @@ pub struct MechanicalConfiguration {
     pub wall_thickness: f64,
     pub clearance: f64,
     pub profiles: Vec<MechanicalPartProfile>,
+}
+
+/// Serde helper: omit an unset identity reservation so existing documents keep their shape.
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2483,6 +2496,12 @@ pub struct MechanicalOpening {
     pub vertices: Vec<MechanicalOpeningVertex>,
     pub z: f64,
     pub height: f64,
+    /// Monotonic reservation for this opening's authored vertex identities, with the
+    /// same zero-means-unset rule as [`MechanicalConfiguration::next_opening_identity`].
+    /// The address is the opening id together with the vertex id, so a removed vertex
+    /// identity is never reused within its opening.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_vertex_identity: u64,
 }
 
 impl MechanicalOpening {

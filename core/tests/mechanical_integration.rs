@@ -12,10 +12,10 @@ use boardstudio_core::mechanical::change::{
 };
 use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
-    Board, BoardContours, HardwareConfiguration, HardwareTopology, HardwareTransport,
-    MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalFeatureKind,
-    MechanicalFeatureValue, Mount, MountKind, PartDefinition, PhysicalBoardInstance, Pose2,
-    ProjectDoc, Vec2,
+    Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,
+    HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
+    MechanicalFeatureKind, MechanicalFeatureValue, Mount, MountKind, Operation, OutlineFeature,
+    PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -216,6 +216,7 @@ fn template() -> PartDefinition {
 fn link_pair(document: &mut ProjectDoc) {
     boardstudio_core::mechanical::edit::apply(
         document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::LinkMirrorPair {
@@ -230,6 +231,7 @@ fn link_pair(document: &mut ProjectDoc) {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 }],
             },
             mounting_hole: Some(Box::new(template())),
@@ -330,6 +332,7 @@ fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
     // flip flags. Distinct boards are a supported explicit pair.
     let changed = boardstudio_core::mechanical::edit::apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: MechanicalTarget::Board {
                 board_id: "left-board".into(),
@@ -346,6 +349,7 @@ fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 }],
             },
             mounting_hole: Some(Box::new(template())),
@@ -383,6 +387,7 @@ fn an_ordinary_edit_from_either_half_updates_the_single_authored_value() {
     fn move_mount(document: &mut ProjectDoc, instance_id: &str, x: f64, y: f64) {
         apply(
             document,
+            &[],
             &MechanicalEdit {
                 target: instance_target(instance_id),
                 change: MechanicalChange::SetMountPosition {
@@ -470,6 +475,7 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
     }
     boardstudio_core::mechanical::edit::apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::LinkMirrorPair {
@@ -484,6 +490,7 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
                     kind: MechanicalFeatureKind::ClosureMount,
                     first_feature_id: "closure-1".into(),
                     second_feature_id: "closure-1".into(),
+                    source_instance_id: None,
                 }],
             },
             mounting_hole: Some(Box::new(template())),
@@ -543,6 +550,7 @@ fn a_settings_only_edit_validates_a_supplied_mounting_hole_template() {
     let mut rejected = document.clone();
     let result = apply(
         &mut rejected,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetDimension {
@@ -562,6 +570,7 @@ fn a_settings_only_edit_validates_a_supplied_mounting_hole_template() {
     let mut accepted = document.clone();
     apply(
         &mut accepted,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetDimension {
@@ -599,6 +608,7 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     document.boards[0].outline_ids = vec!["outline".into()];
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetDimension {
@@ -621,6 +631,7 @@ fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
     // template even though it is a projection change.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change: MechanicalChange::SetMountCollection {
@@ -651,6 +662,7 @@ fn an_ordinary_delete_of_a_linked_feature_removes_both_halves() {
     // relationship itself. Remove-on-this-half is the explicit Omit action.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: instance_target("right"),
             change: MechanicalChange::RemoveMount {
@@ -696,6 +708,7 @@ fn a_local_delete_affects_only_that_half() {
     // Make the right half's mount an explicit per-feature exception.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: instance_target("right"),
             change: MechanicalChange::MakeFeatureLocal {
@@ -710,6 +723,7 @@ fn a_local_delete_affects_only_that_half() {
     // Ordinary delete on the localized half affects only that half.
     apply(
         &mut document,
+        &[],
         &MechanicalEdit {
             target: instance_target("right"),
             change: MechanicalChange::RemoveMount {
@@ -744,5 +758,697 @@ fn a_local_delete_affects_only_that_half() {
             .iter()
             .all(|mount| mount.id != "mount-1"),
         "the localized half's delete stays local"
+    );
+}
+
+#[test]
+fn accepted_contours_drive_absent_closure_mount_initialization() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    // The document's own outline is a large board...
+    let mut document = ProjectDoc::empty("doc", "Fixture");
+    document.outline.push(OutlineFeature::Rect {
+        anchor_part_id: None,
+        id: "outline".into(),
+        center: Vec2 { x: 0.0, y: 0.0 },
+        size: Vec2 { x: 80.0, y: 60.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Add,
+    });
+    document.boards.push(board("board"));
+    document.boards[0].outline_ids = vec!["outline".into()];
+    let mut configuration = configuration();
+    configuration.closure_mounts = None;
+    document.mechanical = Some(configuration);
+
+    // ...but the accepted scene projection for that board is a small outline.
+    let accepted = vec![BoardContours {
+        board_id: "board".into(),
+        contours: vec![small_rect()],
+    }];
+
+    let initialization = MechanicalEdit {
+        target: board_target(),
+        change: MechanicalChange::SetDimension {
+            field: MechanicalDimension::WallThickness,
+            value: 3.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+
+    let mut from_accepted = document.clone();
+    apply(&mut from_accepted, &accepted, &initialization).unwrap();
+    let mut from_recomputed = document.clone();
+    apply(&mut from_recomputed, &[], &initialization).unwrap();
+
+    let accepted_mounts = closure_mounts(&from_accepted);
+    let recomputed_mounts = closure_mounts(&from_recomputed);
+    assert!(
+        !accepted_mounts.is_empty(),
+        "the accepted outline proposes closure mounts"
+    );
+    assert!(
+        accepted_mounts
+            .iter()
+            .all(|mount| mount.at.x.abs() < 15.0 && mount.at.y.abs() < 10.0),
+        "initialization follows the accepted projection: {accepted_mounts:?}"
+    );
+    assert!(
+        recomputed_mounts
+            .iter()
+            .any(|mount| mount.at.x.abs() > 15.0),
+        "the document's own outline would have proposed wider mounts: {recomputed_mounts:?}"
+    );
+    assert_ne!(
+        accepted_mounts, recomputed_mounts,
+        "the accepted projection is what initialization consumes"
+    );
+}
+
+fn small_rect() -> Contour {
+    Contour {
+        hole: false,
+        points: vec![
+            Vec2 { x: -10.0, y: -5.0 },
+            Vec2 { x: 10.0, y: -5.0 },
+            Vec2 { x: 10.0, y: 5.0 },
+            Vec2 { x: -10.0, y: 5.0 },
+        ],
+    }
+}
+
+fn closure_mounts(document: &ProjectDoc) -> Vec<Mount> {
+    document
+        .mechanical
+        .as_ref()
+        .unwrap()
+        .closure_mounts
+        .clone()
+        .expect("closure mounts were initialized")
+}
+
+fn pair_document_with_two_mounts() -> ProjectDoc {
+    let mut document = document();
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![
+            mirror_instance(
+                "left",
+                vec![mount("mount-1", 2.0, 3.0), mount("mount-2", 4.0, 5.0)],
+            ),
+            mirror_instance(
+                "right",
+                vec![mount("mount-1", 7.0, 3.0), mount("mount-2", 9.0, 5.0)],
+            ),
+        ],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+fn correspondence(
+    kind: MechanicalFeatureKind,
+    first: &str,
+    second: &str,
+    source: Option<&str>,
+) -> MechanicalFeatureCorrespondence {
+    MechanicalFeatureCorrespondence {
+        kind,
+        first_feature_id: first.into(),
+        second_feature_id: second.into(),
+        source_instance_id: source.map(str::to_string),
+    }
+}
+
+fn link_with_correspondences(
+    document: &mut ProjectDoc,
+    correspondences: Vec<MechanicalFeatureCorrespondence>,
+) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::LinkMirrorPair {
+                pair_id: "pair-left-right".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction_source: "left".into(),
+                correspondences,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+}
+
+#[test]
+fn a_reviewed_link_chooses_the_source_geometry_per_feature() {
+    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
+
+    let mut document = pair_document_with_two_mounts();
+    // mount-1 is sourced from the second half; mount-2 from the first.
+    link_with_correspondences(
+        &mut document,
+        vec![
+            correspondence(
+                MechanicalFeatureKind::Mount,
+                "mount-1",
+                "mount-1",
+                Some("right"),
+            ),
+            correspondence(
+                MechanicalFeatureKind::Mount,
+                "mount-2",
+                "mount-2",
+                Some("left"),
+            ),
+        ],
+    )
+    .unwrap();
+
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    let find = |id: &str| {
+        pair.features
+            .iter()
+            .find(|feature| feature.id == id)
+            .unwrap_or_else(|| panic!("no feature {id:?}"))
+    };
+    let sourced_from_right = find("mount-1");
+    assert_eq!(
+        sourced_from_right.author, "right",
+        "the reviewed source half authors its feature"
+    );
+    let MechanicalFeatureValue::Mount { mount } = &sourced_from_right.value else {
+        panic!("a linked mount stores a mount");
+    };
+    assert_eq!(mount.at, Vec2 { x: 7.0, y: 3.0 });
+    let sourced_from_left = find("mount-2");
+    assert_eq!(sourced_from_left.author, "left");
+    let MechanicalFeatureValue::Mount { mount } = &sourced_from_left.value else {
+        panic!("a linked mount stores a mount");
+    };
+    assert_eq!(mount.at, Vec2 { x: 4.0, y: 5.0 });
+
+    // The non-source half derives the exact inverse of the source geometry,
+    // independently for each feature.
+    let left: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let right: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert_eq!(
+        mount_at(&left.configuration, "mount-1"),
+        Vec2 { x: -7.0, y: 3.0 }
+    );
+    assert_eq!(
+        mount_at(&right.configuration, "mount-1"),
+        Vec2 { x: 7.0, y: 3.0 }
+    );
+    assert_eq!(
+        mount_at(&left.configuration, "mount-2"),
+        Vec2 { x: 4.0, y: 5.0 }
+    );
+    assert_eq!(
+        mount_at(&right.configuration, "mount-2"),
+        Vec2 { x: -4.0, y: 5.0 }
+    );
+}
+
+#[test]
+fn a_reviewed_link_rejects_an_unknown_source_half() {
+    let mut document = pair_document();
+    let before = document.clone();
+    let error = link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::Mount,
+            "mount-1",
+            "mount-1",
+            Some("ghost"),
+        )],
+    )
+    .unwrap_err();
+    assert!(error.contains("source"), "{error}");
+    assert_eq!(document, before, "a rejected source mutates nothing");
+}
+
+fn remove_member(document: &mut ProjectDoc, instance_id: &str) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target(instance_id),
+            change: MechanicalChange::RemovePhysicalInstance,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+}
+
+#[test]
+fn removing_a_paired_member_materializes_the_survivor_and_clears_the_pair() {
+    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+    let before: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let survivor_geometry = mount_at(&before.configuration, "mount-1");
+
+    let changed = remove_member(&mut document, "right").unwrap();
+
+    let hardware = document.hardware.as_ref().unwrap();
+    assert_eq!(hardware.instances.len(), 1, "the removed half is gone");
+    assert_eq!(hardware.instances[0].id, "left");
+    assert!(hardware.pairs.is_empty(), "the pair is cleared");
+    let survivor = &hardware.instances[0];
+    assert_eq!(
+        survivor.construction_ownership,
+        MechanicalConstructionOwnership::Local,
+        "the survivor owns its materialized construction locally"
+    );
+    assert_eq!(
+        mount_at(survivor.mechanical.as_ref().unwrap(), "mount-1"),
+        survivor_geometry,
+        "the survivor keeps the geometry it showed"
+    );
+    assert_eq!(
+        survivor.mechanical.as_ref().unwrap().plate_thickness,
+        before.configuration.plate_thickness
+    );
+    for id in ["pair-left-right", "left", "right"] {
+        assert!(changed.contains(&id.to_string()), "{id} in {changed:?}");
+    }
+
+    // The survivor's effective read still shows the same geometry.
+    let after: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert_eq!(mount_at(&after.configuration, "mount-1"), survivor_geometry);
+}
+
+#[test]
+fn removing_a_physical_instance_requires_a_paired_instance_target() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = pair_document();
+    let before = document.clone();
+
+    // A board target cannot identify a physical member to remove.
+    let error = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemovePhysicalInstance,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap_err();
+    assert!(error.contains("physical-instance target"), "{error}");
+    assert_eq!(document, before, "a malformed target mutates nothing");
+
+    // An unpaired instance is a plain topology change, not a pair removal.
+    let error = remove_member(&mut document, "left").unwrap_err();
+    assert!(error.contains("not part of"), "{error}");
+    assert_eq!(document, before, "an ineligible member mutates nothing");
+}
+
+#[test]
+fn the_evaluator_retires_an_edit_that_targets_a_removed_member() {
+    let mut document = pair_document();
+    link_pair(&mut document);
+    remove_member(&mut document, "right").unwrap();
+
+    let disposition = evaluate_edit(
+        &document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 4.0,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert_eq!(disposition, MechanicalEditDisposition::Retire);
+}
+
+#[test]
+fn a_topology_replacement_never_leaves_a_dangling_pair() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+
+    let mut engine = CoreEngine::new();
+    let accepted = match engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document,
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    };
+
+    // The incoming document drops the right half but still lists the pair.
+    let mut replacement = accepted.clone();
+    replacement
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .retain(|instance| instance.id != "right");
+    assert_eq!(
+        replacement.hardware.as_ref().unwrap().pairs.len(),
+        1,
+        "the incoming document still lists the pair"
+    );
+
+    let replaced = match engine.handle(CoreRequest::Edit {
+        id: "replace".into(),
+        command: EditCommand {
+            base_revision: accepted.revision,
+            transaction_id: "replace".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(replacement),
+            },
+        },
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    };
+
+    let hardware = replaced.hardware.as_ref().unwrap();
+    assert_eq!(hardware.instances.len(), 1);
+    assert!(
+        hardware.pairs.is_empty(),
+        "a pair whose member is gone cannot survive the replacement"
+    );
+    let survivor = &hardware.instances[0];
+    assert_eq!(
+        survivor.construction_ownership,
+        MechanicalConstructionOwnership::Local
+    );
+    assert_eq!(
+        mount_at(survivor.mechanical.as_ref().unwrap(), "mount-1"),
+        Vec2 { x: 2.0, y: 3.0 },
+        "the survivor keeps the geometry it showed"
+    );
+}
+
+/// Gives the fixture board a real outline so export readiness is meaningful.
+fn with_board_outline(document: &mut ProjectDoc) {
+    document.outline.push(OutlineFeature::Rect {
+        anchor_part_id: None,
+        id: "outline".into(),
+        center: Vec2 { x: 0.0, y: 0.0 },
+        size: Vec2 { x: 80.0, y: 60.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Add,
+    });
+    document.boards[0].outline_ids = vec!["outline".into()];
+    document.case_bodies.push(CaseBody {
+        features: None,
+        openings: None,
+        id: "case-body".into(),
+        name: "Case body".into(),
+        board_id: "board".into(),
+        kind: CaseKind::Tray,
+        thickness: 3.0,
+        clearance: 0.3,
+        material_id: None,
+        z: None,
+        wall_height: None,
+        wall_thickness: Some(2.0),
+        mounts: None,
+        gasket: None,
+    });
+}
+
+/// Two halves where the linked mount reflects onto the second half's local hardware.
+fn conflicting_pair_document() -> ProjectDoc {
+    let mut document = document();
+    with_board_outline(&mut document);
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![
+            mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
+            mirror_instance(
+                "right",
+                vec![
+                    mount("mount-1", 7.0, 3.0),
+                    mount("mount-encoder", -2.0, 3.0),
+                ],
+            ),
+        ],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+#[test]
+fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
+    use boardstudio_core::model::{CoreReply, CoreRequest, Scope};
+
+    let mut document = conflicting_pair_document();
+    link_pair(&mut document);
+
+    // The reflected mount is exactly where the right half's own hardware sits.
+    let right: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert_eq!(
+        mount_at(&right.configuration, "mount-1"),
+        Vec2 { x: -2.0, y: 3.0 },
+        "the intended geometry stays exactly where the pair puts it"
+    );
+    let finding = right
+        .findings
+        .iter()
+        .find(|finding| finding.target_ids.contains(&"mount-1".to_string()))
+        .unwrap_or_else(|| panic!("no located finding: {:?}", right.findings));
+    assert_eq!(finding.scope, Scope::Case);
+    assert_eq!(
+        finding.target_ids,
+        vec![
+            "board".to_string(),
+            "right".to_string(),
+            "mount-1".to_string()
+        ],
+        "the finding locates the board, the half and the feature"
+    );
+
+    // The accepted scene carries the same located finding, so readiness and the
+    // export gates see accepted state rather than a transient assembly warning.
+    let mut engine = CoreEngine::new();
+    let scene = match engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: document.clone(),
+    }) {
+        CoreReply::Scene { scene, .. } => scene,
+        other => panic!("expected scene: {other:?}"),
+    };
+    let located = scene
+        .findings
+        .iter()
+        .find(|finding| finding.id == "mechanical:pair:pair-left-right:right:mount-1:fit")
+        .unwrap_or_else(|| panic!("no accepted pair finding: {:?}", scene.findings));
+    assert_eq!(located.scope, Scope::Case);
+    assert_eq!(
+        located.target_ids,
+        vec![
+            "board".to_string(),
+            "right".to_string(),
+            "mount-1".to_string()
+        ],
+        "the accepted finding locates board, half and feature"
+    );
+    let readiness = scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == "board")
+        .expect("board readiness");
+    assert!(
+        readiness.pcb,
+        "a Case-only clash must not block the board's manufacturing export"
+    );
+
+    // Without the local hardware there is no clash finding at all: the conflict, not
+    // the pairing, is what is reported.
+    let mut control = document.clone();
+    control
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == "right")
+        .unwrap()
+        .mechanical
+        .as_mut()
+        .unwrap()
+        .mounts
+        .retain(|mount| mount.id != "mount-encoder");
+    let control_findings =
+        boardstudio_core::mechanical::effective_inputs(&control, &[], &instance_target("right"))
+            .unwrap()
+            .findings;
+    assert!(
+        control_findings.is_empty(),
+        "the same pair without a local conflict reports nothing: {control_findings:?}"
+    );
+}
+
+fn add_opening(document: &mut ProjectDoc) -> String {
+    use boardstudio_core::mechanical::edit::apply;
+    apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::AddOpening,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    document
+        .mechanical
+        .as_ref()
+        .unwrap()
+        .openings
+        .as_ref()
+        .unwrap()
+        .last()
+        .unwrap()
+        .id
+        .clone()
+}
+
+#[test]
+fn a_removed_opening_identity_is_never_reused() {
+    let mut document = document();
+    let first = add_opening(&mut document);
+    boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemoveOpening {
+                opening_id: first.clone(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let second = add_opening(&mut document);
+    assert_ne!(
+        second, first,
+        "a removed opening identity must not be handed out again"
+    );
+
+    // A queued intent naming the removed opening cannot reach the later addition, and
+    // retires instead of being redirected.
+    let queued = MechanicalEdit {
+        target: board_target(),
+        change: MechanicalChange::SetOpeningDimension {
+            opening_id: first.clone(),
+            vertex_id: None,
+            field: MechanicalDimension::OpeningHeight,
+            value: 9.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    assert_eq!(
+        evaluate_edit(&document, &[], &queued).unwrap(),
+        MechanicalEditDisposition::Retire
+    );
+    assert!(
+        boardstudio_core::mechanical::edit::apply(&mut document, &[], &queued).is_err(),
+        "a commit against the removed opening is an error, not a redirected change"
+    );
+}
+
+#[test]
+fn a_removed_opening_vertex_identity_is_never_reused() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = document();
+    let opening = add_opening(&mut document);
+    let add_vertex = |document: &mut ProjectDoc| {
+        apply(
+            document,
+            &[],
+            &MechanicalEdit {
+                target: board_target(),
+                change: MechanicalChange::AddOpeningVertex {
+                    opening_id: opening.clone(),
+                },
+                mounting_hole: Some(Box::new(template())),
+            },
+        )
+        .unwrap();
+        document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .openings
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|candidate| candidate.id == opening)
+            .unwrap()
+            .vertices
+            .last()
+            .unwrap()
+            .id
+            .clone()
+    };
+    let first = add_vertex(&mut document);
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemoveOpeningVertex {
+                opening_id: opening.clone(),
+                vertex_id: first.clone(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let second = add_vertex(&mut document);
+    assert_ne!(
+        second, first,
+        "a removed vertex identity must not be handed out again"
+    );
+
+    let queued = MechanicalEdit {
+        target: board_target(),
+        change: MechanicalChange::SetOpeningDimension {
+            opening_id: opening.clone(),
+            vertex_id: Some(first.clone()),
+            field: MechanicalDimension::OpeningPointX,
+            value: 4.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    assert_eq!(
+        evaluate_edit(&document, &[], &queued).unwrap(),
+        MechanicalEditDisposition::Retire
     );
 }
