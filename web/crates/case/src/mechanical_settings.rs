@@ -3,6 +3,7 @@
 pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
+use crate::mechanical_pair::{MechanicalPairFeatureRow, feature_label};
 use crate::mechanical_settings_controller::use_bound_mechanical_field;
 pub use boardstudio_core::mechanical::change::{
     MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
@@ -11,7 +12,7 @@ pub use boardstudio_core::mechanical::change::{
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
-    MechanicalExtraction, MechanicalGasketAnchor, MechanicalGeometry,
+    MechanicalExtraction, MechanicalFeatureState, MechanicalGasketAnchor, MechanicalGeometry,
     MechanicalHardwareSpecification, MechanicalMount, MechanicalOpening, MechanicalPartProcess,
     MechanicalPartProfile, MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
     MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
@@ -593,6 +594,10 @@ pub struct MechanicalSettingsProps {
     pub hardware_mounts: Rc<[MechanicalHardwareMount]>,
     pub suggested_mounts: Rc<[Mount]>,
     pub findings: Rc<[MechanicalFindingRow]>,
+    /// The selected half's pair features, projected from the accepted pair store.
+    /// Absent when the half belongs to no pair.
+    #[props(default)]
+    pub pair_features: Option<Rc<[MechanicalPairFeatureRow]>>,
     pub selected_layer: String,
     pub mismatch: Option<MechanicalBoardMismatch>,
     pub editable: bool,
@@ -782,6 +787,16 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
+            if let Some(features) = props.pair_features.as_ref().filter(|features| !features.is_empty()) {
+                MechanicalPairControls {
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    features: features.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    on_request: props.on_request,
+                }
+            }
             if props.layers.iter().any(|layer| layer.is_previous) {
                 p { role: "status", class: "m1-mechanical-previous-result",
                     "Showing generated layers from a previous accepted revision. Settings below reflect the current accepted configuration."
@@ -987,6 +1002,142 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalPairControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    features: Rc<[MechanicalPairFeatureRow]>,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Per-feature controls for the selected half's mechanical mirror pair.
+///
+/// The state of every row comes from the accepted pair store, so there is no second
+/// relationship store to drift. A linked feature can be made local or removed on this
+/// half; a local or omitted feature can be rejoined from the other half, with the
+/// geometry the rejoin takes shown before the commit.
+#[component]
+fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
+    let features = props.features.clone();
+    rsx! {
+        section { class: "m1-mechanical-pair", aria_label: "Mirrored pair features",
+            h3 { "Mirrored pair" }
+            p { class: "m1-mechanical-help",
+                "Shared mechanical features stay linked to the other half. Make one local, remove it on this half, or rejoin it from the other half."
+            }
+            for row in features.iter() {
+                {
+                    let row = row.clone();
+                    let key = format!("{}:{}", row.instance_id, row.feature_id);
+                    let linked = row.state == MechanicalFeatureState::Linked;
+                    let local_patch = MechanicalSettingsPatch::MakeFeatureLocal {
+                        feature_id: row.feature_id.clone(),
+                        instance_id: row.instance_id.clone(),
+                    };
+                    let omit_patch = MechanicalSettingsPatch::OmitFeatureMember {
+                        feature_id: row.feature_id.clone(),
+                        instance_id: row.instance_id.clone(),
+                    };
+                    let rejoin_patch = MechanicalSettingsPatch::RejoinFeatureMember {
+                        feature_id: row.feature_id.clone(),
+                        instance_id: row.instance_id.clone(),
+                        source_instance_id: row.counterpart_instance_id.clone(),
+                    };
+                    let row_fields = [
+                        local_patch.field_id(),
+                        omit_patch.field_id(),
+                        rejoin_patch.field_id(),
+                    ];
+                    let failure = props
+                        .feedback
+                        .iter()
+                        .find(|entry| {
+                            entry.state == MechanicalSettingsFeedbackState::Failed
+                                && row_fields.contains(&entry.field_id)
+                        })
+                        .and_then(|entry| entry.message.clone());
+                    let blocked = |patch: &MechanicalSettingsPatch| {
+                        mechanical_action_pending(&patch.field_id()) || !props.editable
+                    };
+                    let local_blocked = blocked(&local_patch);
+                    let omit_blocked = blocked(&omit_patch);
+                    let rejoin_blocked = blocked(&rejoin_patch) || row.preview.is_none();
+                    let state = match row.state {
+                        MechanicalFeatureState::Linked => "linked to the other half",
+                        MechanicalFeatureState::Local => "local to this half",
+                        MechanicalFeatureState::Omitted => "removed on this half",
+                    };
+                    rsx! {
+                        fieldset { key: "{key}", class: "m1-mechanical-pair-row", disabled: !props.editable,
+                            "aria-label": "Mirrored {feature_label(row.kind).to_lowercase()}",
+                            legend { "{feature_label(row.kind)} · {state}" }
+                            if let Some(message) = failure {
+                                p { role: "alert", "{message}" }
+                            }
+                            if linked {
+                                button {
+                                    r#type: "button",
+                                    class: "m1-mechanical-quiet",
+                                    "aria-label": "Make local {row.feature_id}",
+                                    disabled: local_blocked,
+                                    onclick: {
+                                        let mut sequence = props.request_sequence;
+                                        let identity = props.identity.clone();
+                                        let callback = props.on_request;
+                                        let patch = local_patch.clone();
+                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                    },
+                                    "Make local"
+                                }
+                                button {
+                                    r#type: "button",
+                                    class: "m1-mechanical-quiet",
+                                    "aria-label": "Remove on this half {row.feature_id}",
+                                    disabled: omit_blocked,
+                                    onclick: {
+                                        let mut sequence = props.request_sequence;
+                                        let identity = props.identity.clone();
+                                        let callback = props.on_request;
+                                        let patch = omit_patch.clone();
+                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                    },
+                                    "Remove on this half"
+                                }
+                            } else {
+                                if let Some(preview) = row.preview.clone() {
+                                    p { class: "m1-mechanical-help",
+                                        "Rejoin takes {preview} from the other half."
+                                    }
+                                } else {
+                                    p { class: "m1-mechanical-help",
+                                        "The other half has no geometry for this feature, so it cannot be rejoined yet."
+                                    }
+                                }
+                                button {
+                                    r#type: "button",
+                                    class: "m1-mechanical-quiet",
+                                    "aria-label": "Rejoin {row.feature_id} from the other half",
+                                    disabled: rejoin_blocked,
+                                    onclick: {
+                                        let mut sequence = props.request_sequence;
+                                        let identity = props.identity.clone();
+                                        let callback = props.on_request;
+                                        let patch = rejoin_patch.clone();
+                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                    },
+                                    "Rejoin from the other half"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -4186,7 +4337,7 @@ fn severity_label(value: &Severity) -> &'static str {
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::Vec3;
+    use boardstudio_core::model::{MechanicalFeatureKind, Vec3};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -5491,6 +5642,166 @@ mod contextual_layer_tests {
             .unwrap();
         assert_eq!(cable_width.value().parse::<f64>().unwrap(), 2.0);
     }
+
+    #[component]
+    fn PairFeatureTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let rows: Rc<[MechanicalPairFeatureRow]> = Rc::from([
+            MechanicalPairFeatureRow {
+                feature_id: "mount-1-left".into(),
+                kind: MechanicalFeatureKind::Mount,
+                state: MechanicalFeatureState::Linked,
+                instance_id: "left".into(),
+                counterpart_instance_id: "right".into(),
+                counterpart_feature_id: "mount-1-right".into(),
+                preview: Some("Mount at (2.0, 3.0)".into()),
+            },
+            MechanicalPairFeatureRow {
+                feature_id: "opening-1-left".into(),
+                kind: MechanicalFeatureKind::Opening,
+                state: MechanicalFeatureState::Local,
+                instance_id: "left".into(),
+                counterpart_instance_id: "right".into(),
+                counterpart_feature_id: "opening-1-right".into(),
+                preview: Some("Opening with 3 vertices".into()),
+            },
+            MechanicalPairFeatureRow {
+                feature_id: "support-1-left".into(),
+                kind: MechanicalFeatureKind::GasketSupport,
+                state: MechanicalFeatureState::Omitted,
+                instance_id: "left".into(),
+                counterpart_instance_id: "right".into(),
+                counterpart_feature_id: "support-1-right".into(),
+                preview: None,
+            },
+        ]);
+        rsx! {
+            div { id: "case-pair-feature-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_features: Some(rows),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-pair-feature-last-request", "{last_request}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn pair_feature_controls_are_reachable_and_submit_typed_pair_changes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-pair-feature-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(PairFeatureTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The panel renders the accepted pair state for every covered kind.
+        assert_eq!(
+            element(".m1-mechanical-pair h3").text_content().unwrap(),
+            "Mirrored pair"
+        );
+        assert_eq!(
+            element(".m1-mechanical-pair-row:nth-of-type(1) legend")
+                .text_content()
+                .unwrap(),
+            "Mount · linked to the other half"
+        );
+
+        // Linked: make local, or remove on this half.
+        element("button[aria-label='Make local mount-1-left']").click();
+        rendered().await;
+        let local = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            local.contains("MakeFeatureLocal") && local.contains("mount-1-left"),
+            "the linked row submits an explicit make-local, got {local}"
+        );
+        element("button[aria-label='Remove on this half mount-1-left']").click();
+        rendered().await;
+        let omit = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            omit.contains("OmitFeatureMember") && omit.contains("mount-1-left"),
+            "the linked row can remove the feature on this half, got {omit}"
+        );
+
+        // Local: the preview is shown before the commit, and rejoin names its source.
+        assert!(
+            element(".m1-mechanical-pair-row:nth-of-type(2) .m1-mechanical-help")
+                .text_content()
+                .unwrap()
+                .contains("Opening with 3 vertices"),
+            "a rejoin previews the geometry it will take"
+        );
+        element("button[aria-label='Rejoin opening-1-left from the other half']").click();
+        rendered().await;
+        let rejoin = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            rejoin.contains("RejoinFeatureMember")
+                && rejoin.contains("opening-1-left")
+                && rejoin.contains("\"right\""),
+            "rejoin submits the reviewed source half, got {rejoin}"
+        );
+
+        // Omitted without counterpart geometry: reachable but not committable.
+        let document = web_sys::window().unwrap().document().unwrap();
+        assert!(
+            document
+                .query_selector(
+                    "button[aria-label='Rejoin support-1-left from the other half']:disabled"
+                )
+                .unwrap()
+                .is_some(),
+            "an omitted feature whose other half has no geometry cannot be rejoined"
+        );
+        assert!(
+            element(".m1-mechanical-pair-row:nth-of-type(3) .m1-mechanical-help")
+                .text_content()
+                .unwrap()
+                .contains("no geometry"),
+        );
+        let after = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert_eq!(
+            after, rejoin,
+            "the disabled rejoin submits nothing when clicked or left alone"
+        );
+        let _ = MechanicalFeatureKind::GasketSupport;
+        root.remove();
+    }
 }
 
 #[cfg(test)]
@@ -5513,11 +5824,26 @@ mod mounted_settlement_tests {
 
     type CatalogueReply = oneshot::Receiver<Result<(), String>>;
 
+    /// The normalized mounting-hole definition Core validates on every supplied
+    /// template: the `ceoloide/mounting_hole_npth` source with a drilled pad.
     fn template() -> Rc<PartDefinition> {
         Rc::new(
             serde_json::from_value(serde_json::json!({
-                "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
-            }))
+            "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{
+                "id": "pad-0", "number": "", "at": { "x": 0, "y": 0 },
+                "size": { "x": 2.2, "y": 2.2 }, "shape": "circle", "drill": 2.2,
+                "plated": false, "rotation": 0
+            }],
+            "courtyard": [
+                { "x": -1.1, "y": -1.1 }, { "x": 1.1, "y": -1.1 },
+                { "x": 1.1, "y": 1.1 }, { "x": -1.1, "y": 1.1 }
+            ],
+            "envelopeSource": { "courtyard": "generated" },
+            "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {} }
+        }))
             .unwrap(),
         )
     }

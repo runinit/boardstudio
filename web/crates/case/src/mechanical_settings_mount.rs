@@ -655,6 +655,23 @@ pub fn use_mechanical_settings_mount(
             .hardware
             .as_ref()
             .map_or(HardwareTransport::None, |hardware| hardware.transport);
+        // The selected half's pair features come from the accepted pair store, so the
+        // controls render the same states Core resolves without a second store.
+        let pair_features = current
+            .identity
+            .scope
+            .instance_id
+            .as_deref()
+            .and_then(|instance_id| {
+                crate::mechanical_pair::pair_projection(
+                    &current.accepted.document,
+                    &current.accepted.scene.board_contours,
+                    instance_id,
+                )
+            })
+            .map(|projection| Rc::<[crate::mechanical_pair::MechanicalPairFeatureRow]>::from(
+                projection.features,
+            ));
         MechanicalSettingsProps {
             identity: current.identity.clone(),
             request_sequence,
@@ -672,6 +689,7 @@ pub fn use_mechanical_settings_mount(
             hardware_mounts,
             suggested_mounts,
             findings,
+            pair_features,
             selected_layer,
             mismatch,
             editable: enabled,
