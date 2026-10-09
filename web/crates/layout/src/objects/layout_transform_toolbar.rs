@@ -315,8 +315,7 @@ pub fn LayoutTransformToolOverlay(
             // so a Row here (selected while the tool was active) renders no Stagger handle.
             LayoutTransformTool::Stagger if selected_row.is_some() => None,
             // An Offset handle on a Row sits at the row's first key (column 0 when unselected).
-            LayoutTransformTool::Offset if selected_row.is_some() => {
-                let row = selected_row.unwrap_or(0);
+            LayoutTransformTool::Offset if let Some(row) = selected_row => {
                 let cell = projection
                     .cells
                     .iter()
@@ -754,16 +753,16 @@ pub fn LayoutTransformToolOverlay(
                 _ => 0.0,
             },
         };
+        let arrow = match key.key().as_str() {
+            "ArrowLeft" => ArrowKey::Left,
+            "ArrowRight" => ArrowKey::Right,
+            "ArrowUp" => ArrowKey::Up,
+            _ => ArrowKey::Down,
+        };
         let nudge = match target.get_attribute("aria-label").as_deref() {
             Some("Drag to stagger") => {
                 let parameter = PlacementParameter::Stagger {
                     column: selected_column,
-                };
-                let arrow = match key.key().as_str() {
-                    "ArrowLeft" => ArrowKey::Left,
-                    "ArrowRight" => ArrowKey::Right,
-                    "ArrowUp" => ArrowKey::Up,
-                    _ => ArrowKey::Down,
                 };
                 let big = key.shift_key();
                 // The pair across the stagger axis is not consumed.
@@ -795,12 +794,6 @@ pub fn LayoutTransformToolOverlay(
                         column: selected_column,
                     },
                     _ => return,
-                };
-                let arrow = match key.key().as_str() {
-                    "ArrowLeft" => ArrowKey::Left,
-                    "ArrowRight" => ArrowKey::Right,
-                    "ArrowUp" => ArrowKey::Up,
-                    _ => ArrowKey::Down,
                 };
                 TransformNudge::Offset {
                     parameter,
@@ -2836,8 +2829,9 @@ mod tool_tests {
             (Offset, "column", Column),
             (Offset, "key", Column),
             (Offset, "matrix", Column),
-            // Stagger is a column parameter: a Row becomes the retained key's column, or
-            // column 1, which the selection conversion resolves.
+            // Stagger is a column parameter, so a Row asks for a Column selection. Which
+            // column it resolves to (the retained key's, or column 1) is the selection
+            // conversion's rule (`context_for_selection_kind`), not covered here.
             (Stagger, "row", Column),
             (Stagger, "column", Column),
             (Stagger, "key", Column),
@@ -3177,7 +3171,8 @@ mod tool_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn real_pointer_events_latch_shift_at_pointer_down_and_show_the_offset_glyph() {
+    async fn real_pointer_events_with_stubbed_capture_latch_shift_at_pointer_down_and_show_the_offset_glyph()
+     {
         let runtime = fixture::open_matrix_runtime().await;
         // The first edit syncs the fixture's unlaid poses.
         let mut sync = PendingEdits::<()>::default();

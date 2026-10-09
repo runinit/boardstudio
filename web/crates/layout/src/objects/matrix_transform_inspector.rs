@@ -48,6 +48,39 @@ pub struct MatrixTransformRequest {
     pub(super) one_shot: bool,
 }
 
+impl MatrixTransformRequest {
+    /// The request for a one-shot action (reset, convert, delete), shared by the
+    /// Inspector buttons and the Relations panel so there is one construction path.
+    /// `scope` is the snapshot token and revision; `change` the field, baseline and value.
+    pub(super) fn one_shot(
+        owner: MatrixTransformInspectorOwner,
+        scope: (SnapshotToken, u64),
+        request_id: u64,
+        change: (
+            MatrixTransformField,
+            MatrixTransformValue,
+            MatrixTransformValue,
+        ),
+        splay_affect: MatrixSplayAffect,
+    ) -> Self {
+        let (field, baseline, value) = change;
+        Self {
+            owner,
+            request_id,
+            snapshot_token: scope.0,
+            revision: scope.1,
+            field,
+            baseline,
+            value,
+            splay_affect,
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: true,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatrixTransformProjection {
     pub owner: MatrixTransformInspectorOwner,
@@ -988,12 +1021,10 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 let Some(id) = sequence().checked_add(1) else { return; };
                 sequence.set(id);
                 submitted.set(Some(id));
-                on_edit.call(MatrixTransformRequest {
-                    owner: owner.clone(), request_id: id, snapshot_token: token, revision,
-                    field, baseline: baseline.clone(), value: value.clone(), splay_affect: affect(),
-                    draft: None, failure: None, submitted_text: None,
-            one_shot: true,
-                });
+                on_edit.call(MatrixTransformRequest::one_shot(
+                    owner.clone(), (token, revision), id,
+                    (field, baseline.clone(), value.clone()), affect(),
+                ));
             },
             "{props.label}"
         }

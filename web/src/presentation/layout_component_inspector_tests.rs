@@ -2321,6 +2321,7 @@ mod matrix_relations_panel {
                     let runtime = runtime.clone();
                     Rc::new(move |request| relation_target_request(&runtime, request))
                 },
+                relation_scope: selected.as_ref().map(|selected| selected.scope.clone()),
                 on_select_context: EventHandler::new(move |request: objects::TreeSelectRequest| {
                     selection::submit_context(&select_runtime, &select_adapter, request.into());
                 }),
@@ -2474,14 +2475,14 @@ mod matrix_relations_panel {
             probe.open_relations_tab().await;
             let text = probe.text();
             assert!(
-                probe.exists("[aria-label='Structure']"),
+                probe.exists("[aria-labelledby='m1-relations-structure-heading']"),
                 "{context:?} shows Structure: {text}"
             );
             assert!(text.contains(expected), "{context:?}: {text}");
             assert!(!text.contains(OLD_FALLBACK), "{context:?}: {text}");
             assert!(!text.contains(OLD_NOTE), "{context:?}: {text}");
-            assert!(!probe.exists("[aria-label='Local adjustments']"));
-            assert!(!probe.exists("[aria-label='Authored constraints']"));
+            assert!(!probe.exists("[aria-labelledby='m1-relations-departures-heading']"));
+            assert!(!probe.exists("[aria-labelledby='m1-relations-constraints-heading']"));
         }
         root.remove();
     }

@@ -218,6 +218,18 @@ fn a_column_offset_is_one_departure_on_that_column_only() {
 }
 
 #[test]
+fn an_x_only_column_offset_can_reset_but_not_convert() {
+    let world = world(matrix(
+        2,
+        3,
+        json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 0.0 }] }),
+    ));
+    let offset = relations(&world, column(1)).unwrap();
+    assert_eq!(offset.departures.len(), 1);
+    assert_eq!(offset.departures[0].actions, [DepartureAction::Reset]);
+}
+
+#[test]
 fn companions_show_their_core_mode_and_a_constrained_one_names_its_source() {
     let assemblies = |ids: [&str; 3]| -> Vec<serde_json::Value> {
         ids.iter()

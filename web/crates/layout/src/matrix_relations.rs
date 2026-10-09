@@ -554,7 +554,12 @@ impl View<'_> {
                 value: format!("{}, {} mm", mm(offset.x), mm(offset.y)),
                 target: Some(self.column_context(column)),
                 highlight: members.clone(),
-                actions: vec![DepartureAction::Reset, DepartureAction::Convert],
+                // Convert moves the Y offset into stagger; an x-only offset has none.
+                actions: if offset.y != 0.0 {
+                    vec![DepartureAction::Reset, DepartureAction::Convert]
+                } else {
+                    vec![DepartureAction::Reset]
+                },
             })
             .into_iter()
             .collect();

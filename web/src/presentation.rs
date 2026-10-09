@@ -7226,6 +7226,9 @@ fn Editor() -> Element {
                     let runtime = runtime.clone();
                     Rc::new(move |request| relation_target_request(&runtime, request))
                 },
+                relation_scope: selected_tree_context
+                    .as_ref()
+                    .map(|selected| selected.scope.clone()),
                 on_select_context: workspace_routing.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(

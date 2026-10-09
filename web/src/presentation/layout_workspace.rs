@@ -74,6 +74,8 @@ pub(super) struct InspectorInput {
     /// target has gone.
     pub(super) relation_target:
         Rc<dyn Fn(objects::TreeSelectRequest) -> Option<objects::TreeSelectRequest>>,
+    /// The scope of the selected tree context, which Relations navigation requests carry.
+    pub(super) relation_scope: Option<boardstudio_application::Scope>,
     pub(super) on_select_context: EventHandler<objects::TreeSelectRequest>,
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
     pub(super) findings_return_available: bool,
@@ -572,11 +574,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             inspector_tab.set(LayoutInspectorTab::Properties);
             input.on_select_context.call(request);
         });
-    let relation_scope = input
-        .matrix_transform_inspector
-        .projection
-        .as_ref()
-        .map(|projection| projection.owner.scope.clone());
+    let relation_scope = input.relation_scope.clone();
     let relation_target = input.relation_target.clone();
     let relation_select = input.on_select_context;
     let mut relation_escape_target = matrix_relationship_escape_target;

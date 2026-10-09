@@ -28,17 +28,17 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     });
     let Some(relations) = props.relations.as_ref() else {
         return rsx! {
-            section { class: "m1-layout-component-inspector", aria_label: "Relationships",
-                h2 { "Relationships" }
+            section { class: "m1-layout-component-inspector", aria_labelledby: "m1-relations-heading",
+                h2 { id: "m1-relations-heading", "Relationships" }
                 p { class: "m1-layout-component-relation-summary", "This selection is no longer available." }
             }
         };
     };
     rsx! {
-        section { class: "m1-layout-component-inspector", aria_label: "Relationships",
-            h2 { "Relationships" }
-            section { class: "m1-relations-structure", aria_label: "Structure",
-                h3 { "Structure" }
+        section { class: "m1-layout-component-inspector", aria_labelledby: "m1-relations-heading",
+            h2 { id: "m1-relations-heading", "Relationships" }
+            section { class: "m1-relations-structure", aria_labelledby: "m1-relations-structure-heading",
+                h3 { id: "m1-relations-structure-heading", "Structure" }
                 ul {
                     for item in relations.structure.iter() {
                         StructureRow { item: item.clone(), on_navigate }
@@ -46,8 +46,8 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
                 }
             }
             if !relations.departures.is_empty() {
-                section { class: "m1-relations-departures", aria_label: "Local adjustments",
-                    h3 { "Local adjustments" }
+                section { class: "m1-relations-departures", aria_labelledby: "m1-relations-departures-heading",
+                    h3 { id: "m1-relations-departures-heading", "Local adjustments" }
                     ul {
                         for departure in relations.departures.iter() {
                             DepartureRow { departure: departure.clone(), mount: props.mount.clone(), on_navigate }
@@ -56,8 +56,8 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
                 }
             }
             if !relations.constraints.is_empty() {
-                section { class: "m1-relations-constraints", aria_label: "Authored constraints",
-                    h3 { "Authored constraints" }
+                section { class: "m1-relations-constraints", aria_labelledby: "m1-relations-constraints-heading",
+                    h3 { id: "m1-relations-constraints-heading", "Authored constraints" }
                     ul {
                         for constraint in relations.constraints.iter() {
                             ConstraintRow { constraint: constraint.clone(), on_navigate }
@@ -120,22 +120,35 @@ fn DepartureActionButton(
     parameter: String,
     mount: objects::MatrixTransformInspectorMount,
 ) -> Element {
+    let mut submitted = use_signal(|| None::<u64>);
     let Some(control) = mount.departure_control(action) else {
         return rsx! {};
     };
-    let (label, kind) = match action {
-        DepartureAction::Reset => ("Reset", "reset"),
-        DepartureAction::Convert => ("Convert to stagger", "convert"),
+    let kind = match action {
+        DepartureAction::Reset => "reset",
+        DepartureAction::Convert => "convert",
     };
+    let label = control.label;
+    let reason_id = format!("m1-relations-reason-{kind}-{}", parameter.replace(' ', "-"));
+    let described_by = control.reason.is_some().then(|| reason_id.clone());
+    let error = mount.departure_feedback(action, submitted());
     rsx! {
         button {
             r#type: "button", class: "m1-inspector-secondary", disabled: control.disabled,
             "data-relation-action": "{kind}", aria_label: "{label}: {parameter}",
-            onclick: move |_| mount.run_departure(action),
+            aria_describedby: described_by,
+            onclick: move |_| {
+                if let Some(id) = mount.run_departure(action) {
+                    submitted.set(Some(id));
+                }
+            },
             "{label}"
         }
         if let Some(reason) = control.reason.as_deref() {
-            small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
+            small { id: "{reason_id}", class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
+        }
+        if let Some(message) = error.as_deref() {
+            small { role: "alert", class: "m1-matrix-transform-error", "{message}" }
         }
     }
 }
