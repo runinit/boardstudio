@@ -2676,3 +2676,298 @@ fn features_member_state(
 ) -> Option<boardstudio_core::model::MechanicalFeatureState> {
     boardstudio_core::mechanical::features::member_state(pair, instance_id, feature_id)
 }
+
+/// A legacy-ownership configuration whose hardware, critical fits and profiles are
+/// distinguishable by `marker`.
+fn legacy_configuration(marker: &str, plate_thickness: f64) -> MechanicalConfiguration {
+    let mut value = serde_json::to_value(configuration()).unwrap();
+    let object = value.as_object_mut().unwrap();
+    object.insert("boardId".into(), json!("board"));
+    object.insert("plateThickness".into(), json!(plate_thickness));
+    object.insert(
+        "hardware".into(),
+        json!([{
+            "id": format!("hw-{marker}"), "partId": "plate", "featureId": "mount-1",
+            "designation": marker, "thread": "M3", "length": 6.0, "quantity": 1
+        }]),
+    );
+    object.insert(
+        "criticalFits".into(),
+        json!([{
+            "id": format!("fit-{marker}"), "partId": "plate", "label": marker,
+            "from": {"x": 0.0, "y": 0.0}, "to": {"x": 1.0, "y": 1.0}, "tolerance": "0.2"
+        }]),
+    );
+    object.insert(
+        "profiles".into(),
+        json!([{
+            "definitionId": format!("def-{marker}"), "source": marker, "cutouts": [],
+            "plateToPcb": 3.5
+        }]),
+    );
+    serde_json::from_value(value).unwrap()
+}
+
+fn legacy_instance(id: &str, marker: &str, plate_thickness: f64) -> PhysicalBoardInstance {
+    PhysicalBoardInstance {
+        id: id.into(),
+        name: id.into(),
+        board_id: "board".into(),
+        half: id.into(),
+        role: "controller".into(),
+        flipped: false,
+        controller_part_id: None,
+        mechanical: Some(legacy_configuration(marker, plate_thickness)),
+        construction_ownership: MechanicalConstructionOwnership::Legacy,
+        mechanical_identity_reservation: None,
+    }
+}
+
+/// Three legacy members whose first member is the fallback shared source.
+fn legacy_document() -> ProjectDoc {
+    let mut document = document();
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![
+            legacy_instance("a", "a", 1.5),
+            legacy_instance("b", "b", 9.9),
+            legacy_instance("c", "c", 9.9),
+        ],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+fn convert(document: &mut ProjectDoc, ids: &[&str]) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::MaterializeLegacyConstruction {
+                instance_ids: ids.iter().map(|id| (*id).to_string()).collect(),
+            },
+            mounting_hole: None,
+        },
+    )
+}
+
+fn stored_configuration<'a>(document: &'a ProjectDoc, id: &str) -> &'a MechanicalConfiguration {
+    document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .find(|instance| instance.id == id)
+        .unwrap()
+        .mechanical
+        .as_ref()
+        .unwrap()
+}
+
+#[test]
+fn converting_legacy_members_materializes_the_overlay_and_keeps_the_third_baseline() {
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = legacy_document();
+    let before_c = effective_inputs(&document, &[], &instance_target("c"))
+        .unwrap()
+        .configuration;
+    // The second member's stored values conflict with the overlay it actually uses.
+    let before_b = effective_inputs(&document, &[], &instance_target("b"))
+        .unwrap()
+        .configuration;
+    assert_eq!(before_b.hardware.as_ref().unwrap()[0].designation, "a");
+    assert_eq!(before_b.critical_fits.as_ref().unwrap()[0].label, "a");
+    assert_eq!(before_b.profiles[0].source, "a");
+    assert_eq!(before_b.plate_thickness, 1.5);
+
+    let changed = convert(&mut document, &["a", "b"]).unwrap();
+    assert_eq!(changed, vec!["board", "a", "b"]);
+
+    let hardware = document.hardware.as_ref().unwrap();
+    for id in ["a", "b"] {
+        let instance = hardware
+            .instances
+            .iter()
+            .find(|instance| instance.id == id)
+            .unwrap();
+        assert_eq!(
+            instance.construction_ownership,
+            MechanicalConstructionOwnership::Local,
+            "{id} owns its construction locally after conversion"
+        );
+    }
+    assert_eq!(
+        hardware
+            .instances
+            .iter()
+            .find(|instance| instance.id == "c")
+            .unwrap()
+            .construction_ownership,
+        MechanicalConstructionOwnership::Legacy,
+        "an unselected member keeps the legacy ownership"
+    );
+
+    // The selected member keeps exactly the values it showed, including the overlaid
+    // hardware, critical fits and profiles rather than its stale stored ones.
+    let b_stored = stored_configuration(&document, "b");
+    assert_eq!(b_stored.hardware.as_ref().unwrap()[0].designation, "a");
+    assert_eq!(b_stored.critical_fits.as_ref().unwrap()[0].label, "a");
+    assert_eq!(b_stored.profiles[0].source, "a");
+    assert_eq!(b_stored.plate_thickness, 1.5);
+    assert_eq!(
+        b_stored.hardware.as_ref().unwrap()[0].designation,
+        before_b.hardware.as_ref().unwrap()[0].designation
+    );
+
+    // The prior common construction was captured as the legacy source before conversion.
+    let captured = hardware
+        .shared_construction
+        .as_ref()
+        .expect("the legacy baseline is captured");
+    assert_eq!(captured.plate_thickness, 1.5);
+    assert_eq!(captured.hardware.as_ref().unwrap()[0].designation, "a");
+
+    // The third legacy member keeps its baseline exactly.
+    let after_c = effective_inputs(&document, &[], &instance_target("c"))
+        .unwrap()
+        .configuration;
+    assert_eq!(after_c, before_c, "the third legacy baseline is preserved");
+
+    // A later edit to a converted member cannot feed back into that baseline.
+    boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("a"),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 5.0,
+            },
+            mounting_hole: None,
+        },
+    )
+    .unwrap();
+    let after_edit_c = effective_inputs(&document, &[], &instance_target("c"))
+        .unwrap()
+        .configuration;
+    assert_eq!(
+        after_edit_c, before_c,
+        "converted members never feed back into the legacy source"
+    );
+}
+
+#[test]
+fn legacy_conversion_rejects_ineligible_selections_without_mutating() {
+    let mut document = legacy_document();
+    // A locally owned member is not legacy.
+    document
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .push(mirror_instance("local", vec![]));
+    let before = document.clone();
+
+    for ids in [Vec::new(), vec!["a", "a"], vec!["ghost"], vec!["local"]] {
+        let error = convert(&mut document, &ids).unwrap_err();
+        assert!(!error.is_empty(), "{ids:?}");
+        assert_eq!(document, before, "{ids:?} must not mutate the document");
+    }
+}
+
+#[test]
+fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+
+    fn document_of(reply: CoreReply) -> ProjectDoc {
+        match reply {
+            CoreReply::Scene { document, .. } => *document,
+            other => panic!("expected scene: {other:?}"),
+        }
+    }
+
+    let mut engine = CoreEngine::new();
+    let accepted = document_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: legacy_document(),
+    }));
+    let before_c = effective_inputs(&accepted, &[], &instance_target("c"))
+        .unwrap()
+        .configuration;
+
+    let converted = document_of(engine.handle(CoreRequest::Edit {
+        id: "convert".into(),
+        command: EditCommand {
+            base_revision: accepted.revision,
+            transaction_id: "convert".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::ApplyMechanicalEdit {
+                edit: Box::new(MechanicalEdit {
+                    target: board_target(),
+                    change: MechanicalChange::MaterializeLegacyConstruction {
+                        instance_ids: vec!["a".into()],
+                    },
+                    mounting_hole: None,
+                }),
+            },
+        },
+    }));
+    assert_eq!(
+        converted
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "a")
+            .unwrap()
+            .construction_ownership,
+        MechanicalConstructionOwnership::Local
+    );
+    assert!(
+        converted
+            .hardware
+            .as_ref()
+            .unwrap()
+            .shared_construction
+            .is_some()
+    );
+
+    let restored = document_of(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(
+        restored
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "a")
+            .unwrap()
+            .construction_ownership,
+        MechanicalConstructionOwnership::Legacy
+    );
+    assert!(
+        restored
+            .hardware
+            .as_ref()
+            .unwrap()
+            .shared_construction
+            .is_none(),
+        "the captured baseline is rolled back with the conversion"
+    );
+    assert_eq!(
+        effective_inputs(&restored, &[], &instance_target("c"))
+            .unwrap()
+            .configuration,
+        before_c
+    );
+}

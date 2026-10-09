@@ -186,6 +186,9 @@ fn apply_staged(
         MechanicalChange::RemovePhysicalInstance => {
             remove_physical_instance(doc, board_contours, edit)
         }
+        MechanicalChange::MaterializeLegacyConstruction { .. } => {
+            materialize_legacy_construction(doc, &board_id, edit)
+        }
         MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
@@ -195,6 +198,10 @@ fn apply_staged(
 
 /// Whether a mechanical change can create, move or remove generated clearance
 /// geometry.
+///
+/// Legacy conversion is deliberately absent: it materializes each selected member's
+/// current effective values without changing any closure mount, so the generated
+/// clearance geometry it derives is unchanged and no mounting-hole template is needed.
 ///
 /// Projection rebuilds the generated closure-hole parts, definitions and
 /// memberships. Whenever it is required the caller must supply the normalized
@@ -1148,6 +1155,110 @@ fn remove_physical_instance(
     Ok(changed)
 }
 
+/// Converts selected legacy-ownership members to local ownership without changing
+/// what they show.
+///
+/// Every selected member must exist on the target board, be selected once and still use
+/// the legacy shared construction; anything else is an error with no mutation. Each
+/// member's current effective values - including the hardware, critical fits and
+/// profiles the legacy overlay supplied - are materialized into its own configuration
+/// before its ownership becomes `Local`. When the remaining legacy members resolve their
+/// shared subset through a converted member (the first-instance fallback), the prior
+/// common construction is captured as the legacy shared source first, so their baseline
+/// is preserved and later edits to the converted member cannot feed back into it.
+fn materialize_legacy_construction(
+    doc: &mut ProjectDoc,
+    board_id: &str,
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
+    let MechanicalChange::MaterializeLegacyConstruction { instance_ids } = &edit.change else {
+        return Err("The conversion operation was dispatched with another change.".into());
+    };
+    if instance_ids.is_empty() {
+        return Err("Select at least one physical instance to convert.".into());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for instance_id in instance_ids {
+        if !seen.insert(instance_id) {
+            return Err(format!(
+                "Physical instance {instance_id:?} is selected more than once."
+            ));
+        }
+    }
+    {
+        let hardware = doc
+            .hardware
+            .as_ref()
+            .ok_or("Physical instances are unavailable")?;
+        for instance_id in instance_ids {
+            let instance = hardware
+                .instances
+                .iter()
+                .find(|instance| instance.id == *instance_id)
+                .ok_or_else(|| format!("Physical instance {instance_id:?} is unavailable."))?;
+            if instance.board_id != board_id {
+                return Err(format!(
+                    "Physical instance {instance_id:?} belongs to another board."
+                ));
+            }
+            if instance.construction_ownership != MechanicalConstructionOwnership::Legacy {
+                return Err(format!(
+                    "Physical instance {instance_id:?} does not use the legacy shared construction."
+                ));
+            }
+        }
+    }
+    // The prior common construction is captured before conversion when the remaining
+    // legacy members would otherwise fall back to a converted member's configuration.
+    let captured_source = {
+        let hardware = doc.hardware.as_ref().unwrap();
+        if hardware.shared_construction.is_some() {
+            None
+        } else {
+            hardware
+                .instances
+                .iter()
+                .find(|instance| instance.mechanical.is_some())
+                .filter(|instance| instance_ids.contains(&instance.id))
+                .map(|instance| instance.mechanical.clone().unwrap())
+        }
+    };
+    // Resolve every selected member's effective values before anything mutates.
+    let materialized = instance_ids
+        .iter()
+        .map(|instance_id| {
+            effective_inputs(
+                doc,
+                &[],
+                &MechanicalTarget::Instance {
+                    instance_id: instance_id.clone(),
+                },
+            )
+            .map(|inputs| (instance_id.clone(), inputs.configuration))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    if let Some(common) = &captured_source {
+        hardware.shared_construction = Some(common.clone());
+    }
+    for (instance_id, configuration) in materialized {
+        let instance = hardware
+            .instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+            .ok_or("The selected physical instance is unavailable.")?;
+        instance.mechanical = Some(configuration);
+        instance.construction_ownership = MechanicalConstructionOwnership::Local;
+    }
+    let mut changed = vec![board_id.to_string()];
+    changed.extend(instance_ids.iter().cloned());
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
 /// The pair that owns `instance_id`, as its index and the other member's id.
 fn pair_membership(doc: &ProjectDoc, instance_id: &str) -> Result<(usize, String), String> {
     let hardware = doc
@@ -1987,11 +2098,12 @@ fn apply_change(
         | MechanicalChange::LinkMirrorPair { .. }
         | MechanicalChange::UnlinkMirrorPair { .. }
         | MechanicalChange::RemovePhysicalInstance
+        | MechanicalChange::MaterializeLegacyConstruction { .. }
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => {
             return Err(
-                "Configure, Disable, closure initialization and the pair lifecycle are handled by the operation."
+                "Configure, Disable, closure initialization, the pair lifecycle and legacy conversion are handled by the operation."
                     .into(),
             );
         }
