@@ -35,6 +35,18 @@ later decision explicitly permits.
 - The strict paths (captured gesture commit, export commits, protected electrical
   remap) are unchanged.
 
+## Approved outline extension
+
+[Ticket 03's Answer](issues/03-decide-outline-version-intents.md#answer), confirmed
+2026-10-09, includes linked outline refinements alongside the typed-operation migration.
+Core owns one typed outline-edit interface, identities, atomic lifecycle and linked
+resolution. Linked refinements follow current included components and keep independent
+settings; source removal cleans only dependent choices and recalculates bridges. Freeze
+or manual perimeter editing makes a fixed copy. Persisted ownership survives reopen;
+existing fixed outlines do not gain links. Stale reviewed targets retire, malformed
+input errors, and located geometric findings block only affected exports while keeping
+saving/editing available. Implementation is sliced into tickets 11-15.
+
 ## Out of scope
 
 - Enforcing the import-and-recovery restriction (needs every bulk action classified).

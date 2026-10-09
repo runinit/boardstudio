@@ -474,10 +474,12 @@ fn persist(
 ///
 /// A linked feature belongs to its pair, so a change made from either member updates
 /// the pair's single authored value (stored in the editing member's frame) and never
-/// a second writable copy on the member; removing a linked feature on this half
-/// stores a local omission instead. A `Pair` member's shared construction change is
-/// written to the pair, a `Legacy` member's overlay change is written to the shared
-/// source so the next effective read returns it, and every other field stays local.
+/// a second writable copy on the member. An ordinary delete of a linked feature is the
+/// linked deletion: it removes both counterparts and the relationship itself, while an
+/// explicit omit stores a one-half exception. A `Pair` member's shared construction
+/// change is written to the pair, a `Legacy` member's overlay change is written to the
+/// shared source so the next effective read returns it, and every other field stays
+/// local.
 fn persist_edit(
     doc: &mut ProjectDoc,
     target: &MechanicalTarget,
@@ -495,7 +497,7 @@ fn persist_edit(
         match pair_index {
             Some(pair_index) => {
                 let pair = doc.hardware.as_ref().unwrap().pairs[pair_index].clone();
-                for (index, feature) in pair.features.iter().enumerate() {
+                for feature in &pair.features {
                     let Some(member) = feature
                         .members
                         .iter()
@@ -514,18 +516,21 @@ fn persist_edit(
                                 Some(value) => {
                                     // The editing member's frame authors the pair's
                                     // single value; the other half derives from it.
-                                    pair.features[index].value = value;
-                                    pair.features[index].author = instance_id.clone();
+                                    let target = pair
+                                        .features
+                                        .iter_mut()
+                                        .find(|entry| entry.id == feature.id)
+                                        .ok_or(
+                                            "The mechanical feature is no longer in its pair.",
+                                        )?;
+                                    target.value = value;
+                                    target.author = instance_id.clone();
                                 }
                                 None => {
-                                    // Removing a linked feature on this half stores a
-                                    // local omission; the other half keeps its link.
-                                    features::set_member_state(
-                                        pair,
-                                        instance_id,
-                                        &member.feature_id,
-                                        MechanicalFeatureState::Omitted,
-                                    )?;
+                                    // Ordinary delete of a linked feature removes both
+                                    // counterparts: the relationship itself goes. An
+                                    // explicit omit is what keeps a one-half exception.
+                                    features::remove_linked_feature(pair, &feature.id)?;
                                 }
                             }
                         }

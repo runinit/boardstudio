@@ -43,7 +43,9 @@ and for any bulk action a recorded decision permits.
   explicit, rejoining selects source geometry with a preview, and new construction
   sharing is pair-scoped. Its shared Core edits
   integrate after matrix-layout-consistency 02/03. [03](issues/03-decide-outline-version-intents.md)
-  is ready for its human decision; 01 and the outline planner split have landed.
+  is resolved: the user confirmed one typed outline-edit interface **including linked
+  refinements** on 2026-10-09. See its [Answer](issues/03-decide-outline-version-intents.md#answer)
+  and the dependency-ordered outline tickets 11-15. 01 and the outline planner split have landed.
 - After mechanical 02 and matrix integrated verification, [04](issues/04-refresh-included-keyboards.md)
   redoes all included keyboards using the settled model (user follow-up, 2026-10-08).
 
@@ -57,10 +59,41 @@ and for any bulk action a recorded decision permits.
 ## Ready for implementation
 
 - [02: Mechanical settings and linked features](issues/02-mechanical-settings-patch.md)
-  is `ready-for-agent`. Q1-Q13 and the complete interface, ownership/migration,
+  is `claimed` and remains open. Q1-Q13 and the complete interface, ownership/migration,
   coordinate conventions and build order are confirmed in its
   [Answer](issues/02-mechanical-settings-patch.md#answer). Shared Core work integrates
   after matrix-layout-consistency 02/03; the build and its verification remain open.
+
+## Outline implementation frontier
+
+Decision [03](issues/03-decide-outline-version-intents.md#answer) is resolved; its
+build is not. The original proposal is retained as history, but deferring linked
+refinements is superseded by the confirmed scope.
+
+```text
+03 approved
+└── 11 ownership / identity / persistence
+    └── 12 linked resolution / source cleanup
+        └── 13 typed edits / atomic lifecycle
+            └── 14 web adapter / linked presentation
+                └── 15 integrated verification / reviews
+```
+
+- [11: Core ownership and persistence](issues/11-core-outline-ownership.md) is the
+  unblocked outline implementation frontier.
+- [12: Linked resolution](issues/12-linked-outline-resolution.md),
+  [13: Typed edits](issues/13-core-outline-edits.md),
+  [14: Web adapter](issues/14-outline-web-adapter.md) and
+  [15: Integrated verification](issues/15-outline-integrated-verification.md)
+  follow the dependency chain. No build is claimed complete by design approval.
+- Mechanical child tickets 05-10 remain under parent 02's acceptance; outline
+  tickets do not close or replace those gates.
+- Work can proceed alongside mechanical 02 in separate worktrees. The parent
+  coordinates leases for shared Core model/migration/dispatch/geometry files and
+  the boundary transcript; append migrations in actual integrated version order.
+  Keep one Chrome owner and one transcript blessing owner.
+- The keyboard refresh remains a separate follow-up with its recorded mechanical
+  and matrix dependencies. Preserve the original implementation handoff's scope.
 
 ## Not yet specified
 
@@ -70,8 +103,8 @@ permitted list.
 
 - Project and board renames (setup guide, Library, board inspector): likely next;
   two small operations replacing three resolvers.
-- Outline version features and active-version settings: strongest outline-rule
-  duplication; broader semantics (identity, validity, version-only storage).
+- Other outline behavior beyond the confirmed ticket 03 contract requires its own
+  decision; outline versions, settings and linked refinements are now specified in 11-15.
 - Wiring/net: part-net assignment and the reviewed wiring plan, likely one typed batch
   intent with atomic identity.
 - Layout membership and placement: atomic assign-to-layout, part/controller placement.
