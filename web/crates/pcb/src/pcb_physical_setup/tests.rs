@@ -15,6 +15,7 @@
 use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::Event;
+use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -24,7 +25,15 @@ use wasm_bindgen_test::*;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-type ProposalReply = Result<boardstudio_core::model::ProjectDoc, String>;
+type ProposalReply = Result<PreparedSetup, String>;
+
+/// A preparation result that admits the intent: the resolver recomputes the
+/// proposal against the accepted snapshot, so only the template matters here.
+fn admit() -> ProposalReply {
+    Ok(PreparedSetup {
+        mounting_hole: None,
+    })
+}
 
 #[derive(Clone)]
 struct Probe {
@@ -186,14 +195,6 @@ fn mount(probe: &Probe) -> PhysicalSetupMount {
         .clone()
 }
 
-fn reversible(probe: &Probe) -> boardstudio_core::model::ProjectDoc {
-    let mut document = (*probe.runtime.model().accepted.unwrap().document).clone();
-    document
-        .parameters
-        .insert("reversibleLayout".into(), serde_json::json!(true));
-    document
-}
-
 fn accepted_reversible(runtime: &Runtime) -> Option<serde_json::Value> {
     runtime
         .model()
@@ -218,7 +219,7 @@ fn queue_reply(probe: &Probe, value: ProposalReply) {
 
 /// Hold the next Core reply, submit a reversible-layout setup, and observe it in flight.
 async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
-    queue_reply(probe, Ok(reversible(probe)));
+    queue_reply(probe, admit());
     let (mut entered, release) = support::gate_next_core_reply(&probe.runtime);
     mount(probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     // The panel submits from a task that first awaits preparation, so the Core request is
@@ -334,7 +335,7 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
         "the preparation task parked before its late reply is queued"
     );
     probe.active.set(false);
-    queue_reply(&probe, Ok(reversible(&probe)));
+    queue_reply(&probe, admit());
     settle(&runtime).await;
     let projection = mount(&probe).projection;
     assert!(
@@ -365,7 +366,7 @@ async fn retained_rendered_controls_cannot_retarget_another_project() {
     });
     settle(&runtime).await;
     support::take_held_effects(&runtime);
-    queue_reply(&probe, Ok(reversible(&probe)));
+    queue_reply(&probe, admit());
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
     assert!(
@@ -389,7 +390,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     });
     settle(&runtime).await;
     support::take_held_effects(&runtime);
-    queue_reply(&probe, Ok(reversible(&probe)));
+    queue_reply(&probe, admit());
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
     assert!(
@@ -405,7 +406,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     probe.generation.set(1);
     poke(&probe);
     rendered().await;
-    queue_reply(&probe, Ok(reversible(&probe)));
+    queue_reply(&probe, admit());
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
     assert!(
@@ -420,7 +421,7 @@ async fn a_failed_save_reports_once_for_its_exact_owner() {
     let (probe, root) = mounted("setup-failure").await;
     let runtime = probe.runtime.clone();
     support::fail_next_persist(&runtime, "disk");
-    queue_reply(&probe, Ok(reversible(&probe)));
+    queue_reply(&probe, admit());
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     settle(&runtime).await;
     let projection = mount(&probe).projection;
@@ -438,6 +439,106 @@ async fn a_failed_save_reports_once_for_its_exact_owner() {
     assert!(
         projection.feedback.is_none(),
         "a project failure must not appear in Case"
+    );
+    root.remove();
+}
+
+/// The normalized mounting-hole template a pair-establishing setup needs before
+/// Core can project the generated closure clearance.
+fn mounting_hole_reply() -> ProposalReply {
+    Ok(PreparedSetup {
+        mounting_hole: Some(mounting_hole_template()),
+    })
+}
+
+fn mounting_hole_template() -> boardstudio_core::model::PartDefinition {
+    serde_json::from_value(serde_json::json!({
+        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+        "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+        "envelopeSource":{"courtyard":"generated"},
+        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
+    }))
+    .expect("the mounting-hole template fixture parses")
+}
+
+#[wasm_bindgen_test]
+async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step() {
+    let (probe, root) = mounted("setup-pair").await;
+    let runtime = probe.runtime.clone();
+    // The reversible layout first: it is what makes the split's second half flipped
+    // and therefore an eligible mechanical mirror pair.
+    queue_reply(&probe, admit());
+    mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
+    settle(&runtime).await;
+    assert_eq!(accepted_reversible(&runtime), Some(serde_json::json!(true)));
+
+    let before_split = runtime.model().accepted.unwrap().document.hardware.clone();
+
+    queue_reply(&probe, mounting_hole_reply());
+    mount(&probe).submit(PhysicalSetupIntent::ProjectTopology(true));
+    settle(&runtime).await;
+
+    let accepted = runtime.model().accepted.unwrap();
+    let hardware = accepted
+        .document
+        .hardware
+        .as_ref()
+        .expect("the split creates physical hardware");
+    assert_eq!(
+        hardware.topology,
+        boardstudio_core::model::HardwareTopology::Split
+    );
+    assert_eq!(hardware.instances.len(), 2, "the split creates both halves");
+    assert_eq!(
+        hardware.pairs.len(),
+        1,
+        "the setup establishes the eligible mechanical pair"
+    );
+    let pair = &hardware.pairs[0];
+    assert_eq!(
+        pair.members,
+        [
+            hardware.instances[0].id.clone(),
+            hardware.instances[1].id.clone()
+        ]
+    );
+    assert!(
+        hardware.instances[1].flipped,
+        "the mirrored second half is flipped"
+    );
+    for instance in &hardware.instances {
+        assert_eq!(
+            instance.construction_ownership,
+            boardstudio_core::model::MechanicalConstructionOwnership::Pair,
+            "both halves become pair-owned in the same accepted edit"
+        );
+    }
+    // One Undo removes the new halves and the established pair together: a setup that
+    // had settled as two history steps would leave the instances or the pair behind.
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    settle(&runtime).await;
+    let undone = runtime.model().accepted.unwrap();
+    assert_eq!(
+        undone.document.hardware, before_split,
+        "one Undo restores the pre-split hardware: the new halves and the established pair go together"
+    );
+    assert!(
+        undone
+            .document
+            .hardware
+            .as_ref()
+            .is_none_or(|hardware| hardware.pairs.is_empty()),
+        "the established pair is gone"
+    );
+    assert_eq!(
+        accepted_reversible(&runtime),
+        Some(serde_json::json!(true)),
+        "undoing the split leaves the earlier reversible-layout edit intact"
     );
     root.remove();
 }

@@ -12,6 +12,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::mechanical::change::{MechanicalEdit, MechanicalTarget};
+use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
     EditOperation, MechanicalAssembly, MechanicalConfiguration, PartDefinition,
 };
@@ -271,6 +272,7 @@ impl MechanicalSettingsController {
             helper.bind_field(field.key.clone(), field.view.draft, field.view.failure);
         }
         let opening_guard = opening_target_guard(&request.patch, &self.requests.borrow());
+        let reviewed_pair_guard = reviewed_pair_guard(&request.patch, &current.accepted);
         self.requests.borrow_mut().push(SettingsEdit {
             request: request.clone(),
             phase: SettingsPhase::Preparing,
@@ -309,7 +311,12 @@ impl MechanicalSettingsController {
                             {
                                 return Resolution::Retire(reason);
                             }
-                            resolve_mechanical_edit(&intent, &template)
+                            if let Some(guard) = &reviewed_pair_guard
+                                && let Err(reason) = guard.check(accepted)
+                            {
+                                return Resolution::Retire(reason);
+                            }
+                            resolve_mechanical_edit(&intent, &template, accepted)
                         },
                     );
                     if let Some(pending) = owner
@@ -618,6 +625,61 @@ fn opening_target_guard(
     })
 }
 
+/// The reviewed inputs a mechanical pair action was submitted with.
+///
+/// Link and rejoin review a proposed result before the user commits it. The
+/// fingerprint of the inputs that result depends on is captured here, at review
+/// time, and recomputed from the accepted document when Session resolves the
+/// submission. A different fingerprint means a relevant input changed since the
+/// review, so the queued action retires and the user reviews the refreshed result;
+/// unrelated edits and revision changes leave it valid. A target that already
+/// vanished has no fingerprint, which also retires.
+struct ReviewedPairGuard {
+    change: MechanicalSettingsPatch,
+    reviewed: Result<String, String>,
+}
+
+impl ReviewedPairGuard {
+    fn check(&self, accepted: &AcceptedSnapshot) -> Result<(), String> {
+        let current = crate::mechanical_pair::reviewed_fingerprint(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &self.change,
+        );
+        match (&self.reviewed, current) {
+            (Ok(reviewed), Ok(current)) if *reviewed == current => Ok(()),
+            (Ok(_), Ok(_)) => Err(
+                "The reviewed inputs changed since this pair action was submitted; review it again."
+                    .into(),
+            ),
+            (Err(reason), _) => Err(reason.clone()),
+            (Ok(_), Err(reason)) => Err(reason),
+        }
+    }
+}
+
+/// The review guard for a pair action that previews its result, or `None`.
+fn reviewed_pair_guard(
+    patch: &MechanicalSettingsPatch,
+    accepted: &AcceptedSnapshot,
+) -> Option<ReviewedPairGuard> {
+    if !matches!(
+        patch,
+        MechanicalSettingsPatch::RejoinFeatureMember { .. }
+            | MechanicalSettingsPatch::LinkMirrorPair { .. }
+    ) {
+        return None;
+    }
+    Some(ReviewedPairGuard {
+        change: patch.clone(),
+        reviewed: crate::mechanical_pair::reviewed_fingerprint(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            patch,
+        ),
+    })
+}
+
 fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
     matches!(
         patch,
@@ -649,14 +711,18 @@ fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
 ///
 /// Core owns the whole settings vocabulary, defaults, closure-mount initialization,
 /// clearance projection, precise changed ids and the no-op short-circuit. The adapter
-/// therefore submits unconditionally: an equal value is a Core no-op that settles
-/// without a revision step, and a malformed or ineligible target is a Core edit error.
-/// The only local retirement is the opening-target guard in [`MechanicalSettingsController::submit`],
-/// because a removed opening or vertex can no longer be addressed by the request's
-/// positional identity. This is deliberately not a reimplementation of Core's rules.
+/// asks Core's read-only evaluator for the disposition first: `Unchanged` settles
+/// without a request or revision step, and a target that is already gone retires
+/// instead of being redirected at whatever now occupies its place. A malformed value
+/// still reaches Core through the submission, so the user sees the Core error rather
+/// than a silent retirement. The only local retirement besides that is the
+/// opening-target guard in [`MechanicalSettingsController::submit`], because a removed
+/// opening or vertex can no longer be addressed by the request's positional identity.
+/// This is deliberately not a reimplementation of Core's rules.
 fn resolve_mechanical_edit(
     request: &MechanicalSettingsRequest,
     template: &PartDefinition,
+    accepted: &AcceptedSnapshot,
 ) -> Resolution {
     let target = match request.identity.scope.instance_id.as_deref() {
         Some(instance_id) => MechanicalTarget::Instance {
@@ -680,6 +746,14 @@ fn resolve_mechanical_edit(
         .instance_id
         .clone()
         .unwrap_or_else(|| request.identity.active_board_id.clone());
+    match evaluate_edit(&accepted.document, &accepted.scene.board_contours, &edit) {
+        Ok(MechanicalEditDisposition::Unchanged) => return Resolution::Unchanged,
+        Ok(MechanicalEditDisposition::Retire) => {
+            return Resolution::Retire("The mechanical target is no longer available.".into());
+        }
+        // A malformed value stays a Core edit error: submitting lets Core report it.
+        Ok(MechanicalEditDisposition::Changed) | Err(_) => {}
+    }
     Resolution::submit(
         vec![owner_id],
         EditOperation::ApplyMechanicalEdit {
@@ -755,9 +829,24 @@ mod adapter_tests {
     #[derive(Clone, Default)]
     struct TestCatalogue(Rc<RefCell<VecDeque<oneshot::Receiver<Result<(), String>>>>>);
 
+    /// The normalized mounting-hole definition Core validates on every supplied
+    /// template: the `ceoloide/mounting_hole_npth` source with a drilled pad.
     fn template() -> PartDefinition {
         serde_json::from_value(serde_json::json!({
-            "id": "hole", "name": "Hole", "kind": "utility", "courtyard": [], "pads": []
+            "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{
+                "id": "pad-0", "number": "", "at": { "x": 0, "y": 0 },
+                "size": { "x": 2.2, "y": 2.2 }, "shape": "circle", "drill": 2.2,
+                "plated": false, "rotation": 0
+            }],
+            "courtyard": [
+                { "x": -1.1, "y": -1.1 }, { "x": 1.1, "y": -1.1 },
+                { "x": 1.1, "y": 1.1 }, { "x": -1.1, "y": 1.1 }
+            ],
+            "envelopeSource": { "courtyard": "generated" },
+            "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {} }
         }))
         .unwrap()
     }
@@ -957,13 +1046,22 @@ mod adapter_tests {
         let identity = current.identity.clone();
         let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-        assert!(controller.submit(request(identity, 1, MechanicalSettingsPatch::Enable)));
+        // A value that really changes so the evaluator admits the submission; the
+        // target and owner reporting are what this test covers.
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )));
         loaded().await;
 
         let resolutions = port.resolutions.borrow();
         let resolution = resolutions[0].resolve(&accepted);
         let Resolution::Submit(command) = resolution else {
-            panic!("expected a submission");
+            panic!("expected a submission, got {resolution:?}");
         };
         assert_eq!(command.target_ids, vec!["board".to_owned()]);
         let EditOperation::ApplyMechanicalEdit { edit } = command.operation else {
@@ -979,20 +1077,31 @@ mod adapter_tests {
 
     #[wasm_bindgen_test]
     async fn an_instance_scope_targets_the_instance_and_reports_its_owner() {
-        let (_runtime, accepted) = accepted_fixture("adapter-instance-target").await;
+        let document = pair_fixture_document("adapter-instance-target");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
         let port = RecordingPort::default();
         let feedback = Rc::new(RefCell::new(Vec::new()));
         let current = current(&accepted, Some("left"));
         let identity = current.identity.clone();
         let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-        assert!(controller.submit(request(identity, 1, MechanicalSettingsPatch::Enable)));
+        // A value that really changes on the instance so the evaluator admits it.
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )));
         loaded().await;
 
         let resolutions = port.resolutions.borrow();
         let resolution = resolutions[0].resolve(&accepted);
         let Resolution::Submit(command) = resolution else {
-            panic!("expected a submission");
+            panic!("expected a submission, got {resolution:?}");
         };
         assert_eq!(command.target_ids, vec!["left".to_owned()]);
         let EditOperation::ApplyMechanicalEdit { edit } = command.operation else {
@@ -1004,6 +1113,160 @@ mod adapter_tests {
                 instance_id: "left".into()
             }
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_reviewed_link_retires_when_the_source_geometry_it_reviewed_changed() {
+        let mut document = pair_fixture_document("adapter-reviewed-link");
+        // The halves are independent: no pair owns them yet.
+        document.hardware.as_mut().unwrap().pairs.clear();
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, Some("left"));
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        let link = MechanicalSettingsPatch::LinkMirrorPair {
+            pair_id: "pair-new".into(),
+            members: ["left".into(), "right".into()],
+            mapping: boardstudio_core::model::Pose2 {
+                at: boardstudio_core::model::Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![
+                boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                    kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                },
+            ],
+        };
+        assert!(controller.submit(request(identity, 1, link.clone())));
+        loaded().await;
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        let resolver = resolutions[0].clone();
+        let edit = submitted_edit(&resolver, &accepted);
+        assert_eq!(edit.change, link);
+
+        // Unrelated edits and a revision change keep the reviewed link valid.
+        let mut unrelated = (*accepted.document).clone();
+        unrelated.name = "Renamed".into();
+        unrelated.revision += 2;
+        let unrelated = AcceptedSnapshot {
+            document: std::sync::Arc::new(unrelated),
+            ..accepted.clone()
+        };
+        assert!(
+            matches!(resolver.resolve(&unrelated), Resolution::Submit(_)),
+            "unrelated edits must not retire a reviewed link"
+        );
+
+        // Moving the source geometry the review chose retires it for a fresh review.
+        let mut moved = (*accepted.document).clone();
+        moved.hardware.as_mut().unwrap().instances[0].mechanical = Some({
+            let mut configuration = accepted.document.mechanical.clone().unwrap();
+            configuration.board_id = "board".into();
+            configuration.mounts = vec![boardstudio_core::model::Mount {
+                id: "mount-1-left".into(),
+                at: boardstudio_core::model::Vec2 { x: 9.0, y: 1.0 },
+                kind: boardstudio_core::model::MountKind::Hole,
+                hole_diameter: 2.2,
+                boss_diameter: None,
+                height: None,
+            }];
+            configuration
+        });
+        let moved = AcceptedSnapshot {
+            document: std::sync::Arc::new(moved),
+            ..accepted.clone()
+        };
+        let resolution = resolver.resolve(&moved);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a moved source feature must retire the reviewed link, got {resolution:?}");
+        };
+        assert!(reason.contains("reviewed inputs changed"), "{reason}");
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_unchanged_value_settles_without_submitting_again() {
+        let (_runtime, accepted) = accepted_fixture("adapter-unchanged").await;
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, None);
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+        let wall_thickness = accepted
+            .document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .wall_thickness;
+
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: wall_thickness,
+            },
+        )));
+        loaded().await;
+
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        assert!(
+            matches!(resolutions[0].resolve(&accepted), Resolution::Unchanged),
+            "Core's evaluator reports an equal value as Unchanged, so no revision step is needed"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_vanished_mechanical_target_retires_instead_of_redirecting() {
+        let document = pair_fixture_document("adapter-vanished-target");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, Some("left"));
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )));
+        loaded().await;
+
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        let resolution = resolutions[0].resolve(&accepted);
+        assert!(
+            matches!(resolution, Resolution::Submit(_)),
+            "a present instance still submits to Core, got {resolution:?}"
+        );
+
+        // The queued intent was authored against an instance that is now gone.
+        let mut gone = (*accepted.document).clone();
+        gone.hardware.as_mut().unwrap().instances.clear();
+        let gone = AcceptedSnapshot {
+            document: std::sync::Arc::new(gone),
+            ..accepted.clone()
+        };
+        let resolution = resolutions[0].resolve(&gone);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a vanished target must retire rather than redirect, got {resolution:?}");
+        };
+        assert!(reason.contains("no longer available"), "{reason}");
     }
 
     #[wasm_bindgen_test]
@@ -1200,6 +1463,176 @@ mod adapter_tests {
             },
             "the queued edit must keep its own opening id, not the shifted index"
         );
+    }
+
+    /// A fixture half pair whose linked mount is authored on the left half.
+    fn pair_fixture_document(project_id: &str) -> ProjectDoc {
+        use boardstudio_core::mechanical::features::shared_construction;
+        use boardstudio_core::model::{
+            HardwareConfiguration, HardwareTopology, HardwareTransport,
+            MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureKind,
+            MechanicalFeatureMember, MechanicalFeatureState, MechanicalFeatureValue,
+            MechanicalMirrorPair, Mount, MountKind, PhysicalBoardInstance, Pose2, Vec2,
+        };
+        let mut document = fixture_document(project_id);
+        let mut configuration = document
+            .mechanical
+            .clone()
+            .expect("the adapter fixture has a canonical configuration");
+        let local_mount = |id: &str, x: f64| Mount {
+            id: id.into(),
+            at: Vec2 { x, y: 3.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        };
+        configuration.mounts = vec![
+            local_mount("mount-1-left", 2.0),
+            local_mount("mount-1-right", -2.0),
+        ];
+        let configuration = configuration;
+        let instance = |id: &str, half: &str, flipped: bool| PhysicalBoardInstance {
+            id: id.into(),
+            name: id.into(),
+            board_id: "board".into(),
+            half: half.into(),
+            role: "custom-role".into(),
+            flipped,
+            controller_part_id: None,
+            // A member's own configuration is the base the pair derives from, so a
+            // resolved effective read needs it before linking.
+            mechanical: Some(configuration.clone()),
+            construction_ownership: MechanicalConstructionOwnership::Local,
+        };
+        let mount = |id: &str, x: f64| Mount {
+            id: id.into(),
+            at: Vec2 { x, y: 3.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        };
+        let pair = MechanicalMirrorPair {
+            id: "pair-1".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            construction: shared_construction(&configuration),
+            features: vec![MechanicalFeature {
+                id: "mount-1".into(),
+                kind: MechanicalFeatureKind::Mount,
+                author: "left".into(),
+                value: MechanicalFeatureValue::Mount {
+                    mount: mount("mount-1-left", 2.0),
+                },
+                members: vec![
+                    MechanicalFeatureMember {
+                        instance_id: "left".into(),
+                        feature_id: "mount-1-left".into(),
+                        state: MechanicalFeatureState::Local,
+                    },
+                    MechanicalFeatureMember {
+                        instance_id: "right".into(),
+                        feature_id: "mount-1-right".into(),
+                        state: MechanicalFeatureState::Linked,
+                    },
+                ],
+            }],
+        };
+        document.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport: HardwareTransport::None,
+            instances: vec![
+                instance("left", "left", false),
+                instance("right", "right", true),
+            ],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![pair],
+        });
+        document
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_reviewed_rejoin_tolerates_unrelated_edits_and_retires_on_relevant_ones() {
+        let document = pair_fixture_document("adapter-reviewed-rejoin");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, Some("left"));
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        let rejoin = MechanicalSettingsPatch::RejoinFeatureMember {
+            feature_id: "mount-1-left".into(),
+            instance_id: "left".into(),
+            source_instance_id: "right".into(),
+        };
+        assert!(controller.submit(request(identity, 1, rejoin.clone())));
+        loaded().await;
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1, "the reviewed rejoin is submitted");
+        let resolver = resolutions[0].clone();
+
+        // Unrelated edits and a revision change keep the reviewed inputs valid.
+        let mut unrelated = (*accepted.document).clone();
+        unrelated.name = "Renamed".into();
+        unrelated.revision += 5;
+        unrelated
+            .parameters
+            .insert("unrelated".into(), serde_json::json!("keep"));
+        let unrelated = AcceptedSnapshot {
+            document: std::sync::Arc::new(unrelated),
+            ..accepted.clone()
+        };
+        let resolution = resolver.resolve(&unrelated);
+        assert!(
+            matches!(resolution, Resolution::Submit(_)),
+            "unrelated edits must not retire a reviewed rejoin, got {resolution:?}"
+        );
+
+        // A changed mapping is a relevant input: the review must be refreshed.
+        let mut remapped = (*accepted.document).clone();
+        remapped.hardware.as_mut().unwrap().pairs[0]
+            .mapping
+            .rotation = 90.0;
+        let remapped = AcceptedSnapshot {
+            document: std::sync::Arc::new(remapped),
+            ..accepted.clone()
+        };
+        let resolution = resolver.resolve(&remapped);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a changed mapping must retire the review, got {resolution:?}");
+        };
+        assert!(reason.contains("reviewed inputs changed"), "{reason}");
+
+        // A pair that is gone retires: the queued action can no longer be reviewed.
+        let mut removed = (*accepted.document).clone();
+        removed.hardware.as_mut().unwrap().pairs.clear();
+        let removed = AcceptedSnapshot {
+            document: std::sync::Arc::new(removed),
+            ..accepted.clone()
+        };
+        let resolution = resolver.resolve(&removed);
+        assert!(
+            matches!(resolution, Resolution::Retire(_)),
+            "a vanished pair retires the queued rejoin, got {resolution:?}"
+        );
+
+        // The reviewed submission still targets the instance and carries the change.
+        let edit = submitted_edit(&resolver, &accepted);
+        assert_eq!(
+            edit.target,
+            MechanicalTarget::Instance {
+                instance_id: "left".into()
+            }
+        );
+        assert_eq!(edit.change, rejoin);
     }
 
     #[wasm_bindgen_test]

@@ -33,8 +33,28 @@ struct Hole {
 /// footprint data are retained while the generator parameters and pad drill
 /// dimensions are updated to the projected diameter.
 pub fn project_owned_closure_clearance(
-    mut document: ProjectDoc,
+    document: ProjectDoc,
     mounting_hole: &PartDefinition,
+) -> Result<ProjectDoc, String> {
+    project_with_optional_template(document, Some(mounting_hole))
+}
+
+/// Rebuilds the projection, optionally without a catalogue template.
+///
+/// Removing or re-deriving generated holes needs no template when no hole must be
+/// created or updated; only a non-empty hole set requires the normalized entry.
+/// The public [`project_owned_closure_clearance`] keeps its template argument so
+/// existing adapters are unchanged.
+pub(crate) fn project_owned_closure_clearance_with_optional_template(
+    document: ProjectDoc,
+    mounting_hole: Option<&PartDefinition>,
+) -> Result<ProjectDoc, String> {
+    project_with_optional_template(document, mounting_hole)
+}
+
+fn project_with_optional_template(
+    mut document: ProjectDoc,
+    mounting_hole: Option<&PartDefinition>,
 ) -> Result<ProjectDoc, String> {
     let old_part_ids: HashSet<String> = document
         .parts
@@ -86,15 +106,35 @@ pub fn project_owned_closure_clearance(
     if let Some(hardware) = document.hardware.as_ref() {
         for instance in &hardware.instances {
             if let Some(configuration) = instance.mechanical.as_ref() {
-                add_configuration(configuration, instance.flipped);
+                // A linked closure mount is owned by its pair rather than stored on
+                // the half, so the generated holes are derived from the half's
+                // visible geometry, not only its ordinary configuration.
+                let configuration = super::inputs::project_linked_features(
+                    hardware,
+                    instance,
+                    configuration.clone(),
+                )
+                .unwrap_or_else(|_| configuration.clone());
+                add_configuration(&configuration, instance.flipped);
             }
         }
     }
 
-    let definitions = holes
-        .iter()
-        .map(|hole| normalized_mounting_hole(mounting_hole, hole))
-        .collect::<Vec<_>>();
+    let definitions = match mounting_hole {
+        Some(template) => holes
+            .iter()
+            .map(|hole| normalized_mounting_hole(template, hole))
+            .collect::<Vec<_>>(),
+        // No mounted holes means nothing to create or update; the old generated
+        // parts and definitions are still removed below.
+        None if holes.is_empty() => Vec::new(),
+        None => {
+            return Err(
+                "A normalized mounting-hole definition is required to project the generated closure clearance."
+                    .into(),
+            );
+        }
+    };
     let next_reference = next_mounting_hole_reference(&document.parts, &old_part_ids, holes.len())?;
     let first_reference = next_reference.unwrap_or_default();
     let parts = holes

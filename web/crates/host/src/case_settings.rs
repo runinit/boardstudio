@@ -1,16 +1,14 @@
 //! Defaults for supported mechanical presets.
-use boardstudio_core::model::{
-    Board, MechanicalConfiguration, MechanicalSwitchFamily, Part, PartDefinition, PlateMethod,
-    ProjectDoc,
-};
+use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
+use boardstudio_core::model::{MechanicalConfiguration, ProjectDoc};
 
-/// Existing configuration keeps all extension settings; a new board uses reference defaults.
+/// The board's mechanical configuration: its stored canonical settings, or Core's
+/// reference defaults when the board has none.
 ///
-/// The numeric defaults (plate thickness, mounting datum, plate-foam thickness and
-/// the standard layer processes/materials) come from Core's public mechanical
-/// helpers, so this adapter only assembles a fresh configuration. Core's canonical
-/// full builder, `mechanical::edit::default_configuration`, is private; exposing it
-/// would let this function disappear entirely.
+/// Core owns the defaults, the switch-family inference and the standard layer
+/// processes; this adapter reads them through the approved effective-input path, so
+/// there is exactly one implementation of each default. A stored configuration is
+/// returned exactly as accepted, as before.
 pub fn initial_settings(
     document: &ProjectDoc,
     board_id: &str,
@@ -22,101 +20,16 @@ pub fn initial_settings(
     {
         return Ok(config.clone());
     }
-    let board = document
-        .boards
-        .iter()
-        .find(|b| b.id == board_id)
-        .ok_or("Board is unavailable")?;
-    let family = inferred_family(document, board);
-    let plate_thickness = boardstudio_core::mechanical::default_plate_thickness(family);
-    let plate_to_pcb = boardstudio_core::mechanical::mounting_datum(family) - plate_thickness;
-    let plate_foam_thickness =
-        boardstudio_core::mechanical::default_plate_foam_thickness(plate_to_pcb);
-    let pcb_thickness = if board.thickness.is_finite() && board.thickness > 0.0 {
-        board.thickness
-    } else {
-        1.6
-    };
-    let bottom_foam_thickness = 2.0;
-    let bottom_thickness = 3.0;
-    let processes: Vec<_> = [
-        ("plate", plate_thickness),
-        ("plate-foam", plate_foam_thickness),
-        ("bottom-foam", bottom_foam_thickness),
-        ("bottom", bottom_thickness),
-    ]
-    .into_iter()
-    .map(|(id, thickness)| {
-        boardstudio_core::mechanical::default_layer_process(id, PlateMethod::Printed, thickness)
-    })
-    .collect();
-    serde_json::from_value(serde_json::json!({
-        "boardId":board_id,"method":"printed","mount":"tray","integratedPlateFrame":false,
-        "bottomStyle":"shell","middleFrame":false,"plateThickness":plate_thickness,"plateFoamThickness":plate_foam_thickness,
-        "pcbThickness":pcb_thickness,"bottomFoamThickness":bottom_foam_thickness,"batteryHeight":0.0,"bottomThickness":bottom_thickness,
-        "plateToPcb":plate_to_pcb,"wallThickness":2.0,"clearance":0.3,"mounts":[],"partProcesses":processes,"profiles":[]
-    }))
-    .map_err(|error| error.to_string())
-}
-
-/// The board's shared switch family, or MX when the placed switches disagree.
-fn inferred_family(document: &ProjectDoc, board: &Board) -> MechanicalSwitchFamily {
-    let families: Vec<_> = document
-        .parts
-        .iter()
-        .filter(|part| board.part_ids.contains(&part.id))
-        .filter_map(|part| {
-            let definition = document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id)?;
-            is_switch_position(definition, part).then_some(switch_family(definition, part))
-        })
-        .collect();
-    families
-        .first()
-        .copied()
-        .flatten()
-        .filter(|family| families.iter().all(|candidate| *candidate == Some(*family)))
-        .unwrap_or(MechanicalSwitchFamily::Mx)
-}
-
-fn is_switch_position(definition: &PartDefinition, part: &Part) -> bool {
-    matches!(definition.kind, boardstudio_core::model::PartKind::Switch)
-        || switch_family(definition, part).is_some()
-        || definition
-            .generator
-            .as_ref()
-            .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2"))
-}
-
-fn switch_family(definition: &PartDefinition, part: &Part) -> Option<MechanicalSwitchFamily> {
-    let generator = definition.generator.as_ref()?;
-    let source = generator.source.to_lowercase();
-    if source == "ceoloide/switch_mx" {
-        return Some(MechanicalSwitchFamily::Mx);
-    }
-    if !source.ends_with("/switch_choc_v1_v2") {
-        return None;
-    }
-    let enabled = |name: &str| {
-        let value = part
-            .generator_parameters
-            .as_ref()
-            .and_then(|p| p.get(name))
-            .or_else(|| generator.parameters.get(name));
-        value
-            .and_then(|v| {
-                v.as_bool()
-                    .or_else(|| v.get("value").and_then(serde_json::Value::as_bool))
-            })
-            .unwrap_or(true)
-    };
-    match (enabled("choc_v1_support"), enabled("choc_v2_support")) {
-        (true, false) => Some(MechanicalSwitchFamily::ChocV1),
-        (false, true) => Some(MechanicalSwitchFamily::ChocV2),
-        _ => None,
-    }
+    // The accepted contour projection is not an input to a defaulted board
+    // configuration, so this read passes none.
+    effective_inputs(
+        document,
+        &[],
+        &MechanicalTarget::Board {
+            board_id: board_id.to_owned(),
+        },
+    )
+    .map(|inputs| inputs.configuration)
 }
 
 /// Keep the standard process overrides in sync, matching MechanicalAssemblyPanel.update.
@@ -134,4 +47,104 @@ pub fn update_bottom_thickness(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_core::model::{Board, PlateMethod};
+
+    fn board(id: &str, thickness: f64) -> Board {
+        Board {
+            id: id.into(),
+            name: id.into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness,
+            traces: vec![],
+            vias: vec![],
+        }
+    }
+
+    fn document(board: Board) -> ProjectDoc {
+        let mut document = ProjectDoc::empty("project", "Fixture");
+        document.boards.push(board);
+        document
+    }
+
+    #[test]
+    fn a_fresh_board_takes_the_core_owned_reference_defaults() {
+        let settings = initial_settings(&document(board("board", 1.6)), "board")
+            .expect("a fresh board resolves its defaults");
+        assert_eq!(settings.board_id, "board");
+        assert_eq!(settings.method, PlateMethod::Printed);
+        assert_eq!(
+            settings.mount,
+            boardstudio_core::model::MechanicalMount::Tray
+        );
+        assert!(!settings.integrated_plate_frame);
+        assert_eq!(settings.plate_thickness, 1.5);
+        assert_eq!(settings.plate_to_pcb, 3.5);
+        assert_eq!(settings.plate_foam_thickness, 3.0);
+        assert_eq!(settings.pcb_thickness, 1.6);
+        assert_eq!(settings.bottom_foam_thickness, 2.0);
+        assert_eq!(settings.bottom_thickness, 3.0);
+        assert_eq!(settings.wall_thickness, 2.0);
+        assert_eq!(settings.clearance, 0.3);
+        assert_eq!(
+            settings.bottom_style,
+            Some(boardstudio_core::model::MechanicalBottomStyle::Shell)
+        );
+        assert_eq!(settings.middle_frame, Some(false));
+        assert!(settings.mounts.is_empty());
+        assert!(settings.profiles.is_empty());
+        let processes = settings
+            .part_processes
+            .expect("the layer processes are set");
+        assert_eq!(
+            processes
+                .iter()
+                .map(|process| process.part_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["plate", "plate-foam", "bottom-foam", "bottom"]
+        );
+        assert_eq!(processes[0].method, PlateMethod::Printed);
+        assert_eq!(
+            processes[1].method,
+            PlateMethod::CutSheet,
+            "the foam layers use the Core-owned cut-sheet default"
+        );
+    }
+
+    #[test]
+    fn the_defaulted_pcb_thickness_follows_the_board_with_a_fallback() {
+        let thick = initial_settings(&document(board("board", 2.4)), "board").unwrap();
+        assert_eq!(thick.pcb_thickness, 2.4);
+        let missing = initial_settings(&document(board("board", 0.0)), "board").unwrap();
+        assert_eq!(missing.pcb_thickness, 1.6);
+    }
+
+    #[test]
+    fn a_stored_configuration_is_returned_exactly_as_accepted() {
+        let mut doc = document(board("board", 1.6));
+        let mut stored = initial_settings(&doc, "board").unwrap();
+        stored.wall_thickness = 2.9;
+        stored.plate_thickness = 1.9;
+        stored.mounts = vec![boardstudio_core::model::Mount {
+            id: "mount-1".into(),
+            at: boardstudio_core::model::Vec2 { x: 1.0, y: 2.0 },
+            kind: boardstudio_core::model::MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        }];
+        doc.mechanical = Some(stored.clone());
+        assert_eq!(initial_settings(&doc, "board").unwrap(), stored);
+    }
+
+    #[test]
+    fn an_unknown_board_has_no_defaults() {
+        assert!(initial_settings(&document(board("board", 1.6)), "missing").is_err());
+    }
 }

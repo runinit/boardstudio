@@ -352,6 +352,32 @@ pub async fn prepare_physical_setup_proposal_from_package(
     prepare_physical_setup_proposal(accepted, intent)
 }
 
+/// Prepare a pair-aware setup proposal through catalogue-owned helpers.
+///
+/// The document-only [`prepare_physical_setup_proposal`] stays the view for callers
+/// that never establish a pair; the physical-setup caller uses this one so an
+/// eligible mirror pair is not discarded, and applies it through Core's typed
+/// mechanical operation when Session executes the intent.
+pub fn prepare_physical_setup_proposal_with_pair(
+    accepted: &ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+) -> Result<crate::physical_setup::PhysicalSetupProposal, String> {
+    use crate::physical_setup::SetupIntent;
+
+    match intent {
+        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose_with_mirror_pair(
+            accepted,
+            SetupIntent::ReversibleLayout(enabled),
+            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
+        ),
+        intent => {
+            crate::physical_setup::propose_with_mirror_pair(accepted, intent, |definition, _| {
+                Ok((definition.clone(), false))
+            })
+        }
+    }
+}
+
 #[cfg(all(test, target_arch = "wasm32"))]
 mod generator_tests {
     use super::*;
