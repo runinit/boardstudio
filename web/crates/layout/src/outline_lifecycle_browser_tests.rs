@@ -1308,7 +1308,7 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
 
 mod queued_actions {
     use super::*;
-    use crate::outline::{OutlineAction, action_resolver};
+    use crate::outline::{OutlineAction, action_resolver, adapter};
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{
         BoardOutline, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
@@ -1428,11 +1428,19 @@ mod queued_actions {
         action: OutlineAction,
         seed: u64,
     ) -> EditTicket {
+        // Build the one typed edit the way the panel does, then settle it through the
+        // same resolver production uses.
+        let edit = {
+            let model = runtime.model();
+            let snapshot = model.accepted.as_ref().expect("an accepted document");
+            adapter::outline_edit(snapshot, &action, seed)
+                .expect("the queued action maps to one typed outline edit")
+        };
         EditTicket::begin(
             runtime,
             "layout-outline",
             Some("outline".into()),
-            action_resolver(action, seed, String::new()),
+            action_resolver(edit, action, String::new()),
         )
     }
 

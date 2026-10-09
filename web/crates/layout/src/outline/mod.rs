@@ -1,5 +1,6 @@
 //! Outline lifecycle planning and presentation.
 
+pub mod adapter;
 pub mod planner;
 
 #[cfg(target_arch = "wasm32")]
@@ -26,6 +27,9 @@ pub use planner::{OutlineAction, OutlinePointTarget};
 pub(crate) use crate::{coordinates, keycaps_fit, objects, selection};
 
 #[cfg(all(test, target_arch = "wasm32"))]
+#[allow(unused_imports)] // The included browser suite builds typed edits through the adapter.
+use adapter::outline_edit;
+#[cfg(all(test, target_arch = "wasm32"))]
 use hook::{OutlineActionContext, action_resolver, editable_perimeter};
 #[cfg(all(test, target_arch = "wasm32"))]
 use overlays::{OutlineCoordinate, OutlineDimension};
@@ -36,10 +40,11 @@ use planner::{move_connection_point, unique_outline_entity_id, unique_outline_ve
 #[allow(unused_imports)] // The included browser suite imports these through `super::*`.
 use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 #[cfg(all(test, target_arch = "wasm32"))]
+#[allow(unused_imports)] // The included browser suite imports the settings intent vocabulary.
+use crate::outline_settings::OutlineEdit;
+#[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports these through `super::*`.
-use crate::outline_settings::{
-    OutlineEdit, apply_outline_edit, generated_feature, generated_margin, generated_settings,
-};
+use crate::outline_settings::{generated_feature, generated_margin, generated_settings};
 #[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports this through `super::*`.
 use crate::runtime::Runtime;

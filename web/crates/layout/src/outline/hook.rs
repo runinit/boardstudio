@@ -1,7 +1,8 @@
 //! Runtime and Dioxus adapter for outline lifecycle actions.
 
+use super::adapter;
 use super::planner::{EditablePerimeter, PerimeterAnchor, connection_point_world};
-use super::planner::{OutlineAction, OutlinePointTarget, Skip, plan_action};
+use super::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{
     OutlineEdit, generated_feature, generated_margin, generated_settings,
 };
@@ -10,7 +11,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    Contour, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
+    Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
@@ -970,6 +971,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     let mut feedback = state.feedback;
     let one_shot_pending = state.one_shot_pending;
     let version_name_draft = state.version_name_draft;
+    let mut version_name_failure = state.version_name_failure;
     let mut selected_context = selected_context;
     let workspace = state.workspace;
     let scope_generation = state.scope_generation;
@@ -1067,14 +1069,75 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         return;
     }
     let seed = runtime.operation().0;
-    // Admission at dispatch: an action the panel's snapshot cannot support is ignored early,
-    // exactly as before. The resolver plans again against whatever is accepted at execution.
-    if plan_action(snapshot, &action, seed).is_err() {
+    // Creating the Generated envelope has no typed Core change yet (reported to the
+    // parent); it keeps its existing single landing path until Core names it.
+    if let OutlineAction::Update {
+        edit: crate::outline_settings::OutlineEdit::CreateAutomatic,
+        ..
+    } = &action
+    {
+        let pending_key = action_pending_key(&action);
+        if one_shot_pending() {
+            return;
+        }
+        let board_id = board_id.clone();
+        let resolver = EditResolver::new("layout-outline", move |accepted: &AcceptedSnapshot| {
+            match crate::outline_settings::create_generated_outline(
+                accepted.document.as_ref(),
+                &board_id,
+                boardstudio_application::OperationId(seed),
+            ) {
+                Some(operation) => Resolution::submit(vec![board_id.clone()], operation),
+                None => Resolution::Unchanged,
+            }
+        });
+        pending_owner.set(outline_owner(
+            runtime,
+            selected_context.read().clone(),
+            captured_generation,
+        ));
+        pending.begin_one_shot(
+            runtime,
+            pending_key,
+            "layout-outline",
+            Some("outline".into()),
+            resolver,
+        );
         return;
     }
+    // Admission at dispatch: an action the panel's snapshot cannot support is ignored early,
+    // exactly as before. The typed edit is captured here with the shape the user reviewed,
+    // and the resolver re-evaluates it against whatever is accepted at execution.
     let pending_key = action_pending_key(&action);
-    let one_shot = matches!(&pending_key, OutlinePendingKey::OneShot);
     let is_version_name = matches!(&pending_key, OutlinePendingKey::VersionName);
+    let Some(edit) = adapter::outline_edit(snapshot, &action, seed) else {
+        return;
+    };
+    let admission = adapter::admission(snapshot, &edit);
+    if admission == adapter::Admission::Ignore {
+        return;
+    }
+    if admission == adapter::Admission::Malformed {
+        // Core owns the message; surface it rather than queueing a ticket that can only
+        // fail. A malformed edit leaves the accepted document untouched.
+        let message =
+            match boardstudio_core::outline_edit::evaluate(snapshot.document.as_ref(), &edit) {
+                Err(message) => message,
+                Ok(_) => unreachable!("a malformed admission evaluates to an error"),
+            };
+        if is_version_name {
+            version_name_failure.set(Some(message));
+        } else {
+            feedback.set(Some(OutlineFeedback {
+                scope: action_scope.clone(),
+                generation: captured_generation,
+                board_id: board_id.clone(),
+                message: Some(message),
+            }));
+        }
+        return;
+    }
+    let one_shot = matches!(&pending_key, OutlinePendingKey::OneShot);
     if one_shot && one_shot_pending() {
         return;
     }
@@ -1092,14 +1155,13 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         ..
     } = &action
     {
-        let Ok((operation, target_ids)) = plan_action(snapshot, &action, seed) else {
-            return;
-        };
         runtime.submit(Event::PreviewEdit {
             operation_id: runtime.operation(),
             transaction_id: transaction_id.clone(),
-            target_ids,
-            operation,
+            target_ids: adapter::target_ids(&action),
+            operation: EditOperation::ApplyOutlineEdit {
+                edit: Box::new(edit),
+            },
         });
         return;
     }
@@ -1107,7 +1169,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
         OutlineAction::EditPerimeter { transaction_id, .. } => transaction_id.clone(),
         _ => String::new(),
     };
-    let resolver = action_resolver(action.clone(), seed, transaction_id);
+    let resolver = action_resolver(edit, action.clone(), transaction_id);
     feedback.set(None);
     pending_owner.set(outline_owner(
         runtime,
@@ -1275,24 +1337,15 @@ fn connection_edit_field(
     OutlineFeatureField::Whole
 }
 
-/// Resolve one outline action against the accepted document at execution time.
+/// Resolve one captured typed outline edit against the accepted document at execution.
 pub(super) fn action_resolver(
+    edit: boardstudio_core::outline_edit::OutlineEdit,
     action: OutlineAction,
-    seed: u64,
     transaction_id: String,
 ) -> EditResolver {
-    EditResolver::new(
-        "layout-outline",
-        move |accepted: &AcceptedSnapshot| match plan_action(accepted, &action, seed) {
-            Ok((operation, target_ids)) => Resolution::submit_with_transaction_id(
-                target_ids,
-                transaction_id.clone(),
-                operation,
-            ),
-            Err(Skip::Unchanged) => Resolution::Unchanged,
-            Err(Skip::Retire(reason)) => Resolution::Retire(reason),
-        },
-    )
+    EditResolver::new("layout-outline", move |accepted: &AcceptedSnapshot| {
+        adapter::settle(accepted, &edit, &action, transaction_id.clone())
+    })
 }
 impl OutlineInspectorProjection {
     pub(super) fn copy_action(&self) -> OutlineAction {
