@@ -1116,6 +1116,83 @@ mod adapter_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn a_reviewed_link_retires_when_the_source_geometry_it_reviewed_changed() {
+        let mut document = pair_fixture_document("adapter-reviewed-link");
+        // The halves are independent: no pair owns them yet.
+        document.hardware.as_mut().unwrap().pairs.clear();
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, Some("left"));
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        let link = MechanicalSettingsPatch::LinkMirrorPair {
+            pair_id: "pair-new".into(),
+            members: ["left".into(), "right".into()],
+            mapping: boardstudio_core::model::Pose2 {
+                at: boardstudio_core::model::Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![
+                boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                    kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                },
+            ],
+        };
+        assert!(controller.submit(request(identity, 1, link.clone())));
+        loaded().await;
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        let resolver = resolutions[0].clone();
+        let edit = submitted_edit(&resolver, &accepted);
+        assert_eq!(edit.change, link);
+
+        // Unrelated edits and a revision change keep the reviewed link valid.
+        let mut unrelated = (*accepted.document).clone();
+        unrelated.name = "Renamed".into();
+        unrelated.revision += 2;
+        let unrelated = AcceptedSnapshot {
+            document: std::sync::Arc::new(unrelated),
+            ..accepted.clone()
+        };
+        assert!(
+            matches!(resolver.resolve(&unrelated), Resolution::Submit(_)),
+            "unrelated edits must not retire a reviewed link"
+        );
+
+        // Moving the source geometry the review chose retires it for a fresh review.
+        let mut moved = (*accepted.document).clone();
+        moved.hardware.as_mut().unwrap().instances[0].mechanical = Some({
+            let mut configuration = accepted.document.mechanical.clone().unwrap();
+            configuration.board_id = "board".into();
+            configuration.mounts = vec![boardstudio_core::model::Mount {
+                id: "mount-1-left".into(),
+                at: boardstudio_core::model::Vec2 { x: 9.0, y: 1.0 },
+                kind: boardstudio_core::model::MountKind::Hole,
+                hole_diameter: 2.2,
+                boss_diameter: None,
+                height: None,
+            }];
+            configuration
+        });
+        let moved = AcceptedSnapshot {
+            document: std::sync::Arc::new(moved),
+            ..accepted.clone()
+        };
+        let resolution = resolver.resolve(&moved);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a moved source feature must retire the reviewed link, got {resolution:?}");
+        };
+        assert!(reason.contains("reviewed inputs changed"), "{reason}");
+    }
+
+    #[wasm_bindgen_test]
     async fn an_unchanged_value_settles_without_submitting_again() {
         let (_runtime, accepted) = accepted_fixture("adapter-unchanged").await;
         let port = RecordingPort::default();
@@ -1160,7 +1237,14 @@ mod adapter_tests {
         let identity = current.identity.clone();
         let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-        assert!(controller.submit(request(identity, 1, MechanicalSettingsPatch::Enable)));
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )));
         loaded().await;
 
         let resolutions = port.resolutions.borrow();
@@ -1391,20 +1475,35 @@ mod adapter_tests {
             MechanicalMirrorPair, Mount, MountKind, PhysicalBoardInstance, Pose2, Vec2,
         };
         let mut document = fixture_document(project_id);
-        let configuration = document
+        let mut configuration = document
             .mechanical
             .clone()
             .expect("the adapter fixture has a canonical configuration");
-        let instance = |id: &str, half: &str| PhysicalBoardInstance {
+        let local_mount = |id: &str, x: f64| Mount {
+            id: id.into(),
+            at: Vec2 { x, y: 3.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        };
+        configuration.mounts = vec![
+            local_mount("mount-1-left", 2.0),
+            local_mount("mount-1-right", -2.0),
+        ];
+        let configuration = configuration;
+        let instance = |id: &str, half: &str, flipped: bool| PhysicalBoardInstance {
             id: id.into(),
             name: id.into(),
             board_id: "board".into(),
             half: half.into(),
             role: "custom-role".into(),
-            flipped: half == "right",
+            flipped,
             controller_part_id: None,
-            mechanical: None,
-            construction_ownership: MechanicalConstructionOwnership::Pair,
+            // A member's own configuration is the base the pair derives from, so a
+            // resolved effective read needs it before linking.
+            mechanical: Some(configuration.clone()),
+            construction_ownership: MechanicalConstructionOwnership::Local,
         };
         let mount = |id: &str, x: f64| Mount {
             id: id.into(),
@@ -1446,7 +1545,10 @@ mod adapter_tests {
         document.hardware = Some(HardwareConfiguration {
             topology: HardwareTopology::Split,
             transport: HardwareTransport::None,
-            instances: vec![instance("left", "left"), instance("right", "right")],
+            instances: vec![
+                instance("left", "left", false),
+                instance("right", "right", true),
+            ],
             boards: vec![],
             shared_construction: None,
             pairs: vec![pair],
