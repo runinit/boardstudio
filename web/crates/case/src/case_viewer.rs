@@ -2321,6 +2321,7 @@ mod gesture_cancellation_tests {
                     mechanical: None,
                     construction_ownership:
                         boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                    mechanical_identity_reservation: None,
                 })
                 .collect(),
             ..Default::default()

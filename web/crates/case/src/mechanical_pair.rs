@@ -855,6 +855,7 @@ mod tests {
             controller_part_id: None,
             mechanical: Some(configuration(board_id)),
             construction_ownership: MechanicalConstructionOwnership::Pair,
+            mechanical_identity_reservation: None,
         }
     }
 

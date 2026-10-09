@@ -867,6 +867,7 @@ fn make_instance(
         controller_part_id: None,
         mechanical: Some(mechanical),
         construction_ownership: MechanicalConstructionOwnership::Legacy,
+        mechanical_identity_reservation: None,
     }
 }
 
@@ -916,6 +917,7 @@ mod tests {
             controller_part_id: Some(format!("{id}-controller")),
             mechanical: Some(mechanical(doc, 4.2)),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         }
     }
 
@@ -1292,6 +1294,7 @@ mod tests {
             controller_part_id: None,
             mechanical: Some(configuration),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         }
     }
 

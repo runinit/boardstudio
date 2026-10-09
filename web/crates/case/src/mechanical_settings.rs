@@ -558,6 +558,11 @@ impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
             // The removal names its member through the edit target, so this key is the
             // panel's stable identity for the selected half's removal action.
             Self::RemovePhysicalInstance => "remove-physical-instance".to_owned(),
+            // The conversion names its members in the change and acts on the selected
+            // board, so this key is the panel's stable identity for the action.
+            Self::MaterializeLegacyConstruction { .. } => {
+                "materialize-legacy-construction".to_owned()
+            }
         }
     }
 }

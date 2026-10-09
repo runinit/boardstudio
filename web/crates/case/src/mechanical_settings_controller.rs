@@ -719,6 +719,7 @@ fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
             | MechanicalSettingsPatch::AssignStabilizerProfile { .. }
             | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. }
             | MechanicalSettingsPatch::RemovePhysicalInstance
+            | MechanicalSettingsPatch::MaterializeLegacyConstruction { .. }
     )
 }
 
@@ -1707,6 +1708,7 @@ mod adapter_tests {
             // resolved effective read needs it before linking.
             mechanical: Some(configuration.clone()),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         };
         let mount = |id: &str, x: f64| Mount {
             id: id.into(),
