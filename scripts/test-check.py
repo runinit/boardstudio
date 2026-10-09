@@ -88,5 +88,16 @@ class CheckTests(unittest.TestCase):
             self.assertIn(name, output.getvalue())
 
 
+    def test_each_command_and_step_reports_its_wall_time(self):
+        output = io.StringIO()
+        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+                mock.patch.object(check.time, "monotonic", side_effect=[0.0, 2.0, 2.0, 5.0]), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(check.run(["repo"]), 0)
+        text = output.getvalue()
+        self.assertIn("(2.0s)", text)
+        self.assertIn("check: step times: repo 5.0s, total 5.0s", text)
+
+
 if __name__ == "__main__":
     unittest.main()
