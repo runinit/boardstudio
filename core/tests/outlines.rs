@@ -1049,6 +1049,7 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
         board_id: "board".into(),
         active_version_id: Some("fixed".into()),
         generated_last_valid: None,
+        retired_version_ids: vec![],
         versions: vec![OutlineVersion {
             id: "fixed".into(),
             name: "Edited outline".into(),
@@ -1063,6 +1064,7 @@ fn drawing_addition_closes_recess_without_creating_an_incidental_hole() {
                 bridges: vec![],
                 protected_gaps: vec![],
             },
+            ownership: OutlineOwnership::Fixed,
         }],
     }];
     let result = scene(CoreEngine::new().handle(CoreRequest::Open {

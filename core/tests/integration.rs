@@ -67,6 +67,10 @@ mod module_service_clearance;
 mod mounted_modules;
 #[path = "outline_clearance.rs"]
 mod outline_clearance;
+#[path = "outline_ownership.rs"]
+mod outline_ownership;
+#[path = "outline_persistence.rs"]
+mod outline_persistence;
 #[path = "outline_repairs.rs"]
 mod outline_repairs;
 #[path = "outline_versions.rs"]

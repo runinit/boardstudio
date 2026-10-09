@@ -3246,8 +3246,10 @@ fn deleting_matrix_key_detaches_inactive_outline_snapshots_in_world_coordinates(
                         version_id: None,
                     },
                     geometry: snapshot.clone(),
+                    ownership: OutlineOwnership::Fixed,
                 }],
                 generated_last_valid: Some(snapshot),
+                retired_version_ids: vec![],
             });
             engine.handle(CoreRequest::Open {
                 id: "reopen".into(),

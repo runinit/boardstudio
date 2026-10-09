@@ -452,6 +452,7 @@ mod tests {
             board_id: "board".into(),
             active_version_id: Some("fixed".into()),
             generated_last_valid: None,
+            retired_version_ids: vec![],
             versions: vec![boardstudio_core::model::OutlineVersion {
                 id: "fixed".into(),
                 name: "Fixed".into(),
@@ -466,6 +467,7 @@ mod tests {
                     bridges: vec![],
                     protected_gaps: vec![],
                 },
+                ownership: boardstudio_core::model::OutlineOwnership::Fixed,
             }],
         });
         let (operation, _) = apply_outline_edit(

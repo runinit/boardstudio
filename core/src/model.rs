@@ -493,6 +493,14 @@ pub struct BoardOutline {
     pub versions: Vec<OutlineVersion>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generated_last_valid: Option<OutlineSnapshot>,
+    /// Version identities this board used and removed, in removal order.
+    ///
+    /// Core never reissues one, so a pending edit that names a removed version can never
+    /// land on the version created after it. Feature, connection and gap identities are
+    /// namespaced by their version identity, so reserving that identity reserves the
+    /// whole derived namespace. Omitted while empty, which keeps older documents' shape.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retired_version_ids: Vec<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -501,12 +509,35 @@ pub struct OutlineProvenance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version_id: Option<String>,
 }
+/// Who owns a version's boundary shape.
+///
+/// [`OutlineOwnership::Fixed`] is CONTEXT.md's "edited outline": the geometry stays put
+/// when components move. [`OutlineOwnership::Linked`] is an "outline refinement" that
+/// follows the board's current included components. Absence in a persisted document
+/// means fixed, so existing copies never gain a link and their serialized shape is
+/// unchanged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OutlineOwnership {
+    #[default]
+    Fixed,
+    Linked,
+}
+impl OutlineOwnership {
+    /// Serde helper: fixed ownership is the default and is left out of the document.
+    pub fn is_fixed(&self) -> bool {
+        matches!(self, Self::Fixed)
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OutlineVersion {
     pub id: String,
     pub name: String,
     pub source: OutlineProvenance,
     pub geometry: OutlineSnapshot,
+    /// Explicit owner of this version's shape; provenance is origin information only.
+    #[serde(default, skip_serializing_if = "OutlineOwnership::is_fixed")]
+    pub ownership: OutlineOwnership,
 }
 /// Fixed world geometry, before corner finishing; source IDs are provenance only.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
