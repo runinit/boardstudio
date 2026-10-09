@@ -2328,3 +2328,264 @@ fn a_legacy_instance_serializes_without_an_identity_reservation() {
     assert_eq!(stored.next_opening_identity, 4);
     assert_eq!(stored.next_vertex_identity, 7);
 }
+
+/// Compares two points within floating-point tolerance.
+fn assert_close(actual: Vec2, expected: Vec2, label: &str) {
+    assert!(
+        (actual.x - expected.x).abs() < 1e-9 && (actual.y - expected.y).abs() < 1e-9,
+        "{label}: expected {expected:?}, got {actual:?}"
+    );
+}
+
+/// Two halves on distinct boards whose mechanical stack uses discrete gasket supports.
+fn gasket_pair_document() -> (ProjectDoc, Vec<BoardContours>) {
+    let mut document = ProjectDoc::empty("doc", "Fixture");
+    document.boards.push(board("wide"));
+    document.boards.push(board("narrow"));
+    let gasket = |board_id: &str| {
+        let mut configuration = configuration();
+        configuration.board_id = board_id.into();
+        configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
+        configuration.gasket_layout = Some(boardstudio_core::mechanical::default_gasket_layout());
+        configuration
+    };
+    let mut left = mirror_instance_on("left", "wide", vec![]);
+    let mut right = mirror_instance_on("right", "narrow", vec![]);
+    left.mechanical = Some(gasket("wide"));
+    right.mechanical = Some(gasket("narrow"));
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![left, right],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    let accepted = vec![
+        BoardContours {
+            board_id: "wide".into(),
+            contours: vec![rect_contour(200.0, 150.0)],
+        },
+        BoardContours {
+            board_id: "narrow".into(),
+            contours: vec![rect_contour(10.0, 5.0)],
+        },
+    ];
+    (document, accepted)
+}
+
+/// The author's own resolved support, used to state the expected reflection.
+fn author_gasket_support(
+    document: &ProjectDoc,
+    accepted: &[BoardContours],
+    instance_id: &str,
+    board_id: &str,
+) -> boardstudio_core::model::MechanicalGasketSupport {
+    let mut author_document = document.clone();
+    author_document.physical_instance_id = Some(instance_id.into());
+    author_document.mechanical = Some(
+        document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == instance_id)
+            .unwrap()
+            .mechanical
+            .clone()
+            .unwrap(),
+    );
+    let contours = accepted
+        .iter()
+        .find(|entry| entry.board_id == board_id)
+        .unwrap()
+        .contours
+        .clone();
+    let assembly = boardstudio_core::mechanical::resolve(&author_document, &contours);
+    assert!(
+        !assembly.generation_blocked,
+        "the author's assembly resolves: {:?}",
+        assembly.diagnostics
+    );
+    assembly
+        .gasket_supports
+        .first()
+        .cloned()
+        .unwrap_or_else(|| {
+            panic!(
+                "the fixture resolves gasket supports: {:?}",
+                assembly.diagnostics
+            )
+        })
+}
+
+fn anchor_of(
+    support: &boardstudio_core::model::MechanicalGasketSupport,
+) -> boardstudio_core::model::MechanicalGasketAnchor {
+    boardstudio_core::model::MechanicalGasketAnchor {
+        length: None,
+        width: None,
+        placement: Some(boardstudio_core::model::GasketPlacement::User),
+        id: support.id.clone(),
+        region_id: support.region_id.clone(),
+        outline_key: support.outline_key.clone(),
+        anchor: support.anchor,
+        unlinked: false,
+    }
+}
+
+#[test]
+fn a_linked_gasket_support_reflects_the_authors_resolved_placement() {
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::mechanical::features::mirror_support;
+
+    let (mut document, accepted) = gasket_pair_document();
+    let author = author_gasket_support(&document, &accepted, "left", "wide");
+    let anchor = anchor_of(&author);
+    for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
+        instance
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .gasket_layout
+            .as_mut()
+            .unwrap()
+            .supports = vec![anchor.clone()];
+    }
+    link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::GasketSupport,
+            &anchor.id,
+            &anchor.id,
+            Some("left"),
+        )],
+    )
+    .unwrap();
+
+    // The author keeps its own resolved placement; the other half shows the exact
+    // reflection of it, not the same perimeter fraction re-resolved on its own contour.
+    let left = effective_inputs(&document, &accepted, &instance_target("left")).unwrap();
+    assert_eq!(left.gasket_supports.len(), 1);
+    assert_close(
+        left.gasket_supports[0].at,
+        author.at,
+        "the author keeps its placement",
+    );
+    assert!(left.gasket_supports[0].fit_error.is_none());
+
+    let right = effective_inputs(&document, &accepted, &instance_target("right")).unwrap();
+    let expected = mirror_support(
+        Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        &author,
+    );
+    assert_eq!(right.gasket_supports.len(), 1);
+    assert_close(
+        right.gasket_supports[0].at,
+        expected.at,
+        "the reflected placement",
+    );
+    assert_close(
+        right.gasket_supports[0].tangent,
+        expected.tangent,
+        "the reflected tangent",
+    );
+    assert_close(
+        right.gasket_supports[0].normal,
+        expected.normal,
+        "the reflected normal",
+    );
+    assert!(
+        (right.gasket_supports[0].at.x - author.at.x).abs() > 1.0
+            || (right.gasket_supports[0].at.y - author.at.y).abs() > 1.0,
+        "the reflection is not the author's own placement"
+    );
+    assert!(
+        right.gasket_supports[0].fit_error.is_some(),
+        "the narrow board cannot receive the reflected placement, reported rather than moved"
+    );
+    assert_close(
+        right.gasket_supports[0].at,
+        expected.at,
+        "the intended placement is retained even when it does not associate",
+    );
+
+    // A board-scoped read has no pair context and reports no linked supports.
+    let board = effective_inputs(
+        &document,
+        &accepted,
+        &MechanicalTarget::Board {
+            board_id: "wide".into(),
+        },
+    )
+    .unwrap();
+    assert!(board.gasket_supports.is_empty());
+}
+
+#[test]
+fn a_linked_gasket_support_reflects_through_the_inverse_map_for_a_second_member_author() {
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::mechanical::features::{inverse_pose, mirror_support};
+
+    let (mut document, mut accepted) = gasket_pair_document();
+    // The author half resolves on its own accepted outline, so give the second board a
+    // projection that can carry supports as well.
+    accepted[1].contours = vec![rect_contour(200.0, 150.0)];
+    let author = author_gasket_support(&document, &accepted, "right", "narrow");
+    let anchor = anchor_of(&author);
+    for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
+        instance
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .gasket_layout
+            .as_mut()
+            .unwrap()
+            .supports = vec![anchor.clone()];
+    }
+    link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::GasketSupport,
+            &anchor.id,
+            &anchor.id,
+            Some("right"),
+        )],
+    )
+    .unwrap();
+
+    let left = effective_inputs(&document, &accepted, &instance_target("left")).unwrap();
+    let expected = mirror_support(
+        inverse_pose(Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        }),
+        &author,
+    );
+    assert_eq!(left.gasket_supports.len(), 1);
+    assert_close(
+        left.gasket_supports[0].at,
+        expected.at,
+        "the inverse reflection",
+    );
+    assert_close(
+        left.gasket_supports[0].tangent,
+        expected.tangent,
+        "the inverse tangent",
+    );
+    assert_close(
+        left.gasket_supports[0].normal,
+        expected.normal,
+        "the inverse normal",
+    );
+    let right = effective_inputs(&document, &accepted, &instance_target("right")).unwrap();
+    assert_close(
+        right.gasket_supports[0].at,
+        author.at,
+        "the author keeps its placement",
+    );
+}

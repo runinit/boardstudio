@@ -52,6 +52,13 @@ pub struct MechanicalInputs {
     /// The geometry they name is retained as placed; an affected assembly's output is
     /// what blocks, and unrelated boards are unaffected.
     pub findings: Vec<Finding>,
+    /// Pair-linked gasket supports as this target sees them: each one resolved through
+    /// the gasket resolver against its *author's* accepted contours and then reflected
+    /// into this target's frame (placement, tangent and normal), never re-resolved from
+    /// the author's perimeter fraction. `fit_error` is set when the reflected placement
+    /// is not associated with this half's accepted outline; the intended placement is
+    /// still reported, never snapped or moved.
+    pub gasket_supports: Vec<MechanicalGasketSupport>,
 }
 
 /// Resolves the effective mechanical configuration for a board or physical half.
@@ -70,6 +77,17 @@ pub fn effective_inputs(
     document: &ProjectDoc,
     board_contours: &[BoardContours],
     target: &MechanicalTarget,
+) -> Result<MechanicalInputs, String> {
+    effective_inputs_inner(document, board_contours, target, true)
+}
+
+/// Resolves the effective inputs. `resolve_gaskets` is false while resolving an author's
+/// own assembly, which keeps the gasket read path from recursing into itself.
+fn effective_inputs_inner(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+    resolve_gaskets: bool,
 ) -> Result<MechanicalInputs, String> {
     match target {
         MechanicalTarget::Board { board_id } => {
@@ -93,6 +111,7 @@ pub fn effective_inputs(
                 parts: effective_parts(document, board_id, false),
                 board_contours: contours,
                 findings: scoped_pair_findings(document, board_contours, target),
+                gasket_supports: Vec::new(),
             })
         }
         MechanicalTarget::Instance { instance_id } => {
@@ -116,6 +135,11 @@ pub fn effective_inputs(
             let contours = declared_contours(board_contours, &instance.board_id);
             Ok(MechanicalInputs {
                 board_id: instance.board_id.clone(),
+                gasket_supports: if resolve_gaskets {
+                    resolved_pair_gasket_supports(document, board_contours, target, &configuration)?
+                } else {
+                    Vec::new()
+                },
                 configuration,
                 parts: effective_parts(document, &instance.board_id, instance.flipped),
                 board_contours: if instance.flipped {
@@ -127,6 +151,163 @@ pub fn effective_inputs(
             })
         }
     }
+}
+
+/// Pair-linked gasket supports resolved on their author's contours and reflected here.
+///
+/// The author's own assembly is resolved against the author's accepted contours (its
+/// configuration is read without the gasket projection, so this cannot recurse), and the
+/// resolved placement, tangent and normal are mirrored through the pair map - the forward
+/// map when the first member authors, its exact inverse when the second does. The
+/// reflected placement is then associated with this half's own accepted outline: when the
+/// destination contour cannot receive it, `fit_error` records that instead of snapping or
+/// moving the geometry.
+fn resolved_pair_gasket_supports(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+    configuration: &MechanicalConfiguration,
+) -> Result<Vec<MechanicalGasketSupport>, String> {
+    let MechanicalTarget::Instance { instance_id } = target else {
+        return Ok(Vec::new());
+    };
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let Some(pair) = owning_pair(hardware, instance_id) else {
+        return Ok(Vec::new());
+    };
+    if !pair
+        .features
+        .iter()
+        .any(|feature| feature.kind == MechanicalFeatureKind::GasketSupport)
+    {
+        return Ok(Vec::new());
+    }
+    let Some(instance) = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == *instance_id)
+    else {
+        return Ok(Vec::new());
+    };
+    // A support sits on the case's expanded perimeter, not on the bare board outline,
+    // so association allows for this half's wall and clearance.
+    let destination = match crate::mechanical::expanded_outline(
+        &destination_contours(board_contours, instance),
+        configuration.clearance.max(0.0) + configuration.wall_thickness.max(0.0),
+        document.revision,
+    ) {
+        Ok(expanded) => expanded,
+        Err(_) => destination_contours(board_contours, instance),
+    };
+    let mut resolved = Vec::new();
+    for feature in &pair.features {
+        if feature.kind != MechanicalFeatureKind::GasketSupport {
+            continue;
+        }
+        let Some(member) = feature
+            .members
+            .iter()
+            .find(|member| member.instance_id == *instance_id)
+        else {
+            continue;
+        };
+        if member.state != MechanicalFeatureState::Linked {
+            continue;
+        }
+        let Some(author_support) =
+            author_resolved_gasket_support(document, board_contours, feature)?
+        else {
+            continue;
+        };
+        let mut support = if feature.author == *instance_id {
+            author_support
+        } else {
+            let mapping = if pair
+                .members
+                .first()
+                .is_some_and(|first| *first == feature.author)
+            {
+                pair.mapping
+            } else {
+                super::features::inverse_pose(pair.mapping)
+            };
+            super::features::mirror_support(mapping, &author_support)
+        };
+        support.pair_id = Some(feature.id.clone());
+        if !destination.is_empty() && !super::inside_outline(support.at, &destination) {
+            support.fit_error = Some(
+                "The reflected gasket support does not associate with this half's board outline."
+                    .into(),
+            );
+        }
+        resolved.push(support);
+    }
+    Ok(resolved)
+}
+
+/// The author's resolved support, from the author's accepted contours.
+fn author_resolved_gasket_support(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    feature: &MechanicalFeature,
+) -> Result<Option<MechanicalGasketSupport>, String> {
+    let author_target = MechanicalTarget::Instance {
+        instance_id: feature.author.clone(),
+    };
+    // The author's configuration is read without the gasket projection so resolving its
+    // own support cannot recurse through this path.
+    let configuration =
+        effective_inputs_inner(document, board_contours, &author_target, false)?.configuration;
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Ok(None);
+    };
+    let Some(author) = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == feature.author)
+    else {
+        return Ok(None);
+    };
+    let mut author_document = document.clone();
+    author_document.physical_instance_id = Some(feature.author.clone());
+    author_document.mechanical = Some(configuration);
+    if author.flipped {
+        mirror_parts(&mut author_document.parts, document, &author.board_id);
+    }
+    let mut contours = declared_contours(board_contours, &author.board_id);
+    if author.flipped {
+        contours = mirror_contours(contours);
+    }
+    if contours.is_empty() {
+        let (cache, _, _) = crate::geometry::outlines(document, None, &[]);
+        contours = board_contours_for(document, &cache, &author.board_id);
+    }
+    let assembly = crate::mechanical::resolve(&author_document, &contours);
+    let member_feature_id = feature
+        .members
+        .iter()
+        .find(|member| member.instance_id == feature.author)
+        .map(|member| member.feature_id.as_str());
+    Ok(assembly
+        .gasket_supports
+        .into_iter()
+        .find(|support| Some(support.id.as_str()) == member_feature_id))
+}
+
+/// Recomputes one board's contours when the caller has no accepted projection for it.
+fn board_contours_for(
+    document: &ProjectDoc,
+    cache: &crate::geometry::OutlineCache,
+    board_id: &str,
+) -> Vec<Contour> {
+    crate::geometry::board_contours(document, cache)
+        .0
+        .into_iter()
+        .find(|entry| entry.board_id == board_id)
+        .map(|entry| entry.contours)
+        .unwrap_or_default()
 }
 
 /// The accepted contours of one board, or none when the projection lacks them.

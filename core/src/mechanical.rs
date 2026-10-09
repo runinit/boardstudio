@@ -2202,7 +2202,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     result
 }
 
-fn expanded_outline(
+pub(crate) fn expanded_outline(
     contours: &[Contour],
     amount: f64,
     revision: u64,
