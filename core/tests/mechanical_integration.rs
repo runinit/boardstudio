@@ -3124,3 +3124,308 @@ fn generated_gasket_geometry_uses_the_inverse_reflection_for_a_second_member_aut
     assert_close(generated.tangent, reflected.tangent, "generated tangent");
     assert_close(generated.normal, reflected.normal, "generated normal");
 }
+
+/// Three legacy halves that own no per-instance configuration and share one source.
+fn legacy_halves_document() -> ProjectDoc {
+    let mut document = document();
+    let mut shared = configuration();
+    shared.wall_thickness = 2.0;
+    shared.internal_gasket = Some(boardstudio_core::mechanical::default_internal_gasket());
+    let half = |id: &str| PhysicalBoardInstance {
+        id: id.into(),
+        name: id.into(),
+        board_id: "board".into(),
+        half: id.into(),
+        role: "controller".into(),
+        flipped: false,
+        controller_part_id: None,
+        mechanical: None,
+        construction_ownership: MechanicalConstructionOwnership::Legacy,
+        mechanical_identity_reservation: None,
+    };
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![half("left"), half("right"), half("third")],
+        boards: vec![],
+        shared_construction: Some(shared),
+        pairs: vec![],
+    });
+    document
+}
+
+fn set_wall_thickness(
+    document: &mut ProjectDoc,
+    instance_id: &str,
+    value: f64,
+) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target(instance_id),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value,
+            },
+            mounting_hole: None,
+        },
+    )
+}
+
+#[test]
+fn a_legacy_halves_shared_field_edit_reads_back() {
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = legacy_halves_document();
+    let changed = set_wall_thickness(&mut document, "left", 4.0).unwrap();
+    assert!(!changed.is_empty(), "the edit is a change: {changed:?}");
+
+    // The shared source the legacy halves overlay must carry the edit.
+    assert_eq!(
+        document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .shared_construction
+            .as_ref()
+            .unwrap()
+            .wall_thickness,
+        4.0,
+        "the legacy shared source carries the edited value"
+    );
+
+    // Every legacy half that shares the source reads the new value, with no silent local
+    // override and without converting ownership.
+    for id in ["left", "right", "third"] {
+        let inputs = effective_inputs(&document, &[], &instance_target(id)).unwrap();
+        assert_eq!(
+            inputs.configuration.wall_thickness, 4.0,
+            "{id} reads the edited shared value"
+        );
+        assert_eq!(
+            document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .instances
+                .iter()
+                .find(|instance| instance.id == id)
+                .unwrap()
+                .construction_ownership,
+            MechanicalConstructionOwnership::Legacy,
+            "{id} keeps its legacy ownership"
+        );
+    }
+}
+
+#[test]
+fn every_shared_construction_family_lands_in_the_legacy_source() {
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::model::MechanicalMount;
+
+    fn legacy_ownership(document: &ProjectDoc, id: &str) -> MechanicalConstructionOwnership {
+        document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == id)
+            .unwrap()
+            .construction_ownership
+    }
+
+    type Check = fn(&MechanicalConfiguration) -> bool;
+    let cases: Vec<(&str, MechanicalChange, Check)> = vec![
+        (
+            "wall thickness",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 4.0,
+            },
+            |configuration| configuration.wall_thickness == 4.0,
+        ),
+        (
+            "plate thickness",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::PlateThickness,
+                value: 2.0,
+            },
+            |configuration| configuration.plate_thickness == 2.0,
+        ),
+        (
+            "plate foam",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::PlateFoamThickness,
+                value: 0.8,
+            },
+            |configuration| configuration.plate_foam_thickness == 0.8,
+        ),
+        (
+            "bottom foam",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::BottomFoamThickness,
+                value: 0.9,
+            },
+            |configuration| configuration.bottom_foam_thickness == 0.9,
+        ),
+        (
+            "bottom thickness",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::BottomThickness,
+                value: 4.5,
+            },
+            |configuration| configuration.bottom_thickness == 4.5,
+        ),
+        (
+            "clearance",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::Clearance,
+                value: 0.45,
+            },
+            |configuration| configuration.clearance == 0.45,
+        ),
+        (
+            "opening allowance",
+            MechanicalChange::SetDimension {
+                field: MechanicalDimension::OpeningAllowance,
+                value: 0.35,
+            },
+            |configuration| configuration.opening_allowance == Some(0.35),
+        ),
+        (
+            "method (manufacturing)",
+            MechanicalChange::SetMethod(boardstudio_core::model::PlateMethod::Cnc),
+            |configuration| configuration.method == boardstudio_core::model::PlateMethod::Cnc,
+        ),
+        (
+            "middle frame",
+            MechanicalChange::SetMiddleFrame(true),
+            |configuration| configuration.middle_frame == Some(true),
+        ),
+        (
+            "integrated plate frame",
+            MechanicalChange::SetIntegratedPlateFrame(true),
+            |configuration| configuration.integrated_plate_frame,
+        ),
+        (
+            "closure drive (recipe)",
+            MechanicalChange::SetClosureDrive(boardstudio_core::model::ScrewDrive::Torx),
+            |configuration| {
+                configuration
+                    .internal_gasket
+                    .as_ref()
+                    .is_some_and(|settings| {
+                        settings.hardware.drive == boardstudio_core::model::ScrewDrive::Torx
+                    })
+            },
+        ),
+        (
+            "mount",
+            MechanicalChange::SetMount(MechanicalMount::Gasket),
+            |configuration| configuration.mount == MechanicalMount::Gasket,
+        ),
+    ];
+
+    for (label, change, check) in cases {
+        let mut document = legacy_halves_document();
+        let changed = boardstudio_core::mechanical::edit::apply(
+            &mut document,
+            &[],
+            &MechanicalEdit {
+                target: instance_target("left"),
+                change: change.clone(),
+                mounting_hole: None,
+            },
+        )
+        .unwrap_or_else(|error| panic!("{label}: {error}"));
+        assert!(!changed.is_empty(), "{label} is a change: {changed:?}");
+
+        let shared = document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .shared_construction
+            .as_ref()
+            .unwrap();
+        assert!(check(shared), "{label}: the shared source carries the edit");
+
+        for id in ["left", "right", "third"] {
+            let inputs = effective_inputs(&document, &[], &instance_target(id)).unwrap();
+            assert!(
+                check(&inputs.configuration),
+                "{label}: {id} reads the edited value back"
+            );
+            assert_eq!(
+                legacy_ownership(&document, id),
+                MechanicalConstructionOwnership::Legacy,
+                "{label}: {id} keeps legacy ownership"
+            );
+        }
+    }
+}
+
+#[test]
+fn legacy_local_fields_stay_per_instance_and_errors_do_not_mutate() {
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = legacy_halves_document();
+    boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::SetBatteryEnabled(true),
+            mounting_hole: None,
+        },
+    )
+    .unwrap();
+    boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::AddMount {
+                collection: MechanicalMountCollection::Suspension,
+            },
+            mounting_hole: None,
+        },
+    )
+    .unwrap();
+
+    let shared = document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .shared_construction
+        .as_ref()
+        .unwrap();
+    assert!(
+        shared.battery.is_none(),
+        "a local battery never lands in the shared source"
+    );
+    assert!(
+        shared.mounts.is_empty(),
+        "a local mount never lands in the shared source"
+    );
+
+    let left = effective_inputs(&document, &[], &instance_target("left"))
+        .unwrap()
+        .configuration;
+    assert!(left.battery.is_some(), "the edited half shows its battery");
+    assert_eq!(left.mounts.len(), 1, "the edited half shows its mount");
+    let right = effective_inputs(&document, &[], &instance_target("right"))
+        .unwrap()
+        .configuration;
+    assert!(
+        right.battery.is_none() && right.mounts.is_empty(),
+        "the other legacy halves keep their own local values"
+    );
+
+    // A malformed value is an error and mutates nothing.
+    let before = document.clone();
+    let error = set_wall_thickness(&mut document, "left", -1.0).unwrap_err();
+    assert!(!error.is_empty());
+    assert_eq!(document, before, "a rejected value mutates nothing");
+}
