@@ -1743,3 +1743,221 @@ fn a_local_addition_never_takes_an_omitted_pair_owned_identity() {
         "every visible opening identity stays unique: {ids:?}"
     );
 }
+
+#[test]
+fn disabling_a_paired_half_unlinks_it_and_keeps_the_other_half() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+    let before_left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+
+    let changed = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::Disable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+
+    assert!(
+        changed.contains(&"pair-left-right".to_string()),
+        "the dissolved pair is reported: {changed:?}"
+    );
+    let hardware = document.hardware.as_ref().unwrap();
+    assert!(hardware.pairs.is_empty(), "the pair is cleared");
+    assert_eq!(hardware.instances.len(), 2, "both instances remain");
+    let right = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == "right")
+        .unwrap();
+    assert!(
+        right.mechanical.is_none(),
+        "only the selected half's mechanical stack is disabled"
+    );
+    let left = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == "left")
+        .unwrap();
+    assert_eq!(
+        left.construction_ownership,
+        MechanicalConstructionOwnership::Local,
+        "the surviving half owns its materialized construction"
+    );
+    assert_eq!(
+        mount_at(left.mechanical.as_ref().unwrap(), "mount-1"),
+        Vec2 { x: 2.0, y: 3.0 },
+        "the surviving half keeps the geometry it showed"
+    );
+    let after_left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert_eq!(
+        mount_at(&after_left.configuration, "mount-1"),
+        Vec2 { x: 2.0, y: 3.0 }
+    );
+    assert_eq!(
+        after_left.configuration.plate_thickness,
+        before_left.configuration.plate_thickness
+    );
+}
+
+#[test]
+fn a_pending_edit_to_a_disabled_half_retires_and_enable_still_works() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::Disable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+
+    // The half still exists, but it is ineligible: the pending edit retires.
+    let pending = MechanicalEdit {
+        target: instance_target("right"),
+        change: MechanicalChange::SetDimension {
+            field: MechanicalDimension::WallThickness,
+            value: 4.0,
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    assert_eq!(
+        evaluate_edit(&document, &[], &pending).unwrap(),
+        MechanicalEditDisposition::Retire
+    );
+
+    // Re-enabling the half is still possible, and it does not relink the pair.
+    let changed = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::Enable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert!(!changed.is_empty(), "{changed:?}");
+    let hardware = document.hardware.as_ref().unwrap();
+    assert!(hardware.pairs.is_empty(), "Enable never relinks");
+    assert!(
+        hardware
+            .instances
+            .iter()
+            .find(|instance| instance.id == "right")
+            .unwrap()
+            .mechanical
+            .is_some(),
+        "the half is configured again"
+    );
+}
+
+#[test]
+fn one_undo_restores_a_paired_disable_completely() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+
+    fn document_of(reply: CoreReply) -> ProjectDoc {
+        match reply {
+            CoreReply::Scene { document, .. } => *document,
+            other => panic!("expected scene: {other:?}"),
+        }
+    }
+    fn mechanical_command(base_revision: u64, edit: MechanicalEdit) -> CoreRequest {
+        CoreRequest::Edit {
+            id: "mechanical".into(),
+            command: EditCommand {
+                base_revision,
+                transaction_id: "mechanical".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation: EditOperation::ApplyMechanicalEdit {
+                    edit: Box::new(edit),
+                },
+            },
+        }
+    }
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+
+    let mut engine = CoreEngine::new();
+    let accepted = document_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document,
+    }));
+
+    let disabled = document_of(engine.handle(mechanical_command(
+        accepted.revision,
+        MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::Disable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )));
+    assert!(disabled.hardware.as_ref().unwrap().pairs.is_empty());
+    assert!(
+        disabled
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "right")
+            .unwrap()
+            .mechanical
+            .is_none()
+    );
+
+    // One undo restores the pair, both stacks and the geometry projection.
+    let restored = document_of(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(
+        restored.hardware.as_ref().unwrap().pairs.len(),
+        1,
+        "the pair is restored"
+    );
+    assert!(
+        restored
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .all(|instance| instance.mechanical.is_some()),
+        "both halves are configured again"
+    );
+    let left = effective_inputs(&restored, &[], &instance_target("left")).unwrap();
+    assert_eq!(
+        mount_at(&left.configuration, "mount-1"),
+        Vec2 { x: 2.0, y: 3.0 },
+        "the linked geometry reads as before the disable"
+    );
+
+    // Redo repeats the whole result.
+    let redone = document_of(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    assert!(redone.hardware.as_ref().unwrap().pairs.is_empty());
+    assert!(
+        redone
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "right")
+            .unwrap()
+            .mechanical
+            .is_none()
+    );
+}

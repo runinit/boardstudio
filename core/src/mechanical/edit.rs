@@ -81,6 +81,17 @@ pub fn evaluate_edit(
     if !target_exists(document, &edit.target) {
         return Ok(MechanicalEditDisposition::Retire);
     }
+    // A physical half that exists but has no effective configuration is ineligible:
+    // a pending geometry or settings edit retires instead of erroring, while Enable
+    // stays possible and Disable stays an idempotent no-op.
+    if !matches!(
+        edit.change,
+        MechanicalChange::Enable | MechanicalChange::Disable
+    ) && matches!(edit.target, MechanicalTarget::Instance { .. })
+        && effective_inputs(document, board_contours, &edit.target).is_err()
+    {
+        return Ok(MechanicalEditDisposition::Retire);
+    }
     // An edit that addresses a durable entity which is gone retires too: a queued
     // intent must never be redirected at whatever later addition reused its place.
     if addressed_entity_is_gone(document, board_contours, edit) {
@@ -760,6 +771,19 @@ fn disable(
     if let Some(template) = edit.mounting_hole.as_deref() {
         validate_mounting_hole(template)?;
     }
+    let mut changed = Vec::new();
+    // Disabling a paired half is the explicit "unlink and disable this half": both
+    // halves keep the model they showed, the pair goes, and only the selected half
+    // loses its mechanical stack. The user label and confirmation belong to the UI.
+    let member_pair = match target {
+        MechanicalTarget::Instance { instance_id } => pair_index(doc, instance_id),
+        MechanicalTarget::Board { .. } => None,
+    };
+    if let Some(pair_index) = member_pair {
+        let (pair_id, members) = dissolve_pair_ownership(doc, pair_index)?;
+        changed.push(pair_id);
+        changed.extend(members);
+    }
     match target {
         MechanicalTarget::Board { .. } => doc.mechanical = None,
         MechanicalTarget::Instance { instance_id } => {
@@ -775,7 +799,7 @@ fn disable(
             instance.mechanical = None;
         }
     }
-    let mut changed = vec![owner_id(target, board_id)];
+    changed.push(owner_id(target, board_id));
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     dedup_changed(&mut changed);
     Ok(changed)
@@ -1227,37 +1251,56 @@ fn unlink_mirror_pair(
     let MechanicalChange::UnlinkMirrorPair { instance_id } = &edit.change else {
         return Err("The unlink operation was dispatched with another change.".into());
     };
-    let pair_index = doc
+    let pair_index = pair_index(doc, instance_id).ok_or_else(|| {
+        format!("Physical instance {instance_id:?} is not part of a mechanical pair.")
+    })?;
+    let (pair_id, members) = dissolve_pair_ownership(doc, pair_index)?;
+    let mut changed = vec![pair_id];
+    changed.extend(members);
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
+/// The index of the mechanical pair that owns `instance_id`, if any.
+fn pair_index(doc: &ProjectDoc, instance_id: &str) -> Option<usize> {
+    doc.hardware
+        .as_ref()?
+        .pairs
+        .iter()
+        .position(|pair| pair.members.iter().any(|member| member == instance_id))
+}
+
+/// Materializes both halves' visible models locally and clears their pair.
+///
+/// Shared by explicit Unlink and by disabling a paired half, so both preserve the
+/// geometry, shared construction and hardware-specific settings each half showed while
+/// the pair is gone. Returns the pair id and its members.
+fn dissolve_pair_ownership(
+    doc: &mut ProjectDoc,
+    pair_index: usize,
+) -> Result<(String, Vec<String>), String> {
+    let pair = doc
         .hardware
         .as_ref()
-        .and_then(|hardware| {
-            hardware
-                .pairs
-                .iter()
-                .position(|pair| pair.members.contains(instance_id))
-        })
-        .ok_or_else(|| {
-            format!("Physical instance {instance_id:?} is not part of a mechanical pair.")
-        })?;
-    let pair = doc.hardware.as_ref().unwrap().pairs[pair_index].clone();
+        .ok_or("Physical instances are unavailable")?
+        .pairs
+        .get(pair_index)
+        .cloned()
+        .ok_or("The mechanical pair is unavailable.")?;
     for member in &pair.members {
         let target = MechanicalTarget::Instance {
             instance_id: member.clone(),
         };
-        let mut configuration = effective_inputs(doc, &[], &target)?.configuration;
-        for feature in &pair.features {
-            let Some(member_feature_id) = feature_member_id(feature, member) else {
-                continue;
-            };
-            if features::member_state(&pair, member, member_feature_id)
-                == Some(MechanicalFeatureState::Linked)
-                && let Some(value) = feature_visible_value(&pair, feature, member)?
-            {
-                install_feature(&mut configuration, feature.kind, member_feature_id, &value)?;
-            }
-        }
+        // The accepted effective configuration already carries this half's visible
+        // linked geometry, shared construction and local hardware, so writing it
+        // locally makes that model authoritative without moving anything.
+        let configuration = effective_inputs(doc, &[], &target)?.configuration;
         persist(doc, &target, configuration)?;
-        let hardware = doc.hardware.as_mut().unwrap();
+        let hardware = doc
+            .hardware
+            .as_mut()
+            .ok_or("Physical instances are unavailable")?;
         let instance = hardware
             .instances
             .iter_mut()
@@ -1265,16 +1308,12 @@ fn unlink_mirror_pair(
             .ok_or("Physical instance is unavailable")?;
         instance.construction_ownership = MechanicalConstructionOwnership::Local;
     }
-    doc.hardware.as_mut().unwrap().pairs.remove(pair_index);
-
-    let mut changed = vec![
-        pair.id.clone(),
-        pair.members[0].clone(),
-        pair.members[1].clone(),
-    ];
-    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
-    dedup_changed(&mut changed);
-    Ok(changed)
+    doc.hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?
+        .pairs
+        .remove(pair_index);
+    Ok((pair.id.clone(), pair.members.to_vec()))
 }
 
 /// Applies one per-feature lifecycle action and projects the result.
