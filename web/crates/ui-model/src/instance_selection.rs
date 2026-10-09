@@ -77,7 +77,7 @@ mod tests {
                     controller_part_id: None,
                     mechanical: None,
                     construction_ownership:
-                        boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
+                        boardstudio_core::model::MechanicalConstructionOwnership::Local,
                     mechanical_identity_reservation: None,
                 })
                 .collect(),

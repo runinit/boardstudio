@@ -5,7 +5,7 @@
 //! free because it evaluates during ordinary renders.
 
 use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
-use boardstudio_core::model::{ProjectDoc, SceneDelta, Scope, Severity};
+use boardstudio_core::model::{ProjectDoc, SceneDelta, Severity};
 
 /// Whether the selected target may generate Case output.
 ///
@@ -32,12 +32,11 @@ pub fn is_ready(
             board_id: board_id.to_owned(),
         },
     };
-    // A target whose effective inputs cannot be resolved is not admitted.
+    // Core owns the findings rule; this admission only selects the target. A target
+    // whose effective inputs cannot be resolved is not admitted on the page (the host
+    // resolves the target first, so its predicate arm defers to the board-level gate).
     match effective_inputs(document, &scene.board_contours, &target) {
-        Ok(inputs) => !inputs
-            .findings
-            .iter()
-            .any(|finding| finding.severity == Severity::Error && finding.scope == Scope::Case),
+        Ok(inputs) => inputs.case_findings_are_clear(),
         Err(_) => false,
     }
 }
