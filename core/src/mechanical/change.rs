@@ -87,17 +87,22 @@ pub enum MechanicalHardwareTextField {
 
 /// One reviewed match between the two members of a mechanical mirror pair.
 ///
-/// `first_feature_id` names the feature on `members[0]` and is the durable id
-/// the linked feature keeps on both halves; `second_feature_id` names the
-/// matching feature on `members[1]` that the link replaces. Both must exist with
-/// the given kind. Linking consolidates the two local features into one shared
-/// value authored by `members[0]`.
+/// `first_feature_id` names the feature on `members[0]` and `second_feature_id`
+/// the matching feature on `members[1]` that the link replaces; both must exist
+/// with the given kind. Linking consolidates the two local features into one
+/// shared value authored by the reviewed `source_instance_id` (or `members[0]`
+/// when absent). The relationship keeps the authored value's id on both halves.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalFeatureCorrespondence {
     pub kind: MechanicalFeatureKind,
     pub first_feature_id: String,
     pub second_feature_id: String,
+    /// The half whose accepted geometry becomes the shared authored value for this
+    /// feature. `None` keeps the legacy behaviour of sourcing from `members[0]`.
+    /// The choice is per feature and independent of the pair's construction source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_instance_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -389,6 +394,7 @@ mod tests {
             kind: MechanicalFeatureKind::Mount,
             first_feature_id: "mount-1".into(),
             second_feature_id: "mount-1".into(),
+            source_instance_id: Some("left".into()),
         };
         let link = MechanicalChange::LinkMirrorPair {
             pair_id: "pair-left-right".into(),
@@ -416,6 +422,10 @@ mod tests {
         assert_eq!(
             payload["correspondences"][0]["secondFeatureId"],
             json!("mount-1")
+        );
+        assert_eq!(
+            payload["correspondences"][0]["sourceInstanceId"],
+            json!("left")
         );
         let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
         assert_eq!(parsed, link);

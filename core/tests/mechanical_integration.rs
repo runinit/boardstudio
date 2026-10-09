@@ -231,6 +231,7 @@ fn link_pair(document: &mut ProjectDoc) {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 }],
             },
             mounting_hole: Some(Box::new(template())),
@@ -348,6 +349,7 @@ fn an_explicit_pair_supports_distinct_left_and_right_pcb_designs() {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 }],
             },
             mounting_hole: Some(Box::new(template())),
@@ -488,6 +490,7 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
                     kind: MechanicalFeatureKind::ClosureMount,
                     first_feature_id: "closure-1".into(),
                     second_feature_id: "closure-1".into(),
+                    source_instance_id: None,
                 }],
             },
             mounting_hole: Some(Box::new(template())),
@@ -843,4 +846,154 @@ fn closure_mounts(document: &ProjectDoc) -> Vec<Mount> {
         .closure_mounts
         .clone()
         .expect("closure mounts were initialized")
+}
+
+fn pair_document_with_two_mounts() -> ProjectDoc {
+    let mut document = document();
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![
+            mirror_instance(
+                "left",
+                vec![mount("mount-1", 2.0, 3.0), mount("mount-2", 4.0, 5.0)],
+            ),
+            mirror_instance(
+                "right",
+                vec![mount("mount-1", 7.0, 3.0), mount("mount-2", 9.0, 5.0)],
+            ),
+        ],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+fn correspondence(
+    kind: MechanicalFeatureKind,
+    first: &str,
+    second: &str,
+    source: Option<&str>,
+) -> MechanicalFeatureCorrespondence {
+    MechanicalFeatureCorrespondence {
+        kind,
+        first_feature_id: first.into(),
+        second_feature_id: second.into(),
+        source_instance_id: source.map(str::to_string),
+    }
+}
+
+fn link_with_correspondences(
+    document: &mut ProjectDoc,
+    correspondences: Vec<MechanicalFeatureCorrespondence>,
+) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::LinkMirrorPair {
+                pair_id: "pair-left-right".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction_source: "left".into(),
+                correspondences,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+}
+
+#[test]
+fn a_reviewed_link_chooses_the_source_geometry_per_feature() {
+    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
+
+    let mut document = pair_document_with_two_mounts();
+    // mount-1 is sourced from the second half; mount-2 from the first.
+    link_with_correspondences(
+        &mut document,
+        vec![
+            correspondence(
+                MechanicalFeatureKind::Mount,
+                "mount-1",
+                "mount-1",
+                Some("right"),
+            ),
+            correspondence(
+                MechanicalFeatureKind::Mount,
+                "mount-2",
+                "mount-2",
+                Some("left"),
+            ),
+        ],
+    )
+    .unwrap();
+
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    let find = |id: &str| {
+        pair.features
+            .iter()
+            .find(|feature| feature.id == id)
+            .unwrap_or_else(|| panic!("no feature {id:?}"))
+    };
+    let sourced_from_right = find("mount-1");
+    assert_eq!(
+        sourced_from_right.author, "right",
+        "the reviewed source half authors its feature"
+    );
+    let MechanicalFeatureValue::Mount { mount } = &sourced_from_right.value else {
+        panic!("a linked mount stores a mount");
+    };
+    assert_eq!(mount.at, Vec2 { x: 7.0, y: 3.0 });
+    let sourced_from_left = find("mount-2");
+    assert_eq!(sourced_from_left.author, "left");
+    let MechanicalFeatureValue::Mount { mount } = &sourced_from_left.value else {
+        panic!("a linked mount stores a mount");
+    };
+    assert_eq!(mount.at, Vec2 { x: 4.0, y: 5.0 });
+
+    // The non-source half derives the exact inverse of the source geometry,
+    // independently for each feature.
+    let left: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let right: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert_eq!(
+        mount_at(&left.configuration, "mount-1"),
+        Vec2 { x: -7.0, y: 3.0 }
+    );
+    assert_eq!(
+        mount_at(&right.configuration, "mount-1"),
+        Vec2 { x: 7.0, y: 3.0 }
+    );
+    assert_eq!(
+        mount_at(&left.configuration, "mount-2"),
+        Vec2 { x: 4.0, y: 5.0 }
+    );
+    assert_eq!(
+        mount_at(&right.configuration, "mount-2"),
+        Vec2 { x: -4.0, y: 5.0 }
+    );
+}
+
+#[test]
+fn a_reviewed_link_rejects_an_unknown_source_half() {
+    let mut document = pair_document();
+    let before = document.clone();
+    let error = link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::Mount,
+            "mount-1",
+            "mount-1",
+            Some("ghost"),
+        )],
+    )
+    .unwrap_err();
+    assert!(error.contains("source"), "{error}");
+    assert_eq!(document, before, "a rejected source mutates nothing");
 }

@@ -748,13 +748,15 @@ fn initialize_closures(
 
 /// Establishes an explicit mechanical mirror pair between two physical halves.
 ///
-/// Both members must exist on the target's board and must not already belong to
-/// a pair, the mapping must be finite, the construction source must be one of
-/// the members and the pair id must be new. The pair takes the source's shared
-/// construction and one linked feature per reviewed correspondence, authored by
-/// the first member. Both members become `Pair`-owned; a missing stored
-/// configuration is materialized first so pair ownership always has a valid
-/// local base for the fields the pair does not own.
+/// Both members must exist and must not already belong to a pair, the mapping must
+/// be finite, the construction source must be one of the members and the pair id
+/// must be new. The pair takes the construction source's shared subset and one
+/// linked feature per reviewed correspondence. Each correspondence chooses its own
+/// source half (`source_instance_id`, defaulting to the first member), whose accepted
+/// effective geometry becomes the single authored value; the other half derives the
+/// exact inverse. Both members become `Pair`-owned; a missing stored configuration
+/// is materialized first so pair ownership always has a valid local base for the
+/// fields the pair does not own.
 fn link_mirror_pair(
     doc: &mut ProjectDoc,
     _board_id: &str,
@@ -841,27 +843,54 @@ fn link_mirror_pair(
         features: Vec::new(),
     };
     for correspondence in correspondences {
+        // Each reviewed match chooses its own source half; absent choice keeps the
+        // legacy first-member source. Its accepted effective geometry is read before
+        // anything mutates and becomes the pair's single authored value.
+        let source_id = correspondence
+            .source_instance_id
+            .as_deref()
+            .unwrap_or(first.as_str());
+        let source_index = members
+            .iter()
+            .position(|member| member == source_id)
+            .ok_or_else(|| {
+                format!(
+                    "The reviewed source {source_id:?} is not a source member of the mechanical pair."
+                )
+            })?;
+        let (source_feature_id, other_feature_id) = if source_index == 0 {
+            (
+                &correspondence.first_feature_id,
+                &correspondence.second_feature_id,
+            )
+        } else {
+            (
+                &correspondence.second_feature_id,
+                &correspondence.first_feature_id,
+            )
+        };
         let value = find_feature_value(
-            &configurations[0],
+            &configurations[source_index],
             correspondence.kind,
-            &correspondence.first_feature_id,
+            source_feature_id,
         )
         .ok_or_else(|| {
             format!(
-                "Physical instance {first:?} has no {:?} feature {:?}.",
-                correspondence.kind, correspondence.first_feature_id
+                "Physical instance {source_id:?} has no {:?} feature {source_feature_id:?}.",
+                correspondence.kind
             )
         })?;
         if find_feature_value(
-            &configurations[1],
+            &configurations[1 - source_index],
             correspondence.kind,
-            &correspondence.second_feature_id,
+            other_feature_id,
         )
         .is_none()
         {
             return Err(format!(
-                "Physical instance {second:?} has no {:?} feature {:?}.",
-                correspondence.kind, correspondence.second_feature_id
+                "Physical instance {:?} has no {:?} feature {other_feature_id:?}.",
+                members[1 - source_index],
+                correspondence.kind
             ));
         }
         features::add_linked_feature(
@@ -869,7 +898,7 @@ fn link_mirror_pair(
             MechanicalFeature {
                 id: correspondence.first_feature_id.clone(),
                 kind: correspondence.kind,
-                author: first.clone(),
+                author: source_id.to_string(),
                 value,
                 members: Vec::new(),
             },
@@ -4923,6 +4952,7 @@ mod tests {
             kind: MechanicalFeatureKind::Mount,
             first_feature_id: "mount-1".into(),
             second_feature_id: "mount-1".into(),
+            source_instance_id: None,
         }
     }
 
