@@ -158,6 +158,7 @@ pub fn pair_link_options(
     document: &ProjectDoc,
     board_contours: &[BoardContours],
     instance_id: &str,
+    mounting_hole: Option<&PartDefinition>,
 ) -> Vec<MechanicalPairLinkOption> {
     let Some(hardware) = document.hardware.as_ref() else {
         return Vec::new();
@@ -239,7 +240,7 @@ pub fn pair_link_options(
             // The complete proposed result comes from Core's own read path, read-only.
             // Careful: a projection that must create generated closure holes needs the
             // normalized template, which this commit-time offer does not load.
-            let (preview, preview_note) = match link_preview(document, &reviewed, None) {
+            let (preview, preview_note) = match link_preview(document, &reviewed, mounting_hole) {
                 Ok(preview) => (Some(preview), None),
                 Err(reason) => (None, Some(reason)),
             };
@@ -1033,6 +1034,88 @@ mod tests {
         doc
     }
 
+    /// The normalized mounting-hole definition Core validates on a supplied template.
+    fn mounting_hole_template() -> PartDefinition {
+        serde_json::from_value(json!({
+            "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{
+                "id": "pad-0", "number": "", "at": { "x": 0, "y": 0 },
+                "size": { "x": 2.2, "y": 2.2 }, "shape": "circle", "drill": 2.2,
+                "plated": false, "rotation": 0
+            }],
+            "courtyard": [
+                { "x": -1.1, "y": -1.1 }, { "x": 1.1, "y": -1.1 },
+                { "x": 1.1, "y": 1.1 }, { "x": -1.1, "y": 1.1 }
+            ],
+            "envelopeSource": { "courtyard": "generated" },
+            "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {} }
+        }))
+        .expect("the mounting-hole fixture parses")
+    }
+
+    /// Two pair-free halves whose shared closure mount generates closure clearance.
+    fn linkable_halves_with_closure_holes() -> ProjectDoc {
+        let mut doc = linkable_halves();
+        let closure = Mount {
+            id: "closure-1".into(),
+            at: Vec2 { x: 1.0, y: 2.0 },
+            kind: MountKind::Hole,
+            hole_diameter: 2.2,
+            boss_diameter: None,
+            height: None,
+        };
+        for instance in &mut doc.hardware.as_mut().unwrap().instances {
+            let configuration = instance.mechanical.as_mut().unwrap();
+            configuration.closure_mounts = Some(vec![closure.clone()]);
+        }
+        doc
+    }
+
+    #[test]
+    fn a_link_that_needs_generated_holes_shows_its_complete_result_once_the_template_is_known() {
+        let doc = linkable_halves_with_closure_holes();
+
+        // Without the normalized template the projection cannot produce the generated
+        // clearance, so the review must say so instead of showing a partial result.
+        let without = pair_link_options(&doc, &[], "left", None);
+        assert_eq!(without.len(), 1, "the candidate is still reviewable");
+        assert!(
+            without[0].preview.is_none(),
+            "a projection that must create generated holes is unavailable without its template"
+        );
+        assert!(
+            without[0]
+                .preview_note
+                .as_deref()
+                .is_some_and(|note| !note.is_empty()),
+            "the review explains why the complete result is unavailable"
+        );
+
+        // With the template the same candidate shows its complete proposed result.
+        let template = mounting_hole_template();
+        let with_template = pair_link_options(&doc, &[], "left", Some(&template));
+        assert_eq!(with_template.len(), 1);
+        let preview = with_template[0]
+            .preview
+            .as_ref()
+            .expect("the template makes the complete result available before confirmation");
+        assert_eq!(preview.members.len(), 2);
+        assert!(
+            preview.members.iter().all(|member| member
+                .features
+                .iter()
+                .any(|feature| feature.contains("Closure mount"))),
+            "both halves show the linked closure mount, got {:?}",
+            preview.members
+        );
+        assert_eq!(
+            with_template[0].preview_note, None,
+            "no unavailable note once the complete result is projected"
+        );
+    }
+
     #[test]
     fn a_reviewed_link_projects_both_halves_through_core_without_touching_accepted_state() {
         let doc = linkable_halves();
@@ -1098,7 +1181,7 @@ mod tests {
     #[test]
     fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
         let doc = independent_halves();
-        let options = pair_link_options(&doc, &[], "left");
+        let options = pair_link_options(&doc, &[], "left", None);
         assert_eq!(options.len(), 1, "the other half is the one candidate");
         let option = &options[0];
         assert_eq!(option.instance_id, "left");
@@ -1148,14 +1231,14 @@ mod tests {
             Some("left"),
             "the reviewed payload names a source per feature explicitly"
         );
-        assert!(pair_link_options(&doc, &[], "missing").is_empty());
+        assert!(pair_link_options(&doc, &[], "missing", None).is_empty());
     }
 
     #[test]
     fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_paired() {
         let mut doc = independent_halves();
         doc.hardware.as_mut().unwrap().instances[1].flipped = false;
-        let options = pair_link_options(&doc, &[], "left");
+        let options = pair_link_options(&doc, &[], "left", None);
         assert_eq!(
             options[0].derived_mapping, None,
             "equal declared transforms need the review to supply the map"
@@ -1178,10 +1261,10 @@ mod tests {
             features: vec![],
         }];
         assert!(
-            pair_link_options(&paired, &[], "left").is_empty(),
+            pair_link_options(&paired, &[], "left", None).is_empty(),
             "a paired half is linked through its pair actions instead"
         );
-        assert!(pair_link_options(&paired, &[], "right").is_empty());
+        assert!(pair_link_options(&paired, &[], "right", None).is_empty());
     }
 
     fn rejoin(instance_id: &str, feature_id: &str, source: &str) -> MechanicalChange {

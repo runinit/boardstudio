@@ -93,6 +93,20 @@ pub fn use_mechanical_settings_mount(
         move || alive.set(false)
     });
 
+    // The reviewed link/rejoin projection needs the normalized mounting-hole template
+    // whenever the reviewed result creates generated closure holes. Load it once, like
+    // the controller does per request, so the review can show the complete result.
+    let review_mounting_hole = use_signal(|| None::<Rc<boardstudio_core::model::PartDefinition>>);
+    use_hook({
+        let mut review_mounting_hole = review_mounting_hole;
+        move || {
+            spawn_local(async move {
+                if let Ok(definition) = parts::load_mounting_hole_definition().await {
+                    review_mounting_hole.set(Some(definition));
+                }
+            });
+        }
+    });
     let source_key = current_source_key(&runtime);
     let source_projection = use_memo(use_reactive((&source_key,), {
         let runtime = runtime.clone();
@@ -704,6 +718,7 @@ pub fn use_mechanical_settings_mount(
                     &current.accepted.document,
                     &current.accepted.scene.board_contours,
                     instance_id,
+                    review_mounting_hole.read().as_deref(),
                 ),
             )
         });

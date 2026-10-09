@@ -314,3 +314,152 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .delete_database(&database_name)
         .unwrap();
 }
+
+/// A pair-bearing project round-trips through the real browser store with its pair
+/// identity, member states, geometry and identity reservations intact.
+///
+/// The stored shape is the same boundary the editor uses for save/reopen, so a pair's
+/// linked status, per-feature exceptions, construction ownership and the opening/vertex
+/// reservations all have to survive it rather than only a serde round trip.
+#[wasm_bindgen_test]
+async fn a_mechanical_pair_round_trips_through_indexeddb() {
+    let database_name = format!("boardstudio-idb-pair-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&database_name).unwrap();
+    let mut document = ProjectDoc::empty("pair-project", "Pair project");
+    document.boards.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+            "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+        }))
+        .unwrap(),
+    );
+    document.mechanical = Some(
+        serde_json::from_value(serde_json::json!({
+            "boardId": "board", "method": "printed", "mount": "tray",
+            "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+            "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+            "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+            "mounts": [], "closureMounts": [], "profiles": [],
+            "nextOpeningIdentity": 7,
+            "openings": [{
+                "id": "opening-4",
+                "vertices": [
+                    { "id": "vertex-3", "point": { "x": 0.0, "y": 0.0 } },
+                    { "id": "vertex-4", "point": { "x": 5.0, "y": 0.0 } },
+                    { "id": "vertex-5", "point": { "x": 5.0, "y": 5.0 } }
+                ],
+                "z": 1.0, "height": 2.0, "nextVertexIdentity": 6
+            }]
+        }))
+        .unwrap(),
+    );
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "topology": "split", "transport": "none",
+            "instances": [
+                {
+                    "id": "left", "name": "Left", "boardId": "board", "half": "left",
+                    "role": "central", "flipped": false,
+                    "mechanical": {
+                        "boardId": "board", "method": "printed", "mount": "tray",
+                        "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                        "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                        "mounts": [{
+                            "id": "mount-left", "at": { "x": 2.0, "y": 3.0 },
+                            "kind": "hole", "holeDiameter": 2.2
+                        }],
+                        "closureMounts": [], "profiles": []
+                    },
+                    "constructionOwnership": "pair"
+                },
+                {
+                    "id": "right", "name": "Right", "boardId": "board", "half": "right",
+                    "role": "peripheral", "flipped": true,
+                    "mechanical": {
+                        "boardId": "board", "method": "printed", "mount": "tray",
+                        "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                        "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                        "mounts": [], "closureMounts": [], "profiles": []
+                    },
+                    "constructionOwnership": "pair"
+                },
+                {
+                    "id": "third", "name": "Third", "boardId": "board", "half": "third",
+                    "role": "peripheral", "flipped": false,
+                    "constructionOwnership": "legacy"
+                }
+            ],
+            "boards": [],
+            "sharedConstruction": {
+                "boardId": "board",
+                "method": "printed", "mount": "tray", "plateThickness": 1.5,
+                "plateFoamThickness": 0.5, "pcbThickness": 1.6, "batteryHeight": 0.0,
+                "bottomFoamThickness": 2.0,
+                "bottomThickness": 3.0, "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+                "mounts": [], "closureMounts": [], "profiles": []
+            },
+            "pairs": [{
+                "id": "pair-left-right",
+                "members": ["left", "right"],
+                "mapping": { "at": { "x": 30.0, "y": -5.0 }, "rotation": 180.0 },
+                "construction": {
+                    "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "bottomStyle": "shell", "middleFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0.5,
+                    "bottomFoamThickness": 2.0, "bottomThickness": 3.0,
+                    "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3
+                },
+                "features": [{
+                    "id": "mount-left",
+                    "kind": "mount",
+                    "author": "left",
+                    "value": {
+                        "kind": "mount",
+                        "mount": {
+                            "id": "mount-left", "at": { "x": 2.0, "y": 3.0 },
+                            "kind": "hole", "holeDiameter": 2.2
+                        }
+                    },
+                    "members": [
+                        { "instanceId": "left", "featureId": "mount-left", "state": "linked" },
+                        { "instanceId": "right", "featureId": "mount-right", "state": "omitted" }
+                    ]
+                }]
+            }]
+        }))
+        .unwrap(),
+    );
+
+    let saved = document.clone();
+    store
+        .save_document(&document, &Default::default())
+        .await
+        .unwrap();
+    let loaded = store
+        .load_document("pair-project".into())
+        .await
+        .unwrap()
+        .expect("the saved pair project loads back");
+
+    assert_eq!(
+        loaded.hardware, saved.hardware,
+        "pair identity, mapping, member configurations, construction ownership, \
+         linked/omitted states and geometry round-trip through the browser store"
+    );
+    assert_eq!(
+        loaded.mechanical, saved.mechanical,
+        "opening/vertex identity reservations round-trip through the browser store"
+    );
+    boardstudio_core::mechanical::features::validate(&loaded)
+        .expect("the reopened project's pair is still consistent");
+
+    window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}

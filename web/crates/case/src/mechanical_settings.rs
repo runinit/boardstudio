@@ -1006,6 +1006,13 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     p { class: "m1-mechanical-help",
                         "This half is linked with {counterpart}. Disabling removes that link and disables only this half's mechanical stack: the other half keeps its geometry and settings, and neither PCB is removed. One Undo restores the link and this stack."
                     }
+                    MechanicalPairMemberRemoval {
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        counterpart,
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
                 }
             } else if props.values.is_some() {
                 p { role: "status", "The configured stack belongs to another board. Switch to that board to edit it." }
@@ -1032,6 +1039,79 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalPairMemberRemovalProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    counterpart: String,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Removing one half of a mechanical pair, behind an explicit confirmation.
+///
+/// The typed removal is submitted only after the confirmation states the whole result:
+/// this assembly leaves the project, the link is cleared, the other half keeps the
+/// geometry and settings it shows today as its own local assembly, and the boards, PCBs
+/// and parts stay. Core owns the materialization; the panel never writes geometry.
+#[component]
+fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Element {
+    let confirming = use_signal(|| false);
+    let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
+    let pending = mechanical_action_pending("remove-physical-instance") || !props.editable;
+    let counterpart = props.counterpart.clone();
+    let mut confirming_state = confirming;
+    rsx! {
+        section { class: "m1-mechanical-remove-member", aria_label: "Remove this physical assembly",
+            if confirming() {
+                p { class: "m1-mechanical-help",
+                    "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Confirm removing assembly {instance_id}",
+                    disabled: pending,
+                    onclick: {
+                        let identity = props.identity.clone();
+                        let mut sequence = props.request_sequence;
+                        let on_request = props.on_request;
+                        move |_| {
+                            confirming_state.set(false);
+                            send_request(
+                                &mut sequence,
+                                &identity,
+                                on_request,
+                                MechanicalSettingsPatch::RemovePhysicalInstance,
+                            );
+                        }
+                    },
+                    "Remove assembly"
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Keep assembly {instance_id}",
+                    onclick: move |_| confirming_state.set(false),
+                    "Keep it"
+                }
+            } else {
+                p { class: "m1-mechanical-help",
+                    "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Remove assembly {instance_id}",
+                    disabled: pending,
+                    onclick: move |_| confirming_state.set(true),
+                    "Remove this assembly…"
                 }
             }
         }
@@ -4670,6 +4750,12 @@ mod contextual_layer_tests {
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
+    fn test_identity_with_instance(instance_id: &str) -> MechanicalSettingsIdentity {
+        let mut identity = test_identity();
+        identity.scope.instance_id = Some(instance_id.to_owned());
+        identity
+    }
+
     fn test_identity() -> MechanicalSettingsIdentity {
         MechanicalSettingsIdentity {
             editor_instance_id: 1,
@@ -6183,6 +6269,124 @@ mod contextual_layer_tests {
                 p { id: "case-paired-disable-count", "{requests}" }
             }
         }
+    }
+
+    #[component]
+    fn PairedRemovalTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-paired-removal-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_counterpart: Some("right".into()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-paired-removal-last-request", "{last_request}" }
+                p { id: "case-paired-removal-count", "{requests}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_paired_half_removes_only_after_confirming_what_happens() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-paired-removal-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(PairedRemovalTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The control exists for a linked half and nothing is submitted on its own.
+        let remove = element("button[aria-label='Remove assembly left']");
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "showing the removal control submits nothing"
+        );
+
+        // The first click asks for explicit confirmation of the whole change.
+        remove.click();
+        rendered().await;
+        let confirmation = element(".m1-mechanical-remove-member")
+            .text_content()
+            .unwrap();
+        assert!(
+            confirmation.contains("right")
+                && confirmation.contains("keeps the geometry and settings")
+                && confirmation.contains("boards, PCBs and parts stay")
+                && confirmation.contains("One Undo"),
+            "the confirmation says what removing this half does, got {confirmation}"
+        );
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "asking for confirmation submits nothing"
+        );
+
+        // Cancelling keeps everything.
+        element("button[aria-label='Keep assembly left']").click();
+        rendered().await;
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "cancelling submits nothing"
+        );
+
+        // Confirming submits exactly one typed physical-instance removal.
+        element("button[aria-label='Remove assembly left']").click();
+        rendered().await;
+        element("button[aria-label='Confirm removing assembly left']").click();
+        rendered().await;
+        let submitted = element("#case-paired-removal-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("RemovePhysicalInstance"),
+            "the confirmation submits the typed removal, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-paired-removal-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "one typed removal is submitted"
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]

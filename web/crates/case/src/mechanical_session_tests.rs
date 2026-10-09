@@ -889,3 +889,160 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
         "enabling the half does not infer a mechanical link"
     );
 }
+
+/// Removing one half of a pair materializes the survivor, clears the pair and is one step.
+///
+/// Core stages the survivor's accepted visible model locally before the pair goes, so the
+/// other half keeps exactly the geometry and settings it showed, its construction becomes
+/// local, and the boards, PCBs and parts stay untouched. A queued edit addressed to the
+/// removed member cannot land, and one Undo restores the assembly and the link.
+#[test]
+fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everything() {
+    let runtime = open_document(paired_document());
+    let mut scope = runtime.scope().expect("the open document has a scope");
+    scope.board_id = "board".into();
+    scope.instance_id = Some("left".into());
+    let submit = |change: MechanicalChange| {
+        let mut edits = PendingEdits::default();
+        edits.begin(
+            &runtime,
+            1u8,
+            "mechanical",
+            Some("mechanical settings".into()),
+            mechanical_resolver(
+                scope.clone(),
+                change,
+                mounting_hole(),
+                Rc::new(Cell::new(false)),
+                Box::new(|_| true),
+            ),
+        );
+        edits.settle(true)
+    };
+    let accepted = || runtime.model().accepted.expect("accepted");
+    let visible = |instance_id: &str| {
+        let accepted = accepted();
+        boardstudio_core::mechanical::effective_inputs(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.into(),
+            },
+        )
+        .map(|inputs| inputs.configuration)
+        .ok()
+    };
+    let hardware = || {
+        accepted()
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .clone()
+    };
+    let landed = |results: &[PendingEditResult<u8>]| {
+        results
+            .iter()
+            .any(|result| matches!(result, PendingEditResult::Landed { .. }))
+    };
+    let refused_as_gone = |results: &[PendingEditResult<u8>]| {
+        results.iter().any(|result| match result {
+            PendingEditResult::Retired { .. } => true,
+            PendingEditResult::Failed { message, .. } => message.contains("no longer available"),
+            PendingEditResult::Landed { .. } => false,
+        })
+    };
+
+    let survivor_visible_before = visible("right").expect("the survivor resolves");
+    let removed_stack_before = hardware()
+        .instances
+        .iter()
+        .find(|instance| instance.id == "left")
+        .expect("the removed half")
+        .mechanical
+        .clone();
+    let instances_before = hardware().instances.len();
+    let boards_before = accepted().document.boards.len();
+    let parts_before = accepted().document.parts.len();
+    assert_eq!(hardware().pairs.len(), 1);
+
+    assert!(
+        landed(&submit(MechanicalChange::RemovePhysicalInstance)),
+        "the paired half is removed in one accepted edit"
+    );
+
+    let after = hardware();
+    assert!(
+        after.pairs.is_empty(),
+        "the removal clears the pair instead of leaving it dangling"
+    );
+    assert_eq!(
+        after.instances.len(),
+        instances_before - 1,
+        "only the removed member leaves the project"
+    );
+    assert!(
+        after.instances.iter().all(|instance| instance.id != "left"),
+        "the removed member is gone"
+    );
+    let survivor = after
+        .instances
+        .iter()
+        .find(|instance| instance.id == "right")
+        .expect("the survivor stays");
+    assert_eq!(
+        survivor.construction_ownership,
+        boardstudio_core::model::MechanicalConstructionOwnership::Local,
+        "the survivor owns its materialized construction"
+    );
+    assert_eq!(
+        visible("right").expect("the survivor still resolves"),
+        survivor_visible_before,
+        "the survivor keeps the geometry and settings it showed while linked"
+    );
+    assert_eq!(
+        accepted().document.boards.len(),
+        boards_before,
+        "no board or PCB is removed"
+    );
+    assert_eq!(
+        accepted().document.parts.len(),
+        parts_before,
+        "no part is removed"
+    );
+
+    // A queued edit addressed to the removed member cannot land.
+    let queued = submit(MechanicalChange::SetDimension {
+        field: MechanicalDimension::WallThickness,
+        value: 3.0,
+    });
+    assert!(
+        refused_as_gone(&queued),
+        "a queued edit to the removed member must not land, got {queued:?}"
+    );
+
+    // One Undo restores the assembly and the link; redo re-applies the removal.
+    undo(&runtime);
+    let restored = hardware();
+    assert_eq!(restored.pairs.len(), 1, "one Undo restores the link");
+    assert_eq!(
+        restored.instances.len(),
+        instances_before,
+        "one Undo restores the removed assembly"
+    );
+    assert_eq!(
+        restored
+            .instances
+            .iter()
+            .find(|instance| instance.id == "left")
+            .expect("the removed half is back")
+            .mechanical,
+        removed_stack_before,
+        "the removed half's stack is restored unchanged"
+    );
+    redo(&runtime);
+    assert!(
+        hardware().pairs.is_empty(),
+        "redo re-applies the whole removal"
+    );
+}
