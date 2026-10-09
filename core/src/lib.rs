@@ -20,6 +20,7 @@ pub mod migrate;
 pub mod model;
 mod modules;
 mod outline_controls;
+pub mod outline_edit;
 mod outline_validation;
 mod outline_versions;
 mod script;
@@ -556,7 +557,10 @@ impl CoreEngine {
         // clear. The no-op policy of every other operation is unchanged.
         if changed.is_empty()
             && command.phase == EditPhase::Commit
-            && matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. })
+            && matches!(
+                command.operation,
+                EditOperation::ApplyMechanicalEdit { .. } | EditOperation::ApplyOutlineEdit { .. }
+            )
         {
             return self.scene(
                 id,
@@ -1063,6 +1067,9 @@ impl PreviewBackup {
 fn affects_outline(op: &EditOperation) -> bool {
     if let EditOperation::ApplyMechanicalEdit { edit } = op {
         return crate::mechanical::edit::affects_outline(&edit.change);
+    }
+    if let EditOperation::ApplyOutlineEdit { edit } = op {
+        return crate::outline_edit::affects_outline(&edit.change);
     }
     matches!(
         op,
@@ -1589,6 +1596,7 @@ fn apply(
         EditOperation::ApplyMechanicalEdit { edit } => {
             crate::mechanical::edit::apply(doc, board_contours, edit)
         }
+        EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());

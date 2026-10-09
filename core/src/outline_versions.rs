@@ -210,7 +210,7 @@ fn state_mut<'a>(doc: &'a mut ProjectDoc, board_id: &str) -> Result<&'a mut Boar
     Ok(&mut doc.board_outlines[index])
 }
 
-fn name(value: &str) -> Result<String, String> {
+pub(crate) fn name(value: &str) -> Result<String, String> {
     let value = value.trim();
     if value.is_empty() || value.len() > 120 {
         return Err("Outline name must contain 1 to 120 characters".into());
@@ -225,7 +225,7 @@ fn name(value: &str) -> Result<String, String> {
 /// authored connections and bridges are addressed by ID inside their version. A new
 /// version identity that reused one of those names would address the wrong entity, so
 /// Core refuses it and names the namespace it found.
-fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
+pub(crate) fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
     if doc.outline.iter().any(|feature| feature.id() == identity) {
         return Some("a top-level outline feature".into());
     }
@@ -276,7 +276,43 @@ fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
     None
 }
 
-fn snapshot(doc: &ProjectDoc, board_id: &str, prefix: &str) -> Result<OutlineSnapshot, String> {
+/// Why a proposed outline version identity cannot be created, if it cannot.
+///
+/// One rule for every creator: the identity must be usable, must not duplicate a live
+/// version, must not reuse a retired one (never reissued, so a pending edit that names
+/// a removed version can never land on its replacement), and must not collide with any
+/// other persisted outline namespace.
+pub(crate) fn version_identity_problem(doc: &ProjectDoc, version_id: &str) -> Option<String> {
+    if version_id.trim().is_empty() || version_id == "generated" {
+        return Some("A fixed outline needs a unique version ID".into());
+    }
+    if doc.board_outlines.iter().any(|state| {
+        state
+            .versions
+            .iter()
+            .any(|version| version.id == *version_id)
+    }) {
+        return Some(format!("Duplicate outline version {version_id}"));
+    }
+    if doc.board_outlines.iter().any(|state| {
+        state
+            .retired_version_ids
+            .iter()
+            .any(|retired| retired == version_id)
+    }) {
+        return Some(format!(
+            "Outline version {version_id} was removed and its identity stays reserved; create the replacement under a new identity"
+        ));
+    }
+    identity_namespace(doc, version_id)
+        .map(|namespace| format!("Outline version {version_id} would collide with {namespace}"))
+}
+
+pub(crate) fn snapshot(
+    doc: &ProjectDoc,
+    board_id: &str,
+    prefix: &str,
+) -> Result<OutlineSnapshot, String> {
     let board = doc
         .boards
         .iter()
@@ -299,7 +335,7 @@ fn snapshot(doc: &ProjectDoc, board_id: &str, prefix: &str) -> Result<OutlineSna
     generated_snapshot(doc, &cache, board, prefix)
 }
 
-fn generated_snapshot(
+pub(crate) fn generated_snapshot(
     doc: &ProjectDoc,
     cache: &geometry::OutlineCache,
     board: &Board,
@@ -534,31 +570,8 @@ pub(crate) fn apply(
             feature,
         } => {
             let label = name(label)?;
-            if version_id.trim().is_empty() || version_id == "generated" {
-                return Err("A fixed outline needs a unique version ID".into());
-            }
-            if doc.board_outlines.iter().any(|state| {
-                state
-                    .versions
-                    .iter()
-                    .any(|version| &version.id == version_id)
-            }) {
-                return Err(format!("Duplicate outline version {version_id}"));
-            }
-            if doc.board_outlines.iter().any(|state| {
-                state
-                    .retired_version_ids
-                    .iter()
-                    .any(|retired| retired == version_id)
-            }) {
-                return Err(format!(
-                    "Outline version {version_id} was removed and its identity stays reserved; create the replacement under a new identity"
-                ));
-            }
-            if let Some(namespace) = identity_namespace(doc, version_id) {
-                return Err(format!(
-                    "Outline version {version_id} would collide with {namespace}"
-                ));
+            if let Some(problem) = version_identity_problem(doc, version_id) {
+                return Err(problem);
             }
             let prefix = format!("board:{board_id}:version:{version_id}");
             let mut geometry = snapshot(doc, board_id, &prefix)?;
@@ -630,7 +643,7 @@ pub(crate) fn apply(
             if !state
                 .versions
                 .iter()
-                .any(|version| &version.id == version_id)
+                .any(|version| version.id == *version_id)
             {
                 return Err("Outline version is missing".into());
             }
