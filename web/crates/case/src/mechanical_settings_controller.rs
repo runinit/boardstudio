@@ -12,6 +12,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::mechanical::change::{MechanicalEdit, MechanicalTarget};
+use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
     EditOperation, MechanicalAssembly, MechanicalConfiguration, PartDefinition,
 };
@@ -315,7 +316,7 @@ impl MechanicalSettingsController {
                             {
                                 return Resolution::Retire(reason);
                             }
-                            resolve_mechanical_edit(&intent, &template)
+                            resolve_mechanical_edit(&intent, &template, accepted)
                         },
                     );
                     if let Some(pending) = owner
@@ -710,14 +711,18 @@ fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
 ///
 /// Core owns the whole settings vocabulary, defaults, closure-mount initialization,
 /// clearance projection, precise changed ids and the no-op short-circuit. The adapter
-/// therefore submits unconditionally: an equal value is a Core no-op that settles
-/// without a revision step, and a malformed or ineligible target is a Core edit error.
-/// The only local retirement is the opening-target guard in [`MechanicalSettingsController::submit`],
-/// because a removed opening or vertex can no longer be addressed by the request's
-/// positional identity. This is deliberately not a reimplementation of Core's rules.
+/// asks Core's read-only evaluator for the disposition first: `Unchanged` settles
+/// without a request or revision step, and a target that is already gone retires
+/// instead of being redirected at whatever now occupies its place. A malformed value
+/// still reaches Core through the submission, so the user sees the Core error rather
+/// than a silent retirement. The only local retirement besides that is the
+/// opening-target guard in [`MechanicalSettingsController::submit`], because a removed
+/// opening or vertex can no longer be addressed by the request's positional identity.
+/// This is deliberately not a reimplementation of Core's rules.
 fn resolve_mechanical_edit(
     request: &MechanicalSettingsRequest,
     template: &PartDefinition,
+    accepted: &AcceptedSnapshot,
 ) -> Resolution {
     let target = match request.identity.scope.instance_id.as_deref() {
         Some(instance_id) => MechanicalTarget::Instance {
@@ -741,6 +746,14 @@ fn resolve_mechanical_edit(
         .instance_id
         .clone()
         .unwrap_or_else(|| request.identity.active_board_id.clone());
+    match evaluate_edit(&accepted.document, &accepted.scene.board_contours, &edit) {
+        Ok(MechanicalEditDisposition::Unchanged) => return Resolution::Unchanged,
+        Ok(MechanicalEditDisposition::Retire) => {
+            return Resolution::Retire("The mechanical target is no longer available.".into());
+        }
+        // A malformed value stays a Core edit error: submitting lets Core report it.
+        Ok(MechanicalEditDisposition::Changed) | Err(_) => {}
+    }
     Resolution::submit(
         vec![owner_id],
         EditOperation::ApplyMechanicalEdit {
@@ -1033,13 +1046,22 @@ mod adapter_tests {
         let identity = current.identity.clone();
         let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-        assert!(controller.submit(request(identity, 1, MechanicalSettingsPatch::Enable)));
+        // A value that really changes so the evaluator admits the submission; the
+        // target and owner reporting are what this test covers.
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )));
         loaded().await;
 
         let resolutions = port.resolutions.borrow();
         let resolution = resolutions[0].resolve(&accepted);
         let Resolution::Submit(command) = resolution else {
-            panic!("expected a submission");
+            panic!("expected a submission, got {resolution:?}");
         };
         assert_eq!(command.target_ids, vec!["board".to_owned()]);
         let EditOperation::ApplyMechanicalEdit { edit } = command.operation else {
@@ -1055,20 +1077,31 @@ mod adapter_tests {
 
     #[wasm_bindgen_test]
     async fn an_instance_scope_targets_the_instance_and_reports_its_owner() {
-        let (_runtime, accepted) = accepted_fixture("adapter-instance-target").await;
+        let document = pair_fixture_document("adapter-instance-target");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
         let port = RecordingPort::default();
         let feedback = Rc::new(RefCell::new(Vec::new()));
         let current = current(&accepted, Some("left"));
         let identity = current.identity.clone();
         let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
 
-        assert!(controller.submit(request(identity, 1, MechanicalSettingsPatch::Enable)));
+        // A value that really changes on the instance so the evaluator admits it.
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: 3.0,
+            },
+        )));
         loaded().await;
 
         let resolutions = port.resolutions.borrow();
         let resolution = resolutions[0].resolve(&accepted);
         let Resolution::Submit(command) = resolution else {
-            panic!("expected a submission");
+            panic!("expected a submission, got {resolution:?}");
         };
         assert_eq!(command.target_ids, vec!["left".to_owned()]);
         let EditOperation::ApplyMechanicalEdit { edit } = command.operation else {
@@ -1080,6 +1113,76 @@ mod adapter_tests {
                 instance_id: "left".into()
             }
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn an_unchanged_value_settles_without_submitting_again() {
+        let (_runtime, accepted) = accepted_fixture("adapter-unchanged").await;
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, None);
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+        let wall_thickness = accepted
+            .document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .wall_thickness;
+
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetDimension {
+                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                value: wall_thickness,
+            },
+        )));
+        loaded().await;
+
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        assert!(
+            matches!(resolutions[0].resolve(&accepted), Resolution::Unchanged),
+            "Core's evaluator reports an equal value as Unchanged, so no revision step is needed"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_vanished_mechanical_target_retires_instead_of_redirecting() {
+        let document = pair_fixture_document("adapter-vanished-target");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, Some("left"));
+        let identity = current.identity.clone();
+        let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+
+        assert!(controller.submit(request(identity, 1, MechanicalSettingsPatch::Enable)));
+        loaded().await;
+
+        let resolutions = port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        let resolution = resolutions[0].resolve(&accepted);
+        assert!(
+            matches!(resolution, Resolution::Submit(_)),
+            "a present instance still submits to Core, got {resolution:?}"
+        );
+
+        // The queued intent was authored against an instance that is now gone.
+        let mut gone = (*accepted.document).clone();
+        gone.hardware.as_mut().unwrap().instances.clear();
+        let gone = AcceptedSnapshot {
+            document: std::sync::Arc::new(gone),
+            ..accepted.clone()
+        };
+        let resolution = resolutions[0].resolve(&gone);
+        let Resolution::Retire(reason) = resolution else {
+            panic!("a vanished target must retire rather than redirect, got {resolution:?}");
+        };
+        assert!(reason.contains("no longer available"), "{reason}");
     }
 
     #[wasm_bindgen_test]
