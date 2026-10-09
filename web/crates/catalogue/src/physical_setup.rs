@@ -866,7 +866,11 @@ fn make_instance(
         flipped,
         controller_part_id: None,
         mechanical: Some(mechanical),
-        construction_ownership: MechanicalConstructionOwnership::Legacy,
+        // A setup creates new halves, so they own their configuration: the legacy shared
+        // overlay and its first-instance fallback belong to instances the migration
+        // marked, never to instances created now. An eligible pair link promotes both
+        // members to the pair's shared construction afterwards.
+        construction_ownership: MechanicalConstructionOwnership::Local,
         mechanical_identity_reservation: None,
     }
 }
@@ -989,6 +993,126 @@ mod tests {
         assert!(new_mechanical.openings.as_ref().is_none_or(Vec::is_empty));
         assert!(new_mechanical.mounts.is_empty());
         assert_eq!(result.parameters.get("unrelated"), Some(&json!("keep")));
+    }
+
+    #[test]
+    fn a_fresh_setup_half_owns_its_configuration_instead_of_the_legacy_overlay() {
+        // A brand-new project: no physical instances yet.
+        let doc = document();
+        let proposal = propose_with_mirror_pair(
+            &doc,
+            SetupIntent::Topology {
+                board_id: "board-a".into(),
+                selected_instance_id: None,
+                split: false,
+                new_primary_id: "primary".into(),
+                new_secondary_id: "unused".into(),
+            },
+            keep_definition,
+        )
+        .unwrap();
+        let hardware = proposal.document.hardware.as_ref().expect("hardware");
+        assert_eq!(hardware.instances.len(), 1);
+        let first_half = &hardware.instances[0];
+        assert_eq!(
+            first_half.construction_ownership,
+            MechanicalConstructionOwnership::Local,
+            "a new unpaired half owns its own configuration, not the legacy overlay"
+        );
+        let own = first_half
+            .mechanical
+            .clone()
+            .expect("the new half carries its configuration");
+
+        // Its effective read is its own configuration: no legacy overlay and no
+        // first-instance fallback can change what it shows.
+        let resolved = |document: &ProjectDoc| {
+            effective_inputs(
+                document,
+                &[],
+                &MechanicalTarget::Instance {
+                    instance_id: first_half.id.clone(),
+                },
+            )
+            .expect("the new half resolves")
+            .configuration
+        };
+        let before = resolved(&proposal.document);
+        assert_eq!(
+            before.wall_thickness, own.wall_thickness,
+            "the new half reads back its own value"
+        );
+
+        // A shared-field write on the legacy source (where a legacy member's edit routes)
+        // does not reach the new half.
+        let mut legacy_member_edit = proposal.document.clone();
+        legacy_member_edit
+            .hardware
+            .as_mut()
+            .expect("hardware")
+            .shared_construction
+            .as_mut()
+            .expect("the setup still writes a shared construction for existing halves")
+            .wall_thickness = 9.0;
+        assert_eq!(
+            resolved(&legacy_member_edit).wall_thickness,
+            own.wall_thickness,
+            "a shared-field edit on a legacy member cannot reach a local half"
+        );
+
+        // A split whose retained primary sits on another board is never pair-linked
+        // either, so the half it creates must still own its configuration.
+        let mut off_board = document();
+        off_board.boards.push(Board {
+            id: "board-b".into(),
+            name: "Board B".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        let mut foreign = instance(&off_board, "foreign", "left", false);
+        foreign.board_id = "board-b".into();
+        off_board.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![foreign],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+        let split = propose_with_mirror_pair(
+            &off_board,
+            SetupIntent::Topology {
+                board_id: "board-a".into(),
+                selected_instance_id: Some("foreign".into()),
+                split: true,
+                new_primary_id: "unused".into(),
+                new_secondary_id: "secondary-new".into(),
+            },
+            keep_definition,
+        )
+        .unwrap();
+        assert!(
+            split.mirror_pair.is_none(),
+            "an off-board primary is never pair-linked"
+        );
+        let created = split
+            .document
+            .hardware
+            .as_ref()
+            .expect("hardware")
+            .instances
+            .iter()
+            .find(|instance| instance.id == "secondary-new")
+            .expect("the created half");
+        assert_eq!(
+            created.construction_ownership,
+            MechanicalConstructionOwnership::Local,
+            "an unpaired created half owns its configuration even when the primary is off-board"
+        );
     }
 
     #[test]
@@ -1694,15 +1818,19 @@ mod tests {
             keep_definition,
         )
         .unwrap();
+        let proposal_hardware = proposal.document.hardware.as_ref().unwrap();
         assert!(
-            proposal
-                .document
-                .hardware
-                .as_ref()
-                .unwrap()
-                .pairs
-                .is_empty(),
+            proposal_hardware.pairs.is_empty(),
             "the proposal document alone never carries the pair"
+        );
+        assert!(
+            proposal_hardware
+                .instances
+                .iter()
+                .all(|instance| instance.construction_ownership
+                    == MechanicalConstructionOwnership::Local),
+            "the new halves start owning their own configuration, before the link \
+             promotes them to the pair"
         );
 
         let document = proposal
