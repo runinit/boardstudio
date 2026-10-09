@@ -320,7 +320,9 @@ fn apply_settings(
     changed.insert(0, owner_id(&edit.target, board_id));
     if needs_initialization {
         persist(doc, &edit.target, configuration.clone())?;
-        configuration = initialize_closure_mounts(doc, board_contours, &edit.target)?;
+        let suggested =
+            initialize_closure_mounts(doc, board_contours, &edit.target, &configuration)?;
+        configuration.closure_mounts = Some(suggested);
     }
     // Route each changed value to the ownership that owns it: the pair's single
     // authored value for linked features, the pair or shared source for shared
@@ -392,12 +394,9 @@ fn initialize_closure_mounts(
     doc: &ProjectDoc,
     board_contours: &[BoardContours],
     target: &MechanicalTarget,
-) -> Result<MechanicalConfiguration, String> {
+    configuration: &MechanicalConfiguration,
+) -> Result<Vec<Mount>, String> {
     let (effective, recomputed) = effective_document(doc, target)?;
-    let mut configuration = effective
-        .mechanical
-        .clone()
-        .ok_or("The mechanical configuration no longer exists.")?;
     // The accepted outline projection is the geometry the user saw, so absent
     // closure mounts are proposed from it rather than from a fresh recompute of the
     // proposed document. Falling back to the recomputed contours keeps callers that
@@ -410,20 +409,20 @@ fn initialize_closure_mounts(
         + configuration
             .bottom_foam_thickness
             .max(configuration.battery_height);
-    configuration.closure_mounts = Some(
-        assembly
-            .suggested_mounts
-            .into_iter()
-            .map(|mut mount| {
-                mount.id = format!("{AUTO_CLOSURE_PREFIX}{}", mount.id);
-                mount.kind = MountKind::Boss;
-                mount.hole_diameter = 2.2;
-                mount.height = Some(height);
-                mount
-            })
-            .collect(),
-    );
-    Ok(configuration)
+    // Only the suggested mounts come from the resolved assembly: the caller's edited
+    // configuration is what gets persisted, so initializing cannot drop the field edits
+    // the same operation just made (a legacy half's shared field, for example).
+    Ok(assembly
+        .suggested_mounts
+        .into_iter()
+        .map(|mut mount| {
+            mount.id = format!("{AUTO_CLOSURE_PREFIX}{}", mount.id);
+            mount.kind = MountKind::Boss;
+            mount.hole_diameter = 2.2;
+            mount.height = Some(height);
+            mount
+        })
+        .collect())
 }
 
 /// The accepted contours of the edit target's board, mirrored for a flipped half.
@@ -771,10 +770,19 @@ fn enable(
     if let Some(template) = edit.mounting_hole.as_deref() {
         validate_mounting_hole(template)?;
     }
-    let configuration = default_configuration(doc, board_id)?;
+    // The fresh configuration carries the Core defaults (battery, stabilizers and the
+    // rest), exactly as the effective read would resolve it, so enabling and the
+    // initialization that follows persist the same configuration the adapter shows.
+    let mut configuration = super::inputs::apply_mechanical_defaults(
+        doc,
+        default_configuration(doc, board_id)?,
+        board_id,
+        false,
+    );
     let mut changed = vec![owner_id(target, board_id)];
-    persist(doc, target, configuration)?;
-    let configuration = initialize_closure_mounts(doc, board_contours, target)?;
+    persist(doc, target, configuration.clone())?;
+    let suggested = initialize_closure_mounts(doc, board_contours, target, &configuration)?;
+    configuration.closure_mounts = Some(suggested);
     persist(doc, target, configuration)?;
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     dedup_changed(&mut changed);
@@ -877,8 +885,10 @@ fn initialize_closures(
     if let Some(template) = edit.mounting_hole.as_deref() {
         validate_mounting_hole(template)?;
     }
-    persist(doc, target, inputs.configuration)?;
-    let configuration = initialize_closure_mounts(doc, board_contours, target)?;
+    let mut configuration = inputs.configuration;
+    persist(doc, target, configuration.clone())?;
+    let suggested = initialize_closure_mounts(doc, board_contours, target, &configuration)?;
+    configuration.closure_mounts = Some(suggested);
     persist(doc, target, configuration)?;
     let mut changed = vec![owner_id(target, board_id)];
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
