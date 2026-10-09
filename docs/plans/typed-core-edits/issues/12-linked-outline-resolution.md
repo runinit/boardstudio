@@ -1,6 +1,6 @@
 # 12: Linked outline resolution, source cleanup and scoped findings
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 11
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Contract: [03 Answer](03-decide-outline-version-intents.md#answer)
@@ -55,3 +55,30 @@ Use independently worked asymmetric expectations, not expectations computed by t
 resolver being tested. Run affected Core/application/CAD checks and WASM typecheck.
 Record changed source hooks, cache dependencies, output scopes and red/green evidence.
 Do not close on a standalone projection-helper test without accepted-state/export proof.
+
+## Outcome
+
+Resolved 2026-10-09 at integrated `08bbc3975` (lane `typed-core-edits/outline-resolution`,
+commits `ff2c99420`, `979e579c3`, `8bba73280`). Core owns one linked-resolution rule: linked
+refinements rebuild from the board's current included components with their own settings,
+authored connections, protected gaps, cutouts and margin (placement, rotation, geometry,
+inclusion, additions and removals all follow; fixed edited outlines keep persisted geometry and
+receive findings). `RemoveParts` prunes only choices naming a removed source inside the same
+accepted edit/Undo. A failed resolution keeps the link, emits one located
+`board:{board}:outline:linked:{version}` finding (Error, Scope Pcb) with a FindingMarker and
+composes the last persisted projection as the clearly identified last-valid display; saving,
+editing and later repair continue. Inactive alternatives are recomputed at source level and
+their findings cannot block the active outline or another board. Linked active versions derive
+the expected region count from the current structure like the Generated version (a refinement
+accepted before a split stays valid after it). ADR-0001's blocker/advisory meanings and the
+protected-gap support rule are unchanged. Checks: core 268+443 with hand-worked asymmetric
+expectations, application 30, fmt/clippy, WASM typecheck; GitNexus gates low per commit with the
+`board_composition` CRITICAL impact pre-reported and contained to Core's composition path.
+
+Accepted deviations: the last-valid display after a failure is the last persisted projection
+(not a cached previous successful resolution); inactive alternatives' compose-level failures
+surface only when selected; linked alternatives add one feature-geometry pass per version per
+`outlines` call (unmeasured); the pre-existing duplicate-findings pattern is unchanged. The
+`ApplyOutlineEdit` handoff for ticket 13 (creation seeding, version-local settings authority,
+identity namespacing, retirement, freeze, finding-id contract) is recorded above and in the
+report `/tmp/tce-outline-reports/12-linked-resolution.md`.

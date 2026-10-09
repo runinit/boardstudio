@@ -55,6 +55,11 @@ and for any bulk action a recorded decision permits.
 
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+- 12 linked outline resolution lands: linked refinements rebuild from the board's
+  current included components with version-local choices, source cleanup rides the
+  same accepted edit/Undo, failed resolution keeps the link with a located last-valid
+  finding, inactive alternatives cannot block, and the expected region count follows
+  the current structure: [Outcome](issues/12-linked-outline-resolution.md#outcome).
 - 11 Core outline ownership lands: explicit `OutlineOwnership` per version with
   absence-equals-fixed defaults (no migration), retired-identity reservation,
   cross-namespace collision refusal, version-namespaced derived identities, archive
@@ -76,8 +81,8 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- [12: Linked outline resolution](issues/12-linked-outline-resolution.md) is the
-  unblocked implementation frontier: 11 is resolved.
+- [13: Typed Core outline edits](issues/13-core-outline-edits.md) is the unblocked
+  implementation frontier: 11 and 12 are resolved.
 
 ## Outline implementation frontier
 
