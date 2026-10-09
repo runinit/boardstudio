@@ -1,15 +1,15 @@
 //! Core checks saved generator parameters at its boundary (ADR-0009).
 //!
-//! A value of the wrong type is refused on Open, ReplaceDocument and every edit. A name the
-//! generator does not declare is a located warning on Open and ReplaceDocument, and is refused
-//! on an edit. Non-empty list text for a list parameter is a warning on Open and ReplaceDocument
-//! (saved data may hold it), and is refused when an edit writes it. An edit is checked only for
-//! the values it writes, so a legacy warning does not block an unrelated edit.
+//! A value of the wrong type is refused on Open, ReplaceDocument and every edit. Two things are
+//! warnings on Open and ReplaceDocument instead, because saved data can hold them: a name the
+//! generator does not declare, and text where a number or a list is declared (the version 4
+//! migration keeps both). An edit refuses all of these, but only for the values it writes, so a
+//! legacy warning does not block an unrelated edit.
 use boardstudio_core::archive;
 use boardstudio_core::generators;
 use boardstudio_core::model::{
-    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Finding, Part, PartDefinition,
-    Position, ProjectDoc, Severity,
+    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Finding, Matrix, Part,
+    PartDefinition, Position, ProjectDoc, Severity,
 };
 use boardstudio_core::{CoreEngine, migrate};
 use serde_json::{Value, json};
@@ -107,12 +107,12 @@ fn generator_findings(findings: &[Finding]) -> Vec<&Finding> {
 }
 
 #[test]
-fn open_refuses_text_for_a_number_and_names_the_generator_and_parameter() {
+fn open_refuses_a_boolean_for_a_number_and_names_the_generator_and_parameter() {
     let mut engine = CoreEngine::new();
     let doc = document(vec![part(
         "h1",
         HOLE_DEFINITION,
-        json!({ "hole_size": "2" }),
+        json!({ "hole_size": true }),
     )]);
     let message = error_message(open(&mut engine, doc));
     assert!(message.contains(HOLE), "{message}");
@@ -279,7 +279,7 @@ fn a_move_preview_is_not_refused_for_a_legacy_name() {
 }
 
 #[test]
-fn replace_document_refuses_text_for_a_number() {
+fn replace_document_refuses_a_boolean_for_a_number() {
     let mut engine = CoreEngine::new();
     assert!(matches!(
         open(&mut engine, document(Vec::new())),
@@ -288,7 +288,7 @@ fn replace_document_refuses_text_for_a_number() {
     let replacement = document(vec![part(
         "h1",
         HOLE_DEFINITION,
-        json!({ "hole_size": "2" }),
+        json!({ "hole_size": true }),
     )]);
     let message = error_message(edit(
         &mut engine,
@@ -350,4 +350,268 @@ fn the_shipped_reviung41_archive_opens_without_a_generator_finding() {
                 .starts_with("generator-parameter:")),
         "{opened}"
     );
+}
+
+const CHOC: &str = "ceoloide/switch_choc_v1_v2";
+const CHOC_DEFINITION: &str = "generator:ceoloide/switch_choc_v1_v2";
+const ENCODER: &str = "ceoloide/rotary_encoder_ec11_ec12";
+const ENCODER_DEFINITION: &str = "generator:ceoloide/rotary_encoder_ec11_ec12";
+
+fn matrix(definition: &str) -> Matrix {
+    serde_json::from_value(json!({
+        "id": "main", "rows": 1, "columns": 1,
+        "pitch": { "x": 19, "y": 19 }, "origin": { "x": 0, "y": 0 },
+        "definitionId": definition, "partIds": [],
+    }))
+    .expect("matrix")
+}
+
+fn scene_document(reply: CoreReply) -> ProjectDoc {
+    match reply {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected a scene, got {other:?}"),
+    }
+}
+
+/// Saved version 3 data as an older Parts editor could have left it, after the migration the
+/// page runs before Open: it keeps the text that is not a number and the name no generator declares.
+fn migrated_version_3_with_unconvertible_text() -> Value {
+    let mut definition = catalogue_definition(HOLE);
+    definition
+        .generator
+        .as_mut()
+        .unwrap()
+        .parameters
+        .insert("hole_size".into(), json!("two"));
+    let held = part(
+        "hole",
+        HOLE_DEFINITION,
+        json!({ "hole_size": " 3.5 ", "not_a_parameter": "4" }),
+    );
+    let mut saved = serde_json::to_value(ProjectDoc::empty("saved", "Saved")).unwrap();
+    saved["formatVersion"] = json!(3);
+    saved["definitions"] = json!([definition]);
+    saved["parts"] = json!([held]);
+    migrate::migrate_value(saved).expect("migrates").0
+}
+
+#[test]
+fn a_migrated_project_that_keeps_unconvertible_number_text_opens_with_a_warning() {
+    let mut engine = CoreEngine::new();
+    let opened: Value = serde_json::from_str(&engine.request(
+        &json!({ "id": "open", "kind": "open", "document": migrated_version_3_with_unconvertible_text() })
+            .to_string(),
+    ))
+    .unwrap();
+    assert_eq!(
+        opened["kind"], "scene",
+        "migration keeps it, so Open must: {opened}"
+    );
+    let found: Vec<&Value> = opened["scene"]["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|finding| {
+            finding["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("generator-parameter:")
+        })
+        .collect();
+    let text = found
+        .iter()
+        .find(|finding| finding["message"].as_str().unwrap().contains("hole_size"))
+        .unwrap_or_else(|| panic!("a finding names hole_size: {found:?}"));
+    assert_eq!(text["severity"], "warning", "{text}");
+    assert_eq!(text["targetIds"], json!([HOLE_DEFINITION]), "{text}");
+    assert!(
+        found.iter().any(|finding| finding["message"]
+            .as_str()
+            .unwrap()
+            .contains("not_a_parameter")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_project_that_opened_with_number_text_still_takes_replace_document_and_unrelated_edits() {
+    let mut engine = CoreEngine::new();
+    let opened: Value = serde_json::from_str(&engine.request(
+        &json!({ "id": "open", "kind": "open", "document": migrated_version_3_with_unconvertible_text() })
+            .to_string(),
+    ))
+    .unwrap();
+    assert_eq!(opened["kind"], "scene", "{opened}");
+    let document: ProjectDoc = serde_json::from_value(opened["document"].clone()).unwrap();
+    // The page replaces the whole document for many settings; the legacy text is still in it.
+    let mut renamed = document.clone();
+    renamed.name = "Renamed".into();
+    let replaced = edit(
+        &mut engine,
+        document.revision,
+        EditPhase::Commit,
+        EditOperation::ReplaceDocument {
+            document: Box::new(renamed),
+        },
+    );
+    let document = scene_document(replaced);
+    assert_eq!(document.name, "Renamed");
+    let other = part("h2", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
+    assert!(matches!(
+        edit(
+            &mut engine,
+            document.revision,
+            EditPhase::Commit,
+            add_part(other)
+        ),
+        CoreReply::Scene { .. }
+    ));
+}
+
+#[test]
+fn text_for_a_number_is_still_refused_when_an_edit_writes_it() {
+    let mut engine = CoreEngine::new();
+    let opened: Value = serde_json::from_str(&engine.request(
+        &json!({ "id": "open", "kind": "open", "document": migrated_version_3_with_unconvertible_text() })
+            .to_string(),
+    ))
+    .unwrap();
+    let revision = opened["document"]["revision"].as_u64().unwrap();
+    // The legacy text is "two"; writing a different text value is a new bad value.
+    let bad = part("h3", HOLE_DEFINITION, json!({ "hole_size": "three" }));
+    let message = error_message(edit(
+        &mut engine,
+        revision,
+        EditPhase::Commit,
+        add_part(bad),
+    ));
+    assert!(message.contains("hole_size"), "{message}");
+}
+
+#[test]
+fn a_copy_of_a_part_with_a_legacy_name_is_accepted_and_a_new_typo_is_not() {
+    let mut engine = CoreEngine::new();
+    let legacy = document(vec![part(
+        "h1",
+        HOLE_DEFINITION,
+        json!({ "hole_sise": 2.0 }),
+    )]);
+    assert!(matches!(open(&mut engine, legacy), CoreReply::Scene { .. }));
+    // A copy repeats the value the document already holds; the user cannot remove the name
+    // from the Parts editor, so refusing the copy would be a dead end.
+    let copy = part("h2", HOLE_DEFINITION, json!({ "hole_sise": 2.0 }));
+    let document = scene_document(edit(&mut engine, 0, EditPhase::Commit, add_part(copy)));
+    let revision = document.revision;
+    let typo = part("h3", HOLE_DEFINITION, json!({ "hole_sise2": 2.0 }));
+    let message = error_message(edit(
+        &mut engine,
+        revision,
+        EditPhase::Commit,
+        add_part(typo),
+    ));
+    assert!(message.contains("hole_sise2"), "{message}");
+}
+
+#[test]
+fn changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_declare() {
+    let mut engine = CoreEngine::new();
+    let mut doc = ProjectDoc::empty("keys", "Keys");
+    doc.format_version = migrate::CURRENT_VERSION;
+    doc.definitions.push(catalogue_definition(CHOC));
+    doc.definitions.push(catalogue_definition(ENCODER));
+    assert!(matches!(open(&mut engine, doc), CoreReply::Scene { .. }));
+    let placed = scene_document(edit(
+        &mut engine,
+        0,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: matrix(CHOC_DEFINITION),
+            definitions: None,
+        },
+    ));
+    assert_eq!(placed.parts.len(), 1, "one key is placed");
+    // Electrical wiring stores each terminal's net as a parameter of the placed key.
+    let mut wired = placed.clone();
+    wired.parts[0].generator_parameters =
+        Some(serde_json::from_value(json!({ "from": "ROW0", "to": "COL0" })).unwrap());
+    assert!(matches!(
+        open(&mut engine, wired.clone()),
+        CoreReply::Scene { .. }
+    ));
+    for phase in [EditPhase::Preview, EditPhase::Commit] {
+        let reply = edit(
+            &mut engine,
+            wired.revision,
+            phase,
+            EditOperation::SetMatrix {
+                matrix: matrix(ENCODER_DEFINITION),
+                definitions: None,
+            },
+        );
+        match (phase, reply) {
+            (EditPhase::Commit, CoreReply::Scene { document, .. }) => {
+                let key = &document.parts[0];
+                assert_eq!(key.definition_id, ENCODER_DEFINITION);
+                let parameters = key.generator_parameters.clone().unwrap_or_default();
+                assert!(!parameters.contains_key("from"), "{parameters:?}");
+                assert!(!parameters.contains_key("to"), "{parameters:?}");
+            }
+            (EditPhase::Preview, CoreReply::Preview { .. }) => {}
+            (phase, other) => panic!("{phase:?}: the switch change is refused: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_matrix_preview_that_brings_a_wrong_typed_definition_is_refused_and_leaves_no_trace() {
+    let mut engine = CoreEngine::new();
+    assert!(matches!(
+        open(&mut engine, document(Vec::new())),
+        CoreReply::Scene { .. }
+    ));
+    // `SetMatrix` previews run through the preview path, which has its own check.
+    let mut bad = catalogue_definition(CHOC);
+    bad.id = "generator:bad-choc".into();
+    bad.generator
+        .as_mut()
+        .unwrap()
+        .parameters
+        .insert("hotswap".into(), json!("yes"));
+    let message = error_message(edit(
+        &mut engine,
+        0,
+        EditPhase::Preview,
+        EditOperation::SetMatrix {
+            matrix: matrix("generator:bad-choc"),
+            definitions: Some(vec![bad]),
+        },
+    ));
+    assert!(message.contains("hotswap"), "{message}");
+    assert!(message.contains(CHOC), "{message}");
+    // The refused preview restored the document: the same base revision takes a valid edit.
+    let good = part("h1", HOLE_DEFINITION, json!({ "hole_size": 2.0 }));
+    assert!(matches!(
+        edit(&mut engine, 0, EditPhase::Commit, add_part(good)),
+        CoreReply::Scene { .. }
+    ));
+}
+
+#[test]
+fn every_terminal_of_a_bundled_generator_is_a_declared_net_parameter() {
+    // Electrical wiring writes each terminal's net into the placed part's parameters, so a
+    // terminal that is not a declared net would make that write fail the edit check.
+    for definition in generators::catalogue().expect("catalogue") {
+        let Some(generator) = &definition.generator else {
+            continue;
+        };
+        let schema = generators::parameter_schema(&generator.source).expect("schema");
+        for terminal in definition.terminals.keys() {
+            assert_eq!(
+                schema.get(terminal).map(|spec| &spec["type"]),
+                Some(&json!("net")),
+                "{} terminal {terminal}",
+                generator.source
+            );
+        }
+    }
 }

@@ -844,8 +844,15 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                             })
                         })
                         .and_then(|definition| definition.keycap);
+                    let new_source = doc
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == definition_id)
+                        .and_then(|definition| definition.generator.as_ref())
+                        .map(|generator| generator.source.clone());
                     let part = &mut doc.parts[index];
-                    if part.definition_id != definition_id && part.keycap.is_none() {
+                    let new_definition = part.definition_id != definition_id;
+                    if new_definition && part.keycap.is_none() {
                         part.keycap = authored_keycap;
                     }
                     let overridden = part
@@ -856,6 +863,15 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                         part.pose = pose;
                     }
                     part.definition_id = definition_id;
+                    if let (true, Some(source), Some(parameters)) = (
+                        new_definition,
+                        new_source.as_deref(),
+                        part.generator_parameters.as_mut(),
+                    ) {
+                        // Parameters of the previous generator (its terminal nets, for
+                        // example) mean nothing to the new one and must not be saved on it.
+                        crate::generators::drop_foreign_parameters(source, parameters);
+                    }
                     part.side = side;
                     if let Some(variant) = variant {
                         part.properties

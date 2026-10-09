@@ -187,16 +187,17 @@ pub fn parameter_problems(doc: &ProjectDoc) -> Vec<GeneratorParameterProblem> {
     problems
 }
 
-/// A non-empty text value for a list parameter. Saved data can hold it (version 4 keeps it as
-/// text), so Open and ReplaceDocument warn instead of refusing.
-fn is_list_text(problem: &ParameterProblem) -> bool {
+/// Text where the declared kind is a number or a list. Saved data can hold it: version 4
+/// deliberately keeps number text it cannot convert (such as `"two"`) and non-empty list text
+/// (such as `"[1,2,3]"`), so Open and ReplaceDocument warn instead of refusing.
+fn is_legacy_text(problem: &ParameterProblem) -> bool {
     matches!(
         problem,
         ParameterProblem::WrongType {
-            expected: ParamKind::Array,
-            found: Value::String(text),
+            expected: ParamKind::Number | ParamKind::Array,
+            found: Value::String(_),
             ..
-        } if !text.trim().is_empty()
+        }
     )
 }
 
@@ -245,16 +246,55 @@ fn problem_message(problem: &GeneratorParameterProblem) -> String {
     }
 }
 
-/// Refuses a document whose saved generator parameters have a wrong type. List text and
-/// undeclared names do not refuse; they are warnings from [`parameter_findings`].
+/// Refuses a document whose saved generator parameters have a wrong type. Number or list text
+/// and undeclared names do not refuse; they are warnings from [`parameter_findings`].
 pub fn document_error(doc: &ProjectDoc) -> Result<(), String> {
     parameter_problems(doc)
         .iter()
         .find(|problem| {
             matches!(problem.problem, ParameterProblem::WrongType { .. })
-                && !is_list_text(&problem.problem)
+                && !is_legacy_text(&problem.problem)
         })
         .map_or(Ok(()), |problem| Err(problem_message(problem)))
+}
+
+/// Whether `held`, a problem of the document an edit starts from, already stands for `problem`.
+///
+/// The same value at the same place always does. An undeclared name and legacy text also
+/// stand for the same name (and, for text, the same value) held anywhere else in the document
+/// for the same generator, so copying a part that carries one does not introduce it: the Parts
+/// editor keeps names it does not show, so the user could not remove it before copying.
+fn already_held(held: &GeneratorParameterProblem, problem: &GeneratorParameterProblem) -> bool {
+    if held == problem {
+        return true;
+    }
+    if held.generator != problem.generator {
+        return false;
+    }
+    match (&held.problem, &problem.problem) {
+        (
+            ParameterProblem::Undeclared { parameter: a, .. },
+            ParameterProblem::Undeclared { parameter: b, .. },
+        ) => a == b,
+        (
+            ParameterProblem::WrongType {
+                parameter: a,
+                found: found_a,
+                ..
+            },
+            ParameterProblem::WrongType {
+                parameter: b,
+                found: found_b,
+                ..
+            },
+        ) => {
+            is_legacy_text(&held.problem)
+                && is_legacy_text(&problem.problem)
+                && a == b
+                && found_a == found_b
+        }
+        _ => false,
+    }
 }
 
 /// Refuses an edit that writes a wrong type or an undeclared name. `before` is the problem list
@@ -266,8 +306,22 @@ pub fn introduced_error(
 ) -> Result<(), String> {
     parameter_problems(after)
         .iter()
-        .find(|problem| !before.contains(problem))
+        .find(|problem| !before.iter().any(|held| already_held(held, problem)))
         .map_or(Ok(()), |problem| Err(problem_message(problem)))
+}
+
+/// Removes the entries of a part's saved parameters that `source` would reject, when the part
+/// takes a different generator. They belong to the generator it had, render ignores them or
+/// refuses them, and no editor shows them.
+pub fn drop_foreign_parameters(source: &str, parameters: &mut BTreeMap<String, Value>) {
+    let Ok(found) = bundled().check_parameters(source, parameters) else {
+        return;
+    };
+    for problem in found {
+        let (ParameterProblem::WrongType { parameter, .. }
+        | ParameterProblem::Undeclared { parameter, .. }) = problem;
+        parameters.remove(&parameter);
+    }
 }
 
 /// Refuses a definition whose own generator parameters the schema rejects at all, which is the
@@ -290,7 +344,8 @@ pub fn definition_error(definition: &PartDefinition) -> Result<(), String> {
 }
 
 /// Findings for every saved generator parameter the schema rejects: wrong types are errors,
-/// undeclared names and list text are warnings, each located at its definition, part or member.
+/// undeclared names and number or list text are warnings, each located at its definition, part
+/// or member.
 pub fn parameter_findings(doc: &ProjectDoc) -> Vec<Finding> {
     parameter_problems(doc)
         .iter()
@@ -299,12 +354,17 @@ pub fn parameter_findings(doc: &ProjectDoc) -> Vec<Finding> {
                 ParameterProblem::Undeclared { .. } => {
                     ("undeclared", Severity::Warning, problem_message(problem))
                 }
-                ParameterProblem::WrongType { .. } if is_list_text(&problem.problem) => (
-                    "list-text",
+                ParameterProblem::WrongType { expected, .. } if is_legacy_text(&problem.problem) => (
+                    if *expected == ParamKind::Number {
+                        "number-text"
+                    } else {
+                        "list-text"
+                    },
                     Severity::Warning,
                     format!(
-                        "{} The saved value is text, so the part does not generate until it is a list.",
-                        problem_message(problem)
+                        "{} The saved value is text, so the part does not generate until it is {}.",
+                        problem_message(problem),
+                        expected.describe()
                     ),
                 ),
                 ParameterProblem::WrongType { .. } => {
