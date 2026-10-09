@@ -741,6 +741,14 @@ impl CoreEngine {
                     .all(|id| fitted_targets.contains(id))
         });
         findings.extend(board_findings);
+        // Mechanical pair fit findings recomputed from accepted state, so readiness and
+        // the selected export gates see them instead of only a transient assembly
+        // diagnostic. A Case-scope finding blocks its affected assembly's output; a
+        // fabricated-drill violation is Pcb scope and blocks only that board.
+        findings.extend(crate::mechanical::inputs::pair_findings(
+            doc,
+            &board_contours,
+        ));
         let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);

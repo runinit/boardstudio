@@ -12,10 +12,10 @@ use boardstudio_core::mechanical::change::{
 };
 use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
-    Board, BoardContours, Contour, HardwareConfiguration, HardwareTopology, HardwareTransport,
-    MechanicalConfiguration, MechanicalConstructionOwnership, MechanicalFeatureKind,
-    MechanicalFeatureValue, Mount, MountKind, Operation, OutlineFeature, PartDefinition,
-    PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
+    Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,
+    HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
+    MechanicalFeatureKind, MechanicalFeatureValue, Mount, MountKind, Operation, OutlineFeature,
+    PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -1162,5 +1162,153 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
         mount_at(survivor.mechanical.as_ref().unwrap(), "mount-1"),
         Vec2 { x: 2.0, y: 3.0 },
         "the survivor keeps the geometry it showed"
+    );
+}
+
+/// Gives the fixture board a real outline so export readiness is meaningful.
+fn with_board_outline(document: &mut ProjectDoc) {
+    document.outline.push(OutlineFeature::Rect {
+        anchor_part_id: None,
+        id: "outline".into(),
+        center: Vec2 { x: 0.0, y: 0.0 },
+        size: Vec2 { x: 80.0, y: 60.0 },
+        radius: 0.0,
+        rotation: None,
+        operation: Operation::Add,
+    });
+    document.boards[0].outline_ids = vec!["outline".into()];
+    document.case_bodies.push(CaseBody {
+        features: None,
+        openings: None,
+        id: "case-body".into(),
+        name: "Case body".into(),
+        board_id: "board".into(),
+        kind: CaseKind::Tray,
+        thickness: 3.0,
+        clearance: 0.3,
+        material_id: None,
+        z: None,
+        wall_height: None,
+        wall_thickness: Some(2.0),
+        mounts: None,
+        gasket: None,
+    });
+}
+
+/// Two halves where the linked mount reflects onto the second half's local hardware.
+fn conflicting_pair_document() -> ProjectDoc {
+    let mut document = document();
+    with_board_outline(&mut document);
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![
+            mirror_instance("left", vec![mount("mount-1", 2.0, 3.0)]),
+            mirror_instance(
+                "right",
+                vec![
+                    mount("mount-1", 7.0, 3.0),
+                    mount("mount-encoder", -2.0, 3.0),
+                ],
+            ),
+        ],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    document
+}
+
+#[test]
+fn a_valid_asymmetric_clash_is_retained_with_a_located_finding() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
+    use boardstudio_core::model::{CoreReply, CoreRequest, Scope};
+
+    let mut document = conflicting_pair_document();
+    link_pair(&mut document);
+
+    // The reflected mount is exactly where the right half's own hardware sits.
+    let right: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert_eq!(
+        mount_at(&right.configuration, "mount-1"),
+        Vec2 { x: -2.0, y: 3.0 },
+        "the intended geometry stays exactly where the pair puts it"
+    );
+    let finding = right
+        .findings
+        .iter()
+        .find(|finding| finding.target_ids.contains(&"mount-1".to_string()))
+        .unwrap_or_else(|| panic!("no located finding: {:?}", right.findings));
+    assert_eq!(finding.scope, Scope::Case);
+    assert_eq!(
+        finding.target_ids,
+        vec![
+            "board".to_string(),
+            "right".to_string(),
+            "mount-1".to_string()
+        ],
+        "the finding locates the board, the half and the feature"
+    );
+
+    // The accepted scene carries the same located finding, so readiness and the
+    // export gates see accepted state rather than a transient assembly warning.
+    let mut engine = CoreEngine::new();
+    let scene = match engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: document.clone(),
+    }) {
+        CoreReply::Scene { scene, .. } => scene,
+        other => panic!("expected scene: {other:?}"),
+    };
+    let located = scene
+        .findings
+        .iter()
+        .find(|finding| finding.id == "mechanical:pair:pair-left-right:right:mount-1:fit")
+        .unwrap_or_else(|| panic!("no accepted pair finding: {:?}", scene.findings));
+    assert_eq!(located.scope, Scope::Case);
+    assert_eq!(
+        located.target_ids,
+        vec![
+            "board".to_string(),
+            "right".to_string(),
+            "mount-1".to_string()
+        ],
+        "the accepted finding locates board, half and feature"
+    );
+    let readiness = scene
+        .board_readiness
+        .iter()
+        .find(|readiness| readiness.board_id == "board")
+        .expect("board readiness");
+    assert!(
+        readiness.pcb,
+        "a Case-only clash must not block the board's manufacturing export"
+    );
+
+    // Without the local hardware there is no clash finding at all: the conflict, not
+    // the pairing, is what is reported.
+    let mut control = document.clone();
+    control
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == "right")
+        .unwrap()
+        .mechanical
+        .as_mut()
+        .unwrap()
+        .mounts
+        .retain(|mount| mount.id != "mount-encoder");
+    let control_findings =
+        boardstudio_core::mechanical::effective_inputs(&control, &[], &instance_target("right"))
+            .unwrap()
+            .findings;
+    assert!(
+        control_findings.is_empty(),
+        "the same pair without a local conflict reports nothing: {control_findings:?}"
     );
 }
