@@ -55,6 +55,13 @@ and for any bulk action a recorded decision permits.
 
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
+- 15 integrated outline verification closes the outline phase: the typed outline transcript is
+  appended (60 core entries, native and WASM parity), matrix, mechanical and outline actions hold
+  their queue contract in both orders with linked refinements following and fixed copies staying,
+  the full check passes at `77b9548b8`, and independent Standards and Spec reviews are dispositioned
+  with Core settings validation, base-contour protection, linked-choice cleanup on every removal
+  path and linked-refinement settings editing fixed and the rest recorded as accepted deviations
+  or backlog: [Outcome](issues/15-outline-integrated-verification.md#outcome).
 - 14 the outline web adapter lands: the planner is replaced by the typed adapter
   (zero `ReplaceDocument` consumers in the outline module, Generate through typed
   `CreateGenerated`), ownership is presented distinctly with located findings and
@@ -91,15 +98,15 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- [15: Integrated outline verification](issues/15-outline-integrated-verification.md)
-  is the unblocked implementation frontier: 11-14 are resolved. The parent owns the
-  transcript blessing, the full check, the product gesture pass and the reviews.
+- The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
+  (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
+  which is blocked only by matrix 11.
 
 ## Outline implementation frontier
 
-Decision [03](issues/03-decide-outline-version-intents.md#answer) is resolved; its
-build is not. The original proposal is retained as history, but deferring linked
-refinements is superseded by the confirmed scope.
+Decision [03](issues/03-decide-outline-version-intents.md#answer) is resolved and its
+build (11-15) is complete. The original proposal is retained as history, but deferring
+linked refinements is superseded by the confirmed scope.
 
 ```text
 03 approved
@@ -114,7 +121,7 @@ refinements is superseded by the confirmed scope.
   [13: Typed edits](issues/13-core-outline-edits.md),
   [14: Web adapter](issues/14-outline-web-adapter.md) and
   [15: Integrated verification](issues/15-outline-integrated-verification.md)
-  follow the dependency chain. No build is claimed complete by design approval.
+  followed the dependency chain and are resolved with their recorded deviations.
 - Mechanical tickets 02 and 05-10 are resolved; outline tickets own their own gates
   from here.
 - Work proceeds in separate worktrees. The parent
