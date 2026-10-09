@@ -1,6 +1,6 @@
 # 02: Timing and test-count baseline
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: 01
 Map: [map.md](../map.md)
