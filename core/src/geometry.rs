@@ -375,8 +375,7 @@ fn alternative_findings(doc: &ProjectDoc) -> Vec<Finding> {
             {
                 continue;
             }
-            let features =
-                crate::outline_versions::resolved_features(doc, &board.id, version);
+            let features = crate::outline_versions::resolved_features(doc, &board.id, version);
             let failure = features
                 .iter()
                 .find_map(|feature| feature_geometry(doc, feature).err())

@@ -52,7 +52,10 @@ pub(crate) fn protection_problem(doc: &ProjectDoc, board_id: &str) -> Option<(St
     None
 }
 
-pub(crate) fn active_version<'a>(doc: &'a ProjectDoc, board_id: &str) -> Option<&'a OutlineVersion> {
+pub(crate) fn active_version<'a>(
+    doc: &'a ProjectDoc,
+    board_id: &str,
+) -> Option<&'a OutlineVersion> {
     let state = doc
         .board_outlines
         .iter()
@@ -82,8 +85,7 @@ pub(crate) fn included_parts(doc: &ProjectDoc, board_id: &str) -> Vec<String> {
                         .as_ref()
                         .is_some_and(|outline| outline.excluded)
                     && doc.definitions.iter().any(|definition| {
-                        definition.id == part.definition_id
-                            && definition.kind != PartKind::Utility
+                        definition.id == part.definition_id && definition.kind != PartKind::Utility
                     })
             })
         })
@@ -142,7 +144,12 @@ pub(crate) fn features(doc: &ProjectDoc, board: &Board) -> Vec<OutlineFeature> {
     board
         .outline_ids
         .iter()
-        .filter_map(|id| doc.outline.iter().find(|feature| feature.id() == id).cloned())
+        .filter_map(|id| {
+            doc.outline
+                .iter()
+                .find(|feature| feature.id() == id)
+                .cloned()
+        })
         .collect()
 }
 
@@ -239,7 +246,8 @@ fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
     None
 }
 
-fn snapshot(doc: &ProjectDoc, board_id: &str, prefix: &str) -> Result<OutlineSnapshot, String> {    let board = doc
+fn snapshot(doc: &ProjectDoc, board_id: &str, prefix: &str) -> Result<OutlineSnapshot, String> {
+    let board = doc
         .boards
         .iter()
         .find(|board| board.id == board_id)
@@ -389,8 +397,10 @@ pub(crate) fn prune_removed_sources(doc: &mut ProjectDoc, removed: &[String]) ->
                 }
                 keep
             });
-            version.geometry.features.retain_mut(|feature| {
-                match feature {
+            version
+                .geometry
+                .features
+                .retain_mut(|feature| match feature {
                     OutlineFeature::PartEnvelope {
                         part_ids,
                         connections,
@@ -433,8 +443,7 @@ pub(crate) fn prune_removed_sources(doc: &mut ProjectDoc, removed: &[String]) ->
                         keep
                     }
                     _ => true,
-                }
-            });
+                });
         }
     }
     changed.sort();
@@ -463,7 +472,8 @@ pub(crate) fn is_inactive_version_finding(doc: &ProjectDoc, id: &str) -> bool {
         .is_none_or(|state| state.active_version_id.as_deref() != Some(version_id.as_str()))
 }
 
-pub(crate) fn refresh_recovery(doc: &mut ProjectDoc, cache: &geometry::OutlineCache) {    for board in doc.boards.clone() {
+pub(crate) fn refresh_recovery(doc: &mut ProjectDoc, cache: &geometry::OutlineCache) {
+    for board in doc.boards.clone() {
         let has_protection = board.outline_ids.iter().filter_map(|id| doc.outline.iter().find(|feature| feature.id() == id))
             .any(|feature| matches!(feature, OutlineFeature::PartEnvelope { settings, .. } if settings.repair.as_ref().is_some_and(|repair| !repair.keep_gaps.is_empty())));
         if !has_protection || protection_problem(doc, &board.id).is_some() {

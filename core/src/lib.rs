@@ -790,17 +790,16 @@ impl CoreEngine {
         }
         // A finding attributed to a linked alternative the board has not selected is
         // visible but never blocks the selected outline or another board (ADR-0001/0002).
-        let active = |finding: &Finding| {
-            !outline_versions::is_inactive_version_finding(doc, &finding.id)
-        };
-        let layout = !findings.iter().filter(|finding| active(finding)).any(|f| {
-            matches!(f.scope, Scope::Layout) && matches!(f.severity, Severity::Error)
-        });
+        let active =
+            |finding: &Finding| !outline_versions::is_inactive_version_finding(doc, &finding.id);
+        let layout = !findings
+            .iter()
+            .filter(|finding| active(finding))
+            .any(|f| matches!(f.scope, Scope::Layout) && matches!(f.severity, Severity::Error));
         let outline = !contours.is_empty()
-            && !findings
-                .iter()
-                .filter(|finding| active(finding))
-                .any(|f| matches!(f.scope, Scope::Outline) && matches!(f.severity, Severity::Error));
+            && !findings.iter().filter(|finding| active(finding)).any(|f| {
+                matches!(f.scope, Scope::Outline) && matches!(f.severity, Severity::Error)
+            });
         let pcb = layout
             && !doc.boards.is_empty()
             && !findings
@@ -824,36 +823,39 @@ impl CoreEngine {
                                 || owner.net_ids.contains(id)
                         })
                 };
-                let invalid_pcb = findings
-                    .iter()
-                    .filter(|finding| active(finding))
-                    .any(|finding| {
-                        matches!(finding.severity, Severity::Error)
-                            && matches!(finding.scope, Scope::Pcb)
-                            && relevant(finding)
-                    });
-                let invalid_outline = findings
-                    .iter()
-                    .filter(|finding| active(finding))
-                    .any(|finding| {
-                        matches!(finding.severity, Severity::Error)
-                            && matches!(finding.scope, Scope::Pcb)
-                            && finding
-                                .id
-                                .starts_with(&format!("board:{}:", board.board_id))
-                            && (finding.id.contains(":outline")
-                                || finding.id.contains(":feature:")
-                                || finding.id.ends_with(":empty-outline"))
-                    });
+                let invalid_pcb =
+                    findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            matches!(finding.severity, Severity::Error)
+                                && matches!(finding.scope, Scope::Pcb)
+                                && relevant(finding)
+                        });
+                let invalid_outline =
+                    findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            matches!(finding.severity, Severity::Error)
+                                && matches!(finding.scope, Scope::Pcb)
+                                && finding
+                                    .id
+                                    .starts_with(&format!("board:{}:", board.board_id))
+                                && (finding.id.contains(":outline")
+                                    || finding.id.contains(":feature:")
+                                    || finding.id.ends_with(":empty-outline"))
+                        });
                 let outline = !board.contours.is_empty() && !invalid_outline;
-                let valid_layout = !findings
-                    .iter()
-                    .filter(|finding| active(finding))
-                    .any(|finding| {
-                        finding.severity == Severity::Error
-                            && finding.scope == Scope::Layout
-                            && relevant(finding)
-                    });
+                let valid_layout =
+                    !findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            finding.severity == Severity::Error
+                                && finding.scope == Scope::Layout
+                                && relevant(finding)
+                        });
                 let pcb = valid_layout && outline && !invalid_pcb;
                 let bodies: Vec<_> = doc
                     .case_bodies

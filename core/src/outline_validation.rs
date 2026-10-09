@@ -649,12 +649,8 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                     anchor_part_id,
                     ..
                 } => {
-                    let points = pad_path(
-                        center,
-                        size,
-                        &PadShape::Rect,
-                        rotation.unwrap_or_default(),
-                    );
+                    let points =
+                        pad_path(center, size, &PadShape::Rect, rotation.unwrap_or_default());
                     if let Some(part) = anchor_part_id
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))

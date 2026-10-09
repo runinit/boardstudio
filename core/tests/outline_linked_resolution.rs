@@ -116,8 +116,7 @@ fn fixture_with_choices() -> serde_json::Value {
     ]);
     document["boardOutlines"][0]["versions"][0]["geometry"]["features"] =
         serde_json::json!([envelope, cutout]);
-    document["boardOutlines"][0]["versions"][0]["geometry"]["settings"] =
-        version_settings;
+    document["boardOutlines"][0]["versions"][0]["geometry"]["settings"] = version_settings;
     document
 }
 
@@ -197,12 +196,18 @@ fn bounds(scene: &SceneDelta, board_id: &str) -> (f64, f64, f64, f64) {
 }
 
 /// Assert a hand-derived box, allowing only the document's 0.001 mm snap grid.
-fn assert_bounds(scene: &SceneDelta, board_id: &str, expected: (f64, f64, f64, f64), tolerance: f64) {
+fn assert_bounds(
+    scene: &SceneDelta,
+    board_id: &str,
+    expected: (f64, f64, f64, f64),
+    tolerance: f64,
+) {
     let actual = bounds(scene, board_id);
-    let expected = [
-        expected.0, expected.1, expected.2, expected.3,
-    ];
-    for (actual, expected) in [actual.0, actual.1, actual.2, actual.3].iter().zip(expected) {
+    let expected = [expected.0, expected.1, expected.2, expected.3];
+    for (actual, expected) in [actual.0, actual.1, actual.2, actual.3]
+        .iter()
+        .zip(expected)
+    {
         assert!(
             (actual - expected).abs() <= tolerance,
             "hand-derived bound {expected} vs resolved {actual} in {actual:?}"
@@ -259,7 +264,10 @@ fn linked_refinements_follow_placement_rotation_and_definition_geometry_while_fi
     let mut engine = CoreEngine::new();
     let rotated = open(&mut engine, rotated_document);
     assert_bounds(&rotated, "board", (-8.0, -8.0, 25.3137, 20.3137), 0.002);
-    assert_eq!(version_geometry(&saved(&mut engine), "edited"), fixed_before);
+    assert_eq!(
+        version_geometry(&saved(&mut engine), "edited"),
+        fixed_before
+    );
 
     // Definition geometry: an 18x18 courtyard at margin 1.0 gives a 20x20 envelope,
     // so a spans -10..10 and b (at 14,0) spans 4..24.
@@ -271,7 +279,10 @@ fn linked_refinements_follow_placement_rotation_and_definition_geometry_while_fi
     let mut engine = CoreEngine::new();
     let resized = open(&mut engine, resized);
     assert_eq!(bounds(&resized, "board"), (-10.0, -10.0, 24.0, 10.0));
-    assert_eq!(version_geometry(&saved(&mut engine), "edited"), fixed_before);
+    assert_eq!(
+        version_geometry(&saved(&mut engine), "edited"),
+        fixed_before
+    );
 }
 
 /// Case 2: additions, removals and inclusion changes use the live included set.
@@ -417,4 +428,273 @@ fn changing_one_refinements_margin_updates_only_that_refinement() {
         after["outline"], before["outline"],
         "the generated source and its settings are untouched"
     );
+}
+
+/// Case 5: a geometric failure keeps the refinement linked, editable and located;
+/// only the affected output is blocked, and a later repair resumes current geometry.
+#[test]
+fn a_failed_resolution_stays_linked_with_located_findings_and_resumes_after_a_repair() {
+    const BAD_CUTOUT: &str = "board:board:version:refined:cutout:bad";
+    // A self-intersecting authored cutout anchored to component a cannot resolve.
+    let mut document = fixture((14.0, 0.0), 0.0);
+    document["boardOutlines"][0]["versions"][0]["geometry"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "kind": "polygon", "id": BAD_CUTOUT, "anchorPartId": "a",
+            "operation": "add",
+            "points": [{ "x": 0.0, "y": 0.0 }, { "x": 4.0, "y": 4.0 },
+                       { "x": 4.0, "y": 0.0 }, { "x": 0.0, "y": 4.0 }]
+        }));
+    let mut engine = CoreEngine::new();
+    let broken = open(&mut engine, document);
+    let failure_id = "board:board:outline:linked:refined";
+    let finding = broken
+        .findings
+        .iter()
+        .find(|finding| finding.id == failure_id)
+        .expect("a linked resolution failure is reported");
+    assert_eq!(finding.severity, Severity::Error);
+    assert_eq!(finding.scope, Scope::Pcb);
+    assert!(finding.target_ids.iter().any(|id| id == "board"));
+    assert!(finding.target_ids.iter().any(|id| id == "refined"));
+    assert!(finding.message.contains("last valid"));
+    let marker = broken
+        .finding_markers
+        .iter()
+        .find(|marker| marker.finding_id == failure_id)
+        .expect("the failure is located on the workbench");
+    assert!(
+        marker
+            .contours
+            .iter()
+            .any(|contour| contour.points.len() >= 3),
+        "the located region is drawn"
+    );
+    let blocked = readiness(&broken, "board");
+    assert!(
+        !blocked.outline && !blocked.pcb,
+        "dependent output is blocked"
+    );
+    assert!(
+        !broken.board_contours[0].contours.is_empty(),
+        "a display remains"
+    );
+
+    // Saving and further editing stay available, and the refinement stays linked.
+    let moved = move_part(&mut engine, broken.revision, "a", (0.0, 0.0));
+    assert!(
+        moved
+            .findings
+            .iter()
+            .any(|finding| finding.id == failure_id)
+    );
+    assert_eq!(
+        saved(&mut engine)["boardOutlines"][0]["versions"][0]["ownership"],
+        serde_json::json!("linked"),
+        "a failed resolution never unlinks or freezes the refinement"
+    );
+
+    // Repairing the authored shape resumes the current geometry without relinking.
+    let repaired = edit(
+        &mut engine,
+        moved.revision,
+        serde_json::json!({
+            "kind": "set-outline",
+            "feature": { "kind": "polygon", "id": "board:board:version:refined:cutout:bad",
+                         "anchorPartId": "a", "operation": "add",
+                         "points": [{ "x": 3.0, "y": 3.0 }, { "x": 7.0, "y": 3.0 },
+                                    { "x": 7.0, "y": 7.0 }, { "x": 3.0, "y": 7.0 }] }
+        }),
+    );
+    assert!(
+        !repaired
+            .findings
+            .iter()
+            .any(|finding| finding.id == failure_id)
+    );
+    assert!(
+        readiness(&repaired, "board").outline && readiness(&repaired, "board").pcb,
+        "{:?}",
+        repaired
+            .findings
+            .iter()
+            .map(|finding| (finding.id.clone(), finding.severity.clone()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(bounds(&repaired, "board"), (-8.0, -8.0, 22.0, 8.0));
+    assert_eq!(
+        saved(&mut engine)["boardOutlines"][0]["versions"][0]["ownership"],
+        serde_json::json!("linked")
+    );
+}
+
+/// Case 6: a failure of an inactive alternative or of another board cannot block the
+/// selected outline's valid output.
+#[test]
+fn inactive_and_unrelated_findings_do_not_block_valid_selected_output() {
+    let mut document = fixture((14.0, 0.0), 0.0);
+    // An unselected linked alternative whose cutout names a missing component.
+    document["boardOutlines"][0]["versions"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "id": "alt", "name": "Alternative", "source": { "revision": 0 },
+            "ownership": "linked",
+            "geometry": {
+                "features": [
+                    { "kind": "part-envelope", "id": "board:board:version:alt:contour:0",
+                      "partIds": ["a"], "margin": 1.0, "operation": "add",
+                      "settings": settings() },
+                    { "kind": "polygon", "id": "board:board:version:alt:cutout:0",
+                      "anchorPartId": "ghost", "operation": "subtract",
+                      "points": [{ "x": -2.0, "y": -2.0 }, { "x": 2.0, "y": -2.0 },
+                                 { "x": 2.0, "y": 2.0 }, { "x": -2.0, "y": 2.0 }] }
+                ],
+                "settings": settings(), "expectedRegions": 1
+            }
+        }));
+    // An unrelated second board whose generated outline resolves to no area.
+    document["boards"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "id": "other", "name": "Other", "outlineIds": ["other-outline"],
+            "partIds": [], "netIds": [], "thickness": 1.6
+        }));
+    document["outline"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "kind": "part-envelope", "id": "other-outline", "partIds": [],
+            "margin": 1.0, "operation": "add", "settings": settings()
+        }));
+
+    let mut engine = CoreEngine::new();
+    let opened = open(&mut engine, document);
+    let alternative = "board:board:outline:linked:alt";
+    assert!(
+        opened
+            .findings
+            .iter()
+            .any(|finding| finding.id == alternative),
+        "the broken inactive alternative stays visible: {:?}",
+        opened
+            .findings
+            .iter()
+            .map(|finding| &finding.id)
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        readiness(&opened, "board").outline && readiness(&opened, "board").pcb,
+        "an unselected alternative cannot block the selected outline"
+    );
+    assert_eq!(bounds(&opened, "board"), (-8.0, -8.0, 22.0, 8.0));
+    assert!(
+        !readiness(&opened, "other").pcb,
+        "the broken board still reports"
+    );
+}
+
+/// Case 7: existing clearance rules keep ADR-0001's blocker and advisory meanings
+/// when the selected outline is a linked refinement.
+#[test]
+fn linked_outlines_keep_edge_clearance_blocker_and_permitted_overhang_advisory_meanings() {
+    // A required pad placed outside the resolved envelope is a blocker.
+    let mut document = fixture((14.0, 0.0), 0.0);
+    document["definitions"][0]["pads"] = serde_json::json!([
+        { "id": "p0", "number": "1", "at": { "x": 0.0, "y": 0.0 },
+          "size": { "x": 4.0, "y": 4.0 }, "shape": "rect" },
+        { "id": "p1", "number": "2", "at": { "x": 0.0, "y": 20.0 },
+          "size": { "x": 4.0, "y": 4.0 }, "shape": "rect" }
+    ]);
+    let mut engine = CoreEngine::new();
+    let unsupported = open(&mut engine, document);
+    assert!(
+        unsupported
+            .findings
+            .iter()
+            .any(|finding| finding.id == "board:board:outline:support:a"
+                && finding.severity == Severity::Error),
+        "unsupported required pad material is a blocker"
+    );
+    assert!(!readiness(&unsupported, "board").pcb);
+
+    // A switch whose keycap envelope is smaller than its refused courtyard: the
+    // courtyard overhang is advisory only when the part explicitly permits it.
+    let mut overhang = fixture((14.0, 0.0), 0.0);
+    overhang["definitions"][0]["courtyard"] = serde_json::json!([
+        { "x": -15.0, "y": -15.0 }, { "x": 15.0, "y": -15.0 },
+        { "x": 15.0, "y": 15.0 }, { "x": -15.0, "y": 15.0 }
+    ]);
+    // The physical envelope comes from the 14x14 keycap, so the 30x30 courtyard
+    // sticks out of the resolved outline.
+    overhang["definitions"][0]["keycap"] = serde_json::json!({ "x": 14.0, "y": 14.0 });
+    let mut engine = CoreEngine::new();
+    let refused = open(&mut engine, overhang.clone());
+    let body = refused
+        .findings
+        .iter()
+        .find(|finding| finding.id == "board:board:outline:body:a")
+        .expect("the courtyard overhang is reported");
+    assert_eq!(
+        (body.severity.clone(), body.scope.clone()),
+        (Severity::Error, Scope::Pcb),
+        "an unpermitted body overhang blocks its output"
+    );
+    assert!(!readiness(&refused, "board").pcb);
+
+    overhang["parts"][0]["outline"] = serde_json::json!({ "allowBodyOverhang": true });
+    overhang["parts"][1]["outline"] = serde_json::json!({ "allowBodyOverhang": true });
+    let mut engine = CoreEngine::new();
+    let permitted = open(&mut engine, overhang);
+    let body = permitted
+        .findings
+        .iter()
+        .find(|finding| finding.id == "board:board:outline:body:a")
+        .expect("the permitted overhang is still reported");
+    assert_eq!(
+        (body.severity.clone(), body.scope.clone()),
+        (Severity::Warning, Scope::Pcb),
+        "an explicitly permitted body overhang stays advisory"
+    );
+    assert!(
+        readiness(&permitted, "board").pcb,
+        "{:?}",
+        permitted
+            .findings
+            .iter()
+            .map(|finding| (finding.id.clone(), finding.severity.clone()))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// Case 7: a protected gap keeps deliberate geometry without waiving support.
+#[test]
+fn protecting_a_linked_gap_cannot_waive_required_pad_support() {
+    let mut document = fixture((14.0, 0.0), 0.0);
+    // Protecting a recess that contains component a's required pad removes the
+    // material under it, so the support rule still reports a blocker.
+    document["boardOutlines"][0]["versions"][0]["geometry"]["settings"]["repair"]["keepGaps"] = serde_json::json!([{ "id": "gap-a", "points": [
+            { "at": { "x": -5.0, "y": -5.0 }, "partId": "a" },
+            { "at": { "x": 5.0, "y": -5.0 }, "partId": "a" },
+            { "at": { "x": 5.0, "y": 5.0 }, "partId": "a" },
+            { "at": { "x": -5.0, "y": 5.0 }, "partId": "a" }
+        ] }]);
+    let mut engine = CoreEngine::new();
+    let protected = open(&mut engine, document);
+    assert!(
+        protected
+            .findings
+            .iter()
+            .any(|finding| finding.id == "board:board:outline:support:a"
+                && finding.severity == Severity::Error),
+        "protecting the gap does not waive required support: {:?}",
+        protected
+            .findings
+            .iter()
+            .map(|finding| &finding.id)
+            .collect::<Vec<_>>()
+    );
+    assert!(!readiness(&protected, "board").pcb);
 }
