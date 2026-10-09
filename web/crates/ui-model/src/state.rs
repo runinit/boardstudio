@@ -32,6 +32,45 @@ pub struct LayoutOwnerIdentity {
     pub workspace: &'static str,
 }
 
+/// Transient Relations highlight: the part IDs a hovered or focused Relations reference marks
+/// on the Layout canvas. It is view state only; it never reaches the document, history, saves
+/// or the selection.
+#[derive(Clone, Copy)]
+pub struct RelationHighlight(pub Signal<Option<Vec<String>>>);
+
+impl RelationHighlight {
+    pub fn show(mut self, part_ids: &[String]) {
+        // A handler can fire after the Editor owning the signal has unmounted.
+        if let Ok(mut highlight) = self.0.try_write() {
+            *highlight = Some(part_ids.to_vec());
+        }
+    }
+
+    /// Clears the highlight only while it still belongs to `part_ids`, so leaving one reference
+    /// never clears the highlight of another that has focus. A reference that unmounts with its
+    /// owner may find the signal gone, which is not an error.
+    pub fn release(self, part_ids: &[String]) {
+        let owned = self
+            .0
+            .try_peek()
+            .is_ok_and(|current| current.as_deref() == Some(part_ids));
+        if owned {
+            self.clear();
+        }
+    }
+
+    pub fn clear(self) {
+        let lit = self.0.try_peek().is_ok_and(|current| current.is_some());
+        if !lit {
+            return;
+        }
+        let mut signal = self.0;
+        if let Ok(mut current) = signal.try_write() {
+            *current = None;
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct WorkspaceState(pub Signal<&'static str>);
 #[derive(Clone, Copy)]

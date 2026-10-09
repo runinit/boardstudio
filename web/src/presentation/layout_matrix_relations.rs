@@ -1,5 +1,6 @@
 //! The matrix-context Relations tab: Structure, Local adjustments and Authored
 //! constraints, rendered from the pure `matrix_relations` projection.
+use super::RelationHighlight;
 use super::objects;
 use boardstudio_web_layout::matrix_relations::{
     ConstraintItem, ConstraintKind, Departure, DepartureAction, MatrixRelations, PartReference,
@@ -76,10 +77,11 @@ fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeConte
             span { class: "m1-layout-component-matrix-note", "{item.label}" }
             " "
             if let Some(target) = item.target.clone() {
-                button {
-                    r#type: "button", class: "m1-inspector-secondary m1-relations-reference",
-                    onclick: move |_| on_navigate.call(target.clone()),
-                    "{item.value}"
+                RelationReference {
+                    text: item.value.clone(),
+                    parts: item.highlight.clone(),
+                    what: format!("{} {}", item.label, item.value),
+                    on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
                 }
             } else {
                 span { "{item.value}" }
@@ -99,10 +101,11 @@ fn DepartureRow(
             span { class: "m1-layout-component-matrix-note", "{departure.parameter}" }
             " "
             if let Some(target) = departure.target.clone() {
-                button {
-                    r#type: "button", class: "m1-inspector-secondary m1-relations-reference",
-                    onclick: move |_| on_navigate.call(target.clone()),
-                    "{departure.value}"
+                RelationReference {
+                    text: departure.value.clone(),
+                    parts: departure.highlight.clone(),
+                    what: format!("{} {}", departure.parameter, departure.value),
+                    on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
                 }
             } else {
                 span { "{departure.value}" }
@@ -184,11 +187,84 @@ fn ReferenceButton(
 ) -> Element {
     let context = reference.context.clone();
     rsx! {
+        RelationReference {
+            text: reference.label.clone(),
+            parts: vec![reference.part_id.clone()],
+            what: format!("the {role} {}", reference.label),
+            role,
+            part_id: reference.part_id.clone(),
+            on_select: EventHandler::new(move |()| on_navigate.call(context.clone())),
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct RelationReferenceProps {
+    /// The visible text of the reference.
+    text: String,
+    /// The part IDs the reference highlights on the Layout canvas.
+    parts: Vec<String>,
+    /// What the highlight names, for the `aria-describedby` text.
+    what: String,
+    #[props(default)]
+    role: Option<&'static str>,
+    #[props(default)]
+    part_id: Option<String>,
+    on_select: EventHandler<()>,
+}
+
+/// A Relations reference button. Hover or keyboard focus marks `parts` on the Layout canvas;
+/// leaving, blurring or unmounting releases that highlight, and the button names it through
+/// `aria-describedby`. Selecting the reference is the button's own action.
+#[component]
+fn RelationReference(props: RelationReferenceProps) -> Element {
+    let highlight = use_context::<RelationHighlight>();
+    let RelationReferenceProps {
+        text,
+        parts,
+        what,
+        role,
+        part_id,
+        on_select,
+    } = props;
+    // Labels repeat across rows, so the id carries a per-instance counter.
+    let instance = use_hook(|| {
+        thread_local! { static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) }; }
+        NEXT.with(|next| {
+            let id = next.get();
+            next.set(id.wrapping_add(1));
+            id
+        })
+    });
+    let description_id = format!("m1-relations-highlight-{instance}");
+    let described_by = (!parts.is_empty()).then(|| description_id.clone());
+    let enter = parts.clone();
+    let leave = parts.clone();
+    let focus = parts.clone();
+    let blur = parts.clone();
+    // The drop closure runs once, so it reads the parts of the latest render.
+    let latest = use_hook(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new())));
+    *latest.borrow_mut() = parts.clone();
+    use_drop({
+        let latest = latest.clone();
+        move || highlight.release(&latest.borrow())
+    });
+    rsx! {
         button {
             r#type: "button", class: "m1-inspector-secondary m1-relations-reference",
-            "data-relation-role": "{role}", "data-part-id": "{reference.part_id}",
-            onclick: move |_| on_navigate.call(context.clone()),
-            "{reference.label}"
+            "data-relation-role": role, "data-part-id": part_id,
+            aria_describedby: described_by,
+            onpointerenter: move |_| highlight.show(&enter),
+            onpointerleave: move |_| highlight.release(&leave),
+            onfocus: move |_| highlight.show(&focus),
+            onblur: move |_| highlight.release(&blur),
+            onclick: move |_| on_select.call(()),
+            "{text}"
+        }
+        if !parts.is_empty() {
+            span { id: "{description_id}", class: "m1-visually-hidden",
+                "Highlights the Layout canvas parts for {what}."
+            }
         }
     }
 }

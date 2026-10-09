@@ -81,6 +81,8 @@ Saved projects keep their geometry.
   [Outcome](issues/06-toolbar-offset-tool.md#outcome).
 - 09 the Relations panel renders the projection with Reset and Convert:
   [Outcome](issues/09-relations-panel.md#outcome).
+- 10 Relations references highlight their parts on the canvas without changing selection:
+  [Outcome](issues/10-relations-canvas-highlight.md#outcome).
 
 ## Still open
 

@@ -2240,6 +2240,8 @@ mod matrix_relations_panel {
         use_context_provider(|| adapter.clone());
         use_context_provider(|| version);
         use_context_provider(|| WorkspaceState(workspace));
+        let relation_highlight = use_signal(|| None::<Vec<String>>);
+        use_context_provider(|| RelationHighlight(relation_highlight));
         let state = layout_workspace::use_layout_workspace_state(selected_context, workspace);
         let runtime = probe.runtime.clone();
         let lifetime = use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));

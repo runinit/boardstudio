@@ -586,7 +586,7 @@ guides in the Parts preview remain dashed. The Layout canvas offers a separate
 keycap overlay with a rounded outer envelope and inset top face, using the
 resolved key dimensions and existing geometry/selection tokens. Matrix membership
 identifies keys even when their definition is a socket; pitch minus edge gap
-supplies missing key dimensions. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
+supplies missing key dimensions. A Relations reference hover or focus marks its parts with a dashed `accent-secondary` (violet) outline, never the selection surface or accent stroke, and clears on leave, blur, selection change or removal. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
 and Board switches; all start visible except Footprints. The toolbar Footprints
 switch shares that view-only state. Visibility survives workspace changes without
 creating document revisions or history entries. The control overlays the canvas

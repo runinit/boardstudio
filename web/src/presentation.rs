@@ -30,6 +30,8 @@ mod layout_component_inspector_tests;
 #[cfg(test)]
 mod layout_layers_tests;
 #[cfg(test)]
+mod layout_relation_highlight_tests;
+#[cfg(test)]
 mod layout_remainder_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
@@ -53,7 +55,7 @@ pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selectio
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
     CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
+    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedTheme, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
@@ -2784,6 +2786,20 @@ fn Editor() -> Element {
                 tree_cell_anchor.borrow_mut().take();
             }
         }
+    }));
+    // The Relations highlight is transient view state. A selection, workspace or board change
+    // clears it; an accepted revision that drops its parts is handled by the canvas filter.
+    let relation_highlight = use_signal(|| None::<Vec<String>>);
+    use_context_provider(|| RelationHighlight(relation_highlight));
+    let relation_ids = relation_highlight().unwrap_or_default();
+    let highlight_context = (
+        adapter.selected_context.read().clone(),
+        model.selected_part_ids.clone(),
+        model.active_board_id.clone(),
+        active_workspace,
+    );
+    use_effect(use_reactive((&highlight_context,), move |(_,)| {
+        RelationHighlight(relation_highlight).clear();
     }));
     let active_board_id = model.active_board_id.clone();
     let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
@@ -7695,7 +7711,8 @@ fn Editor() -> Element {
                                             let transform_inspector = matrix_transform_inspector.clone();
                                             let canvas_interaction = canvas_interaction.clone();
                                             let mirrored_pair = mirrored_pair.clone();
-                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
+                                            let relation_highlighted = cell.member_id.as_ref().is_some_and(|id| relation_ids.contains(id));
+                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else if relation_highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
                                                     if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
@@ -7835,7 +7852,7 @@ fn Editor() -> Element {
                                         *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
                                     },
                                     if layer_visible {
-                                        polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
+                                        polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else if relation_ids.contains(&part.id) { "m1-part is-relation-highlight" } else { "m1-part" } }
                                     }
                                     if layer_visible && footprints_on {
                                         if let Some(definition) = definition {

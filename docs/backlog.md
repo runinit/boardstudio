@@ -30,6 +30,7 @@ and subsequent cluster migrations; they are no longer deferred work.
 - **Testing:** panel native tests now drive the real Runtime/Session/Core with shared gates instead of duplicated presentation drivers. Preserve mounted WASM interface coverage and deterministic provider-failure fixtures when extending it. The complete native and browser gates pass after the CAD fixture and runner/environment repairs; future native Runtime decomposition must retain that shared test contract.
 - **Controls:** consolidate selection liveness, pointer ownership, keyboard scope and dynamic-select handling only where future changes demonstrate repeated policy.
 - **Mechanical settings:** align family defaults, target eligibility and authored-body readiness through existing owners; bounded functional repairs are already present.
+- **Layout canvas:** the Relations highlight signal is read in the `Editor` body, so each hover or focus change re-renders the whole canvas; move key and part drawing into components that read the signal if large matrices stutter.
 
 React-only findings and migration-accounting proposals are retired with their code.
 Mobile, accessibility, unfinished VIK features and visual redesign are not requirements
