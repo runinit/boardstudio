@@ -626,6 +626,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
     let mut markers = vec![];
     for board in &doc.boards {
         for feature in outline_versions::features(doc, board) {
+            let feature_id = feature.id().to_owned();
             let points = match feature {
                 OutlineFeature::Polygon {
                     points,
@@ -636,7 +637,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(part, points)).points
+                        contour(world(part, &points)).points
                     } else {
                         points.clone()
                     }
@@ -649,8 +650,8 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                     ..
                 } => {
                     let points = pad_path(
-                        *center,
-                        *size,
+                        center,
+                        size,
                         &PadShape::Rect,
                         rotation.unwrap_or_default(),
                     );
@@ -670,7 +671,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
             }
             for finding in findings.iter().filter(|finding| {
                 finding.severity == Severity::Error
-                    && finding.target_ids.iter().any(|id| id == feature.id())
+                    && finding.target_ids.iter().any(|id| id == &feature_id)
             }) {
                 markers.push(FindingMarker {
                     finding_id: finding.id.clone(),
