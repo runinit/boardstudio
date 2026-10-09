@@ -39,6 +39,32 @@ pub fn matrix() -> Value {
     })
 }
 
+/// The normalized bundled mounting-hole catalogue entry projection requires.
+fn mounting_hole() -> Value {
+    json!({
+        "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+        "kind": "custom",
+        "pads": [{ "id": "pad-0", "number": "", "at": { "x": 0, "y": 0 },
+            "size": { "x": 2.2, "y": 2.2 }, "shape": "circle", "drill": 2.2, "plated": false, "rotation": 0 }],
+        "courtyard": [{ "x": -1.1, "y": -1.1 }, { "x": 1.1, "y": -1.1 }, { "x": 1.1, "y": 1.1 }, { "x": -1.1, "y": 1.1 }],
+        "envelopeSource": { "courtyard": "generated" },
+        "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+        "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {} }
+    })
+}
+
+/// One typed `ApplyMechanicalEdit` operation against the canonical board.
+fn mechanical_operation(change: Value) -> Value {
+    json!({
+        "kind": "apply-mechanical-edit",
+        "edit": {
+            "target": { "kind": "board", "boardId": "board" },
+            "change": change,
+            "mountingHole": mounting_hole(),
+        },
+    })
+}
+
 pub fn document() -> Value {
     let matrix = matrix();
     let mut doc =
@@ -171,6 +197,35 @@ pub fn core_requests() -> Vec<Value> {
             "operation": { "kind": "move-parts", "positions": [{ "id": "matrix/matrix/r0c0/led", "at": { "x": -10, "y": 8 } }] } },
     }));
     requests.push(json!({ "id": "companion-snapshot", "kind": "snapshot" }));
+    // A typed mechanical edit crosses the native/WASM seam carrying its target,
+    // its typed change and the normalized mounting-hole catalogue definition the
+    // generated closure clearance is projected from. `Enable` creates the
+    // canonical configuration this project does not have yet; the closure
+    // request then adds two suggested closure mounts and projects their
+    // generated clearance; the identical repeat is a no-op with no revision
+    // step; one Undo removes the mounts and every generated part together.
+    requests.push(json!({
+        "id": "mechanical-enable", "kind": "edit",
+        "command": { "baseRevision": 14, "transactionId": "mechanical-enable", "phase": "commit", "targetIds": ["board"],
+            "operation": mechanical_operation(json!("enable")) },
+    }));
+    let closure = json!({ "add-suggested-closure-mounts": [
+        { "id": "left-front", "at": { "x": -30, "y": 25 }, "kind": "hole", "holeDiameter": 2.2 },
+        { "id": "left-back", "at": { "x": 12.5, "y": -7.25 }, "kind": "hole", "holeDiameter": 2.2 },
+    ] });
+    for phase in ["preview", "commit"] {
+        requests.push(json!({
+            "id": format!("mechanical-closure-{phase}"), "kind": "edit",
+            "command": { "baseRevision": 15, "transactionId": "mechanical-closure", "phase": phase, "targetIds": ["board"],
+                "operation": mechanical_operation(closure.clone()) },
+        }));
+    }
+    requests.push(json!({
+        "id": "mechanical-closure-repeat", "kind": "edit",
+        "command": { "baseRevision": 16, "transactionId": "mechanical-closure", "phase": "commit", "targetIds": ["board"],
+            "operation": mechanical_operation(closure.clone()) },
+    }));
+    requests.push(json!({ "id": "mechanical-undo", "kind": "undo" }));
     requests
 }
 
@@ -312,6 +367,85 @@ fn check_core(replies: &[Value]) {
         "mode": { "constrained": { "constraintId": "sensor-key", "sourcePartId": "matrix/matrix/r0c0" } },
         "partId": "matrix/matrix/r0c0/sensor"
     })));
+
+    // The mechanical edit reports its configuration owner, the added closure
+    // mounts and the generated clearance it projects, then a no-op keeps the
+    // revision and one Undo removes the complete result.
+    let mechanical = replies.len() - 5;
+    assert_eq!(replies[mechanical]["kind"], "scene");
+    assert_eq!(
+        replies[mechanical]["scene"]["changedIds"],
+        json!(["board"]),
+        "enabling reports the configuration owner"
+    );
+    assert_eq!(replies[mechanical + 1]["kind"], "preview");
+    let changed = replies[mechanical + 2]["scene"]["changedIds"]
+        .as_array()
+        .unwrap();
+    assert!(changed.iter().any(|id| id.as_str() == Some("board")));
+    for mount in ["auto-closure/left-front", "auto-closure/left-back"] {
+        assert!(
+            changed.iter().any(|id| id.as_str() == Some(mount)),
+            "changed ids name {mount}"
+        );
+    }
+    let count_generated = |reply: &Value, collection: &str, prefix: &str| -> usize {
+        reply["document"][collection]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entry| {
+                entry["id"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with(prefix))
+            })
+            .count()
+    };
+    assert_eq!(
+        count_generated(&replies[mechanical + 2], "parts", "case-closure/"),
+        2
+    );
+    assert_eq!(
+        count_generated(
+            &replies[mechanical + 2],
+            "definitions",
+            "assembly-closure/definition/"
+        ),
+        2
+    );
+    for entry in replies[mechanical + 2]["document"]["parts"]
+        .as_array()
+        .unwrap()
+    {
+        let id = entry["id"].as_str().unwrap();
+        if id.starts_with("case-closure/") {
+            assert!(
+                changed
+                    .iter()
+                    .any(|candidate| candidate.as_str() == Some(id)),
+                "generated {id} is reported"
+            );
+        }
+    }
+    assert_eq!(
+        replies[mechanical + 3]["scene"]["changedIds"],
+        json!([]),
+        "an identical commit changes nothing"
+    );
+    assert_eq!(
+        replies[mechanical + 3]["scene"]["revision"],
+        replies[mechanical + 2]["scene"]["revision"],
+        "a no-op edit adds no revision step"
+    );
+    assert_eq!(
+        replies[mechanical + 4]["document"]["mechanical"]["closureMounts"],
+        json!([]),
+        "one Undo restores the closure mounts the edit added"
+    );
+    assert_eq!(
+        count_generated(&replies[mechanical + 4], "parts", "case-closure/"),
+        0
+    );
 }
 
 fn compact(replies: &mut [Value]) {
