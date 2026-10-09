@@ -280,7 +280,15 @@ fn apply_settings(
     let mut configuration = inputs.configuration;
     let before = configuration.clone();
     let mut changed = Vec::new();
-    apply_change(&mut configuration, change, doc, board_id, &mut changed)?;
+    let identity_floor = reserved_identity_floor(doc, &edit.target);
+    apply_change(
+        &mut configuration,
+        change,
+        doc,
+        board_id,
+        identity_floor,
+        &mut changed,
+    )?;
     // Closure mounts are initialized whenever the resolved stack still has none
     // and the mount is not a gasket; explicit `Some(vec![])` is deliberate.
     let needs_initialization =
@@ -1834,6 +1842,7 @@ fn apply_change(
     change: &MechanicalChange,
     document: &ProjectDoc,
     board_id: &str,
+    identity_floor: (u64, u64),
     changed: &mut Vec<String>,
 ) -> Result<(), String> {
     let previous = configuration.clone();
@@ -2221,7 +2230,7 @@ fn apply_change(
             changed.push(hardware_id.clone());
         }
         MechanicalChange::AddOpening => {
-            let id = reserve_opening_identity(configuration);
+            let id = reserve_opening_identity(configuration, identity_floor.0);
             let mut opening = MechanicalOpening {
                 id: id.clone(),
                 vertices: Vec::new(),
@@ -2235,7 +2244,7 @@ fn apply_change(
                 Vec2 { x: 2.5, y: 2.5 },
                 Vec2 { x: -2.5, y: 2.5 },
             ] {
-                let vertex_id = reserve_vertex_identity(&mut opening);
+                let vertex_id = reserve_vertex_identity(&mut opening, identity_floor.1);
                 opening.vertices.push(MechanicalOpeningVertex {
                     id: vertex_id,
                     point,
@@ -2270,7 +2279,7 @@ fn apply_change(
                 .ok_or("The selected access opening is no longer available.")?;
             // Reserved from the opening's own monotonic counter, so a removed vertex
             // id can never be handed out again within that opening.
-            let vertex_id = reserve_vertex_identity(opening);
+            let vertex_id = reserve_vertex_identity(opening, identity_floor.1);
             opening.vertices.push(MechanicalOpeningVertex {
                 id: vertex_id.clone(),
                 point: Vec2 { x: 0.0, y: 0.0 },
@@ -3224,7 +3233,7 @@ fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
 /// addition. The first reservation for a configuration that predates the field
 /// normalizes to the highest identity it already carries, which preserves existing
 /// geometry and ids.
-fn reserve_opening_identity(configuration: &mut MechanicalConfiguration) -> String {
+fn reserve_opening_identity(configuration: &mut MechanicalConfiguration, floor: u64) -> String {
     let highest = configuration
         .openings
         .as_ref()
@@ -3233,21 +3242,62 @@ fn reserve_opening_identity(configuration: &mut MechanicalConfiguration) -> Stri
         .map(|opening| identity_index(&opening.id))
         .max()
         .unwrap_or(0);
-    let next = configuration.next_opening_identity.max(highest + 1).max(1);
+    let next = configuration
+        .next_opening_identity
+        .max(highest + 1)
+        .max(floor + 1)
+        .max(1);
     configuration.next_opening_identity = next + 1;
     format!("opening-{next}")
 }
 
-fn reserve_vertex_identity(opening: &mut MechanicalOpening) -> String {
+fn reserve_vertex_identity(opening: &mut MechanicalOpening, floor: u64) -> String {
     let highest = opening
         .vertices
         .iter()
         .map(|vertex| identity_index(&vertex.id))
         .max()
         .unwrap_or(0);
-    let next = opening.next_vertex_identity.max(highest + 1).max(1);
+    let next = opening
+        .next_vertex_identity
+        .max(highest + 1)
+        .max(floor + 1)
+        .max(1);
     opening.next_vertex_identity = next + 1;
     format!("vertex-{next}")
+}
+
+/// The identities a target's member reserves for its pair-owned features.
+///
+/// A linked feature is owned by the pair and is invisible to the member's raw
+/// configuration, and stays reserved while the member omits it. Reserving from those
+/// identities keeps a new local addition from taking one the pair owns for this member,
+/// which would otherwise let a rejoin produce two openings under one identity or let a
+/// queued intent reach the wrong opening.
+fn reserved_identity_floor(document: &ProjectDoc, target: &MechanicalTarget) -> (u64, u64) {
+    let MechanicalTarget::Instance { instance_id } = target else {
+        return (0, 0);
+    };
+    let Some(hardware) = document.hardware.as_ref() else {
+        return (0, 0);
+    };
+    let floor = |prefix: &str| {
+        hardware
+            .pairs
+            .iter()
+            .flat_map(|pair| pair.features.iter())
+            .flat_map(|feature| feature.members.iter())
+            .filter(|member| member.instance_id == *instance_id)
+            .filter_map(|member| identity_index_for(&member.feature_id, prefix))
+            .max()
+            .unwrap_or(0)
+    };
+    (floor("opening"), floor("vertex"))
+}
+
+/// The numeric suffix of a `prefix-N` identity, or `None` for another prefix.
+fn identity_index_for(id: &str, prefix: &str) -> Option<u64> {
+    id.strip_prefix(prefix)?.strip_prefix('-')?.parse().ok()
 }
 
 /// The numeric suffix of an `opening-N`/`vertex-N` identity, or zero.

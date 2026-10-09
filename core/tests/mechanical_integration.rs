@@ -14,8 +14,8 @@ use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
 use boardstudio_core::model::{
     Board, BoardContours, CaseBody, CaseKind, Contour, HardwareConfiguration, HardwareTopology,
     HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
-    MechanicalFeatureKind, MechanicalFeatureValue, Mount, MountKind, Operation, OutlineFeature,
-    PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
+    MechanicalFeatureKind, MechanicalFeatureValue, MechanicalOpening, Mount, MountKind, Operation,
+    OutlineFeature, PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -1450,5 +1450,296 @@ fn a_removed_opening_vertex_identity_is_never_reused() {
     assert_eq!(
         evaluate_edit(&document, &[], &queued).unwrap(),
         MechanicalEditDisposition::Retire
+    );
+}
+
+fn opening_json(id: &str) -> MechanicalOpening {
+    serde_json::from_value(json!({
+        "id": id,
+        "vertices": [
+            { "id": "vertex-1", "point": { "x": -2.0, "y": -2.0 } },
+            { "id": "vertex-2", "point": { "x": 2.0, "y": -2.0 } },
+            { "id": "vertex-3", "point": { "x": 2.0, "y": 2.0 } },
+            { "id": "vertex-4", "point": { "x": -2.0, "y": 2.0 } }
+        ],
+        "z": 0.0,
+        "height": 1.0
+    }))
+    .unwrap()
+}
+
+/// Two halves whose authored opening has the same identity on both sides.
+fn pair_document_with_openings() -> ProjectDoc {
+    let mut document = pair_document();
+    for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
+        instance.mechanical.as_mut().unwrap().openings = Some(vec![opening_json("opening-1")]);
+    }
+    document
+}
+
+fn add_instance_opening(document: &mut ProjectDoc, instance_id: &str) -> String {
+    use boardstudio_core::mechanical::edit::apply;
+    apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target(instance_id),
+            change: MechanicalChange::AddOpening,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap()
+    .into_iter()
+    .find(|id| id.starts_with("opening-"))
+    .expect("a new opening identity is reported")
+}
+
+#[test]
+fn a_new_local_opening_never_collides_with_a_visible_pair_owned_identity() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = pair_document_with_openings();
+    // The opening is authored by the second half, so it leaves both raw
+    // configurations and becomes visible on both through the pair.
+    link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::Opening,
+            "opening-1",
+            "opening-1",
+            Some("right"),
+        )],
+    )
+    .unwrap();
+    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert!(
+        left.configuration
+            .openings
+            .as_ref()
+            .is_some_and(|openings| openings.iter().any(|opening| opening.id == "opening-1")),
+        "the non-author half shows the pair-owned opening"
+    );
+
+    // A new local addition must not take the visible pair-owned identity, or a queued
+    // intent naming the pair feature could reach the new opening instead.
+    let new_id = add_instance_opening(&mut document, "left");
+    assert_ne!(
+        new_id, "opening-1",
+        "the visible pair-owned identity is reserved on the member"
+    );
+    let after = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let ids: Vec<&str> = after
+        .configuration
+        .openings
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|opening| opening.id.as_str())
+        .collect();
+    assert!(
+        ids.contains(&"opening-1"),
+        "the linked opening survives: {ids:?}"
+    );
+    assert!(ids.contains(&new_id.as_str()));
+    assert_eq!(ids.len(), 2);
+
+    // A commit against the pair-owned identity still lands on the linked opening, not
+    // the local addition.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::SetOpeningDimension {
+                opening_id: "opening-1".into(),
+                vertex_id: None,
+                field: MechanicalDimension::OpeningHeight,
+                value: 7.0,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    let MechanicalFeatureValue::Opening { opening } = &pair.features[0].value else {
+        panic!("a linked opening stores an opening");
+    };
+    assert_eq!(
+        opening.height, 7.0,
+        "the edit reached the pair's authored value, not the local addition"
+    );
+}
+
+#[test]
+fn identity_reservations_survive_a_document_round_trip() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = document();
+    let first = add_opening(&mut document);
+    // A save/reopen round trip keeps the reservation monotonic.
+    let encoded = serde_json::to_string(&document).unwrap();
+    let mut reopened: ProjectDoc = serde_json::from_str(&encoded).unwrap();
+    apply(
+        &mut reopened,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemoveOpening {
+                opening_id: first.clone(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let second = add_opening(&mut reopened);
+    assert_ne!(
+        second, first,
+        "the reservation survives save and reopen so a removed identity is not reused"
+    );
+}
+
+#[test]
+fn disabling_an_unpaired_target_retires_intents_for_its_removed_openings() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = document();
+    let opening = add_opening(&mut document);
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::Disable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    // While the configuration is gone the intent retires, so nothing redirects.
+    assert_eq!(
+        evaluate_edit(
+            &document,
+            &[],
+            &MechanicalEdit {
+                target: board_target(),
+                change: MechanicalChange::SetOpeningDimension {
+                    opening_id: opening.clone(),
+                    vertex_id: None,
+                    field: MechanicalDimension::OpeningHeight,
+                    value: 5.0,
+                },
+                mounting_hole: Some(Box::new(template())),
+            },
+        )
+        .unwrap(),
+        MechanicalEditDisposition::Retire
+    );
+    // Re-enabled defaults carry no authored openings, so it still retires.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::Enable,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        evaluate_edit(
+            &document,
+            &[],
+            &MechanicalEdit {
+                target: board_target(),
+                change: MechanicalChange::SetOpeningDimension {
+                    opening_id: opening,
+                    vertex_id: None,
+                    field: MechanicalDimension::OpeningHeight,
+                    value: 5.0,
+                },
+                mounting_hole: Some(Box::new(template())),
+            },
+        )
+        .unwrap(),
+        MechanicalEditDisposition::Retire
+    );
+}
+
+#[test]
+fn a_local_addition_never_takes_an_omitted_pair_owned_identity() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = pair_document_with_openings();
+    link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::Opening,
+            "opening-1",
+            "opening-1",
+            Some("right"),
+        )],
+    )
+    .unwrap();
+    // An explicit omission hides the linked opening on this half only.
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::OmitFeatureMember {
+                feature_id: "opening-1".into(),
+                instance_id: "left".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let hidden = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert!(
+        !hidden
+            .configuration
+            .openings
+            .as_ref()
+            .is_some_and(|openings| openings.iter().any(|opening| opening.id == "opening-1")),
+        "the omission hides the linked opening"
+    );
+
+    // The pair still owns that identity for this half, so a local addition must not
+    // take it: rejoining would otherwise leave two openings under one identity.
+    let new_id = add_instance_opening(&mut document, "left");
+    assert_ne!(
+        new_id, "opening-1",
+        "an omitted pair-owned identity stays reserved for its member"
+    );
+
+    apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("left"),
+            change: MechanicalChange::RejoinFeatureMember {
+                feature_id: "opening-1".into(),
+                instance_id: "left".into(),
+                source_instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    let rejoined = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let ids: Vec<&str> = rejoined
+        .configuration
+        .openings
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|opening| opening.id.as_str())
+        .collect();
+    let unique: std::collections::BTreeSet<&str> = ids.iter().copied().collect();
+    assert_eq!(
+        unique.len(),
+        ids.len(),
+        "every visible opening identity stays unique: {ids:?}"
     );
 }
