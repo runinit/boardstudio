@@ -246,7 +246,7 @@ pub fn pair_link_options(
                         construction_source: review.construction_source.clone(),
                         correspondences: reviewed_correspondences.clone(),
                     };
-                    match link_preview(document, &reviewed, mounting_hole) {
+                    match link_preview(document, board_contours, &reviewed, mounting_hole) {
                         Ok(preview) => (Some(preview), None),
                         Err(reason) => (None, Some(reason)),
                     }
@@ -321,6 +321,7 @@ pub struct MechanicalLinkPreview {
 /// choices, ids and template against the operation-time accepted document.
 pub fn link_preview(
     document: &ProjectDoc,
+    board_contours: &[BoardContours],
     change: &MechanicalChange,
     mounting_hole: Option<&PartDefinition>,
 ) -> Result<MechanicalLinkPreview, String> {
@@ -352,8 +353,7 @@ pub fn link_preview(
             edit: Box::new(edit),
         },
     };
-    // The scene carries the projected accepted contours the effective read uses.
-    let (projected, scene) = match engine.handle(CoreRequest::Edit {
+    let (projected, _scene) = match engine.handle(CoreRequest::Edit {
         id: "pair-review-link".into(),
         command,
     }) {
@@ -366,9 +366,11 @@ pub fn link_preview(
 
     let mut previews = Vec::with_capacity(members.len());
     for instance_id in members {
+        // Board outlines are the accepted ones: linking changes mechanical features,
+        // not the board frames the effective read is based on.
         let inputs = effective_inputs(
             &projected,
-            &scene.board_contours,
+            board_contours,
             &MechanicalTarget::Instance {
                 instance_id: instance_id.clone(),
             },
@@ -399,17 +401,37 @@ pub fn link_preview(
                 },
             ));
         }
+        // Gasket supports are stated from Core's resolved geometry - resolved on the
+        // authoring half's contours and reflected here - never from the authored fraction,
+        // which is not where the support lands. A support that is not linked yet has no
+        // resolved placement, so it is named without inventing one.
+        let resolved: std::collections::BTreeSet<&str> = inputs
+            .gasket_supports
+            .iter()
+            .map(|support| support.id.as_str())
+            .collect();
+        for support in &inputs.gasket_supports {
+            let mut row = format!(
+                "Gasket support at ({:?}, {:?}) · {:?} × {:?} mm",
+                support.at.x, support.at.y, support.length, support.width
+            );
+            if let Some(error) = support.fit_error.as_deref() {
+                row.push_str(&format!(" · does not fit: {error}"));
+            }
+            features.push(row);
+        }
         for anchor in configuration
             .gasket_layout
             .as_ref()
             .map(|layout| layout.supports.as_slice())
             .unwrap_or_default()
         {
-            features.push(describe_value(
-                MechanicalFeatureKind::GasketSupport,
-                &MechanicalFeatureValue::GasketSupport {
-                    anchor: anchor.clone(),
-                },
+            if resolved.contains(anchor.id.as_str()) {
+                continue;
+            }
+            features.push(format!(
+                "Gasket support on region {:?} (its placement resolves when the feature is linked)",
+                anchor.region_id
             ));
         }
         // Core's accepted mechanical findings for this half, recomputed against the
@@ -533,6 +555,28 @@ fn rejoin_preview(
         },
     )
     .ok()?;
+    // A gasket support's reviewed geometry is its resolved placement, not the authored
+    // fraction it is anchored at; a support that is not resolved yet still names its
+    // feature rather than inventing a placement.
+    if feature.kind == MechanicalFeatureKind::GasketSupport
+        && let Some(support) = inputs
+            .gasket_supports
+            .iter()
+            .find(|support| support.id == source.feature_id)
+    {
+        let mut description = format!(
+            "{:?} at ({:?}, {:?}) · {:?} × {:?} mm",
+            feature_label(feature.kind),
+            support.at.x,
+            support.at.y,
+            support.length,
+            support.width
+        );
+        if let Some(error) = support.fit_error.as_deref() {
+            description.push_str(&format!(" · does not fit: {error}"));
+        }
+        return Some(description);
+    }
     configuration_feature(&inputs.configuration, feature.kind, &source.feature_id)
         .map(|value| describe_value(feature.kind, &value))
 }
@@ -830,10 +874,10 @@ fn pose(mapping: &Pose2) -> String {
 mod tests {
     use super::*;
     use boardstudio_core::model::{
-        Board, GasketPlacement, HardwareConfiguration, HardwareTopology, HardwareTransport,
-        MechanicalConstructionOwnership, MechanicalFeatureValue, MechanicalGasketAnchor,
-        MechanicalGasketLayout, MechanicalMirrorPair, Mount, MountKind, PhysicalBoardInstance,
-        Vec2,
+        Board, BoardContours, Contour, GasketPlacement, HardwareConfiguration, HardwareTopology,
+        HardwareTransport, MechanicalConstructionOwnership, MechanicalFeatureValue,
+        MechanicalGasketAnchor, MechanicalGasketLayout, MechanicalMirrorPair, Mount, MountKind,
+        PhysicalBoardInstance, Vec2,
     };
     use serde_json::json;
 
@@ -1181,6 +1225,247 @@ mod tests {
         doc
     }
 
+    /// A pair of gasket-mounted halves whose shared support is resolved on the author's
+    /// contours, mirroring Core's own gasket fixture.
+    fn gasket_pair_document() -> (ProjectDoc, Vec<BoardContours>) {
+        let mut document = ProjectDoc::empty("gasket-pair", "Gasket pair");
+        for board_id in ["wide", "narrow"] {
+            document.boards.push(Board {
+                id: board_id.into(),
+                name: board_id.into(),
+                outline_ids: vec![],
+                part_ids: vec![],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            });
+        }
+        let gasket = |board_id: &str| {
+            let mut configuration = configuration(board_id);
+            configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
+            configuration.gasket_layout =
+                Some(boardstudio_core::mechanical::default_gasket_layout());
+            configuration
+        };
+        let instance = |id: &str, board_id: &str| PhysicalBoardInstance {
+            id: id.into(),
+            name: id.into(),
+            board_id: board_id.into(),
+            half: id.into(),
+            role: "controller".into(),
+            flipped: false,
+            controller_part_id: None,
+            mechanical: Some(gasket(board_id)),
+            construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
+        };
+        document.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![instance("left", "wide"), instance("right", "narrow")],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+        let rectangle = |half_width: f64, half_height: f64| Contour {
+            hole: false,
+            points: vec![
+                Vec2 {
+                    x: -half_width,
+                    y: -half_height,
+                },
+                Vec2 {
+                    x: half_width,
+                    y: -half_height,
+                },
+                Vec2 {
+                    x: half_width,
+                    y: half_height,
+                },
+                Vec2 {
+                    x: -half_width,
+                    y: half_height,
+                },
+            ],
+        };
+        let accepted = vec![
+            BoardContours {
+                board_id: "wide".into(),
+                contours: vec![rectangle(200.0, 150.0)],
+            },
+            BoardContours {
+                board_id: "narrow".into(),
+                contours: vec![rectangle(10.0, 5.0)],
+            },
+        ];
+        (document, accepted)
+    }
+
+    /// The author's own resolved support, placed on both halves as the reviewed anchor.
+    fn resolved_author_support(
+        document: &ProjectDoc,
+        accepted: &[BoardContours],
+    ) -> boardstudio_core::model::MechanicalGasketSupport {
+        let mut author_document = document.clone();
+        author_document.physical_instance_id = Some("left".into());
+        author_document.mechanical = Some(
+            document
+                .hardware
+                .as_ref()
+                .expect("hardware")
+                .instances
+                .iter()
+                .find(|instance| instance.id == "left")
+                .expect("the author")
+                .mechanical
+                .clone()
+                .expect("the author's configuration"),
+        );
+        let contours = accepted
+            .iter()
+            .find(|entry| entry.board_id == "wide")
+            .expect("the wide board")
+            .contours
+            .clone();
+        let assembly = boardstudio_core::mechanical::resolve(&author_document, &contours);
+        assert!(
+            !assembly.generation_blocked,
+            "the author's assembly resolves: {:?}",
+            assembly.diagnostics
+        );
+        assembly
+            .gasket_supports
+            .first()
+            .cloned()
+            .expect("the fixture resolves a gasket support")
+    }
+
+    #[test]
+    fn a_link_review_describes_resolved_gasket_geometry_not_the_authored_fraction() {
+        let (mut document, accepted) = gasket_pair_document();
+        let author = resolved_author_support(&document, &accepted);
+        let anchor = MechanicalGasketAnchor {
+            length: None,
+            width: None,
+            placement: Some(GasketPlacement::User),
+            id: author.id.clone(),
+            region_id: author.region_id.clone(),
+            outline_key: author.outline_key.clone(),
+            anchor: author.anchor,
+            unlinked: false,
+        };
+        for instance in document
+            .hardware
+            .as_mut()
+            .expect("hardware")
+            .instances
+            .iter_mut()
+        {
+            instance
+                .mechanical
+                .as_mut()
+                .expect("configuration")
+                .gasket_layout
+                .as_mut()
+                .expect("gasket layout")
+                .supports = vec![anchor.clone()];
+        }
+        let change = MechanicalChange::LinkMirrorPair {
+            pair_id: "pair-left-right".into(),
+            members: ["left".into(), "right".into()],
+            mapping: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![MechanicalFeatureCorrespondence {
+                kind: MechanicalFeatureKind::GasketSupport,
+                first_feature_id: anchor.id.clone(),
+                second_feature_id: anchor.id.clone(),
+                source_instance_id: Some("left".into()),
+            }],
+        };
+
+        let preview = link_preview(
+            &document,
+            &accepted,
+            &change,
+            Some(&mounting_hole_template()),
+        )
+        .expect("the reviewed link projects");
+
+        let rows = |instance_id: &str| {
+            preview
+                .members
+                .iter()
+                .find(|member| member.instance_id == instance_id)
+                .expect("the member preview")
+                .features
+                .clone()
+        };
+        // The reviewed row states numbers, so compare the placement numerically: the
+        // author's own resolution and the linked projection may differ in the last bits.
+        fn placement(row: &str) -> (f64, f64) {
+            let inner = row
+                .split_once('(')
+                .and_then(|(_, rest)| rest.split_once(')'))
+                .map(|(inner, _)| inner)
+                .unwrap_or_else(|| panic!("a resolved support row states its placement: {row}"));
+            let (x, y) = inner
+                .split_once(", ")
+                .unwrap_or_else(|| panic!("a placement has two numbers: {inner}"));
+            (
+                x.trim().parse().expect("x is a number"),
+                y.trim().parse().expect("y is a number"),
+            )
+        }
+        let close = |actual: (f64, f64), expected: Vec2| {
+            (actual.0 - expected.x).abs() < 0.5 && (actual.1 - expected.y).abs() < 0.5
+        };
+        let author_row = rows("left")
+            .into_iter()
+            .find(|row| row.starts_with("Gasket support"))
+            .expect("the author's support row");
+        assert!(
+            close(placement(&author_row), author.at),
+            "the review states the resolved placement {:?}, got {author_row}",
+            author.at
+        );
+        assert!(
+            author_row.contains("· 80.0 × 3.0 mm"),
+            "the review states the resolved size, got {author_row}"
+        );
+        assert!(
+            !author_row.contains("along its region"),
+            "the authored fraction is not the reviewed geometry, got {author_row}"
+        );
+
+        // The other half shows the exact reflection of the author's resolved support,
+        // and the board that cannot receive it reports the located fit error instead.
+        let expected = boardstudio_core::mechanical::features::mirror_support(
+            Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            &author,
+        );
+        let mirrored_row = rows("right")
+            .into_iter()
+            .find(|row| row.starts_with("Gasket support"))
+            .expect("the mirrored support row");
+        assert!(
+            close(placement(&mirrored_row), expected.at),
+            "the review states the reflected placement {:?}, got {mirrored_row}",
+            expected.at
+        );
+        assert!(
+            mirrored_row.contains("does not fit"),
+            "a placed reflection that cannot fit its own outline says so, got {mirrored_row}"
+        );
+        let _ = &document;
+    }
+
     #[test]
     fn a_link_that_needs_generated_holes_shows_its_complete_result_once_the_template_is_known() {
         let doc = linkable_halves_with_closure_holes();
@@ -1244,7 +1529,7 @@ mod tests {
         };
         let accepted = doc.clone();
 
-        let preview = link_preview(&doc, &change, None)
+        let preview = link_preview(&doc, &[], &change, None)
             .expect("the reviewed link projects through the disposable engine");
 
         assert_eq!(

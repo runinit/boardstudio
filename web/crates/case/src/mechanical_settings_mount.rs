@@ -722,6 +722,7 @@ pub fn use_mechanical_settings_mount(
                 move |change: &boardstudio_core::mechanical::change::MechanicalChange| {
                     crate::mechanical_pair::link_preview(
                         &document,
+                        &board_contours,
                         change,
                         mounting_hole.as_deref(),
                     )
