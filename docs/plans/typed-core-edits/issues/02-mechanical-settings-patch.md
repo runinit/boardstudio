@@ -7,7 +7,8 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [module deepe
 
 Ticket 01 has settled the typed-edit pattern. This ticket combines the mechanical
 ownership migration with the agreed mirrored-feature behavior. Q1-Q13 are settled;
-the complete design below was confirmed on 2026-10-08 (see Answer). Matrix Core
+the complete design below was confirmed on 2026-10-08. Q14 clarifies paired Disable
+and was confirmed on 2026-10-09 (see Answer). Matrix Core
 tickets 02/03 remain integration prerequisites.
 
 ## What to build
@@ -541,6 +542,33 @@ prerequisites; implementation, source/browser checks and required reviews remain
 This reconciliation is documentation only. It does not claim implemented mirrored
 mechanical links or fresh source/browser verification. Before a PR, run the full
 `python3 scripts/check.py` on the integrated source and complete both required reviews.
+
+### Q14: Unlink and disable this half — 2026-10-09
+
+The user selected **Unlink and disable this half**. For a paired physical instance,
+the UI explicitly names both effects. Submit the existing typed `Disable` change
+once, not separate Unlink and Disable requests or a replacement document.
+
+Core materializes both members' current effective geometry, construction and local
+settings, clears the pair and its ownership references, then disables only the
+selected half's mechanical stack. The other half keeps its geometry and settings.
+Both physical instances, PCBs, electrical parts and unrelated split/layout settings
+remain. Update affected generated holes and memberships in the same staged edit.
+One Undo restores the whole change; Redo repeats it. Validation or missing required
+input rolls back everything. A supplied mounting-hole template is validated; it is
+required only for actual generated-hole creation/update, not deletion or unchanged
+holes alone.
+
+A pending settings/geometry edit to the disabled stack retires as ineligible even
+though the physical instance still exists. Enable remains possible and does not
+infer a new pair. Opening/vertex identity reservations must survive the lifecycle
+so a later recreated feature cannot receive an earlier pending edit. Existing
+unpaired/canonical Disable behavior remains unchanged.
+
+Verify through the public Core operation/evaluator, real Session/Core and mounted
+controls: explicit action, preserved survivor, no PCB/instance removal, one
+Undo/Redo, atomic rollback, queued retirement and save/reopen without relinking.
+This is design approval, not implementation acceptance or ticket closure.
 
 ## Comments
 
