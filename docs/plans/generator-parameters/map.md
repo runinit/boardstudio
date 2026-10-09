@@ -46,6 +46,11 @@ and enum kinds (option C) is out of scope.
   plus `-0.0` pad `y` and rotation from the normalizer), native and WASM parity pass.
   Commit `46610e2a8`; evidence in the
   [ticket Outcome](issues/01-closure-holes-via-generator-normalization.md). Next: 02 and 03.
+- 02 implemented, awaiting verification (commits `aadded82b`, `c0bbfdb9c` and the Outcome
+  commit): the split recipes keep Core's closure mounts. Core still refuses the export of
+  every measured split's left half, and Sofle RGB and Choc have no right-half closures; the
+  Outcome records both. The closure policy is a user decision; a follow-up Core task is suggested, not started.
+  Evidence in the [ticket Outcome](issues/02-restore-closure-mounts-in-recipes.md).
 
 ## Not yet specified
 
