@@ -21,8 +21,9 @@ changes no ordering.
 
 ## Follow-up
 
-Format version 4 (generator parameters ticket 03) converts the numeric and list text that
-version 2 and 3 documents saved for generator parameters, on definitions, parts and assembly
-members. The step is ordered like the others, so version 1 documents pass through it too, and
+Format version 4 (generator parameters ticket 03) converts the numeric text that version 2 and
+3 documents saved for generator parameters to numbers, on definitions, parts and assembly
+members, and removes empty or whitespace-only number and list text. Non-empty list text such as
+`"[1,2,3]"` stays text, as it did in the old 1 to 2 step. The step is ordered like the others, so version 1 documents pass through it too, and
 the rewritten document is written back once. Names no generator declares and values that cannot
 be converted are kept for Core's validation to report.

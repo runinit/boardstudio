@@ -170,9 +170,11 @@ fn generator_definitions(document: &Map<String, Value>) -> Vec<(String, String, 
         .collect()
 }
 
-/// Version 3 saved generator parameters as text. Converts the numeric and list values that
-/// the typed generators declare. Names that no generator declares and values that cannot be
-/// converted are kept, so Core's validation reports them.
+/// Version 3 saved generator parameters as text. Converts the numeric text that the typed
+/// generators declare to numbers and removes empty or whitespace-only number and list text.
+/// Non-empty list text (for example `"[1,2,3]"`) stays text, as in the old 1 to 2 step. Names
+/// that no generator declares and values that cannot be converted are kept, so Core's
+/// validation reports them.
 fn version_3_to_4(document: &mut Map<String, Value>) {
     convert_generator_values(document);
 }
@@ -226,8 +228,8 @@ fn state_back_side(instance: &mut Value, parameters_key: &str, known: &[(String,
     }
 }
 
-/// Convert saved numeric strings to numbers and list text to lists, on definitions, parts
-/// and assembly members.
+/// Convert saved numeric strings to numbers and remove empty or whitespace-only number and list
+/// text, on definitions, parts and assembly members. Non-empty list text is not converted.
 fn convert_generator_values(document: &mut Map<String, Value>) {
     let known = generator_definitions(document);
 
