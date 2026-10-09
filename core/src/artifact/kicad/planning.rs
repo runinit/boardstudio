@@ -8,6 +8,34 @@ pub fn prepare_preview(request: PrepareExportRequest) -> Result<ExportPlan, Arti
     prepare(request, false)
 }
 
+/// Rejects a manufacturing export whose selected board carries a fabrication violation.
+///
+/// The accepted mechanical findings are recomputed for this board's projection. Only a
+/// `Pcb`-scope error naming this board - a projected closure drill outside its outline,
+/// for example - blocks it; a Case-only conflict stays a Case problem and leaves this
+/// board's and every unrelated board's manufacturing export available.
+fn require_mechanical_export_clearance(
+    document: &ProjectDoc,
+    board_id: &str,
+    contours: &[Contour],
+) -> Result<(), ArtifactError> {
+    let projection = [BoardContours {
+        board_id: board_id.to_string(),
+        contours: contours.to_vec(),
+    }];
+    let blocking = crate::mechanical::inputs::pair_findings(document, &projection)
+        .into_iter()
+        .find(|finding| {
+            matches!(finding.scope, Scope::Pcb)
+                && matches!(finding.severity, Severity::Error)
+                && finding.target_ids.iter().any(|id| id == board_id)
+        });
+    match blocking {
+        Some(finding) => Err(validation(finding.message)),
+        None => Ok(()),
+    }
+}
+
 fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPlan, ArtifactError> {
     let doc = &request.document;
     if doc.format != "boardstudio/v2" {
@@ -59,6 +87,12 @@ fn prepare(request: PrepareExportRequest, fabrication: bool) -> Result<ExportPla
                 }
             }
             validate_contours(&request.contours)?;
+            // Manufacturing exports refuse a board whose selected assembly has a
+            // projected fabrication (PCB-scope) violation. A Case-only conflict is not
+            // a PCB violation, so it never blocks this or any other board's export.
+            if fabrication {
+                require_mechanical_export_clearance(doc, board_id, &request.contours)?;
+            }
             let next = net_table.iter().map(|net| net.index).max().unwrap_or(0) + 1;
             (jobs, net_table, next)
         }

@@ -1471,6 +1471,7 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
                 mechanical: None,
                 construction_ownership:
                     boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
             })
             .collect(),
         ..HardwareConfiguration::default()

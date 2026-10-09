@@ -1308,6 +1308,7 @@ fn submit_settings_patch(
             request_id,
             field_id,
             patch,
+            reviewed_fingerprint: None,
         });
     true
 }
@@ -2320,6 +2321,7 @@ mod gesture_cancellation_tests {
                     mechanical: None,
                     construction_ownership:
                         boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                    mechanical_identity_reservation: None,
                 })
                 .collect(),
             ..Default::default()

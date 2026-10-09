@@ -353,6 +353,7 @@ pub(crate) fn remove_axis(
         for matrix in matrices {
             changed.extend(crate::apply(
                 doc,
+                &[],
                 &EditOperation::RemoveMatrix { id: matrix.id },
             )?);
         }

@@ -87,17 +87,22 @@ pub enum MechanicalHardwareTextField {
 
 /// One reviewed match between the two members of a mechanical mirror pair.
 ///
-/// `first_feature_id` names the feature on `members[0]` and is the durable id
-/// the linked feature keeps on both halves; `second_feature_id` names the
-/// matching feature on `members[1]` that the link replaces. Both must exist with
-/// the given kind. Linking consolidates the two local features into one shared
-/// value authored by `members[0]`.
+/// `first_feature_id` names the feature on `members[0]` and `second_feature_id`
+/// the matching feature on `members[1]` that the link replaces; both must exist
+/// with the given kind. Linking consolidates the two local features into one
+/// shared value authored by the reviewed `source_instance_id` (or `members[0]`
+/// when absent). The relationship keeps the authored value's id on both halves.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalFeatureCorrespondence {
     pub kind: MechanicalFeatureKind,
     pub first_feature_id: String,
     pub second_feature_id: String,
+    /// The half whose accepted geometry becomes the shared authored value for this
+    /// feature. `None` keeps the legacy behaviour of sourcing from `members[0]`.
+    /// The choice is per feature and independent of the pair's construction source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_instance_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -281,6 +286,23 @@ pub enum MechanicalChange {
     UnlinkMirrorPair {
         instance_id: String,
     },
+    /// Removes one physical half from its explicit mechanical pair. The surviving
+    /// half keeps the geometry, construction and hardware it currently shows,
+    /// materialized locally, and the pair is cleared. The target must be the
+    /// removed half's instance; a board target is malformed.
+    RemovePhysicalInstance,
+    /// Converts selected legacy-ownership physical instances to local ownership.
+    ///
+    /// Each named member's current effective values are materialized into its own
+    /// configuration - including the overlaid hardware, critical fits and profiles -
+    /// before its ownership becomes `Local`, so nothing it showed changes. When the
+    /// remaining legacy members' shared source is one of the converted members, the
+    /// prior common construction is captured as the legacy source first, so their
+    /// baseline survives conversion and later edits to the converted member cannot
+    /// feed back into it.
+    MaterializeLegacyConstruction {
+        instance_ids: Vec<String>,
+    },
     /// Makes one linked feature local on one half without moving its visible
     /// geometry; the other half and every other feature keep their link.
     MakeFeatureLocal {
@@ -389,6 +411,7 @@ mod tests {
             kind: MechanicalFeatureKind::Mount,
             first_feature_id: "mount-1".into(),
             second_feature_id: "mount-1".into(),
+            source_instance_id: Some("left".into()),
         };
         let link = MechanicalChange::LinkMirrorPair {
             pair_id: "pair-left-right".into(),
@@ -416,6 +439,10 @@ mod tests {
         assert_eq!(
             payload["correspondences"][0]["secondFeatureId"],
             json!("mount-1")
+        );
+        assert_eq!(
+            payload["correspondences"][0]["sourceInstanceId"],
+            json!("left")
         );
         let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
         assert_eq!(parsed, link);
@@ -450,6 +477,16 @@ mod tests {
             let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
             assert_eq!(parsed, change);
         }
+
+        // A unit change is the bare externally-tagged key, exactly like Enable.
+        assert_eq!(
+            serde_json::to_value(MechanicalChange::RemovePhysicalInstance).unwrap(),
+            json!("remove-physical-instance")
+        );
+        assert_eq!(
+            serde_json::from_value::<MechanicalChange>(json!("remove-physical-instance")).unwrap(),
+            MechanicalChange::RemovePhysicalInstance
+        );
     }
 
     #[test]

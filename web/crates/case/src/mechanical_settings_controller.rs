@@ -272,7 +272,11 @@ impl MechanicalSettingsController {
             helper.bind_field(field.key.clone(), field.view.draft, field.view.failure);
         }
         let opening_guard = opening_target_guard(&request.patch, &self.requests.borrow());
-        let reviewed_pair_guard = reviewed_pair_guard(&request.patch, &current.accepted);
+        let reviewed_pair_guard = reviewed_pair_guard(
+            &request.patch,
+            request.reviewed_fingerprint.clone(),
+            &current.accepted,
+        );
         self.requests.borrow_mut().push(SettingsEdit {
             request: request.clone(),
             phase: SettingsPhase::Preparing,
@@ -659,8 +663,15 @@ impl ReviewedPairGuard {
 }
 
 /// The review guard for a pair action that previews its result, or `None`.
+///
+/// The reviewed basis is the fingerprint the *review* was produced with, carried by the
+/// submission. It is never recomputed from the accepted document at confirmation time:
+/// that would silently apply newer state the user has not seen. A request without a
+/// carried fingerprint (an action that produced no review) falls back to the accepted
+/// document so it still retires when its inputs are already ineligible.
 fn reviewed_pair_guard(
     patch: &MechanicalSettingsPatch,
+    reviewed_fingerprint: Option<String>,
     accepted: &AcceptedSnapshot,
 ) -> Option<ReviewedPairGuard> {
     if !matches!(
@@ -672,11 +683,14 @@ fn reviewed_pair_guard(
     }
     Some(ReviewedPairGuard {
         change: patch.clone(),
-        reviewed: crate::mechanical_pair::reviewed_fingerprint(
-            &accepted.document,
-            &accepted.scene.board_contours,
-            patch,
-        ),
+        reviewed: match reviewed_fingerprint {
+            Some(fingerprint) => Ok(fingerprint),
+            None => crate::mechanical_pair::reviewed_fingerprint(
+                &accepted.document,
+                &accepted.scene.board_contours,
+                patch,
+            ),
+        },
     })
 }
 
@@ -704,6 +718,8 @@ fn is_one_shot(patch: &MechanicalSettingsPatch) -> bool {
             | MechanicalSettingsPatch::AssignSwitchProfile { .. }
             | MechanicalSettingsPatch::AssignStabilizerProfile { .. }
             | MechanicalSettingsPatch::AssignImportedGeometryProfile { .. }
+            | MechanicalSettingsPatch::RemovePhysicalInstance
+            | MechanicalSettingsPatch::MaterializeLegacyConstruction { .. }
     )
 }
 
@@ -943,6 +959,24 @@ mod adapter_tests {
             request_id,
             field_id: patch.field_id(),
             patch,
+            reviewed_fingerprint: None,
+        }
+    }
+
+    /// A request whose reviewed result the user has already seen, carrying the
+    /// fingerprint of the accepted inputs that produced it.
+    fn reviewed_request(
+        identity: MechanicalSettingsIdentity,
+        request_id: u64,
+        patch: MechanicalSettingsPatch,
+        reviewed_fingerprint: String,
+    ) -> MechanicalSettingsRequest {
+        MechanicalSettingsRequest {
+            identity,
+            request_id,
+            field_id: patch.field_id(),
+            patch,
+            reviewed_fingerprint: Some(reviewed_fingerprint),
         }
     }
 
@@ -1116,6 +1150,175 @@ mod adapter_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn a_per_feature_source_choice_is_reviewed_payload_not_accepted_state() {
+        let mut document = pair_fixture_document("adapter-feature-source");
+        document.hardware.as_mut().unwrap().pairs.clear();
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let source = |instance: Option<&str>| MechanicalSettingsPatch::LinkMirrorPair {
+            pair_id: "pair-new".into(),
+            members: ["left".into(), "right".into()],
+            mapping: boardstudio_core::model::Pose2 {
+                at: boardstudio_core::model::Vec2::default(),
+                rotation: 0.0,
+            },
+            construction_source: "left".into(),
+            correspondences: vec![
+                boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                    kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    source_instance_id: instance.map(str::to_owned),
+                },
+            ],
+        };
+        for choice in [Some("right"), Some("left"), None] {
+            let patch = source(choice);
+            let fingerprint = crate::mechanical_pair::reviewed_fingerprint(
+                &accepted.document,
+                &accepted.scene.board_contours,
+                &patch,
+            )
+            .expect("the reviewed inputs fingerprint");
+            let port = RecordingPort::default();
+            let feedback = Rc::new(RefCell::new(Vec::new()));
+            let current = current(&accepted, Some("left"));
+            let identity = current.identity.clone();
+            let controller = controller(current, TestCatalogue::default(), port.clone(), feedback);
+            assert!(controller.submit(reviewed_request(identity, 1, patch, fingerprint)));
+            loaded().await;
+            let resolutions = port.resolutions.borrow();
+            assert_eq!(resolutions.len(), 1);
+            let resolution = resolutions[0].resolve(&accepted);
+            assert!(
+                matches!(resolution, Resolution::Submit(_)),
+                "a per-feature source choice is payload, so it stays valid, got {resolution:?}"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_confirmed_action_uses_the_reviewed_basis_not_the_state_at_confirmation() {
+        let document = pair_fixture_document("adapter-reviewed-basis");
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+
+        let rejoin = MechanicalSettingsPatch::RejoinFeatureMember {
+            feature_id: "mount-1-left".into(),
+            instance_id: "left".into(),
+            source_instance_id: "right".into(),
+        };
+        // The review the user saw was produced from the accepted document as it was;
+        // a relevant change (the pair's map) has already landed before confirmation.
+        let reviewed_fingerprint = crate::mechanical_pair::reviewed_fingerprint(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &rejoin,
+        )
+        .expect("the reviewed inputs fingerprint");
+        let mut changed_document = (*accepted.document).clone();
+        changed_document.hardware.as_mut().unwrap().pairs[0]
+            .mapping
+            .rotation = 90.0;
+        let changed = AcceptedSnapshot {
+            document: std::sync::Arc::new(changed_document),
+            ..accepted.clone()
+        };
+
+        let reviewed_port = RecordingPort::default();
+        let reviewed_feedback = Rc::new(RefCell::new(Vec::new()));
+        let reviewed_current = current(&changed, Some("left"));
+        let reviewed_identity = reviewed_current.identity.clone();
+        let reviewed_controller = controller(
+            reviewed_current,
+            TestCatalogue::default(),
+            reviewed_port.clone(),
+            reviewed_feedback,
+        );
+        assert!(reviewed_controller.submit(reviewed_request(
+            reviewed_identity,
+            1,
+            rejoin.clone(),
+            reviewed_fingerprint,
+        )));
+        loaded().await;
+
+        let resolutions = reviewed_port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        let resolution = resolutions[0].resolve(&changed);
+        let Resolution::Retire(reason) = resolution else {
+            panic!(
+                "a review produced before a relevant change must retire rather than apply \
+                 state the user never reviewed, got {resolution:?}"
+            );
+        };
+        assert!(reason.contains("reviewed inputs changed"), "{reason}");
+
+        // Edits outside the reviewed inputs leave the reviewed result valid.
+        let current_fingerprint = crate::mechanical_pair::reviewed_fingerprint(
+            &changed.document,
+            &changed.scene.board_contours,
+            &rejoin,
+        )
+        .expect("the reviewed inputs fingerprint");
+        let mut unrelated_document = (*changed.document).clone();
+        unrelated_document.name = "Renamed".into();
+        unrelated_document.revision += 4;
+        unrelated_document
+            .parameters
+            .insert("unrelated".into(), serde_json::json!("keep"));
+        // A genuinely unrelated edit: a matrix on another board, which cannot change the
+        // reviewed half's contour, source geometry, materials or proposed fit findings.
+        unrelated_document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "unrelated-board", "name": "Unrelated", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .expect("an unrelated board parses"),
+        );
+        unrelated_document.matrices.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "unrelated-matrix", "rows": 1, "columns": 1,
+                "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 0.0, "y": 0.0 },
+                "definitionId": "switch-definition", "partIds": [], "boardId": "unrelated-board",
+                "diodeDirection": "row2col", "rowOffsets": [], "columnOffsets": [],
+                "columnStaggers": [], "columnSplays": [], "columnOrigins": [], "cells": []
+            }))
+            .expect("a matrix edit outside the reviewed inputs parses"),
+        );
+        let unrelated = AcceptedSnapshot {
+            document: std::sync::Arc::new(unrelated_document),
+            ..changed.clone()
+        };
+        let unrelated_port = RecordingPort::default();
+        let unrelated_feedback = Rc::new(RefCell::new(Vec::new()));
+        let unrelated_current = current(&changed, Some("left"));
+        let unrelated_identity = unrelated_current.identity.clone();
+        let unrelated_controller = controller(
+            unrelated_current,
+            TestCatalogue::default(),
+            unrelated_port.clone(),
+            unrelated_feedback,
+        );
+        assert!(unrelated_controller.submit(reviewed_request(
+            unrelated_identity,
+            1,
+            rejoin.clone(),
+            current_fingerprint,
+        )));
+        loaded().await;
+        let resolutions = unrelated_port.resolutions.borrow();
+        assert_eq!(resolutions.len(), 1);
+        let resolution = resolutions[0].resolve(&unrelated);
+        assert!(
+            matches!(resolution, Resolution::Submit(_)),
+            "a project/matrix edit outside the reviewed inputs keeps the review valid, got {resolution:?}"
+        );
+    }
+
+    #[wasm_bindgen_test]
     async fn a_reviewed_link_retires_when_the_source_geometry_it_reviewed_changed() {
         let mut document = pair_fixture_document("adapter-reviewed-link");
         // The halves are independent: no pair owns them yet.
@@ -1142,6 +1345,7 @@ mod adapter_tests {
                     kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1-left".into(),
                     second_feature_id: "mount-1-right".into(),
+                    source_instance_id: None,
                 },
             ],
         };
@@ -1504,6 +1708,7 @@ mod adapter_tests {
             // resolved effective read needs it before linking.
             mechanical: Some(configuration.clone()),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         };
         let mount = |id: &str, x: f64| Mount {
             id: id.into(),

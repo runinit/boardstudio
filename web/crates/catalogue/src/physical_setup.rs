@@ -836,11 +836,15 @@ fn correspondences_between(
 }
 
 /// One setup-proposed match keeps the same durable id on both halves.
+///
+/// `None` keeps the legacy source: the pair's first member authors the shared value.
+/// A reviewed link names the source per feature explicitly.
 fn correspondence(kind: MechanicalFeatureKind, id: &str) -> MechanicalFeatureCorrespondence {
     MechanicalFeatureCorrespondence {
         kind,
         first_feature_id: id.into(),
         second_feature_id: id.into(),
+        source_instance_id: None,
     }
 }
 
@@ -863,6 +867,7 @@ fn make_instance(
         controller_part_id: None,
         mechanical: Some(mechanical),
         construction_ownership: MechanicalConstructionOwnership::Legacy,
+        mechanical_identity_reservation: None,
     }
 }
 
@@ -912,6 +917,7 @@ mod tests {
             controller_part_id: Some(format!("{id}-controller")),
             mechanical: Some(mechanical(doc, 4.2)),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         }
     }
 
@@ -1259,6 +1265,9 @@ mod tests {
             ],
             z: 1.0,
             height: 2.0,
+            // Not zero, so a later vertex addition cannot mint an id these fixtures
+            // already use. (Zero means "unset", and Core then reserves its own.)
+            next_vertex_identity: 3,
         }
     }
 
@@ -1285,6 +1294,7 @@ mod tests {
             controller_part_id: None,
             mechanical: Some(configuration),
             construction_ownership: MechanicalConstructionOwnership::Local,
+            mechanical_identity_reservation: None,
         }
     }
 
@@ -1363,6 +1373,7 @@ mod tests {
             kind: MechanicalFeatureKind::Mount,
             first_feature_id: "mount-a".into(),
             second_feature_id: "mount-b".into(),
+            source_instance_id: None,
         };
         let accepted = doc.clone();
 
@@ -1462,6 +1473,7 @@ mod tests {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-missing".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 }]),
             },
         ];
@@ -1523,11 +1535,13 @@ mod tests {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 },
                 MechanicalFeatureCorrespondence {
                     kind: MechanicalFeatureKind::Opening,
                     first_feature_id: "opening-1".into(),
                     second_feature_id: "opening-1".into(),
+                    source_instance_id: None,
                 },
             ],
             "the candidate matches durable feature ids only"
@@ -1904,11 +1918,13 @@ mod tests {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1".into(),
                     second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
                 },
                 MechanicalFeatureCorrespondence {
                     kind: MechanicalFeatureKind::Opening,
                     first_feature_id: "opening-1".into(),
                     second_feature_id: "opening-1".into(),
+                    source_instance_id: None,
                 },
             ],
             "shared mounts and openings are covered by durable id"
@@ -2026,11 +2042,13 @@ mod tests {
                     kind: MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-shared".into(),
                     second_feature_id: "mount-shared".into(),
+                    source_instance_id: None,
                 },
                 MechanicalFeatureCorrespondence {
                     kind: MechanicalFeatureKind::Opening,
                     first_feature_id: "opening-shared".into(),
                     second_feature_id: "opening-shared".into(),
+                    source_instance_id: None,
                 },
             ],
             "only the shared durable ids are matched, never part coordinates"

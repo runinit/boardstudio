@@ -1585,11 +1585,18 @@ fn finalize_assembly(
     config: &MechanicalConfiguration,
     result: &mut MechanicalAssembly,
     component_volumes: &[(String, CaseOpening)],
+    accepted_contours: &[Contour],
 ) {
     crate::mechanical_checks::apply_allowance(config, result);
     if config.mount == MechanicalMount::Gasket
         && !result.generation_blocked
-        && let Err(message) = gasket::generate(document, config, result, component_volumes)
+        && let Err(message) = gasket::generate(
+            document,
+            config,
+            result,
+            component_volumes,
+            accepted_contours,
+        )
     {
         result.generation_blocked = true;
         result.diagnostics.push(Finding {
@@ -2198,11 +2205,11 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     }
     result.modules = module_resolution.modules;
     result.stack.extend(constructed.stack);
-    finalize_assembly(document, config, &mut result, &component_volumes);
+    finalize_assembly(document, config, &mut result, &component_volumes, contours);
     result
 }
 
-fn expanded_outline(
+pub(crate) fn expanded_outline(
     contours: &[Contour],
     amount: f64,
     revision: u64,
@@ -2293,7 +2300,7 @@ fn same_ring(a: &Contour, b: &Contour) -> bool {
     })
 }
 
-fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
+pub(crate) fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
     let contains = |ring: &Contour| {
         let mut inside = false;
         for i in 0..ring.points.len() {
@@ -2468,6 +2475,7 @@ mod tests {
             gasket: None,
             closure_mounts: None,
             board_id: "board".into(),
+            next_opening_identity: 0,
             method: PlateMethod::Printed,
             mount: MechanicalMount::Tray,
             integrated_plate_frame: false,

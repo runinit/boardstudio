@@ -78,6 +78,7 @@ mod tests {
                     mechanical: None,
                     construction_ownership:
                         boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
+                    mechanical_identity_reservation: None,
                 })
                 .collect(),
             ..HardwareConfiguration::default()

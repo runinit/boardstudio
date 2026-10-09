@@ -508,7 +508,17 @@ impl CoreEngine {
             return self.preview_edit(id, command);
         }
         let mut next = self.document.clone();
-        let changed = match apply(&mut next, &command.operation) {
+        // Mechanical edits resolve against the accepted outline projection the user
+        // sees, not a stale or re-derived one, so the accepted cache supplies it.
+        let accepted_contours;
+        let board_contours: &[BoardContours] =
+            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+                &accepted_contours
+            } else {
+                &[]
+            };
+        let changed = match apply(&mut next, board_contours, &command.operation) {
             Ok(changed) => changed,
             Err(message) => return self.error(id, &message),
         };
@@ -614,7 +624,7 @@ impl CoreEngine {
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
-        let result = apply(&mut self.document, &command.operation).and_then(|mut changed| {
+        let result = apply(&mut self.document, &[], &command.operation).and_then(|mut changed| {
             layout::validate(&self.document)?;
             changed.extend(constraints::resolve_edit(
                 &mut self.document,
@@ -731,6 +741,14 @@ impl CoreEngine {
                     .all(|id| fitted_targets.contains(id))
         });
         findings.extend(board_findings);
+        // Mechanical pair fit findings recomputed from accepted state, so readiness and
+        // the selected export gates see them instead of only a transient assembly
+        // diagnostic. A Case-scope finding blocks its affected assembly's output; a
+        // fabricated-drill violation is Pcb scope and blocks only that board.
+        findings.extend(crate::mechanical::inputs::pair_findings(
+            doc,
+            &board_contours,
+        ));
         let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
@@ -1057,7 +1075,11 @@ fn affects_outline(op: &EditOperation) -> bool {
     )
 }
 
-fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
+fn apply(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+) -> Result<Vec<String>, String> {
     match op {
         EditOperation::SetModuleDefinition { definition } => {
             modules::set_definition(doc, definition)
@@ -1267,7 +1289,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
                 .part_ids
                 .clone();
             layout::remove_matrix(doc, id);
-            let mut changed = apply(doc, &EditOperation::RemoveParts { ids })?;
+            let mut changed = apply(doc, &[], &EditOperation::RemoveParts { ids })?;
             doc.matrices.retain(|matrix| matrix.id != *id);
             let prefix = format!("matrix/{id}/net/");
             let empty_owned: std::collections::BTreeSet<_> = doc
@@ -1466,6 +1488,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             }
             let mut changed = apply(
                 doc,
+                &[],
                 &EditOperation::SetMatrix {
                     matrix: matrix.as_ref().clone(),
                     definitions: definitions.clone(),
@@ -1540,7 +1563,9 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             doc.constraints.retain(|item| item.id() != id);
             Ok(vec![id.clone()])
         }
-        EditOperation::ApplyMechanicalEdit { edit } => crate::mechanical::edit::apply(doc, edit),
+        EditOperation::ApplyMechanicalEdit { edit } => {
+            crate::mechanical::edit::apply(doc, board_contours, edit)
+        }
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
@@ -1548,11 +1573,21 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             if document.format_version != migrate::CURRENT_VERSION {
                 return Err("Document must be migrated before it replaces the open one".into());
             }
-            let changed = changed_ids(doc, document);
+            let accepted = doc.clone();
+            let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();
             script::apply_scripts(&mut prepared)?;
             layout::resolve(&mut prepared)?;
             *doc = prepared;
+            // A wholesale replacement can add or remove a physical member without the
+            // typed pair operations. Reconcile ownership against the accepted state so
+            // the replacement can never leave a dangling pair or lose the survivor's
+            // visible geometry and construction.
+            changed.extend(crate::mechanical::edit::reconcile_physical_topology(
+                doc, &accepted,
+            )?);
+            changed.sort();
+            changed.dedup();
             Ok(changed)
         }
     }
@@ -1632,7 +1667,12 @@ mod set_wiring_mode_tests {
     fn setting_direct_creates_board_configuration_and_reports_only_the_board() {
         let mut document = document();
 
-        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Direct)).unwrap();
+        let changed = apply(
+            &mut document,
+            &[],
+            &set_mode(electrical::ElectricalMode::Direct),
+        )
+        .unwrap();
 
         assert_eq!(changed, ["left"]);
         let configuration = document.hardware.unwrap().boards.pop().unwrap();
@@ -1650,10 +1690,10 @@ mod set_wiring_mode_tests {
     fn setting_the_current_mode_is_a_no_op() {
         let mut document = document();
         let operation = set_mode(electrical::ElectricalMode::Direct);
-        apply(&mut document, &operation).unwrap();
+        apply(&mut document, &[], &operation).unwrap();
         let before = document.clone();
 
-        let changed = apply(&mut document, &operation).unwrap();
+        let changed = apply(&mut document, &[], &operation).unwrap();
 
         assert!(changed.is_empty());
         assert_eq!(document, before);
@@ -1675,7 +1715,12 @@ mod set_wiring_mode_tests {
             .boards
             .push(configuration.clone());
 
-        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Direct)).unwrap();
+        let changed = apply(
+            &mut document,
+            &[],
+            &set_mode(electrical::ElectricalMode::Direct),
+        )
+        .unwrap();
 
         assert_eq!(changed, ["left"]);
         configuration.mode = electrical::ElectricalMode::Direct;
@@ -1686,7 +1731,12 @@ mod set_wiring_mode_tests {
     fn setting_the_default_mode_is_a_no_op() {
         let mut document = document();
 
-        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Matrix)).unwrap();
+        let changed = apply(
+            &mut document,
+            &[],
+            &set_mode(electrical::ElectricalMode::Matrix),
+        )
+        .unwrap();
 
         assert!(changed.is_empty());
         assert!(document.hardware.is_none());
@@ -1701,7 +1751,7 @@ mod set_wiring_mode_tests {
         };
 
         assert_eq!(
-            apply(&mut document, &operation),
+            apply(&mut document, &[], &operation),
             Err("Unknown board missing".into())
         );
     }

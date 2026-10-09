@@ -42,9 +42,23 @@ const SHARED_OVERLAY_FIELDS: [&str; 20] = [
 pub struct MechanicalInputs {
     pub board_id: String,
     pub configuration: MechanicalConfiguration,
+    /// The target board's effective parts, mirrored in X and side-swapped for a
+    /// flipped physical half, so a resolver reads the same geometry the scene carried.
+    pub parts: Vec<Part>,
     /// The target's accepted board contours, mirrored in X for a flipped physical
     /// half, so a resolver reads the same accepted geometry the scene carried.
     pub board_contours: Vec<Contour>,
+    /// Mechanical findings recomputed from accepted state that concern this target.
+    /// The geometry they name is retained as placed; an affected assembly's output is
+    /// what blocks, and unrelated boards are unaffected.
+    pub findings: Vec<Finding>,
+    /// Pair-linked gasket supports as this target sees them: each one resolved through
+    /// the gasket resolver against its *author's* accepted contours and then reflected
+    /// into this target's frame (placement, tangent and normal), never re-resolved from
+    /// the author's perimeter fraction. `fit_error` is set when the reflected placement
+    /// is not associated with this half's accepted outline; the intended placement is
+    /// still reported, never snapped or moved.
+    pub gasket_supports: Vec<MechanicalGasketSupport>,
 }
 
 /// Resolves the effective mechanical configuration for a board or physical half.
@@ -64,6 +78,17 @@ pub fn effective_inputs(
     board_contours: &[BoardContours],
     target: &MechanicalTarget,
 ) -> Result<MechanicalInputs, String> {
+    effective_inputs_inner(document, board_contours, target, true)
+}
+
+/// Resolves the effective inputs. `resolve_gaskets` is false while resolving an author's
+/// own assembly, which keeps the gasket read path from recursing into itself.
+fn effective_inputs_inner(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+    resolve_gaskets: bool,
+) -> Result<MechanicalInputs, String> {
     match target {
         MechanicalTarget::Board { board_id } => {
             if !document.boards.iter().any(|board| board.id == *board_id) {
@@ -79,10 +104,14 @@ pub fn effective_inputs(
                 None => super::edit::default_configuration(document, board_id)?,
             };
             let configuration = apply_mechanical_defaults(document, configuration, board_id, false);
+            let contours = declared_contours(board_contours, board_id);
             Ok(MechanicalInputs {
                 board_id: board_id.clone(),
                 configuration,
-                board_contours: declared_contours(board_contours, board_id),
+                parts: effective_parts(document, board_id, false),
+                board_contours: contours,
+                findings: scoped_pair_findings(document, board_contours, target),
+                gasket_supports: Vec::new(),
             })
         }
         MechanicalTarget::Instance { instance_id } => {
@@ -106,15 +135,188 @@ pub fn effective_inputs(
             let contours = declared_contours(board_contours, &instance.board_id);
             Ok(MechanicalInputs {
                 board_id: instance.board_id.clone(),
+                gasket_supports: if resolve_gaskets {
+                    resolved_pair_gasket_supports(document, board_contours, target, &configuration)?
+                } else {
+                    Vec::new()
+                },
                 configuration,
+                parts: effective_parts(document, &instance.board_id, instance.flipped),
                 board_contours: if instance.flipped {
                     mirror_contours(contours)
                 } else {
                     contours
                 },
+                findings: scoped_pair_findings(document, board_contours, target),
             })
         }
     }
+}
+
+/// Pair-linked gasket supports resolved on their author's contours and reflected here.
+///
+/// The author's own assembly is resolved against the author's accepted contours (its
+/// configuration is read without the gasket projection, so this cannot recurse), and the
+/// resolved placement, tangent and normal are mirrored through the pair map - the forward
+/// map when the first member authors, its exact inverse when the second does. The
+/// reflected placement is then associated with this half's own accepted outline: when the
+/// destination contour cannot receive it, `fit_error` records that instead of snapping or
+/// moving the geometry.
+pub(crate) fn resolved_pair_gasket_supports(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+    configuration: &MechanicalConfiguration,
+) -> Result<Vec<MechanicalGasketSupport>, String> {
+    let MechanicalTarget::Instance { instance_id } = target else {
+        return Ok(Vec::new());
+    };
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let Some(pair) = owning_pair(hardware, instance_id) else {
+        return Ok(Vec::new());
+    };
+    if !pair
+        .features
+        .iter()
+        .any(|feature| feature.kind == MechanicalFeatureKind::GasketSupport)
+    {
+        return Ok(Vec::new());
+    }
+    let Some(instance) = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == *instance_id)
+    else {
+        return Ok(Vec::new());
+    };
+    // A support sits on the case's expanded perimeter, not on the bare board outline,
+    // so association allows for this half's wall and clearance.
+    let destination = match crate::mechanical::expanded_outline(
+        &destination_contours(board_contours, instance),
+        configuration.clearance.max(0.0) + configuration.wall_thickness.max(0.0),
+        document.revision,
+    ) {
+        Ok(expanded) => expanded,
+        Err(_) => destination_contours(board_contours, instance),
+    };
+    let mut resolved = Vec::new();
+    for feature in &pair.features {
+        if feature.kind != MechanicalFeatureKind::GasketSupport {
+            continue;
+        }
+        let Some(member) = feature
+            .members
+            .iter()
+            .find(|member| member.instance_id == *instance_id)
+        else {
+            continue;
+        };
+        if member.state != MechanicalFeatureState::Linked {
+            continue;
+        }
+        let Some(author_support) =
+            author_resolved_gasket_support(document, board_contours, feature)?
+        else {
+            continue;
+        };
+        let mut support = if feature.author == *instance_id {
+            author_support
+        } else {
+            let mapping = if pair
+                .members
+                .first()
+                .is_some_and(|first| *first == feature.author)
+            {
+                pair.mapping
+            } else {
+                super::features::inverse_pose(pair.mapping)
+            };
+            super::features::mirror_support(mapping, &author_support)
+        };
+        support.pair_id = Some(feature.id.clone());
+        if !destination.is_empty() && !super::inside_outline(support.at, &destination) {
+            support.fit_error = Some(
+                "The reflected gasket support does not associate with this half's board outline."
+                    .into(),
+            );
+        }
+        resolved.push(support);
+    }
+    Ok(resolved)
+}
+
+/// The author's resolved support, from the author's accepted contours.
+fn author_resolved_gasket_support(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    feature: &MechanicalFeature,
+) -> Result<Option<MechanicalGasketSupport>, String> {
+    let author_target = MechanicalTarget::Instance {
+        instance_id: feature.author.clone(),
+    };
+    // The author's configuration is read without the gasket projection so resolving its
+    // own support cannot recurse through this path.
+    let configuration =
+        effective_inputs_inner(document, board_contours, &author_target, false)?.configuration;
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Ok(None);
+    };
+    let Some(author) = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == feature.author)
+    else {
+        return Ok(None);
+    };
+    let mut author_document = document.clone();
+    author_document.physical_instance_id = Some(feature.author.clone());
+    author_document.mechanical = Some(configuration);
+    // The author's own anchor is already projected into that configuration, so the
+    // recursive resolve must not reflect any pair-linked gasket support itself: that
+    // would re-enter this path and could not terminate for a two-way linked pair.
+    if let Some(hardware) = author_document.hardware.as_mut() {
+        for pair in hardware.pairs.iter_mut() {
+            pair.features
+                .retain(|feature| feature.kind != MechanicalFeatureKind::GasketSupport);
+        }
+    }
+    if author.flipped {
+        mirror_parts(&mut author_document.parts, document, &author.board_id);
+    }
+    let mut contours = declared_contours(board_contours, &author.board_id);
+    if author.flipped {
+        contours = mirror_contours(contours);
+    }
+    if contours.is_empty() {
+        let (cache, _, _) = crate::geometry::outlines(document, None, &[]);
+        contours = board_contours_for(document, &cache, &author.board_id);
+    }
+    let assembly = crate::mechanical::resolve(&author_document, &contours);
+    let member_feature_id = feature
+        .members
+        .iter()
+        .find(|member| member.instance_id == feature.author)
+        .map(|member| member.feature_id.as_str());
+    Ok(assembly
+        .gasket_supports
+        .into_iter()
+        .find(|support| Some(support.id.as_str()) == member_feature_id))
+}
+
+/// Recomputes one board's contours when the caller has no accepted projection for it.
+fn board_contours_for(
+    document: &ProjectDoc,
+    cache: &crate::geometry::OutlineCache,
+    board_id: &str,
+) -> Vec<Contour> {
+    crate::geometry::board_contours(document, cache)
+        .0
+        .into_iter()
+        .find(|entry| entry.board_id == board_id)
+        .map(|entry| entry.contours)
+        .unwrap_or_default()
 }
 
 /// The accepted contours of one board, or none when the projection lacks them.
@@ -126,8 +328,317 @@ fn declared_contours(board_contours: &[BoardContours], board_id: &str) -> Vec<Co
         .unwrap_or_default()
 }
 
+/// The target board's effective parts, mirrored when the target half is flipped.
+fn effective_parts(document: &ProjectDoc, board_id: &str, flipped: bool) -> Vec<Part> {
+    let mut parts = document.parts.clone();
+    if flipped {
+        mirror_parts(&mut parts, document, board_id);
+    }
+    parts
+}
+
+/// Mirrors the selected board's parts into a flipped physical half's Case frame.
+///
+/// A part's `x` and rotation negate and its side swaps; its generator's `side`
+/// parameter follows, so the resolver reads the same physical placement the accepted
+/// scene carried. Parts owned by other boards are untouched.
+pub(crate) fn mirror_parts(parts: &mut [Part], document: &ProjectDoc, board_id: &str) {
+    let selected = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| {
+            board
+                .part_ids
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_default();
+    for part in parts {
+        if !selected.contains(&part.id) {
+            continue;
+        }
+        part.pose.at.x = -part.pose.at.x;
+        part.pose.rotation = -part.pose.rotation;
+        part.side = match part.side {
+            Side::Front => Side::Back,
+            Side::Back => Side::Front,
+        };
+        let parameters = part
+            .generator_parameters
+            .get_or_insert_with(Default::default);
+        parameters.insert(
+            "side".into(),
+            serde_json::Value::String(if part.side == Side::Front { "F" } else { "B" }.into()),
+        );
+    }
+}
+
+/// The accepted mechanical pair findings that concern one board.
+/// The accepted pair findings that concern one target.
+///
+/// A reading for one physical half sees a finding that names that half, or a finding
+/// that names no half of the board at all (a board- or body-level problem). A finding
+/// that names a *different* half of the same board is not this half's problem: two
+/// halves sharing one PCB keep independent readiness, so a Case conflict on one half
+/// cannot block the other's output.
+fn scoped_pair_findings(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+) -> Vec<Finding> {
+    let (board_id, selected_instance) = match target {
+        MechanicalTarget::Board { board_id } => (board_id.clone(), None),
+        MechanicalTarget::Instance { instance_id } => {
+            let Some(instance) = document.hardware.as_ref().and_then(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .find(|instance| instance.id == *instance_id)
+            }) else {
+                return Vec::new();
+            };
+            (instance.board_id.clone(), Some(instance_id.clone()))
+        }
+    };
+    let siblings: Vec<&str> = document
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| hardware.instances.iter())
+        .filter(|instance| instance.board_id == board_id)
+        .map(|instance| instance.id.as_str())
+        .collect();
+    pair_findings(document, board_contours)
+        .into_iter()
+        .filter(|finding| {
+            if !finding.target_ids.contains(&board_id) {
+                return false;
+            }
+            match &selected_instance {
+                None => true,
+                Some(instance_id) => {
+                    finding.target_ids.iter().any(|id| id == instance_id)
+                        || !finding
+                            .target_ids
+                            .iter()
+                            .any(|id| siblings.iter().any(|sibling| sibling == id))
+                }
+            }
+        })
+        .collect()
+}
+
+/// Fit findings recomputed from the accepted pair state.
+///
+/// For every `Linked` feature the visible geometry each half shows is checked against
+/// that half's accepted outline and against the features that half owns locally. A
+/// feature whose reflected placement leaves the destination board, or lands on a
+/// local feature, is retained exactly as placed - never relocated, snapped or
+/// unlinked - and reported with the pair, instance, feature and board identities so
+/// the user can find it. A linked closure mount outside its board is a fabricated-drill
+/// violation (`Pcb`), so it also blocks that board's manufacturing export; a
+/// Case-only clash leaves every board's PCB export alone.
+pub(crate) fn pair_findings(
+    document: &ProjectDoc,
+    board_contours: &[BoardContours],
+) -> Vec<Finding> {
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Vec::new();
+    };
+    let mut findings = Vec::new();
+    for pair in &hardware.pairs {
+        for feature in &pair.features {
+            for member in &feature.members {
+                if member.state != MechanicalFeatureState::Linked {
+                    continue;
+                }
+                let Some(instance) = hardware
+                    .instances
+                    .iter()
+                    .find(|instance| instance.id == member.instance_id)
+                else {
+                    continue;
+                };
+                let Some(value) = visible_linked_value(pair, feature, &member.instance_id) else {
+                    continue;
+                };
+                let contours = destination_contours(board_contours, instance);
+                // A gasket anchor is resolved on the author's contours first, so its
+                // placement finding is stated by that resolution, not from the raw
+                // fraction here.
+                let Some(point) = value_point(&value) else {
+                    continue;
+                };
+                let outside = !contours.is_empty() && !super::inside_outline(point, &contours);
+                let conflicts = local_conflict(&value, instance, pair);
+                let subject = match feature.kind {
+                    MechanicalFeatureKind::Mount => "mount",
+                    MechanicalFeatureKind::ClosureMount => "closure mount",
+                    MechanicalFeatureKind::Opening => "opening",
+                    MechanicalFeatureKind::GasketSupport => "gasket support",
+                };
+                if outside {
+                    let scope = if feature.kind == MechanicalFeatureKind::ClosureMount {
+                        Scope::Pcb
+                    } else {
+                        Scope::Case
+                    };
+                    findings.push(pair_finding(
+                        pair,
+                        instance,
+                        feature,
+                        &member.instance_id,
+                        scope,
+                        format!(
+                            "The linked {subject} at ({:.2}, {:.2}) lies outside this half's board outline.",
+                            point.x, point.y
+                        ),
+                    ));
+                } else if let Some(other) = conflicts {
+                    findings.push(pair_finding(
+                        pair,
+                        instance,
+                        feature,
+                        &member.instance_id,
+                        Scope::Case,
+                        format!(
+                            "The linked {subject} at ({:.2}, {:.2}) overlaps this half's local feature {other}.",
+                            point.x, point.y
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    findings
+}
+
+fn pair_finding(
+    pair: &MechanicalMirrorPair,
+    instance: &PhysicalBoardInstance,
+    feature: &MechanicalFeature,
+    instance_id: &str,
+    scope: Scope,
+    message: String,
+) -> Finding {
+    Finding {
+        id: format!(
+            "mechanical:pair:{}:{}:{}:fit",
+            pair.id, instance_id, feature.id
+        ),
+        severity: Severity::Error,
+        scope,
+        message,
+        target_ids: vec![
+            instance.board_id.clone(),
+            instance_id.to_string(),
+            feature.id.clone(),
+        ],
+    }
+}
+
+/// The destination half's accepted contours, mirrored for a flipped instance.
+fn destination_contours(
+    board_contours: &[BoardContours],
+    instance: &PhysicalBoardInstance,
+) -> Vec<Contour> {
+    let declared = declared_contours(board_contours, &instance.board_id);
+    if instance.flipped {
+        mirror_contours(declared)
+    } else {
+        declared
+    }
+}
+
+/// One half's visible geometry for a linked feature, or `None` when it is not linked.
+fn visible_linked_value(
+    pair: &MechanicalMirrorPair,
+    feature: &MechanicalFeature,
+    instance_id: &str,
+) -> Option<MechanicalFeatureValue> {
+    if feature.author == instance_id {
+        return Some(feature.value.clone());
+    }
+    super::features::counterpart(pair, feature, &feature.author)
+        .ok()
+        .flatten()
+        .map(|derived| derived.value)
+}
+
+/// A linked feature's representative point in its destination frame.
+///
+/// `None` for a gasket support, whose placement only exists once its anchor has been
+/// resolved on the author's contours.
+fn value_point(value: &MechanicalFeatureValue) -> Option<Vec2> {
+    match value {
+        MechanicalFeatureValue::Mount { mount } => Some(mount.at),
+        MechanicalFeatureValue::Opening { opening } => {
+            let count = opening.vertices.len().max(1) as f64;
+            Some(
+                opening
+                    .vertices
+                    .iter()
+                    .fold(Vec2 { x: 0.0, y: 0.0 }, |sum, vertex| Vec2 {
+                        x: sum.x + vertex.point.x / count,
+                        y: sum.y + vertex.point.y / count,
+                    }),
+            )
+        }
+        MechanicalFeatureValue::GasketSupport { .. } => None,
+    }
+}
+
+/// A linked mount/closure mount's radius, or zero for other feature kinds.
+fn value_radius(value: &MechanicalFeatureValue) -> f64 {
+    match value {
+        MechanicalFeatureValue::Mount { mount } => {
+            mount.boss_diameter.unwrap_or(mount.hole_diameter) / 2.0
+        }
+        _ => 0.0,
+    }
+}
+
+/// The local feature a linked mount overlaps on its destination half, if any.
+///
+/// Only features that half owns locally are considered; a feature id belonging to the
+/// pair is never treated as local hardware, so a link cannot clash with itself.
+fn local_conflict(
+    value: &MechanicalFeatureValue,
+    instance: &PhysicalBoardInstance,
+    pair: &MechanicalMirrorPair,
+) -> Option<String> {
+    let MechanicalFeatureValue::Mount { mount } = value else {
+        return None;
+    };
+    let owned: std::collections::BTreeSet<&str> = pair
+        .features
+        .iter()
+        .flat_map(|feature| feature.members.iter())
+        .filter(|member| member.instance_id == instance.id)
+        .map(|member| member.feature_id.as_str())
+        .collect();
+    let configuration = instance.mechanical.as_ref()?;
+    let radius = value_radius(value);
+    let candidates = configuration
+        .mounts
+        .iter()
+        .chain(configuration.closure_mounts.iter().flatten());
+    for other in candidates {
+        if owned.contains(other.id.as_str()) {
+            continue;
+        }
+        let other_radius = other.boss_diameter.unwrap_or(other.hole_diameter) / 2.0;
+        let distance = (mount.at.x - other.at.x).hypot(mount.at.y - other.at.y);
+        if distance < radius + other_radius {
+            return Some(other.id.clone());
+        }
+    }
+    None
+}
+
 /// Mirrors accepted board contours into a flipped physical half's Case frame.
-fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
+pub(crate) fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
     for contour in &mut contours {
         for point in &mut contour.points {
             point.x = -point.x;
@@ -549,35 +1060,7 @@ pub fn effective_document(
     };
 
     if flipped {
-        let selected_parts = document
-            .boards
-            .iter()
-            .find(|board| board.id == board_id)
-            .map(|board| {
-                board
-                    .part_ids
-                    .iter()
-                    .collect::<std::collections::HashSet<_>>()
-            })
-            .unwrap_or_default();
-        for part in &mut effective.parts {
-            if !selected_parts.contains(&part.id) {
-                continue;
-            }
-            part.pose.at.x = -part.pose.at.x;
-            part.pose.rotation = -part.pose.rotation;
-            part.side = match part.side {
-                Side::Front => Side::Back,
-                Side::Back => Side::Front,
-            };
-            let parameters = part
-                .generator_parameters
-                .get_or_insert_with(Default::default);
-            parameters.insert(
-                "side".into(),
-                serde_json::Value::String(if part.side == Side::Front { "F" } else { "B" }.into()),
-            );
-        }
+        mirror_parts(&mut effective.parts, document, &board_id);
         for reference in &mut effective.board_references {
             if reference.board_id == board_id {
                 reference.enabled = false;
@@ -672,6 +1155,7 @@ mod tests {
             controller_part_id: None,
             mechanical,
             construction_ownership: ownership,
+            mechanical_identity_reservation: None,
         }
     }
 

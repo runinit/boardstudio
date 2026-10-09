@@ -555,6 +555,14 @@ impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
                 instance_id,
                 ..
             } => format!("mechanical-feature:{instance_id}:{feature_id}:rejoin"),
+            // The removal names its member through the edit target, so this key is the
+            // panel's stable identity for the selected half's removal action.
+            Self::RemovePhysicalInstance => "remove-physical-instance".to_owned(),
+            // The conversion names exactly the members it converts, so its key follows
+            // them and a per-half action cannot share another half's pending gate.
+            Self::MaterializeLegacyConstruction { instance_ids } => {
+                format!("materialize-legacy-construction:{}", instance_ids.join(","))
+            }
         }
     }
 }
@@ -572,6 +580,12 @@ pub struct MechanicalSettingsRequest {
     pub request_id: u64,
     pub field_id: String,
     pub patch: MechanicalSettingsPatch,
+    /// The fingerprint of the accepted inputs the reviewed result was produced from,
+    /// for actions whose submission previews its result. The controller compares it
+    /// against the accepted document when Session executes the submission, so a
+    /// relevant change between the displayed review and its execution retires the
+    /// action and refreshes the review. `None` for actions without a reviewed result.
+    pub reviewed_fingerprint: Option<String>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -602,6 +616,17 @@ pub struct MechanicalSettingsProps {
     /// nothing to link with.
     #[props(default)]
     pub pair_link_options: Option<Rc<[MechanicalPairLinkOption]>>,
+    /// The other half when the selected half belongs to a mechanical pair.
+    #[props(default)]
+    pub pair_counterpart: Option<String>,
+    /// Whether the selected half still uses the legacy shared-construction overlay, so
+    /// its construction can be converted to its own local values.
+    #[props(default)]
+    pub construction_is_legacy: bool,
+    /// The mount's read-only Core projection, so the review shows the complete result
+    /// for the choices the user has actually made.
+    #[props(default)]
+    pub pair_projection_port: Option<crate::mechanical_pair::MechanicalPairProjectionPort>,
     pub selected_layer: String,
     pub mismatch: Option<MechanicalBoardMismatch>,
     pub editable: bool,
@@ -806,6 +831,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     options: options.clone(),
                     editable: props.editable,
+                    projection_port: props.pair_projection_port.clone(),
                     on_request: props.on_request,
                 }
             }
@@ -852,6 +878,14 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     editable: props.editable,
                     request_sequence,
                     on_request: props.on_request,
+                }
+                if props.construction_is_legacy {
+                    MechanicalLegacyConstructionControl {
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
                 }
                 ProfileGuidance {
                     identity: props.identity.clone(),
@@ -980,6 +1014,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 button {
                     r#type: "button",
                     class: "m1-mechanical-disable",
+                    "aria-label": if props.pair_counterpart.is_some() { "Unlink and disable this half" } else { "Disable mechanical stack" },
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -987,7 +1022,19 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         let on_request = props.on_request;
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Disable)
                     },
-                    "Disable mechanical stack"
+                    if props.pair_counterpart.is_some() { "Unlink and disable this half" } else { "Disable mechanical stack" }
+                }
+                if let Some(counterpart) = props.pair_counterpart.clone() {
+                    p { class: "m1-mechanical-help",
+                        "This half is linked with {counterpart}. Disabling removes that link and disables only this half's mechanical stack: the other half keeps its geometry and settings, and neither PCB is removed. One Undo restores the link and this stack."
+                    }
+                    MechanicalPairMemberRemoval {
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        counterpart,
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
                 }
             } else if props.values.is_some() {
                 p { role: "status", "The configured stack belongs to another board. Switch to that board to edit it." }
@@ -1021,11 +1068,158 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
 }
 
 #[derive(Props, Clone, PartialEq)]
+struct MechanicalLegacyConstructionControlProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Converting one legacy half's construction to its own local values.
+///
+/// The confirmation states the whole change before anything is submitted: this half's
+/// current effective construction (including the overlaid hardware, critical fits and
+/// profiles) becomes its own local values, its ownership becomes local, the other legacy
+/// halves keep the baseline they had, and one Undo restores the ownership and the overlay.
+/// Exactly one instance is named, and Core validates it.
+#[component]
+fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionControlProps) -> Element {
+    let confirming = use_signal(|| false);
+    let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
+    let patch = MechanicalSettingsPatch::MaterializeLegacyConstruction {
+        instance_ids: vec![instance_id.clone()],
+    };
+    let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
+    let mut confirming_state = confirming;
+    rsx! {
+        fieldset { class: "m1-mechanical-legacy-construction", disabled: !props.editable,
+            legend { "Shared construction" }
+            if confirming() {
+                p { class: "m1-mechanical-help",
+                    "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Confirm making construction local for {instance_id}",
+                    disabled: pending,
+                    onclick: {
+                        let identity = props.identity.clone();
+                        let mut sequence = props.request_sequence;
+                        let on_request = props.on_request;
+                        let patch = patch.clone();
+                        move |_| {
+                            confirming_state.set(false);
+                            send_request(&mut sequence, &identity, on_request, patch.clone());
+                        }
+                    },
+                    "Make construction local"
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Keep shared construction for {instance_id}",
+                    onclick: move |_| confirming_state.set(false),
+                    "Keep it shared"
+                }
+            } else {
+                p { class: "m1-mechanical-help",
+                    "This half still uses the shared construction baseline."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Make construction local for {instance_id}",
+                    disabled: pending,
+                    onclick: move |_| confirming_state.set(true),
+                    "Make construction local…"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalPairMemberRemovalProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    counterpart: String,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Removing one half of a mechanical pair, behind an explicit confirmation.
+///
+/// The typed removal is submitted only after the confirmation states the whole result:
+/// this assembly leaves the project, the link is cleared, the other half keeps the
+/// geometry and settings it shows today as its own local assembly, and the boards, PCBs
+/// and parts stay. Core owns the materialization; the panel never writes geometry.
+#[component]
+fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Element {
+    let confirming = use_signal(|| false);
+    let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
+    let pending = mechanical_action_pending("remove-physical-instance") || !props.editable;
+    let counterpart = props.counterpart.clone();
+    let mut confirming_state = confirming;
+    rsx! {
+        section { class: "m1-mechanical-remove-member", aria_label: "Remove this physical assembly",
+            if confirming() {
+                p { class: "m1-mechanical-help",
+                    "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Confirm removing assembly {instance_id}",
+                    disabled: pending,
+                    onclick: {
+                        let identity = props.identity.clone();
+                        let mut sequence = props.request_sequence;
+                        let on_request = props.on_request;
+                        move |_| {
+                            confirming_state.set(false);
+                            send_request(
+                                &mut sequence,
+                                &identity,
+                                on_request,
+                                MechanicalSettingsPatch::RemovePhysicalInstance,
+                            );
+                        }
+                    },
+                    "Remove assembly"
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Keep assembly {instance_id}",
+                    onclick: move |_| confirming_state.set(false),
+                    "Keep it"
+                }
+            } else {
+                p { class: "m1-mechanical-help",
+                    "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
+                }
+                button {
+                    r#type: "button",
+                    class: "m1-mechanical-quiet",
+                    "aria-label": "Remove assembly {instance_id}",
+                    disabled: pending,
+                    onclick: move |_| confirming_state.set(true),
+                    "Remove this assembly…"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
 struct MechanicalPairLinkControlsProps {
     identity: MechanicalSettingsIdentity,
     request_sequence: Signal<u64>,
     options: Rc<[MechanicalPairLinkOption]>,
     editable: bool,
+    /// The mount's read-only Core projection of the reviewed choices.
+    projection_port: Option<crate::mechanical_pair::MechanicalPairProjectionPort>,
     on_request: EventHandler<MechanicalSettingsRequest>,
 }
 
@@ -1039,6 +1233,9 @@ struct MechanicalPairLinkControlsProps {
 fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element {
     let selected = use_signal(|| 0_usize);
     let construction_from_other = use_signal(|| false);
+    // Per-feature source choices, keyed by the reviewed half's durable feature id so a
+    // re-render cannot hand a choice to a different feature.
+    let sources = use_signal(std::collections::BTreeMap::<String, String>::new);
     let mapping_x = use_signal(String::new);
     let mapping_y = use_signal(String::new);
     let mapping_rotation = use_signal(String::new);
@@ -1077,9 +1274,67 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
     } else {
         option.instance_id.clone()
     };
+
+    // The complete proposed result is projected for the choices actually reviewed, from
+    // Core through the mount's port. The cache key is the accepted snapshot plus every
+    // reviewed choice, so a change reprojects and an unrelated render does not.
+    let sources_value = sources();
+    let projection_key = format!(
+        "{}|{index}|{}|{}|{}|{construction_from_other_value}|{}",
+        props.identity.snapshot_token.0,
+        mapping_x(),
+        mapping_y(),
+        mapping_rotation(),
+        sources_value
+            .iter()
+            .map(|(feature, source)| format!("{feature}={source}"))
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    let projection_cache = use_hook(|| {
+        Rc::new(std::cell::RefCell::new(
+            None::<(
+                String,
+                Option<Result<crate::mechanical_pair::MechanicalLinkPreview, String>>,
+            )>,
+        ))
+    });
+    let projection: Option<Result<crate::mechanical_pair::MechanicalLinkPreview, String>> = {
+        let cached = projection_cache.borrow();
+        match cached.as_ref() {
+            Some((key, value)) if *key == projection_key => value.clone(),
+            _ => {
+                drop(cached);
+                let value = props.projection_port.as_ref().map(|port| {
+                    match crate::mechanical_pair::reviewed_link_change(
+                        &option,
+                        mapping,
+                        construction_from_other_value,
+                        &sources_value,
+                    ) {
+                        Some(change) => port.0(&change),
+                        None => Err(
+                            "A translated or rotated board frame needs its map entered before the result is projected."
+                                .to_owned(),
+                        ),
+                    }
+                });
+                *projection_cache.borrow_mut() = Some((projection_key, value.clone()));
+                value
+            }
+        }
+    };
+    // The offer's own projection is the fallback for callers without a port.
+    let (preview, preview_note) = match projection {
+        Some(Ok(preview)) => (Some(preview), None),
+        Some(Err(reason)) => (None, Some(reason)),
+        None => (option.preview.clone(), option.preview_note.clone()),
+    };
     let blocked = mechanical_action_pending(&format!("mechanical-pair:{}:link", option.pair_id))
         || !props.editable
-        || mapping.is_none();
+        || mapping.is_none()
+        || preview.is_none()
+        || option.reviewed_fingerprint.is_none();
     rsx! {
         section { class: "m1-mechanical-pair m1-mechanical-pair-link", aria_label: "Link a mechanical mirror pair",
             h3 { "Mirror another half" }
@@ -1147,7 +1402,86 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                 }
             }
             p { class: "m1-mechanical-help", "{mapping_note}" }
-            p { class: "m1-mechanical-help", "Matched features: {option.matched_features}" }
+            if option.matched.is_empty() {
+                p { class: "m1-mechanical-help", "Matched features: {option.matched_features}" }
+            } else {
+                p { class: "m1-mechanical-help",
+                    "Matched features stay linked. Features without a match stay local to their half."
+                }
+            }
+            for matched in option.matched.iter() {
+                {
+                    let matched = matched.clone();
+                    let key = matched.first_feature_id.clone();
+                    let chosen = sources()
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(|| matched.source_instance_id.clone());
+                    let first_label = matched
+                        .first_geometry
+                        .clone()
+                        .unwrap_or_else(|| "no geometry".to_owned());
+                    let second_label = matched
+                        .second_geometry
+                        .clone()
+                        .unwrap_or_else(|| "no geometry".to_owned());
+                    let row_id = format!("pair-source-{key}");
+                    rsx! {
+                        fieldset { key: "{row_id}", class: "m1-mechanical-pair-source",
+                            "aria-label": "Source for {key}",
+                            legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
+                            label { class: "m1-mechanical-field",
+                                span { "Shared geometry from" }
+                                select {
+                                    "aria-label": "Source for {key}",
+                                    disabled: !props.editable,
+                                    value: "{chosen}",
+                                    onchange: {
+                                        let mut sources = sources;
+                                        let key = key.clone();
+                                        move |event: FormEvent| {
+                                            sources.write().insert(key.clone(), event.value());
+                                        }
+                                    },
+                                    option { value: "{matched.source_instance_id}",
+                                        "{matched.source_instance_id} · {first_label}"
+                                    }
+                                    option { value: "{option.other_instance_id}",
+                                        "{option.other_instance_id} · {second_label}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // The complete proposed result on both halves, read from Core for exactly
+            // the choices reviewed above.
+            if let Some(preview) = preview.clone() {
+                div { class: "m1-mechanical-pair-preview", aria_label: "Proposed result on both halves",
+                    for member in preview.members.iter() {
+                        div { class: "m1-mechanical-pair-preview-member", "data-instance": "{member.instance_id}",
+                            h4 { "{member.instance_id}" }
+                            if member.features.is_empty() {
+                                p { class: "m1-mechanical-help", "No mechanical features after linking." }
+                            } else {
+                                ul {
+                                    for feature in member.features.iter() {
+                                        li { "{feature}" }
+                                    }
+                                }
+                            }
+                            for finding in member.findings.iter() {
+                                p { role: "alert", class: "m1-mechanical-pair-preview-finding", "{finding}" }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(note) = preview_note.clone() {
+                p { class: "m1-mechanical-help",
+                    "The complete proposed result is unavailable until you confirm: {note}"
+                }
+            }
             button {
                 r#type: "button",
                 class: "m1-mechanical-quiet",
@@ -1158,21 +1492,23 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     let identity = props.identity.clone();
                     let callback = props.on_request;
                     let option = option.clone();
+                    let reviewed = option.reviewed_fingerprint.clone();
                     move |_| {
-                        let Some(mapping) = mapping else {
+                        // Exactly the choices the review projected and showed.
+                        let Some(change) = crate::mechanical_pair::reviewed_link_change(
+                            &option,
+                            mapping,
+                            construction_from_other_value,
+                            &sources.peek(),
+                        ) else {
                             return;
                         };
-                        send_request(
+                        send_request_with_review(
                             &mut sequence,
                             &identity,
                             callback,
-                            MechanicalSettingsPatch::LinkMirrorPair {
-                                pair_id: option.pair_id.clone(),
-                                members: [option.instance_id.clone(), option.other_instance_id.clone()],
-                                mapping,
-                                construction_source: construction_source.clone(),
-                                correspondences: option.correspondences.clone(),
-                            },
+                            change,
+                            reviewed.clone(),
                         );
                     }
                 },
@@ -1201,6 +1537,8 @@ struct MechanicalPairControlsProps {
 #[component]
 fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
     let features = props.features.clone();
+    // Per-feature rejoin source choices, keyed by this half's durable feature id.
+    let rejoin_sources = use_signal(std::collections::BTreeMap::<String, String>::new);
     rsx! {
         section { class: "m1-mechanical-pair", aria_label: "Mirrored pair features",
             h3 { "Mirrored pair" }
@@ -1220,10 +1558,26 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                         feature_id: row.feature_id.clone(),
                         instance_id: row.instance_id.clone(),
                     };
+                    // A local half may deliberately rejoin from its own current geometry,
+                    // keeping this half's placement and re-deriving the other half; an
+                    // omitted half has no geometry of its own to take.
+                    let offers_own_source = row.state == MechanicalFeatureState::Local
+                        && row.own_geometry.is_some();
+                    let chosen_source = rejoin_sources
+                        .read()
+                        .get(&row.feature_id)
+                        .cloned()
+                        .unwrap_or_else(|| row.counterpart_instance_id.clone());
+                    let source_is_own = chosen_source == row.instance_id;
+                    let source_geometry = if source_is_own {
+                        row.own_geometry.clone()
+                    } else {
+                        row.preview.clone()
+                    };
                     let rejoin_patch = MechanicalSettingsPatch::RejoinFeatureMember {
                         feature_id: row.feature_id.clone(),
                         instance_id: row.instance_id.clone(),
-                        source_instance_id: row.counterpart_instance_id.clone(),
+                        source_instance_id: chosen_source.clone(),
                     };
                     let row_fields = [
                         local_patch.field_id(),
@@ -1243,7 +1597,19 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                     };
                     let local_blocked = blocked(&local_patch);
                     let omit_blocked = blocked(&omit_patch);
-                    let rejoin_blocked = blocked(&rejoin_patch) || row.preview.is_none();
+                    let rejoin_blocked = blocked(&rejoin_patch)
+                        || source_geometry.is_none()
+                        || row.rejoin_fingerprint.is_none();
+                    let source_label = if source_is_own {
+                        "this half"
+                    } else {
+                        "the other half"
+                    };
+                    let rejoin_label = if source_is_own {
+                        "Rejoin from this half"
+                    } else {
+                        "Rejoin from the other half"
+                    };
                     let state = match row.state {
                         MechanicalFeatureState::Linked => "linked to the other half",
                         MechanicalFeatureState::Local => "local to this half",
@@ -1286,28 +1652,65 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     "Remove on this half"
                                 }
                             } else {
-                                if let Some(preview) = row.preview.clone() {
+                                if offers_own_source {
+                                    label { class: "m1-mechanical-field",
+                                        span { "Rejoin from" }
+                                        select {
+                                            "aria-label": "Rejoin source for {row.feature_id}",
+                                            disabled: !props.editable,
+                                            value: "{chosen_source}",
+                                            onchange: {
+                                                let mut rejoin_sources = rejoin_sources;
+                                                let feature_id = row.feature_id.clone();
+                                                move |event: FormEvent| {
+                                                    rejoin_sources
+                                                        .write()
+                                                        .insert(feature_id.clone(), event.value());
+                                                }
+                                            },
+                                            option { value: "{row.instance_id}",
+                                                "this half · {row.own_geometry.clone().unwrap_or_default()}"
+                                            }
+                                            option { value: "{row.counterpart_instance_id}",
+                                                "the other half · {row.preview.clone().unwrap_or_else(|| \"no geometry\".to_owned())}"
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(geometry) = source_geometry.clone() {
                                     p { class: "m1-mechanical-help",
-                                        "Rejoin takes {preview} from the other half."
+                                        "Rejoin takes {geometry} from {chosen_source}."
                                     }
                                 } else {
                                     p { class: "m1-mechanical-help",
-                                        "The other half has no geometry for this feature, so it cannot be rejoined yet."
+                                        "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
                                     }
                                 }
                                 button {
                                     r#type: "button",
                                     class: "m1-mechanical-quiet",
-                                    "aria-label": "Rejoin {row.feature_id} from the other half",
+                                    "aria-label": "Rejoin {row.feature_id} from {source_label}",
                                     disabled: rejoin_blocked,
                                     onclick: {
                                         let mut sequence = props.request_sequence;
                                         let identity = props.identity.clone();
                                         let callback = props.on_request;
                                         let patch = rejoin_patch.clone();
-                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                        // The reviewed fingerprint the row was produced with
+                                        // travels with the submission, so a relevant change
+                                        // between this review and its execution retires it.
+                                        let reviewed = row.rejoin_fingerprint.clone();
+                                        move |_| {
+                                            send_request_with_review(
+                                                &mut sequence,
+                                                &identity,
+                                                callback,
+                                                patch.clone(),
+                                                reviewed.clone(),
+                                            )
+                                        }
                                     },
-                                    "Rejoin from the other half"
+                                    "{rejoin_label}"
                                 }
                             }
                         }
@@ -4071,6 +4474,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 request_id,
                 field_id: patch.field_id(),
                 patch,
+                reviewed_fingerprint: None,
             };
             dirty.set(false);
             if let Some(controller) = controller.as_ref() {
@@ -4221,6 +4625,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 request_id,
                 field_id: patch.field_id(),
                 patch,
+                reviewed_fingerprint: None,
             };
             dirty.set(false);
             error.set(None);
@@ -4407,11 +4812,27 @@ fn send_request(
         return;
     };
     sequence.set(request_id);
+    send_request_with_review(sequence, identity, on_request, patch, None)
+}
+
+/// Send one request, optionally binding it to the reviewed result the user saw.
+fn send_request_with_review(
+    sequence: &mut Signal<u64>,
+    identity: &MechanicalSettingsIdentity,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    patch: MechanicalSettingsPatch,
+    reviewed_fingerprint: Option<String>,
+) {
+    let Some(request_id) = sequence().checked_add(1) else {
+        return;
+    };
+    sequence.set(request_id);
     on_request.call(MechanicalSettingsRequest {
         identity: identity.clone(),
         request_id,
         field_id: patch.field_id(),
         patch,
+        reviewed_fingerprint,
     });
 }
 
@@ -4516,6 +4937,12 @@ mod contextual_layer_tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn test_identity_with_instance(instance_id: &str) -> MechanicalSettingsIdentity {
+        let mut identity = test_identity();
+        identity.scope.instance_id = Some(instance_id.to_owned());
+        identity
+    }
 
     fn test_identity() -> MechanicalSettingsIdentity {
         MechanicalSettingsIdentity {
@@ -4937,7 +5364,10 @@ mod contextual_layer_tests {
                                 saved_profile.set(choice);
                             }
                         }
-                        last_request.set(format!("{:?}", request.patch));
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
                     },
                 }
                 p { id: "case-custom-profile-last-request", "{last_request}" }
@@ -5452,10 +5882,10 @@ mod contextual_layer_tests {
             .document()
             .unwrap()
             .query_selector(selector)
-            .unwrap()
-            .unwrap()
+            .unwrap_or_else(|error| panic!("invalid selector {selector}: {error:?}"))
+            .unwrap_or_else(|| panic!("no element matches {selector}"))
             .dyn_into()
-            .unwrap()
+            .unwrap_or_else(|_| panic!("element matching {selector} is not an HTMLElement"))
     }
 
     async fn rendered() {
@@ -5830,6 +6260,8 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "mount-1-right".into(),
                 preview: Some("Mount at (2.0, 3.0)".into()),
+                own_geometry: Some("Mount at (2.0, 3.0)".into()),
+                rejoin_fingerprint: Some("reviewed-mount".into()),
             },
             MechanicalPairFeatureRow {
                 feature_id: "opening-1-left".into(),
@@ -5839,6 +6271,8 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "opening-1-right".into(),
                 preview: Some("Opening with 3 vertices".into()),
+                own_geometry: Some("Opening with 4 vertices".into()),
+                rejoin_fingerprint: Some("reviewed-opening".into()),
             },
             MechanicalPairFeatureRow {
                 feature_id: "support-1-left".into(),
@@ -5848,6 +6282,8 @@ mod contextual_layer_tests {
                 counterpart_instance_id: "right".into(),
                 counterpart_feature_id: "support-1-right".into(),
                 preview: None,
+                own_geometry: None,
+                rejoin_fingerprint: Some("reviewed-support".into()),
             },
         ]);
         rsx! {
@@ -5875,7 +6311,10 @@ mod contextual_layer_tests {
                     feedback: Rc::from([]),
                     summary_feedback: None,
                     on_request: move |request: MechanicalSettingsRequest| {
-                        last_request.set(format!("{:?}", request.patch));
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
                     },
                     on_select_layer: move |_| {},
                     on_show_finding: move |_| {},
@@ -5948,8 +6387,54 @@ mod contextual_layer_tests {
                 && rejoin.contains("\"right\""),
             "rejoin submits the reviewed source half, got {rejoin}"
         );
+        assert!(
+            rejoin.contains("reviewed=Some(\"reviewed-opening\")"),
+            "the rejoin submission carries the fingerprint of the row the user reviewed, got {rejoin}"
+        );
+
+        // A local half can deliberately take its OWN geometry as the shared value.
+        let rejoin_source = element("select[aria-label='Rejoin source for opening-1-left']");
+        assert!(
+            element(".m1-mechanical-pair-row:nth-of-type(2)")
+                .text_content()
+                .unwrap()
+                .contains("Opening with 4 vertices"),
+            "the review shows this half's own geometry as a source choice"
+        );
+        js_sys::Reflect::set(&rejoin_source, &"value".into(), &"left".into()).unwrap();
+        let source_change = web_sys::EventInit::new();
+        source_change.set_bubbles(true);
+        rejoin_source
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("change", &source_change).unwrap(),
+            )
+            .unwrap();
+        rendered().await;
+        assert!(
+            element(".m1-mechanical-pair-row:nth-of-type(2)")
+                .text_content()
+                .unwrap()
+                .contains("Rejoin takes Opening with 4 vertices from left"),
+            "the preview follows the chosen source, got {}",
+            element(".m1-mechanical-pair-row:nth-of-type(2)")
+                .text_content()
+                .unwrap()
+        );
+        element("button[aria-label='Rejoin opening-1-left from this half']").click();
+        rendered().await;
+        let own_source = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            own_source.contains("RejoinFeatureMember")
+                && own_source.contains("source_instance_id: \"left\""),
+            "the deliberate own-source rejoin is submitted as reviewed, got {own_source}"
+        );
 
         // Omitted without counterpart geometry: reachable but not committable.
+        let last_reviewed = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
         let document = web_sys::window().unwrap().document().unwrap();
         assert!(
             document
@@ -5970,10 +6455,330 @@ mod contextual_layer_tests {
             .text_content()
             .unwrap();
         assert_eq!(
-            after, rejoin,
+            after, last_reviewed,
             "the disabled rejoin submits nothing when clicked or left alone"
         );
         let _ = MechanicalFeatureKind::GasketSupport;
+        root.remove();
+    }
+
+    #[component]
+    fn PairedDisableTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-paired-disable-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_counterpart: Some("right".into()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-paired-disable-last-request", "{last_request}" }
+                p { id: "case-paired-disable-count", "{requests}" }
+            }
+        }
+    }
+
+    #[component]
+    fn PairedRemovalTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-paired-removal-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_counterpart: Some("right".into()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-paired-removal-last-request", "{last_request}" }
+                p { id: "case-paired-removal-count", "{requests}" }
+            }
+        }
+    }
+
+    #[component]
+    fn LegacyConstructionTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-legacy-construction-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    construction_is_legacy: true,
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-legacy-construction-last-request", "{last_request}" }
+                p { id: "case-legacy-construction-count", "{requests}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_legacy_half_converts_its_construction_only_after_confirming_the_change() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-legacy-construction-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(LegacyConstructionTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // Reachable only for a legacy half, and it submits nothing on its own.
+        let make_local = element("button[aria-label='Make construction local for left']");
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "showing the conversion control submits nothing"
+        );
+
+        // The confirmation states the whole change before anything is submitted.
+        make_local.click();
+        rendered().await;
+        let confirmation = element(".m1-mechanical-legacy-construction")
+            .text_content()
+            .unwrap();
+        assert!(
+            confirmation.contains("left")
+                && confirmation.contains("this half's local values")
+                && confirmation.contains("Other legacy halves keep their previous baseline")
+                && confirmation.contains("One Undo"),
+            "the confirmation states what converting construction does, got {confirmation}"
+        );
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "asking for confirmation submits nothing"
+        );
+
+        // Cancelling keeps the shared construction.
+        element("button[aria-label='Keep shared construction for left']").click();
+        rendered().await;
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "cancelling submits nothing"
+        );
+
+        // Confirming submits exactly one typed conversion naming one instance.
+        element("button[aria-label='Make construction local for left']").click();
+        rendered().await;
+        element("button[aria-label='Confirm making construction local for left']").click();
+        rendered().await;
+        let submitted = element("#case-legacy-construction-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("MaterializeLegacyConstruction")
+                && submitted.contains("instance_ids: [\"left\"]"),
+            "one typed conversion names exactly this half, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-legacy-construction-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "exactly one conversion edit is submitted"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_paired_half_removes_only_after_confirming_what_happens() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-paired-removal-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(PairedRemovalTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The control exists for a linked half and nothing is submitted on its own.
+        let remove = element("button[aria-label='Remove assembly left']");
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "showing the removal control submits nothing"
+        );
+
+        // The first click asks for explicit confirmation of the whole change.
+        remove.click();
+        rendered().await;
+        let confirmation = element(".m1-mechanical-remove-member")
+            .text_content()
+            .unwrap();
+        assert!(
+            confirmation.contains("right")
+                && confirmation.contains("keeps the geometry and settings")
+                && confirmation.contains("boards, PCBs and parts stay")
+                && confirmation.contains("One Undo"),
+            "the confirmation says what removing this half does, got {confirmation}"
+        );
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "asking for confirmation submits nothing"
+        );
+
+        // Cancelling keeps everything.
+        element("button[aria-label='Keep assembly left']").click();
+        rendered().await;
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "cancelling submits nothing"
+        );
+
+        // Confirming submits exactly one typed physical-instance removal.
+        element("button[aria-label='Remove assembly left']").click();
+        rendered().await;
+        element("button[aria-label='Confirm removing assembly left']").click();
+        rendered().await;
+        let submitted = element("#case-paired-removal-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("RemovePhysicalInstance"),
+            "the confirmation submits the typed removal, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-paired-removal-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "one typed removal is submitted"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_paired_half_disables_with_an_explicit_unlink_explanation_and_one_edit() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-paired-disable-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(PairedDisableTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        let explanation = element(".m1-mechanical-disable ~ .m1-mechanical-help")
+            .text_content()
+            .unwrap();
+        assert!(
+            explanation.contains("right")
+                && explanation.contains("keeps its geometry and settings")
+                && explanation.contains("neither PCB is removed")
+                && explanation.contains("One Undo"),
+            "the panel explains what disabling a linked half does, got {explanation}"
+        );
+        element("button[aria-label='Unlink and disable this half']").click();
+        rendered().await;
+        let submitted = element("#case-paired-disable-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("Disable") && !submitted.contains("Unlink"),
+            "one typed Disable carries the whole decision, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-paired-disable-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "exactly one edit is submitted, with no separate unlink item"
+        );
         root.remove();
     }
 
@@ -5994,9 +6799,34 @@ mod contextual_layer_tests {
                         kind: MechanicalFeatureKind::Mount,
                         first_feature_id: "mount-1".into(),
                         second_feature_id: "mount-1".into(),
+                        source_instance_id: None,
                     },
                 ],
                 matched_features: "Mount mount-1".into(),
+                matched: vec![crate::mechanical_pair::MechanicalPairMatchedFeature {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    first_geometry: Some("Mount at (2.0, 3.0)".into()),
+                    second_geometry: Some("Mount at (-2.0, 3.0)".into()),
+                    source_instance_id: "left".into(),
+                }],
+                reviewed_fingerprint: Some("reviewed-link".into()),
+                preview: Some(crate::mechanical_pair::MechanicalLinkPreview {
+                    members: vec![
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "left".into(),
+                            features: vec!["Mount at (2.0, 3.0)".into()],
+                            findings: vec![],
+                        },
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "right".into(),
+                            features: vec!["Mount at (-2.0, 3.0)".into()],
+                            findings: vec![],
+                        },
+                    ],
+                }),
+                preview_note: None,
             },
             MechanicalPairLinkOption {
                 pair_id: "pair/left".into(),
@@ -6005,10 +6835,60 @@ mod contextual_layer_tests {
                 other_name: "Lower half".into(),
                 derived_mapping: None,
                 construction_source: "left".into(),
-                correspondences: vec![],
-                matched_features: "No shared mechanical features yet.".into(),
+                correspondences: vec![
+                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                        kind: MechanicalFeatureKind::Mount,
+                        first_feature_id: "mount-1-left".into(),
+                        second_feature_id: "mount-1-right".into(),
+                        source_instance_id: Some("left".into()),
+                    },
+                ],
+                matched_features: "Mount mount-1-left · mount-1-right".into(),
+                matched: vec![crate::mechanical_pair::MechanicalPairMatchedFeature {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    first_geometry: Some("Mount at (2.0, 3.0)".into()),
+                    second_geometry: Some("Mount at (-2.0, 3.0)".into()),
+                    source_instance_id: "left".into(),
+                }],
+                reviewed_fingerprint: Some("reviewed-link-explicit".into()),
+                preview: None,
+                preview_note: Some("the reviewed configuration needs a catalogue template".into()),
             },
         ])
+    }
+
+    /// A stand-in for the mount's projection port: it reports the reviewed map it was
+    /// given, which is what the review displays and commits.
+    fn echo_projection_port() -> crate::mechanical_pair::MechanicalPairProjectionPort {
+        crate::mechanical_pair::MechanicalPairProjectionPort(Rc::new(|change| {
+            let boardstudio_core::mechanical::change::MechanicalChange::LinkMirrorPair {
+                mapping,
+                ..
+            } = change
+            else {
+                return Err("not a reviewed link".into());
+            };
+            let text = format!(
+                "offset ({:?}, {:?}) rotation {:?}",
+                mapping.at.x, mapping.at.y, mapping.rotation
+            );
+            Ok(crate::mechanical_pair::MechanicalLinkPreview {
+                members: vec![
+                    crate::mechanical_pair::MechanicalLinkMemberPreview {
+                        instance_id: "left".into(),
+                        features: vec![text.clone()],
+                        findings: vec![],
+                    },
+                    crate::mechanical_pair::MechanicalLinkMemberPreview {
+                        instance_id: "right".into(),
+                        features: vec![text],
+                        findings: vec![],
+                    },
+                ],
+            })
+        }))
     }
 
     #[component]
@@ -6033,6 +6913,158 @@ mod contextual_layer_tests {
                     suggested_mounts: Rc::from([]),
                     findings: Rc::from([]),
                     pair_link_options: Some(link_options()),
+                    pair_projection_port: Some(echo_projection_port()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-pair-link-last-request", "{last_request}" }
+            }
+        }
+    }
+
+    /// Link candidates with no offer-time projection, so only the port can supply one.
+    fn port_review_options() -> Rc<[MechanicalPairLinkOption]> {
+        Rc::from([
+            MechanicalPairLinkOption {
+                pair_id: "pair/left".into(),
+                instance_id: "left".into(),
+                other_instance_id: "right".into(),
+                other_name: "Right half".into(),
+                derived_mapping: Some(Pose2 {
+                    at: Vec2::default(),
+                    rotation: 0.0,
+                }),
+                construction_source: "left".into(),
+                correspondences: vec![
+                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                        kind: MechanicalFeatureKind::Mount,
+                        first_feature_id: "mount-1-left".into(),
+                        second_feature_id: "mount-1-right".into(),
+                        source_instance_id: Some("left".into()),
+                    },
+                ],
+                matched_features: "Mount mount-1-left · mount-1-right".into(),
+                matched: vec![crate::mechanical_pair::MechanicalPairMatchedFeature {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    first_geometry: Some("Mount at (2.0, 3.0)".into()),
+                    second_geometry: Some("Mount at (-2.0, 3.0)".into()),
+                    source_instance_id: "left".into(),
+                }],
+                reviewed_fingerprint: Some("reviewed-port".into()),
+                preview: None,
+                preview_note: Some("no offer-time projection".into()),
+            },
+            MechanicalPairLinkOption {
+                pair_id: "pair/left".into(),
+                instance_id: "left".into(),
+                other_instance_id: "lower".into(),
+                other_name: "Lower half".into(),
+                derived_mapping: None,
+                construction_source: "left".into(),
+                correspondences: vec![
+                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                        kind: MechanicalFeatureKind::Mount,
+                        first_feature_id: "mount-1-left".into(),
+                        second_feature_id: "mount-1-right".into(),
+                        source_instance_id: Some("left".into()),
+                    },
+                ],
+                matched_features: "Mount mount-1-left · mount-1-right".into(),
+                matched: vec![crate::mechanical_pair::MechanicalPairMatchedFeature {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    first_geometry: Some("Mount at (2.0, 3.0)".into()),
+                    second_geometry: Some("Mount at (-2.0, 3.0)".into()),
+                    source_instance_id: "left".into(),
+                }],
+                reviewed_fingerprint: Some("reviewed-port-explicit".into()),
+                preview: None,
+                preview_note: Some("no offer-time projection".into()),
+            },
+        ])
+    }
+
+    #[component]
+    fn LinkProjectionPortTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let port = crate::mechanical_pair::MechanicalPairProjectionPort(Rc::new({
+            move |change: &boardstudio_core::mechanical::change::MechanicalChange| {
+                let boardstudio_core::mechanical::change::MechanicalChange::LinkMirrorPair {
+                    members,
+                    mapping,
+                    correspondences,
+                    construction_source,
+                    ..
+                } = change
+                else {
+                    return Err("not a reviewed link".into());
+                };
+                let sources = correspondences
+                    .iter()
+                    .map(|correspondence| {
+                        correspondence
+                            .source_instance_id
+                            .clone()
+                            .unwrap_or_else(|| "legacy".into())
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let _ = members;
+                let text = format!(
+                    "offset ({:?}, {:?}) rotation {:?} sources [{sources}] construction from {construction_source}",
+                    mapping.at.x, mapping.at.y, mapping.rotation
+                );
+                Ok(crate::mechanical_pair::MechanicalLinkPreview {
+                    members: vec![
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "left".into(),
+                            features: vec![text.clone()],
+                            findings: vec![],
+                        },
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "right".into(),
+                            features: vec![text],
+                            findings: vec![],
+                        },
+                    ],
+                })
+            }
+        }));
+        rsx! {
+            div { id: "case-link-projection-port-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_link_options: Some(port_review_options()),
+                    pair_projection_port: Some(port),
                     selected_layer: String::new(),
                     mismatch: None,
                     editable: true,
@@ -6045,9 +7077,129 @@ mod contextual_layer_tests {
                     on_select_layer: move |_| {},
                     on_show_finding: move |_| {},
                 }
-                p { id: "case-pair-link-last-request", "{last_request}" }
+                p { id: "case-link-projection-last-request", "{last_request}" }
             }
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn the_review_reprojects_for_every_reviewed_choice_before_confirming() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-link-projection-port-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(LinkProjectionPortTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The displayed result comes from Core through the port, not from the offer.
+        let review = element(".m1-mechanical-pair-preview")
+            .text_content()
+            .unwrap();
+        assert!(
+            review.contains("offset (0.0, 0.0) rotation 0.0 sources [left]"),
+            "the review shows the port's complete result for the derived map, got {review}"
+        );
+
+        // A translated frame needs its map; until then there is no result and no commit.
+        let select = element("select[aria-label='Link with']");
+        js_sys::Reflect::set(&select, &"value".into(), &"1".into()).unwrap();
+        let change = web_sys::EventInit::new();
+        change.set_bubbles(true);
+        select
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+            .unwrap();
+        rendered().await;
+        assert!(
+            element(".m1-mechanical-pair-link")
+                .text_content()
+                .unwrap()
+                .contains("complete proposed result is unavailable"),
+            "an unmapped translated frame shows no result"
+        );
+        assert!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .query_selector("button[aria-label='Link left with lower']:disabled")
+                .unwrap()
+                .is_some(),
+            "the review cannot be confirmed without a projected result"
+        );
+
+        // Entering the map reprojects and enables the commit.
+        let input = |selector: &str, value: &str| {
+            let input: web_sys::HtmlInputElement = element(selector).dyn_into().unwrap();
+            input.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+                .unwrap();
+        };
+        input("input[aria-label='Pair mapping X']", "30");
+        input("input[aria-label='Pair mapping Y']", "-5");
+        input("input[aria-label='Pair mapping rotation']", "180");
+        rendered().await;
+        let review = element(".m1-mechanical-pair-preview")
+            .text_content()
+            .unwrap();
+        assert!(
+            review.contains("offset (30.0, -5.0) rotation 180.0"),
+            "the entered map reprojects the result, got {review}"
+        );
+        assert!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .query_selector("button[aria-label='Link left with lower']:disabled")
+                .unwrap()
+                .is_none(),
+            "a projected result makes the review committable"
+        );
+
+        // Choosing the other half for a feature reprojects the result.
+        let source_row = element("select[aria-label='Source for mount-1-left']");
+        // The other half of this candidate is "lower", so choosing it is the per-feature
+        // source change the review must reproject for.
+        js_sys::Reflect::set(&source_row, &"value".into(), &"lower".into()).unwrap();
+        let source_change = web_sys::EventInit::new();
+        source_change.set_bubbles(true);
+        source_row
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("change", &source_change).unwrap(),
+            )
+            .unwrap();
+        rendered().await;
+        assert!(
+            element(".m1-mechanical-pair-preview")
+                .text_content()
+                .unwrap()
+                .contains("sources [lower]"),
+            "a per-feature source change reprojects the displayed result, got {}",
+            element(".m1-mechanical-pair-preview")
+                .text_content()
+                .unwrap()
+        );
+
+        // Confirming submits exactly the choices the review showed.
+        element("button[aria-label='Link left with lower']").click();
+        rendered().await;
+        let submitted = element("#case-link-projection-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("LinkMirrorPair")
+                && submitted.contains("x: 30.0")
+                && submitted.contains("rotation: 180.0")
+                && submitted.contains("source_instance_id: Some(\"lower\")"),
+            "the submission carries the reviewed choices, got {submitted}"
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -6076,7 +7228,7 @@ mod contextual_layer_tests {
             "the review explains the map, got {review}"
         );
         assert!(
-            review.contains("Matched features: Mount mount-1"),
+            review.contains("Mount mount-1-left · mount-1-right"),
             "the review lists the durable-id matches, got {review}"
         );
         assert!(
@@ -6086,6 +7238,42 @@ mod contextual_layer_tests {
                 .is_empty(),
             "the review submits nothing by itself"
         );
+
+        // Both halves of the complete proposed result are rendered before the commit,
+        // read from Core rather than computed in the panel.
+        let both_halves = element(".m1-mechanical-pair-preview")
+            .text_content()
+            .unwrap();
+        assert!(
+            both_halves.contains("left")
+                && both_halves.contains("right")
+                && both_halves.contains("offset (0.0, 0.0) rotation 0.0"),
+            "the review shows both halves of the proposed result, got {both_halves}"
+        );
+
+        // Each match chooses its own source half, independently of the construction
+        // source and of the other matches.
+        let source_row = element("select[aria-label='Source for mount-1-left']");
+        assert!(
+            source_row.text_content().is_some(),
+            "a matched feature offers its own source choice"
+        );
+        assert!(
+            element(".m1-mechanical-pair-source")
+                .text_content()
+                .unwrap()
+                .contains("Mount at (-2.0, 3.0)"),
+            "the other half's geometry is shown for the choice"
+        );
+        js_sys::Reflect::set(&source_row, &"value".into(), &"right".into()).unwrap();
+        let source_change = web_sys::EventInit::new();
+        source_change.set_bubbles(true);
+        source_row
+            .dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("change", &source_change).unwrap(),
+            )
+            .unwrap();
+        rendered().await;
 
         element("button[aria-label='Link left with right']").click();
         rendered().await;
@@ -6102,6 +7290,19 @@ mod contextual_layer_tests {
             linked.contains("rotation: 0.0"),
             "the submitted link carries the reviewed map, got {linked}"
         );
+        assert!(
+            linked.contains("reviewed=Some(\"reviewed-link\")"),
+            "the link submission carries the fingerprint of the candidate the user reviewed, got {linked}"
+        );
+        assert!(
+            linked.contains("source_instance_id: Some(\"right\")"),
+            "the link submission carries the source the user chose for that feature, got {linked}"
+        );
+        assert!(
+            linked.contains("source_instance_id: Some(\"right\")")
+                && linked.matches("source_instance_id: Some(").count() == 1,
+            "each match carries its own source choice, got {linked}"
+        );
 
         // A translated frame has no derived map: the review asks for one explicitly.
         let select = element("select[aria-label='Link with']");
@@ -6115,6 +7316,13 @@ mod contextual_layer_tests {
         assert!(
             element("input[aria-label='Pair mapping X']").is_connected(),
             "a translated frame gets explicit mapping inputs"
+        );
+        assert!(
+            element(".m1-mechanical-pair-link")
+                .text_content()
+                .unwrap()
+                .contains("complete proposed result is unavailable"),
+            "a candidate without a projection says so instead of showing a partial result"
         );
         assert!(
             web_sys::window()
@@ -6152,6 +7360,10 @@ mod contextual_layer_tests {
                 && explicit.contains("y: -5.0")
                 && explicit.contains("rotation: 180.0"),
             "the explicit reviewed map is submitted for a translated frame, got {explicit}"
+        );
+        assert!(
+            explicit.contains("reviewed=Some(\"reviewed-link-explicit\")"),
+            "the explicit-map candidate's own review fingerprint travels with it, got {explicit}"
         );
         root.remove();
     }

@@ -2756,6 +2756,7 @@ fn SharedViewer(
                                     request_id,
                                     field_id: patch.field_id(),
                                     patch,
+                                    reviewed_fingerprint: None,
                                 });
                             },
                             "Unlink selected support"
@@ -3396,6 +3397,7 @@ mod tests {
                 mechanical: None,
                 construction_ownership:
                     boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
             }],
             ..Default::default()
         });

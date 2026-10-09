@@ -93,6 +93,20 @@ pub fn use_mechanical_settings_mount(
         move || alive.set(false)
     });
 
+    // The reviewed link/rejoin projection needs the normalized mounting-hole template
+    // whenever the reviewed result creates generated closure holes. Load it once, like
+    // the controller does per request, so the review can show the complete result.
+    let review_mounting_hole = use_signal(|| None::<Rc<boardstudio_core::model::PartDefinition>>);
+    use_hook({
+        let mut review_mounting_hole = review_mounting_hole;
+        move || {
+            spawn_local(async move {
+                if let Ok(definition) = parts::load_mounting_hole_definition().await {
+                    review_mounting_hole.set(Some(definition));
+                }
+            });
+        }
+    });
     let source_key = current_source_key(&runtime);
     let source_projection = use_memo(use_reactive((&source_key,), {
         let runtime = runtime.clone();
@@ -332,6 +346,7 @@ pub fn use_mechanical_settings_mount(
                 request_id,
                 field_id: "initialize-closures".into(),
                 patch: super::mechanical_settings::MechanicalSettingsPatch::InitializeClosures,
+                reviewed_fingerprint: None,
             };
             let admitted = controller.submit(request);
             // submit() sets the in-flight owner synchronously only after all admission guards
@@ -386,6 +401,7 @@ pub fn use_mechanical_settings_mount(
                     .is_some_and(|configuration| {
                         configuration.board_id == current.identity.active_board_id
                     }),
+                current.identity.scope.instance_id.as_deref(),
             )
             && current.lifecycle == Lifecycle::Ready
             && current.durability
@@ -672,11 +688,80 @@ pub fn use_mechanical_settings_mount(
             .map(|projection| Rc::<[crate::mechanical_pair::MechanicalPairFeatureRow]>::from(
                 projection.features,
             ));
+        // A paired half disables by unlinking and disabling only itself; the panel needs
+        // the counterpart to say so explicitly.
+        let pair_counterpart = current
+            .identity
+            .scope
+            .instance_id
+            .as_deref()
+            .and_then(|instance_id| {
+                crate::mechanical_pair::pair_projection(
+                    &current.accepted.document,
+                    &current.accepted.scene.board_contours,
+                    instance_id,
+                )
+            })
+            .and_then(|projection| {
+                projection
+                    .members
+                    .iter()
+                    .find(|member| {
+                        Some(member.as_str()) != current.identity.scope.instance_id.as_deref()
+                    })
+                    .cloned()
+            });
+        // Whether the selected half still uses the legacy shared-construction overlay.
+        let construction_is_legacy = current
+            .identity
+            .scope
+            .instance_id
+            .as_deref()
+            .and_then(|instance_id| {
+                current
+                    .accepted
+                    .document
+                    .hardware
+                    .as_ref()
+                    .and_then(|hardware| {
+                        hardware
+                            .instances
+                            .iter()
+                            .find(|instance| instance.id == instance_id)
+                    })
+            })
+            .is_some_and(|instance| {
+                instance.construction_ownership
+                    == boardstudio_core::model::MechanicalConstructionOwnership::Legacy
+            });
+        // The review's read-only projection: the mount owns the accepted document, its
+        // contours and the normalized template, so the panel never carries them and the
+        // transient projection result never reaches Session or the accepted state.
+        let pair_projection_port = crate::mechanical_pair::MechanicalPairProjectionPort(
+            Rc::new({
+                let document = current.accepted.document.clone();
+                let board_contours = current.accepted.scene.board_contours.clone();
+                let mounting_hole = review_mounting_hole.read().clone();
+                move |change: &boardstudio_core::mechanical::change::MechanicalChange| {
+                    crate::mechanical_pair::link_preview(
+                        &document,
+                        &board_contours,
+                        change,
+                        mounting_hole.as_deref(),
+                    )
+                }
+            }),
+        );
         // An unpaired half offers the candidate links it could establish; a paired
         // half uses its per-feature actions instead.
         let pair_link_options = current.identity.scope.instance_id.as_deref().map(|instance_id| {
             Rc::<[crate::mechanical_pair::MechanicalPairLinkOption]>::from(
-                crate::mechanical_pair::pair_link_options(&current.accepted.document, instance_id),
+                crate::mechanical_pair::pair_link_options(
+                    &current.accepted.document,
+                    &current.accepted.scene.board_contours,
+                    instance_id,
+                    review_mounting_hole.read().as_deref(),
+                ),
             )
         });
         MechanicalSettingsProps {
@@ -698,6 +783,9 @@ pub fn use_mechanical_settings_mount(
             findings,
             pair_features,
             pair_link_options,
+            pair_counterpart,
+            construction_is_legacy,
+            pair_projection_port: Some(pair_projection_port),
             selected_layer,
             mismatch,
             editable: enabled,

@@ -222,6 +222,7 @@ pub(super) fn generate(
     config: &MechanicalConfiguration,
     result: &mut MechanicalAssembly,
     component_volumes: &[(String, CaseOpening)],
+    accepted_contours: &[Contour],
 ) -> Result<(), String> {
     if let Some(settings) = &config.internal_gasket {
         return internal::generate(document, config, settings, result, component_volumes);
@@ -553,6 +554,47 @@ pub(super) fn generate(
                 return Err(
                     "Mirrored gasket supports collide; move or unlink the conflicting pair.".into(),
                 );
+            }
+        }
+    }
+    // Pair-linked supports are pinned to the placement their author resolved, reflected
+    // into this half, instead of being re-resolved from the author's perimeter fraction
+    // on this contour. The read path already associated the reflected placement with this
+    // half's outline and recorded any incompatibility, so the intended geometry is kept
+    // exactly as placed rather than snapped to a track or moved.
+    if let Some(instance_id) = document.physical_instance_id.clone() {
+        let target = MechanicalTarget::Instance { instance_id };
+        // The accepted (unexpanded) contours are the geometry the author's saved anchors
+        // were captured against, so the pair resolution uses them rather than this half's
+        // expanded perimeter.
+        let accepted = [BoardContours {
+            board_id: config.board_id.clone(),
+            contours: accepted_contours.to_vec(),
+        }];
+        for support in crate::mechanical::inputs::resolved_pair_gasket_supports(
+            document, &accepted, &target, config,
+        )? {
+            let candidate = Candidate {
+                at: support.at,
+                tangent: support.tangent,
+                normal: support.normal,
+                anchor: support.anchor,
+            };
+            if let Some(entry) = chosen.iter_mut().find(|(id, _)| *id == support.id) {
+                entry.1 = candidate;
+            }
+            if let Some(entry) = result
+                .gasket_supports
+                .iter_mut()
+                .find(|entry| entry.id == support.id)
+            {
+                entry.at = support.at;
+                entry.tangent = support.tangent;
+                entry.normal = support.normal;
+                entry.anchor = support.anchor;
+                entry.pair_id = support.pair_id;
+                entry.placement = support.placement;
+                entry.fit_error = support.fit_error;
             }
         }
     }

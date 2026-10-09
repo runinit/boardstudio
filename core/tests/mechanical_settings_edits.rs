@@ -132,6 +132,7 @@ fn instance_target() -> MechanicalTarget {
 fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<String>, String> {
     apply(
         doc,
+        &[],
         &MechanicalEdit {
             target: board_target(),
             change,
@@ -143,6 +144,7 @@ fn apply_change(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<St
 fn apply_instance(doc: &mut ProjectDoc, change: MechanicalChange) -> Result<Vec<String>, String> {
     apply(
         doc,
+        &[],
         &MechanicalEdit {
             target: instance_target(),
             change,
@@ -1638,6 +1640,7 @@ fn profile_assignment_rejects_a_part_on_another_board_and_a_duplicate_target() {
 fn an_instance_target_persists_to_that_instance() {
     let mut doc = document();
     let mut instance = PhysicalBoardInstance {
+        mechanical_identity_reservation: None,
         id: "left".into(),
         name: "Left".into(),
         board_id: "board".into(),
@@ -1702,6 +1705,7 @@ fn vanished_or_ineligible_targets_error() {
     // A board that is not in the document stays ineligible.
     let missing = apply(
         &mut doc,
+        &[],
         &MechanicalEdit {
             target: MechanicalTarget::Board {
                 board_id: "ghost".into(),

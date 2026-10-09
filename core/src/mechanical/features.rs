@@ -795,6 +795,7 @@ mod tests {
             controller_part_id: None,
             mechanical,
             construction_ownership: ownership,
+            mechanical_identity_reservation: None,
         }
     }
 
@@ -856,6 +857,7 @@ mod tests {
             ],
             z: 1.25,
             height: 3.5,
+            next_vertex_identity: 0,
         }
     }
 
