@@ -570,10 +570,8 @@ fn target_case_findings_are_clear(
         },
     };
     match boardstudio_core::mechanical::effective_inputs(document, &scene.board_contours, &target) {
-        Ok(inputs) => inputs.findings.iter().all(|finding| {
-            !(matches!(finding.severity, Severity::Error)
-                && matches!(finding.scope, boardstudio_core::model::Scope::Case))
-        }),
+        // Core owns the rule; the adapter only selects the target.
+        Ok(inputs) => inputs.case_findings_are_clear(),
         // An unresolvable target is decided by the shared board-level admission.
         Err(_) => true,
     }

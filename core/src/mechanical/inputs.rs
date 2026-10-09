@@ -61,6 +61,19 @@ pub struct MechanicalInputs {
     pub gasket_supports: Vec<MechanicalGasketSupport>,
 }
 
+impl MechanicalInputs {
+    /// Whether this target's own accepted findings leave its Case output clear.
+    ///
+    /// The findings are already scoped to this target, so a Case-scope error here is this
+    /// target's own problem; a conflict that names only a sibling half of the same board
+    /// is not included. Adapters ask this instead of re-implementing the filter.
+    pub fn case_findings_are_clear(&self) -> bool {
+        !self.findings.iter().any(|finding| {
+            matches!(finding.severity, Severity::Error) && matches!(finding.scope, Scope::Case)
+        })
+    }
+}
+
 /// Resolves the effective mechanical configuration for a board or physical half.
 ///
 /// This is the single read path apply, evaluation and presentation share. A board

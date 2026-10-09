@@ -2182,7 +2182,7 @@ fn rejoining_can_take_the_selected_halves_own_geometry_as_the_source() {
         },
     )
     .unwrap();
-    assert_eq!(changed, vec!["mount-1", "right"]);
+    assert_eq!(changed, vec!["mount-1", "right", "pair-left-right", "left"]);
     let pair = &document.hardware.as_ref().unwrap().pairs[0];
     assert_eq!(pair.features[0].author, "right");
     let MechanicalFeatureValue::Mount { mount } = &pair.features[0].value else {
@@ -3428,4 +3428,160 @@ fn legacy_local_fields_stay_per_instance_and_errors_do_not_mutate() {
     let error = set_wall_thickness(&mut document, "left", -1.0).unwrap_err();
     assert!(!error.is_empty());
     assert_eq!(document, before, "a rejected value mutates nothing");
+}
+
+#[test]
+fn a_linked_change_reports_the_pair_and_both_halves() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let owners = ["pair-left-right", "left", "right"];
+
+    // An ordinary edit of a linked feature from one half changes the pair's single
+    // authored value, so the counterpart's derived geometry changed too.
+    let mut document = pair_document();
+    link_pair(&mut document);
+    let changed = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::SetMountPosition {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "mount-1".into(),
+                at: Vec2 { x: -5.0, y: 1.0 },
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    for id in owners {
+        assert!(
+            changed.contains(&id.to_string()),
+            "a linked edit reports {id}: {changed:?}"
+        );
+    }
+    assert!(changed.contains(&"mount-1".to_string()), "{changed:?}");
+
+    // Make local, omit and rejoin change the pair's records for both halves.
+    let mut document = pair_document();
+    link_pair(&mut document);
+    let local = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::MakeFeatureLocal {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    for id in owners {
+        assert!(
+            local.contains(&id.to_string()),
+            "Make local reports {id}: {local:?}"
+        );
+    }
+    let omitted = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::OmitFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    for id in owners {
+        assert!(
+            omitted.contains(&id.to_string()),
+            "Omit reports {id}: {omitted:?}"
+        );
+    }
+    let rejoined = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::RejoinFeatureMember {
+                feature_id: "mount-1".into(),
+                instance_id: "right".into(),
+                source_instance_id: "left".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    for id in owners {
+        assert!(
+            rejoined.contains(&id.to_string()),
+            "Rejoin reports {id}: {rejoined:?}"
+        );
+    }
+
+    // An ordinary delete of a linked feature removes both counterparts.
+    let mut document = pair_document();
+    link_pair(&mut document);
+    let deleted = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::RemoveMount {
+                collection: MechanicalMountCollection::Suspension,
+                mount_id: "mount-1".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    for id in owners {
+        assert!(
+            deleted.contains(&id.to_string()),
+            "a linked delete reports {id}: {deleted:?}"
+        );
+    }
+}
+
+#[test]
+fn case_findings_are_clear_is_scoped_to_the_target() {
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = conflicting_pair_document();
+    link_pair(&mut document);
+    let right = effective_inputs(&document, &[], &instance_target("right")).unwrap();
+    assert!(
+        !right.case_findings_are_clear(),
+        "the half that owns the conflict is not clear: {:?}",
+        right.findings
+    );
+    let left = effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert!(
+        left.case_findings_are_clear(),
+        "a sibling half's conflict is not this half's problem: {:?}",
+        left.findings
+    );
+    let board = effective_inputs(
+        &document,
+        &[],
+        &MechanicalTarget::Board {
+            board_id: "board".into(),
+        },
+    )
+    .unwrap();
+    assert!(
+        !board.case_findings_are_clear(),
+        "a board-scoped read still carries the conflict"
+    );
+
+    // A pair without a conflict leaves every target clear.
+    let mut clean = pair_document();
+    link_pair(&mut clean);
+    let clean = effective_inputs(&clean, &[], &instance_target("right")).unwrap();
+    assert!(clean.case_findings_are_clear(), "{:?}", clean.findings);
 }
