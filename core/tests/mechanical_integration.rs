@@ -2971,3 +2971,156 @@ fn one_undo_restores_legacy_ownership_and_the_previous_overlay_state() {
         before_c
     );
 }
+
+/// Two halves on one board whose mechanical stack uses discrete gasket supports.
+fn same_board_gasket_pair_document() -> (ProjectDoc, Vec<BoardContours>) {
+    let mut document = ProjectDoc::empty("doc", "Fixture");
+    document.boards.push(board("board"));
+    let gasket = || {
+        let mut configuration = configuration();
+        configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
+        configuration.gasket_layout = Some(boardstudio_core::mechanical::default_gasket_layout());
+        configuration
+    };
+    let mut left = mirror_instance("left", vec![]);
+    let mut right = mirror_instance("right", vec![]);
+    left.mechanical = Some(gasket());
+    right.mechanical = Some(gasket());
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![left, right],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    let accepted = vec![BoardContours {
+        board_id: "board".into(),
+        contours: vec![rect_contour(200.0, 150.0)],
+    }];
+    (document, accepted)
+}
+
+/// Links one resolved gasket support between the halves, choosing the source half.
+fn link_gasket_support(document: &mut ProjectDoc, accepted: &[BoardContours], source: &str) {
+    let (author_board, author) = if source == "left" {
+        (
+            "left",
+            author_gasket_support(document, accepted, "left", "board"),
+        )
+    } else {
+        (
+            "right",
+            author_gasket_support(document, accepted, "right", "board"),
+        )
+    };
+    let _ = author_board;
+    let anchor = anchor_of(&author);
+    for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
+        instance
+            .mechanical
+            .as_mut()
+            .unwrap()
+            .gasket_layout
+            .as_mut()
+            .unwrap()
+            .supports = vec![anchor.clone()];
+    }
+    link_with_correspondences(
+        document,
+        vec![correspondence(
+            MechanicalFeatureKind::GasketSupport,
+            &anchor.id,
+            &anchor.id,
+            Some(source),
+        )],
+    )
+    .unwrap();
+}
+
+#[test]
+fn generated_gasket_geometry_uses_the_reflected_author_placement() {
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::mechanical::inputs::effective_document;
+
+    let (mut document, accepted) = same_board_gasket_pair_document();
+    link_gasket_support(&mut document, &accepted, "left");
+
+    // The read path reports the author's placement reflected into the other half.
+    let reflected = effective_inputs(&document, &accepted, &instance_target("right"))
+        .unwrap()
+        .gasket_supports
+        .first()
+        .cloned()
+        .expect("the linked support is reflected for the read path");
+    let author = author_gasket_support(&document, &accepted, "left", "board");
+    assert!(
+        (reflected.at.x - author.at.x).abs() > 1.0,
+        "the reflected placement differs from the author's own"
+    );
+
+    // The generated assembly for that half uses the same resolved placement instead of
+    // re-resolving the author's perimeter fraction on its own contour.
+    let (right_document, _) = effective_document(&document, &instance_target("right")).unwrap();
+    let assembly = boardstudio_core::mechanical::resolve(&right_document, &accepted[0].contours);
+    assert!(
+        !assembly.generation_blocked,
+        "the assembly resolves: {:?}",
+        assembly.diagnostics
+    );
+    let generated = assembly
+        .gasket_supports
+        .iter()
+        .find(|support| support.id == reflected.id)
+        .unwrap_or_else(|| {
+            panic!(
+                "no generated support {}: {:?}",
+                reflected.id, assembly.gasket_supports
+            )
+        });
+    assert_close(generated.at, reflected.at, "generated placement");
+    assert_close(generated.tangent, reflected.tangent, "generated tangent");
+    assert_close(generated.normal, reflected.normal, "generated normal");
+    assert_eq!(
+        generated.fit_error, reflected.fit_error,
+        "the located association is reported by the generated geometry too"
+    );
+    assert_eq!(generated.pair_id, reflected.pair_id);
+}
+
+#[test]
+fn generated_gasket_geometry_uses_the_inverse_reflection_for_a_second_member_author() {
+    use boardstudio_core::mechanical::effective_inputs;
+    use boardstudio_core::mechanical::inputs::effective_document;
+
+    let (mut document, accepted) = same_board_gasket_pair_document();
+    link_gasket_support(&mut document, &accepted, "right");
+
+    let reflected = effective_inputs(&document, &accepted, &instance_target("left"))
+        .unwrap()
+        .gasket_supports
+        .first()
+        .cloned()
+        .expect("the linked support is reflected for the read path");
+    let author = author_gasket_support(&document, &accepted, "right", "board");
+    assert!(
+        (reflected.at.x - author.at.x).abs() > 1.0,
+        "the reflected placement differs from the author's own"
+    );
+
+    let (left_document, _) = effective_document(&document, &instance_target("left")).unwrap();
+    let assembly = boardstudio_core::mechanical::resolve(&left_document, &accepted[0].contours);
+    assert!(
+        !assembly.generation_blocked,
+        "the assembly resolves: {:?}",
+        assembly.diagnostics
+    );
+    let generated = assembly
+        .gasket_supports
+        .iter()
+        .find(|support| support.id == reflected.id)
+        .unwrap_or_else(|| panic!("no generated support {}", reflected.id));
+    assert_close(generated.at, reflected.at, "generated placement");
+    assert_close(generated.tangent, reflected.tangent, "generated tangent");
+    assert_close(generated.normal, reflected.normal, "generated normal");
+}

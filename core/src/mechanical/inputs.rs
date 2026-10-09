@@ -162,7 +162,7 @@ fn effective_inputs_inner(
 /// reflected placement is then associated with this half's own accepted outline: when the
 /// destination contour cannot receive it, `fit_error` records that instead of snapping or
 /// moving the geometry.
-fn resolved_pair_gasket_supports(
+pub(crate) fn resolved_pair_gasket_supports(
     document: &ProjectDoc,
     board_contours: &[BoardContours],
     target: &MechanicalTarget,
@@ -273,6 +273,15 @@ fn author_resolved_gasket_support(
     let mut author_document = document.clone();
     author_document.physical_instance_id = Some(feature.author.clone());
     author_document.mechanical = Some(configuration);
+    // The author's own anchor is already projected into that configuration, so the
+    // recursive resolve must not reflect any pair-linked gasket support itself: that
+    // would re-enter this path and could not terminate for a two-way linked pair.
+    if let Some(hardware) = author_document.hardware.as_mut() {
+        for pair in hardware.pairs.iter_mut() {
+            pair.features
+                .retain(|feature| feature.kind != MechanicalFeatureKind::GasketSupport);
+        }
+    }
     if author.flipped {
         mirror_parts(&mut author_document.parts, document, &author.board_id);
     }

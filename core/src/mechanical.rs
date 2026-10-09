@@ -1585,11 +1585,18 @@ fn finalize_assembly(
     config: &MechanicalConfiguration,
     result: &mut MechanicalAssembly,
     component_volumes: &[(String, CaseOpening)],
+    accepted_contours: &[Contour],
 ) {
     crate::mechanical_checks::apply_allowance(config, result);
     if config.mount == MechanicalMount::Gasket
         && !result.generation_blocked
-        && let Err(message) = gasket::generate(document, config, result, component_volumes)
+        && let Err(message) = gasket::generate(
+            document,
+            config,
+            result,
+            component_volumes,
+            accepted_contours,
+        )
     {
         result.generation_blocked = true;
         result.diagnostics.push(Finding {
@@ -2198,7 +2205,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     }
     result.modules = module_resolution.modules;
     result.stack.extend(constructed.stack);
-    finalize_assembly(document, config, &mut result, &component_volumes);
+    finalize_assembly(document, config, &mut result, &component_volumes, contours);
     result
 }
 
