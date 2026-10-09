@@ -42,6 +42,67 @@ pub fn apply(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>,
     Ok(changed)
 }
 
+/// The disposition of a submitted mechanical edit against the accepted document.
+///
+/// The evaluator answers the settlement question the adapter asks before it
+/// commits: does this edit change durable state, does it equal the accepted value,
+/// or has its target gone so the queued intent must retire?
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MechanicalEditDisposition {
+    /// The edit changes durable state.
+    Changed,
+    /// The edit equals the accepted value and needs no initialization.
+    Unchanged,
+    /// The target has vanished or is ineligible, so the queued edit retires.
+    Retire,
+}
+
+/// Evaluates one typed mechanical edit against the accepted document.
+///
+/// This is the read-only half of the operation: it shares the private apply and
+/// evaluation implementation with [`apply`], so a resolver no-op is detected by
+/// the same rules the commit uses, and it never exposes a prepared replacement
+/// document. A missing or ineligible target is [`MechanicalEditDisposition::Retire`]
+/// (the queued intent is dropped silently); structural problems - malformed values
+/// or a missing or invalid mounting-hole template - are `Err` with no mutation.
+/// `board_contours` is the accepted board outline cache the contour-dependent
+/// projection and fit findings resolve against.
+pub fn evaluate_edit(
+    document: &ProjectDoc,
+    _board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+) -> Result<MechanicalEditDisposition, String> {
+    // A target that no longer exists retires: the queued intent was authored
+    // against an entity that has since been removed, so it must be dropped rather
+    // than redirected at whatever now occupies its place.
+    if !target_exists(document, &edit.target) {
+        return Ok(MechanicalEditDisposition::Retire);
+    }
+    let mut next = document.clone();
+    match apply_staged(&mut next, edit) {
+        Ok(changed) if changed.is_empty() => Ok(MechanicalEditDisposition::Unchanged),
+        Ok(_) => Ok(MechanicalEditDisposition::Changed),
+        Err(message) => Err(message),
+    }
+}
+
+/// Whether the edit target still exists in the accepted document.
+fn target_exists(document: &ProjectDoc, target: &MechanicalTarget) -> bool {
+    match target {
+        MechanicalTarget::Board { board_id } => {
+            document.boards.iter().any(|board| board.id == *board_id)
+        }
+        MechanicalTarget::Instance { instance_id } => {
+            document.hardware.as_ref().is_some_and(|hardware| {
+                hardware
+                    .instances
+                    .iter()
+                    .any(|instance| instance.id == *instance_id)
+            })
+        }
+    }
+}
+
 fn apply_staged(doc: &mut ProjectDoc, edit: &MechanicalEdit) -> Result<Vec<String>, String> {
     let board_id = target_board_id(doc, &edit.target)?;
     match &edit.change {
