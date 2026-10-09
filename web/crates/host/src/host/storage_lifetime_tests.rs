@@ -226,6 +226,102 @@ async fn explicit_abort_preserves_caller_reason_and_rolls_back() {
 }
 
 #[wasm_bindgen_test]
+async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_back() {
+    let database_name = format!("boardstudio-idb-v3-closure-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&database_name).unwrap();
+    let mut document = ProjectDoc::empty("closure", "Version 3 closure");
+    document.format_version = 3;
+    let mut definition = boardstudio_core::generators::catalogue()
+        .unwrap()
+        .into_iter()
+        .find(|d| d.generator.as_ref().unwrap().source == "ceoloide/mounting_hole_npth")
+        .unwrap();
+    definition.id = "assembly-closure/definition/board/12.50000/-7.25000".into();
+    let parameters = &mut definition.generator.as_mut().unwrap().parameters;
+    parameters.insert("hole_drill".into(), serde_json::json!("6.6"));
+    parameters.insert("hole_size".into(), serde_json::json!("6.6"));
+    document.parts.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"closure-hole", "definitionId":definition.id,"reference":"H1","side":"front",
+            "pose":{"at":{"x":12.5,"y":-7.25},"rotation":0},
+            "generatorParameters":{"hole_size":"6.6"}
+        }))
+        .unwrap(),
+    );
+    document.definitions.push(definition);
+    store
+        .save_document(&document, &Default::default())
+        .await
+        .unwrap();
+
+    // The stored document really is the old shape before it is loaded.
+    let stored =
+        |value: JsValue| serde_wasm_bindgen::from_value::<serde_json::Value>(value).unwrap();
+    let before = stored(
+        load_value(&database_name, PROJECT_STORE, "closure".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    assert_eq!(before["formatVersion"], 3);
+    assert_eq!(
+        before["definitions"][0]["generator"]["parameters"]["hole_drill"],
+        "6.6"
+    );
+
+    let loaded = store
+        .load_document("closure".into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(loaded.format_version, 4);
+    let loaded_parameters = &loaded.definitions[0].generator.as_ref().unwrap().parameters;
+    assert_eq!(loaded_parameters["hole_drill"], 6.6);
+    assert_eq!(loaded_parameters["hole_size"], 6.6);
+    assert_eq!(
+        loaded.parts[0].generator_parameters.as_ref().unwrap()["hole_size"],
+        6.6
+    );
+    boardstudio_core::generators::render_forms(&loaded.definitions[0], Some(&loaded.parts[0]))
+        .unwrap();
+
+    let raw = stored(
+        load_value(&database_name, PROJECT_STORE, "closure".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    assert_eq!(raw["formatVersion"], 4, "migration writes back immediately");
+    assert_eq!(
+        raw["definitions"][0]["generator"]["parameters"]["hole_drill"],
+        6.6
+    );
+    assert!(raw["definitions"][0]["generator"]["parameters"]["hole_drill"].is_number());
+
+    // A second load finds current data: the same document, and nothing rewritten.
+    let reloaded = store
+        .load_document("closure".into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(reloaded, loaded);
+    let again = stored(
+        load_value(&database_name, PROJECT_STORE, "closure".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    assert_eq!(again, raw);
+    window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}
+
+#[wasm_bindgen_test]
 async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intact() {
     let database_name = format!("boardstudio-idb-migration-{}", js_sys::Date::now());
     let store = BrowserStore::new(&database_name).unwrap();
