@@ -48,6 +48,8 @@ plan and completion criteria. It is an assessment, not a completed migration.
   (commits are intents; the direct event carries previews only) and
   [whole-document replacement is for import and recovery](adr/0006-replace-document-for-import-and-recovery.md),
   the direction of the [typed Core edits](plans/typed-core-edits/map.md) effort.
+- [Project context](design/project-context.md) records sessions, business and
+  ethical stance, success criteria and untested assumptions for UX work.
 - [Mirrored layout pairs](design/mirrored-layout-pair.md) describes the interaction
   and ownership contract.
 - [Gasket case redesign](design/gasket-case-redesign.md) preserves the agreed
