@@ -23,8 +23,6 @@ use super::inputs::{effective_document, effective_inputs};
 const GENERATED_PART_PREFIX: &str = "case-closure/";
 const GENERATED_DEFINITION_PREFIX: &str = "assembly-closure/definition/";
 const AUTO_CLOSURE_PREFIX: &str = "auto-closure/";
-const MISSING_TEMPLATE: &str =
-    "A normalized mounting-hole definition is required to project the generated closure clearance.";
 
 /// Applies one mechanical edit, returning the changed durable ids.
 ///
@@ -207,6 +205,11 @@ fn apply_settings(
     change: &MechanicalChange,
     board_id: &str,
 ) -> Result<Vec<String>, String> {
+    // A supplied template is validated even when the edit is settings-only and the
+    // projection never runs, so a malformed catalogue entry is always an error.
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
+    }
     let inputs = effective_inputs(doc, &[], &edit.target)?;
     let mut configuration = inputs.configuration;
     let before = configuration.clone();
@@ -219,10 +222,9 @@ fn apply_settings(
     if configuration == before && !needs_initialization {
         return Ok(Vec::new());
     }
+    // Whether projection needs a template is decided by the actual generated holes,
+    // not by the change kind: removing the final generated hole creates nothing.
     let projection_required = requires_projection(change) || needs_initialization;
-    if projection_required && edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
-    }
     changed.insert(0, owner_id(&edit.target, board_id));
     if needs_initialization {
         persist(doc, &edit.target, configuration.clone())?;
@@ -240,17 +242,49 @@ fn apply_settings(
 }
 
 /// Runs the owned projection and records only the generated ids it changed.
+///
+/// The optional template is validated by [`validate_mounting_hole`] before use. No
+/// template is required when the projected hole set is empty (for example when the
+/// final generated hole is removed): the old generated parts, definitions and
+/// memberships are still cleaned up.
 fn project(
     doc: &mut ProjectDoc,
     mounting_hole: Option<&PartDefinition>,
     changed: &mut Vec<String>,
 ) -> Result<(), String> {
-    let template = mounting_hole.ok_or_else(|| MISSING_TEMPLATE.to_string())?;
+    if let Some(template) = mounting_hole {
+        validate_mounting_hole(template)?;
+    }
     let before = doc.clone();
     let projected =
-        crate::mechanical::clearance::project_owned_closure_clearance(before.clone(), template)?;
+        crate::mechanical::clearance::project_owned_closure_clearance_with_optional_template(
+            before.clone(),
+            mounting_hole,
+        )?;
     changed.extend(generated_change_ids(&before, &projected));
     *doc = projected;
+    Ok(())
+}
+
+/// Validates a supplied normalized mounting-hole definition.
+///
+/// The projection derives its generated footprints from the bundled
+/// `ceoloide/mounting_hole_npth` entry, so a definition from another source or one
+/// without a drilled pad is rejected before anything mutates.
+fn validate_mounting_hole(template: &PartDefinition) -> Result<(), String> {
+    let source = template
+        .generator
+        .as_ref()
+        .map(|generator| generator.source.as_str());
+    if source != Some("ceoloide/mounting_hole_npth") {
+        return Err(
+            "The mounting-hole definition must be the normalized ceoloide/mounting_hole_npth catalogue entry."
+                .into(),
+        );
+    }
+    if !template.pads.iter().any(|pad| pad.drill.is_some()) {
+        return Err("The mounting-hole definition has no drilled pad.".into());
+    }
     Ok(())
 }
 
@@ -561,8 +595,8 @@ fn enable(
     if already_effective {
         return Ok(Vec::new());
     }
-    if edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
     }
     let configuration = default_configuration(doc, board_id)?;
     let mut changed = vec![owner_id(target, board_id)];
@@ -603,8 +637,8 @@ fn disable(
     if !present {
         return Ok(Vec::new());
     }
-    if edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
     }
     match target {
         MechanicalTarget::Board { .. } => doc.mechanical = None,
@@ -643,8 +677,8 @@ fn initialize_closures(
     {
         return Err("The current stack no longer needs mounting-location initialization.".into());
     }
-    if edit.mounting_hole.is_none() {
-        return Err(MISSING_TEMPLATE.into());
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
     }
     persist(doc, target, inputs.configuration)?;
     let configuration = initialize_closure_mounts(doc, target)?;
@@ -4102,9 +4136,14 @@ mod tests {
     }
 
     /// Case 5: a required projection without a template rolls back the configuration.
+    ///
+    /// The stored closure mount makes the projection genuinely create a generated
+    /// hole, so the normalized entry is required; a change whose projected hole set is
+    /// empty would not need one.
     #[test]
     fn a_missing_required_template_rolls_back_the_configuration() {
         let mut doc = document();
+        doc.mechanical.as_mut().unwrap().closure_mounts = Some(vec![mount("closure-1", 4.0, 0.0)]);
         let before = doc.clone();
         let error = apply(
             &mut doc,

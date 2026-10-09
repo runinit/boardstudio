@@ -520,3 +520,122 @@ fn a_linked_closure_mount_projects_generated_holes_on_both_halves() {
         "both reflected linked mounts produce a generated hole: {generated:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Mounting-hole template validation and projection-optional edits.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_settings_only_edit_validates_a_supplied_mounting_hole_template() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::model::PartGenerator;
+    use std::collections::BTreeMap;
+
+    let document = document();
+    let mut wrong = template();
+    // A definition from another source is not the mounting-hole catalogue entry.
+    wrong.generator = Some(PartGenerator {
+        source: "ceoloide/switch_mx".into(),
+        version: "bundled-1".into(),
+        parameters: BTreeMap::new(),
+    });
+
+    let mut rejected = document.clone();
+    let result = apply(
+        &mut rejected,
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::PlateThickness,
+                value: 1.8,
+            },
+            mounting_hole: Some(Box::new(wrong)),
+        },
+    );
+    assert!(
+        result.is_err(),
+        "a settings-only edit must still validate a supplied template"
+    );
+    assert_eq!(rejected, document, "a rejected template mutates nothing");
+
+    // The same settings-only edit with the normalized entry succeeds.
+    let mut accepted = document.clone();
+    apply(
+        &mut accepted,
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::PlateThickness,
+                value: 1.8,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert_eq!(accepted.mechanical.as_ref().unwrap().plate_thickness, 1.8);
+}
+
+#[test]
+fn removing_the_last_generated_hole_needs_no_mounting_hole_template() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = document();
+    let mut configuration = configuration();
+    configuration.closure_mounts = Some(vec![mount("closure-1", 4.0, 0.0)]);
+    document.mechanical = Some(configuration);
+
+    // First edit creates the generated clearance hole.
+    document
+        .outline
+        .push(boardstudio_core::model::OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline".into(),
+            center: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 80.0, y: 60.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: boardstudio_core::model::Operation::Add,
+        });
+    document.boards[0].outline_ids = vec!["outline".into()];
+    apply(
+        &mut document,
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::Clearance,
+                value: 0.4,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert!(
+        document
+            .parts
+            .iter()
+            .any(|part| part.id.starts_with("case-closure/")),
+        "the generated hole exists before removal"
+    );
+
+    // Removing the final generated hole creates or updates nothing, so it needs no
+    // template even though it is a projection change.
+    apply(
+        &mut document,
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::SetMountCollection {
+                collection: MechanicalMountCollection::Closure,
+                mounts: vec![],
+            },
+            mounting_hole: None,
+        },
+    )
+    .unwrap();
+    assert!(
+        document
+            .parts
+            .iter()
+            .all(|part| !part.id.starts_with("case-closure/")),
+        "the generated hole is removed without a template"
+    );
+}
