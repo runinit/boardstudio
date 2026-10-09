@@ -595,8 +595,9 @@ a Close action; Escape closes the list and restores focus to the trigger.
 Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
-Selection types have direct icon shortcuts. Stagger, Splay, and Origin activate
-explicit canvas tools; handles remain hidden outside those tools. Origin snapping
+Selection types have direct icon shortcuts. Stagger, Offset, Splay, and Origin activate
+explicit canvas tools; Shift held at pointer-down turns a Stagger drag into a quick
+Offset of its column; handles remain hidden outside those tools. Origin snapping
 uses component origins, corners, midpoints, and physical edges before the grid. PCB draws pad
 shapes and drills at their authored positions and rotations, plus supported
 bundled footprint graphics. Its collapsible Layers list groups the available

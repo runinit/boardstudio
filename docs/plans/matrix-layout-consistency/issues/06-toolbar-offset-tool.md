@@ -1,6 +1,6 @@
 # 06: Offset tool for row and column offsets
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 05
 Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)
@@ -39,3 +39,27 @@ building. `lint`, `test`, `typecheck` and `browser` pass.
 
 `layout_transform_toolbar.rs`, and the tool-activation block of `presentation.rs`.
 Ticket 09 edits a different region of `presentation.rs`; rebase before committing.
+
+## Outcome
+
+Resolved 2026-10-09. `LayoutTransformTool::Offset` is the old 2-D drag under its accurate name,
+built by `matrix_transform_operation.rs`; the menu is Stagger, Offset, Splay, Origin. It writes
+`RowOffset` or `ColumnOffset` only. Handle: four-way glyph, `aria-label` "Drag to offset row" or
+"Drag to offset column", arrows step in screen directions through the scene frame.
+
+Activation choice (`activate_transform_tool`, called from `on_transform_tool`): Offset keeps a Row
+selection and turns other matrix selections into their Column. Stagger turns a Row selection into a
+Column through the existing selection conversion (the retained key's column, otherwise column 1).
+Splay and Origin turn any selection into their Column. Choosing the active tool again turns it off.
+
+Closed from 05's gaps: the drag-commit and nudge resolvers retire when the column or row has gone;
+stagger snaps to the grid step of its axis' dominant component (scope beyond the ticket, with its
+own test); the handle carries `aria-description` instead of `aria-valuenow` (support is uneven; a
+later design pass may choose again); one browser test dispatches real pointer events for the Shift
+latch (pointer capture is stubbed because a synthetic pointer id cannot be captured). DESIGN.md
+Layout sentence updated.
+
+Tests were written with the implementation; red evidence is a mutation (Offset resolved to Stagger,
+Shift read dropped: four tests failed, then passed on restore). Known limits: a Row Offset uses
+column 0's frame, so on a splayed matrix other columns may move in a different world direction from
+the arrow; `layout_align_controller.rs:822` is still a second `column_offsets` writer for 11.

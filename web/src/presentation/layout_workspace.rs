@@ -68,8 +68,12 @@ pub(super) struct InspectorInput {
     pub(super) splay_origin_pick_pending: bool,
     pub(super) on_cancel_splay_origin_pick: EventHandler<()>,
     pub(super) inspector_tab: Signal<LayoutInspectorTab>,
-    pub(super) matrix_relationship_summary: Option<String>,
-    pub(super) matrix_relationship_target: Option<objects::TreeSelectRequest>,
+    pub(super) matrix_relations: Option<boardstudio_web_layout::matrix_relations::MatrixRelations>,
+    /// Resolves a Relations reference against the live accepted document at click time:
+    /// the request to submit (a component opens its Inspector context), or `None` when the
+    /// target has gone.
+    pub(super) relation_target:
+        Rc<dyn Fn(objects::TreeSelectRequest) -> Option<objects::TreeSelectRequest>>,
     pub(super) on_select_context: EventHandler<objects::TreeSelectRequest>,
     pub(super) outline_inspector: Option<Box<super::outline_lifecycle::OutlineInspectorProjection>>,
     pub(super) findings_return_available: bool,
@@ -568,6 +572,36 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             inspector_tab.set(LayoutInspectorTab::Properties);
             input.on_select_context.call(request);
         });
+    let relation_scope = input
+        .matrix_transform_inspector
+        .projection
+        .as_ref()
+        .map(|projection| projection.owner.scope.clone());
+    let relation_target = input.relation_target.clone();
+    let relation_select = input.on_select_context;
+    let mut relation_escape_target = matrix_relationship_escape_target;
+    let mut relation_tab = input.inspector_tab;
+    let on_navigate_relation = EventHandler::new(move |context: objects::TreeContext| {
+        let Some(scope) = relation_scope.clone() else {
+            return;
+        };
+        let request = objects::TreeSelectRequest {
+            scope,
+            context,
+            mode: boardstudio_application::SelectionMode::Replace,
+            outline_action: None,
+        };
+        // A target removed since the row was projected: do nothing; the next accepted
+        // revision re-projects without it.
+        let Some(request) = relation_target(request) else {
+            return;
+        };
+        if matches!(request.context, objects::TreeContext::Component { .. }) {
+            relation_escape_target.set(Some(request.clone()));
+            relation_tab.set(LayoutInspectorTab::Properties);
+        }
+        relation_select.call(request);
+    });
     if let Some(page) = input.findings_page.filter(|page| page.open) {
         return rsx! {
             PendingSplayOriginPickEscape {
@@ -649,21 +683,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
         }
         if show_matrix_relations {
-            section { class: "m1-layout-component-inspector", aria_label: "Relationships",
-                h2 { "Relationships" }
-                p { class: "m1-layout-component-relation-summary", "{input.matrix_relationship_summary.as_deref().unwrap_or(\"No saved placement relationship on this selection.\")}" }
-                if let Some(target) = input.matrix_relationship_target.clone() {
-                    button {
-                        r#type: "button",
-                        onclick: move |_| {
-                            matrix_relationship_escape_target.set(Some(target.clone()));
-                            input.inspector_tab.set(LayoutInspectorTab::Properties);
-                            input.on_select_context.call(target.clone());
-                        },
-                        "Edit placement relationship"
-                    }
-                }
-                p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
+            super::layout_matrix_relations::MatrixRelationsPanel {
+                relations: input.matrix_relations.clone(),
+                mount: input.matrix_transform_inspector.clone(),
+                on_navigate: on_navigate_relation,
             }
         } else {
             if input.outline_inspector.is_none() {

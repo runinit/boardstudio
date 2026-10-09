@@ -14,6 +14,7 @@ mod layout_align_controller;
 mod layout_align_geometry;
 mod layout_toolbar;
 mod layout_transform_toolbar;
+mod matrix_departure_actions;
 mod matrix_edit_test_support;
 mod matrix_inspector;
 mod matrix_inspector_controller;
@@ -42,7 +43,9 @@ pub use layout_toolbar::{
 pub use layout_transform_toolbar::LayoutTransformToolOverlay;
 pub use layout_transform_toolbar::{
     LayoutTransformMenuMount, LayoutTransformRuntime, LayoutTransformSvg, LayoutTransformTool,
+    ToolActivation, activate_transform_tool,
 };
+pub use matrix_departure_actions::DepartureControl;
 pub use matrix_inspector::MatrixInspector;
 pub use matrix_inspector::SwitchOrientation as MatrixSwitchOrientation;
 pub use matrix_inspector_controller::matrix_with_preset;

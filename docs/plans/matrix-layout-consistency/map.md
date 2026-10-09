@@ -77,6 +77,10 @@ Saved projects keep their geometry.
   [Outcome](issues/05-toolbar-stagger-and-quick-offset.md#outcome).
 - 07 Core converts an offset to stagger when geometry is preserved:
   [Outcome](issues/07-convert-offset-to-stagger.md#outcome).
+- 06 the Offset tool, with activation rules and real-pointer coverage:
+  [Outcome](issues/06-toolbar-offset-tool.md#outcome).
+- 09 the Relations panel renders the projection with Reset and Convert:
+  [Outcome](issues/09-relations-panel.md#outcome).
 
 ## Still open
 

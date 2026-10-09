@@ -1,6 +1,6 @@
 # 09: Relations shows structure, departures and authored constraints
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 07, 08
 Spec: [spec.md](../spec.md#relations) · Map: [map.md](../map.md)
@@ -56,3 +56,23 @@ tab has three sections: **Structure**, **Local adjustments** (only when present)
 
 The Relations branch of `layout_workspace.rs`, the `matrix_context_relationship_*`
 region of `presentation.rs`, and additions to `layout_component_inspector_tests.rs`.
+
+## Outcome
+
+Resolved 2026-10-09. The matrix-context Relations tab renders ticket 08's projection through
+`MatrixRelationsPanel` (`web/src/presentation/layout_matrix_relations.rs`): Structure, Local
+adjustments and Authored constraints, the latter two only when present. The old fallback sentence,
+the static note and `matrix_context_relationship_*` are gone; `layout_relationship_summary` stays
+for the standalone component inspector (which keeps its own static note). References are buttons;
+`relation_target_request` re-checks the live document at click time, maps components to the
+finding-part context (the projection's component context does not resolve in the tree, so ticket
+10 must use the same mapping) and ignores removed keys. Reset and Convert use
+`MatrixTransformInspectorMount::departure_control` and `run_departure` in
+`matrix_departure_actions.rs`, which send the same `MatrixTransformRequest` through `on_edit` and
+`transform_edit_resolver` as the Inspector. Escape from a component reference returns to the Board,
+as today.
+
+Tests (mounted, real Session and Core): blank-matrix structure for every selection kind, column
+offset Reset/Undo/Convert, a constrained companion with Escape, no stale rows after a selection
+change, and a removed referenced key with a queued click; the existing "survives an unrelated
+accepted revision" test passes. They were written with the implementation, not red first.
