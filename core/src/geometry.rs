@@ -711,6 +711,27 @@ pub(crate) fn generated_source(
         None,
     )
 }
+
+/// Source contours of an arbitrary feature set, resolving geometry the accepted cache
+/// does not hold (an inactive version's current projection).
+///
+/// Used by settlement to compare a reviewed projection with the current one: the
+/// composition is the same one the board path uses, so a reviewed shape and its later
+/// recomputation are comparable without exposing the private cache.
+pub(crate) fn feature_source_contours(
+    doc: &ProjectDoc,
+    cache: &OutlineCache,
+    features: &[OutlineFeature],
+) -> Vec<Contour> {
+    let mut local = cache.clone();
+    for feature in features {
+        local.paths.insert(
+            feature.id().into(),
+            (feature.clone(), feature_geometry(doc, feature)),
+        );
+    }
+    compose(features.iter(), &local, None).source
+}
 pub(crate) fn valid_polygon(points: &[Vec2]) -> bool {
     automatic::simple(&points.iter().copied().map(point).collect())
 }

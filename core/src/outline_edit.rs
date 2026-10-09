@@ -201,13 +201,28 @@ pub fn evaluate(
     {
         return Ok(OutlineEditDisposition::Retire);
     }
-    // A reviewed generated-shape edit retires when the relevant source geometry
-    // changed, never comparing whole-document revisions: unrelated names and
-    // other-board edits do not retire it.
-    if let Some(reviewed) = &edit.reviewed
-        && generated_source_shape(document, edit.target.board_id()) != *reviewed
-    {
-        return Ok(OutlineEditDisposition::Retire);
+    // A reviewed shape edit retires when the relevant source geometry changed, never
+    // comparing whole-document revisions: unrelated names and other-board edits do not
+    // retire it. A Board target reviews the generated source; a Version target reviews
+    // that version's own current projection (a linked refinement's resolved source, or a
+    // fixed copy's authored geometry), so an authored cutout is part of what was
+    // reviewed rather than a false difference from the generated source.
+    if let Some(reviewed) = &edit.reviewed {
+        let current = match &edit.target {
+            OutlineEditTarget::Board { board_id } => generated_source_shape(document, board_id),
+            OutlineEditTarget::Version {
+                board_id,
+                version_id,
+            } => {
+                let Some(version) = version(document, board_id, version_id) else {
+                    return Ok(OutlineEditDisposition::Retire);
+                };
+                version_source_shape(document, board_id, version)
+            }
+        };
+        if current != *reviewed {
+            return Ok(OutlineEditDisposition::Retire);
+        }
     }
     match &edit.target {
         OutlineEditTarget::Board { board_id } => {
@@ -294,6 +309,22 @@ fn generated_source_shape(doc: &ProjectDoc, board_id: &str) -> Vec<Contour> {
     };
     let (cache, _, _) = geometry::outlines(doc, None, &[]);
     geometry::generated_source(doc, &cache, board).source
+}
+
+/// One version's current source contours: a linked refinement's resolved projection from
+/// the board's current components, or a fixed copy's authored geometry.
+fn version_source_shape(
+    doc: &ProjectDoc,
+    board_id: &str,
+    version: &OutlineVersion,
+) -> Vec<Contour> {
+    let features = if version.ownership.is_fixed() {
+        version.geometry.features.clone()
+    } else {
+        outline_versions::resolved_features(doc, board_id, version)
+    };
+    let (cache, _, _) = geometry::outlines(doc, None, &[]);
+    geometry::feature_source_contours(doc, &cache, &features)
 }
 
 fn version<'a>(
@@ -671,11 +702,17 @@ fn set_protected_gap(
         }
     }
     let target = edit.target.clone();
-    let identities = persisted_identities(doc);
-    let gap_id = if identities.iter().any(|id| id == gap_id) {
-        unique_id("outline-gap", edit.seed, &identities)
-    } else {
+    // A gap the target already holds keeps its identity (this is an update); only an
+    // identity owned by another persisted namespace is allocated a fresh free id.
+    let gap_id = if target_holds_gap(doc, &target, gap_id) {
         gap_id.to_owned()
+    } else {
+        let identities = persisted_identities(doc);
+        if identities.iter().any(|id| id == gap_id) {
+            unique_id("outline-gap", edit.seed, &identities)
+        } else {
+            gap_id.to_owned()
+        }
     };
     let gap = ProtectedOutlineGap {
         id: gap_id.clone(),
@@ -688,6 +725,13 @@ fn set_protected_gap(
             let OutlineFeature::PartEnvelope { settings, id, .. } = feature else {
                 return Err(format!("Board {board_id} has no generated envelope"));
             };
+            if settings
+                .repair
+                .as_ref()
+                .is_some_and(|repair| gap_is_accepted(&repair.keep_gaps, &gap))
+            {
+                return Ok(vec![]);
+            }
             let repair = settings.repair.get_or_insert_with(Default::default);
             upsert_gap(&mut repair.keep_gaps, gap);
             Some((board_id, vec![id.clone()]))
@@ -699,6 +743,15 @@ fn set_protected_gap(
             let board_id = board_id.clone();
             let version_id = version_id.clone();
             let version = version_mut(doc, &board_id, &version_id)?;
+            if version
+                .geometry
+                .settings
+                .repair
+                .as_ref()
+                .is_some_and(|repair| gap_is_accepted(&repair.keep_gaps, &gap))
+            {
+                return Ok(vec![]);
+            }
             let repair = version
                 .geometry
                 .settings
@@ -717,11 +770,47 @@ fn set_protected_gap(
     Ok(changed)
 }
 
+/// Whether the target (the generated envelope or one version) already holds this gap id.
+fn target_holds_gap(doc: &ProjectDoc, target: &OutlineEditTarget, gap_id: &str) -> bool {
+    let holds = |settings: &OutlineSettings| {
+        settings
+            .repair
+            .as_ref()
+            .is_some_and(|repair| repair.keep_gaps.iter().any(|gap| gap.id == gap_id))
+    };
+    match target {
+        OutlineEditTarget::Board { board_id } => doc
+            .boards
+            .iter()
+            .find(|board| &board.id == board_id)
+            .is_some_and(|board| {
+                board
+                    .outline_ids
+                    .iter()
+                    .filter_map(|id| doc.outline.iter().find(|feature| feature.id() == id))
+                    .any(|feature| {
+                        matches!(feature, OutlineFeature::PartEnvelope { settings, .. } if holds(settings))
+                    })
+            }),
+        OutlineEditTarget::Version {
+            board_id,
+            version_id,
+        } => version(doc, board_id, version_id)
+            .is_some_and(|version| holds(&version.geometry.settings)),
+    }
+}
+
 fn upsert_gap(gaps: &mut Vec<ProtectedOutlineGap>, gap: ProtectedOutlineGap) {
     match gaps.iter_mut().find(|entry| entry.id == gap.id) {
         Some(entry) => *entry = gap,
         None => gaps.push(gap),
     }
+}
+
+/// Whether the accepted gaps already hold this exact authored gap, so setting it
+/// again settles Unchanged instead of adding a revision step.
+fn gap_is_accepted(gaps: &[ProtectedOutlineGap], gap: &ProtectedOutlineGap) -> bool {
+    gaps.iter().any(|accepted| accepted == gap)
 }
 
 fn remove_protected_gap(
@@ -840,7 +929,8 @@ fn add_feature(
             let prefix = format!("board:{board_id}:version:{version_id}");
             let mut geometry = outline_versions::snapshot(doc, board_id, &prefix)?;
             geometry.features.push(feature);
-            push_fixed_version(doc, board_id, &version_id, &default_name(), geometry, None)?;
+            let name = default_version_name(doc, board_id);
+            push_fixed_version(doc, board_id, &version_id, &name, geometry, None)?;
             Ok(vec![board_id.clone(), version_id, id])
         }
     }
@@ -937,6 +1027,12 @@ fn add_connection(
     if connection.points.len() < 2 || !outline_points_finite(&connection.points) {
         return Err("A connection needs at least two finite points".into());
     }
+    // A non-positive or non-finite width is malformed submitted input: it fails with a
+    // Core error and no mutation instead of silently defaulting to the bridge width.
+    // The adapter supplies the board's bridge width itself.
+    if !connection.width.is_finite() || connection.width <= 0.0 {
+        return Err("A connection width must be a positive finite number".into());
+    }
     for point in &connection.points {
         crate::outline_controls::point(doc, point)?;
     }
@@ -950,23 +1046,15 @@ fn add_connection(
     };
     let feature = generated_feature_mut(doc, board_id)?;
     let OutlineFeature::PartEnvelope {
-        connections,
-        settings,
-        id,
-        ..
+        connections, id, ..
     } = feature
     else {
         return Err(format!("Board {board_id} has no generated envelope"));
     };
     let id = id.clone();
-    let width = if connection.width.is_finite() && connection.width > 0.0 {
-        connection.width
-    } else {
-        settings.bridge_width
-    };
     connections.push(OutlineConnection {
         id: connection_id.clone(),
-        width,
+        width: connection.width,
         points: connection.points.clone(),
     });
     Ok(vec![board_id.clone(), id, connection_id])
@@ -995,8 +1083,22 @@ fn remove_connection(
     Ok(vec![board_id.clone(), id.clone(), connection_id.to_owned()])
 }
 
-fn default_name() -> String {
-    "Edited outline".into()
+fn default_version_name(doc: &ProjectDoc, board_id: &str) -> String {
+    let next_number = doc
+        .board_outlines
+        .iter()
+        .filter(|state| state.board_id == board_id)
+        .flat_map(|state| &state.versions)
+        .filter_map(|version| {
+            version
+                .name
+                .strip_prefix("Edited outline ")
+                .and_then(|number| number.parse::<u32>().ok())
+        })
+        .max()
+        .unwrap_or(0)
+        .saturating_add(1);
+    format!("Edited outline {next_number}")
 }
 
 fn version_identity(doc: &ProjectDoc, version_id: &str) -> Result<(), String> {
@@ -1207,14 +1309,8 @@ fn edit_generated_perimeter(
         operation,
     };
     let provenance = active_version_id(doc, board_id);
-    push_fixed_version(
-        doc,
-        board_id,
-        &version_id,
-        &default_name(),
-        geometry,
-        provenance,
-    )?;
+    let name = default_version_name(doc, board_id);
+    push_fixed_version(doc, board_id, &version_id, &name, geometry, provenance)?;
     Ok(vec![board_id.to_owned(), version_id])
 }
 
@@ -1285,11 +1381,12 @@ fn edit_feature_perimeter(
         };
         *id = format!("{prefix}:contour:{index}");
     }
+    let name = default_version_name(doc, &board_id);
     let revision = doc.revision;
     let state = state_mut(doc, &board_id)?;
     state.versions.push(OutlineVersion {
         id: new_id.clone(),
-        name: default_name(),
+        name,
         source: OutlineProvenance {
             revision,
             version_id: Some(version_id),
