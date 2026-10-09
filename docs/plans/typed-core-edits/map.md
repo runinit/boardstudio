@@ -24,6 +24,11 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- Generator parameters are typed end to end (option B, user 2026-10-09):
+  [generator-parameters](../generator-parameters/map.md) 01-05. Closure projection uses
+  generator normalization; saved strings are repaired by a v3 to v4 migration; Core
+  validates parameters at its boundary. Its 02 restores closure mounts in the shipped
+  splits and should land before 04's reviews.
 - `ReplaceDocument` is reserved for import and recovery as the direction, no
   enforcement date; archive open/import and recovery reopen, footprint import and
   routed-board reference upload are permitted by name:
