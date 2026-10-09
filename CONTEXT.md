@@ -9,9 +9,10 @@ A board boundary derived from the current placement of its included components
 and the chosen outline settings; it updates as the layout changes.
 
 **Outline refinement**:
-An accepted alternative boundary that remains linked to its source components
-and follows their placement. Freezing or manually editing it creates a separate
-fixed copy while retaining the linked version.
+An accepted alternative boundary that remains linked to the board's current
+included components and follows changes to their placement, geometry and membership.
+Each refinement owns its outline choices independently. Freezing or manually editing
+its perimeter creates a separate fixed copy while retaining the linked version.
 
 **Edited outline**:
 A manually modified copy of an outline, retained separately from its generated
@@ -24,7 +25,13 @@ cutouts, bridges, protected gaps and corner finishing. Versions share component
 placement while retaining independent outline choices.
 
 **Active outline**:
-The outline version selected to define the current board shape and its exports.
+The generated outline, refinement or edited outline selected to define the current
+board shape and its exports.
+
+**Outline connection**:
+An authored path and width requesting PCB material between component groups within
+an outline version. Its control points may follow named components; the resulting
+material is an outline bridge.
 
 **Outline bridge**:
 PCB material connecting component groups within one outline version. A bridge

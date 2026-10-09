@@ -1,0 +1,53 @@
+# 14: Outline web adapter and linked/fixed presentation
+
+Status: ready-for-agent
+Type: build
+Blocked by: 13
+Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Contract: [03 Answer](03-decide-outline-version-intents.md#answer)
+
+## Goal
+
+Replace the outline web domain planner with an adapter submitting `ApplyOutlineEdit`
+against accepted state. Keep drafts, selection/focus, lifecycle admission, preparation
+ordering and the existing pending-edit ticket protocol. Core owns identities, polygon
+validation, version mutation, linked resolution and no-op/retirement decisions.
+
+Make Generated, linked refinements and edited outlines visible as distinct ownership
+choices. Accepting an alternative creates a linked refinement. Expose Freeze/manual
+perimeter editing as creation of a separate fixed copy, retaining the linked version.
+Settings remain editable while linked; show located findings and their affected export
+state. Do not introduce a second writable recipe, link-status or findings store.
+
+Capture relevant reviewed target/source identities and fingerprints with the pending
+edit. Resolve using the accepted document at execution. Active-target/source changes
+retire with an explanation; unrelated edits survive. FocusGap/hover/navigation remains
+presentation-only and must not create document history.
+
+## Ownership and seams
+
+`web/crates/layout/src/outline/{planner,hook,inspector,overlays}` and outline settings
+adapters, plus bounded presentation call sites. Read DESIGN.md/PRODUCT.md and preserve
+unrelated UI work. Do not edit shared Core or transcript files without their owner.
+Mounted controls and controller/resolver ports through real Session/Core are the seams.
+
+## TDD cases
+
+1. Reachable version/settings/feature/connection controls submit typed intents, not
+   ReplaceDocument. Core returns unchanged/error/retire through existing settlement.
+2. Mounted acceptance/Freeze/manual-edit controls show resulting ownership and submit
+   one action; one Undo restores both selection and document state.
+3. A pending edit on A retires after activation of B. A reviewed source-shape change
+   retires; unrelated names/other-board edits and ordinary queued field edits survive.
+4. Linked controls remain available after source changes; fixed copies do not move.
+   Hover/focus affects neither accepted document nor Undo.
+5. Reopen displays persisted linked/unlinked ownership accurately; legacy fixed
+   versions are not silently presented as linked.
+6. Malformed submission exposes a Core error; geometric findings remain selectable,
+   saving/editing is possible, and only affected exports are disabled.
+
+## Verification
+
+Run affected native adapter tests, WASM page typecheck, mounted Layout browser tests
+and format/lint. Take the coordinated Chrome lease; enum construction or native checks
+alone do not prove presentation delivery. Keep a concise real-product gesture pass for
+15; do not remove old rule tests until equivalent public Core coverage exists.
