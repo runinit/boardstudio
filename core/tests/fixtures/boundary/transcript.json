@@ -15682,8 +15682,8 @@
             },
             "generator": {
               "parameters": {
-                "hole_drill": "2.8000000000000003",
-                "hole_size": "2.8000000000000003"
+                "hole_drill": 2.8000000000000003,
+                "hole_size": 2.8000000000000003
               },
               "source": "ceoloide/mounting_hole_npth",
               "version": "bundled-1"
@@ -15695,13 +15695,13 @@
               {
                 "at": {
                   "x": 0.0,
-                  "y": 0.0
+                  "y": -0.0
                 },
                 "drill": 2.8000000000000003,
                 "id": "pad-0",
                 "number": "",
                 "plated": false,
-                "rotation": 0.0,
+                "rotation": -0.0,
                 "shape": "circle",
                 "size": {
                   "x": 2.8000000000000003,
@@ -15736,8 +15736,8 @@
             },
             "generator": {
               "parameters": {
-                "hole_drill": "2.8000000000000003",
-                "hole_size": "2.8000000000000003"
+                "hole_drill": 2.8000000000000003,
+                "hole_size": 2.8000000000000003
               },
               "source": "ceoloide/mounting_hole_npth",
               "version": "bundled-1"
@@ -15749,13 +15749,13 @@
               {
                 "at": {
                   "x": 0.0,
-                  "y": 0.0
+                  "y": -0.0
                 },
                 "drill": 2.8000000000000003,
                 "id": "pad-0",
                 "number": "",
                 "plated": false,
-                "rotation": 0.0,
+                "rotation": -0.0,
                 "shape": "circle",
                 "size": {
                   "x": 2.8000000000000003,
@@ -16796,8 +16796,8 @@
             },
             "generator": {
               "parameters": {
-                "hole_drill": "2.8000000000000003",
-                "hole_size": "2.8000000000000003"
+                "hole_drill": 2.8000000000000003,
+                "hole_size": 2.8000000000000003
               },
               "source": "ceoloide/mounting_hole_npth",
               "version": "bundled-1"
@@ -16809,13 +16809,13 @@
               {
                 "at": {
                   "x": 0.0,
-                  "y": 0.0
+                  "y": -0.0
                 },
                 "drill": 2.8000000000000003,
                 "id": "pad-0",
                 "number": "",
                 "plated": false,
-                "rotation": 0.0,
+                "rotation": -0.0,
                 "shape": "circle",
                 "size": {
                   "x": 2.8000000000000003,
@@ -16850,8 +16850,8 @@
             },
             "generator": {
               "parameters": {
-                "hole_drill": "2.8000000000000003",
-                "hole_size": "2.8000000000000003"
+                "hole_drill": 2.8000000000000003,
+                "hole_size": 2.8000000000000003
               },
               "source": "ceoloide/mounting_hole_npth",
               "version": "bundled-1"
@@ -16863,13 +16863,13 @@
               {
                 "at": {
                   "x": 0.0,
-                  "y": 0.0
+                  "y": -0.0
                 },
                 "drill": 2.8000000000000003,
                 "id": "pad-0",
                 "number": "",
                 "plated": false,
-                "rotation": 0.0,
+                "rotation": -0.0,
                 "shape": "circle",
                 "size": {
                   "x": 2.8000000000000003,

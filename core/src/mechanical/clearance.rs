@@ -30,8 +30,9 @@ struct Hole {
 ///
 /// `mounting_hole` must be the existing normalized bundled catalogue entry for
 /// `ceoloide/mounting_hole_npth`. Its source identity and unrelated normalized
-/// footprint data are retained while the generator parameters and pad drill
-/// dimensions are updated to the projected diameter.
+/// footprint data are retained while the numeric generator parameters are set to the
+/// projected diameter and the generator normalizer regenerates the pad, courtyard
+/// and envelope from them.
 pub fn project_owned_closure_clearance(
     document: ProjectDoc,
     mounting_hole: &PartDefinition,
@@ -124,7 +125,7 @@ fn project_with_optional_template(
         Some(template) => holes
             .iter()
             .map(|hole| normalized_mounting_hole(template, hole))
-            .collect::<Vec<_>>(),
+            .collect::<Result<Vec<_>, _>>()?,
         // No mounted holes means nothing to create or update; the old generated
         // parts and definitions are still removed below.
         None if holes.is_empty() => Vec::new(),
@@ -195,94 +196,36 @@ fn project_closure_clearance(
     project_owned_closure_clearance(document.clone(), mounting_hole)
 }
 
-fn normalized_mounting_hole(template: &PartDefinition, hole: &Hole) -> PartDefinition {
+/// Builds the generated clearance definition for one hole.
+///
+/// The template is the normalized bundled `ceoloide/mounting_hole_npth` entry. Its
+/// numeric generator parameters are written as JSON numbers and the generator
+/// normalizer then regenerates the pad, courtyard and envelope from them, so the
+/// generator stays the only source of that geometry.
+fn normalized_mounting_hole(
+    template: &PartDefinition,
+    hole: &Hole,
+) -> Result<PartDefinition, String> {
+    let diameter = serde_json::Number::from_f64(hole.diameter).ok_or_else(|| {
+        format!(
+            "Closure mount diameter {} is not a finite number.",
+            hole.diameter
+        )
+    })?;
     let mut definition = template.clone();
     definition.id = format!("{DEFINITION_PREFIX}{}", hole.key);
-    if let Some(generator) = definition.generator.as_mut() {
-        generator.parameters.insert(
-            "hole_drill".into(),
-            Value::String(hole.diameter.to_string()),
-        );
+    let generator = definition.generator.get_or_insert_with(|| PartGenerator {
+        source: MOUNTING_HOLE_SOURCE.into(),
+        version: "bundled-1".into(),
+        parameters: BTreeMap::new(),
+    });
+    generator.source = MOUNTING_HOLE_SOURCE.into();
+    for name in ["hole_drill", "hole_size"] {
         generator
             .parameters
-            .insert("hole_size".into(), Value::String(hole.diameter.to_string()));
-        generator.source = MOUNTING_HOLE_SOURCE.into();
-    } else {
-        definition.generator = Some(PartGenerator {
-            source: MOUNTING_HOLE_SOURCE.into(),
-            version: "bundled-1".into(),
-            parameters: BTreeMap::from([
-                (
-                    "hole_drill".into(),
-                    Value::String(hole.diameter.to_string()),
-                ),
-                ("hole_size".into(), Value::String(hole.diameter.to_string())),
-            ]),
-        });
+            .insert(name.into(), Value::Number(diameter.clone()));
     }
-    for pad in &mut definition.pads {
-        if pad.drill.is_some() {
-            pad.drill = Some(hole.diameter);
-            pad.size = Vec2 {
-                x: hole.diameter,
-                y: hole.diameter,
-            };
-            pad.plated = Some(false);
-        }
-    }
-    // The bundled source consists of one circular NPTH pad and no courtyard
-    // graphics. The generator normalizer therefore uses the generated pad bounds as
-    // the definition courtyard; keep that derived envelope in sync with its
-    // updated hole-size parameter.
-    let corners = definition
-        .pads
-        .iter()
-        .filter(|pad| pad.drill.is_some())
-        .flat_map(|pad| {
-            let angle = pad.rotation.unwrap_or(0.0).to_radians();
-            let half_x = pad.size.x / 2.0;
-            let half_y = pad.size.y / 2.0;
-            [
-                (-half_x, -half_y),
-                (half_x, -half_y),
-                (half_x, half_y),
-                (-half_x, half_y),
-            ]
-            .map(|(x, y)| Vec2 {
-                x: pad.at.x + x * angle.cos() - y * angle.sin(),
-                y: pad.at.y - x * angle.sin() - y * angle.cos(),
-            })
-        })
-        .collect::<Vec<_>>();
-    if !corners.is_empty() {
-        let min_x = corners
-            .iter()
-            .map(|point| point.x)
-            .fold(f64::INFINITY, f64::min);
-        let max_x = corners
-            .iter()
-            .map(|point| point.x)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let min_y = corners
-            .iter()
-            .map(|point| point.y)
-            .fold(f64::INFINITY, f64::min);
-        let max_y = corners
-            .iter()
-            .map(|point| point.y)
-            .fold(f64::NEG_INFINITY, f64::max);
-        definition.courtyard = if max_x - min_x < 0.01 || max_y - min_y < 0.01 {
-            vec![]
-        } else {
-            vec![
-                Vec2 { x: min_x, y: min_y },
-                Vec2 { x: max_x, y: min_y },
-                Vec2 { x: max_x, y: max_y },
-                Vec2 { x: min_x, y: max_y },
-            ]
-        };
-    }
-    definition
+    crate::generators::normalize_definition(definition)
 }
 
 fn mounting_hole_reference_suffix(reference: &str) -> Option<&str> {
@@ -679,7 +622,7 @@ mod tests {
             "envelopeSource":{"courtyard":"generated"},
             "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
             "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1",
-                "parameters":{"hole_drill":"7.6", "hole_size":"7.6"}}
+                "parameters":{"hole_drill":7.6, "hole_size":7.6}}
         })).unwrap();
         assert_eq!(definition, &expected_definition);
         assert!(projected.definitions.contains(&template));

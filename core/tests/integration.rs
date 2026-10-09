@@ -9,6 +9,8 @@
 mod boundary_parity;
 #[path = "case.rs"]
 mod case;
+#[path = "closure_generator_parameters.rs"]
+mod closure_generator_parameters;
 #[path = "contracts.rs"]
 mod contracts;
 #[path = "core.rs"]
