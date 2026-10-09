@@ -517,15 +517,16 @@ fn effective_case_inputs(
             board_id: scope.board_id.clone(),
         },
     };
-    let (effective, target_contours) =
+    let (effective, _target_contours) =
         boardstudio_core::mechanical::inputs::effective_document(document, &target)
             .map_err(CadJobError::Blocked)?;
 
     let mut effective_scene = scene.clone();
     if flipped {
-        // The scene transform and target-contour mirroring are not part of the
-        // document projection, so the host keeps them. Core returns the target
-        // board's mirrored contours for the scene to adopt.
+        // The scene transform and contour mirroring are not part of the document
+        // projection, so the host keeps them and mirrors the accepted scene's own
+        // target-board contours in place. Core's `effective_document` returns the
+        // same contours for its own resolver and clearance projection.
         let selected_parts = board
             .part_ids
             .iter()
@@ -536,12 +537,15 @@ fn effective_case_inputs(
                 transform.pose.rotation = -transform.pose.rotation;
             }
         }
-        if let Some(entry) = effective_scene
-            .board_contours
-            .iter_mut()
-            .find(|entry| entry.board_id == scope.board_id)
-        {
-            entry.contours = target_contours;
+        for board_contours in &mut effective_scene.board_contours {
+            if board_contours.board_id == scope.board_id {
+                for contour in &mut board_contours.contours {
+                    for point in &mut contour.points {
+                        point.x = -point.x;
+                    }
+                    contour.points.reverse();
+                }
+            }
         }
     }
     Ok((effective, effective_scene))
