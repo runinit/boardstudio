@@ -98,6 +98,56 @@ class CheckTests(unittest.TestCase):
         self.assertIn("(2.0s)", text)
         self.assertIn("check: step times: repo 5.0s, total 5.0s", text)
 
+    def test_browser_checks_build_test_wasm_without_debug_info_unless_overridden(self):
+        probe = [sys.executable, "-c",
+                 "import os, sys; sys.exit(0 if os.environ.get('CARGO_PROFILE_DEV_DEBUG') == sys.argv[1] else 17)"]
+        with mock.patch.dict(os.environ), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [[*probe, "false"]]),
+                                              "tooling": (True, [[*probe, "<unset>"]])}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            os.environ.pop("CARGO_PROFILE_DEV_DEBUG", None)
+            self.assertEqual(check.run(["browser"]), 0)
+            # Other steps, and the caller's own environment, keep the normal profile.
+            self.assertEqual(check.run(["tooling"]), 1)
+            self.assertNotIn("CARGO_PROFILE_DEV_DEBUG", os.environ)
+
+    def test_crate_launches_run_together_and_a_failure_names_the_launch(self):
+        launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
+                    for name in ("keymap", "layout", "case")]
+        serial = [sys.executable, "-c", "pass"]
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            code = 1 if "web/crates/case" in command else 0
+            return mock.Mock(returncode=code, stdout="output\n")
+
+        error = io.StringIO()
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_BROWSER_JOBS": "3"}), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [serial, *launches, serial])}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+            self.assertEqual(check.run(["browser"]), 1)
+        self.assertIn("launch failed: wasm-pack test --headless --chrome web/crates/case", error.getvalue())
+        self.assertEqual(seen[0], serial)
+        self.assertEqual(len(seen), 4, "the trailing serial command does not run after a failed batch")
+        self.assertEqual(check.launch_order(launches[1]), 0, "heavy crates start first")
+        self.assertEqual(check.launch_order(launches[0]), 1)
+
+    def test_the_browser_job_cap_defaults_to_four_and_one_means_serial(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("BOARDSTUDIO_CHECK_BROWSER_JOBS", None)
+            self.assertEqual(check.browser_jobs(), 4)
+            os.environ["BOARDSTUDIO_CHECK_BROWSER_JOBS"] = "junk"
+            self.assertEqual(check.browser_jobs(), 4)
+            os.environ["BOARDSTUDIO_CHECK_BROWSER_JOBS"] = "0"
+            self.assertEqual(check.browser_jobs(), 1)
+
+    def test_build_is_fast_and_release_is_opt_in(self):
+        self.assertIn("--fast", check.STEPS["build"][1][0])
+        self.assertNotIn("--fast", check.STEPS["release"][1][0])
+        self.assertNotIn("release", check.DEFAULT)
+
 
 if __name__ == "__main__":
     unittest.main()

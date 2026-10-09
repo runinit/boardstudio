@@ -36,9 +36,12 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
 
-def provider_commands() -> list[tuple[list[str], Path]]:
-    """Commands required to create assets consumed by the Dioxus application."""
-    return [
+def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
+    """Commands required to create assets consumed by the Dioxus application.
+
+    `fast` skips wasm-opt for the checked builds; the shipped build keeps it.
+    """
+    commands = [
         (["wasm-pack", "build", str(WEB), "--target", "web", "--out-name", "m1_core_worker",
           "--out-dir", str(WEB / "target/providers/core-worker"), "--release", "--locked",
           "--no-default-features", "--features", "core-worker"], ROOT),
@@ -58,6 +61,11 @@ def provider_commands() -> list[tuple[list[str], Path]]:
           "ergogen/library/vendor", "--destination", "web/assets/ergogen-models",
           "--manifest", "web/target/providers/ergogen-models.json"], ROOT),
     ]
+    if fast:
+        for command, _ in commands:
+            if command[:2] == ["wasm-pack", "build"]:
+                command.insert(command.index("--locked"), "--no-opt")
+    return commands
 
 
 def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
@@ -147,11 +155,11 @@ def embed_offline_worker(site: Path, worker_dir: Path = OFFLINE_WORKER) -> None:
 
 
 def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
-          routes: tuple[str, ...] = DEFAULT_ROUTES) -> Path:
+          routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False) -> Path:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     if prepare_providers:
-        prepare_runtime_providers()
+        prepare_runtime_providers(fast)
     public = dx_public(release)
 
     for route in routes:
@@ -176,8 +184,8 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
     return output
 
 
-def prepare_runtime_providers() -> None:
-    for command, cwd in provider_commands():
+def prepare_runtime_providers(fast: bool = False) -> None:
+    for command, cwd in provider_commands(fast):
         run(command, cwd=cwd)
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
                  WEB / "assets/imported-modules.json")
@@ -189,6 +197,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=ROOT / "web/target/site",
                         help="directory for site-root and site-subpath builds")
     parser.add_argument("--debug", action="store_true", help="build Dioxus without release optimization")
+    parser.add_argument("--fast", action="store_true",
+                        help="checked build: no wasm-opt and an unoptimized Dioxus build; "
+                             "the default keeps the shipped, optimized build")
     parser.add_argument("--skip-providers", action="store_true",
                         help="reuse already generated provider files in the working tree")
     parser.add_argument("--routes", default=",".join(DEFAULT_ROUTES),
@@ -203,10 +214,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"--routes must name one or more of: {', '.join(ROUTES)}")
     try:
         if args.providers_only:
-            prepare_runtime_providers()
+            prepare_runtime_providers(args.fast)
         else:
-            build(args.output, release=not args.debug, prepare_providers=not args.skip_providers,
-                  routes=routes)
+            build(args.output, release=not (args.debug or args.fast),
+                  prepare_providers=not args.skip_providers, routes=routes, fast=args.fast)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build-web: {error}", file=sys.stderr)
         return error.returncode if isinstance(error, subprocess.CalledProcessError) else 1
