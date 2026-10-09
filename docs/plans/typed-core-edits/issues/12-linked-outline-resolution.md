@@ -81,4 +81,12 @@ surface only when selected; linked alternatives add one feature-geometry pass pe
 `outlines` call (unmeasured); the pre-existing duplicate-findings pattern is unchanged. The
 `ApplyOutlineEdit` handoff for ticket 13 (creation seeding, version-local settings authority,
 identity namespacing, retirement, freeze, finding-id contract) is recorded above and in the
-report `/tmp/tce-outline-reports/12-linked-resolution.md`.
+tests in `core/tests/outline_linked_resolution.rs` (the scratch report was not retained).
+
+Amended at the outline phase's close: cleanup originally ran only in `RemoveParts`. The
+Spec review found matrix key deletion detached linked choices to world points and other
+removal paths left dangling anchors; Core now prunes linked choices on every part removal
+inside the same accepted edit (`prune_removed_components`, and in matrix deletion's
+`remap_parts`), pinned by matrix-key-delete and remove-matrix tests. The "last valid"
+display is the version's persisted projection from creation or the last prune, not a
+re-persisted last successful resolve; a failed resolution can show that earlier shape.

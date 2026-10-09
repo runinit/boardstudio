@@ -61,8 +61,11 @@ commits `5b746939b`, `d652449ea`, `bf8cb72fa`, the approved `--no-ff` import of 
 captured seed, target-specific `reviewed` source shape, adapter-supplied bridge width)
 through `outline/adapter.rs` (`outline_edit`, `admission`, `settle`); Core's
 `evaluate` decides Submit/Unchanged/Retire/Err, retirement stays explained for Core
-`Retire` per ADR-0005's amendment, and no adapter re-derives identity, validation or
-retirement rules. Generate creates the Generated envelope through the typed
+`Retire` per ADR-0005's amendment, and no adapter re-derives validation or retirement
+rules. Identity is the exception: Copy, Refine and connection creation still pick their
+version or connection id and the default "Edited outline N" name in the adapter (Core
+validates them and refuses collisions and retired ids). Moving that allocation into Core
+is an accepted deviation recorded at 15. Generate creates the Generated envelope through the typed
 `CreateGenerated` change — `web/crates/layout/src/outline*` has zero `ReplaceDocument`
 consumers. Ownership is presented distinctly (Generated / Linked refinement / Edited
 outline from Core's persisted `OutlineOwnership`), with the linked refinement's located
@@ -90,10 +93,21 @@ Copy click (covered mounted plus one live linked-context click), and the
 material-bridge-with-authored-connection gesture (no bundled demo has an authored
 connection; Core-level bridge coverage stands).
 
+Second review round (phase Spec/Standards reviews, after the full check at `471e3dc11`):
+a linked refinement's margin, bridge width, automatic cleanup and maximum gap span were
+Generated-only in the adapter and inspector, against the Answer that a refinement's settings
+stay editable. They now edit the active linked version (the margin reads the refinement's own
+envelope); a fixed edited copy has no envelope and offers none. Protecting a gap now carries
+the reviewed source shape, so a queued source change retires it instead of saving stale gap
+points. Pinned by `envelope_settings_follow_the_active_linked_version_and_refuse_a_fixed_copy`
+(native) and `mounted_linked_refinement_edits_its_own_envelope_settings_and_a_fixed_copy_has_none`
+(mounted). The inspector's gap list and protected-gap removal stay Generated-only, because gap
+candidates come from the Generated envelope.
+
 Accepted residuals: the gap check/uncheck UI is covered natively (no mounted fixture
 scene produces repair candidates) and the check-direction alias narrowing is
 unobserved by web; operation-kind assertions are native + zero-ReplaceDocument
 counts; hover/focus Undo depth uses revision equality as proxy; parallel-workspace
 boundary_parity interference reproduces (isolated runs pass — a shared-target
-artifact, documented at 15). Reports:
-`/tmp/tce-outline-reports/14-outline-web-adapter.md`.
+artifact, documented at 15). The scratch reports were not retained; the native and mounted
+tests are the durable record.

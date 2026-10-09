@@ -95,5 +95,13 @@ path submits it); a queued edit on a fixed version retires on active-version/ent
 (a digest remains a 15 optimization); no matrix-transform fixture for version-target
 retirement (matrix moves settle as component moves, same rule); protected-gap equality is
 exact. The web adapter (14) owns `plan_action`/`action_resolver` replacement and the
-`reviewed`/bridge-width/default-name contract recorded in
-`/tmp/tce-outline-reports/13-core-outline-edits.md`.
+`reviewed`/bridge-width/default-name contract pinned by `core/tests/outline_edits.rs` (the
+local scratch report that detailed it was not retained).
+
+Accepted deviation, found by the phase's Spec review: only outline *version* identities are
+reserved after removal (`retired_version_ids`). Core-allocated feature, connection and
+protected-gap ids are reissued once no longer present, so a queued edit addressing a
+deleted-then-recreated feature, connection or gap id would reach the recreated entity.
+Contour ids are version-namespaced and unaffected. Version-scoped edits retire when their
+version retires; fixing the remaining case needs per-kind reservations or namespaced ids and
+is deferred (backlog) until a product path can recreate an id.
