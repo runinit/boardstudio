@@ -286,6 +286,11 @@ pub enum MechanicalChange {
     UnlinkMirrorPair {
         instance_id: String,
     },
+    /// Removes one physical half from its explicit mechanical pair. The surviving
+    /// half keeps the geometry, construction and hardware it currently shows,
+    /// materialized locally, and the pair is cleared. The target must be the
+    /// removed half's instance; a board target is malformed.
+    RemovePhysicalInstance,
     /// Makes one linked feature local on one half without moving its visible
     /// geometry; the other half and every other feature keep their link.
     MakeFeatureLocal {
@@ -460,6 +465,16 @@ mod tests {
             let parsed: MechanicalChange = serde_json::from_value(value).unwrap();
             assert_eq!(parsed, change);
         }
+
+        // A unit change is the bare externally-tagged key, exactly like Enable.
+        assert_eq!(
+            serde_json::to_value(MechanicalChange::RemovePhysicalInstance).unwrap(),
+            json!("remove-physical-instance")
+        );
+        assert_eq!(
+            serde_json::from_value::<MechanicalChange>(json!("remove-physical-instance")).unwrap(),
+            MechanicalChange::RemovePhysicalInstance
+        );
     }
 
     #[test]

@@ -120,6 +120,9 @@ fn apply_staged(
         }
         MechanicalChange::LinkMirrorPair { .. } => link_mirror_pair(doc, &board_id, edit),
         MechanicalChange::UnlinkMirrorPair { .. } => unlink_mirror_pair(doc, &board_id, edit),
+        MechanicalChange::RemovePhysicalInstance => {
+            remove_physical_instance(doc, board_contours, edit)
+        }
         MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
@@ -173,11 +176,12 @@ pub fn requires_projection(change: &MechanicalChange) -> bool {
         | MechanicalChange::UpdateProfile(_)
         | MechanicalChange::RemoveProfile { .. }
         | MechanicalChange::SetSwitchFamily { .. } => true,
-        // Linking, unlinking and the feature lifecycle rewrite each half's
-        // ordinary mounts/openings/supports, so generated closure clearance can
-        // change shape even though no settings field was edited.
+        // Linking, unlinking, member removal and the feature lifecycle rewrite each
+        // half's ordinary mounts/openings/supports, so generated closure clearance
+        // can change shape even though no settings field was edited.
         MechanicalChange::LinkMirrorPair { .. }
         | MechanicalChange::UnlinkMirrorPair { .. }
+        | MechanicalChange::RemovePhysicalInstance
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => true,
@@ -957,6 +961,197 @@ fn link_mirror_pair(
     Ok(changed)
 }
 
+/// Removes one physical half from its pair, preserving the survivor's visible model.
+///
+/// The target must name the removed half. The survivor's accepted effective model -
+/// its pair-derived geometry, shared construction and hardware-specific values - is
+/// materialized into its own configuration first, so nothing it showed is lost, and
+/// then the pair is cleared and the member removed with its references. Generated
+/// closure holes and memberships refresh in the same atomic edit.
+fn remove_physical_instance(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+) -> Result<Vec<String>, String> {
+    let MechanicalTarget::Instance { instance_id } = &edit.target else {
+        return Err(
+            "Removing a physical instance needs a physical-instance target; a board target is malformed."
+                .into(),
+        );
+    };
+    if let Some(template) = edit.mounting_hole.as_deref() {
+        validate_mounting_hole(template)?;
+    }
+    let (pair_index, survivor_id) = pair_membership(doc, instance_id)?;
+    // The survivor's visible model is read from the accepted state before the pair is
+    // cleared, so materializing it cannot lose pair-derived geometry or construction.
+    let survivor = effective_inputs(
+        doc,
+        board_contours,
+        &MechanicalTarget::Instance {
+            instance_id: survivor_id.clone(),
+        },
+    )?;
+    let pair_id = doc.hardware.as_ref().unwrap().pairs[pair_index].id.clone();
+    {
+        let hardware = doc
+            .hardware
+            .as_mut()
+            .ok_or("Physical instances are unavailable")?;
+        hardware.pairs.remove(pair_index);
+        let entry = hardware
+            .instances
+            .iter_mut()
+            .find(|instance| instance.id == survivor_id)
+            .ok_or("The surviving physical instance is unavailable")?;
+        entry.mechanical = Some(survivor.configuration);
+        entry.construction_ownership = MechanicalConstructionOwnership::Local;
+        hardware
+            .instances
+            .retain(|instance| instance.id != *instance_id);
+    }
+    if doc.physical_instance_id.as_deref() == Some(instance_id.as_str()) {
+        doc.physical_instance_id = None;
+    }
+    let mut changed = vec![pair_id, survivor_id, instance_id.clone()];
+    project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
+    dedup_changed(&mut changed);
+    Ok(changed)
+}
+
+/// The pair that owns `instance_id`, as its index and the other member's id.
+fn pair_membership(doc: &ProjectDoc, instance_id: &str) -> Result<(usize, String), String> {
+    let hardware = doc
+        .hardware
+        .as_ref()
+        .ok_or("Physical instances are unavailable")?;
+    let Some(index) = hardware
+        .pairs
+        .iter()
+        .position(|pair| pair.members.iter().any(|member| member == instance_id))
+    else {
+        return Err(format!(
+            "Physical instance {instance_id:?} is not part of a mechanical pair."
+        ));
+    };
+    let survivor = hardware.pairs[index]
+        .members
+        .iter()
+        .find(|member| *member != instance_id)
+        .cloned()
+        .ok_or("The mechanical pair has no other member.")?;
+    Ok((index, survivor))
+}
+
+/// Repairs mechanical pair ownership after a wholesale topology replacement.
+///
+/// A replacement document can add or remove physical instances without going through
+/// the typed pair operations. Any pair whose member is gone is dropped, and its
+/// survivor keeps the model it showed before the replacement by materializing that
+/// accepted effective configuration locally. An instance still marked pair-owned
+/// without a pair becomes local, so a topology change can never leave dangling
+/// ownership or lose visible geometry. The remaining pairs are validated.
+pub(crate) fn reconcile_physical_topology(
+    doc: &mut ProjectDoc,
+    before: &ProjectDoc,
+) -> Result<Vec<String>, String> {
+    let Some(hardware) = doc.hardware.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let live: std::collections::BTreeSet<String> = hardware
+        .instances
+        .iter()
+        .map(|instance| instance.id.clone())
+        .collect();
+    let dangling: Vec<usize> = hardware
+        .pairs
+        .iter()
+        .enumerate()
+        .filter(|(_, pair)| {
+            pair.members
+                .iter()
+                .any(|member| !live.contains(member.as_str()))
+        })
+        .map(|(index, _)| index)
+        .collect();
+    let mut changed = Vec::new();
+    for index in dangling.into_iter().rev() {
+        let pair = doc.hardware.as_ref().unwrap().pairs[index].clone();
+        doc.hardware.as_mut().unwrap().pairs.remove(index);
+        changed.push(pair.id.clone());
+        let survivor = pair
+            .members
+            .iter()
+            .find(|member| live.contains(member.as_str()))
+            .cloned();
+        if let Some(survivor_id) = survivor {
+            materialize_survivor(doc, before, &survivor_id)?;
+            changed.push(survivor_id);
+        }
+    }
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    let paired: std::collections::BTreeSet<String> = hardware
+        .pairs
+        .iter()
+        .flat_map(|pair| pair.members.iter().cloned())
+        .collect();
+    let orphans: Vec<String> = hardware
+        .instances
+        .iter()
+        .filter(|instance| {
+            instance.construction_ownership == MechanicalConstructionOwnership::Pair
+                && !paired.contains(&instance.id)
+        })
+        .map(|instance| instance.id.clone())
+        .collect();
+    for instance_id in orphans {
+        materialize_survivor(doc, before, &instance_id)?;
+        changed.push(instance_id);
+    }
+    // A replacement must not introduce an inconsistent pair either.
+    features::validate(doc)?;
+    Ok(changed)
+}
+
+/// Writes an instance's accepted effective model into its own configuration.
+///
+/// Used when pair ownership ends without the typed lifecycle, so the half keeps the
+/// geometry and construction it currently shows and becomes locally owned.
+fn materialize_survivor(
+    doc: &mut ProjectDoc,
+    before: &ProjectDoc,
+    instance_id: &str,
+) -> Result<(), String> {
+    let materialized = effective_inputs(
+        before,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: instance_id.to_string(),
+        },
+    )
+    .ok()
+    .map(|inputs| inputs.configuration);
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    let Some(instance) = hardware
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == instance_id)
+    else {
+        return Ok(());
+    };
+    if let Some(configuration) = materialized {
+        instance.mechanical = Some(configuration);
+    }
+    instance.construction_ownership = MechanicalConstructionOwnership::Local;
+    Ok(())
+}
+
 /// Dissolves the mechanical pair that owns `instance_id`.
 ///
 /// Before the pair is removed each member's effective configuration (including
@@ -1595,6 +1790,7 @@ fn apply_change(
         | MechanicalChange::InitializeClosures
         | MechanicalChange::LinkMirrorPair { .. }
         | MechanicalChange::UnlinkMirrorPair { .. }
+        | MechanicalChange::RemovePhysicalInstance
         | MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => {

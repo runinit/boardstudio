@@ -997,3 +997,170 @@ fn a_reviewed_link_rejects_an_unknown_source_half() {
     assert!(error.contains("source"), "{error}");
     assert_eq!(document, before, "a rejected source mutates nothing");
 }
+
+fn remove_member(document: &mut ProjectDoc, instance_id: &str) -> Result<Vec<String>, String> {
+    boardstudio_core::mechanical::edit::apply(
+        document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target(instance_id),
+            change: MechanicalChange::RemovePhysicalInstance,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+}
+
+#[test]
+fn removing_a_paired_member_materializes_the_survivor_and_clears_the_pair() {
+    use boardstudio_core::mechanical::{MechanicalInputs, effective_inputs};
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+    let before: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    let survivor_geometry = mount_at(&before.configuration, "mount-1");
+
+    let changed = remove_member(&mut document, "right").unwrap();
+
+    let hardware = document.hardware.as_ref().unwrap();
+    assert_eq!(hardware.instances.len(), 1, "the removed half is gone");
+    assert_eq!(hardware.instances[0].id, "left");
+    assert!(hardware.pairs.is_empty(), "the pair is cleared");
+    let survivor = &hardware.instances[0];
+    assert_eq!(
+        survivor.construction_ownership,
+        MechanicalConstructionOwnership::Local,
+        "the survivor owns its materialized construction locally"
+    );
+    assert_eq!(
+        mount_at(survivor.mechanical.as_ref().unwrap(), "mount-1"),
+        survivor_geometry,
+        "the survivor keeps the geometry it showed"
+    );
+    assert_eq!(
+        survivor.mechanical.as_ref().unwrap().plate_thickness,
+        before.configuration.plate_thickness
+    );
+    for id in ["pair-left-right", "left", "right"] {
+        assert!(changed.contains(&id.to_string()), "{id} in {changed:?}");
+    }
+
+    // The survivor's effective read still shows the same geometry.
+    let after: MechanicalInputs =
+        effective_inputs(&document, &[], &instance_target("left")).unwrap();
+    assert_eq!(mount_at(&after.configuration, "mount-1"), survivor_geometry);
+}
+
+#[test]
+fn removing_a_physical_instance_requires_a_paired_instance_target() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let mut document = pair_document();
+    let before = document.clone();
+
+    // A board target cannot identify a physical member to remove.
+    let error = apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: board_target(),
+            change: MechanicalChange::RemovePhysicalInstance,
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap_err();
+    assert!(error.contains("physical-instance target"), "{error}");
+    assert_eq!(document, before, "a malformed target mutates nothing");
+
+    // An unpaired instance is a plain topology change, not a pair removal.
+    let error = remove_member(&mut document, "left").unwrap_err();
+    assert!(error.contains("not part of"), "{error}");
+    assert_eq!(document, before, "an ineligible member mutates nothing");
+}
+
+#[test]
+fn the_evaluator_retires_an_edit_that_targets_a_removed_member() {
+    let mut document = pair_document();
+    link_pair(&mut document);
+    remove_member(&mut document, "right").unwrap();
+
+    let disposition = evaluate_edit(
+        &document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::SetDimension {
+                field: MechanicalDimension::WallThickness,
+                value: 4.0,
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap();
+    assert_eq!(disposition, MechanicalEditDisposition::Retire);
+}
+
+#[test]
+fn a_topology_replacement_never_leaves_a_dangling_pair() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+
+    let mut document = pair_document();
+    link_pair(&mut document);
+
+    let mut engine = CoreEngine::new();
+    let accepted = match engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document,
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    };
+
+    // The incoming document drops the right half but still lists the pair.
+    let mut replacement = accepted.clone();
+    replacement
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .retain(|instance| instance.id != "right");
+    assert_eq!(
+        replacement.hardware.as_ref().unwrap().pairs.len(),
+        1,
+        "the incoming document still lists the pair"
+    );
+
+    let replaced = match engine.handle(CoreRequest::Edit {
+        id: "replace".into(),
+        command: EditCommand {
+            base_revision: accepted.revision,
+            transaction_id: "replace".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(replacement),
+            },
+        },
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    };
+
+    let hardware = replaced.hardware.as_ref().unwrap();
+    assert_eq!(hardware.instances.len(), 1);
+    assert!(
+        hardware.pairs.is_empty(),
+        "a pair whose member is gone cannot survive the replacement"
+    );
+    let survivor = &hardware.instances[0];
+    assert_eq!(
+        survivor.construction_ownership,
+        MechanicalConstructionOwnership::Local
+    );
+    assert_eq!(
+        mount_at(survivor.mechanical.as_ref().unwrap(), "mount-1"),
+        Vec2 { x: 2.0, y: 3.0 },
+        "the survivor keeps the geometry it showed"
+    );
+}

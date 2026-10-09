@@ -1565,11 +1565,21 @@ fn apply(
             if document.format_version != migrate::CURRENT_VERSION {
                 return Err("Document must be migrated before it replaces the open one".into());
             }
-            let changed = changed_ids(doc, document);
+            let accepted = doc.clone();
+            let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();
             script::apply_scripts(&mut prepared)?;
             layout::resolve(&mut prepared)?;
             *doc = prepared;
+            // A wholesale replacement can add or remove a physical member without the
+            // typed pair operations. Reconcile ownership against the accepted state so
+            // the replacement can never leave a dangling pair or lose the survivor's
+            // visible geometry and construction.
+            changed.extend(crate::mechanical::edit::reconcile_physical_topology(
+                doc, &accepted,
+            )?);
+            changed.sort();
+            changed.dedup();
             Ok(changed)
         }
     }
