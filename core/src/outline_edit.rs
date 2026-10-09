@@ -106,6 +106,13 @@ pub enum OutlineChange {
     RemoveConnection {
         connection_id: String,
     },
+    /// Creates the board's Generated envelope and registers its board membership in one
+    /// accepted edit (the permanent outline a board without one gains from Generate).
+    CreateGenerated {
+        margin: f64,
+        settings: OutlineSettings,
+        part_ids: Vec<String>,
+    },
     /// Creates a linked refinement from the board's current generated projections.
     CreateLinkedRefinement {
         version_id: String,
@@ -593,6 +600,11 @@ fn apply_staged(doc: &mut ProjectDoc, edit: &OutlineEdit) -> Result<Vec<String>,
         OutlineChange::RemoveConnection { connection_id } => {
             remove_connection(doc, &edit.target, connection_id)
         }
+        OutlineChange::CreateGenerated {
+            margin,
+            settings,
+            part_ids,
+        } => create_generated(doc, edit, *margin, settings, part_ids),
         OutlineChange::CreateLinkedRefinement { version_id, name } => {
             create_linked_refinement(doc, &board_id, version_id, name)
         }
@@ -813,6 +825,28 @@ fn gap_is_accepted(gaps: &[ProtectedOutlineGap], gap: &ProtectedOutlineGap) -> b
     gaps.iter().any(|accepted| accepted == gap)
 }
 
+/// The authored keep-gap identities that protect one derived gap region.
+///
+/// A derived gap candidate is protected by its own id and by every authored keep gap
+/// whose region protects it (`OutlineGap::protected_ids`). After the geometry moves, an
+/// authored gap's id can stop matching the candidate it protects, so removal clears the
+/// protection by the candidate's identity rather than one alias string.
+fn protecting_gap_ids(doc: &ProjectDoc, board_id: &str, gap_id: &str) -> Option<Vec<String>> {
+    let (cache, _, _) = geometry::outlines(doc, None, &[]);
+    let scenes = geometry::board_outline_scenes(doc, &cache);
+    let gap = scenes
+        .iter()
+        .find(|scene| scene.board_id == board_id)?
+        .gaps
+        .iter()
+        .find(|gap| gap.id == gap_id)?;
+    let mut ids = vec![gap.id.clone()];
+    ids.extend(gap.protected_ids.iter().cloned());
+    ids.sort();
+    ids.dedup();
+    Some(ids)
+}
+
 fn remove_protected_gap(
     doc: &mut ProjectDoc,
     edit: &OutlineEdit,
@@ -822,23 +856,34 @@ fn remove_protected_gap(
     let owner = match &target {
         OutlineEditTarget::Board { board_id } => {
             let board_id = board_id.clone();
+            // A submitted id may be a derived gap candidate; removing that gap clears
+            // the protection its identity carries, including every alias protecting it.
+            let mut targets = protecting_gap_ids(doc, &board_id, gap_id).unwrap_or_default();
+            if !targets.iter().any(|id| id == gap_id) {
+                targets.push(gap_id.to_owned());
+            }
             let feature = generated_feature_mut(doc, &board_id)?;
             let OutlineFeature::PartEnvelope { settings, id, .. } = feature else {
                 return Err(format!("Board {board_id} has no generated envelope"));
             };
-            let removed = settings
-                .repair
-                .as_mut()
-                .map(|repair| {
-                    let before = repair.keep_gaps.len();
-                    repair.keep_gaps.retain(|gap| gap.id != gap_id);
-                    before != repair.keep_gaps.len()
-                })
-                .unwrap_or(false);
-            if !removed {
+            let removed: Vec<String> = match settings.repair.as_mut() {
+                Some(repair) => {
+                    let before: Vec<String> =
+                        repair.keep_gaps.iter().map(|gap| gap.id.clone()).collect();
+                    repair.keep_gaps.retain(|gap| !targets.contains(&gap.id));
+                    before
+                        .into_iter()
+                        .filter(|id| !repair.keep_gaps.iter().any(|gap| &gap.id == id))
+                        .collect()
+                }
+                None => vec![],
+            };
+            if removed.is_empty() {
                 return Ok(vec![]);
             }
-            (board_id, vec![id.clone()])
+            let mut changed = vec![board_id.clone(), id.clone()];
+            changed.extend(removed);
+            return Ok(changed);
         }
         OutlineEditTarget::Version {
             board_id,
@@ -1081,6 +1126,85 @@ fn remove_connection(
         return Ok(vec![]);
     }
     Ok(vec![board_id.clone(), id.clone(), connection_id.to_owned()])
+}
+
+/// Creates the board's Generated envelope and its board membership in one accepted edit.
+///
+/// The payload mirrors what the presentation Generate control authors today: the
+/// envelope margin, its settings and the included part list, with an empty connection
+/// list and an additive operation. Core derives the envelope identity from the captured
+/// creation seed (`board:{board}:automatic:outline:{seed}`, the seed being the adapter's
+/// operation id) and registers `board.outline_ids` membership itself, so one accepted
+/// edit and one Undo own both. A board that already has a Generated envelope - or a
+/// re-submission carrying the same captured seed - settles Unchanged, exactly as the
+/// previous landing path's guards did.
+fn create_generated(
+    doc: &mut ProjectDoc,
+    edit: &OutlineEdit,
+    margin: f64,
+    settings: &OutlineSettings,
+    part_ids: &[String],
+) -> Result<Vec<String>, String> {
+    let OutlineEditTarget::Board { board_id } = &edit.target else {
+        return Err("The generated outline belongs to the board".into());
+    };
+    let board_id = board_id.clone();
+    if !margin.is_finite() {
+        return Err("The generated outline margin must be a finite number".into());
+    }
+    if !settings.size.is_finite() || !settings.bridge_width.is_finite() {
+        return Err("The generated outline settings must be finite numbers".into());
+    }
+    if let Some(repair) = &settings.repair
+        && !(repair.maximum_gap_span.is_finite()
+            && repair.minimum_connection_width.is_finite()
+            && repair.edge_clearance.is_finite())
+    {
+        return Err("The generated outline repair settings must be finite numbers".into());
+    }
+    let membership = doc
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .map(|board| board.part_ids.clone())
+        .ok_or_else(|| format!("Unknown board {board_id}"))?;
+    for id in part_ids {
+        if !doc.parts.iter().any(|part| &part.id == id) {
+            return Err(format!("Unknown part {id}"));
+        }
+        if !membership.iter().any(|member| member == id) {
+            return Err(format!("Part {id} is not on board {board_id}"));
+        }
+    }
+    // No second Generated envelope exists: an existing one settles Unchanged.
+    if membership.iter().any(|id| {
+        doc.outline.iter().any(|feature| {
+            feature.id() == id && matches!(feature, OutlineFeature::PartEnvelope { .. })
+        })
+    }) {
+        return Ok(vec![]);
+    }
+    let feature_id = format!("board:{board_id}:automatic:outline:{}", edit.seed);
+    // The same captured seed is the same creation intent, so an already-authored
+    // identity settles Unchanged rather than colliding.
+    if persisted_identities(doc).iter().any(|id| id == &feature_id) {
+        return Ok(vec![]);
+    }
+    doc.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
+        settings: settings.clone(),
+        id: feature_id.clone(),
+        part_ids: part_ids.to_vec(),
+        margin,
+        operation: Operation::Add,
+    });
+    let board = doc
+        .boards
+        .iter_mut()
+        .find(|board| board.id == board_id)
+        .ok_or_else(|| format!("Unknown board {board_id}"))?;
+    board.outline_ids.push(feature_id.clone());
+    Ok(vec![board_id, feature_id])
 }
 
 fn default_version_name(doc: &ProjectDoc, board_id: &str) -> String {
@@ -1471,6 +1595,42 @@ fn delete(doc: &mut ProjectDoc, target: &OutlineEditTarget) -> Result<Vec<String
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_create_generated_change_round_trips_through_its_wire_shape() {
+        let operation = EditOperation::ApplyOutlineEdit {
+            edit: Box::new(OutlineEdit {
+                target: OutlineEditTarget::Board {
+                    board_id: "board".into(),
+                },
+                change: OutlineChange::CreateGenerated {
+                    margin: 4.0,
+                    settings: OutlineSettings {
+                        corners: CornerStyle::Fillet,
+                        size: 2.0,
+                        bridge_width: 10.0,
+                        repair: None,
+                    },
+                    part_ids: vec!["a".into(), "b".into()],
+                },
+                seed: 91,
+                reviewed: None,
+            }),
+        };
+        let value = serde_json::to_value(&operation).unwrap();
+        assert_eq!(value["kind"], "apply-outline-edit");
+        let change = &value["edit"]["change"]["create-generated"];
+        // Struct-variant fields stay snake_case; the settings struct is camelCase and
+        // an absent repair block is omitted.
+        assert_eq!(change["margin"], json!(4.0));
+        assert_eq!(change["part_ids"], json!(["a", "b"]));
+        assert_eq!(change["settings"]["corners"], "fillet");
+        assert_eq!(change["settings"]["size"], json!(2.0));
+        assert_eq!(change["settings"]["bridgeWidth"], json!(10.0));
+        assert!(change["settings"].get("repair").is_none());
+        let parsed: EditOperation = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, operation);
+    }
 
     #[test]
     fn an_outline_edit_round_trips_through_its_wire_shape() {
