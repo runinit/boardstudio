@@ -1,5 +1,11 @@
 # Full handoff: typed Core edits — finish the outline phase, then the remaining matrix work
 
+> **Superseded 2026-10-09.** The outline phase is closed at `ecac36129`: both lane branches
+> are merged, the full check passed at `77b9548b8`, the Standards and Spec reviews are
+> dispositioned and ticket 15 is resolved (see its Outcome and `map.md`). Only §6 (environment
+> constraints) and the follow-up efforts in §4 step 5 (matrix 04-11, keyboard 04) still apply.
+> `CARGO_BUILD_JOBS=2` no longer applies; `.cargo/config.toml` sets 12 jobs.
+
 Written 2026-10-09 for a fresh agent (Claude). Self-contained: everything below is
 verifiable from the repository; do not rely on any prior conversation. Verify each
 claimed state with the given commands before acting — states can drift.
