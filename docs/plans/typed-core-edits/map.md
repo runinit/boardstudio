@@ -65,8 +65,6 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
-- 32 optional source/mirror labels apply atomically with creation in both modes; located validation, one-step Undo/Redo, unchanged defaults, and only ticket 26's six relabelling differences removed: [Outcome](issues/32-mirrored-half-labels.md#outcome).
-
 - 24 test audit, phase 1 (proposal only, waiting for the user): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
   the time sits in two debug fixture builds and fixed wasm sleeps rather than in the number of tests, so the audit
   proposes a short deletion/merge list plus speed-only changes: [Audit](audit/test-audit.md),
