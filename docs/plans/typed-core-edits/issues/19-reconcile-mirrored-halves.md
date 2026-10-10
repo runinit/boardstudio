@@ -43,6 +43,15 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
 
 ## Contracts from other tickets
 
-- Companion placement mode and tweak per item ([31](31-companion-placement-modes.md)): reconciliation re-derives each companion by its stored mode
-  and keeps its tweak.
+- Companion placement mode and tweak per item ([31](31-companion-placement-modes.md)): use
+  `halves.companionMode` (absent means `literal-mirror`) unless the correspondence/exception supplies
+  `companionMode`. Modes are `literal-mirror`, `duplicate-position`, `literal-mirror-with-tweak`.
+  `companionTweak: {x, y, rotation}` is additive in the **mirrored switch's** local frame, in mm/degrees,
+  and is valid only with effective mode 3; absent means zero adjustment. Creation's optional
+  `companionTweak` seeds each matrix-assembly companion's correspondence, never a pair-wide tweak.
+  Keep each item's override and tweak through edits, reopen, Local/Omit/Rejoin, and correspondence
+  rebuilds. Reconciliation must use the stored settings, not reapply the creation default to every
+  item. Duplicate mode keeps the source's actual local offset and relative heading. The reflected
+  matrix assemblies and stored parts must agree. `reuse-board` copies no companions and refuses an
+  explicit creation tweak, which would have no item record to retain it.
 - Labels ([32](32-mirrored-half-labels.md)): reconciliation never rewrites instance labels.

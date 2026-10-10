@@ -24,11 +24,12 @@ use crate::mechanical::change::{
 use crate::mechanical::{self, MechanicalTarget, halves, inputs::effective_inputs, pair};
 use crate::model::{
     Board, BoardOutline, ElectricalBoardConfiguration, Finding, Layout, MechanicalConfiguration,
-    MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCorrespondence,
-    MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
-    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
-    OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
-    ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
+    MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCompanionMode,
+    MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfMode, MirroredHalves,
+    MirroredIdRule, MirroredItemKind, Net, OutlineBridge, OutlineConnection, OutlineControlPoint,
+    OutlineFeature, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion, Part,
+    PartDefinition, PhysicalBoardInstance, Pin, Pose2, ProjectDoc, ProtectedOutlineGap, Scope,
+    Severity, Vec2,
 };
 use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
@@ -43,9 +44,12 @@ struct Request<'a> {
     source_id: &'a str,
     mapping: Pose2,
     mounting_hole: Option<&'a PartDefinition>,
+    companion_mode: MirroredCompanionMode,
+    companion_tweak: Option<MirroredCompanionTweak>,
 }
 
 /// Creates the second half and returns the changed ids, sorted.
+#[allow(clippy::too_many_arguments)] // Mirrors the typed operation fields at its single dispatch site.
 pub(crate) fn create(
     doc: &mut ProjectDoc,
     pair_id: &str,
@@ -54,8 +58,11 @@ pub(crate) fn create(
     mapping: Pose2,
     id_rule: MirroredIdRule,
     mounting_hole: Option<&PartDefinition>,
+    companion_mode: MirroredCompanionMode,
+    companion_tweak: Option<MirroredCompanionTweak>,
 ) -> Result<Vec<String>, String> {
     let MirroredIdRule::BoardPrefix = id_rule;
+    halves::validate_companion(companion_mode, companion_tweak)?;
     if !(mapping.at.x.is_finite() && mapping.at.y.is_finite() && mapping.rotation.is_finite()) {
         return Err("The mirrored half's mapping must be finite.".into());
     }
@@ -64,6 +71,8 @@ pub(crate) fn create(
         source_id: source_instance_id,
         mapping,
         mounting_hole,
+        companion_mode,
+        companion_tweak,
     };
     let mut next = doc.clone();
     let mut changed = match mode {
@@ -590,6 +599,9 @@ fn reuse_board(
     request: &Request,
     instance_id: &str,
 ) -> Result<Vec<String>, String> {
+    if request.companion_tweak.is_some() {
+        return Err("reuse-board copies no companions; companionTweak requires new-board".into());
+    }
     let (source, configuration) = source_half(doc, request)?;
     if source.flipped {
         return Err(format!(
@@ -648,6 +660,7 @@ fn reuse_board(
         request,
         instance_id,
         MirroredHalves {
+            companion_mode: request.companion_mode,
             source_board_id: board.clone(),
             mirror_board_id: board,
             correspondences: vec![],
@@ -911,6 +924,8 @@ fn remap_wiring_key(text: &str, renames: &BTreeMap<String, String>) -> String {
 
 fn corresponds(kind: MirroredItemKind, source: &str, mirror: &str) -> MirroredCorrespondence {
     MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
         kind,
         source_id: source.to_owned(),
         mirror_id: mirror.to_owned(),
@@ -1095,6 +1110,16 @@ fn new_board(
         .iter()
         .flat_map(|matrix| matrix.part_ids.iter().map(String::as_str))
         .collect();
+    // Matrix assemblies are companions by relationship, including imported/plain LEDs without a generator.
+    let mut companion_ids = BTreeSet::new();
+    for matrix in &matrices {
+        for cell in &matrix.cells {
+            let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+            for assembly in &cell.assemblies {
+                companion_ids.insert(crate::matrix::companion_id(&key_id, &assembly.id));
+            }
+        }
+    }
     let layouts: Vec<_> = doc
         .layouts
         .iter()
@@ -1225,7 +1250,47 @@ fn new_board(
         template.board_id = Some(to.clone());
         template.cells.clear();
         template.part_ids.clear();
-        let reflected = layout::reflected(matrix, &template, mapping, true)?;
+        let mut reflected = layout::reflected(matrix, &template, mapping, true)?;
+        for cell in &mut reflected.cells {
+            if !cell.enabled || cell.deleted {
+                continue;
+            }
+            for assembly in &mut cell.assemblies {
+                match request.companion_mode {
+                    MirroredCompanionMode::LiteralMirror => {}
+                    MirroredCompanionMode::DuplicatePosition => {
+                        let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+                        let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
+                        let key = doc
+                            .parts
+                            .iter()
+                            .find(|part| part.id == key_id)
+                            .ok_or("A companion's source switch is unavailable")?;
+                        let companion = doc
+                            .parts
+                            .iter()
+                            .find(|part| part.id == companion_id)
+                            .ok_or("A source companion is unavailable")?;
+                        let (sin, cos) = key.pose.rotation.to_radians().sin_cos();
+                        let dx = companion.pose.at.x - key.pose.at.x;
+                        let dy = companion.pose.at.y - key.pose.at.y;
+                        assembly.offset = Vec2 {
+                            x: dx * cos + dy * sin,
+                            y: -dx * sin + dy * cos,
+                        };
+                        assembly.rotation = Some(companion.pose.rotation - key.pose.rotation);
+                    }
+                    MirroredCompanionMode::LiteralMirrorWithTweak => {
+                        if let Some(tweak) = request.companion_tweak {
+                            assembly.offset.x += tweak.x;
+                            assembly.offset.y += tweak.y;
+                            assembly.rotation =
+                                Some(assembly.rotation.unwrap_or(0.0) + tweak.rotation);
+                        }
+                    }
+                }
+            }
+        }
         crate::matrix::set_matrix(doc, &reflected)?;
         correspondences.push(corresponds(
             MirroredItemKind::Matrix,
@@ -1287,7 +1352,11 @@ fn new_board(
         .iter()
         .partition(|id| !circuits.owned.contains_key(id.as_str()));
     for id in own.into_iter().chain(members) {
-        correspondences.push(corresponds(MirroredItemKind::Part, id, &part_map[*id]));
+        let mut correspondence = corresponds(MirroredItemKind::Part, id, &part_map[*id]);
+        if companion_ids.contains(id.as_str()) {
+            correspondence.companion_tweak = request.companion_tweak;
+        }
+        correspondences.push(correspondence);
         if matrix_owned.contains(id.as_str()) {
             continue;
         }
@@ -1621,6 +1690,7 @@ fn new_board(
         request,
         instance_id,
         MirroredHalves {
+            companion_mode: request.companion_mode,
             source_board_id: from,
             mirror_board_id: to.clone(),
             correspondences: correspondences.clone(),
@@ -1905,6 +1975,8 @@ mod tests {
             },
             mapping,
             MirroredIdRule::BoardPrefix,
+            None,
+            MirroredCompanionMode::LiteralMirror,
             None,
         )
         .unwrap_err();

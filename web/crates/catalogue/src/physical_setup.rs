@@ -2407,6 +2407,8 @@ mod tests {
             operation: EditOperation::CreateMirroredHalf {
                 pair_id: "pair/right-new".into(),
                 source_instance_id: "left-new".into(),
+                companion_mode: Default::default(),
+                companion_tweak: None,
                 mode: MirroredHalfMode::ReuseBoard {
                     instance_id: "right-new".into(),
                 },
