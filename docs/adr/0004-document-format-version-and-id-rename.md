@@ -27,3 +27,9 @@ members, and removes empty or whitespace-only number and list text. Non-empty li
 `"[1,2,3]"` stays text, as it did in the old 1 to 2 step. The step is ordered like the others, so version 1 documents pass through it too, and
 the rewritten document is written back once. Names no generator declares and values that cannot
 be converted are kept for Core's validation to report.
+
+Format version 5 (mirrored halves, [ticket 17](../plans/typed-core-edits/issues/17-mirrored-half-schema-and-format-5.md),
+[ADR-0010](0010-mirrored-half-is-a-core-maintained-reflection.md)) adds optional `constructionSource`
+and `halves` to mechanical mirror pairs. The version 4 to 5 step changes only `formatVersion`, so
+no data is rewritten and a pair without the new fields stays unpaired. An older build refuses a
+version 5 document, so it cannot drop the record silently.

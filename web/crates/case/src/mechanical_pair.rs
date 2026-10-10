@@ -1002,6 +1002,8 @@ mod tests {
                 rotation: 0.0,
             },
             construction: features::shared_construction(&left),
+            construction_source: None,
+            halves: None,
             features: vec![
                 linked_feature(
                     "mount-1",
@@ -1720,6 +1722,8 @@ mod tests {
                 rotation: 0.0,
             },
             construction: features::shared_construction(&configuration("board")),
+            construction_source: None,
+            halves: None,
             features: vec![],
         }];
         assert!(

@@ -5,6 +5,7 @@ pub mod clearance;
 pub mod edit;
 pub mod features;
 mod gasket;
+pub mod halves;
 pub mod inputs;
 pub mod pair;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};

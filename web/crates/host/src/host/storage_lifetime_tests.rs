@@ -274,7 +274,7 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(loaded.format_version, 4);
+    assert_eq!(loaded.format_version, 5);
     let loaded_parameters = &loaded.definitions[0].generator.as_ref().unwrap().parameters;
     assert_eq!(loaded_parameters["hole_drill"], 6.6);
     assert_eq!(loaded_parameters["hole_size"], 6.6);
@@ -291,7 +291,7 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
             .unwrap()
             .unwrap(),
     );
-    assert_eq!(raw["formatVersion"], 4, "migration writes back immediately");
+    assert_eq!(raw["formatVersion"], 5, "migration writes back immediately");
     assert_eq!(
         raw["definitions"][0]["generator"]["parameters"]["hole_drill"],
         6.6
@@ -364,9 +364,9 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .await
         .unwrap();
     let listed = store.list_documents().await.unwrap();
-    assert_eq!(listed[0].format_version, 4);
+    assert_eq!(listed[0].format_version, 5);
     let loaded = store.load_document("legacy".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, 4);
+    assert_eq!(loaded.format_version, 5);
     assert_eq!(
         loaded.parts[0].definition_id,
         "generator:ceoloide/mounting_hole_npth"
@@ -386,7 +386,7 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .unwrap()
         .unwrap();
     let raw: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
-    assert_eq!(raw["formatVersion"], 4, "migration writes back immediately");
+    assert_eq!(raw["formatVersion"], 5, "migration writes back immediately");
     assert!(!raw.to_string().contains("ergogen"));
     assert_eq!(
         store.load_asset(hash).await.unwrap().unwrap().to_vec(),
@@ -792,4 +792,49 @@ async fn a_disabled_pairs_identity_reservation_survives_indexeddb() {
         .unwrap()
         .delete_database(&database_name)
         .unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn mirrored_halves_survive_browser_storage_at_format_five() {
+    let database_name = format!("boardstudio-idb-halves-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&database_name).unwrap();
+    let mut document = ProjectDoc::empty("halves", "Mirrored halves");
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "pairs": [{
+                "id": "pair", "members": ["left", "right"],
+                "mapping": { "at": { "x": 200.0, "y": 0.0 }, "rotation": 0.0 },
+                "construction": { "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.3, "plateFoamThickness": 2.0, "bottomFoamThickness": 2.0,
+                    "bottomThickness": 3.0, "plateToPcb": 2.2, "wallThickness": 2.0, "clearance": 0.3 },
+                "constructionSource": "left",
+                "halves": {
+                    "sourceBoardId": "left-board", "mirrorBoardId": "right-board",
+                    "correspondences": [{ "kind": "part", "sourceId": "l-key", "mirrorId": "r-key" }],
+                    "exceptions": [{ "kind": "part", "mirrorId": "r-extra", "state": "omitted" }]
+                }
+            }]
+        }))
+        .unwrap(),
+    );
+    store
+        .save_document(&document, &Default::default())
+        .await
+        .unwrap();
+
+    let loaded = store.load_document("halves".into()).await.unwrap().unwrap();
+    assert_eq!(loaded.format_version, 5);
+    assert_eq!(loaded.hardware, document.hardware);
+    let raw = serde_wasm_bindgen::from_value::<serde_json::Value>(
+        load_value(&database_name, PROJECT_STORE, "halves".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        raw["hardware"]["pairs"][0]["halves"]["sourceBoardId"],
+        "left-board"
+    );
+    assert_eq!(raw["hardware"]["pairs"][0]["constructionSource"], "left");
 }

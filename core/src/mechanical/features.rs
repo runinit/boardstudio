@@ -148,7 +148,7 @@ pub fn validate(document: &ProjectDoc) -> Result<(), String> {
         }
         validate_features(pair, hardware)?;
     }
-    Ok(())
+    super::halves::validate_document(document)
 }
 
 fn validate_features(
@@ -924,6 +924,8 @@ mod tests {
             members: [members[0].into(), members[1].into()],
             mapping,
             construction,
+            construction_source: None,
+            halves: None,
             features,
         }
     }

@@ -44,3 +44,73 @@ fn current_model_list_round_trips() {
         definition
     );
 }
+
+fn pair_value(extra: serde_json::Value) -> serde_json::Value {
+    let mut value = serde_json::json!({
+        "id": "pair", "members": ["left", "right"],
+        "mapping": { "at": { "x": 200.0, "y": 0.0 }, "rotation": 0.0 },
+        "construction": { "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+            "plateThickness": 1.3, "plateFoamThickness": 2.0, "bottomFoamThickness": 2.0,
+            "bottomThickness": 3.0, "plateToPcb": 2.2, "wallThickness": 2.0, "clearance": 0.3 },
+        "features": []
+    });
+    value
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    value
+}
+
+#[test]
+fn a_pair_without_a_source_or_halves_stays_unpaired() {
+    let pair: boardstudio_core::model::MechanicalMirrorPair =
+        serde_json::from_value(pair_value(serde_json::json!({}))).unwrap();
+    assert_eq!(pair.construction_source, None);
+    assert_eq!(pair.halves, None);
+    let encoded = serde_json::to_value(&pair).unwrap();
+    assert!(encoded.get("constructionSource").is_none());
+    assert!(encoded.get("halves").is_none());
+}
+
+#[test]
+fn mirrored_halves_round_trip_in_camel_case() {
+    let value = pair_value(serde_json::json!({
+        "constructionSource": "left",
+        "halves": {
+            "sourceBoardId": "left-board", "mirrorBoardId": "right-board",
+            "correspondences": [{ "kind": "part", "sourceId": "l-key", "mirrorId": "r-key" }],
+            "exceptions": [{ "kind": "part", "mirrorId": "r-extra", "state": "omitted" }]
+        }
+    }));
+    let pair: boardstudio_core::model::MechanicalMirrorPair =
+        serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(pair.construction_source.as_deref(), Some("left"));
+    let halves = pair.halves.as_ref().expect("halves decode");
+    assert_eq!(halves.source_board_id, "left-board");
+    assert_eq!(halves.mirror_board_id, "right-board");
+    assert_eq!(halves.correspondences.len(), 1);
+    assert_eq!(halves.exceptions.len(), 1);
+    let encoded = serde_json::to_value(&pair).unwrap();
+    assert_eq!(encoded["constructionSource"], value["constructionSource"]);
+    assert_eq!(encoded["halves"], value["halves"]);
+    let decoded: boardstudio_core::model::MechanicalMirrorPair =
+        serde_json::from_value(encoded).unwrap();
+    assert_eq!(decoded, pair);
+}
+
+#[test]
+fn unknown_mirrored_item_kinds_and_exception_states_are_refused() {
+    let kind = pair_value(serde_json::json!({
+        "halves": { "sourceBoardId": "a", "mirrorBoardId": "b",
+            "correspondences": [{ "kind": "switch", "sourceId": "x", "mirrorId": "y" }] }
+    }));
+    assert!(serde_json::from_value::<boardstudio_core::model::MechanicalMirrorPair>(kind).is_err());
+    // A linked state is the default, never an exception.
+    let state = pair_value(serde_json::json!({
+        "halves": { "sourceBoardId": "a", "mirrorBoardId": "b",
+            "exceptions": [{ "kind": "part", "mirrorId": "y", "state": "linked" }] }
+    }));
+    assert!(
+        serde_json::from_value::<boardstudio_core::model::MechanicalMirrorPair>(state).is_err()
+    );
+}

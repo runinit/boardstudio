@@ -1031,8 +1031,69 @@ pub struct MechanicalMirrorPair {
     /// convention, and the exact inverse maps the second member back to the first.
     pub mapping: Pose2,
     pub construction: MechanicalConstruction,
+    /// The member whose geometry authors the pair's construction and closure proposals. Absent
+    /// on pairs linked before format 5, where the first member is the source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub construction_source: Option<String>,
+    /// The mirrored-half record (ADR-0010). Absent means the pair links mechanical features only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub halves: Option<MirroredHalves>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub features: Vec<MechanicalFeature>,
+}
+
+/// Which boards a mirrored pair relates, and how their items correspond.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredHalves {
+    /// The board whose items are authored.
+    pub source_board_id: String,
+    /// The board that reflects the source.
+    pub mirror_board_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correspondences: Vec<MirroredCorrespondence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<MirroredException>,
+}
+
+/// The mirror of one source item. Each side is unique per kind.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredCorrespondence {
+    pub kind: MirroredItemKind,
+    pub source_id: String,
+    pub mirror_id: String,
+}
+
+/// A mirror item that is not linked to its source: kept `local` or `omitted`. An exception
+/// names a mirror item only; it never changes the source or a neighbouring item.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredException {
+    pub kind: MirroredItemKind,
+    pub mirror_id: String,
+    pub state: MirroredExceptionState,
+}
+
+/// The kinds of item a mirrored half reflects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredItemKind {
+    Matrix,
+    Layout,
+    Part,
+    Outline,
+    Net,
+    Assembly,
+    MechanicalFeature,
+}
+
+/// The states an exception can take. A linked item needs no exception.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredExceptionState {
+    Local,
+    Omitted,
 }
 
 /// The rigid map from the first member's Case frame to the second's.

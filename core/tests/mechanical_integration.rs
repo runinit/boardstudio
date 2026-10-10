@@ -920,12 +920,11 @@ fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
     );
 }
 
-/// The pair does not record its construction source, so closure proposals come from its first
-/// member (the frame of the pair map and the default author of a linked feature) even when the
-/// pair was linked with the second member as `construction_source`. Pinned so that a schema
-/// change that records the source is a deliberate decision (ADR-0008; ticket 06 open items).
+/// A pair records its construction source, and closure proposals come from that source even
+/// when it is the second member (ADR-0008; generator-parameters ticket 06). The proposals are
+/// authored by the recorded source, and neither half stores a private closure list.
 #[test]
-fn closure_proposals_come_from_the_first_member_even_when_the_second_is_the_source() {
+fn closure_proposals_come_from_the_recorded_construction_source() {
     use boardstudio_core::mechanical::edit::apply;
 
     let (mut document, accepted) = two_unconfigured_halves();
@@ -950,6 +949,58 @@ fn closure_proposals_come_from_the_first_member_even_when_the_second_is_the_sour
     apply(&mut document, &accepted, &enable_edit("b")).unwrap();
 
     let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    assert_eq!(
+        pair.construction_source.as_deref(),
+        Some("b"),
+        "the link records the construction source"
+    );
+    let closures: Vec<_> = pair
+        .features
+        .iter()
+        .filter(|feature| feature.kind == MechanicalFeatureKind::ClosureMount)
+        .collect();
+    assert!(!closures.is_empty(), "the pair links closure proposals");
+    assert!(
+        closures.iter().all(|feature| feature.author == "b"),
+        "authored by the recorded construction source, not by the first member"
+    );
+    for half in ["a", "b"] {
+        assert_eq!(
+            stored_closure_mounts(&document, half).map(|mounts| mounts.len()),
+            Some(0),
+            "{half} stores no private closure mount"
+        );
+    }
+}
+
+/// A pair without a recorded construction source (every pair linked before format 5) keeps the
+/// first member as its source, so existing projects propose exactly what they did before.
+#[test]
+fn closure_proposals_fall_back_to_the_first_member_without_a_recorded_source() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let (mut document, accepted) = two_unconfigured_halves();
+    apply(&mut document, &accepted, &enable_edit("a")).unwrap();
+    let proposed = stored_closure_mounts(&document, "a").expect("the first half proposes mounts");
+    let link = MechanicalEdit {
+        target: instance_target("a"),
+        change: MechanicalChange::LinkMirrorPair {
+            pair_id: "p".into(),
+            members: ["a".into(), "b".into()],
+            mapping: Pose2 {
+                at: Vec2 { x: 200.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            construction_source: "b".into(),
+            correspondences: vec![],
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    apply(&mut document, &accepted, &link).unwrap();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = None;
+    apply(&mut document, &accepted, &enable_edit("b")).unwrap();
+
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
     let closures: Vec<_> = pair
         .features
         .iter()
@@ -962,15 +1013,8 @@ fn closure_proposals_come_from_the_first_member_even_when_the_second_is_the_sour
     );
     assert!(
         closures.iter().all(|feature| feature.author == "a"),
-        "authored by the first member, not by the construction source"
+        "a pair without a recorded source is authored by its first member"
     );
-    for half in ["a", "b"] {
-        assert_eq!(
-            stored_closure_mounts(&document, half).map(|mounts| mounts.len()),
-            Some(0),
-            "{half} stores no private closure mount"
-        );
-    }
 }
 
 fn small_rect() -> Contour {

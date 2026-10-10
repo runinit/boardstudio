@@ -1991,6 +1991,8 @@ mod tests {
             construction: boardstudio_core::mechanical::features::shared_construction(&mechanical(
                 doc, 4.2,
             )),
+            construction_source: None,
+            halves: None,
             features: vec![],
         }
     }

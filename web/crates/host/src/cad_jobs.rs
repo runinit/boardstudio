@@ -1218,6 +1218,8 @@ mod tests {
                     rotation: 0.0,
                 },
                 construction,
+                construction_source: None,
+                halves: None,
                 features: vec![MechanicalFeature {
                     id: "mount-1".into(),
                     kind: MechanicalFeatureKind::Mount,

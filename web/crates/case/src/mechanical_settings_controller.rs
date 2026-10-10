@@ -1726,6 +1726,8 @@ mod adapter_tests {
                 rotation: 0.0,
             },
             construction: shared_construction(&configuration),
+            construction_source: None,
+            halves: None,
             features: vec![MechanicalFeature {
                 id: "mount-1".into(),
                 kind: MechanicalFeatureKind::Mount,
