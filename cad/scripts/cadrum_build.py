@@ -136,6 +136,12 @@ def build_wasm():
     if output.is_file() and stamp.is_file() and stamp.read_text().strip() == inputs:
         print("cadrum: wasm/pkg is current; skipping the container build", flush=True)
         return
+    # The container mounts cad/ alone, so a symlink's target does not exist inside it and the
+    # failure only appears after the image step. A real directory is required (cp -a from the checkout).
+    for name in (".cache", "wasm/pkg", "wasm/target"):
+        if (CAD_ROOT / name).is_symlink():
+            raise RuntimeError(f"cad/{name} is a symlink; the CAD container cannot resolve it. "
+                               f"Replace it with a real directory (cp -a from the checkout that owns it).")
     occt = prepare("wasm").relative_to(CAD_ROOT).as_posix()
     runtime = os.environ.get("CADRUM_CONTAINER_RUNTIME") or next(
         (name for name in ("podman", "docker") if available(name)), None)

@@ -59,6 +59,10 @@ out with a recorded reason), without running fewer tests.
 - [Test whether dropping `touch core/src/lib.rs` is safe](issues/07-drop-the-touch.md): it is not needed;
   cargo rebuilds on a real edit and results match without it.
 
+- [Nested worktrees run every check](issues/10-nested-worktrees.md#outcome): implemented (awaiting
+  verification). The CAD crates declare their own `[workspace]`; `tooling`, `test` and `build` pass
+  from `.worktrees/tce-matrix` with no second checkout.
+
 ## Ready for implementation
 
 - Nothing is open. The destination is reached; see the final timings in the closing ticket's Outcome.
