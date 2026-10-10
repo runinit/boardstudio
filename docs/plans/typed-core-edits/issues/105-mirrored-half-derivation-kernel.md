@@ -1,6 +1,6 @@
 # 105: Reusable mirrored-half derivation kernel
 
-Status: implemented (awaiting verification)
+Status: claimed
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [28](28-mirror-embedded-circuits.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md), [39](39-stabilisers-and-companion-fallback.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -214,3 +214,13 @@ browser, build, release, dedicated WASM boundary parity, full batch check or per
 and the boundary transcript did not change, so those extra runs were not required for this review. Parent19
 remains open; this handoff grants no 106 dispatch. A new implementation and fresh independent verification
 must close the blocker before 105 can be resolved.
+
+### Revision 2 claim
+
+Claimed by Luna 6 high for the bounded revision at `3a7ba67b8e15c8f00672cfbd885a26285142e513`. The verifier's
+acceptance blocker remains: `new_board` still derives companion modes/tweaks, stabiliser headings and fallback
+values inline. GitNexus impact on `new_board` is HIGH (10 impacted symbols, one direct caller `create`, one Core
+edit process through `apply`); source confirms that caller. The lane index is one commit behind HEAD, so this is
+provisional. No test or production source has been changed yet. The revision will add direct tests for existing
+target identities and per-item settings before extracting the existing value rules into private helpers; it will
+preserve creation behavior and remain awaiting fresh independent verification.
