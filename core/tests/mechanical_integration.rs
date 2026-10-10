@@ -857,14 +857,8 @@ fn stored_closure_mounts(document: &ProjectDoc, instance_id: &str) -> Option<Vec
         .and_then(|configuration| configuration.closure_mounts.clone())
 }
 
-/// Enabling a legacy second half is not a no-op for closures: it resolves from the shared
-/// source, so it already has a configuration, but its closure list is absent. Enable
-/// initializes that list from its own outline (generator-parameters ticket 06, finding B).
-#[test]
-fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
-    use boardstudio_core::mechanical::edit::apply;
-    use boardstudio_core::mechanical::effective_inputs;
-
+/// Two legacy halves, each on its own board, and the accepted contours of both.
+fn two_unconfigured_halves() -> (ProjectDoc, Vec<BoardContours>) {
     let mut document = ProjectDoc::empty("doc", "Fixture");
     document.boards.push(board("board-a"));
     document.boards.push(board("board-b"));
@@ -886,16 +880,31 @@ fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
             contours: vec![small_rect()],
         },
     ];
-    let enable = |id: &str| MechanicalEdit {
+    (document, accepted)
+}
+
+fn enable_edit(id: &str) -> MechanicalEdit {
+    MechanicalEdit {
         target: instance_target(id),
         change: MechanicalChange::Enable,
         mounting_hole: Some(Box::new(template())),
-    };
-    apply(&mut document, &accepted, &enable("a")).unwrap();
+    }
+}
+
+/// Enabling a legacy second half is not a no-op for closures: it resolves from the shared
+/// source, so it already has a configuration, but its closure list is absent. Enable
+/// initializes that list from its own outline (generator-parameters ticket 06, finding B).
+#[test]
+fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let (mut document, accepted) = two_unconfigured_halves();
+    apply(&mut document, &accepted, &enable_edit("a")).unwrap();
     let first = stored_closure_mounts(&document, "a").expect("the first half proposes mounts");
     assert!(!first.is_empty());
 
-    apply(&mut document, &accepted, &enable("b")).unwrap();
+    apply(&mut document, &accepted, &enable_edit("b")).unwrap();
     let second = effective_inputs(&document, &accepted, &instance_target("b"))
         .unwrap()
         .configuration
@@ -909,6 +918,59 @@ fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
         stored_closure_mounts(&document, "b").is_some(),
         "the second half stores its closure list"
     );
+}
+
+/// The pair does not record its construction source, so closure proposals come from its first
+/// member (the frame of the pair map and the default author of a linked feature) even when the
+/// pair was linked with the second member as `construction_source`. Pinned so that a schema
+/// change that records the source is a deliberate decision (ADR-0008; ticket 06 open items).
+#[test]
+fn closure_proposals_come_from_the_first_member_even_when_the_second_is_the_source() {
+    use boardstudio_core::mechanical::edit::apply;
+
+    let (mut document, accepted) = two_unconfigured_halves();
+    apply(&mut document, &accepted, &enable_edit("a")).unwrap();
+    let proposed = stored_closure_mounts(&document, "a").expect("the first half proposes mounts");
+    assert!(!proposed.is_empty());
+    let link = MechanicalEdit {
+        target: instance_target("a"),
+        change: MechanicalChange::LinkMirrorPair {
+            pair_id: "p".into(),
+            members: ["a".into(), "b".into()],
+            mapping: Pose2 {
+                at: Vec2 { x: 200.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            construction_source: "b".into(),
+            correspondences: vec![],
+        },
+        mounting_hole: Some(Box::new(template())),
+    };
+    apply(&mut document, &accepted, &link).unwrap();
+    apply(&mut document, &accepted, &enable_edit("b")).unwrap();
+
+    let pair = &document.hardware.as_ref().unwrap().pairs[0];
+    let closures: Vec<_> = pair
+        .features
+        .iter()
+        .filter(|feature| feature.kind == MechanicalFeatureKind::ClosureMount)
+        .collect();
+    assert_eq!(
+        closures.len(),
+        proposed.len(),
+        "the pair links the proposals once"
+    );
+    assert!(
+        closures.iter().all(|feature| feature.author == "a"),
+        "authored by the first member, not by the construction source"
+    );
+    for half in ["a", "b"] {
+        assert_eq!(
+            stored_closure_mounts(&document, half).map(|mounts| mounts.len()),
+            Some(0),
+            "{half} stores no private closure mount"
+        );
+    }
 }
 
 fn small_rect() -> Contour {

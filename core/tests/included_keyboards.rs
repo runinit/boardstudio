@@ -300,20 +300,24 @@ fn distance_to_boundary(point: (f64, f64), points: &[(f64, f64)]) -> f64 {
 /// outline: the second half is a true reflection of the first, not a shifted copy.
 ///
 /// Outlines are unions computed on a 1 µm grid, so every mirrored vertex lies within 0.01 mm of
-/// the other half's boundary. The exception is KLOR's thumb cluster, measured at 6.76 mm: its
-/// rotated switch footprints are not mirrored with their key positions, so the reflected cluster
-/// envelope differs there. That is a recorded finding for the thumb layout, not a reason to move
-/// a measured key, and the test pins it so a change to it is noticed.
+/// the other half's boundary. KLOR is the exception, at about 6.4 mm. Its keys, controller bay,
+/// reset switch and TRRS jack are exact reflections (the two tests above), so this is not a
+/// recipe defect. The automatic outline's gap repair (`outline_cleanup::pockets`) fills a
+/// concave pocket between two columns on the left half (span 19.4 mm, under the 20 mm limit)
+/// and not on the right, where the same pocket is its mirror image. The repair is not
+/// reflection-equivariant on this near-collinear rotated-column geometry. The test pins the
+/// bound so a change to it is noticed; native mirrored halves (typed-core-edits ticket 16)
+/// would derive the second outline from the first instead of recomputing it.
 #[test]
 fn the_split_halves_outlines_are_mirror_images_through_the_pair_map() {
     const GRID_TOLERANCE: f64 = 0.01;
-    const KLOR_THUMB_CLUSTER: f64 = 7.0;
+    const KLOR_GAP_REPAIR: f64 = 6.5;
     for (name, project) in projects() {
         if name == "reused-pcb" {
             continue;
         }
         let tolerance = if name == "klor" {
-            KLOR_THUMB_CLUSTER
+            KLOR_GAP_REPAIR
         } else {
             GRID_TOLERANCE
         };
@@ -593,10 +597,9 @@ fn a_reused_flipped_pcb_pairs_through_the_reflection_its_opposite_flips_imply() 
 }
 
 /// Closure holes per half, `[left, right]`, as Core projects them for each shipped split.
-/// Every half holds the closure mounts Core proposed from its own outline, stored on that
-/// half and linked to nothing, so each projects its own four holes. Sofle v2 uses the
-/// internal gasket mount, which carries no closure mounts. See ticket
-/// generator-parameters 02.
+/// The four closure mounts are linked pair features proposed once from the left half
+/// (ADR-0008), so each half projects the same four holes. Sofle v2 uses the internal gasket
+/// mount, which carries no closure mounts. See generator-parameters tickets 02 and 06.
 const CLOSURE_HOLES: [(&str, [usize; 2]); 10] = [
     ("corne", [4, 4]),
     ("lily58", [4, 4]),
@@ -854,6 +857,83 @@ fn closure_proposals_on_a_paired_half_are_made_once_from_the_construction_source
     }
 }
 
+/// Initializing a paired half's closures stores nothing of the pair's on that half. The half's
+/// effective stack carries the pair's linked openings, so writing it back as the half's own
+/// configuration would copy them: a second, private opening on a half whose openings are linked
+/// (ADR-0008, "linked means mirrored, never copied as placed").
+#[test]
+fn initializing_a_paired_halfs_closures_does_not_copy_linked_features_into_it() {
+    let mut project = projects()["corne"].clone();
+    project["hardware"]["pairs"][0]["features"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|feature| feature["kind"] != "closure-mount");
+    for instance in project["hardware"]["instances"].as_array_mut().unwrap() {
+        instance["mechanical"]
+            .as_object_mut()
+            .unwrap()
+            .remove("closureMounts");
+    }
+    let stored = |document: &Value, half: &str| -> Value {
+        document["hardware"]["instances"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|instance| instance["id"] == half)
+            .unwrap()["mechanical"]
+            .clone()
+    };
+    let (mut engine, document) = reopen(&project);
+    assert_eq!(
+        effective(&document, "right")["openings"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let before = stored(&document, "right");
+    let document = change(
+        &mut engine,
+        &document,
+        "right",
+        json!("initialize-closures"),
+    );
+    let after = stored(&document, "right");
+    assert_eq!(
+        after["openings"], before["openings"],
+        "no linked opening is copied"
+    );
+    assert_eq!(
+        after["mounts"], before["mounts"],
+        "no linked mount is copied"
+    );
+    assert_eq!(
+        after["closureMounts"],
+        json!([]),
+        "the half stores an explicit empty list"
+    );
+    assert_eq!(
+        pair(&document)["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|feature| feature["kind"] == "closure-mount")
+            .count(),
+        4
+    );
+    for half in ["left", "right"] {
+        assert_eq!(
+            effective(&document, half)["openings"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2,
+            "{half}"
+        );
+        assert_eq!(closure_parts(&document, half).len(), 4, "{half}");
+    }
+}
+
 /// A linked closure mount that maps outside the other half's outline is still refused, and the
 /// refusal says the feature is linked and which half authored it. The map is moved 12 mm in
 /// this test, so the authored mounts land beyond the right outline; the left half, which
@@ -894,8 +974,7 @@ fn pair_finding_texts(document: &Value, half: &str) -> Vec<String> {
 }
 
 /// Every linked closure mount projects one hole per half: the author's point on its own
-/// half and the pair map's image, `(offset - x, y)`, on the other. No shipped pair links a
-/// closure mount, so this checks the project the known-gap test builds.
+/// half and the pair map's image, `(offset - x, y)`, on the other.
 fn assert_linked_closures_land_on_their_mirror(name: &str, project: &Value) {
     let offset = mapping_x(pair(project));
     for feature in pair(project)["features"]
