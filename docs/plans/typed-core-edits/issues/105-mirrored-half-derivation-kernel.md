@@ -1,6 +1,6 @@
 # 105: Reusable mirrored-half derivation kernel
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [28](28-mirror-embedded-circuits.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md), [39](39-stabilisers-and-companion-fallback.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
