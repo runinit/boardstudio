@@ -65,6 +65,30 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- 31 companion placement modes, 32 mirrored-half labels and
+  [39](issues/39-stabilisers-and-companion-fallback.md) stabiliser/companion fallback rules are independently
+  verified and merged from lane B. Ticket 39 verification is `4227567ae`; its eight mutations failed meaningfully.
+  Placement modes apply to switch companions only; independent parts keep the general mirror rule.
+- 25 phase 1 shipped-board audit and recorded hardware direction are merged from lane F. Phase 2 planning has
+  an independently reviewed packet, tickets 42–104 (`a7857b49`): Sofle v2, RGB and Choc first, then the seven
+  measured splits and remaining boards. Parent 25 stays open until the board work is verified. Preserve measured
+  layouts; use BoardStudio adaptations with the user's target hardware and existing case generation for plate,
+  gasket and tolerances. Screws and spacers may be added. Hardware selection remains a human gate.
+- 37's delivered library/layout/page slice has independent verification at `fb2fe7bb7`, including a reproduced
+  and fixed weak library-delete predicate, six bounded mutation failures, unchanged test lists and two sequential
+  full browser passes (251.3 s and 248.3 s). The entire ticket remains `implemented (awaiting verification)`:
+  carried suites, negative-idle proof, PCB recovery regression and speed evidence remain. Ticket 38 waits.
+- 19 is split into independently reviewed tickets 105–117. The dependency chain starts with
+  [105](issues/105-mirrored-half-derivation-kernel.md), ends with atomic activation in
+  [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
+  [114](issues/114-mirrored-edit-compatibility-constraints.md) remains `needs-info`; it cannot silently pass through
+  unsupported rotated/mixed constraints. Run this reconciliation chain alone for code and checks.
+- **Integration batch check**, 2026-10-10 at `12a6784d`: one sequential foreground
+  `BOARDSTUDIO_CHECK_JOBS=1 CARGO_BUILD_JOBS=12 python3 scripts/check.py` passed all default steps.
+  Repo 0.1 s, tooling 23.4 s, lint 17.9 s, build 327.1 s, test 94.7 s, browser 350.1 s; total 813.3 s.
+  All 70 presentation tests and 15 CAD browser checks passed. Log: `/tmp/boardstudio-tce-batch-12a6784d.log`.
+  Batch includes the verified 37 slice, lane B 31/32/39, lane F planning and workflow tooling integration.
+
 - 24 test audit, phase 1 (proposal only, waiting for the user): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
   the time sits in two debug fixture builds and fixed wasm sleeps rather than in the number of tests, so the audit
   proposes a short deletion/merge list plus speed-only changes: [Audit](audit/test-audit.md),
@@ -95,8 +119,8 @@ and for any bulk action a recorded decision permits.
   model), 2026-10-10 at `92adcd611` in the nested `tce-matrix` worktree, sandbox lifted, one sequential foreground
   `python3 scripts/check.py` (default steps, not `release`), started 04:41:09, finished 04:50:28: all passed.
   Step times: repo 0.1 s, tooling 7.9 s, lint 9.7 s, build 206.8 s, test 90.4 s, browser 243.9 s, total 558.8 s.
-  Browser: 70 presentation tests executed, 0 failed. No failure to report. Ticket 19 is the next ready ticket
-  (it still needs the diode-side decision from 29); 24 is also ready.
+  Browser: 70 presentation tests executed, 0 failed. No failure to report. This is historical evidence;
+  the current implementation frontier is below.
 - 28 embedded circuits mirror in `CreateMirroredHalf`: the circuit id takes the board rule, members, private nets and
   copied definitions move under `embedded/<mirror id>/`, an `EmbeddedCircuit` record and `embedded-circuit`
   correspondences are written, members take the independent-part pose, and a member reference a host part already
@@ -182,7 +206,12 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- Native mirrored halves: 17, 18, 26, 27, 28, 29 and 30 are resolved. Ready: 19 (next; needs the diode-side decision from 29) and 24; 20 to 23 follow 19.
+- Native mirrored halves: 17, 18, 26–32 and 39 are resolved and integrated. Next: 105 in the 19 child chain,
+  with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
+- Board planning 42–104 is reviewed. Sofle hardware research may proceed without builds; implementations wait for
+  native-model prerequisites and the user's hardware selection. Final 23 consumes completed board work and sign-off.
+- Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
+  after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
   (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
   which is blocked only by matrix 11.

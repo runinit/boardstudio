@@ -24,13 +24,15 @@ timing work must run alone, and a few files can only have one writer. Process fo
 | Lane | Tickets, in order | Touches (main files) | Heavy checks | Notes |
 | --- | --- | --- | --- | --- |
 | A web test speed | [36](issues/36-sleeps-case-pcb-parts.md), [37](issues/37-sleeps-layout-library-ui-page.md), [38](issues/38-merge-duplicate-browser-tests.md) | `web/crates/{case,pcb,parts,layout,library,ui-shared,keycaps,keymap}` test code, `web/src/presentation` tests | `browser` (Chrome) | no Core edits; confirm current ticket status before dispatch. |
-| B mirror core | [31](issues/31-companion-placement-modes.md), [32](issues/32-mirrored-half-labels.md), then [19](issues/19-reconcile-mirrored-halves.md), then [20](issues/20-recipes-build-one-half.md) | `core/src/mirrored_half.rs`, `core/src/mechanical/halves.rs`, `core/src/model.rs`, `core/tests/mirrored_half.rs`, recipes | `lint test typecheck`; 20 adds `build` | 19 is the riskiest ticket: run it alone in this lane. |
+| B mirror core | 31, 32, 39 integrated; [105](issues/105-mirrored-half-derivation-kernel.md) through the [19](issues/19-reconcile-mirrored-halves.md) child chain, then 40 and [20](issues/20-recipes-build-one-half.md) | `core/src/mirrored_half.rs`, `core/src/mechanical/halves.rs`, `core/src/model.rs`, `core/tests/mirrored_half.rs`, recipes | ticket-scoped checks; 20 adds `build` | 19 runs alone for code and checks; one child at a time, independent verification before the next dispatch. |
 | C check speed | [11](../check-speed/issues/11-browser-measure.md) (alone, quiet machine), then [12](../check-speed/issues/12-browser-quick-wins.md) | `scripts/check.py`, `scripts/run-wasm-tests.py`, `.github/workflows` | `browser` many times | 11 measures timings, so nothing else may run. 12 waits for lane A to finish 38. |
 | D audit and cleanup | [35](issues/35-test-maintenance-cuts.md) | version literals in tests; goldens (`transcript.json`, the demo baseline) | full `check.py` | Golden edits last, after B merges, then re-bless. |
-| E web adapter | [21](issues/21-mirrored-half-web-adapter.md), then [22](issues/22-mirrored-half-integrated-verification.md) | `web/crates/catalogue`, `web/crates/layout`, physical setup | `typecheck browser` | waits for B to merge 19 and 32. |
+| E web adapter | [21](issues/21-mirrored-half-web-adapter.md), 41, then [22](issues/22-mirrored-half-integrated-verification.md) | `web/crates/catalogue`, `web/crates/layout`, physical setup | `typecheck browser` | waits for B's native-model dependencies; follow ticket headers. |
 | F planning (no builds) | [25](issues/25-shipped-boards-review.md) research → AI review → human review; [23](issues/23-redo-keyboard-04-on-native-halves.md) later | docs, read-only fixtures | none | Human rebuild direction is recorded: configurable standard spacing, board-specific native assemblies, real components, native outline/mount generation, regenerated clearances; VIK deferred. Board fixes remain separate tickets, Sofle first. Safe to run any time; fits a different app well. |
 
-Independent lanes: A, B and F can start now. C and D wait as noted. E waits for B.
+Current release: B ticket 105 after root sync/index gates. F may do documentation-only hardware research.
+A waits for root scheduling; 38 is blocked by incomplete 37. C, D and E wait as noted. During the 19 child chain,
+no other implementation or check run starts without root releasing the exclusive window.
 
 ## Files with one writer only
 
@@ -40,9 +42,9 @@ leaves them alone and asks.
 | File | Owner |
 | --- | --- |
 | `docs/plans/typed-core-edits/map.md`, `docs/plans/check-speed/map.md` | orchestrator, at merge time |
-| `core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json` | lane B, then lane D; generated, never hand-merged: on a conflict take the integration branch's file and re-run `BOUNDARY_BLESS=1` |
+| `core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json` | orchestrator only; lanes propose regeneration in their Outcome. Generated, never hand-merged; root regenerates when needed at the final batch boundary. |
 | `CONTEXT.md`, `docs/adr/*` | orchestrator; lanes propose text in their Outcome |
-| `scripts/check.py` | lane C; root owns only the tooling-test-list conflict during the 2026-10-10 workflow merge, returning ownership on that merge's commit |
+| `scripts/check.py` | lane C; root's temporary tooling-test-list conflict ownership ended at workflow merge `f2bccedc` |
 | GitNexus index | orchestrator ([gitnexus-index.md](../../agents/gitnexus-index.md)) |
 
 ## Setting up a lane
@@ -67,8 +69,9 @@ cp -a "$integration/cad/wasm/pkg" cad/wasm/pkg
 - **A separate `target` per lane.** The old advice to share one `target/` serialises every cargo run on one
   build lock and lets one lane's rebuild invalidate another's. Disk is the cost: the first build in a fresh target
   is cold (about 5 minutes for `build`), and each target is several GB. Keep targets on disk, never under `/tmp`.
-- The machine has 16 CPUs and 30 GB RAM. **At most two lanes run heavy checks at once**, and ticket 11 and
-  any other timing measurement run alone. A noisy neighbour made earlier timings unreliable.
+- The machine has 16 CPUs and 30 GB RAM. The user's current rule is **one foreground command at a time globally**;
+  never overlap builds or browser runs. Root grants the check window. Ticket 11 and other timing work require
+  the machine alone. Documentation research may proceed while a check runs, without shell/build overlap.
 - Native `test` works from a nested worktree now (check-speed ticket 10).
 
 ## The brief a lane agent gets
@@ -81,7 +84,7 @@ Paste this, then name the ticket(s). Everything else is in the ticket.
 > Use your absolute lane path as `exec_command`'s `workdir` on every shell call; report the path, branch and status first.
 > Implement test-first, run only the check steps the process table names, one command at a time in the
 > foreground. Stage explicit paths; no `git stash`, no `git add -A`, no push, no merge. Do not edit `map.md`,
-> `CONTEXT.md`, ADRs or the generated goldens unless ownership is assigned to you. Run GitNexus impact before edits and
+> `CONTEXT.md`, ADRs or the generated goldens. Run GitNexus impact before edits and
 > detect-changes before commits, bound to your checkout. Do not refresh GitNexus; if its answer is stale, empty or UNKNOWN,
 > confirm callers with `rg` and report the limitation. Follow the role time boxes in `verification-process.md`.
 > Implementers finish with the ticket set to `implemented (awaiting verification)` and an honest
@@ -114,6 +117,9 @@ Nothing merges to `dev` without the user.
 
 ## Lane status
 
-Use the handoff snapshot in [agent-workflow.md](../../agents/agent-workflow.md), then confirm live worktree status and ticket
-headers. In particular, ticket 37 is awaiting verification and ticket 39 already has an implementer in lane B; a status on
-the integration branch can lag a lane's claimed or resolved status. Set up C, D and E only when their predecessors are resolved.
+2026-10-10 batch at `12a6784d` passed all default checks (813.3 s). Lane B 31/32/39 and lane F's audit/planning
+are integrated. Ticket 37's delivered slice is independently verified at `fb2fe7bb7`, but its remaining acceptance
+keeps 37 open and 38 blocked. The mirror sub-orchestrator coordinates 105 first, Luna 6 high implementation then
+a fresh Sol 6.1 xhigh verifier; root owns sync, graph refresh, batch tests and merges. The boards sub-orchestrator
+owns the documentation-only Sofle hardware candidate report in the managed `codex/sofle-adaptations` worktree;
+target BOM and implementation prerequisites remain gates. Confirm live status before dispatch.
