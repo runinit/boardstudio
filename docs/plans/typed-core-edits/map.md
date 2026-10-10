@@ -84,6 +84,13 @@ and for any bulk action a recorded decision permits.
   merges are tickets [36](issues/36-sleeps-case-pcb-parts.md), [37](issues/37-sleeps-layout-library-ui-page.md) and
   [38](issues/38-merge-duplicate-browser-tests.md). [Outcome](issues/34-test-speed-browser.md#outcome).
 
+- 36 browser test sleeps in case, pcb and parts, delivered scope: resolved (verified by Sonnet 5.5, 2026-10-10). Converted: case mounted
+  settlement tests (13 of 16 settle sites), pcb `queued_edit_tests` (17) and 5 of 11 physical-setup sites; suites case 30.8 s to
+  15.1 s, pcb 26.5 s to 18.3 s, test names identical, `browser` 144.1-164.9 s under heavy concurrent load. The verifier found and fixed
+  waits weaker than the next assertion (case 2, pcb 4) and a pre-existing vacuous step (an "unrelated" edit blocked by save recovery
+  never lands). Everything else, including all of `parts`, moves to [37](issues/37-sleeps-layout-library-ui-page.md) under "Carried from 36".
+  [Verification](issues/36-sleeps-case-pcb-parts.md#verification).
+
 - **Batch A boundary check** (tickets 18, 29, 30, 27, 26, 28; all Core and catalogue, the page compiles the shared
   model), 2026-10-10 at `92adcd611` in the nested `tce-matrix` worktree, sandbox lifted, one sequential foreground
   `python3 scripts/check.py` (default steps, not `release`), started 04:41:09, finished 04:50:28: all passed.

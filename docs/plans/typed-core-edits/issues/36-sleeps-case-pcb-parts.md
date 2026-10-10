@@ -1,6 +1,7 @@
 # 36: Replace fixed sleeps in the case, pcb and parts browser tests
 
-Status: implemented (awaiting verification)
+Status: resolved
+Resolved scope: the mounted settlement tests in `web/crates/case` (13 of 16 `settle_fields` sites plus the mounted field waits), the pcb `queued_edit_tests` (all 17 sites) and 5 of 11 sites in `pcb_physical_setup/tests.rs`. Everything listed under "Not converted" in the Outcome, including all of `web/crates/parts`, moves to [37](37-sleeps-layout-library-ui-page.md) (section "Carried from 36"). The ticket's original acceptance (suites free of fixed sleeps, `parts` converted) is not met and is not claimed.
 Type: build
 Blocked by: [34](34-test-speed-browser.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -18,8 +19,11 @@ assertion needs (including a `rendered_accepted`-style wait for the accepted rev
 
 ## Acceptance
 
-- [ ] Per-suite before/after table in the Outcome; `browser` three consecutive passing runs; executed test names equal the baseline except deliberate merges (diff the crate `--list` outputs before/after).
-- [ ] Mutation checks: three representative waits per ticket made never-true fail with the helper's message within the bound; the production step each depends on removed makes the test fail fast.
+Met for the delivered scope only (see Verification); the unconverted sites are carried to 37.
+
+- [x] Per-suite before/after table in the Outcome; `browser` three consecutive passing runs (implementer) plus two more (verifier); executed test names equal the baseline (diff of the crate `--list` outputs, empty for case and pcb; parts source is unchanged).
+- [x] Mutation checks: representative waits made never-true and always-true, and a production step removed, by the implementer and again by the verifier on different waits.
+- [ ] Not delivered here: `parts` (all), the case `rendered()` sites, the intermediate pcb waits, and the negative-only settle sites. Carried to 37.
 
 ## Verification
 
@@ -38,7 +42,7 @@ named, although the implementation was done by Haiku 5.5.
 - case, `mechanical_settings::mounted_settlement_tests`: 13 of 16 `settle_fields` (15 x 40 ms) sites are now
   `settle_until(runtime, what, predicate)`, a `wait_until_step` that drains held effects and then
   checks the state the next assertion reads. Mounted fields wait for their inputs to render. The held
-  landing waits for the accepted revision, since its next assertion is a negative. Bare held gates
+  landing waits for the accepted revision (the verifier added the rendered revision), since its next assertion is a negative. Bare held gates
   (`entered.await`) use `wait_until_future`.
 - pcb, `pcb_wiring::queued_edit_tests`: all 17 `settle` (12 x 30 ms) sites; the helper is now `settle_until`.
 - pcb, `pcb_physical_setup::tests`: 5 of 11 settle sites.
@@ -106,10 +110,10 @@ all steps passed each time, and run-wasm-tests executed 70 with 0 failures each 
 `repo` passed in 0.1 s, `typecheck` in 5.3 s, and `lint` (fmt and clippy) in 3.2 s.
 
 **Follow-ups.**
-- pcb `queued_edit_tests.rs`, "the second undo clears the board configuration": its predicate is
-  `is_none_or(boards.is_empty())`, which is true when the hardware is absent. It can hold before the undo
-  lands. The suite passes, but this predicate is weaker than it should be (lesson 3). It was not
-  mutation-checked. Follow-up: name the removed board's id.
+- pcb `queued_edit_tests.rs`, "the second undo clears the board configuration": the implementer suspected its
+  predicate `is_none_or(boards.is_empty())` could hold before the undo. The verifier checked: the board
+  configuration exists before that undo, so the predicate is false until the undo lands (no change needed; see
+  Verification).
 - Negative-only sites with no positive sentinel are the remaining settle sites in case (3) and pcb (343,
   395, 419), plus the layout sites in pcb (511, 518, 560) that were not read. The fix is an idle signal, or a
   sentinel edit queued behind the held ones (ticket 34 follow-up).
@@ -126,3 +130,71 @@ all steps passed each time, and run-wasm-tests executed 70 with 0 failures each 
 - The baseline is a single run.
 - Chromium cleanup: stale profiles older than 30 minutes were removed after the sandbox was lifted,
   because the sandboxed `rm` failed with `Read-only file system`. Zero older than 30 minutes remain.
+
+## Verification
+
+Verified by Claude Sonnet 5.5 (verifier), 2026-10-10, in the nested `tce-matrix` worktree, scope as delivered. The machine was shared with a
+cold Codex build, so load was 4 to 18 (1-minute average) during the runs and timings are indicative only; conclusions below rest on correctness.
+
+**Site review (predicate against the next assertion).** Every converted site in case and pcb was read against the assertions that follow it.
+Weaker predicates found and fixed in commit `d10f6cf60` (small, in the test files only):
+- case, held landing (`a_newer_original_mechanical_draft_survives_an_older_held_landing`): waited for the accepted revision in Core state only,
+  and the next assertion is the negative `inline_failure(..).is_none()`. The test host now renders the accepted revision in a `.test-revision`
+  marker and the wait includes `rendered_accepted` (the `rendered_accepted` pattern of ticket 34). The same barrier is added to the second wait of
+  `newer_catalogue_failure_and_draft_survive_an_older_actual_ticket_landing`, whose failure-still-shown and draft-still-shown conditions were
+  already true before the held edit landed, so only `wall_thickness == 3.0` (Core state) was doing the waiting.
+- pcb, `create_net_disables_while_held...`: waited for the created net only; the next assertions read the queued pad assignment, the re-enabled
+  button (DOM) and silence. It now waits for the creation, the assignment, the render of the accepted revision and the enabled button.
+- pcb, `part_net_assignment_queued_behind_layout...`: the wait was named "the pad assignment lands" but only proved the layout move; it now proves both.
+- pcb, `plan_queued_behind_part_deletion...`: waited for the deletion only; the next assertion reads the refused apply's inline failure, which is
+  set after the deletion lands and a render. The wait now includes the failure.
+- pcb, `failed_field_ticket_restores_accepted_value...`: the wait "the unrelated edit keeps the field failure" was `failure().is_some()`, true before
+  the edit and so a no-op. Investigating showed a pre-existing defect: the injected Core failure leaves the session in save recovery, and the
+  "unrelated" `ResolveEdit` ends as `BlockedByRecovery("save recovery is required")` and never lands (name and revision unchanged after 1 s). The
+  assertion "an unrelated edit must not clear the field's failure" therefore never exercised a landed edit, before or after ticket 36. The wait now
+  names the edit's terminal outcome (`observe_next`) plus the rendered revision, and a comment records the finding. Making the edit land is carried to 37.
+- pcb, `physical_topology...`: the "undo removes the instances" wait could only be meaningful if instances exist before the undo; the test now asserts
+  they do (it would have been vacuous otherwise; it passes).
+Checked and left as is: all other case waits (the predicates equal the assertions and include DOM state that changes only after a render), pcb
+`wiring_mode...` (all three waits; the second undo's predicate is false before the undo because the board configuration still exists), the
+three-undo and part-net undo waits, and the five physical-setup waits (they read `mount(&probe)`, set only on a host render).
+Residual, not fixed (needs a quiescence or idle signal, recorded for 37): negative assertions that follow a wait for a positive effect still rely on
+the effect's follow-up render having happened. Case: held landing `inline_failure.is_none()`, presentation return `inline_failure.is_none()`,
+profile siblings `failure_at(height).is_none()`. Pcb: `feedback.is_none()` after the net landing, the hidden-stage `take_held_effects` check
+(vacuous by construction: `settle_until` drains held effects first). Dioxus effects re-render one idle turn after the render that triggered them,
+so the rendered-revision wait narrows but does not close this window.
+
+**Executed test names.** `wasm-pack test --headless --chrome web/crates/<crate> --locked --lib -- --list`, names sorted, `8068c9801^` against
+`0d5c8155b`: case 81 and 81, pcb 49 and 49, diff empty for both (the parent files were checked out over the tree for the listing and restored;
+tree clean after). Parts: 68, and `git diff 8068c9801^ 0d5c8155b -- web/crates/parts` is empty, so its list is unchanged by construction.
+
+**Mutation checks (verifier; different waits from the implementer's).**
+1. Never true, case "the profile volume failure restores its field": FAIL with `wait_until: the profile volume failure restores its field did not
+   hold within 5000 ms`.
+2. Never true, pcb "the layout move and the pad assignment both land": FAIL with the named message.
+3. Always true, case "the held Session edit lands and the returned field shows it": the next assertion fails (`left: 2.0, right: 3.0`,
+   "the already submitted Session edit still runs"). Predicate is load-bearing.
+4. Always true, pcb "the net creation and the queued pad assignment land and the action re-enables": the next assertion fails (creation count
+   `left: 0, right: 1`). Load-bearing.
+5. Always true, pcb "the second undo clears the board configuration" (the implementer's flagged site): the test still passes. `run_pending`
+   completes the undo inside the first poll, so this predicate cannot decide the outcome; it is not weaker than the assertion either (it is the
+   assertion). No change.
+6. Production step removed, pcb `apply.rs` (the "A part used by this wiring plan was deleted" retire disabled): FAIL in about 5 s with
+   `wait_until: the accepted edit removes the mcu part and the refused apply reports did not hold within 5000 ms`.
+7. Production step removed, case `DimensionField` effect (the `!dirty` guard dropped, so an accepted landing overwrites the newer draft): five
+   mounted tests fail, including the held landing with `wait_until: the held landing is accepted and the newer original draft stays did not hold
+   within 5000 ms`. The same mutation with the old predicate (without `rendered_accepted`) was also caught in 3 of 3 runs, so I could not show the
+   rendered-revision barrier is necessary on this machine; it is kept as the lesson-3 barrier and costs nothing.
+All mutations were reverted (`git status` clean for `apply.rs`; the test files were restored from copies and re-run green).
+
+**Timings (sandbox lifted, sequential, `check.py browser`; Haiku's table is in the Outcome).** Run 1 (immediately after my edits, so case and pcb
+recompiled): step 164.9 s, load average 6.3 at start and 14.1 at end; per-suite `finished in` values were truncated by the output condenser, only
+the launch walls survive (case 48.8 s, parts 50.5 s, pcb 51.8 s, compile included). Run 2 (raw output via `rtk proxy`): step 144.1 s, load 13.1
+at start and 13.4 at end; suite `finished in`: case 15.11 s, pcb 18.34 s, parts 16.63 s (unchanged suite), keymap 9.72 s, layout 13.99 s,
+library 11.02 s, ui-shared 8.93 s; launch walls case 31.0 s, parts 32.8 s, pcb 33.6 s. Both runs: `all steps passed: browser`, run-wasm-tests
+executed 70, failed 0; case 81, pcb 49, parts 68 passed. Against Haiku's table (case 30.83 s to about 15 s, pcb 26.46 s to about 19 s, parts about 16 s)
+the suite results agree; the `browser` step wall (164.9 s, 144.1 s; Haiku 148 to 177 s, baseline 132.7 s) is dominated by launches and rebuilds and
+by the concurrent Codex build, and no conclusion is drawn from it. `typecheck` 6.4 s, `lint` 3.0 s (fmt and clippy), `repo` 0.1 s, all passed.
+
+**Not verified.** GitNexus not run (stale index; agents do not refresh it): the changed symbols are test-module local, checked with `rg`.
+The 5 s bound on a slower machine. Flakiness beyond the five full runs. The effect of the new barriers on the residual negative assertions (see above).

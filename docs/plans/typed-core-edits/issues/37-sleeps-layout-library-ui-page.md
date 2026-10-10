@@ -1,4 +1,4 @@
-# 37: Replace fixed sleeps in the layout, library, ui-shared, keycaps, keymap helpers and page browser tests
+# 37: Replace fixed sleeps in the remaining browser suites (layout, library, ui-shared, keycaps, keymap helpers, page; plus what 36 left in case, pcb and parts)
 
 Status: ready-for-agent
 Type: build
@@ -24,3 +24,33 @@ assertion needs (including a `rendered_accepted`-style wait for the accepted rev
 ## Verification
 
 `repo lint typecheck browser` (sandbox lifted for wasm-pack and Chrome), run three times. Process: [verification-process.md](../../../agents/verification-process.md). Time box about two hours.
+
+## Carried from 36
+
+Ticket [36](36-sleeps-case-pcb-parts.md) was resolved for its delivered scope only (verified 2026-10-10; Outcome and Verification there). The work below was not
+done and belongs to this ticket, with the same pattern (each wait is the precondition of the next assertion, bounded, plus the render of the accepted revision where
+the next assertion reads a field or hook) and the same stopping rule (stop where a suite gains under about 1 s). Counts are from 36's Outcome; re-count with `rg` first.
+
+- **case** (`web/crates/case/src/mechanical_settings.rs`): 76 `rendered()` (60 ms) sites in `contextual_layer_tests` (pure DOM test pages, before `mod
+  mounted_settlement_tests`; about 4.5 s; no shared render signal, so give each page a render counter as the keymap pilot's `Probe.renders` does);
+  17 intermediate `rendered()` (40 ms) sites in the mounted module (about 0.7 s); 3 negative-only `settle_fields` sites (about 1.8 s):
+  `preparation_from_an_unmounted_field_cannot_bind_a_replacement_field`, `catalogue_latest_preparation_keeps_identical_newer_text_while_pending`, and the second
+  settle in `catalogue_latest_preparation_error_survives_older_failure_arriving_last`. They assert only absence; they need an idle signal or a sentinel edit
+  queued behind the held ones, and `settle_fields` stays only until then.
+- **pcb**: about 24 intermediate `rendered()` (30 ms) waits (12 in `pcb_wiring/queued_edit_tests.rs`, 12 in `pcb_physical_setup/tests.rs`; about 0.7 s) and 6
+  `pcb_physical_setup/tests.rs` settle sites still on the fixed `settle` (lines near 343, 395, 419, 511, 518, 560; about 2 s). 343, 395 and 419 assert only
+  absence or follow an `Event::Open`; 511, 518 and 560 (layout tests) were not read.
+- **parts** (`web/crates/parts`): not started. About 84 `tick()` (30 ms) sites (`component_model_editor`, `module_attachment`, `module_profile_editor`,
+  `mechanical_profile_ui` define `tick`; `parts.rs`, `parts_new_component.rs`, `parts_import_footprint.rs`, `generator_settings.rs` and `assembly_editor.rs`
+  also hold 30 ms waits); suite 16.1 s, about 2.6 s of waits. Each site needs its own predicate.
+- **Found by the 36 verifier, not yet fixed**: in pcb `failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_another_edit`
+  (`pcb_wiring/queued_edit_tests.rs`) the "unrelated" `ResolveEdit` ends as `BlockedByRecovery("save recovery is required")` because the injected Core failure
+  leaves the session in save recovery; it never lands, so "an unrelated edit must not clear the field's failure" is untested. Plan: fail with a refusal that
+  does not enter recovery (or recover first), then wait for `name == "Later name"` and `rendered_accepted(&probe)` before the failure assertion, and
+  mutate (clear the failure on any revision change) to see it fail.
+- **Residual negatives**: negative assertions that follow a positive wait (case held landing, presentation return, profile siblings; pcb `feedback.is_none()`
+  after the net landing) still rely on effect-driven re-renders having run. A test-support idle signal (no dirty scopes, no held effects, no in-flight
+  Core work) would close this; consider adding it to `test_wait.rs` before converting more suites.
+
+Acceptance for this section: the list above is converted or each remaining site is recorded with its reason, per-suite before/after table for case, pcb
+and parts, name diff empty, mutation checks as in the section above.
