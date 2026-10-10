@@ -24,7 +24,8 @@ use crate::mechanical::change::{
 use crate::mechanical::{self, MechanicalTarget, halves, inputs::effective_inputs, pair};
 use crate::model::{
     Board, BoardOutline, ElectricalBoardConfiguration, Finding, Layout, MechanicalConfiguration,
-    MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCorrespondence,
+    MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCompanionMode,
+    MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfLabel, MirroredHalfLabels,
     MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
     OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
@@ -43,9 +44,12 @@ struct Request<'a> {
     source_id: &'a str,
     mapping: Pose2,
     mounting_hole: Option<&'a PartDefinition>,
+    companion_mode: MirroredCompanionMode,
+    companion_tweak: Option<MirroredCompanionTweak>,
 }
 
 /// Creates the second half and returns the changed ids, sorted.
+#[allow(clippy::too_many_arguments)] // Mirrors the typed operation fields at its single dispatch site.
 pub(crate) fn create(
     doc: &mut ProjectDoc,
     pair_id: &str,
@@ -54,8 +58,12 @@ pub(crate) fn create(
     mapping: Pose2,
     id_rule: MirroredIdRule,
     mounting_hole: Option<&PartDefinition>,
+    companion_mode: MirroredCompanionMode,
+    companion_tweak: Option<MirroredCompanionTweak>,
+    labels: Option<&MirroredHalfLabels>,
 ) -> Result<Vec<String>, String> {
     let MirroredIdRule::BoardPrefix = id_rule;
+    halves::validate_companion(companion_mode, companion_tweak)?;
     if !(mapping.at.x.is_finite() && mapping.at.y.is_finite() && mapping.rotation.is_finite()) {
         return Err("The mirrored half's mapping must be finite.".into());
     }
@@ -64,6 +72,8 @@ pub(crate) fn create(
         source_id: source_instance_id,
         mapping,
         mounting_hole,
+        companion_mode,
+        companion_tweak,
     };
     let mut next = doc.clone();
     let mut changed = match mode {
@@ -75,12 +85,98 @@ pub(crate) fn create(
             instance_id,
         } => new_board(&mut next, &request, board_id, instance_id)?,
     };
+    if let Some(labels) = labels {
+        let mirror_id = match mode {
+            MirroredHalfMode::ReuseBoard { instance_id }
+            | MirroredHalfMode::NewBoard { instance_id, .. } => instance_id,
+        };
+        apply_labels(&mut next, pair_id, source_instance_id, mirror_id, labels)?;
+    }
     layout::validate(&next)?;
     halves::validate_document(&next)?;
     changed.sort();
     changed.dedup();
     *doc = next;
     Ok(changed)
+}
+
+/// Applies replacements to the draft after creation so omitted mirror fields keep the existing
+/// derivation rule, even when the source is relabelled. A refusal discards the whole draft.
+fn apply_labels(
+    doc: &mut ProjectDoc,
+    pair_id: &str,
+    source_id: &str,
+    mirror_id: &str,
+    labels: &MirroredHalfLabels,
+) -> Result<(), String> {
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    for (id, side, label) in [
+        (source_id, "source", labels.source.as_ref()),
+        (mirror_id, "mirror", labels.mirror.as_ref()),
+    ] {
+        if let Some(label) = label {
+            let instance = hardware
+                .instances
+                .iter_mut()
+                .find(|instance| instance.id == id)
+                .ok_or_else(|| format!("Physical instance {id:?} is unavailable."))?;
+            apply_label(
+                instance,
+                label,
+                &format!("mechanical pair {pair_id:?} instance {id:?} labels.{side}"),
+            )?;
+        }
+    }
+    let source = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == source_id)
+        .ok_or("The source instance is unavailable")?;
+    let mirror = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == mirror_id)
+        .ok_or("The mirror instance is unavailable")?;
+    if source.half == mirror.half && source.role == mirror.role {
+        return Err(format!(
+            "mechanical pair {pair_id:?} labels.mirror (instance {mirror_id:?}) claims the same half {:?} and role {:?} as labels.source (instance {source_id:?})",
+            mirror.half, mirror.role
+        ));
+    }
+    Ok(())
+}
+
+fn apply_label(
+    instance: &mut PhysicalBoardInstance,
+    label: &MirroredHalfLabel,
+    location: &str,
+) -> Result<(), String> {
+    if let Some(name) = &label.name {
+        if name.trim().is_empty() {
+            return Err(format!("{location}.name must be non-empty"));
+        }
+        instance.name.clone_from(name);
+    }
+    if let Some(half) = &label.half {
+        if !matches!(half.as_str(), "left" | "right" | "unibody") {
+            return Err(format!(
+                "{location}.half {half:?} must be left, right or unibody"
+            ));
+        }
+        instance.half.clone_from(half);
+    }
+    if let Some(role) = &label.role {
+        if !matches!(role.as_str(), "central" | "peripheral" | "standalone") {
+            return Err(format!(
+                "{location}.role {role:?} must be central, peripheral or standalone"
+            ));
+        }
+        instance.role.clone_from(role);
+    }
+    Ok(())
 }
 
 /// The mirror id of a source id under the board-prefix rule: every whole `from` token becomes
@@ -150,10 +246,8 @@ const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
     "ceoloide/mounting_hole_npth",
 ];
 
-/// Imported footprints that equal their own mirror image about the vertical axis, so a mirrored
-/// copy at the reflected heading is certain. The MX stabilisers (`STAB_MX_2u`, `STAB_MX_6.25u`)
-/// have pads at exactly `+-x` on the same `y`; they are not symmetric under a half turn, which is
-/// why they are matched here and the mirror (not a turn) places them.
+/// Imported MX stabilisers: ADR-0010 keeps their world heading in every companion mode. Their
+/// position takes the X reflection, and they never raise an uncertain-heading finding.
 const SYMMETRIC_DEFINITIONS: [&str; 2] = [
     "kicad:marbastlib/STAB_MX_2u",
     "kicad:marbastlib/STAB_MX_6.25u",
@@ -590,6 +684,9 @@ fn reuse_board(
     request: &Request,
     instance_id: &str,
 ) -> Result<Vec<String>, String> {
+    if request.companion_tweak.is_some() {
+        return Err("reuse-board copies no companions; companionTweak requires new-board".into());
+    }
     let (source, configuration) = source_half(doc, request)?;
     if source.flipped {
         return Err(format!(
@@ -648,6 +745,7 @@ fn reuse_board(
         request,
         instance_id,
         MirroredHalves {
+            companion_mode: request.companion_mode,
             source_board_id: board.clone(),
             mirror_board_id: board,
             correspondences: vec![],
@@ -911,6 +1009,8 @@ fn remap_wiring_key(text: &str, renames: &BTreeMap<String, String>) -> String {
 
 fn corresponds(kind: MirroredItemKind, source: &str, mirror: &str) -> MirroredCorrespondence {
     MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
         kind,
         source_id: source.to_owned(),
         mirror_id: mirror.to_owned(),
@@ -1018,6 +1118,81 @@ fn circuit_mirror(
     Ok(mirror)
 }
 
+/// Repairs only absent matrix companions on the draft. Generate into a scratch document so
+/// existing source parts, authored poses, sides and generator parameters remain untouched.
+/// Return the repaired ids: their mirrors keep a durable literal fallback instead of the
+/// requested duplicate/tweak mode. A missing switch is a validation error, never a repair.
+fn materialise_missing_companions(
+    doc: &mut ProjectDoc,
+    board_id: &str,
+) -> Result<BTreeSet<String>, String> {
+    let matrices: Vec<_> = doc
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.board_id.as_deref() == Some(board_id))
+        .cloned()
+        .collect();
+    let mut repaired = BTreeSet::new();
+    for matrix in matrices {
+        crate::matrix::valid_matrix(&matrix, doc)?;
+        let mut missing = BTreeSet::new();
+        for row in 0..matrix.rows {
+            for column in 0..matrix.columns {
+                let cell = matrix
+                    .cells
+                    .iter()
+                    .find(|cell| cell.row == row && cell.column == column);
+                if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
+                    continue;
+                }
+                let key_id = format!("matrix/{}/r{row}c{column}", matrix.id);
+                if !doc.parts.iter().any(|part| part.id == key_id) {
+                    return Err(format!(
+                        "A companion's source switch {key_id:?} is unavailable"
+                    ));
+                }
+                for assembly in cell.into_iter().flat_map(|cell| &cell.assemblies) {
+                    let id = crate::matrix::companion_id(&key_id, &assembly.id);
+                    if !doc.parts.iter().any(|part| part.id == id) {
+                        missing.insert(id);
+                    }
+                }
+            }
+        }
+        if missing.is_empty() {
+            continue;
+        }
+        let mut generated = doc.clone();
+        crate::matrix::set_matrix(&mut generated, &matrix)?;
+        doc.parts.extend(
+            generated
+                .parts
+                .into_iter()
+                .filter(|part| missing.contains(&part.id)),
+        );
+        let source_matrix = doc
+            .matrices
+            .iter_mut()
+            .find(|source| source.id == matrix.id)
+            .ok_or("The source matrix is unavailable")?;
+        let board = doc
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .ok_or("The source board is unavailable")?;
+        for id in &missing {
+            if !source_matrix.part_ids.contains(id) {
+                source_matrix.part_ids.push(id.clone());
+            }
+            if !board.part_ids.contains(id) {
+                board.part_ids.push(id.clone());
+            }
+        }
+        repaired.extend(missing);
+    }
+    Ok(repaired)
+}
+
 fn new_board(
     doc: &mut ProjectDoc,
     request: &Request,
@@ -1033,6 +1208,7 @@ fn new_board(
         return Err(format!("Board {to:?} already exists."));
     }
     ensure_instance_fresh(doc, instance_id)?;
+    let repaired_companions = materialise_missing_companions(doc, &from)?;
     let source_board = doc
         .boards
         .iter()
@@ -1095,6 +1271,16 @@ fn new_board(
         .iter()
         .flat_map(|matrix| matrix.part_ids.iter().map(String::as_str))
         .collect();
+    // Matrix assemblies are companions by relationship, including imported/plain LEDs without a generator.
+    let mut companion_ids = BTreeSet::new();
+    for matrix in &matrices {
+        for cell in &matrix.cells {
+            let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+            for assembly in &cell.assemblies {
+                companion_ids.insert(crate::matrix::companion_id(&key_id, &assembly.id));
+            }
+        }
+    }
     let layouts: Vec<_> = doc
         .layouts
         .iter()
@@ -1225,7 +1411,68 @@ fn new_board(
         template.board_id = Some(to.clone());
         template.cells.clear();
         template.part_ids.clear();
-        let reflected = layout::reflected(matrix, &template, mapping, true)?;
+        let mut reflected = layout::reflected(matrix, &template, mapping, true)?;
+        for cell in &mut reflected.cells {
+            if !cell.enabled || cell.deleted {
+                continue;
+            }
+            for assembly in &mut cell.assemblies {
+                let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+                let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
+                if SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str()) {
+                    let key = doc
+                        .parts
+                        .iter()
+                        .find(|part| part.id == key_id)
+                        .ok_or("A companion's source switch is unavailable")?;
+                    let companion = doc
+                        .parts
+                        .iter()
+                        .find(|part| part.id == companion_id)
+                        .ok_or("A source companion is unavailable")?;
+                    // Assemblies store a heading relative to the mirrored switch. Cancel that
+                    // switch's reflected tilt so the stabiliser keeps its source world heading.
+                    assembly.rotation = Some(
+                        companion.pose.rotation - pair::forward_angle(mapping, key.pose.rotation),
+                    );
+                    continue;
+                }
+                if repaired_companions.contains(&companion_id) {
+                    continue;
+                }
+                match request.companion_mode {
+                    MirroredCompanionMode::LiteralMirror => {}
+                    MirroredCompanionMode::DuplicatePosition => {
+                        let key = doc
+                            .parts
+                            .iter()
+                            .find(|part| part.id == key_id)
+                            .ok_or("A companion's source switch is unavailable")?;
+                        let companion = doc
+                            .parts
+                            .iter()
+                            .find(|part| part.id == companion_id)
+                            .ok_or("A source companion is unavailable")?;
+                        let (sin, cos) = key.pose.rotation.to_radians().sin_cos();
+                        let dx = companion.pose.at.x - key.pose.at.x;
+                        let dy = companion.pose.at.y - key.pose.at.y;
+                        assembly.offset = Vec2 {
+                            x: dx * cos + dy * sin,
+                            y: -dx * sin + dy * cos,
+                        };
+                        assembly.rotation = Some(companion.pose.rotation - key.pose.rotation);
+                    }
+                    MirroredCompanionMode::LiteralMirrorWithTweak => {
+                        if let Some(tweak) = request.companion_tweak {
+                            assembly.offset.x += tweak.x;
+                            assembly.offset.y += tweak.y;
+                            assembly.rotation =
+                                Some(assembly.rotation.unwrap_or(0.0) + tweak.rotation);
+                        }
+                    }
+                }
+            }
+        }
         crate::matrix::set_matrix(doc, &reflected)?;
         correspondences.push(corresponds(
             MirroredItemKind::Matrix,
@@ -1287,7 +1534,13 @@ fn new_board(
         .iter()
         .partition(|id| !circuits.owned.contains_key(id.as_str()));
     for id in own.into_iter().chain(members) {
-        correspondences.push(corresponds(MirroredItemKind::Part, id, &part_map[*id]));
+        let mut correspondence = corresponds(MirroredItemKind::Part, id, &part_map[*id]);
+        if repaired_companions.contains(id.as_str()) {
+            correspondence.companion_mode = Some(MirroredCompanionMode::LiteralMirror);
+        } else if companion_ids.contains(id.as_str()) {
+            correspondence.companion_tweak = request.companion_tweak;
+        }
+        correspondences.push(correspondence);
         if matrix_owned.contains(id.as_str()) {
             continue;
         }
@@ -1621,6 +1874,7 @@ fn new_board(
         request,
         instance_id,
         MirroredHalves {
+            companion_mode: request.companion_mode,
             source_board_id: from,
             mirror_board_id: to.clone(),
             correspondences: correspondences.clone(),
@@ -1905,6 +2159,9 @@ mod tests {
             },
             mapping,
             MirroredIdRule::BoardPrefix,
+            None,
+            MirroredCompanionMode::LiteralMirror,
+            None,
             None,
         )
         .unwrap_err();

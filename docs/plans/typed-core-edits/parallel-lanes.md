@@ -14,15 +14,16 @@ timing work must run alone, and a few files can only have one writer. Process fo
 - **Lane agent (one per lane at a time):** works only in its lane worktree on its lane branch, on the files its
   tickets name, and writes an `## Outcome` in its ticket files. It never edits `map.md`, never merges, never
   pushes, never refreshes GitNexus.
-- **Implementer and verifier are different agents, ideally from different apps** (for example Codex implements,
-  Claude verifies, or the reverse). An independent model reviewing the work is the point of the verify step.
+- **Implementer and verifier are different sessions with different models** (Luna 6 implements, Sol 6.1 verifies; models and
+  efforts are in [agent-workflow.md](../../agents/agent-workflow.md)). An independent model reviewing the work is the point of
+  the verify step.
 - **Human:** answers decision tickets and approves anything that leaves the machine.
 
 ## Lanes
 
 | Lane | Tickets, in order | Touches (main files) | Heavy checks | Notes |
 | --- | --- | --- | --- | --- |
-| A web test speed | [36](issues/36-sleeps-case-pcb-parts.md), [37](issues/37-sleeps-layout-library-ui-page.md), [38](issues/38-merge-duplicate-browser-tests.md) | `web/crates/{case,pcb,parts,layout,library,ui-shared,keycaps,keymap}` test code, `web/src/presentation` tests | `browser` (Chrome) | no Core edits. 36 is running now in `tce-matrix`. |
+| A web test speed | [36](issues/36-sleeps-case-pcb-parts.md), [37](issues/37-sleeps-layout-library-ui-page.md), [38](issues/38-merge-duplicate-browser-tests.md) | `web/crates/{case,pcb,parts,layout,library,ui-shared,keycaps,keymap}` test code, `web/src/presentation` tests | `browser` (Chrome) | no Core edits; confirm current ticket status before dispatch. |
 | B mirror core | [31](issues/31-companion-placement-modes.md), [32](issues/32-mirrored-half-labels.md), then [19](issues/19-reconcile-mirrored-halves.md), then [20](issues/20-recipes-build-one-half.md) | `core/src/mirrored_half.rs`, `core/src/mechanical/halves.rs`, `core/src/model.rs`, `core/tests/mirrored_half.rs`, recipes | `lint test typecheck`; 20 adds `build` | 19 is the riskiest ticket: run it alone in this lane. |
 | C check speed | [11](../check-speed/issues/11-browser-measure.md) (alone, quiet machine), then [12](../check-speed/issues/12-browser-quick-wins.md) | `scripts/check.py`, `scripts/run-wasm-tests.py`, `.github/workflows` | `browser` many times | 11 measures timings, so nothing else may run. 12 waits for lane A to finish 38. |
 | D audit and cleanup | [35](issues/35-test-maintenance-cuts.md) | version literals in tests; goldens (`transcript.json`, the demo baseline) | full `check.py` | Golden edits last, after B merges, then re-bless. |
@@ -41,19 +42,26 @@ leaves them alone and asks.
 | `docs/plans/typed-core-edits/map.md`, `docs/plans/check-speed/map.md` | orchestrator, at merge time |
 | `core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json` | lane B, then lane D; generated, never hand-merged: on a conflict take the integration branch's file and re-run `BOUNDARY_BLESS=1` |
 | `CONTEXT.md`, `docs/adr/*` | orchestrator; lanes propose text in their Outcome |
-| `scripts/check.py` | lane C |
+| `scripts/check.py` | lane C; root owns only the tooling-test-list conflict during the 2026-10-10 workflow merge, returning ownership on that merge's commit |
 | GitNexus index | orchestrator ([gitnexus-index.md](../../agents/gitnexus-index.md)) |
 
 ## Setting up a lane
 
-From the integration branch's worktree (replace `<lane>`):
+From the integration branch's worktree (replace `<lane>`). Resolve paths before changing directory so lanes are siblings
+under the main checkout, including when this command starts in `.worktrees/tce-matrix`:
 
 ```bash
-git worktree add .worktrees/lane-<lane> -b lane/<lane> typed-core-edits/mechanical
-cd .worktrees/lane-<lane>
+integration=$(pwd -P)
+project=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+lane="$project/.worktrees/lane-<lane>"
+git worktree add "$lane" -b lane/<lane> typed-core-edits/mechanical
+cd "$lane"
 mkdir -p ~/.cache/boardstudio-target/<lane>
 ln -s ~/.cache/boardstudio-target/<lane> target     # the tooling tests look for target/ in the checkout
-cp -a ../../cad/.cache cad/.cache && cp -a ../../cad/wasm/pkg cad/wasm/pkg   # real copies, only needed for `build`
+mkdir -p .agents
+ln -s "$project/.agents/skills" .agents/skills
+cp -a "$integration/cad/.cache" cad/.cache         # real copies, only needed for `build`
+cp -a "$integration/cad/wasm/pkg" cad/wasm/pkg
 ```
 
 - **A separate `target` per lane.** The old advice to share one `target/` serialises every cargo run on one
@@ -69,10 +77,14 @@ Paste this, then name the ticket(s). Everything else is in the ticket.
 
 > Work only in `.worktrees/lane-<lane>` on branch `lane/<lane>`. Read `AGENTS.md`,
 > `docs/agents/verification-process.md` and your ticket(s). Claim a ticket by setting `Status: claimed` and
-> committing. Implement test-first, run only the check steps the process table names, one command at a time in the
+> committing (implementers only; verifiers keep `implemented (awaiting verification)` until acceptance holds).
+> Use your absolute lane path as `exec_command`'s `workdir` on every shell call; report the path, branch and status first.
+> Implement test-first, run only the check steps the process table names, one command at a time in the
 > foreground. Stage explicit paths; no `git stash`, no `git add -A`, no push, no merge. Do not edit `map.md`,
-> `CONTEXT.md`, ADRs or the generated goldens. Do not refresh GitNexus; use `rg` for callers and say the index may be
-> stale. Time box about two hours. Finish with the ticket set to `implemented (awaiting verification)` and an honest
+> `CONTEXT.md`, ADRs or the generated goldens unless ownership is assigned to you. Run GitNexus impact before edits and
+> detect-changes before commits, bound to your checkout. Do not refresh GitNexus; if its answer is stale, empty or UNKNOWN,
+> confirm callers with `rg` and report the limitation. Follow the role time boxes in `verification-process.md`.
+> Implementers finish with the ticket set to `implemented (awaiting verification)` and an honest
 > Outcome. Commit trailers name the agent that made the commit. Report what you ran and what you did not.
 
 Verifier brief: the same, plus "do not trust the Outcome; reproduce it; fix only small clearly correct defects; set
@@ -83,9 +95,10 @@ Verifier brief: the same, plus "do not trust the Outcome; reproduce it; fix only
 1. The verifier marks a ticket `resolved` on the lane branch.
 2. The orchestrator merges lanes into `typed-core-edits/mechanical` in dependency order (B before E; A before C's
    12; goldens last). Prefer `git merge --no-ff` of the lane branch; resolve conflicts only in files the lane owns.
-3. After each merge, re-bless the generated goldens if needed and run the **batch check** (full `check.py`, never
-   `release`) once on the integration branch, then update `map.md` and refresh GitNexus.
-4. Delete the lane worktree and branch only after the merge is recorded.
+3. Re-bless generated goldens if needed after merging. After the batch's lanes have landed, run the **batch check**
+   (full `check.py`, never `release`) once on the integration branch, then update `map.md` and refresh GitNexus.
+4. Remove a finished lane worktree and branch only after the merge is recorded, the tree is clean and no agent owns it.
+   Preserve active and unrelated worktrees.
 
 Nothing merges to `dev` without the user.
 
@@ -98,3 +111,9 @@ Nothing merges to `dev` without the user.
 - Sandboxes differ. `wasm-pack`, Chrome and the CAD container need network-free but unsandboxed execution; say so in
   the lane brief for the app being used.
 - A lane that cannot run a heavy check (no Chrome, no podman) reports "not run" and the orchestrator runs it at merge.
+
+## Lane status
+
+Use the handoff snapshot in [agent-workflow.md](../../agents/agent-workflow.md), then confirm live worktree status and ticket
+headers. In particular, ticket 37 is awaiting verification and ticket 39 already has an implementer in lane B; a status on
+the integration branch can lag a lane's claimed or resolved status. Set up C, D and E only when their predecessors are resolved.

@@ -7380,6 +7380,7 @@ mod mounted_settlement_tests {
     use boardstudio_core::model::{
         GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
     };
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -7519,6 +7520,7 @@ mod mounted_settlement_tests {
         let profile_controller = controller.clone();
         let profile = configuration.profiles[0].clone();
         rsx! {
+            span { class: "test-revision", "{current.identity.revision}" }
             button { class: "test-toggle-dimension", onclick: move |_| show_dimension.toggle(), "Toggle dimension" }
             button { class: "test-toggle-case", onclick: move |_| {
                 presentation_generation += 1;
@@ -7635,7 +7637,11 @@ mod mounted_settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        rendered().await;
+        wait_until("the mounted mechanical fields render", || {
+            has(&root, ".test-mechanical-dimension input")
+                && has(&root, ".test-mechanical-text input")
+        })
+        .await;
         (runtime, root)
     }
 
@@ -7643,6 +7649,45 @@ mod mounted_settlement_tests {
         gloo_timers::future::TimeoutFuture::new(40).await;
     }
 
+    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+        wait_until_step(what, async || {
+            support::run_pending(runtime).await;
+            done()
+        })
+        .await;
+    }
+
+    fn wall_thickness(runtime: &Runtime) -> f64 {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .wall_thickness
+    }
+
+    fn accepted_revision(runtime: &Runtime) -> u64 {
+        runtime.model().accepted.unwrap().document.revision
+    }
+
+    /// Whether the host has rendered the revision Core accepted last: Core state reaches the
+    /// fields only through a render, so a wait on the revision alone can pass before it.
+    fn rendered_accepted(runtime: &Runtime, root: &web_sys::Element) -> bool {
+        root.query_selector(".test-revision")
+            .ok()
+            .flatten()
+            .and_then(|marker| marker.text_content())
+            .is_some_and(|text| text == accepted_revision(runtime).to_string())
+    }
+
+    fn has(root: &web_sys::Element, selector: &str) -> bool {
+        root.query_selector(selector).ok().flatten().is_some()
+    }
+
+    /// Fixed settle, kept only where no DOM or Core state marks the stale outcome.
     async fn settle_fields(runtime: &Rc<Runtime>) {
         for _ in 0..15 {
             support::run_pending(runtime).await;
@@ -7694,7 +7739,16 @@ mod mounted_settlement_tests {
             type_value(&input, submitted);
             input.blur().unwrap();
             rendered().await;
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the untouched failed draft restores its accepted text",
+                || {
+                    input.value() == accepted
+                        && inline_failure(&root, field)
+                            .is_some_and(|message| message.contains("mechanical executor refused"))
+                },
+            )
+            .await;
             assert_eq!(
                 input.value(),
                 accepted,
@@ -7724,7 +7778,16 @@ mod mounted_settlement_tests {
             input.blur().unwrap();
             rendered().await;
             type_value(&input, newer);
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the older failure reports beside the newer draft",
+                || {
+                    input.value() == newer
+                        && inline_failure(&root, field)
+                            .is_some_and(|message| message.contains("older mechanical failure"))
+                },
+            )
+            .await;
             assert_eq!(input.value(), newer, "the newer draft stays visible");
             assert!(
                 inline_failure(&root, field)
@@ -7746,10 +7809,22 @@ mod mounted_settlement_tests {
             input.blur().unwrap();
             rendered().await;
             support::drive_pending(&runtime);
-            entered.await.unwrap();
+            wait_until_future("the held edit reaches the Core executor", entered)
+                .await
+                .unwrap();
             type_value(&input, original);
+            let landed = accepted_revision(&runtime);
             release.send(()).unwrap();
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the held landing is accepted and the newer original draft stays",
+                || {
+                    accepted_revision(&runtime) > landed
+                        && rendered_accepted(&runtime, &root)
+                        && input.value() == original
+                },
+            )
+            .await;
             assert_eq!(
                 input.value(),
                 original,
@@ -7770,13 +7845,18 @@ mod mounted_settlement_tests {
         input.blur().unwrap();
         rendered().await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("the held edit reaches the Core executor", entered)
+            .await
+            .unwrap();
         type_value(&input, "4");
         input.blur().unwrap();
         rendered().await;
         support::drive_pending(&runtime);
         release.send(()).unwrap();
-        settle_fields(&runtime).await;
+        settle_until(&runtime, "the latest mechanical commit is accepted", || {
+            wall_thickness(&runtime) == 4.0 && input.value() == "4"
+        })
+        .await;
         assert_eq!(
             runtime
                 .model()
@@ -7794,7 +7874,12 @@ mod mounted_settlement_tests {
             runtime.submit(Event::Undo {
                 operation_id: runtime.operation(),
             });
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the undo restores the earlier accepted step",
+                || wall_thickness(&runtime) == accepted && input.value() == expected_text,
+            )
+            .await;
             assert_eq!(
                 runtime
                     .model()
@@ -7834,7 +7919,17 @@ mod mounted_settlement_tests {
                 type_value(&input, newer);
             }
             release.send(Err("catalogue unavailable".into())).unwrap();
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the catalogue failure restores or keeps the draft",
+                || {
+                    input.value() == expected
+                        && wall_thickness(&runtime) == 2.0
+                        && inline_failure(&root, field)
+                            .is_some_and(|message| message.contains("catalogue unavailable"))
+                },
+            )
+            .await;
             assert_eq!(input.value(), expected);
             assert!(
                 inline_failure(&root, field)
@@ -7942,7 +8037,16 @@ mod mounted_settlement_tests {
         bottom.blur().unwrap();
         rendered().await;
         type_value(&height, "15");
-        settle_fields(&runtime).await;
+        settle_until(
+            &runtime,
+            "the profile volume failure restores its field",
+            || {
+                bottom.value() == "0"
+                    && failure_at(&bottom)
+                        .is_some_and(|message| message.contains("profile volume failed"))
+            },
+        )
+        .await;
         assert_eq!(bottom.value(), "0");
         assert!(
             failure_at(&bottom).is_some_and(|message| message.contains("profile volume failed"))
@@ -7989,7 +8093,12 @@ mod mounted_settlement_tests {
         release_b
             .send(Err("newer catalogue failure".into()))
             .unwrap();
-        settle_fields(&runtime).await;
+        settle_until(&runtime, "the newer catalogue failure is reported", || {
+            input.value() == "2"
+                && inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer catalogue failure"))
+        })
+        .await;
         assert_eq!(input.value(), "2");
         assert!(
             inline_failure(&root, "dimension")
@@ -8015,7 +8124,12 @@ mod mounted_settlement_tests {
         release_b
             .send(Err("newer catalogue failure".into()))
             .unwrap();
-        settle_fields(&runtime).await;
+        settle_until(&runtime, "the newer catalogue failure is reported", || {
+            input.value() == "2"
+                && inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer catalogue failure"))
+        })
+        .await;
         assert_eq!(input.value(), "2");
         assert!(
             inline_failure(&root, "dimension")
@@ -8044,7 +8158,9 @@ mod mounted_settlement_tests {
         first_input.blur().unwrap();
         rendered().await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("the held edit reaches the Core executor", entered)
+            .await
+            .unwrap();
         let toggle = root
             .query_selector(".test-toggle-case")
             .unwrap()
@@ -8069,7 +8185,12 @@ mod mounted_settlement_tests {
             "returning to Case must not revive the old presentation's pending field observation"
         );
         release.send(()).unwrap();
-        settle_fields(&runtime).await;
+        settle_until(
+            &runtime,
+            "the held Session edit lands and the returned field shows it",
+            || wall_thickness(&runtime) == 3.0 && returned.value() == "3",
+        )
+        .await;
         assert_eq!(
             runtime
                 .model()
@@ -8103,7 +8224,9 @@ mod mounted_settlement_tests {
             input.blur().unwrap();
             rendered().await;
             support::drive_pending(&runtime);
-            entered.await.unwrap();
+            wait_until_future("the held edit reaches the Core executor", entered)
+                .await
+                .unwrap();
             type_value(&input, "4");
             input.blur().unwrap();
             rendered().await;
@@ -8111,7 +8234,16 @@ mod mounted_settlement_tests {
             release_b
                 .send(Err("newer preparation failed".into()))
                 .unwrap();
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the newer preparation failure is reported",
+                || {
+                    input.value() == newer
+                        && inline_failure(&root, "dimension")
+                            .is_some_and(|message| message.contains("newer preparation failed"))
+                },
+            )
+            .await;
             assert_eq!(input.value(), newer);
             assert!(
                 inline_failure(&root, "dimension")
@@ -8124,7 +8256,18 @@ mod mounted_settlement_tests {
                 "only the latest admitted request drives field pending"
             );
             release_a.send(()).unwrap();
-            settle_fields(&runtime).await;
+            settle_until(
+                &runtime,
+                "the held Session edit lands beside the newer draft",
+                || {
+                    wall_thickness(&runtime) == 3.0
+                        && rendered_accepted(&runtime, &root)
+                        && input.value() == newer
+                        && inline_failure(&root, "dimension")
+                            .is_some_and(|message| message.contains("newer preparation failed"))
+                },
+            )
+            .await;
             assert_eq!(
                 runtime
                     .model()

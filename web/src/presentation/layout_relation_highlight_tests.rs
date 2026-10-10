@@ -5,6 +5,7 @@ use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, Session};
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::{EditCommand, EditPhase, ProjectDoc};
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use serde_json::json;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -56,7 +57,17 @@ impl Probe {
             self.root_id,
             ".m1-layout-component-tabs button:nth-child(2)",
         );
-        settle().await;
+        wait_until(
+            "the Relations tab lists the Inherited by references",
+            || {
+                query(
+                    self.root_id,
+                    "li[data-relation-label='Inherited by'] button",
+                )
+                .is_some()
+            },
+        )
+        .await;
     }
 
     /// The first reference button under the "Inherited by" structure rows.
@@ -72,7 +83,6 @@ impl Probe {
         support::run_pending(&self.runtime).await;
         let mut version = self.version.borrow().expect("mounted version signal");
         version += 1;
-        settle().await;
     }
 }
 
@@ -187,10 +197,6 @@ fn dispatch(element: &web_sys::Element, kind: &str) {
     element.dispatch_event(event.as_ref()).unwrap();
 }
 
-async fn settle() {
-    gloo_timers::future::TimeoutFuture::new(60).await;
-}
-
 fn host() -> Element {
     let probe = use_context::<Probe>();
     let workspace = use_signal(|| "Layout");
@@ -264,22 +270,24 @@ async fn mount(root_id: &'static str) -> Probe {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    settle().await;
+    wait_until("the Layout canvas draws the matrix keys", || {
+        count(root_id, ".m1-matrix-key") > 0
+    })
+    .await;
     probe
 }
 
 /// Column 3 is selected and its Relations tab is open; "Inherited by Column 4" is first.
 async fn mount_column_relations(root_id: &'static str) -> Probe {
     let probe = mount(root_id).await;
-    assert!(
-        count(root_id, ".m1-matrix-key") > 0,
-        "the Layout canvas draws the matrix keys"
-    );
     probe.select(objects::TreeContext::Column {
         matrix_id: MATRIX.into(),
         column: 2,
     });
-    settle().await;
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
     probe.open_relations().await;
     assert_eq!(
         probe.inherited_by_reference().text_content().unwrap(),
@@ -294,7 +302,10 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
     let probe = mount_column_relations(root_id).await;
     let reference = probe.inherited_by_reference();
     dispatch(&reference, "pointerenter");
-    settle().await;
+    wait_until("hovering Column 4 highlights its keys", || {
+        highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
+    })
+    .await;
     assert_eq!(
         highlighted_columns(root_id),
         vec!["3".to_owned(); ROWS as usize],
@@ -306,7 +317,10 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
         "the selected Column 3 keys keep the selection treatment"
     );
     dispatch(&reference, "pointerleave");
-    settle().await;
+    wait_until("leaving the reference clears its highlight", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    })
+    .await;
     assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
 }
 
@@ -316,14 +330,20 @@ async fn keyboard_focus_highlights_and_blur_clears() {
     let probe = mount_column_relations(root_id).await;
     let reference = probe.inherited_by_reference();
     reference.focus().unwrap();
-    settle().await;
+    wait_until("keyboard focus highlights Column 4's keys", || {
+        highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
+    })
+    .await;
     assert_eq!(
         highlighted_columns(root_id),
         vec!["3".to_owned(); ROWS as usize],
         "keyboard focus gives the same highlight as hover"
     );
     reference.blur().unwrap();
-    settle().await;
+    wait_until("blurring the reference clears its highlight", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    })
+    .await;
     assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
 }
 
@@ -332,14 +352,20 @@ async fn changing_the_selection_clears_the_highlight() {
     let root_id = "relation-highlight-selection";
     let probe = mount_column_relations(root_id).await;
     dispatch(&probe.inherited_by_reference(), "pointerenter");
-    settle().await;
+    wait_until("hovering the reference highlights every key", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS
+    })
+    .await;
     assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), ROWS);
     probe.select(objects::TreeContext::Key {
         matrix_id: MATRIX.into(),
         row: 0,
         column: 0,
     });
-    settle().await;
+    wait_until("a selection change clears the Relations highlight", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    })
+    .await;
     assert_eq!(
         count(root_id, ".m1-matrix-key.is-relation-highlight"),
         0,
@@ -352,13 +378,23 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
     let root_id = "relation-highlight-removed";
     let probe = mount_column_relations(root_id).await;
     dispatch(&probe.inherited_by_reference(), "pointerenter");
-    settle().await;
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), ROWS);
+    wait_until("hovering the reference highlights Column 4", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS
+    })
+    .await;
     let keys_before = count(root_id, ".m1-matrix-key");
     let revision = probe.revision();
     probe
         .land(set_matrix_command(revision, matrix_json(removed_column(3))))
         .await;
+    wait_until(
+        "the removed keys leave the canvas and their highlight",
+        || {
+            count(root_id, ".m1-matrix-key") == keys_before - ROWS
+                && count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+        },
+    )
+    .await;
     assert!(
         probe.revision() > revision,
         "the removal of Column 4's keys landed"
@@ -383,20 +419,33 @@ async fn highlighting_creates_no_revision_or_history_entry() {
     let before = probe.revision();
     let reference = probe.inherited_by_reference();
     dispatch(&reference, "pointerenter");
-    settle().await;
+    wait_until(
+        "hover highlights, so the revision check below is not vacuous",
+        || count(root_id, ".m1-matrix-key.is-relation-highlight") > 0,
+    )
+    .await;
     assert!(
         count(root_id, ".m1-matrix-key.is-relation-highlight") > 0,
         "hover highlights, so the revision check below is not vacuous"
     );
     dispatch(&reference, "pointerleave");
     reference.focus().unwrap();
-    settle().await;
+    wait_until("focus highlights too", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") > 0
+    })
+    .await;
     assert!(
         count(root_id, ".m1-matrix-key.is-relation-highlight") > 0,
         "focus highlights too"
     );
     reference.blur().unwrap();
-    settle().await;
+    wait_until("blur clears the focus highlight", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    })
+    .await;
+    // Negative check (no revision): drain held work first; the highlight clear above is the
+    // render that a revision write would also precede, so no further render proof is used.
+    support::run_pending(&probe.runtime).await;
     assert_eq!(
         probe.revision(),
         before,

@@ -16,6 +16,7 @@ use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::Event;
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
+use boardstudio_web_ui_shared::test_wait::wait_until_step;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -173,6 +174,15 @@ async fn rendered() {
     gloo_timers::future::TimeoutFuture::new(30).await;
 }
 
+/// Drains held effects, then waits until `done` holds: the state the assertion after it needs.
+async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+    wait_until_step(what, async || {
+        support::run_pending(runtime).await;
+        done()
+    })
+    .await;
+}
+
 async fn settle(runtime: &Rc<Runtime>) {
     for _ in 0..12 {
         support::run_pending(runtime).await;
@@ -250,7 +260,15 @@ async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_conte
         "the setup edit holds the busy gate while in flight"
     );
     release.send(()).unwrap();
-    settle(&runtime).await;
+    settle_until(
+        &runtime,
+        "the accepted proposal clears busy and lands",
+        || {
+            !mount(&probe).projection.busy
+                && accepted_reversible(&runtime) == Some(serde_json::json!(true))
+        },
+    )
+    .await;
     let projection = mount(&probe).projection;
     assert!(!projection.busy, "landing clears busy without a status");
     assert!(
@@ -276,7 +294,11 @@ async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
     let release = hold_in_flight(&probe).await;
     probe.active.set(false);
     release.send(()).unwrap();
-    settle(&runtime).await;
+    settle_until(&runtime, "the hidden landing clears busy and lands", || {
+        !mount(&probe).projection.busy
+            && accepted_reversible(&runtime) == Some(serde_json::json!(true))
+    })
+    .await;
     let projection = mount(&probe).projection;
     assert!(!projection.busy, "the hidden landing still clears busy");
     assert!(projection.project_feedback.is_none());
@@ -306,7 +328,10 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
     poke(&probe);
     rendered().await;
     // The settlement loop answers for a departed owner while the reply is still held.
-    settle(&probe.runtime).await;
+    settle_until(&probe.runtime, "the retired setup clears busy", || {
+        !mount(&probe).projection.busy
+    })
+    .await;
     let projection = mount(&probe).projection;
     assert!(!projection.busy, "the retired setup clears busy silently");
     assert!(
@@ -336,7 +361,10 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
     );
     probe.active.set(false);
     queue_reply(&probe, admit());
-    settle(&runtime).await;
+    settle_until(&runtime, "the hidden stage clears busy", || {
+        !mount(&probe).projection.busy
+    })
+    .await;
     let projection = mount(&probe).projection;
     assert!(
         !projection.busy,
@@ -423,7 +451,15 @@ async fn a_failed_save_reports_once_for_its_exact_owner() {
     support::fail_next_persist(&runtime, "disk");
     queue_reply(&probe, admit());
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
-    settle(&runtime).await;
+    settle_until(&runtime, "the failed save clears busy and reports", || {
+        !mount(&probe).projection.busy
+            && mount(&probe)
+                .projection
+                .project_feedback
+                .as_deref()
+                .is_some_and(|message| message.contains("disk"))
+    })
+    .await;
     let projection = mount(&probe).projection;
     assert!(
         !projection.busy,

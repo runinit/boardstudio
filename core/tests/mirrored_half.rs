@@ -136,7 +136,7 @@ fn part<'a>(document: &'a Value, id: &str) -> &'a Value {
         .unwrap()
         .iter()
         .find(|p| p["id"] == id)
-        .unwrap()
+        .unwrap_or_else(|| panic!("part {id} is unavailable"))
 }
 
 fn angles_match(a: f64, b: f64) -> bool {
@@ -2498,10 +2498,9 @@ fn assert_close_pair(actual: (f64, f64), expected: (f64, f64), label: &str) {
 /// position and takes the negated heading: in the switch's own frame its local x flips and its
 /// local y does not. A `180 - r` rule would move the LED to the other side, which this test catches.
 ///
-/// CURRENT BEHAVIOUR, NOT A DECISION: the diode is at local (+7.4, -1.5) on the source half, so the
-/// mirror puts it at local (-7.4, -1.5), the other side of its switch. The shipped right halves keep
-/// the diode at (+7.4, -1.5) on the same side as the left half. Which one is intended is an open user
-/// decision (ticket 29, Outcome); the assertion below pins what Core does today, not the recipes.
+/// Literal-mirror is the default (ticket 31): the diode at source-local (+7.4, -1.5) becomes
+/// (-7.4, -1.5). Duplicate-position keeps (+7.4, -1.5), matching the shipped right halves;
+/// that optional mode is tested separately below.
 #[test]
 fn key_switches_mirror_their_tilt_without_a_half_turn_and_keep_their_companion_side() {
     let cases: [(&str, Option<f64>); 4] = [
@@ -2914,5 +2913,1023 @@ fn anchored_geometry_lands_on_the_mapped_world_point_at_every_heading_and_map() 
                 }
             }
         }
+    }
+}
+
+/// Duplicate placement retains the source's switch-local pose, including under a rotated map.
+#[test]
+fn duplicate_companions_keep_the_source_local_pose_and_match_shipped_diodes() {
+    for name in ["corne", "sofle-rgb"] {
+        for turn in [0.0, 27.0] {
+            let shipped = &projects()[name];
+            let (mut engine, source) = seed(shipped, "left");
+            let source = with_cell_turns(
+                &mut engine,
+                &source,
+                "left-keys",
+                &[(0, 0, 15.0), (0, 1, -20.0)],
+            );
+            let mut op = operation(
+                "pair-mode",
+                "left",
+                new_board("right", "right"),
+                json!({"at":{"x":310.0,"y":42.0},"rotation":turn}),
+            );
+            op["companionMode"] = json!("duplicate-position");
+            let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+            assert_eq!(
+                pair(&made, "pair-mode")["halves"]["companionMode"],
+                "duplicate-position"
+            );
+            let mut count = 0;
+            for link in pair(&made, "pair-mode")["halves"]["correspondences"]
+                .as_array()
+                .unwrap()
+            {
+                if link["kind"] != "part" {
+                    continue;
+                }
+                let source_id = link["sourceId"].as_str().unwrap();
+                let Some((key_id, suffix)) = source_id.rsplit_once('/') else {
+                    continue;
+                };
+                if !["diode", "led"].contains(&suffix) {
+                    continue;
+                }
+                let mirror_id = link["mirrorId"].as_str().unwrap();
+                let mirror_key_id = mirror_id.rsplit_once('/').unwrap().0;
+                let original = part(&source, source_id);
+                let original_key = part(&source, key_id);
+                let companion = part(&made, mirror_id);
+                let key = part(&made, mirror_key_id);
+                let expected = if suffix == "diode" {
+                    (7.4, -1.5)
+                } else {
+                    (0.0, -4.75)
+                };
+                assert_close_pair(in_switch_frame(original, original_key), expected, source_id);
+                assert_close_pair(in_switch_frame(companion, key), expected, mirror_id);
+                let relative = original["pose"]["rotation"].as_f64().unwrap()
+                    - original_key["pose"]["rotation"].as_f64().unwrap();
+                let actual = companion["pose"]["rotation"].as_f64().unwrap()
+                    - key["pose"]["rotation"].as_f64().unwrap();
+                assert!(
+                    (actual - relative).abs() < 1e-9,
+                    "{mirror_id}: {actual} != {relative}"
+                );
+                assert_eq!(
+                    companion["generatorParameters"],
+                    original["generatorParameters"]
+                );
+                assert_eq!(companion["side"], original["side"]);
+                count += 1;
+            }
+            assert!(count >= 21, "{name}: {count}");
+            let mut undone =
+                request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+            undone["revision"] = source["revision"].clone();
+            assert_eq!(undone, source);
+            let (_, reopened) = open(&made);
+            assert_eq!(pair(&reopened, "pair-mode"), pair(&made, "pair-mode"));
+        }
+        // The shipped data uses different matrix numbering, so match a diode by physical pose.
+        let shipped = &projects()[name];
+        let (mut engine, source) = seed(shipped, "left");
+        let mut op = operation(
+            "pair-mode",
+            "left",
+            new_board("right", "right"),
+            shipped_mapping(shipped),
+        );
+        op["companionMode"] = json!("duplicate-position");
+        let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+        for link in pair(&made, "pair-mode")["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+        {
+            if link["kind"] != "part" {
+                continue;
+            }
+            let id = link["mirrorId"].as_str().unwrap();
+            if !id.ends_with("/diode") {
+                continue;
+            }
+            let actual = part(&made, id);
+            assert!(
+                shipped["parts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|p| p["id"].as_str().unwrap().starts_with("matrix/right-")
+                        && p["id"].as_str().unwrap().ends_with("/diode"))
+                    .any(|p| {
+                        let a = &actual["pose"]["at"];
+                        let b = &p["pose"]["at"];
+                        (a["x"].as_f64().unwrap() - b["x"].as_f64().unwrap()).abs() < 1e-9
+                            && (a["y"].as_f64().unwrap() - b["y"].as_f64().unwrap()).abs() < 1e-9
+                            && angles_match(
+                                actual["pose"]["rotation"].as_f64().unwrap(),
+                                p["pose"]["rotation"].as_f64().unwrap(),
+                            )
+                    }),
+                "{name}: shipped diode does not match {id}"
+            );
+        }
+    }
+}
+
+#[test]
+fn tweaked_companions_add_the_adjustment_in_the_mirrored_switch_frame() {
+    for name in ["corne", "sofle-rgb"] {
+        for turn in [0.0, 27.0] {
+            let (mut engine, source) = seed(&projects()[name], "left");
+            let source = with_cell_turns(
+                &mut engine,
+                &source,
+                "left-keys",
+                &[(0, 0, 15.0), (0, 1, -20.0)],
+            );
+            let mut op = operation(
+                "pair-tweak",
+                "left",
+                new_board("right", "right"),
+                json!({"at":{"x":310.0,"y":42.0},"rotation":turn}),
+            );
+            op["companionMode"] = json!("literal-mirror-with-tweak");
+            let tweak = json!({"x":1.25,"y":-2.0,"rotation":13.0});
+            op["companionTweak"] = tweak.clone();
+            let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+            assert_eq!(
+                pair(&made, "pair-tweak")["halves"]["companionMode"],
+                "literal-mirror-with-tweak"
+            );
+            let mut count = 0;
+            for link in pair(&made, "pair-tweak")["halves"]["correspondences"]
+                .as_array()
+                .unwrap()
+            {
+                if link["kind"] != "part" {
+                    continue;
+                }
+                let id = link["mirrorId"].as_str().unwrap();
+                let Some((key_id, suffix)) = id.rsplit_once('/') else {
+                    continue;
+                };
+                if !["diode", "led"].contains(&suffix) {
+                    continue;
+                }
+                let companion = part(&made, id);
+                let key = part(&made, key_id);
+                let (offset, heading) = if suffix == "diode" {
+                    ((-6.15, -3.5), -77.0)
+                } else {
+                    ((1.25, -6.75), -167.0)
+                };
+                assert_close_pair(in_switch_frame(companion, key), offset, id);
+                let actual = companion["pose"]["rotation"].as_f64().unwrap()
+                    - key["pose"]["rotation"].as_f64().unwrap();
+                assert!(
+                    (actual - heading).abs() < 1e-9,
+                    "{id}: {actual} != {heading}"
+                );
+                assert_eq!(link["companionTweak"], tweak);
+                assert!(
+                    link.get("companionMode").is_none(),
+                    "inherit the pair's default"
+                );
+                count += 1;
+            }
+            assert!(count >= 21, "{name}: {count}");
+            let (_, reopened) = open(&made);
+            assert_eq!(pair(&reopened, "pair-tweak"), pair(&made, "pair-tweak"));
+            let mut undone =
+                request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+            undone["revision"] = source["revision"].clone();
+            assert_eq!(undone, source);
+        }
+    }
+}
+
+#[test]
+fn invalid_companion_modes_and_tweaks_are_refused_without_mutation() {
+    let (mut engine, source) = seed(&projects()["corne"], "left");
+    let tweak = json!({"x":1.0,"y":2.0,"rotation":3.0});
+    for mode in ["literal-mirror", "duplicate-position", "not-a-mode"] {
+        let mut op = operation(
+            "pair-mode",
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
+        );
+        op["companionMode"] = json!(mode);
+        op["companionTweak"] = tweak.clone();
+        let error = refused(&mut engine, &source, op);
+        assert!(
+            error.contains("companion") || error.contains("unknown variant"),
+            "{error}"
+        );
+    }
+    let made = create(
+        &mut engine,
+        &source,
+        "pair-mode",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
+    )
+    .unwrap()["document"]
+        .clone();
+    for exception in [false, true] {
+        for mode in [
+            None,
+            Some("literal-mirror"),
+            Some("duplicate-position"),
+            Some("unknown"),
+        ] {
+            let mut invalid = made.clone();
+            let record = &mut invalid["hardware"]["pairs"][0]["halves"];
+            let index = record["correspondences"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .position(|c| c["mirrorId"] == "matrix/right-keys/r0c0/diode")
+                .unwrap();
+            let item = if exception {
+                let mut item = record["correspondences"]
+                    .as_array_mut()
+                    .unwrap()
+                    .remove(index);
+                item.as_object_mut().unwrap().remove("sourceId");
+                item["state"] = json!("local");
+                record["exceptions"] = json!([item]);
+                &mut record["exceptions"][0]
+            } else {
+                &mut record["correspondences"][index]
+            };
+            if let Some(mode) = mode {
+                item["companionMode"] = json!(mode);
+            }
+            item["companionTweak"] = tweak.clone();
+            let error = refused(
+                &mut engine,
+                &made,
+                json!({"kind":"replace-document","document":invalid}),
+            );
+            assert!(
+                error.contains("companion") || error.contains("unknown variant"),
+                "{error}"
+            );
+        }
+    }
+    // The typed boundary can carry non-finite floats, even though JSON cannot.
+    for field in ["x", "y", "rotation"] {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut doc: ProjectDoc = serde_json::from_value(made.clone()).unwrap();
+            let record = doc.hardware.as_mut().unwrap().pairs[0]
+                .halves
+                .as_mut()
+                .unwrap();
+            record.companion_mode =
+                boardstudio_core::model::MirroredCompanionMode::LiteralMirrorWithTweak;
+            let mut tweak = boardstudio_core::model::MirroredCompanionTweak {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            };
+            match field {
+                "x" => tweak.x = value,
+                "y" => tweak.y = value,
+                _ => tweak.rotation = value,
+            }
+            record
+                .correspondences
+                .iter_mut()
+                .find(|c| c.mirror_id.ends_with("/diode"))
+                .unwrap()
+                .companion_tweak = Some(tweak);
+            let error = boardstudio_core::mechanical::halves::validate_document(&doc).unwrap_err();
+            assert!(error.contains("finite"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn a_plain_led_companion_uses_its_matrix_relationship_in_every_mode() {
+    for (mode, offset, heading) in [
+        (None, (-2.5, 3.25), -37.0),
+        (Some("literal-mirror"), (-2.5, 3.25), -37.0),
+        (Some("duplicate-position"), (2.5, 3.25), 37.0),
+        (Some("literal-mirror-with-tweak"), (-1.25, 1.25), -24.0),
+    ] {
+        let (mut engine, source) = seed(&projects()["corne"], "left");
+        let mut matrix = source["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == "left-keys")
+            .unwrap()
+            .clone();
+        let cell = matrix["cells"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|c| c["row"] == 0 && c["column"] == 0)
+            .unwrap();
+        cell["rotation"] = json!(15.0);
+        cell["assemblies"].as_array_mut().unwrap().push(json!({"id":"status-light","definitionId":"plain-led","offset":{"x":2.5,"y":3.25},"rotation":37.0,"side":"back"}));
+        let source = create_with(&mut engine, &source, "commit", json!({"kind":"set-matrix","matrix":matrix,"definitions":[{"id":"plain-led","name":"Single colour LED","kind":"passive","pads":[],"courtyard":[]}]})).unwrap()["document"].clone();
+        let mut op = operation(
+            "pair-led",
+            "left",
+            new_board("right", "right"),
+            json!({"at":{"x":310.0,"y":42.0},"rotation":27.0}),
+        );
+        if let Some(mode) = mode {
+            op["companionMode"] = json!(mode);
+        }
+        if mode == Some("literal-mirror-with-tweak") {
+            op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
+        }
+        let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+        let led = part(&made, "matrix/right-keys/r0c0/status-light");
+        let switch = part(&made, "matrix/right-keys/r0c0");
+        assert_close_pair(in_switch_frame(led, switch), offset, "plain LED");
+        let relative = led["pose"]["rotation"].as_f64().unwrap()
+            - switch["pose"]["rotation"].as_f64().unwrap();
+        assert!(
+            (relative - heading).abs() < 1e-9,
+            "plain LED in {mode:?}: {relative} != {heading}"
+        );
+        let assembly = made["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == "right-keys")
+            .unwrap()["cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["row"] == 0 && c["column"] == 0)
+            .unwrap()["assemblies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["id"] == "status-light")
+            .unwrap();
+        assert_close_pair(
+            (
+                assembly["offset"]["x"].as_f64().unwrap(),
+                assembly["offset"]["y"].as_f64().unwrap(),
+            ),
+            offset,
+            "stored plain LED assembly",
+        );
+        assert!((assembly["rotation"].as_f64().unwrap() - heading).abs() < 1e-9);
+        let link = pair(&made, "pair-led")["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["mirrorId"] == led["id"])
+            .unwrap();
+        assert_eq!(
+            link["companionTweak"].is_object(),
+            mode == Some("literal-mirror-with-tweak")
+        );
+    }
+}
+
+#[test]
+fn companion_overrides_and_tweaks_survive_linked_local_and_omitted_records() {
+    let (mut engine, source) = seed(&projects()["corne"], "left");
+    let made = create(
+        &mut engine,
+        &source,
+        "pair-mode",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
+    )
+    .unwrap()["document"]
+        .clone();
+    for default in ["duplicate-position", "literal-mirror-with-tweak"] {
+        for state in ["linked", "local", "omitted"] {
+            let mut document = made.clone();
+            let halves = &mut document["hardware"]["pairs"][0]["halves"];
+            halves["companionMode"] = json!(default);
+            let links = halves["correspondences"].as_array_mut().unwrap();
+            let index = links
+                .iter()
+                .position(|c| c["mirrorId"] == "matrix/right-keys/r0c0/diode")
+                .unwrap();
+            links[index]["companionMode"] = json!("literal-mirror-with-tweak");
+            links[index]["companionTweak"] = json!({"x":1.0,"y":2.0,"rotation":3.0});
+            let other = links
+                .iter_mut()
+                .find(|c| c["mirrorId"] == "matrix/right-keys/r0c1/diode")
+                .unwrap();
+            other["companionMode"] = json!("literal-mirror");
+            if state != "linked" {
+                let mut item = links.remove(index);
+                item.as_object_mut().unwrap().remove("sourceId");
+                item["state"] = json!(state);
+                halves["exceptions"] = json!([item]);
+            }
+            let (_, reopened) = open(&document);
+            assert_eq!(
+                pair(&reopened, "pair-mode")["halves"],
+                pair(&document, "pair-mode")["halves"]
+            );
+        }
+    }
+}
+
+#[test]
+fn typed_creation_refuses_non_finite_tweaks_without_mutation() {
+    use boardstudio_core::model::{
+        CoreReply, CoreRequest, EditCommand, EditOperation, MirroredCompanionTweak,
+    };
+    let (mut engine, source) = seed(&projects()["corne"], "left");
+    for field in ["x", "y", "rotation"] {
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut op = operation(
+                "pair-finite",
+                "left",
+                new_board("right", "right"),
+                mapping(300.0),
+            );
+            op["companionMode"] = json!("literal-mirror-with-tweak");
+            let mut command: EditCommand = serde_json::from_value(json!({"baseRevision":source["revision"],"transactionId":"finite","phase":"commit","targetIds":[],"operation":op})).unwrap();
+            let mut tweak = MirroredCompanionTweak {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            };
+            match field {
+                "x" => tweak.x = value,
+                "y" => tweak.y = value,
+                _ => tweak.rotation = value,
+            }
+            let EditOperation::CreateMirroredHalf {
+                companion_tweak, ..
+            } = &mut command.operation
+            else {
+                panic!("creation operation")
+            };
+            *companion_tweak = Some(tweak);
+            match engine.handle(CoreRequest::Edit {
+                id: "finite".into(),
+                command,
+            }) {
+                CoreReply::Error { message, .. } => {
+                    assert!(message.contains("finite"), "{message}")
+                }
+                other => panic!("Non-finite tweak accepted: {other:?}"),
+            }
+            assert_eq!(snapshot(&mut engine), source);
+        }
+    }
+}
+
+#[test]
+fn a_reused_board_cannot_take_a_tweak_that_it_cannot_store_per_item() {
+    let (mut engine, source) = seed(&projects()["corne"], "left");
+    let mut op = operation(
+        "pair-reuse",
+        "left",
+        json!({"kind":"reuse-board","instanceId":"flipped"}),
+        mapping(0.0),
+    );
+    op["companionMode"] = json!("literal-mirror-with-tweak");
+    op["companionTweak"] = json!({"x":1.0,"y":2.0,"rotation":3.0});
+    let error = refused(&mut engine, &source, op);
+    assert!(
+        error.contains("reuse-board") && error.contains("companionTweak"),
+        "{error}"
+    );
+}
+
+/// Independent check of the ticket 31 acceptance line: duplicate placement reproduces the shipped
+/// right-half diodes and LEDs one to one (position within 1e-9, heading modulo 360), while the
+/// default literal mirror reproduces the LEDs but puts every diode on the other side of its switch.
+#[test]
+fn duplicate_placement_reproduces_every_shipped_right_half_companion_one_to_one() {
+    for name in ["corne", "sofle-rgb"] {
+        let shipped = &projects()[name];
+        let shipped_companions: Vec<(String, f64, f64, f64)> = shipped["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| {
+                let id = p["id"].as_str().unwrap();
+                let suffix = id.rsplit('/').next().unwrap();
+                (id.starts_with("matrix/right-") && ["diode", "led"].contains(&suffix)).then(|| {
+                    (
+                        suffix.to_owned(),
+                        p["pose"]["at"]["x"].as_f64().unwrap(),
+                        p["pose"]["at"]["y"].as_f64().unwrap(),
+                        p["pose"]["rotation"].as_f64().unwrap(),
+                    )
+                })
+            })
+            .collect();
+        assert!(shipped_companions.len() >= 21, "{name}");
+        assert_eq!(
+            shipped_companions.iter().any(|c| c.0 == "led"),
+            name == "sofle-rgb",
+            "{name}: only the Sofle RGB fixture has LEDs"
+        );
+        for (mode, diodes_match, leds_match) in [
+            (Some("duplicate-position"), true, true),
+            (None, false, true),
+        ] {
+            let (mut engine, source) = seed(shipped, "left");
+            let mut op = operation(
+                "pair-ship",
+                "left",
+                new_board("right", "right"),
+                shipped_mapping(shipped),
+            );
+            if let Some(mode) = mode {
+                op["companionMode"] = json!(mode);
+            }
+            let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+            let created: Vec<(String, f64, f64, f64)> = made["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|p| {
+                    let id = p["id"].as_str().unwrap();
+                    let suffix = id.rsplit('/').next().unwrap();
+                    (id.starts_with("matrix/right-") && ["diode", "led"].contains(&suffix)).then(
+                        || {
+                            (
+                                suffix.to_owned(),
+                                p["pose"]["at"]["x"].as_f64().unwrap(),
+                                p["pose"]["at"]["y"].as_f64().unwrap(),
+                                p["pose"]["rotation"].as_f64().unwrap(),
+                            )
+                        },
+                    )
+                })
+                .collect();
+            assert_eq!(created.len(), shipped_companions.len(), "{name} {mode:?}");
+            for kind in ["diode", "led"] {
+                let want: Vec<_> = shipped_companions.iter().filter(|c| c.0 == kind).collect();
+                let have: Vec<_> = created.iter().filter(|c| c.0 == kind).collect();
+                assert_eq!(want.len(), have.len(), "{name} {kind} count");
+                let mut used = vec![false; have.len()];
+                let mut matched = 0;
+                for (_, x, y, r) in &want {
+                    let found = have.iter().enumerate().position(|(i, (_, hx, hy, hr))| {
+                        !used[i]
+                            && (hx - x).abs() < 1e-9
+                            && (hy - y).abs() < 1e-9
+                            && angles_match(*hr, *r)
+                    });
+                    if let Some(i) = found {
+                        used[i] = true;
+                        matched += 1;
+                    }
+                }
+                let expect_all = if kind == "diode" {
+                    diodes_match
+                } else {
+                    leds_match
+                };
+                if expect_all {
+                    assert_eq!(matched, want.len(), "{name} {mode:?} {kind}");
+                } else {
+                    assert_eq!(matched, 0, "{name} {mode:?} {kind} should not match");
+                }
+            }
+        }
+    }
+}
+
+/// A source that needs labelling is still a valid source in either creation mode.
+fn unibody_label_seed() -> (CoreEngine, Value) {
+    let mut document = seed_document(&projects()["corne"], "left");
+    let source = &mut document["hardware"]["instances"][0];
+    source["half"] = json!("unibody");
+    source["name"] = json!("Keyboard");
+    source["role"] = json!("standalone");
+    open(&document)
+}
+
+fn split_labels() -> Value {
+    json!({
+        "source": {"name":"Left half", "half":"left", "role":"central"},
+        "mirror": {"name":"Right half", "half":"right", "role":"peripheral"}
+    })
+}
+
+#[test]
+fn creation_labels_apply_atomically_in_both_modes_and_undo_redo_together() {
+    for mode in [
+        new_board("right", "right"),
+        json!({"kind":"reuse-board","instanceId":"right"}),
+    ] {
+        let (mut engine, before) = unibody_label_seed();
+        let mut op = operation("pair-labels", "left", mode, mapping(0.0));
+        op["labels"] = split_labels();
+        let preview = create_with(&mut engine, &before, "preview", op.clone()).unwrap();
+        assert_eq!(preview["kind"], "preview");
+        assert_eq!(
+            snapshot(&mut engine),
+            before,
+            "preview must not mutate the accepted source"
+        );
+        let reply = create_with(&mut engine, &before, "commit", op).unwrap();
+        let made = &reply["document"];
+        for (id, side) in [("left", "source"), ("right", "mirror")] {
+            for field in ["name", "half", "role"] {
+                assert_eq!(
+                    instance(made, id)[field],
+                    split_labels()[side][field],
+                    "{id}.{field}"
+                );
+            }
+            assert!(
+                reply["scene"]["changedIds"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!(id))
+            );
+        }
+        assert_eq!(
+            made["revision"].as_u64().unwrap(),
+            before["revision"].as_u64().unwrap() + 1
+        );
+        let (_, reopened) = open(made);
+        assert_eq!(
+            reopened["hardware"]["instances"],
+            made["hardware"]["instances"]
+        );
+        let mut undone =
+            request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+        undone["revision"] = before["revision"].clone();
+        assert_eq!(undone, before);
+        let mut redone =
+            request(&mut engine, json!({"id":"redo","kind":"redo"}))["document"].clone();
+        redone["revision"] = made["revision"].clone();
+        assert_eq!(&redone, made);
+    }
+}
+
+#[test]
+fn omitted_and_empty_creation_labels_preserve_unibody_defaults() {
+    for mode in [
+        new_board("right", "right"),
+        json!({"kind":"reuse-board","instanceId":"right"}),
+    ] {
+        for labels in [
+            None,
+            Some(json!({})),
+            Some(json!({"source":{},"mirror":{}})),
+        ] {
+            let (mut engine, before) = unibody_label_seed();
+            let mut op = operation("pair-labels", "left", mode.clone(), mapping(0.0));
+            if let Some(labels) = labels {
+                op["labels"] = labels;
+            }
+            let made = create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
+            for (id, name, role) in [
+                ("left", "Keyboard", "standalone"),
+                ("right", "Keyboard mirror", "central"),
+            ] {
+                let half = instance(&made, id);
+                assert_eq!(half["name"], name);
+                assert_eq!(half["half"], "unibody");
+                assert_eq!(half["role"], role);
+            }
+        }
+    }
+}
+
+#[test]
+fn partial_creation_labels_only_replace_the_supplied_fields() {
+    for labels in [
+        json!({"source":{"name":"Primary"}}),
+        json!({"mirror":{"half":"right"}}),
+        json!({"source":{"half":"right"},"mirror":{"role":"standalone"}}),
+        json!({"source":{"role":"central"},"mirror":{"half":"right"}}),
+    ] {
+        let (mut engine, before) = unibody_label_seed();
+        let mut op = operation(
+            "pair-labels",
+            "left",
+            new_board("right", "right"),
+            mapping(0.0),
+        );
+        op["labels"] = labels.clone();
+        let made = create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
+        for (id, side, name, role) in [
+            ("left", "source", "Keyboard", "standalone"),
+            ("right", "mirror", "Keyboard mirror", "central"),
+        ] {
+            for (field, default) in [("name", name), ("half", "unibody"), ("role", role)] {
+                assert_eq!(
+                    instance(&made, id)[field],
+                    labels[side].get(field).cloned().unwrap_or(json!(default)),
+                    "{id}.{field}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn invalid_creation_labels_are_located_and_refused_without_mutation() {
+    for mode in [
+        new_board("right", "right"),
+        json!({"kind":"reuse-board","instanceId":"right"}),
+    ] {
+        for (labels, location) in [
+            (json!({"source":{"name":" \t"}}), "labels.source.name"),
+            (json!({"mirror":{"name":""}}), "labels.mirror.name"),
+            (json!({"source":{"half":"middle"}}), "labels.source.half"),
+            (json!({"mirror":{"half":""}}), "labels.mirror.half"),
+            (json!({"source":{"role":"primary"}}), "labels.source.role"),
+            (json!({"mirror":{"role":"unknown"}}), "labels.mirror.role"),
+            (
+                json!({"source":{"half":"left","role":"central"},"mirror":{"half":"left","role":"central"}}),
+                "labels.mirror",
+            ),
+            (json!({"source":{"role":"central"}}), "labels.mirror"),
+            (json!({"mirror":{"role":"standalone"}}), "labels.mirror"),
+        ] {
+            let (mut engine, before) = unibody_label_seed();
+            let mut op = operation("pair-labels", "left", mode.clone(), mapping(0.0));
+            op["labels"] = labels;
+            let error = refused(&mut engine, &before, op);
+            assert!(error.contains(location), "{location}: {error}");
+        }
+    }
+}
+
+#[test]
+fn stabilisers_keep_their_source_heading_and_mirrored_position_in_every_mode() {
+    let imported: Value =
+        serde_json::from_str(include_str!("../../catalogue/parts/imported-parts.json")).unwrap();
+    let definitions: Vec<Value> = imported["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["definition"].clone())
+        .filter(|definition| {
+            [
+                "kicad:marbastlib/STAB_MX_2u",
+                "kicad:marbastlib/STAB_MX_6.25u",
+            ]
+            .contains(&definition["id"].as_str().unwrap())
+        })
+        .collect();
+    assert_eq!(definitions.len(), 2);
+    for relative_heading in [0.0, 90.0, 15.0] {
+        let (mut engine, source) = seed(&projects()["corne"], "left");
+        let mut matrix = source["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|matrix| matrix["id"] == "left-keys")
+            .unwrap()
+            .clone();
+        let cell = matrix["cells"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|cell| cell["row"] == 0 && cell["column"] == 0)
+            .unwrap();
+        cell["rotation"] = json!(15.0);
+        for (index, definition) in definitions.iter().enumerate() {
+            cell["assemblies"].as_array_mut().unwrap().push(json!({
+                "id":format!("stabiliser-{index}"), "definitionId":definition["id"],
+                "offset":{"x":2.5,"y":3.25}, "rotation":relative_heading, "side":"back"
+            }));
+        }
+        let source = create_with(
+            &mut engine,
+            &source,
+            "commit",
+            json!({"kind":"set-matrix","matrix":matrix,"definitions":definitions}),
+        )
+        .unwrap()["document"]
+            .clone();
+        for turn in [0.0, 27.0] {
+            for mode in [
+                "literal-mirror",
+                "duplicate-position",
+                "literal-mirror-with-tweak",
+            ] {
+                let (mut engine, source) = open(&source);
+                let map = json!({"at":{"x":310.0,"y":42.0},"rotation":turn});
+                let mut op = operation(
+                    "pair-stabilisers",
+                    "left",
+                    new_board("right", "right"),
+                    map.clone(),
+                );
+                op["companionMode"] = json!(mode);
+                if mode == "literal-mirror-with-tweak" {
+                    op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
+                }
+                let made =
+                    create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+                for index in 0..definitions.len() {
+                    let source_id = format!("matrix/left-keys/r0c0/stabiliser-{index}");
+                    let mirror_id = format!("matrix/right-keys/r0c0/stabiliser-{index}");
+                    let original = part(&source, &source_id);
+                    let mirrored = part(&made, &mirror_id);
+                    let label =
+                        format!("{mode} map {turn} relative {relative_heading}: {mirror_id}");
+                    assert_close_pair(
+                        (
+                            mirrored["pose"]["at"]["x"].as_f64().unwrap(),
+                            mirrored["pose"]["at"]["y"].as_f64().unwrap(),
+                        ),
+                        mapped_pose(&map, &original["pose"]).0,
+                        &label,
+                    );
+                    assert_eq!(
+                        mirrored["pose"]["rotation"], original["pose"]["rotation"],
+                        "{label}"
+                    );
+                    for field in ["definitionId", "side", "generatorParameters"] {
+                        assert_eq!(mirrored[field], original[field], "{label}: {field}");
+                    }
+                }
+                let (_, reopened) = open(&made);
+                assert_eq!(reopened["matrices"], made["matrices"]);
+                assert_eq!(reopened["parts"], made["parts"]);
+            }
+        }
+    }
+}
+
+#[test]
+fn missing_source_companions_materialise_with_a_literal_fallback_in_modes_two_and_three() {
+    let (mut engine, source) = seed(&projects()["sofle-rgb"], "left");
+    let intact = with_cell_turns(&mut engine, &source, "left-keys", &[(0, 0, 15.0)]);
+    let ids = ["matrix/left-keys/r0c0/diode", "matrix/left-keys/r0c0/led"];
+    for listed in [true, false] {
+        let mut source = intact.clone();
+        source["parts"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|part| !ids.contains(&part["id"].as_str().unwrap()));
+        if !listed {
+            for board in source["boards"].as_array_mut().unwrap() {
+                board["partIds"]
+                    .as_array_mut()
+                    .unwrap()
+                    .retain(|id| !ids.contains(&id.as_str().unwrap()));
+            }
+            for matrix in source["matrices"].as_array_mut().unwrap() {
+                matrix["partIds"]
+                    .as_array_mut()
+                    .unwrap()
+                    .retain(|id| !ids.contains(&id.as_str().unwrap()));
+            }
+        }
+        for turn in [0.0, 27.0] {
+            for mode in ["duplicate-position", "literal-mirror-with-tweak"] {
+                let (mut engine, before) = open(&source);
+                assert!(ids.iter().all(|id| find_part(&before, id).is_none()));
+                let map = json!({"at":{"x":310.0,"y":42.0},"rotation":turn});
+                let mut op = operation(
+                    "pair-fallback",
+                    "left",
+                    new_board("right", "right"),
+                    map.clone(),
+                );
+                op["companionMode"] = json!(mode);
+                if mode == "literal-mirror-with-tweak" {
+                    op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
+                }
+                let made =
+                    create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
+                for id in ids {
+                    let mirror_id = id.replace("left-keys", "right-keys");
+                    let original = part(&intact, id);
+                    let mirrored = part(&made, &mirror_id);
+                    let expected = mapped_pose(&map, &original["pose"]);
+                    let label = format!("{mode} map {turn} listed {listed}: {mirror_id}");
+                    assert_close_pair(
+                        (
+                            mirrored["pose"]["at"]["x"].as_f64().unwrap(),
+                            mirrored["pose"]["at"]["y"].as_f64().unwrap(),
+                        ),
+                        expected.0,
+                        &label,
+                    );
+                    assert!(
+                        (mirrored["pose"]["rotation"].as_f64().unwrap() - expected.1).abs() < 1e-9,
+                        "{label}"
+                    );
+                    // The source is repaired too, so both sides have a real, owned part to link.
+                    assert_eq!(
+                        part(&made, id)["pose"],
+                        original["pose"],
+                        "{label}: source pose"
+                    );
+                    let link = pair(&made, "pair-fallback")["halves"]["correspondences"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|link| link["mirrorId"] == mirror_id)
+                        .unwrap();
+                    assert_eq!(
+                        link["companionMode"], "literal-mirror",
+                        "{label}: durable fallback"
+                    );
+                    assert!(
+                        link.get("companionTweak").is_none(),
+                        "{label}: fallback ignores the tweak"
+                    );
+                }
+                for matrix in made["matrices"].as_array().unwrap() {
+                    let board = made["boards"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|board| board["id"] == matrix["boardId"])
+                        .unwrap();
+                    for id in matrix["partIds"].as_array().unwrap() {
+                        assert!(
+                            find_part(&made, id.as_str().unwrap()).is_some(),
+                            "unmaterialised {id}"
+                        );
+                        assert!(
+                            board["partIds"].as_array().unwrap().contains(id),
+                            "unowned {id}"
+                        );
+                    }
+                }
+                for original in before["parts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|part| part["id"].as_str().unwrap().starts_with("matrix/"))
+                {
+                    assert_eq!(part(&made, original["id"].as_str().unwrap()), original);
+                }
+                let (_, reopened) = open(&made);
+                assert_eq!(reopened["parts"], made["parts"]);
+                assert_eq!(
+                    pair(&reopened, "pair-fallback"),
+                    pair(&made, "pair-fallback")
+                );
+                let mut undone =
+                    request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+                undone["revision"] = before["revision"].clone();
+                assert_eq!(undone, before);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_missing_switch_is_refused_without_mutation_even_with_missing_companions() {
+    let mut source = seed_document(&projects()["sofle-rgb"], "left");
+    let key_id = "matrix/left-keys/r0c0";
+    let belongs_to_cell = |id: &str| id == key_id || id.starts_with(&format!("{key_id}/"));
+    source["parts"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|part| !belongs_to_cell(part["id"].as_str().unwrap()));
+    for board in source["boards"].as_array_mut().unwrap() {
+        board["partIds"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|id| !belongs_to_cell(id.as_str().unwrap()));
+    }
+    for matrix in source["matrices"].as_array_mut().unwrap() {
+        matrix["partIds"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|id| !belongs_to_cell(id.as_str().unwrap()));
+    }
+    for mode in [
+        "literal-mirror",
+        "duplicate-position",
+        "literal-mirror-with-tweak",
+    ] {
+        let (mut engine, before) = open(&source);
+        assert!(find_part(&before, key_id).is_none());
+        let mut op = operation(
+            "pair-missing-switch",
+            "left",
+            new_board("right", "right"),
+            mapping(310.0),
+        );
+        op["companionMode"] = json!(mode);
+        if mode == "literal-mirror-with-tweak" {
+            op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
+        }
+        let error = refused(&mut engine, &before, op);
+        assert!(
+            error.contains("source switch") && error.contains(key_id),
+            "{mode}: {error}"
+        );
     }
 }

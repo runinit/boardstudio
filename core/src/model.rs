@@ -1042,10 +1042,43 @@ pub struct MechanicalMirrorPair {
     pub features: Vec<MechanicalFeature>,
 }
 
+/// Placement of a switch's diode or LED on its mirrored half (ADR-0010).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredCompanionMode {
+    /// Reflect the companion's switch-local position and heading.
+    #[default]
+    LiteralMirror,
+    /// Keep the source's switch-local position and heading.
+    DuplicatePosition,
+    /// Reflect, then add the item's switch-local adjustment.
+    LiteralMirrorWithTweak,
+}
+
+impl MirroredCompanionMode {
+    fn is_literal_mirror(&self) -> bool {
+        *self == Self::LiteralMirror
+    }
+}
+
+/// An additive adjustment in the mirrored switch's local frame, in mm and degrees.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MirroredCompanionTweak {
+    pub x: f64,
+    pub y: f64,
+    pub rotation: f64,
+}
+
 /// Which boards a mirrored pair relates, and how their items correspond.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MirroredHalves {
+    /// Default for companion correspondences without a per-item override. Absent in older v5 documents.
+    #[serde(
+        default,
+        skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
+    )]
+    pub companion_mode: MirroredCompanionMode,
     /// The board whose items are authored.
     pub source_board_id: String,
     /// The board that reflects the source.
@@ -1057,9 +1090,15 @@ pub struct MirroredHalves {
 }
 
 /// The mirror of one source item. Each side is unique per kind.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MirroredCorrespondence {
+    /// Overrides the pair default for this companion only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_mode: Option<MirroredCompanionMode>,
+    /// Retained per item; only valid with the effective `literal-mirror-with-tweak` mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_tweak: Option<MirroredCompanionTweak>,
     pub kind: MirroredItemKind,
     pub source_id: String,
     pub mirror_id: String,
@@ -1067,9 +1106,15 @@ pub struct MirroredCorrespondence {
 
 /// A mirror item that is not linked to its source: kept `local` or `omitted`. An exception
 /// names a mirror item only; it never changes the source or a neighbouring item.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MirroredException {
+    /// Retained when a companion becomes local or omitted, for a later Rejoin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_mode: Option<MirroredCompanionMode>,
+    /// Retained per item; only valid with the effective `literal-mirror-with-tweak` mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_tweak: Option<MirroredCompanionTweak>,
     pub kind: MirroredItemKind,
     pub mirror_id: String,
     pub state: MirroredExceptionState,
@@ -1112,6 +1157,27 @@ pub enum MirroredHalfMode {
         #[serde(rename = "instanceId")]
         instance_id: String,
     },
+}
+
+/// Optional replacements for one physical instance's labels at mirror creation.
+/// Omitted fields keep the source's stored labels or the mirror's default labels.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredHalfLabel {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub half: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+}
+
+/// Labels applied to the source and mirror in the same creation edit (ADR-0010).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredHalfLabels {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<MirroredHalfLabel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mirror: Option<MirroredHalfLabel>,
 }
 
 /// How copied item ids are named. Ids are `<board>/<local>` or `matrix/<board>-<cluster>/...`:
@@ -1480,6 +1546,23 @@ pub enum EditOperation {
         #[serde(rename = "sourceInstanceId")]
         source_instance_id: String,
         mode: MirroredHalfMode,
+        /// Optional source and mirror labels, validated and applied atomically with creation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        labels: Option<MirroredHalfLabels>,
+        /// Default switch-companion placement for the created pair.
+        #[serde(
+            default,
+            rename = "companionMode",
+            skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
+        )]
+        companion_mode: MirroredCompanionMode,
+        /// Initial adjustment copied into every companion's correspondence (never a pair-wide tweak).
+        #[serde(
+            default,
+            rename = "companionTweak",
+            skip_serializing_if = "Option::is_none"
+        )]
+        companion_tweak: Option<MirroredCompanionTweak>,
         mapping: Pose2,
         #[serde(rename = "idRule")]
         id_rule: MirroredIdRule,

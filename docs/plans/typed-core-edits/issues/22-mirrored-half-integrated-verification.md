@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: task
-Blocked by: [20](20-recipes-build-one-half.md), [21](21-mirrored-half-web-adapter.md)
+Blocked by: [20](20-recipes-build-one-half.md), [21](21-mirrored-half-web-adapter.md), [41](41-inspector-companion-mode.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
 
 ## Request

@@ -32,4 +32,4 @@ recipe geometry consistent as a stopgap.
 
 ## Verification
 
-`build` (sandbox lifted for wasm-pack), native `test` in a non-nested checkout, `lint`, `repo`.
+`build` (sandbox lifted for wasm-pack), native `test` in the assigned lane worktree, `lint`, `repo`.
