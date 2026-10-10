@@ -22,12 +22,12 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
-| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`, base `f2d180c6`; own target/CAD cache | 128 claimed at `cf148ed6`; four conversions have individual passing evidence, including the corrected dimensions completion/Undo test. Whole-module checks, retirement proof and independent verification remain open. |
-| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 verified and integrated. 106 claimed at `5bcf4d38`; compiling no-op tracer produced behavioral red. First matrix projection passed its focused green; full 106 acceptance remains open. |
+| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`, base `f2d180c6`; own target/CAD cache | 128 claimed at `cf148ed6`; four conversions have individual passing evidence, including the corrected dimensions completion/Undo test. Retirement revision compiles but times out before its first held-request checkpoint; narrow diagnostic reads are queued. Whole-module checks and independent verification remain open. |
+| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 verified and integrated. 106 claimed at `5bcf4d38`; compiling no-op tracer produced behavioral red. First matrix projection passed focused green. Independent Standards review found no issues; Spec review confirms six incomplete requirement groups. Part RED is queued; full 106 remains open. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
-| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | 119 revision c5d2626c passed fresh independent verification, including a drill mutation. Verification record and reviewed report/118 commits precede integration; 118 remains open. |
+| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | 119 revision c5d2626c passed fresh independent verification, including a drill mutation. Reviewed report/118 and verification record are committed; 119 integrated at4fd8f7f3. Next Choc socket candidate awaits ticket allocation and audit; 118 remains open. |
 
 F's earlier `.worktrees/lane-boards-review` branch is committed and integrated; it is frozen, not another active writer.
 Other existing worktrees and old ticket chats are not active lane leases. Preserve them and confirm ownership before reuse.
@@ -64,12 +64,12 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root, recording progress and preparing F's documentation commit gates.
-B106's first matrix projection passed its focused green and released all commands. A's Sol 6.1 max
-retirement research is complete; bounded test-only implementation may proceed without shell commands.
-F119 passed fresh independent verification and released its command and temporary mutation leases.
-Next gates are F's reviewed planning dependencies and verification record commits, then integration;
-B's remaining behavioral batches and A's affected checks receive explicit slots as ready.
+Current command owner: root, recording the passing integration batch and releasing queued lane windows.
+The full default check at `4fd8f7f3` passed in 535.5 s, including 70 presentation tests and 15 CAD browser checks.
+A's narrow test-fixture diagnostic reads are next; B's existing part behavioral RED follows their release.
+B's two-axis partial review is complete: no Standards findings, six Spec groups still incomplete. No 106 resolution.
+F119 is integrated; the next existing Choc socket qualification candidate awaits a ticket ID and bounded audit.
+Plans do not authorize commands; each owner still needs an explicit window and must explicitly release it.
 
 ### B: Core ticket 106
 
@@ -116,8 +116,8 @@ Implementation/revision write lease: `footprints/tests/mx_socket_qualification.r
 Revision `c5d2626c` passed fresh independent Sol 6.1 xhigh verification. Baseline and restored focused runs passed
 4/4; changing one front socket drill from 3.0 to 3.2 mm caused two intended nominal-drill assertion failures.
 Exact production bytes were restored and touched; repo/lint passed in 8.480 s and all 77 footprint tests in 7.067 s.
-Its earlier manual rename was remediated through GitNexus; that history remains recorded. Only ticket119 tracking
-may now receive the verifier's non-shell evidence/status record. Reviewed report/118 bytes remain separate.
+Its earlier manual rename was remediated through GitNexus; that history remains recorded. The verifier record and reviewed planning dependencies were committed separately before integration.
+F is frozen; no source or temporary mutation lease is active.
 
 Selected candidate uses existing front/back outer pad width parameters set to 2.55, nonreversible hot-swap,
 1.6 mm PCB, F/B at 0/90/300 degrees. Nominal geometry uses numerical epsilon, not inferred reference tolerances.
@@ -145,10 +145,11 @@ waits for the actual analyzer exit, and restores registration only after leases 
 
 ## Integration and graph snapshot
 
-Integration is `86088bc1`, including verified105 (`09e07a7a`). Its precommit graph captured all six merged/tracking
+Integration is `4fd8f7f3`, including verified105 (`09e07a7a`) and bounded119 (`c5d2626c`, verification `4b97b59a`). Its precommit graph captured all six merged/tracking
 files and 36 changed symbols, with ten creation flows at HIGH risk and no partial/truncated delta. Metadata predates
-that merge; it is not a clean-current claim. Full default check last passed source batch `12a6784d` in 813.3 s;
-the new parallel batch still needs its one full integration check. Independent 105 affected checks passed.
+that merge; it is not a clean-current claim. Full default check passed source batch `4fd8f7f3` in 535.5 s: repo 0.1, tooling 12.5, lint 9.9,
+build 149.8, test 76.2 and browser 287.0 s. All 70 presentation tests and 15 CAD browser checks passed.
+Durable log: `/tmp/boardstudio-tce-batch-4fd8f7f3.log`. Independent 105 affected checks passed.
 
 B synchronized at `767b31fa`; its unique `boardstudio-lane-mirror-core` index was CURRENT there before the
 106 documentation claim and unactivated source drafts. A uses `boardstudio-lane-web-sleeps`, captured at `f2d180c6`
@@ -156,5 +157,5 @@ before claim/test edits. F uses `boardstudio-ts-boardstudio2`, bound to its exac
 source confirmation; no bare `boardstudio` or generic hook notice certifies these lane indexes.
 
 Every dispatch rechecks actual HEAD/status/freshness. Ticket 19 stays open through final activation;114 still needs
-constraint decisions. Ticket37 and128 remain partial,38 blocked;119 passed bounded independent acceptance and awaits documentation commits/integration. Preserve these
+constraint decisions. Ticket37 and128 remain partial,38 blocked;119 passed bounded independent acceptance and is integrated;118 remains open. Preserve these
 distinctions in handoffs and maps.
