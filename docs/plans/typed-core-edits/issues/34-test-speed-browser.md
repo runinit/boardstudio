@@ -1,6 +1,7 @@
 # 34: Replace fixed sleeps in the browser tests (audit phase 2, part 2)
 
-Status: implemented (awaiting verification)
+Status: resolved
+Resolved scope: the shared helper and the keymap `queued_edit_tests` pilot only. The other suites and the audit merges are tickets 36, 37 and 38.
 Type: build
 Blocked by: [33](33-test-speed-rust.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -21,8 +22,12 @@ for 28, the pcb and parts suites ([audit M1](../audit/test-audit.md)). User, 202
 
 ## Acceptance
 
-- [ ] `check.py browser` before/after recorded, with no loss of assertions (counts of assertions per merged test).
-- [ ] No test depends on elapsed time except a documented timeout bound; no flakiness over three consecutive runs.
+Met for the delivered scope (helper + keymap `queued_edit_tests`); the rest moves to [36](36-sleeps-case-pcb-parts.md),
+[37](37-sleeps-layout-library-ui-page.md) and [38](38-merge-duplicate-browser-tests.md).
+
+- [x] `check.py browser` before/after recorded, with no loss of assertions (59 assert macros before and after in the converted file; no merge was made).
+- [x] No test in the converted file depends on elapsed time except the documented 5 s bound; no flakiness over three consecutive runs (the implementer's and the verifier's).
+- [ ] Not delivered here: the other suites (36, 37) and audit M2/M3 merges (38).
 
 ## Verification
 
@@ -99,3 +104,50 @@ failed 0 each), walls 146.0 s, 124.5 s, 124.3 s. `typecheck` 7.7 s pass, `lint` 
 - Three runs is the verification record; no further flakiness runs were done.
 - Stale Chromium profiles older than 30 min: 33 removed from `/tmp`.
 
+
+## Verification
+
+Verified by Claude Sonnet 5.5 (verifier), 2026-10-10, scope as delivered.
+
+**Reviewed and confirmed.** `wait_until` polls every 5 ms with a `gloo` `TimeoutFuture` (a macrotask, so Dioxus effects and
+rendering run between polls), returns before the first pause when the condition already holds, and the timeout message names the
+wait and the bound. The module is `cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))`: `cargo tree` for the
+page build (`-p boardstudio-web --no-default-features --features page`, wasm32) shows no `test-support` feature, and `check.py typecheck` passes.
+Native `cargo check -p boardstudio-web-ui-shared` fails in `boardstudio-web-ui-model` (`unresolved import boardstudio_web_runtime::runtime`),
+a crate this change does not touch; the web crates are wasm-only (see AGENTS.md), so this is not a regression.
+The `--list` of the keymap crate before (`8eac33960^`) and after: 40 tests each, 15 in `queued_edit_tests`, names byte-identical
+(`diff` of the sorted lists printed no difference). Assert macros in the file: 59 before, 59 after the Haiku commits.
+
+**Defects found and fixed (small, in the verifier commit).**
+1. *Unbounded gate (the Haiku finding).* All 10 `entered.await.unwrap()` gates in `queued_edit_tests.rs` now go through
+   `test_wait::wait_until_future(what, future)` (new `bounded` / `wait_until_future`); `wait_for_step` also wraps its poll loop in
+   `bounded`, so a step that awaits something that never happens (for example `run_pending` on a gated reply) fails at the bound too.
+   Three new unit tests cover the new paths (ui-shared wasm suite 30 to 33 plus panels).
+2. *Two waits that passed on stale state.* "the pending macro field is still enabled" (`!input.disabled()`) and "layer fields show their
+   enabled state while removal is pending" (`layers.enabled`) were true before the render that applies the pending state, so the
+   following `assert!` could not fail. Both now wait for a render after the action (`rendered_after` with a mark taken before it).
+3. *Predicate weaker than the next assertion.* In `queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targets` the wait
+   was only the accepted steps, but the next assertion reads the step field's failure alert, which renders after Core accepts; the
+   ineligible cases now wait for the alert too.
+
+**Mutation checks (all in one keymap build, each in a different test; reverted and re-checked clean).**
+- Never true: "both layer adds are accepted" set to `Some(99)`. FAIL with `wait_until: both layer adds are accepted did not hold within 5000 ms`.
+- Always true: "the name and tap edits are accepted" replaced by `true`. FAIL at the next assertion (`assert_eq!(item.name, "Renamed")`, line 470),
+  so that predicate is load-bearing; `run_pending` alone does not drain work already driven with `drive_pending`.
+- Production step removed: `begin_field` in `binding_controller.rs` disabled. `two_binding_fields_queue_and_undo_in_commit_order` now FAILS in
+  about 5 s with `wait_until: the held edit reaches the Core executor did not hold within 5000 ms` (was a hang to the runner's 120 s);
+  `failed_binding_restores_accepted_field_and_explains_failure` also fails with its named wait. Whole keymap run with the three mutations: 36 passed, 4 failed, 24.7 s.
+
+**Timings (this machine, sandbox lifted, sequential, nothing else running).** `check.py browser`: 149.9 s, 128.0 s, 126.8 s, all
+`all steps passed`, run-wasm-tests executed 70, failed 0; keymap suite `finished in` 9.66 s / 9.68 s / 9.66 s (40 passed), keymap launch
+wall 20.7 s / 18.4 s / 19.0 s (includes the incremental compile). Other suites unchanged from the Outcome table (case 30.5 s, pcb 26.2 s, parts 16.1 s,
+layout 13.6 s, library 11.0 s, ui-shared 8.8 s). `repo` 0.1 s, `typecheck` 1.4 s (warm), `lint` 3.3 s (warm, fmt + clippy) pass.
+The first run is slower than the next two (149.9 s against about 127 s); the keymap result is the same in all three, so no flakiness was seen.
+
+**Left unverified or open.**
+- Negative assertions that follow a positive-only wait still rely on the wait having been long enough. Example: `leaving_the_keymap_owner_retires_a_pending_layer_name_silently`
+  waits for the layer count, then asserts `failure().is_none()`; if the retirement were removed and the failure arrived a moment after Core
+  accepts, the assertion could pass. Not mutation-tested (no quiescence signal exists on `Runtime`). The same holds for `feedback.is_none()` in the
+  eligible step cases. A follow-up for ticket 36/37: give the test support an idle signal or queue a sentinel edit behind the held ones.
+- The new gate bound and unit tests were not run on a slower machine.
+- GitNexus not run (stale index; agents do not refresh it); callers checked with `rg`: the new symbols are used only by `queued_edit_tests.rs`.

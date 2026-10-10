@@ -74,8 +74,15 @@ and for any bulk action a recorded decision permits.
   recipes in parallel (release fixtures byte-identical to the parent's), the 36 generators export through one KiCad
   run, the closure loop is 2 projects, the source-right test is merged, `kicad_parses` fails without KiCad. `test`
   69.9 s (implementer baseline) to 32-36 s with `opt-level = 1`, 39-41 s after the verifier reverted that profile line
-  because the first `browser` run took 312.9 s (cold, confounded). Next: 34 (browser sleeps); re-test the opt-level
+  because the first `browser` run took 312.9 s (cold, confounded). Next: 34 (browser sleeps, now resolved for its pilot scope); re-test the opt-level
   with warm browser runs. [Outcome](issues/33-test-speed-rust.md#outcome).
+
+- 34 browser test speed (audit phase 2, part 2), delivered scope: resolved. A bounded `wait_until` family
+  (`web/crates/ui-shared/src/test_wait.rs`, test-support and wasm only) and the keymap `queued_edit_tests` conversion: keymap
+  suite 37.0 s to 9.7 s, `browser` step 176.1 s to 126.8-149.9 s, 15 test names and 59 assertions unchanged. The verifier made the
+  held-edit gates bounded and fixed three predicates that were weaker than the next assertion. The remaining suites and the audit
+  merges are tickets [36](issues/36-sleeps-case-pcb-parts.md), [37](issues/37-sleeps-layout-library-ui-page.md) and
+  [38](issues/38-merge-duplicate-browser-tests.md). [Outcome](issues/34-test-speed-browser.md#outcome).
 
 - **Batch A boundary check** (tickets 18, 29, 30, 27, 26, 28; all Core and catalogue, the page compiles the shared
   model), 2026-10-10 at `92adcd611` in the nested `tce-matrix` worktree, sandbox lifted, one sequential foreground
