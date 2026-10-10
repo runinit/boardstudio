@@ -44,12 +44,7 @@ inherits = "dev"
 debug = "line-tables-only"
 
 # Dependencies compile once, so optimizing them is free after the first build, and tests that
-# hash, compress or parse (the demo-project acceptance test) run about 2.4x faster. Other
-# workspace crates stay unoptimized so edit-and-test builds stay quick; boardstudio_core is the
-# exception below.
+# hash, compress or parse (the demo-project acceptance test) run about 2.4x faster. The
+# workspace's own crates stay unoptimized so edit-and-test builds stay quick.
 [profile.dev.package."*"]
 opt-level = 2
-# Core runs every recipe and most native tests. Level 1 measured faster for `check.py test` and
-# `build`, and not slower for `lint` (docs/plans/typed-core-edits/issues/33-test-speed-rust.md).
-[profile.dev.package.boardstudio_core]
-opt-level = 1
