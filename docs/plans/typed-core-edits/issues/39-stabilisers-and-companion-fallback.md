@@ -1,6 +1,6 @@
 # 39: Stabilisers keep their heading, and companions fall back to the X mirror
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-stabilisers-fallbacks-and-editing-the-mode-2026-10-10)
