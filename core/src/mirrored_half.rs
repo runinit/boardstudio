@@ -139,8 +139,8 @@ fn mirror_net_name(from: &str, to: &str, name: &str) -> String {
     .unwrap_or_else(|| name.to_owned())
 }
 
-/// Footprints whose outline is the same under a half turn and under a mirror (switches, diodes,
-/// mounting holes). Their mirrored heading is never ambiguous, so they never raise a finding.
+/// Footprints whose mirrored heading is settled, so they never raise the finding. Switches follow the
+/// switch rule (ADR-0010, no half turn); diodes and mounting holes are symmetric.
 const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
     "ceoloide/switch_mx",
     "ceoloide/switch_choc_v1_v2",
@@ -148,8 +148,17 @@ const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
     "ceoloide/mounting_hole_npth",
 ];
 
+/// Imported footprints that equal their own mirror image about the vertical axis, so a mirrored
+/// copy at the reflected heading is certain. The MX stabilisers (`STAB_MX_2u`, `STAB_MX_6.25u`)
+/// have pads at exactly `+-x` on the same `y`; they are not symmetric under a half turn, which is
+/// why they are matched here and the mirror (not a turn) places them.
+const SYMMETRIC_DEFINITIONS: [&str; 2] = [
+    "kicad:marbastlib/STAB_MX_2u",
+    "kicad:marbastlib/STAB_MX_6.25u",
+];
+
 /// The uncertain-heading finding (ADR-0010, heading rule). A mirrored part of a pair whose footprint
-/// is handed (any footprint not in [`SYMMETRIC_FOOTPRINTS`]) and whose heading is off the 90-degree
+/// is handed (any footprint in neither [`SYMMETRIC_FOOTPRINTS`] nor [`SYMMETRIC_DEFINITIONS`]) and whose heading is off the 90-degree
 /// grid is reported for a person to confirm. Core neither refuses it nor turns the part to guess.
 pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
     let Some(hardware) = doc.hardware.as_ref() else {
@@ -171,12 +180,15 @@ pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
             else {
                 continue;
             };
-            let symmetric = doc
-                .definitions
-                .iter()
-                .find(|definition| definition.id == part.definition_id)
-                .and_then(|definition| definition.generator.as_ref())
-                .is_some_and(|generator| SYMMETRIC_FOOTPRINTS.contains(&generator.source.as_str()));
+            let symmetric = SYMMETRIC_DEFINITIONS.contains(&part.definition_id.as_str())
+                || doc
+                    .definitions
+                    .iter()
+                    .find(|definition| definition.id == part.definition_id)
+                    .and_then(|definition| definition.generator.as_ref())
+                    .is_some_and(|generator| {
+                        SYMMETRIC_FOOTPRINTS.contains(&generator.source.as_str())
+                    });
             if symmetric || !part.pose.rotation.is_finite() {
                 continue;
             }

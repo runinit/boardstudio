@@ -1,6 +1,6 @@
 # 29: Mirror switches on X only and choose companion headings
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-key-switches-and-their-companions-2026-10-10)
@@ -32,17 +32,17 @@ belong to the switch can be rotated, per variant (an RGB LED variant may be turn
 
 ## Acceptance
 
-- [ ] Switch headings follow the rule for every shipped split keyboard's mirrored half, by correspondence, within 1e-9.
-- [ ] Diode and LED headings per variant, tested; uncertain cases produce a finding.
-- [ ] The earlier general-rule tests (TRRS left, right, up, down; off-axis LED) still pass.
+- [x] Switch headings follow the rule for every shipped split keyboard's mirrored half, by correspondence, within 1e-9.
+- [x] Diode and LED headings per variant, tested; uncertain cases produce a finding. (Diode side is an open user decision, below.)
+- [x] The earlier general-rule tests (TRRS left, right, up, down; off-axis LED) still pass.
 
-## Verification
+## Verification plan
 
 Core tests, `repo lint test typecheck`, wasm boundary parity when the transcript changes.
 
 ## Outcome
 
-Implemented by Haiku 5.5 (claimed in `fd3af2efe`). Not verified; status is for the verifier.
+Implemented by Haiku 5.5 (claimed in `fd3af2efe`, built in `be9411d07`). Verified by Sonnet 5.5; see Verification below, which corrects some claims here.
 
 ### What changed
 
@@ -138,3 +138,82 @@ No generator parameter, `reversible`, `side`, recipe, web file or other ticket c
 - Trailer: the brief asked for `Co-Authored-By: Claude Sonnet 5.5` and the session's attribution says Haiku 5.5.
   The claim commit used Sonnet; the implementation commit uses Haiku 5.5.
 - The GitNexus index is stale; impact and detect-changes results are provisional.
+
+## Verification
+
+Sonnet 5.5, 2026-10-10, in the `tce-matrix` worktree on top of `e8e46c4b5`. Reviewer pass, not a second
+implementation; one small fix and one test were added.
+
+### Claims reproduced
+
+- **Switch rule needs no code, and the test kills the mutants.** The unchanged tree passes
+  `mirrored_half::` (20 tests, 53.8 s). Mutation 1, `layout.rs` `cell.rotation = 180 - r`: 7 tests
+  failed, including `key_switches_...` ("heading 165 from the pair rule -15", 55.9 s). Mutation 2, the
+  ticket 18 mutant `pair::forward_angle(mapping, r)`: `key_switches_...` and
+  `a_rotated_pair_map_...` failed (57.1 s), so the ticket 18 survival is closed. Both restored with
+  `git checkout`; `git status` was clean afterwards.
+- **Where `-r` and `forward_angle` agree.** `forward_angle(map, r)` is `map.rotation - r`. It equals
+  `-r` exactly when the pair map's rotation is 0 modulo 360 (an axis map such as the shipped splits'
+  flip). For any other rotation (the 27 degree test cases) they differ by the map rotation, which is
+  what kills the mutant. Neither equals `180 - r`, which is why ticket 30 exists.
+- **Finding.** `mirror/<part id>/heading-uncertain` is a Warning, scope `Pcb`, `targetIds` is the
+  part, once per corresponded mirror part (ids unique, asserted). It joins the scene findings through
+  `validate()`, the list `pair_findings` is appended to (`lib.rs` 752 and 771). Every readiness and
+  export gate in `lib.rs` and `artifact/kicad/planning.rs` tests `Severity::Error`, so a Warning does
+  not block export. `heading_findings` returns nothing without `hardware` or without a pair `halves`
+  record; the new test opens all ten shipped splits, plus a tilted single half, and finds no
+  heading finding (no mirror pair created: unchanged). I did not diff `validate()` output before and
+  after the commit against the old code; the argument is the early return plus that test.
+- **Unmodified `sofle-rgb` mirror: the 2 findings are the thumb LEDs** `right-thumbs/r0c3/led`
+  (-165 degrees) and `r0c4/led` (-240). Asserted by the new test. `corne` has none.
+
+### Fixed here (small)
+
+- **Stabilisers.** They are imported matrix members (`kicad:marbastlib/STAB_MX_2u`, `STAB_MX_6.25u`,
+  no generator), so a stabiliser under a tilted wide key was flagged although it is mirror-symmetric:
+  its pads are at exactly `+-x` on the same `y` (`+-11.90625`, `+-50.00625`), and the mirrored copy at
+  the reflected heading is itself. They are not half-turn symmetric (the pads sit at `y` -6.985 and
+  8.255), so the old comment "same under a half turn and under a mirror" was wrong for them, and also
+  for switches (MX pads are asymmetric; switches are excluded because the switch rule settles them).
+  `SYMMETRIC_DEFINITIONS` now lists both definition ids and the comments say so. Test
+  `the_heading_finding_is_one_located_warning_per_part_and_absent_without_a_pair`; mutating the
+  new list out (`false && ...`) fails it. No shipped split has a stabiliser; the test relabels a
+  flagged LED as the stabiliser definition, so it covers the id match, not a real wide-key fixture.
+- The companion test now says in its doc comment what the diode does today and that it is a pending
+  decision (below).
+
+### Open decision for the user (not decided here)
+
+**Diode side on the mirrored half.** The source half has the diode at switch-local (+7.40, -1.50),
+heading +90. Core mirrors the position, so the created half has it at (-7.40, -1.50), heading -90,
+the other side of its switch. The shipped right halves of the splits keep the diode at (+7.40, -1.50),
+heading +90, the same side as the left half (and the RGB LED at (0, -4.75), heading 180/-180, agrees
+with the mirror). The footprint is symmetric, so only the 14.8 mm position differs. Options: keep the
+ADR's mirrored position (current), or give diodes the same-side placement of the shipped data (a
+per-variant companion rule, as the ADR amendment allows). `key_switches_mirror_...` pins the current
+behaviour. Ticket 19 (reconcile) and 20 (recipes) depend on the answer; the shipped-data review is
+ticket 25.
+
+### Corrections to the Outcome and what is not verified
+
+- "Stabilisers are not on the symmetric list": now fixed as above (the finding does not fire for them).
+- Switch rule: confirmed. The Outcome's remark that the two rules agree "only when the map rotation
+  is 0" is right.
+- Single-colour LED: no fixture; same code path as the RGB LED; untested.
+- The finding is deterministic (every handed part off the grid), not "when Core is unsure" in a
+  finer sense; for a non-symmetric part that is the intent of the ADR amendment.
+- The Outcome's trailer note: the claim commit is Sonnet, the implementation commit Haiku.
+- Independent parts follow `-r`, not the ADR's `180 - r`: ticket
+  [30](30-independent-parts-use-the-full-heading-rule.md), unchanged here.
+- GitNexus index is stale (it does not contain the new symbols); `impact` on `reflected` was CRITICAL
+  (16 impacted, 6 processes) but the only edit there was a temporary mutation, restored.
+  `detect-changes --scope all` reported "no indexed symbols overlap", which is not a clean check.
+
+### Commands (sequential, foreground)
+
+- `cargo test -p boardstudio_core --test integration mirrored_half::` baseline 53.8 s, 20 passed;
+  mutation 1 55.9 s (7 failed); mutation 2 57.1 s (2 failed); new test 54.0 s; new-list mutation fails.
+- `python3 scripts/check.py lint` passed, 9.0 s. `test` passed, 90.7 s. `typecheck` passed, 9.6 s.
+  `repo` passed (see the commit). Wasm `boundary_parity::` not run: the transcript did not change.
+  `build`, `browser`, `deny`, `release` not run.
+- Hygiene: 45 Chromium scoped profiles older than 30 minutes removed; scratch file removed.

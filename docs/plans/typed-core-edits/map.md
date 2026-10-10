@@ -65,6 +65,14 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- 29 key switches mirror their tilt with no half turn (the existing code already did; now pinned
+  with 15 and -20 degree tilts and every shipped split, mutation-checked against `180 - r` and the
+  ticket 18 `forward_angle` mutant), and Core adds a Warning finding `mirror/<part>/heading-uncertain`
+  for a handed mirror part off the 90-degree grid (not for switches, diodes, holes or MX stabilisers).
+  The diode side on the mirrored half (mirror puts it on the other side, the shipped right halves on
+  the same side) is an open user decision: [Outcome](issues/29-mirror-switch-and-companion-headings.md#verification).
+- 18 `CreateMirroredHalf` lands in Core (verified, one mutant left to 29 and now closed):
+  [Verification](issues/18-core-create-mirrored-half.md#verification).
 - 04 (partial, ticket still claimed) the ten split included keyboards open as explicit mechanical
   mirror pairs through the typed operation (Sofle linked, measured splits with local right-half
   bays, Sofle v2 gasket as the pair construction), unibody and review projects untouched, no key
@@ -122,8 +130,9 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- Native mirrored halves: [18](issues/18-core-create-mirrored-half.md) is ready (17 is resolved);
-  19 to 23 follow it.
+- Native mirrored halves: 17, 18 and 29 are resolved. Ready: [30](issues/30-independent-parts-use-the-full-heading-rule.md)
+  (independent parts take the full 360-degree heading rule), 26, 27, 24. 19 follows 26, 27 and 30,
+  and needs the diode-side decision from 29; 20 to 23 follow 19.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
   (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
   which is blocked only by matrix 11.

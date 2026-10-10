@@ -1617,9 +1617,15 @@ fn assert_close_pair(actual: (f64, f64), expected: (f64, f64), label: &str) {
 }
 
 /// A key switch takes the pair's heading rule with no half turn: a switch tilted by `r` mirrors to
-/// `forward_angle(map, r)`, which is `-r` on an axis map. Its diode and LED keep their side of the
-/// switch: in the switch's own frame a companion's local x flips and its local y does not. A
-/// `180 - r` rule would move the LED to the other side, which this test catches.
+/// `forward_angle(map, r)`, which is `-r` on an axis map (the two rules differ whenever the map
+/// rotation is not 0 modulo 360, which the 27 degree cases cover). A companion is mirrored in
+/// position and takes the negated heading: in the switch's own frame its local x flips and its
+/// local y does not. A `180 - r` rule would move the LED to the other side, which this test catches.
+///
+/// CURRENT BEHAVIOUR, NOT A DECISION: the diode is at local (+7.4, -1.5) on the source half, so the
+/// mirror puts it at local (-7.4, -1.5), the other side of its switch. The shipped right halves keep
+/// the diode at (+7.4, -1.5) on the same side as the left half. Which one is intended is an open user
+/// decision (ticket 29, Outcome); the assertion below pins what Core does today, not the recipes.
 #[test]
 fn key_switches_mirror_their_tilt_without_a_half_turn_and_keep_their_companion_side() {
     let cases: [(&str, Option<f64>); 4] = [
@@ -1788,5 +1794,111 @@ fn a_handed_mirrored_footprint_off_the_right_angle_grid_is_a_finding() {
         !ids.iter()
             .any(|id| id.contains("/r0c0/diode") || id.ends_with("matrix/right-keys/r0c0")),
         "a symmetric diode or switch is never a finding: {ids:?}"
+    );
+}
+
+/// The finding is once per part, located on the part, a Pcb-scope Warning (so it never gates an
+/// export), absent from a document with no mirror pair, and absent for the MX stabilisers, whose pads
+/// are at exactly `+-x` so their mirror image is themselves.
+#[test]
+fn the_heading_finding_is_one_located_warning_per_part_and_absent_without_a_pair() {
+    let shipped = &projects()["sofle-rgb"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let tilted = with_cell_turns(&mut engine, &seed, "left-keys", &[(0, 0, 15.0)]);
+    let heading = |scene: &Value| -> Vec<Value> {
+        scene["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["id"].as_str().unwrap().ends_with("/heading-uncertain"))
+            .cloned()
+            .collect()
+    };
+    // No mirror pair: nothing is added, whatever the tilt.
+    let single = request(
+        &mut CoreEngine::new(),
+        json!({"id":"o","kind":"open","document":tilted}),
+    );
+    assert!(
+        heading(&single["scene"]).is_empty(),
+        "{:?}",
+        heading(&single["scene"])
+    );
+    for (name, project) in projects().iter() {
+        let reply = request(
+            &mut CoreEngine::new(),
+            json!({"id":"o","kind":"open","document":project}),
+        );
+        assert!(
+            heading(&reply["scene"]).is_empty(),
+            "{name}: a shipped project (no created mirror pair) gained a heading finding"
+        );
+    }
+    let reply = create(
+        &mut engine,
+        &tilted,
+        "pair-finding",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
+    )
+    .unwrap();
+    let flagged = heading(&reply["scene"]);
+    let ids: BTreeSet<&str> = flagged.iter().map(|f| f["id"].as_str().unwrap()).collect();
+    assert_eq!(
+        ids.len(),
+        flagged.len(),
+        "one finding per part: {flagged:?}"
+    );
+    let finding = flagged
+        .iter()
+        .find(|f| f["id"] == "mirror/matrix/right-keys/r0c0/led/heading-uncertain")
+        .unwrap_or_else(|| panic!("the tilted mirror LED is not flagged: {ids:?}"));
+    assert_eq!(finding["severity"], "warning");
+    assert_eq!(finding["scope"], "pcb");
+    assert_eq!(
+        finding["targetIds"],
+        json!(["matrix/right-keys/r0c0/led"]),
+        "the finding names its part"
+    );
+    // A stabiliser (imported, no generator) is mirror-symmetric: relabel the flagged LED as one.
+    let mut document = reply["document"].clone();
+    let led = find_part(&document, "matrix/right-keys/r0c0/led").unwrap();
+    let definition_id = led["definitionId"].as_str().unwrap().to_owned();
+    let mut stabiliser = document["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["id"] == definition_id.as_str())
+        .unwrap()
+        .clone();
+    stabiliser["id"] = json!("kicad:marbastlib/STAB_MX_2u");
+    stabiliser.as_object_mut().unwrap().remove("generator");
+    document["definitions"]
+        .as_array_mut()
+        .unwrap()
+        .push(stabiliser);
+    for part in document["parts"].as_array_mut().unwrap() {
+        if part["id"] == "matrix/right-keys/r0c0/led" {
+            part["definitionId"] = json!("kicad:marbastlib/STAB_MX_2u");
+        }
+    }
+    let after = request(
+        &mut CoreEngine::new(),
+        json!({"id":"o","kind":"open","document":document}),
+    );
+    // What remains is the unmodified Sofle's own tilted thumb LEDs (-165 and -240 degrees), which
+    // the finding is meant to raise; the relabelled r0c0 part is no longer one of them.
+    let remaining: BTreeSet<String> = heading(&after["scene"])
+        .iter()
+        .map(|f| f["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(
+        remaining,
+        BTreeSet::from([
+            "mirror/matrix/right-thumbs/r0c3/led/heading-uncertain".to_owned(),
+            "mirror/matrix/right-thumbs/r0c4/led/heading-uncertain".to_owned(),
+        ]),
+        "a mirror-symmetric stabiliser is flagged, or the thumb LEDs are not"
     );
 }
