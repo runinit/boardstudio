@@ -7,21 +7,29 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](
 
 ## Request
 
-User, 2026-10-10: the Inspector panel edits the mode, supporting an individual part, a row or column, a matrix, and several selected parts.
+User, 2026-10-10: the Inspector panel edits the mode. The later human clarification limits
+this to **switch companions only**: an individual companion, companions in a row/column or
+matrix, and several selected companions. Independent controllers/connectors keep the general
+mirror rule and do not gain placement-mode controls.
 
 ## What to do
 
-- In the Layout Inspector, when the selection includes parts or keys of a mirrored half, show **Companion placement** with
-  literal mirror (default) / duplicate position / mirror with tweak (x, y, rotation fields), reflecting mixed values for a multi-selection.
-- Build the `targets` list from the selection: one part, several parts, a row or column of a matrix (from the matrix selection), a whole
-  matrix, and the pair default. Submit `SetCompanionPlacement` as a typed intent through the edit ticket path; a pending edit keeps the draft value
-  (ADR-0005); stabilisers show the control disabled with the reason.
+- In the Layout Inspector, for eligible switch companions or key/matrix selections that identify companions,
+  show **Companion placement** with literal mirror (default) / duplicate position / mirror with tweak
+  (x, y, rotation fields), reflecting mixed values for a multi-selection. Independent parts are excluded.
+- Build the `targets` list for one/several companions, companions in a selected row/column or matrix, and the
+  pair default. Normalize source-side or mirror-side selection to 40's `(kind, mirrorId)` companion identity;
+  deterministically deduplicate overlaps. Submit `SetCompanionPlacement` through the typed edit ticket path;
+  a pending edit keeps the draft value (ADR-0005). Stabilisers show the control disabled with the reason:
+  their mirrored-X position and unchanged heading follow 39 in every mode.
+- Pair-default tweak controls must follow 40's root-reviewed technical contract; do not introduce a pair-wide
+  tweak or independent-part coordinate semantics in the adapter while that review is pending.
 - Follow DESIGN.md for controls and copy; read it before changing the panel. Mounted tests for each selection kind, a mixed selection,
-  Undo, and a refused edit showing the inline message.
+  Undo, a refused edit showing the inline message, and exclusion of independent controllers/connectors.
 
 ## Acceptance
 
-- [ ] Each selection kind changes the right companions only; Undo works; mixed values display correctly.
+- [ ] Each selection kind changes eligible companions only; independent parts are excluded, stabiliser controls are disabled, Undo works, and mixed values display correctly.
 - [ ] DESIGN.md gets one sentence only if a new visible control pattern is introduced.
 
 ## Verification

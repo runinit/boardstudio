@@ -4,7 +4,28 @@
 //! the counterpart of each item (correspondences) and any per-item exception. Absent `halves`
 //! means the pair is unpaired: it links mechanical features and nothing else.
 
-use crate::model::{MechanicalMirrorPair, MirroredHalves, MirroredItemKind, ProjectDoc};
+use crate::model::{
+    MechanicalMirrorPair, MirroredCompanionMode, MirroredCompanionTweak, MirroredHalves,
+    MirroredItemKind, ProjectDoc,
+};
+
+/// Shared validation for the creation request and each item's effective placement settings.
+pub(crate) fn validate_companion(
+    mode: MirroredCompanionMode,
+    tweak: Option<MirroredCompanionTweak>,
+) -> Result<(), String> {
+    if let Some(tweak) = tweak {
+        if mode != MirroredCompanionMode::LiteralMirrorWithTweak {
+            return Err(
+                "companionTweak is only valid with companionMode literal-mirror-with-tweak".into(),
+            );
+        }
+        if !(tweak.x.is_finite() && tweak.y.is_finite() && tweak.rotation.is_finite()) {
+            return Err("companionTweak x, y and rotation must be finite".into());
+        }
+    }
+    Ok(())
+}
 
 /// Checks the construction source and the mirrored-half record of every pair in the document.
 ///
@@ -106,6 +127,13 @@ fn validate_halves(
             "mechanical pair {:?} halves.correspondences[{index}]",
             pair.id
         );
+        validate_companion(
+            correspondence
+                .companion_mode
+                .unwrap_or(halves.companion_mode),
+            correspondence.companion_tweak,
+        )
+        .map_err(|error| format!("{location}: {error}"))?;
         let kind = kind_name(correspondence.kind);
         if !item_exists(
             document,
@@ -151,6 +179,11 @@ fn validate_halves(
     }
     for (index, exception) in halves.exceptions.iter().enumerate() {
         let location = format!("mechanical pair {:?} halves.exceptions[{index}]", pair.id);
+        validate_companion(
+            exception.companion_mode.unwrap_or(halves.companion_mode),
+            exception.companion_tweak,
+        )
+        .map_err(|error| format!("{location}: {error}"))?;
         let kind = kind_name(exception.kind);
         if !item_exists(
             document,
