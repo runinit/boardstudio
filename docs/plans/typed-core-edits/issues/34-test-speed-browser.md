@@ -1,6 +1,6 @@
 # 34: Replace fixed sleeps in the browser tests (audit phase 2, part 2)
 
-Status: claimed
+Status: implemented (awaiting verification)
 Type: build
 Blocked by: [33](33-test-speed-rust.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -27,3 +27,75 @@ for 28, the pcb and parts suites ([audit M1](../audit/test-audit.md)). User, 202
 ## Verification
 
 `repo lint typecheck browser` (sandbox lifted for Chrome), run three times.
+
+## Outcome
+
+Partial scope, implemented by Claude Haiku 5.5 (implementer). Time box reached after the keymap
+suite; the remaining suites are not converted. Commits: claim `8eac33960`; helper `bdfcb0190`
+(`wait_until` with three unit tests), `6bc6cd5cf` (`wait_until_step`, one unit test); keymap
+`7e88541e6` (`queued_edit_tests.rs`). Commits carry `Co-Authored-By: Claude Haiku 5.5` (the attribution
+reminder), not the Sonnet trailer the brief named.
+
+**Helper.** `web/crates/ui-shared/src/test_wait.rs` (wasm-only, `cfg(test)` or `test-support`): `wait_for_step`
+awaits a step on each poll (default poll 5 ms, bound `WAIT_BOUND_MS` = 5 s), `wait_until` and `wait_for` wrap it
+with sync conditions, and `wait_until_step` is the panicking form. Unit tests: returns as soon as true, no pause
+when already true, step runs once per poll, timeout message names the wait and the bound. 4 passed.
+
+**Keymap (`queued_edit_tests.rs`).** All 25 `settle` sites became `settle_until(runtime, what, predicate)`: it
+drains held effects on each poll and returns when the predicate (the assertion's own condition, which stays after
+the wait) holds. The 14 `rendered()` sites became a DOM predicate, `rendered_after(probe, mark)` (the host
+rendered after a change; `Probe.renders` counts host renders), or `rendered_accepted` (the host rendered the
+accepted revision, `Probe.rendered_revision`). The last one was needed: after an accepted edit the next action
+carries the render's admission token, so clicking before the re-render silently does nothing and the test hung
+(found with a trace). Assertion count unchanged (59 `assert` calls before and after; the diff is one doc comment).
+No fixed sleeps remain in the file. Wasm test count 15 before and after.
+
+**Before/after (`check.py browser`, same machine, noisy).** Before = this session's baseline run (`176.1 s`
+total); per-suite "before" figures are from the audit, not re-measured (the baseline log's `finished in` times were
+truncated by the output filter).
+
+| Suite | Before (audit) | After run 1 | run 2 | run 3 |
+| --- | ---: | ---: | ---: | ---: |
+| keymap (40) | 37.0 s | 9.66 s | 9.67 s | 9.69 s |
+| case (81) | 30.6 s | 30.53 s | 30.47 s | 30.48 s (not converted) |
+| pcb (49) | 26.1 s | 26.19 s | 26.16 s | 26.18 s (not converted) |
+| parts (68) | 16.1 s | 16.10 s | 16.11 s | 16.11 s (not converted) |
+| layout (166 + 1) | 13.7 s | 13.53 s | 13.55 s | 13.56 s (not converted) |
+| library (16) | 11.1 s | 10.93 s | 10.92 s | 10.95 s (not converted) |
+| ui-shared (30 + 1) | 8.7 s | 8.75 s | 8.76 s | 8.76 s (not converted) |
+| step wall | 176.1 s (this session) | 146.0 s | 124.5 s | 124.3 s |
+
+**Test names.** Diff of `test NAME ... ok` lines in the baseline and run-1 logs: +4
+(`test_wait::tests::{returns_as_soon_as_the_condition_holds, a_condition_that_already_holds_does_not_pause,
+a_step_runs_on_every_poll_until_it_reports_true, times_out_naming_the_wait_and_the_bound}`), none removed; all
+keymap names unchanged. Not the `--list` output as the brief asked (not run); the logs print 534 vs 538 names
+(not all suites print that form).
+
+**Mutation checks.**
+1. Never true, one wait: `two_queued_layer_adds_get_distinct_ids`, "both layer adds are accepted" forced false.
+   FAIL in 5.10 s: `wait_until: both layer adds are accepted did not hold within 5000 ms`. Reverted.
+2. Never true, two more waits in one full keymap run: "the undo of the first binding removes the keymap" and
+   "the older failure is reported inline". Both FAIL with the named message; 38 passed, 2 failed, 19.89 s. Reverted.
+3. Production step removed: `binding_controller.rs` on_change's `begin_field` disabled (`if black_box(false)`).
+   `two_binding_fields_queue_and_undo_in_commit_order` did NOT fail with the helper message. It hung until the
+   runner's 120 s bound (SIGKILL). The blocked await is the test's own `entered.await` gate on a Core call that never
+   starts, which is not a new wait and has no bound. Follow-up: bound the gate await in these tests. Reverted.
+
+**Three consecutive `check.py browser` runs:** all passed (`all steps passed: browser`; run-wasm-tests executed 70,
+failed 0 each), walls 146.0 s, 124.5 s, 124.3 s. `typecheck` 7.7 s pass, `lint` 8.6 s pass (fmt + clippy),
+`repo` 0.1 s pass.
+
+**Not done (scope left open).**
+- Not converted: `case` `mechanical_settings` (`rendered()` 60 ms, `settle_fields` 15x40), `pcb` (30 ms x12),
+  `parts` (`tick` 30 ms, 22 sites), `layout` (outline and board-inspector sleeps), `ui-shared`
+  `pending_edit_helpers` (`settle` 12x30), `keycaps`, the presentation tests, and the 40 ms `rendered`/`settle`
+  helpers in `keymap` `macro_controller`, `macro_editor` and `panel`. Their gains are unmeasured.
+- Audit M2 (keycode/delay twins in `macro_controller::mounted_step_tests`) and M3 (presentation position-draft
+  pairs): no merges made, so no test was merged and the name diff has no merges.
+- GitNexus `impact`/`detect_changes` not run: the index is stale (011f39a) and agents do not refresh it. Callers
+  were checked with `rg`: `settle`/`rendered` are local to `queued_edit_tests.rs`; `wait_until`, `wait_until_step`
+  and `wait_for` are new additive symbols used only by `queued_edit_tests.rs`.
+- The 5 s bound (`test_wait::WAIT_BOUND_MS`) was not stressed on a slower machine.
+- Three runs is the verification record; no further flakiness runs were done.
+- Stale Chromium profiles older than 30 min: 33 removed from `/tmp`.
+
