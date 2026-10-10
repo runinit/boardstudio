@@ -89,6 +89,16 @@ checkout that lacks the script:
 }
 ```
 
+**Codex.** The same script is wired into Codex's `~/.codex/hooks.json` as a second command in the existing `Stop` group (a backup is
+beside it as `hooks.json.bak-gitnexus-refresh-*`). Because that file is global, the command first checks that the session's git checkout
+contains `scripts/gitnexus-refresh.py` and does nothing elsewhere:
+
+```sh
+root=$(git rev-parse --show-toplevel 2>/dev/null) && [ -f "$root/scripts/gitnexus-refresh.py" ] && python3 "$root/scripts/gitnexus-refresh.py" --background; exit 0
+```
+
+It refreshes the index of whichever checkout (main or worktree) the Codex session is in. Re-add it if Codex's hooks are regenerated.
+
 Settings changes take effect in a new session (or after reopening `/hooks`). To stop it, delete the
 entry. A hook on **PostToolUse** would instead fire after every agent commit, which is what the rule
 avoids.
