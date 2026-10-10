@@ -1,6 +1,6 @@
 # 33: Make the native tests faster (audit phase 2, part 1)
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [24](24-test-audit.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
