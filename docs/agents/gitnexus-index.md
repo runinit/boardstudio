@@ -46,9 +46,46 @@ and the rule that keeps it current without a pile of agents re-indexing at once.
 5. **Check before trusting.** `python3 scripts/gitnexus-refresh.py --status` prints "current" or
    why not. A result from a stale index is a hint, not a clean check.
 
-## Why not a hook
+## The Stop hook (orchestrating session only)
 
-A project hook that runs analyze after every commit would fire once per agent commit, many
-times per hour, each costing CPU and holding the write lock. If that is ever wanted, wire the same
-script (it is single-flight and idempotent) to a Stop hook for the orchestrating session only,
-not to PostToolUse.
+`scripts/gitnexus-refresh.py --background` is wired to the **Stop** event of the session that
+orchestrates the work, so the index catches up between turns without anyone remembering to. It
+is deliberately cautious:
+
+- It acts only when the index is behind **HEAD** (committed staleness). Uncommitted edits never
+  trigger it, so it does not re-index on every turn of an editing agent.
+- It does nothing while a build, test run or browser is going (`cargo`, `rustc`, `wasm-pack`,
+  `chromedriver`, `chrome`, `podman`, `check.py` and the browser runners), so timing runs are
+  not disturbed.
+- At most one attempt per 15 minutes per checkout (a stamp in the git common dir), one analyze at
+  a time for the whole repository family (the lock), detached, `nice 19`, silent, always exit 0.
+  Output goes to `.gitnexus/refresh.log`.
+- A hook fires only in the session whose settings contain it. Subagents do not run it for their
+  own commits, and the rule above still holds: agents never analyze.
+
+The hook lives in the checkout's local, untracked settings (`.claude/` is gitignored), so each
+checkout that wants it needs the entry below. It is a guarded one-liner, so it is harmless in a
+checkout that lacks the script:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/gitnexus-refresh.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/scripts/gitnexus-refresh.py\" --background; exit 0",
+            "timeout": 10,
+            "statusMessage": "Checking the GitNexus index"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Settings changes take effect in a new session (or after reopening `/hooks`). To stop it, delete the
+entry. A hook on **PostToolUse** would instead fire after every agent commit, which is what the rule
+avoids.

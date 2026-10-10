@@ -4,6 +4,9 @@
   gitnexus-refresh.py            refresh if HEAD moved or the tree has uncommitted source changes
   gitnexus-refresh.py --status   print whether the index is current and why not, change nothing
   gitnexus-refresh.py --dry-run  print the analyze command that would run
+  gitnexus-refresh.py --background   for a Stop hook: refresh only a commit-stale index, only while
+                                 nothing heavy is running, at most every 15 minutes, detached,
+                                 silent, always exit 0
 
 Only one refresh runs at a time for the whole repository family (the main checkout and every
 worktree share one lock in the git common dir). A second caller exits at once with
@@ -16,6 +19,8 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import os
+import shutil
 import subprocess
 import sys
 import time
@@ -23,6 +28,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMEOUT_SECONDS = 30 * 60
+BACKGROUND_INTERVAL_SECONDS = 15 * 60
+# Work whose timings or CPU a re-index would disturb. The Stop hook waits until none is running.
+HEAVY_PROCESSES = ("cargo", "rustc", "wasm-pack", "wasm-bindgen-test-runner", "chromedriver", "chrome", "chromium", "podman")
+HEAVY_SCRIPTS = ("check.py", "build-web.py", "run-wasm-tests.py", "check-wasm-tests.py")
 
 
 def git(*args: str, cwd: Path = ROOT) -> str:
@@ -71,11 +80,58 @@ def analyze_command(root: Path = ROOT) -> list[str]:
     ]
 
 
+def heavy_work_running() -> bool:
+    """True when a build, test run or browser is going (looks at every process of this user)."""
+    me = os.getpid()
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit() or int(entry.name) == me:
+            continue
+        try:
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+            exe = Path(argv[0].decode(errors="replace")).name
+        except (OSError, IndexError):
+            continue
+        if exe in HEAVY_PROCESSES:
+            return True
+        if exe.startswith("python") and any(Path(a.decode(errors="replace")).name in HEAVY_SCRIPTS for a in argv[1:3]):
+            return True
+    return False
+
+
+def head_stale(root: Path = ROOT) -> bool:
+    """Committed staleness only: the Stop hook must not re-index on every uncommitted edit."""
+    indexed = indexed_commit(root)
+    return indexed is None or indexed != git("rev-parse", "HEAD", cwd=root)
+
+
+def background(root: Path = ROOT) -> int:
+    """Stop-hook mode: cheap checks, then a detached refresh. Never blocks, never prints, exits 0."""
+    try:
+        if not head_stale(root) or heavy_work_running():
+            return 0
+        stamp = Path(git("rev-parse", "--git-common-dir", cwd=root)).resolve() / f"gitnexus-refresh-{alias(root)}.stamp"
+        if stamp.exists() and time.time() - stamp.stat().st_mtime < BACKGROUND_INTERVAL_SECONDS:
+            return 0
+        stamp.touch()
+        log = open(root / ".gitnexus" / "refresh.log", "ab") if (root / ".gitnexus").is_dir() else subprocess.DEVNULL
+        nice = [shutil.which("nice") or "nice", "-n", "19"]
+        subprocess.Popen(
+            [*nice, sys.executable, str(Path(__file__).resolve())],
+            cwd=root, stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True,
+        )
+    except Exception:  # a hook must never fail the session
+        pass
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--status", action="store_true", help="report only; exit 1 when stale")
     parser.add_argument("--dry-run", action="store_true", help="print the command and exit")
+    parser.add_argument("--background", action="store_true", help="Stop-hook mode (see above)")
     args = parser.parse_args(argv)
+    if args.background:
+        return background()
 
     reason = stale_reason()
     if args.status:

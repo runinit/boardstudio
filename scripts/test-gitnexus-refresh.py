@@ -75,5 +75,45 @@ class RefreshTests(unittest.TestCase):
                     run.assert_not_called()
 
 
+class BackgroundTests(unittest.TestCase):
+    def test_background_never_raises_and_prints_nothing(self):
+        import contextlib
+        import io
+        with mock.patch.object(refresh, "git", side_effect=RuntimeError("boom")), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(refresh.background(), 0)
+        self.assertEqual(out.getvalue(), "")
+
+    def test_background_waits_while_heavy_work_runs(self):
+        with mock.patch.object(refresh, "head_stale", return_value=True), \
+                mock.patch.object(refresh, "heavy_work_running", return_value=True), \
+                mock.patch.object(refresh.subprocess, "Popen") as popen:
+            self.assertEqual(refresh.background(), 0)
+            popen.assert_not_called()
+
+    def test_background_skips_a_current_index(self):
+        with mock.patch.object(refresh, "head_stale", return_value=False), \
+                mock.patch.object(refresh.subprocess, "Popen") as popen:
+            self.assertEqual(refresh.background(), 0)
+            popen.assert_not_called()
+
+    def test_background_starts_one_detached_refresh_then_throttles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            common = Path(tmp)
+            def fake_git(*args, cwd=None):
+                return str(common) if "--git-common-dir" in args else "abc"
+            with mock.patch.object(refresh, "head_stale", return_value=True), \
+                    mock.patch.object(refresh, "heavy_work_running", return_value=False), \
+                    mock.patch.object(refresh, "git", side_effect=fake_git), \
+                    mock.patch.object(refresh.subprocess, "Popen") as popen:
+                self.assertEqual(refresh.background(Path(tmp)), 0)
+                self.assertEqual(refresh.background(Path(tmp)), 0)
+                self.assertEqual(popen.call_count, 1)
+                self.assertTrue(popen.call_args.kwargs["start_new_session"])
+
+    def test_this_test_process_is_not_heavy_work(self):
+        self.assertFalse(any(name in {Path(__file__).name} for name in refresh.HEAVY_SCRIPTS))
+
+
 if __name__ == "__main__":
     unittest.main()
