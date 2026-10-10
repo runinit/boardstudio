@@ -28,7 +28,7 @@ timing work must run alone, and a few files can only have one writer. Process fo
 | C check speed | [11](../check-speed/issues/11-browser-measure.md) (alone, quiet machine), then [12](../check-speed/issues/12-browser-quick-wins.md) | `scripts/check.py`, `scripts/run-wasm-tests.py`, `.github/workflows` | `browser` many times | 11 measures timings, so nothing else may run. 12 waits for lane A to finish 38. |
 | D audit and cleanup | [35](issues/35-test-maintenance-cuts.md) | version literals in tests; goldens (`transcript.json`, the demo baseline) | full `check.py` | Golden edits last, after B merges, then re-bless. |
 | E web adapter | [21](issues/21-mirrored-half-web-adapter.md), then [22](issues/22-mirrored-half-integrated-verification.md) | `web/crates/catalogue`, `web/crates/layout`, physical setup | `typecheck browser` | waits for B to merge 19 and 32. |
-| F planning (no builds) | [25](issues/25-shipped-boards-review.md) research, [23](issues/23-redo-keyboard-04-on-native-halves.md) later | docs, read-only fixtures | none | safe to run any time; fits a different app well. |
+| F planning (no builds) | [25](issues/25-shipped-boards-review.md) research → AI review → human review; [23](issues/23-redo-keyboard-04-on-native-halves.md) later | docs, read-only fixtures | none | Human rebuild direction is recorded: configurable standard spacing, board-specific native assemblies, real components, native outline/mount generation, regenerated clearances; VIK deferred. Board fixes remain separate tickets, Sofle first. Safe to run any time; fits a different app well. |
 
 Independent lanes: A, B and F can start now. C and D wait as noted. E waits for B.
 
