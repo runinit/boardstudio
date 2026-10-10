@@ -1520,7 +1520,7 @@ fn a_mirrored_outline_identity_that_is_already_used_refuses_the_whole_record() {
 }
 
 #[test]
-fn hosted_modules_and_embedded_circuits_are_refused_by_name() {
+fn hosted_embedded_circuits_are_refused_by_name() {
     let shipped = &projects()["corne"];
     let mut doc = seed_document(shipped, "left");
     doc["embeddedCircuits"] = json!([{"id": "circuit-1", "definitionId": "d", "hostBoardId": "left",
@@ -1545,6 +1545,390 @@ fn hosted_modules_and_embedded_circuits_are_refused_by_name() {
         error.contains("embedded circuit circuit-1") && error.contains("cannot be mirrored yet"),
         "{error}"
     );
+}
+
+/// The VIK module catalogue the shipped demo takes its definitions from.
+const MODULE_CATALOGUE: &str = include_str!("../../catalogue/modules/imported-modules.json");
+
+fn module<'a>(document: &'a Value, id: &str) -> &'a Value {
+    document["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == id)
+        .unwrap()
+}
+
+/// Puts two chained VIK splitters on `board`, from the catalogue definition the demo places. The
+/// first is pinned to physical instance `host` and sits on the front; the second is unpinned, on
+/// the back, and takes the first's host-side output, so the chain is valid on the source.
+fn add_two_splitters(document: &mut Value, board: &str, host: &str) {
+    let library: Value = serde_json::from_str(MODULE_CATALOGUE).unwrap();
+    let definition = library["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["row"] == "vik-splitter")
+        .unwrap()["definition"]
+        .clone();
+    let connection = |bus: &str| {
+        json!({
+            "hostConnectorPartId": format!("{board}/TRRS"),
+            "modulePortId": "J1002",
+            "busId": format!("{board}/{bus}"),
+            "assignments": {},
+            "cableType": "type-a-12-0.5",
+            "railVoltages": {},
+        })
+    };
+    let mut downstream = connection("bus-b");
+    downstream["upstreamModuleId"] = json!(format!("{board}/splitter-above"));
+    downstream["upstreamPortId"] = json!("J1004");
+    let module = |id: &str,
+                  pinned: Option<&str>,
+                  face: (&str, &str),
+                  at: f64,
+                  rotation: f64,
+                  connection: Value| {
+        let mut module = json!({
+            "id": format!("{board}/{id}"),
+            "definitionId": definition["id"],
+            "hostBoardId": board,
+            "hostFace": face.0,
+            "facingFace": face.1,
+            "at": {"x": at, "y": 20.0},
+            "rotation": rotation,
+            "gap": 3.0,
+            "attachment": "board",
+            "detached": false,
+            "serviceClearance": 4.0,
+            "connection": connection,
+        });
+        if let Some(instance) = pinned {
+            module["hostInstanceId"] = json!(instance);
+        }
+        module
+    };
+    document["moduleDefinitions"] = json!([definition.clone()]);
+    document["modules"] = json!([
+        module(
+            "splitter-above",
+            Some(host),
+            ("front", "back"),
+            29.0,
+            0.0,
+            connection("bus-a")
+        ),
+        module(
+            "splitter-below",
+            None,
+            ("back", "front"),
+            57.0,
+            135.0,
+            downstream
+        ),
+    ]);
+}
+
+/// The source document with its second module changed by `edit`.
+fn with_module_edit(source: &Value, edit: impl Fn(&mut Value)) -> Value {
+    let mut document = source.clone();
+    edit(&mut document["modules"][1]);
+    document
+}
+
+/// The record's module correspondences as (source id, mirror id) pairs.
+fn module_pairs(document: &Value, pair_id: &str) -> BTreeSet<(String, String)> {
+    // An empty correspondence list is omitted from the record.
+    pair(document, pair_id)["halves"]["correspondences"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|c| c["kind"] == "module")
+        .map(|c| {
+            (
+                c["sourceId"].as_str().unwrap().to_owned(),
+                c["mirrorId"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// A mounted module is mirrored by pose and id: `at` through the pair map, the heading through
+/// the full rule `rotation + 180 - r` (never modulo 180, so the module is not flipped), and its
+/// definition, faces, gap, attachment, supports and connection parameters unchanged. Every
+/// reference is renamed by the board-prefix rule, and the host instance is the mirror instance.
+#[test]
+fn two_hosted_modules_mirror_with_exact_ids_poses_and_correspondences() {
+    let shipped = &projects()["corne"];
+    for map in [
+        mapping(300.0),
+        json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
+    ] {
+        let mut source = seed_document(shipped, "left");
+        add_two_splitters(&mut source, "left", "left");
+        let (mut engine, seed) = open(&source);
+        let before = snapshot(&mut engine);
+        let reply = create(
+            &mut engine,
+            &seed,
+            "pair-right",
+            "left",
+            new_board("right", "right"),
+            map.clone(),
+        )
+        .unwrap();
+        let document = &reply["document"];
+        let ids: BTreeSet<String> = document["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["id"].as_str().unwrap().to_owned())
+            .collect();
+        let expected_ids: BTreeSet<String> = [
+            "left/splitter-above",
+            "left/splitter-below",
+            "right/splitter-above",
+            "right/splitter-below",
+        ]
+        .map(str::to_owned)
+        .into();
+        assert_eq!(ids, expected_ids, "map {map}");
+        let expected_pairs: BTreeSet<(String, String)> = [
+            ("left/splitter-above", "right/splitter-above"),
+            ("left/splitter-below", "right/splitter-below"),
+        ]
+        .map(|(a, b)| (a.to_owned(), b.to_owned()))
+        .into();
+        assert_eq!(module_pairs(document, "pair-right"), expected_pairs);
+
+        let rotation = map["rotation"].as_f64().unwrap();
+        for (source_id, mirror_id) in [
+            ("left/splitter-above", "right/splitter-above"),
+            ("left/splitter-below", "right/splitter-below"),
+        ] {
+            let original = module(&source, source_id);
+            let mirror = module(document, mirror_id);
+            let at = |m: &Value| {
+                (
+                    m["at"]["x"].as_f64().unwrap(),
+                    m["at"]["y"].as_f64().unwrap(),
+                )
+            };
+            assert_point(at(mirror), reflected_point(&map, at(original)), mirror_id);
+            let heading = original["rotation"].as_f64().unwrap();
+            assert!(
+                angles_match(
+                    mirror["rotation"].as_f64().unwrap(),
+                    rotation + 180.0 - heading
+                ),
+                "{mirror_id}: {} from {heading} under map {rotation}",
+                mirror["rotation"]
+            );
+            assert_eq!(mirror["hostBoardId"], "right", "{mirror_id}");
+            for key in [
+                "definitionId",
+                "hostFace",
+                "facingFace",
+                "gap",
+                "attachment",
+                "detached",
+                "serviceClearance",
+                "mountSupports",
+            ] {
+                assert_eq!(mirror[key], original[key], "{mirror_id} {key}");
+            }
+            let (from, to) = (&original["connection"], &mirror["connection"]);
+            assert_eq!(to["hostConnectorPartId"], "right/TRRS", "{mirror_id}");
+            assert_eq!(to["modulePortId"], from["modulePortId"], "{mirror_id}");
+            assert_eq!(to["cableType"], from["cableType"], "{mirror_id}");
+            assert_eq!(to["assignments"], from["assignments"], "{mirror_id}");
+            assert_eq!(to["railVoltages"], from["railVoltages"], "{mirror_id}");
+        }
+        // The pinned module moves to the mirror instance; the unpinned one stays unpinned.
+        assert_eq!(
+            module(document, "right/splitter-above")["hostInstanceId"],
+            "right"
+        );
+        assert!(module(document, "right/splitter-below")["hostInstanceId"].is_null());
+        // Bus ids and the chain are mapped by the same rule; the chain is the mirror's own.
+        assert_eq!(
+            module(document, "right/splitter-above")["connection"]["busId"],
+            "right/bus-a"
+        );
+        assert_eq!(
+            module(document, "right/splitter-below")["connection"]["busId"],
+            "right/bus-b"
+        );
+        let downstream = &module(document, "right/splitter-below")["connection"];
+        assert_eq!(downstream["upstreamModuleId"], "right/splitter-above");
+        assert_eq!(downstream["upstreamPortId"], "J1004");
+        // Every new id is reported, and the whole edit is one Undo step.
+        let changed: BTreeSet<String> = reply["scene"]["changedIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| id.as_str().unwrap().to_owned())
+            .collect();
+        for id in ["right/splitter-above", "right/splitter-below", "right"] {
+            assert!(changed.contains(id), "{id} missing from {changed:?}");
+        }
+        let undone = request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+        assert_eq!(undone["modules"], before["modules"]);
+        // An empty list is omitted from the document, so no pair is the same as none.
+        assert!(
+            undone["hardware"]["pairs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .next()
+                .is_none()
+        );
+    }
+}
+
+/// A module the mirror cannot place names the module and changes nothing: a pin to an instance
+/// other than the source, a connector off the source board, and an upstream module off it.
+#[test]
+fn a_module_the_mirror_cannot_place_refuses_the_record_and_changes_nothing() {
+    let shipped = &projects()["corne"];
+    let mut source = seed_document(shipped, "left");
+    add_two_splitters(&mut source, "left", "left");
+    type ModuleEdit = fn(&mut Value);
+    let cases: [(&str, ModuleEdit, &str); 3] = [
+        (
+            "pinned elsewhere",
+            |m| m["hostInstanceId"] = json!("elsewhere"),
+            "elsewhere",
+        ),
+        (
+            "connector off the board",
+            |m| m["connection"]["hostConnectorPartId"] = json!("other/TRRS"),
+            "other/TRRS",
+        ),
+        (
+            "upstream off the board",
+            |m| m["connection"]["upstreamModuleId"] = json!("other/splitter-above"),
+            "other/splitter-above",
+        ),
+    ];
+    for (label, edit, named) in cases {
+        let document = with_module_edit(&source, edit);
+        let (mut engine, seed) = open(&document);
+        let error = refused(
+            &mut engine,
+            &seed,
+            operation(
+                "pair-right",
+                "left",
+                new_board("right", "right"),
+                shipped_mapping(shipped),
+            ),
+        );
+        assert!(
+            error.contains("splitter-below") && error.contains(named),
+            "{label}: {error}"
+        );
+    }
+}
+
+/// Reuse-board copies no module: a module hosted on the board is reflected by the flipped view
+/// (resolve), so the record holds no module correspondence. A module pinned to the source
+/// instance is not visible from the flipped instance, so the operation refuses it by name.
+#[test]
+fn reuse_board_copies_no_module_and_refuses_one_pinned_to_the_source() {
+    let shipped = &projects()["corne"];
+    let mut unpinned = seed_document(shipped, "left");
+    add_two_splitters(&mut unpinned, "left", "left");
+    unpinned["modules"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("hostInstanceId");
+    let (mut engine, seed) = open(&unpinned);
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-reuse",
+        "left",
+        json!({"kind":"reuse-board","instanceId":"right"}),
+        mapping(0.0),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    assert_eq!(document["modules"], seed["modules"]);
+    assert!(module_pairs(document, "pair-reuse").is_empty());
+
+    let mut pinned = seed_document(shipped, "left");
+    add_two_splitters(&mut pinned, "left", "left");
+    let (mut engine, seed) = open(&pinned);
+    let error = refused(
+        &mut engine,
+        &seed,
+        operation(
+            "pair-reuse",
+            "left",
+            json!({"kind":"reuse-board","instanceId":"right"}),
+            mapping(0.0),
+        ),
+    );
+    assert!(
+        error.contains("left/splitter-above") && error.contains("reuse-board"),
+        "{error}"
+    );
+}
+
+/// A mirrored module is one Warning per module, located on the mirror, asking a person to confirm
+/// its handedness. A source module, or a module that is not part of a pair, raises none.
+#[test]
+fn every_mirrored_module_raises_one_handed_module_warning_and_a_source_module_raises_none() {
+    let shipped = &projects()["corne"];
+    let mut source = seed_document(shipped, "left");
+    add_two_splitters(&mut source, "left", "left");
+    let opened: Value = serde_json::from_str(
+        &CoreEngine::new().request(&json!({"id":"o","kind":"open","document":source}).to_string()),
+    )
+    .unwrap();
+    let handed = |scene: &Value| -> Vec<Value> {
+        scene["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|f| f["id"].as_str().unwrap().ends_with("/handed-module"))
+            .cloned()
+            .collect()
+    };
+    assert!(
+        handed(&opened["scene"]).is_empty(),
+        "a source module alone is not a finding"
+    );
+
+    let (mut engine, seed) = open(&source);
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
+    )
+    .unwrap();
+    let findings = handed(&reply["scene"]);
+    let mut ids: Vec<&str> = findings.iter().map(|f| f["id"].as_str().unwrap()).collect();
+    ids.sort_unstable();
+    assert_eq!(
+        ids,
+        [
+            "mirror/right/splitter-above/handed-module",
+            "mirror/right/splitter-below/handed-module",
+        ]
+    );
+    for finding in &findings {
+        assert_eq!(finding["severity"], "warning");
+        assert_eq!(finding["scope"], "pcb");
+        let target = finding["targetIds"].as_array().unwrap();
+        assert_eq!(target.len(), 1);
+        assert!(target[0].as_str().unwrap().starts_with("right/"));
+    }
 }
 
 fn find_part<'a>(document: &'a Value, id: &str) -> Option<&'a Value> {

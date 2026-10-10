@@ -12,7 +12,8 @@
 //! - keymap bindings, the half's role and name, board references, copper and the
 //!   protected wiring handoff: never reflected by nature (ADR-0010);
 //! - `case-closure/*` clearance holes: generated from the pair's linked closure mounts;
-//! - mounted modules and embedded circuits: refused with the ids named (no reflection rule yet);
+//! - mounted modules: reflected by pose and id (ticket 27); a handed module is a finding, not a refusal;
+//! - embedded circuits: refused with the ids named (ticket 28, no reflection rule yet);
 //! - hardware specifications, critical fits and a battery: they name the source board's parts or
 //!   one physical item, so the mirror starts without them.
 
@@ -29,6 +30,7 @@ use crate::model::{
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
     ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
 };
+use crate::modules::MountedModule;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -211,6 +213,44 @@ pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
     findings
 }
 
+/// The handed-module finding (ADR-0010 amendment, modules). A mirrored module keeps its own geometry
+/// and takes the reflected pose, so it is the mirror image of its source only when that geometry is
+/// symmetric about its heading axis. No module definition carries a symmetry mark, and the board
+/// outline alone cannot show one (components and connectors are not in it), so every mirrored module
+/// is reported as a Warning for a person to confirm. Core neither refuses it nor turns it.
+pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
+    let Some(hardware) = doc.hardware.as_ref() else {
+        return Vec::new();
+    };
+    let mut findings = Vec::new();
+    for pair in &hardware.pairs {
+        let Some(halves) = &pair.halves else {
+            continue;
+        };
+        for correspondence in &halves.correspondences {
+            if correspondence.kind != MirroredItemKind::Module
+                || !doc
+                    .modules
+                    .iter()
+                    .any(|module| module.id == correspondence.mirror_id)
+            {
+                continue;
+            }
+            findings.push(Finding {
+                id: format!("mirror/{}/handed-module", correspondence.mirror_id),
+                severity: Severity::Warning,
+                scope: Scope::Pcb,
+                message: format!(
+                    "The mirrored module {} keeps its own geometry at the reflected pose, so it is handed. Confirm its orientation and connector on the mirrored half.",
+                    correspondence.mirror_id
+                ),
+                target_ids: vec![correspondence.mirror_id.clone()],
+            });
+        }
+    }
+    findings
+}
+
 /// A reflected pose for an independent part (ADR-0010 amendment, the full heading rule): the point
 /// through the pair map, and the heading turned by the map's reflection over the full circle.
 ///
@@ -269,6 +309,72 @@ fn mirror_configuration(
         configuration.battery = None;
     }
     configuration
+}
+
+/// What a mounted module's mirror takes from the board mirror: the two boards and instances, the
+/// pair map, and the source-to-mirror id maps of the board's parts and modules.
+struct ModuleMirror<'a> {
+    from: &'a str,
+    to: &'a str,
+    source_instance: &'a str,
+    mirror_instance: &'a str,
+    mapping: Pose2,
+    parts: &'a BTreeMap<String, String>,
+    modules: &'a BTreeMap<String, String>,
+}
+
+/// A mounted module on the mirror (ADR-0010 amendment, modules; ticket 27). The pose goes through the
+/// pair map and the heading takes the full rule `rotation + 180 - r`, the independent-part rule. The
+/// module is not flipped, so its faces, gap, attachment, supports, definition and every parameter are
+/// unchanged. Its own id and bus id take the board-prefix rule, its connector and upstream module take
+/// their mirror ids, and a pin to the source instance moves to the mirror instance. A reference the
+/// mirror cannot follow refuses the record by name (the caller discards the whole edit).
+fn mirror_module(module: &MountedModule, context: &ModuleMirror) -> Result<MountedModule, String> {
+    let host_instance_id = match module.host_instance_id.as_deref() {
+        None => None,
+        Some(id) if id == context.source_instance => Some(context.mirror_instance.to_owned()),
+        Some(other) => {
+            return Err(format!(
+                "Module {:?} is pinned to physical instance {other:?}, which is not the source {:?}; its mirror has no instance to be pinned to.",
+                module.id, context.source_instance
+            ));
+        }
+    };
+    let pose = mirror_pose(
+        context.mapping,
+        Pose2 {
+            at: module.at,
+            rotation: module.rotation,
+        },
+    );
+    let mut mirrored = module.clone();
+    mirrored.id = context.modules[&module.id].clone();
+    mirrored.host_board_id = context.to.into();
+    mirrored.host_instance_id = host_instance_id;
+    mirrored.at = pose.at;
+    mirrored.rotation = pose.rotation;
+    if let Some(connection) = mirrored.connection.as_mut() {
+        let connector = connection.host_connector_part_id.clone();
+        if !connector.is_empty() {
+            connection.host_connector_part_id =
+                context.parts.get(&connector).cloned().ok_or_else(|| {
+                    format!(
+                        "Module {:?} connects to {connector:?}, which is not a part of board {:?}.",
+                        module.id, context.from
+                    )
+                })?;
+        }
+        connection.bus_id = mirror_id(context.from, context.to, &connection.bus_id);
+        if let Some(upstream) = connection.upstream_module_id.clone() {
+            connection.upstream_module_id = Some(context.modules.get(&upstream).cloned().ok_or_else(|| {
+                format!(
+                    "Module {:?} takes its output from {upstream:?}, which is not a module of board {:?}.",
+                    module.id, context.from
+                )
+            })?);
+        }
+    }
+    Ok(mirrored)
 }
 
 /// Every mechanical feature the configuration carries, matched to itself on the other half.
@@ -503,6 +609,24 @@ fn reuse_board(
     }
     ensure_board_unclaimed(doc, &source.board_id)?;
     ensure_instance_fresh(doc, instance_id)?;
+    // A module pinned to the source instance is not active on the flipped instance, so it would
+    // vanish from the mirror. Copying it is not supported yet: refuse it by name.
+    let pinned: Vec<&str> = doc
+        .modules
+        .iter()
+        .filter(|module| {
+            module.host_board_id == source.board_id
+                && module.host_instance_id.as_deref() == Some(request.source_id)
+        })
+        .map(|module| module.id.as_str())
+        .collect();
+    if !pinned.is_empty() {
+        return Err(format!(
+            "Modules {} are pinned to physical instance {:?}; reuse-board cannot copy a pinned module yet. Unpin them or create a new board.",
+            pinned.join(", "),
+            request.source_id
+        ));
+    }
     let board = source.board_id.clone();
     let mirror = mirror_instance(
         &source,
@@ -535,6 +659,7 @@ fn taken_ids(doc: &ProjectDoc) -> BTreeSet<String> {
     let mut taken = BTreeSet::new();
     taken.extend(doc.boards.iter().map(|b| b.id.clone()));
     taken.extend(doc.parts.iter().map(|p| p.id.clone()));
+    taken.extend(doc.modules.iter().map(|m| m.id.clone()));
     taken.extend(doc.matrices.iter().map(|m| m.id.clone()));
     taken.extend(doc.layouts.iter().map(|l| l.id.clone()));
     taken.extend(doc.outline.iter().map(|o| o.id().to_owned()));
@@ -790,21 +915,13 @@ fn corresponds(kind: MirroredItemKind, source: &str, mirror: &str) -> MirroredCo
     }
 }
 
-/// The ids a refusal names: modules and embedded circuits hosted on `board`.
+/// The ids a refusal names: the embedded circuits hosted on `board`. Mounted modules are reflected.
 fn hosted_items(doc: &ProjectDoc, board: &str) -> Vec<String> {
-    let mut hosted: Vec<String> = doc
-        .modules
+    doc.embedded_circuits
         .iter()
-        .filter(|module| module.host_board_id == board)
-        .map(|module| format!("module {}", module.id))
-        .collect();
-    hosted.extend(
-        doc.embedded_circuits
-            .iter()
-            .filter(|circuit| circuit.host_board_id == board)
-            .map(|circuit| format!("embedded circuit {}", circuit.id)),
-    );
-    hosted
+        .filter(|circuit| circuit.host_board_id == board)
+        .map(|circuit| format!("embedded circuit {}", circuit.id))
+        .collect()
 }
 
 fn new_board(
@@ -889,6 +1006,12 @@ fn new_board(
         .filter(|layout| layout.board_id == from)
         .cloned()
         .collect();
+    // Mounted modules on the source board take mirror ids by the board-prefix rule, like parts.
+    let mut module_map = BTreeMap::new();
+    for module in doc.modules.iter().filter(|m| m.host_board_id == from) {
+        let mirrored = mint(&mut taken, map(&module.id))?;
+        module_map.insert(module.id.clone(), mirrored);
+    }
     let mut layout_map = BTreeMap::new();
     for layout in &layouts {
         let mirrored = mint(&mut taken, mirror_reference(&from, &to, &layout.id))?;
@@ -1296,6 +1419,25 @@ fn new_board(
         .ok_or("Physical instances are unavailable")?
         .instances
         .push(mirror);
+    let context = ModuleMirror {
+        from: &from,
+        to: &to,
+        source_instance: request.source_id,
+        mirror_instance: instance_id,
+        mapping,
+        parts: &part_map,
+        modules: &module_map,
+    };
+    let mut mirrored_modules = Vec::new();
+    for module in doc.modules.iter().filter(|m| m.host_board_id == from) {
+        mirrored_modules.push(mirror_module(module, &context)?);
+        correspondences.push(corresponds(
+            MirroredItemKind::Module,
+            &module.id,
+            &module_map[&module.id],
+        ));
+    }
+    doc.modules.extend(mirrored_modules);
     let mut changed: BTreeSet<String> = link_halves(
         doc,
         request,
