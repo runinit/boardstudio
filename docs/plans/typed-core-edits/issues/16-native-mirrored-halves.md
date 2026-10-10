@@ -1,6 +1,6 @@
 # 16: Decide native mirrored halves
 
-Status: ready-for-human
+Status: resolved
 Type: grilling
 Blocked by: none
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md#amendment-the-whole-second-half-is-a-reflection-2026-10-09)
@@ -45,9 +45,9 @@ native model. An ADR-0010 is drafted from the answers.
 
 ## Acceptance
 
-- [ ] Answers recorded; ADR-0010 drafted from them; CONTEXT.md term for the mirrored half.
-- [ ] Tickets 17-23 written and adjusted to the answers.
+- [x] Answers recorded; [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) written; CONTEXT.md term for the mirrored half.
+- [x] Tickets [17](17-mirrored-half-schema-and-format-5.md) to [23](23-redo-keyboard-04-on-native-halves.md) written.
 
 ## Answer
 
-To be recorded.
+User, 2026-10-09: **accept all recommendations.** (1) Hybrid representation. (2) One reflected-heading rule on the same side, using the reversible variant where a footprint has one. (3) Keep the source's matrix numbering. (4) Two boards for the shipped splits for now. (5) Never mirrored: keymap bindings, instance role/half/name, board references, copper traces and vias. (6) Linking existing independent two-board projects is out of scope. Written up in ADR-0010.

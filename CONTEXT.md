@@ -104,6 +104,12 @@ Everything in a pair is linked by default, including proposed and generated
 features; only an explicitly recorded exception is not
 ([ADR-0008](docs/adr/0008-linked-halves-stay-linked.md)).
 
+**Mirrored half**:
+The second half of a mechanical mirror pair, kept as a reflection of the first in
+its matrices, keys, components, outlines and mechanical features. Differences are
+explicit per-item exceptions, and the pair never drifts silently
+([ADR-0010](docs/adr/0010-mirrored-half-is-a-core-maintained-reflection.md)).
+
 **Linked mechanical feature**:
 A mechanical feature whose counterparts on mirrored halves remain related as
 reflected geometry when the feature changes.

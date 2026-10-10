@@ -24,6 +24,13 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- Native mirrored halves (ADR-0008 amendment, user 2026-10-09; accepted in
+  [16](issues/16-native-mirrored-halves.md), [ADR-0010](../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)):
+  one measured half; Core `CreateMirroredHalf` copies, reflects and links matrices,
+  layouts, parts, outlines, modules, wiring and mechanical features through one pair map,
+  then reconciles on every edit. Exceptions per item. Build 17-22; 23 redoes keyboard
+  [04](issues/04-refresh-included-keyboards.md) on it. Generator-parameters 06 lands first;
+  its recipe reflection arithmetic is temporary.
 - Generator parameters are typed end to end (option B, user 2026-10-09):
   [generator-parameters](../generator-parameters/map.md) 01-05. Closure projection uses
   generator normalization; saved strings are repaired by a v3 to v4 migration; Core
