@@ -1,6 +1,6 @@
 # 33: Make the native tests faster (audit phase 2, part 1)
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [24](24-test-audit.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -30,17 +30,96 @@ The native `test` step is 74.5 s because the shipped-keyboard recipes are built 
 
 ## Acceptance
 
-- [ ] `check.py test` wall time before/after recorded (target: roughly 25-35 s, measured not assumed).
-- [ ] Every removed or merged assertion names the surviving test; mutation-check that coverage of the behaviour survives.
+- [x] `check.py test` wall time before/after recorded (target: roughly 25-35 s, measured not assumed). Verified: 69.9 s
+  (implementer, before) to 32.3 and 35.8 s with `opt-level = 1`, and 38.7 to 41.3 s on quiet runs after the verifier
+  reverted that profile line (see Verification result).
+- [x] Every removed or merged assertion names the surviving test; mutation-check that coverage of the behaviour survives.
+  Verified by reading the code and by three mutation checks the verifier ran (Verification result).
 
 ## Verification
 
 `repo lint test`; full before/after timing run of `test`.
 
+### Verification result
+
+Sonnet 5.5, 2026-10-10, in `.worktrees/tce-matrix` at `d8b7e0c1e` plus the sessions' later commits (the branch also
+gained `7d00d4259`, the GitNexus Stop hook, from another session). Sequential, foreground, sandbox lifted for the
+`test`, `build` and `browser` runs. The host was not idle: load average was 8 to 10 before some runs with nothing of
+the verifier's running, so single timings carry several seconds of noise.
+
+| Command | State | Wall time |
+| --- | --- | ---: |
+| `check.py test` | `opt-level = 1`, warm, three runs | 32.3 s, (run 2 time not captured), 35.8 s |
+| `check.py test` | `opt-level` reverted: first run (recompile), then warm | 50.7 s, then 41.3, 54.2, 38.7 s |
+| integration binary tests | level 1 / level 0 | 25.6 and 28.2 s / 29.8 to 35.4 s |
+| `check.py lint` | level 1, warm / level 0, warm | 3.0, 3.0 s / 3.2, 3.2 s (first after change 9.9 s) |
+| `check.py build` | level 1, cold / warm | 351.0 s / 51.7 s |
+| `check.py typecheck browser` | level 1, first run after the change | 312.9 s (typecheck 0.3 s); 70 presentation tests executed, 0 failed |
+| `prepare_demo_projects` (release) | parent recipes / these recipes | 13.1 s / 3.8 s |
+
+- **Tests pass:** `check.py test` passes in every run (545 integration tests and 51 cadrum tests among them).
+- **Fixtures are unchanged (item 3 for the shipped app).** `build` runs `prepare_demo_projects` with `--release`
+  (not the dev profile), so the shipped fixtures come from the parallel `prepare`. The verifier built the parent's
+  recipes (`core/examples/demo_projects/mod.rs` and `prepare_demo_projects.rs` from `929a7c0ba^`, restored after)
+  and the current ones into separate directories: all 55 files are byte-identical (every `*.json`,
+  `*.boardstudio`, asset hashes), fixture order in `provenance.json` is the same, and only
+  `source_hashes` of the two recipe sources differ, as they must. Two runs of the current recipes are
+  byte-identical, and the `check.py build` output equals them. `in_parallel` returns results in input order, gives
+  each job its own `CoreEngine`, and re-raises a job's panic on the caller (`resume_unwind`) while errors return
+  through `collect::<Result<_>>`. Core has no `static`, `thread_local` or `OnceLock` state, and jobs write no files
+  (packing and asset writes stay sequential).
+- **Shared fixture build.** `support::shipped::projects()` returns `&'static BTreeMap<String, Value>`, so tests
+  cannot mutate it (no interior mutability); every test that edits a project clones it first (`projects()[name].clone()`).
+  `prepare(.., Some(shared))` clones documents into `pack`. Nothing else builds the splits any more.
+- **Mutation checks run by the verifier** (`cargo test -p boardstudio_core --test integration <filter>`, restored
+  afterwards, `git status` clean):
+  - Closure source rule, source always `members[1]`: `mechanical_integration::closure_proposals_fall_back_to_the_first_member_...`
+    and `included_keyboards::closure_proposals_on_a_paired_half_...` fail; the recorded-source test passes (its
+    source is the second member). Source always `members[0]` (recorded source ignored): the recorded-source test fails
+    at `mechanical_integration.rs:965`. So both directions are caught even with seven splits dropped from the loop,
+    and the dropped lily58/klor source-right case is covered by the synthetic recorded-source test.
+  - A generator KiCad rejects: the `ceoloide/diode_tht_sod123` footprint source gets an extra `gr_circle` on layer
+    `Bogus.Layer` (the implementer used `switch_mx`; a first attempt in `generators::render_forms` was not on the
+    export path). `every_bundled_generator_exports_a_board_kicad_parses` fails with "generators it rejects alone:
+    [\"ceoloide/diode_tht_sod123\"]". The other seven `generator_export` tests pass.
+  - Source-right branch of the merged mirror test: `MirroredHalf` instance role forced to `peripheral` (the
+    source-left mirror is `peripheral` anyway) fails only `every_shipped_split_mirror_follows...` at
+    `mirrored_half.rs:2650` (`lily58`). **Gap, recorded:** the `constructionSource`, closure-position and closure-hole
+    assertions in that branch cannot be isolated by a mutation: forcing `construction_source` to `"left"` or dropping the
+    mounting-hole definition makes `create` return `Err` before the assertions run, so Core's own validation guards
+    them and the assertions only add the comparison with the recipe. The `U1`/`RST`/`TRRS` id match is redundant with
+    `assert_reflects_every_part` unless the recipe's reference or definition differs from the reflection.
+- **Dropped Corne assertions.** `corne_second_half_reproduces_the_shipped_right_half` used `seed(shipped, "left")`
+  and the same mapping as the every-split test; its switch comparison and `assert_reflects_every_part` run there on
+  the same inputs (pair id differs only). Read, not separately mutated.
+- **`kicad_parses` (item 3 of the brief).** Without `kicad-cli` it panics unless `BOARDSTUDIO_ALLOW_NO_KICAD=1`.
+  `.github/workflows/check.yaml` job `native` installs KiCad 10 and checks `kicad-cli version`, so CI exercises the
+  check. README.md#checks now documents the variable; `kicad_integration.rs` has no skip variable. The main checkout's
+  `README.md` is unmodified.
+- **Opt-level reverted (`020d66886`).** The profile reaches the wasm dev builds. The first `typecheck browser`
+  after it took 312.9 s against the 243.9 s baseline (the Batch A full check) and the 159 s warm filtered run;
+  each `wasm-pack` job recompiled `boardstudio_core` (52 to 75 s per job). Per the brief, only that commit was
+  reverted. After the revert `test` is 38.7 to 41.3 s on quiet runs, above the 25-35 s target the level-1 runs met.
+  **The browser measurement is confounded by the cold compile** (one run, no warm run at either level), so the
+  revert is the brief's rule applied, not a proven loss for level 1.
+- **Corrections to the Outcome above:** item 2b status (reverted); the `build` gain attributed to level 1 cannot be
+  real because `build` runs the fixtures in release; the source-right mutation note; `kicad_integration.rs` has no
+  skip variable; README now documents it. The "before" 69.9 s was not reproduced (no parent build was timed).
+
+Follow-ups (not done; each is a measurement or a small change, none blocks this ticket):
+
+1. Re-test `opt-level = 1`: run `check.py typecheck browser` twice at each level and keep the warm second runs. If
+   the warm browser step is not slower, `git revert 020d66886` restores the 7 to 9 s `test` gain. The profile cannot
+   be limited to native tests (wasm-pack tests use the `dev` profile), so the browser result decides.
+2. The cadrum command (32 to 40 s) is now the critical path of `test`; core no longer is. Any further `test` gain is in
+   `cad/scripts/test-cadrum.py`, not in core.
+3. Re-time `check.py test` at `929a7c0ba^` on a quiet machine if the 69.9 s baseline must be reproduced.
+
 ## Outcome
 
 Implemented by Haiku 5.5 in `.worktrees/tce-matrix` (branch `typed-core-edits/mechanical`). Commit trailers name
-Sonnet 5.5, as the brief required. Not verified by a second agent yet.
+Sonnet 5.5, as the brief required. Verified by Sonnet 5.5 on 2026-10-10 (see Verification result; it corrects the
+opt-level item, the source-right mutation note and the KiCad note below).
 
 Commits, in the order made (item 4 landed before item 3 because item 3 was still uncommitted at that point; the
 two touch disjoint files):
@@ -50,7 +129,7 @@ two touch disjoint files):
 | `929a7c0ba` | claim (status `claimed`) |
 | `120f33bf9` | 1: one shared build of the ten splits per test binary |
 | `7ee6ad0af` | 2: recipes built in parallel, one engine per job, results in input order |
-| `448aa3f53` | 2: `[profile.dev.package.boardstudio_core] opt-level = 1` |
+| `448aa3f53` | 2: `[profile.dev.package.boardstudio_core] opt-level = 1` (reverted by the verifier in `020d66886`) |
 | `4797d48af` | 4: closure-proposal loop from nine projects to two (Corne, Sofle RGB) |
 | `aeee22e16` | 3: one board with all 36 generators, one `kicad-cli` run; kicad-check fails loudly |
 | `5ed6ebeb1` | 5: source-right reproduction merged; two Corne assertions dropped |
@@ -85,12 +164,14 @@ The first run after each profile or test-binary change includes recompilation: t
 - **Item 2a (parallel recipes): kept.** `split_projects` and the unibody boards run as scoped-thread jobs. Packing and
   asset writes stay sequential (pack writes shared asset files, so parallel writes would race). Fixture order is the
   same as before (provenance order checked from the build output).
-- **Item 2b (`opt-level = 1` for `boardstudio_core`): kept.** It is faster for `test` (35.0 to 31.3) and `build`
-  (50.7 to 45.2) and not slower for `lint`. The brief's drop rule was not triggered.
+- **Item 2b (`opt-level = 1` for `boardstudio_core`): reverted by the verifier.** The implementer measured it faster
+  for `test` (35.0 to 31.3) and `build` (50.7 to 45.2) and not slower for `lint`, but never ran `browser`, which
+  the profile reaches. The verifier's one `typecheck browser` run took 312.9 s against the 243.9 s baseline, so the
+  brief's rule applied (details under Verification result). Re-apply with `git revert 020d66886`.
 - **Item 3: kept.** One board, one `kicad-cli` run (0.7 s for `generator_export::`, from 13.8 s).
   `kicad_parses` now panics without `kicad-cli` (or with a version other than KiCad 10) unless
-  `BOARDSTUDIO_ALLOW_NO_KICAD=1`, as `kicad_integration.rs` does. Previously it silently passed. The variable is not yet
-  documented in README.
+  `BOARDSTUDIO_ALLOW_NO_KICAD=1`. `kicad_integration.rs` also fails loudly without KiCad but has no skip variable.
+  Previously it silently passed. The verifier documented the variable in README.md#checks; CI installs KiCad 10.
 - **Item 4: kept.** Corne and Sofle RGB are the two projects left in the loop. The other seven splits are covered
   by `mechanical_integration::closure_proposals_come_from_the_recorded_construction_source` and
   `..._fall_back_to_the_first_member_without_a_recorded_source`, and by
@@ -130,7 +211,8 @@ The first run after each profile or test-binary change includes recompilation: t
   the KiCad message. With `BOARDSTUDIO_ALLOW_NO_KICAD=1` it passes.
 - **Source-right merge (item 5):** `constructionSource` set to the mirror. Core refuses the pair at `create`, so 23
   tests fail there, including `every_shipped_split_mirror_follows...` and `corne_second_half...`. The merged
-  source-right branch itself was not reached, so its assertions are **not isolated by a mutation**.
+  source-right branch itself was not reached, so its assertions were **not isolated by this mutation**. The verifier
+  found one that isolates the branch's role assertion (Verification result).
 
 ### Checks run on the final state
 
@@ -144,8 +226,8 @@ The first run after each profile or test-binary change includes recompilation: t
 
 ### Unverified and open
 
-- **`browser` and the wasm tests were not run.** They are not in the brief's step list, but the dev-profile change
-  also applies to wasm-dev builds.
+- **`browser` and the wasm tests were not run by the implementer.** The verifier ran them (all passed), which
+  led to the opt-level revert.
 - **GitNexus index is stale** (indexed at `4b372b2`). Impact was `UNKNOWN` for `prepare`, `projects`, `kicad_parses`,
   `export` (LOW, 4 impacted) and `link_halves`. Text search found the callers (`prepare`: the example and the
   demo test; `projects`: `included_keyboards`, `generator_parameters`, `mirrored_half`; `kicad_parses`: only
@@ -155,10 +237,11 @@ The first run after each profile or test-binary change includes recompilation: t
 - **Concurrent commits on this branch** from another session: `fa789ba1a` (GitNexus refresh script) and `8df541d1c`
   (browser-step plan docs). Not touched by this ticket.
 - **Load-sensitive timings:** one integration run showed 27.6 s under load average 17. Rerun: 23.3 s.
-- **`BOARDSTUDIO_ALLOW_NO_KICAD`** is not documented in README.
+- **`BOARDSTUDIO_ALLOW_NO_KICAD`** was not documented; the verifier added it to README.md#checks.
 
 ### Models
 
 - Haiku 5.5 implemented, measured and wrote this Outcome.
 - Sonnet 5.5 is named in the commit trailers, as the brief required. The implementing agent is Haiku 5.5.
-- Verification: pending, Sonnet 5.5 at high effort, per the verification process.
+- Verification: Sonnet 5.5 (high effort), 2026-10-10: reproduced timings, mutation-checked, compared fixtures byte for
+  byte, ran `typecheck browser`, reverted the opt-level commit, documented the KiCad variable, set `resolved`.

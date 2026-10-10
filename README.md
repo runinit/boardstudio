@@ -66,6 +66,10 @@ headless browser tests. Name steps (`python3 scripts/check.py --list`) to run on
 and step prints its wall time. The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
 
+**KiCad in native tests.** The native tests call `kicad-cli` (KiCad 10) and fail with a clear message when it
+is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped
+on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests have no skip.
+
 **Browser tests.** The runner checks that every listed test actually executes. Each presentation crate
 under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
 which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
