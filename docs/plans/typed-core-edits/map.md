@@ -65,6 +65,11 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- 24 test audit, phase 1 (proposal only, waiting for the user): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
+  the time sits in two debug fixture builds and fixed wasm sleeps rather than in the number of tests, so the audit
+  proposes a short deletion/merge list plus speed-only changes: [Audit](audit/test-audit.md),
+  [Outcome](issues/24-test-audit.md#outcome-phase-1-audit-and-proposal-only-nothing-deleted-edited-or-merged).
+
 - **Batch A boundary check** (tickets 18, 29, 30, 27, 26, 28; all Core and catalogue, the page compiles the shared
   model), 2026-10-10 at `92adcd611` in the nested `tce-matrix` worktree, sandbox lifted, one sequential foreground
   `python3 scripts/check.py` (default steps, not `release`), started 04:41:09, finished 04:50:28: all passed.
