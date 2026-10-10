@@ -21,7 +21,7 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
-| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | Reserved `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`; root setup before reads | START focused remaining37 path/helper audit in a root read window, then one bounded test-only implementation lease after105 verification. 38 still waits for complete37. |
+| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`, base `f2d180c6`; own target/CAD cache | Audit complete. Child128 selects five keycaps queued-settings tests; docs drafting allowed, source edits after105 verification and root START. 38 still waits for complete37. |
 | B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 implemented at `ddfd81b2c`, awaiting fresh verifier. Core children stay serial with exclusive Core leases; no automatic106 release. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
@@ -63,12 +63,17 @@ it never grants concurrent builds, browsers or timing work. Request a window fro
 the last command. Root waits for release before granting the next owner. Web research or planning without shell commands
 may continue. Read-only shell commands also use the window. See [parallel-lanes.md](parallel-lanes.md) for shared file owners.
 
-Current root window: approved scheduling/docs/setup and A focused audit; B105 implementation is finished and its fresh
-verifier waits for root to return the command window. F continues web/evidence review without shell. Root publishes explicit
+Current root window: B source-index refresh before its fresh105 verifier; A audit is complete/released and only child128
+documentation drafting is allowed. F continues web/evidence review without shell. Root publishes explicit
 handovers; A/F code starts only after105 verification and exact readiness leases. C/D/E implementation remains gated.
 105's source lease is `core/src/mirrored_half.rs`, narrowly necessary existing helpers in `core/src/matrix/layout.rs`,
 creation tests in `core/tests/mirrored_half.rs`, and permitted private `core/src/mirrored_half/` child modules.
 Ticket 105's own tracking file is writable by its implementer/verifier. Other paths require root assignment first.
+Reserved A128 lease: `web/crates/keycaps/src/keycaps_settings.rs`, restricted to `queued_settings_tests` and local
+`mounted_legend`; plus `docs/plans/typed-core-edits/issues/128-keycaps-queued-settings-waits.md`. No production/shared-helper,
+Core, catalogue, model or golden edits. Audit found LOW impact for `mounted_legend` (four test callers) and UNKNOWN for a
+WASM test entrypoint, confirmed in source; this is not complete graph proof of independence. Keep five test names/assertions,
+all30 keycaps test names and an explicit bounded negative-idle proof for owner retirement. Parent37/38 gates stay intact.
 Maps, this registry, CONTEXT, ADRs and generated goldens remain root-owned. `scripts/check.py` remains C-owned,
 with edits requiring C's explicit active lease. F owns its report/component plans only after a root write window.
 
