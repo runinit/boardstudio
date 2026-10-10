@@ -35,3 +35,14 @@ this ticket with a pointer to the commits.
 ## Verification
 
 Core tests, boundary parity native and wasm, `repo lint test typecheck browser`.
+
+## Update (ticket 18 verification, 2026-10-10)
+
+Ticket 18's verification already made the mirror's features linked pair features in both modes
+and copies every parameter unchanged (commit after `af4c329fd`). Remaining here:
+
+- The equivalence test in `web/crates/catalogue`: on one accepted document, compare
+  `propose_with_mirror_pair` + `into_submission(Some(&mounting_hole_template()))` against
+  `CreateMirroredHalf` `ReuseBoard` (instances, pair, features, generated `case-closure/*` parts).
+- Move physical setup onto the Core operation so there is one path (topology, transport and
+  relabelling stay in the adapter, ticket 21).

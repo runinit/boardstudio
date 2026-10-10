@@ -1,6 +1,6 @@
 # 18: Core CreateMirroredHalf
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [17](17-mirrored-half-schema-and-format-5.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
@@ -160,3 +160,41 @@ The index is stale (last indexed 4b372b2), so every result below is provisional.
   success path is native-only in this ticket.
 - Reconcile (19), recipes (20) and the web adapter (21) are untouched.
 
+
+## Verification
+
+Sonnet 5.5 verifier (stopped by the user after running over an hour; its work was checked and
+committed by the integrating session on 2026-10-10). Haiku 5.5 implemented the first version.
+
+**What the verification changed** (one commit on top of `af4c329fd`):
+
+- Mirror mechanical features are linked pair features in both modes (not cleared, not cloned);
+  `ReuseBoard` creates the pair record and linked features; the source's board id,
+  stabilizers, hardware and critical fits are not copied; `case-closure/*` parts are not copied.
+- A part's side and every generator parameter, including `reversible`, are copied unchanged
+  (test `parts_keep_their_side_and_every_generator_parameter_exactly`).
+- Outline geometry anchored to a part is reflected in the part's frame, protected gaps and
+  keep-gaps are mapped, and outline identities stay unique.
+- Layouts, keycaps (legends copied, key bindings not), net names and electrical configuration
+  follow the mapped ids; `ReuseBoard` refuses a map other than the flip.
+- The mirrored-half behaviour tests number 19 in `core/tests/mirrored_half.rs`.
+
+**Commands observed (final tree):** `lint` passed (13.7 s); native `test` passed (106.8 s);
+`typecheck` passed (14.3 s); wasm `boundary_parity::` passed (36 s); `cargo test ... mirrored_half`
+19 passed (50 s). Mutations: 7 of 8 killed (fixed `case-closure` filter, key-binding copy, board id,
+outline X reflection, side, `reversible` write, reuse-board map check); one survived (see below).
+The mutated sources were restored and compared to the saved good copies. `browser` and `build`
+were not run (batch boundary); `release` was never run.
+
+**Gaps carried to follow-up tickets (not done in 18):**
+
+- Mutation 7 survived: `layout.rs` `cell.rotation = -angle` replaced by `pair::forward_angle` is not
+  caught by `a_rotated_pair_map_reflects_...`. Ticket [29](29-mirror-switch-and-companion-headings.md)
+  must add a switch-heading test under a rotated map that kills it.
+- The uncertain-heading finding (non-symmetric footprint at a non-multiple of 90 degrees) is not
+  implemented: ticket 29.
+- No equivalence test against physical setup's real output: ticket 26 (the comparison belongs in
+  `web/crates/catalogue`, which can call both).
+- Modules and embedded circuits on the source board are refused by name: tickets 27 and 28.
+- The new test file is large (about 1,500 lines); the test audit (24) should look at it.
+- GitNexus index is stale; `detect-changes` listed `sync`, `SceneDelta` and others, no clean check.

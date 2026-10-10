@@ -24,6 +24,12 @@ belong to the switch can be rotated, per variant (an RGB LED variant may be turn
 - The uncertain-heading finding for non-symmetric footprints at a non-multiple of 90
   degrees (from the earlier amendment) must not fire for switches.
 
+## Carried from ticket 18
+
+- A mutation survived: `layout.rs` `cell.rotation = -angle` replaced by `pair::forward_angle(mapping, angle)`
+  is not caught. Add a switch-heading test under a rotated pair map that kills it.
+- The uncertain-heading finding is not implemented yet.
+
 ## Acceptance
 
 - [ ] Switch headings follow the rule for every shipped split keyboard's mirrored half, by correspondence, within 1e-9.
