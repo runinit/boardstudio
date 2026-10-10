@@ -24,6 +24,12 @@ Claude Code). Until 2026-10-10 Claude Haiku, Sonnet and Opus filled these roles;
 
 ## Codex dispatch
 
+Every BoardStudio lane has a persistent coordinator chat, as requested by the user on 2026-10-10. The lane coordinator
+owns its planning, implementation dispatch and fresh independent review; root owns shared scheduling, leases, merges and
+index refreshes. Before dispatch, editing, requesting checks or verification handoff, read the central
+[lane registry](../plans/typed-core-edits/lane-registry.md) at its documented absolute integration path. Follow its
+conflict/escalation procedure; blocked coordinators hold implementation while retaining their lane's planning context.
+
 The role table is the authority; app defaults are not role selection. Codex model IDs are `gpt-6.1-sol`, `gpt-6-luna` and
 `gpt-6-astra`. Fast mode uses `service_tier = "priority"`. Select the effort in the table for each session, including the
 orchestrator; an existing session keeps its selected settings when a config file changes.
@@ -78,8 +84,9 @@ asks for them.
 ## The orchestrator's loop
 
 1. Read `docs/plans/typed-core-edits/map.md` and the ticket headers (`Status:`, `Blocked by:`); pick the ready tickets per lane.
-2. Set up a lane when needed (commands in `parallel-lanes.md`: own worktree, branch, `target` directory on disk, real copies of
-   `cad/.cache` and `cad/wasm/pkg`). Keep at most two lanes running heavy checks; run timing work alone.
+2. Reuse/create the lane's persistent coordinator chat and set up its worktree when needed (commands in `parallel-lanes.md`:
+   own branch, `target` directory on disk, real copies of `cad/.cache` and `cad/wasm/pkg`). Record owners and leases in
+   the central registry. Run one foreground command globally at a time; timing work needs the machine alone.
 3. Hand each ticket to an implementer with the common rules plus the lane prompt; when it reports, hand it to the verifier with
    the verifier prompt.
 4. Merge a verified lane into `typed-core-edits/mechanical` with `git merge --no-ff`; if a lane branch is behind, merge the

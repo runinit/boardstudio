@@ -7,6 +7,9 @@ timing work must run alone, and a few files can only have one writer. Process fo
 [verification-process.md](../../agents/verification-process.md). Tracker rules:
 [issue-tracker.md](../../agents/issue-tracker.md).
 
+Persistent coordinator chats, live worktree/file leases, command windows and cross-lane conflict escalation are in
+[lane-registry.md](lane-registry.md). Read its central integration copy before every dispatch/edit/check handoff.
+
 ## Roles
 
 - **Orchestrator (one person or session):** owns the integration branch `typed-core-edits/mechanical`, hands out
@@ -14,6 +17,8 @@ timing work must run alone, and a few files can only have one writer. Process fo
 - **Lane agent (one per lane at a time):** works only in its lane worktree on its lane branch, on the files its
   tickets name, and writes an `## Outcome` in its ticket files. It never edits `map.md`, never merges, never
   pushes, never refreshes GitNexus.
+- **Lane coordinator (one persistent chat per lane):** owns planning and dispatches its implementer then a fresh verifier;
+  follows the registry's leases and escalates cross-lane overlaps to root before contested edits.
 - **Implementer and verifier are different sessions with different models** (Luna 6 implements, Sol 6.1 verifies; models and
   efforts are in [agent-workflow.md](../../agents/agent-workflow.md)). An independent model reviewing the work is the point of
   the verify step.
