@@ -42192,6 +42192,18 @@
       "kind": "error",
       "message": "Converting would move this column: its splay pivots with the stagger.",
       "revision": 45
+    },
+    {
+      "id": "mirrored-half-new-board",
+      "kind": "error",
+      "message": "Physical instance \"board\" is unavailable.",
+      "revision": 45
+    },
+    {
+      "id": "mirrored-half-reuse-board",
+      "kind": "error",
+      "message": "Physical instance \"board\" is unavailable.",
+      "revision": 45
     }
   ]
 }

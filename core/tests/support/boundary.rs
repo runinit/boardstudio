@@ -253,6 +253,25 @@ pub fn core_requests() -> Vec<Value> {
         json!({ "kind": "column-offset", "column": 2, "value": { "x": 0, "y": 1 } }),
     ));
     requests.push(placement("convert-refused", 45, "commit", convert(2)));
+    // The mirrored-half operation crosses the seam in both modes. This fixture has no physical
+    // hardware, so each request is refused: the wire shape and the refusal are what is recorded.
+    for (id, mode) in [
+        (
+            "mirrored-half-new-board",
+            json!({ "kind": "new-board", "boardId": "mirror", "instanceId": "mirror" }),
+        ),
+        (
+            "mirrored-half-reuse-board",
+            json!({ "kind": "reuse-board", "instanceId": "flipped" }),
+        ),
+    ] {
+        requests.push(json!({
+            "id": id, "kind": "edit",
+            "command": { "baseRevision": 45, "transactionId": id, "phase": "commit", "targetIds": [],
+                "operation": { "kind": "create-mirrored-half", "pairId": "pair", "sourceInstanceId": "board",
+                    "mode": mode, "mapping": { "at": { "x": 0, "y": 0 }, "rotation": 0 }, "idRule": "board-prefix" } },
+        }));
+    }
     requests
 }
 
