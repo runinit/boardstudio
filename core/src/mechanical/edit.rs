@@ -320,8 +320,13 @@ fn apply_settings(
     changed.insert(0, owner_id(&edit.target, board_id));
     if needs_initialization {
         persist(doc, &edit.target, configuration.clone())?;
-        let suggested =
-            initialize_closure_mounts(doc, board_contours, &edit.target, &configuration)?;
+        let suggested = initialize_target_closures(
+            doc,
+            board_contours,
+            &edit.target,
+            &configuration,
+            &mut changed,
+        )?;
         configuration.closure_mounts = Some(suggested);
     }
     // Route each changed value to the ownership that owns it: the pair's single
@@ -423,6 +428,105 @@ fn initialize_closure_mounts(
             mount
         })
         .collect())
+}
+
+/// The closure list an initialization stores on the target's own configuration.
+///
+/// A half outside a pair proposes from its own outline, as before. A paired half never
+/// proposes for itself: the pair's closure mounts are proposed once, from its construction
+/// source, and linked to the pair (see [`link_pair_closure_proposals`]), so the half stores an
+/// empty list of its own. `changed` gains the pair's ids when the pair gains closure mounts.
+fn initialize_target_closures(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+    configuration: &MechanicalConfiguration,
+    changed: &mut Vec<String>,
+) -> Result<Vec<Mount>, String> {
+    if let Some(pair_index) = paired_index(doc, target) {
+        if link_pair_closure_proposals(doc, board_contours, pair_index)? {
+            changed.extend(pair_owner_ids(doc, pair_index));
+        }
+        return Ok(Vec::new());
+    }
+    initialize_closure_mounts(doc, board_contours, target, configuration)
+}
+
+/// Proposes a pair's closure mounts once, from its construction source, and links them.
+///
+/// The construction source is the pair's first member: the frame of the pair map and the
+/// default author of a linked feature. The pair does not record a separate source. When the
+/// source already has a closure list, that list becomes the pair's linked mounts; otherwise
+/// the source's own outline proposes them. The source then stores an empty list of its own,
+/// so the same mounts are never stored twice. A pair that already has closure mounts proposes
+/// nothing, and neither does a pair whose source is a gasket. Returns whether mounts were
+/// linked.
+fn link_pair_closure_proposals(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    pair_index: usize,
+) -> Result<bool, String> {
+    let pair = doc
+        .hardware
+        .as_ref()
+        .and_then(|hardware| hardware.pairs.get(pair_index))
+        .ok_or("The mechanical pair is unavailable.")?;
+    if pair
+        .features
+        .iter()
+        .any(|feature| feature.kind == MechanicalFeatureKind::ClosureMount)
+    {
+        return Ok(false);
+    }
+    let source = pair.members[0].clone();
+    let target = MechanicalTarget::Instance {
+        instance_id: source.clone(),
+    };
+    let configuration = effective_inputs(doc, &[], &target)?.configuration;
+    if configuration.mount == MechanicalMount::Gasket {
+        return Ok(false);
+    }
+    let mounts = match configuration.closure_mounts.clone() {
+        Some(mounts) => mounts,
+        None => initialize_closure_mounts(doc, board_contours, &target, &configuration)?,
+    };
+    instance_configuration_mut(doc, &source)?.closure_mounts = Some(Vec::new());
+    let pair = &mut doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?
+        .pairs[pair_index];
+    for mount in mounts {
+        let id = mount.id.clone();
+        features::add_linked_feature(
+            pair,
+            MechanicalFeature {
+                id,
+                kind: MechanicalFeatureKind::ClosureMount,
+                author: source.clone(),
+                value: MechanicalFeatureValue::Mount { mount },
+                members: Vec::new(),
+            },
+        )?;
+    }
+    Ok(true)
+}
+
+/// The pair an instance target belongs to, by its index in the document's pairs.
+fn paired_index(doc: &ProjectDoc, target: &MechanicalTarget) -> Option<usize> {
+    match target {
+        MechanicalTarget::Instance { instance_id } => pair_index(doc, instance_id),
+        MechanicalTarget::Board { .. } => None,
+    }
+}
+
+/// Whether an instance's effective stack has no closure list and is not a gasket, so its
+/// closure mounts still need initialization.
+fn closure_list_absent(doc: &ProjectDoc, target: &MechanicalTarget) -> bool {
+    effective_inputs(doc, &[], target).is_ok_and(|inputs| {
+        inputs.configuration.closure_mounts.is_none()
+            && inputs.configuration.mount != MechanicalMount::Gasket
+    })
 }
 
 /// The accepted contours of the edit target's board, mirrored for a flipped half.
@@ -776,6 +880,12 @@ fn enable(
         MechanicalTarget::Instance { .. } => effective_inputs(doc, &[], target).is_ok(),
     };
     if already_effective {
+        // A legacy second half resolves from the shared source but has no closure list of its
+        // own, so enabling it still initializes its closure mounts (generator-parameters
+        // ticket 06, finding B). Any other effective half is unchanged.
+        if matches!(target, MechanicalTarget::Instance { .. }) && closure_list_absent(doc, target) {
+            return initialize_closures(doc, board_contours, target, board_id, edit);
+        }
         return Ok(Vec::new());
     }
     if let Some(template) = edit.mounting_hole.as_deref() {
@@ -792,7 +902,8 @@ fn enable(
     );
     let mut changed = vec![owner_id(target, board_id)];
     persist(doc, target, configuration.clone())?;
-    let suggested = initialize_closure_mounts(doc, board_contours, target, &configuration)?;
+    let suggested =
+        initialize_target_closures(doc, board_contours, target, &configuration, &mut changed)?;
     configuration.closure_mounts = Some(suggested);
     persist(doc, target, configuration)?;
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
@@ -896,12 +1007,20 @@ fn initialize_closures(
     if let Some(template) = edit.mounting_hole.as_deref() {
         validate_mounting_hole(template)?;
     }
-    let mut configuration = inputs.configuration;
+    let mut changed = vec![owner_id(target, board_id)];
+    // A paired half's effective stack carries the pair's linked features. Only its own stored
+    // configuration is written back, so those features are not copied into it.
+    let mut configuration = match target {
+        MechanicalTarget::Instance { instance_id } if paired_index(doc, target).is_some() => {
+            instance_configuration_mut(doc, instance_id)?.clone()
+        }
+        _ => inputs.configuration,
+    };
     persist(doc, target, configuration.clone())?;
-    let suggested = initialize_closure_mounts(doc, board_contours, target, &configuration)?;
+    let suggested =
+        initialize_target_closures(doc, board_contours, target, &configuration, &mut changed)?;
     configuration.closure_mounts = Some(suggested);
     persist(doc, target, configuration)?;
-    let mut changed = vec![owner_id(target, board_id)];
     project(doc, edit.mounting_hole.as_deref(), &mut changed)?;
     dedup_changed(&mut changed);
     Ok(changed)

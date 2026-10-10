@@ -497,6 +497,13 @@ pub(crate) fn pair_findings(
                     } else {
                         Scope::Case
                     };
+                    // The refusal says the feature is linked and which half authored it, so the
+                    // user knows where to reflect the hardware or make an exception.
+                    let author = hardware
+                        .instances
+                        .iter()
+                        .find(|entry| entry.id == feature.author)
+                        .map_or(feature.author.as_str(), |entry| entry.name.as_str());
                     findings.push(pair_finding(
                         pair,
                         instance,
@@ -504,7 +511,7 @@ pub(crate) fn pair_findings(
                         &member.instance_id,
                         scope,
                         format!(
-                            "The linked {subject} at ({:.2}, {:.2}) lies outside this half's board outline.",
+                            "The linked {subject} at ({:.2}, {:.2}), authored by \"{author}\", lies outside this half's board outline.",
                             point.x, point.y
                         ),
                     ));

@@ -827,12 +827,12 @@ fn accepted_contours_drive_absent_closure_mount_initialization() {
     );
 }
 
-/// A legacy half with no stored configuration of its own.
+/// A legacy half with no stored configuration of its own, on its own board.
 fn unconfigured_legacy(id: &str) -> PhysicalBoardInstance {
     PhysicalBoardInstance {
         id: id.into(),
         name: id.into(),
-        board_id: "board".into(),
+        board_id: format!("board-{id}"),
         half: id.into(),
         role: "controller".into(),
         flipped: false,
@@ -866,19 +866,26 @@ fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
     use boardstudio_core::mechanical::effective_inputs;
 
     let mut document = ProjectDoc::empty("doc", "Fixture");
-    document.boards.push(board("board"));
+    document.boards.push(board("board-a"));
+    document.boards.push(board("board-b"));
     document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
+        topology: HardwareTopology::Split,
+        transport: HardwareTransport::Wired,
         instances: vec![unconfigured_legacy("a"), unconfigured_legacy("b")],
         boards: vec![],
         shared_construction: None,
         pairs: vec![],
     });
-    let accepted = vec![BoardContours {
-        board_id: "board".into(),
-        contours: vec![small_rect()],
-    }];
+    let accepted = vec![
+        BoardContours {
+            board_id: "board-a".into(),
+            contours: vec![small_rect()],
+        },
+        BoardContours {
+            board_id: "board-b".into(),
+            contours: vec![small_rect()],
+        },
+    ];
     let enable = |id: &str| MechanicalEdit {
         target: instance_target(id),
         change: MechanicalChange::Enable,
