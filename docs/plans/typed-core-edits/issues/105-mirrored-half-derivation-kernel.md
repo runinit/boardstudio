@@ -1,6 +1,6 @@
 # 105: Reusable mirrored-half derivation kernel
 
-Status: claimed
+Status: implemented (awaiting verification)
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [28](28-mirror-embedded-circuits.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md), [39](39-stabilisers-and-companion-fallback.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -215,12 +215,42 @@ and the boundary transcript did not change, so those extra runs were not require
 remains open; this handoff grants no 106 dispatch. A new implementation and fresh independent verification
 must close the blocker before 105 can be resolved.
 
-### Revision 2 claim
+### Revision 2 implementation
 
-Claimed by Luna 6 high for the bounded revision at `3a7ba67b8e15c8f00672cfbd885a26285142e513`. The verifier's
-acceptance blocker remains: `new_board` still derives companion modes/tweaks, stabiliser headings and fallback
-values inline. GitNexus impact on `new_board` is HIGH (10 impacted symbols, one direct caller `create`, one Core
-edit process through `apply`); source confirms that caller. The lane index is one commit behind HEAD, so this is
-provisional. No test or production source has been changed yet. The revision will add direct tests for existing
-target identities and per-item settings before extracting the existing value rules into private helpers; it will
-preserve creation behavior and remain awaiting fresh independent verification.
+Implemented by Luna 6 high in the bounded 105 revision. Extracted the existing matrix companion assembly rules
+into a private pure helper in `core/src/mirrored_half/derive.rs`. It takes the source members, pair mapping,
+assembly values, and the caller's effective per-item mode/tweak plus stabiliser/fallback flags. `new_board`
+continues to plan identities, perform collision and refusal checks, insert matrices and materialized parts,
+copy member attributes, seed correspondences, and create the pair. It calls the same helper with creation's
+existing values. The accepted Part identity helper and its direct test remain intact. No reconciliation hook,
+public API, model, layout, or ticket-40 behavior changed.
+
+Added `companion_assembly_uses_existing_parts_and_each_items_stored_settings`, covering existing target ids,
+distinct duplicate and tweak settings, an axis map and a translated 27-degree map, stabiliser world heading,
+literal fallback ignoring mode/tweak, and unchanged source parts. The stabiliser oracle uses the existing
+matrix-switch rule `mapping.rotation - source_heading`; the test also composes the returned assembly heading
+with the mirrored switch heading to check that materialization retains the source world heading. Existing
+creation integration tests and refusal/changed-id assertions were preserved unchanged and passed in the native
+suite.
+
+Test-first evidence: the initial targeted red run failed with four E0425 errors because `companion_assembly`
+did not exist. The first implementation green attempt exposed a missing required `Part.side` fixture field;
+after adding it, the next attempt exposed an incorrect new-test expectation (`2 * map.rotation - heading`).
+That oracle was corrected using the established `pair::forward_angle` matrix-switch frame, and the final
+targeted run passed 1/1 (3.64 s build, 0.00 s test execution). These were fixture/oracle corrections, not
+production regressions.
+
+Checks with `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1`: `python3 scripts/check.py repo lint test typecheck`
+passed all steps (repo 0.1 s, lint 9.6 s, test 81.0 s including CAD, typecheck 8.1 s; total 98.8 s). The first
+script attempt passed `repo` and stopped in `lint` at `cargo fmt --all --check` because of formatting in the two
+edited Rust files; scoped formatting was applied and the rerun passed. Clippy emitted existing vendored cgmath
+warnings. The CAD test binary reported 51 passed and 4 ignored. Typecheck passed with existing warnings in
+catalogue and case code. No browser or separate boundary-parity run was done because the transcript did not
+change; full browser, build, release and performance checks were not run.
+
+GitNexus impact before editing `new_board` was HIGH: 10 impacted symbols, one direct caller (`create`), and one
+Core edit flow through `apply`, affecting three indexed modules. Source confirmed the caller. The bound
+`boardstudio-lane-mirror-core` index was one commit behind HEAD at the start (the preceding documentation
+commit), so impact coverage is provisional; no refresh was performed. Root will inspect new-helper coverage
+and run the complete bound graph delta before commit. The revision remains `implemented (awaiting verification)`;
+the prior independent-verifier acceptance gap remains the reason 105 is not resolved. No 106 work was started.

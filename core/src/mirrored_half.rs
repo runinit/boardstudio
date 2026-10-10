@@ -1418,7 +1418,12 @@ fn new_board(
             for assembly in &mut cell.assemblies {
                 let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
                 let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
-                if SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str()) {
+                let stabiliser = SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
+                let fallback = repaired_companions.contains(&companion_id);
+                let needs_source_parts = stabiliser
+                    || (!fallback
+                        && request.companion_mode == MirroredCompanionMode::DuplicatePosition);
+                let (key, companion) = if needs_source_parts {
                     let key = doc
                         .parts
                         .iter()
@@ -1429,47 +1434,24 @@ fn new_board(
                         .iter()
                         .find(|part| part.id == companion_id)
                         .ok_or("A source companion is unavailable")?;
-                    // Assemblies store a heading relative to the mirrored switch. Cancel that
-                    // switch's reflected tilt so the stabiliser keeps its source world heading.
-                    assembly.rotation = Some(
-                        companion.pose.rotation - pair::forward_angle(mapping, key.pose.rotation),
-                    );
-                    continue;
-                }
-                if repaired_companions.contains(&companion_id) {
-                    continue;
-                }
-                match request.companion_mode {
-                    MirroredCompanionMode::LiteralMirror => {}
-                    MirroredCompanionMode::DuplicatePosition => {
-                        let key = doc
-                            .parts
-                            .iter()
-                            .find(|part| part.id == key_id)
-                            .ok_or("A companion's source switch is unavailable")?;
-                        let companion = doc
-                            .parts
-                            .iter()
-                            .find(|part| part.id == companion_id)
-                            .ok_or("A source companion is unavailable")?;
-                        let (sin, cos) = key.pose.rotation.to_radians().sin_cos();
-                        let dx = companion.pose.at.x - key.pose.at.x;
-                        let dy = companion.pose.at.y - key.pose.at.y;
-                        assembly.offset = Vec2 {
-                            x: dx * cos + dy * sin,
-                            y: -dx * sin + dy * cos,
-                        };
-                        assembly.rotation = Some(companion.pose.rotation - key.pose.rotation);
-                    }
-                    MirroredCompanionMode::LiteralMirrorWithTweak => {
-                        if let Some(tweak) = request.companion_tweak {
-                            assembly.offset.x += tweak.x;
-                            assembly.offset.y += tweak.y;
-                            assembly.rotation =
-                                Some(assembly.rotation.unwrap_or(0.0) + tweak.rotation);
-                        }
-                    }
-                }
+                    (Some(key), Some(companion))
+                } else {
+                    (None, None)
+                };
+                let (offset, rotation) =
+                    derive::companion_assembly(derive::CompanionAssemblyInput {
+                        offset: assembly.offset,
+                        rotation: assembly.rotation,
+                        key,
+                        companion,
+                        mapping,
+                        mode: request.companion_mode,
+                        tweak: request.companion_tweak,
+                        stabiliser,
+                        fallback,
+                    })?;
+                assembly.offset = offset;
+                assembly.rotation = rotation;
             }
         }
         crate::matrix::set_matrix(doc, &reflected)?;
