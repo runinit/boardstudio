@@ -1,6 +1,6 @@
 # 119: Qualify the existing Kailh MX hot-swap socket
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [118](118-sofle-adaptation-hardware-contract.md) · Evidence: [hardware candidates](../audit/sofle-adaptation-hardware-candidates.md)
@@ -22,11 +22,11 @@ Read-only source: `footprints/src/generators/ceoloide/switch_mx.rs`, `footprints
 
 ## Acceptance
 
-- [ ] Record exact manufacturer recommended host pad/drill geometry, terminal identities and relevant body/datum dimensions with a source-to-implementation evidence table. Identify which dimensions are recommendations, tolerances or unknowns.
-- [ ] Through the public bundled render/resolution boundary, test the selected nonreversible hot-swap configuration on F and B at zero, orthogonal and a representative nonorthogonal Sofle rotation. Assert manufacturer-derived pad/drill dimensions, transformed coordinates, distinct terminal/net identities and effective layers. Do not copy generator constants as independent expected evidence or introduce a second face transform.
-- [ ] Check the emitted socket model binding, side/datum and 1.6 mm PCB configuration against available independent evidence. Distinguish a binding assertion from actual solid contact/alignment qualification. Missing source/model evidence remains an explicit output-specific gate.
-- [ ] Reuse the existing entry. If all covered dimensions agree, make no production geometry change. If a discrepancy exists, record the expected failing regression and stop for the follow-up lease; do not loosen assertions to preserve the old result.
-- [ ] A fresh verifier reproduces the source comparison and tests. In a separately granted temporary mutation lease, perturb one emitted critical pad or drill site and confirm the qualification test fails for the expected reason, then restore and rerun. Changing only an expected assertion is insufficient. No production mutation belongs in the final change. Report any unavailable mutation gate; no whole-board or physical-fit claim follows from a passing test.
+- [x] Record exact manufacturer recommended host pad/drill geometry, terminal identities and relevant body/datum dimensions with a source-to-implementation evidence table. Identify which dimensions are recommendations, tolerances or unknowns.
+- [x] Through the public bundled render/resolution boundary, test the selected nonreversible hot-swap configuration on F and B at zero, orthogonal and a representative nonorthogonal Sofle rotation. Assert manufacturer-derived pad/drill dimensions, transformed coordinates, distinct terminal/net identities and effective layers. Do not copy generator constants as independent expected evidence or introduce a second face transform.
+- [x] Check the emitted socket model binding, side/datum and 1.6 mm PCB configuration against available independent evidence. Distinguish a binding assertion from actual solid contact/alignment qualification. Missing source/model evidence remains an explicit output-specific gate.
+- [x] Reuse the existing entry. If all covered dimensions agree, make no production geometry change. If a discrepancy exists, record the expected failing regression and stop for the follow-up lease; do not loosen assertions to preserve the old result.
+- [x] A fresh verifier reproduces the source comparison and tests. In a separately granted temporary mutation lease, perturb one emitted critical pad or drill site and confirm the qualification test fails for the expected reason, then restore and rerun. Changing only an expected assertion is insufficient. No production mutation belongs in the final change. Report any unavailable mutation gate; no whole-board or physical-fit claim follows from a passing test.
 
 ## Audit and graph evidence (2026-10-10)
 
@@ -70,3 +70,29 @@ The revised public-render assertions cover front and back at 0°, 90° and 300°
 The model assertions qualify the emitted generator binding/configuration only. No manufacturer solid asset/datum evidence establishes exact model identity, absolute model datum, pad-to-hole offset, physical contact or solid fit; those gates remain open. The drawing has no host pad-to-terminal polarity map, so the test preserves distinct net assignments without claiming manufacturer polarity.
 
 Revision validation ran `rustfmt --edition 2024 footprints/tests/mx_socket_qualification.rs`; `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1 cargo test --locked -p boardstudio-footprints --test mx_socket_qualification` passed all 4 tests (0.21 s on the final run); `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py repo lint` passed both steps in 3.4 s; and `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1 cargo test --locked -p boardstudio-footprints` passed all 77 tests across crate targets (about 3.8 s). Clippy emitted existing vendored cgmath warnings; the configured lint step exited successfully. No production generator, registry, model asset, board recipe or shared helper was changed. The fresh verifier must reproduce the source comparison and tests and use its separately granted mutation lease. Ticket remains `implemented (awaiting verification)`.
+
+### Independent verification (Codex Sol 6.1, xhigh)
+
+A fresh verifier independently reviewed revision `c5d2626caa965b4a66bfc0c36520a93c041df6c7` in the managed worktree and returned **PASS for this ticket's bounded test/evidence acceptance**. The selected configuration is nonreversible hot-swap, explicitly sets both existing outer pad widths to 2.55 mm, and uses a 1.6 mm PCB. No production discrepancy was established in the covered dimensions and no production change is retained. This resolves 119 only; the hardware design in 118 remains open and unqualified.
+
+The verifier read the required workflow, component-onboarding guidance and central lane registry, inspected the actual test and producer paths, and independently viewed the manufacturer cover drawing, recommended-layout detail and specification page 8/9. The official PDF's 10 pages, 1,003,871 bytes and recorded SHA-256 were confirmed. Both the drawing's Rev A entry and the specification's Rev A identification were inspected. The source supports the nominal Ø3.00 mm drills, 6.35 × 2.54 mm hole-centre vector, parenthesized 2.55 × 2.5 mm land references and 1.6 mm single-face recommendation. The nearby ±0.05 mm layout note was not used to qualify the parenthesized land references.
+
+Independent algebra confirmed the fixed F/B 300° vectors within the test's numerical epsilon; the zero and 90° vectors also agree. Direct `RenderContext` source confirms emitted `(x, -y, rotation)` placement and the -theta/down-Y transform. The test applies that transform to the emitted hole vector without a second face reflection and checks the stored SW26 pose. Public registry source confirms registration through `switch_mx::SPEC` and invocation through `(spec.body)(&context)`. The model assertions establish the emitted path, side-dependent rotation, scale and configured offset at 1.6 mm only. The copied generator datum is explicitly identified as configuration evidence, not independent manufacturer alignment evidence.
+
+All executed checks used `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1`, sequentially in the granted foreground command window:
+
+| Independent check | Observed result | Elapsed time |
+| --- | --- | --- |
+| `cargo test --locked -p boardstudio-footprints --test mx_socket_qualification` baseline | 4 passed | 0.414 s |
+| Same focused command after the single producer mutation below | Compiled; 2 passed and 2 failed for the intended drill assertion; exit 101 | 0.571 s |
+| Same focused command after exact restoration and touch | 4 passed | 0.493 s |
+| `python3 scripts/check.py repo lint` | Both steps passed; existing vendored cgmath warnings were emitted | 8.480 s |
+| `cargo test --locked -p boardstudio-footprints` | All 77 tests passed across crate targets; no ignored tests | 7.067 s |
+
+Under the separately granted temporary mutation lease, the verifier backed up the exact producer bytes and changed only the first F socket NPTH site's `(drill 3)` to `(drill 3.2)` in `footprints/src/generators/ceoloide/switch_mx.rs`. Both `recommended_socket_hole_pair_spacing_survives_side_and_placement_rotation` and `selected_sofle_switch_pose_preserves_source_layout_hole_spacing` failed with `manufacturer nominal hole drill: got 3.2, expected 3`; this was a test assertion failure, not a compilation failure. A `finally` restoration wrote the exact preimage, touched the producer, and confirmed SHA-256 `721e91720c663917bb56dfa8ffd0a467eb3ffac36092efd0d65f7eb90cb17977` before the restored passing run. Only this one emitted drill site was mutated. Local logs, the preimage and before/after hash manifest are retained in the ignored `.scratch/ticket119-independent-verifier/` directory.
+
+Bound GitNexus `boardstudio-ts-boardstudio2` context/impact for `switch_mx.rs::body` returned **UNKNOWN**, zero resolved callers, lower-bound coverage and 25 unresolved receiver sites. Index metadata identifies `a0ec8456` and is one commit behind the reviewed HEAD; root's precommit source capture does not make that metadata clean-current. The verifier supplemented the graph result with the narrow registration/callback source confirmation above and did not refresh the index. No staging or commit was performed during verification.
+
+The final preservation check confirmed the producer, focused test, then-current 119 document, both planning documents and PDF matched their pre-verification hashes. The only preexisting dirty paths were the modified hardware-candidates report and untracked 118 contract; neither was edited. This subsequent tracking-only record changes 119's status and verification evidence.
+
+The unchanged default 2.6 mm outer widths remain unqualified against the nominal 2.55 mm reference, and the selected parameters have not been applied to board recipes. Absolute switch/socket datum, host pad-to-hole gap, manufacturer terminal-to-net polarity, exact model identity, solid contact/alignment and physical fit remain explicit output-specific gates. The reviewed planning documents preserve delegated selection, catalogue reuse and every measured key pose/width while retaining 118's electrical, firmware, harness, installed-stack and physical-measurement gates. No whole-board qualification follows from this resolution. Browser, build, release and full batch checks were outside this test/evidence-only verification scope; root retains the batch check and integration gates.
