@@ -1,6 +1,6 @@
 # 17: Mirrored-half schema and format version 5
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [16](16-native-mirrored-halves.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
