@@ -8,7 +8,7 @@ use crate::layer_edit::KeymapLayerOperation;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{KeyBinding, MacroStep, ProjectDoc};
-use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -264,7 +264,9 @@ async fn two_binding_fields_queue_and_undo_in_commit_order() {
     let (entered, release) = support::gate_next_core_reply(runtime);
     binding(&probe, "a", "A").await;
     support::drive_pending(runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     wait_until("the behaviour select shows the key-press value", || {
         root.query_selector("select[aria-label='a behavior']")
             .ok()
@@ -354,7 +356,9 @@ async fn two_queued_layer_adds_get_distinct_ids() {
     let on_operation = probe.layers.borrow().as_ref().unwrap().on_operation;
     on_operation.call(KeymapLayerOperation::Add);
     support::drive_pending(runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     second
         .layers
         .borrow()
@@ -438,7 +442,9 @@ async fn macro_fields_queue_and_undo_separately() {
         },
     );
     support::drive_pending(&runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     rendered_after(&probe, mark).await;
     submit(
         MacroEditTarget::TapMs,
@@ -496,7 +502,9 @@ async fn macro_fields_queue_and_undo_separately() {
     let (entered, release) = support::gate_next_core_reply(&runtime);
     add.click();
     support::drive_pending(&runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     wait_until("the add control is disabled while its edit is held", || {
         add.has_attribute("disabled")
     })
@@ -558,6 +566,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
     probe.active_layer.borrow().unwrap().set("child".into());
     rendered_after(&probe, mark).await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
+    let mark = probe.renders.get();
     probe
         .layers
         .borrow()
@@ -568,18 +577,11 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
             layer_id: "child".into(),
         });
     support::drive_pending(&runtime);
-    entered.await.unwrap();
-    wait_until(
-        "layer fields show their enabled state while removal is pending",
-        || {
-            probe
-                .layers
-                .borrow()
-                .as_ref()
-                .is_some_and(|layers| layers.enabled)
-        },
-    )
-    .await;
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
+    // A render after the removal is held shows the pending state, not the one before it.
+    rendered_after(&probe, mark).await;
     assert!(
         probe.layers.borrow().as_ref().unwrap().enabled,
         "layer fields stay enabled while removal is pending"
@@ -660,7 +662,7 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
     let mut doc = document();
     doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}}]}]})).unwrap());
     support::open_document(&runtime, doc).await;
-    let (_, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root) = mount_runtime(runtime.clone()).await;
     let input = root
         .query_selector("input[aria-label='Original tapMs']")
         .unwrap()
@@ -678,13 +680,14 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
         input.blur().unwrap();
     };
     let (entered, release) = support::gate_next_core_reply(&runtime);
+    let mark = probe.renders.get();
     commit("50");
     support::drive_pending(&runtime);
-    entered.await.unwrap();
-    wait_until("the pending macro field is still enabled", || {
-        !input.disabled()
-    })
-    .await;
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
+    // A render after the commit shows the pending state; a check before it would pass on the old one.
+    rendered_after(&probe, mark).await;
     assert!(!input.disabled());
     commit("30");
     release.send(()).unwrap();
@@ -859,7 +862,9 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             );
         }
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("the held edit reaches the Core executor", entered)
+            .await
+            .unwrap();
         wait_until("the pending macro step controls are disabled", || {
             root.query_selector("fieldset.m1-keymap-macro > button")
                 .ok()
@@ -913,8 +918,17 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             Some(0) => vec![MacroStep::Wait { ms: 10 }, MacroStep::Wait { ms: 20 }],
             _ => vec![tap(), MacroStep::Wait { ms: 20 }],
         };
+        // The step field's failure renders after Core accepts the edits, so the wait includes it.
+        let eligible = removed.is_none_or(|index| index > 1);
         settle_until(&runtime, "the queued macro steps are accepted", || {
             steps_are(&runtime, &expected)
+                && (eligible
+                    || root
+                        .query_selector("label small[role='alert']")
+                        .ok()
+                        .flatten()
+                        .and_then(|alert| alert.text_content())
+                        .is_some_and(|message| message.contains("macro step")))
         })
         .await;
         assert_eq!(
@@ -930,7 +944,6 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
                 .steps,
             expected
         );
-        let eligible = removed.is_none_or(|index| index > 1);
         assert!(
             probe.macros.borrow().as_ref().unwrap().feedback.is_none(),
             "a bound step field reports at the field, never in the panel status"
@@ -1072,7 +1085,9 @@ async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
             layer_id: "child".into(),
         });
     support::drive_pending(&runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     draft.set("Gone".into());
     probe
         .layers
@@ -1149,7 +1164,9 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
         .unwrap();
     input.blur().unwrap();
     support::drive_pending(&runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     let mut hide = probe.hide_macros.borrow().unwrap();
     hide.set(true);
     wait_until(
@@ -1362,7 +1379,9 @@ async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo(
     type_value(&input, "55");
     input.blur().unwrap();
     support::drive_pending(&runtime);
-    entered.await.unwrap();
+    wait_until_future("the held edit reaches the Core executor", entered)
+        .await
+        .unwrap();
     input.focus().unwrap();
     type_value(&input, "66");
     input.blur().unwrap();
