@@ -57,3 +57,15 @@ design for how Core stores and maintains it
   parameter, including `reversible` and `side`, exactly as the source has it. Mirroring
   changes pose only: position and heading. This replaces the earlier "use the reversible
   variant" wording.
+
+## Amendment: details of creation (2026-10-10)
+
+- **Keycap legends** are copied to the mirror as they are. Key bindings are never mirrored.
+- **Net names** on the mirror are for the mirror's side; they are not carried over from the
+  source (a mirror does not keep names such as `PERIPHERAL_LEFT_...`).
+- **`reuse-board`** validates the map against the flip and refuses a non-zero map.
+- **Topology, transport and relabelling** of the primary half are set by the web adapter
+  (physical setup), not by `CreateMirroredHalf`.
+- **Modules and embedded circuits** on the source board are refused by the first
+  implementation with a named, located error; mirroring them follows in two tickets before
+  the reconcile step.
