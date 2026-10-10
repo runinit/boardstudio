@@ -13,7 +13,7 @@
 //!   protected wiring handoff: never reflected by nature (ADR-0010);
 //! - `case-closure/*` clearance holes: generated from the pair's linked closure mounts;
 //! - mounted modules: reflected by pose and id (ticket 27); a handed module is a finding, not a refusal;
-//! - embedded circuits: refused with the ids named (ticket 28, no reflection rule yet);
+//! - embedded circuits: reflected with their own namespace, `embedded/<mirror id>/...` (ticket 28);
 //! - hardware specifications, critical fits and a battery: they name the source board's parts or
 //!   one physical item, so the mirror starts without them.
 
@@ -30,7 +30,7 @@ use crate::model::{
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
     ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
 };
-use crate::modules::MountedModule;
+use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -627,6 +627,8 @@ fn reuse_board(
             request.source_id
         ));
     }
+    // An embedded circuit belongs to the board, not to an instance (it has no instance pin), so the
+    // flipped instance shows the circuit without a copy, as it shows the board's own parts.
     let board = source.board_id.clone();
     let mirror = mirror_instance(
         &source,
@@ -915,13 +917,105 @@ fn corresponds(kind: MirroredItemKind, source: &str, mirror: &str) -> MirroredCo
     }
 }
 
-/// The ids a refusal names: the embedded circuits hosted on `board`. Mounted modules are reflected.
-fn hosted_items(doc: &ProjectDoc, board: &str) -> Vec<String> {
-    doc.embedded_circuits
-        .iter()
-        .filter(|circuit| circuit.host_board_id == board)
-        .map(|circuit| format!("embedded circuit {}", circuit.id))
-        .collect()
+/// An embedded circuit's own members, private nets and component definitions, and where each one
+/// mirrors (ticket 28). `modules::circuit` places a circuit's members under `embedded/<id>/` and reads
+/// that prefix back (`embed`, `remove_circuit`, the electrical checks), so the board-prefix rule would
+/// break it (`embedded/left-haptic/U1` would become `right/embedded/...`). A mirror keeps the prefix and
+/// takes its own circuit id: `embedded/left-haptic/U1` becomes `embedded/right-haptic/U1`. The circuit
+/// id itself takes the board-prefix rule. A host net a port joins is not in the namespace and keeps the
+/// board-prefix rule.
+struct CircuitMirror {
+    /// Source circuit id to mirror circuit id.
+    ids: BTreeMap<String, String>,
+    /// Source id of a circuit member or private net to its mirror id.
+    owned: BTreeMap<String, String>,
+    /// Source id of a circuit component definition to its mirror copy.
+    definitions: BTreeMap<String, String>,
+}
+
+/// Moves `id` from the namespace `from` to the namespace `to`, or `None` when `id` is outside `from`.
+fn reprefix(id: &str, from: &str, to: &str) -> Option<String> {
+    id.strip_prefix(from).map(|rest| format!("{to}{rest}"))
+}
+
+/// `reference` when the document does not use it yet, otherwise its prefix with the next free number
+/// (`right-U1` becomes `right-U2`), as `modules::circuit` allocates a circuit member's reference.
+fn free_reference(reference: &str, used: &mut BTreeSet<String>) -> String {
+    if used.insert(reference.to_owned()) {
+        return reference.to_owned();
+    }
+    let prefix = reference.trim_end_matches(|c: char| c.is_ascii_digit());
+    let mut index = 1;
+    loop {
+        let candidate = format!("{prefix}{index}");
+        if used.insert(candidate.clone()) {
+            return candidate;
+        }
+        index += 1;
+    }
+}
+
+/// The mirror of each embedded circuit hosted on `from`. A mirror circuit id that is already a circuit
+/// on the document, or that another hosted circuit already takes, refuses the record by name, and so
+/// does a mirror namespace that already holds a part, net or definition.
+fn circuit_mirror(
+    doc: &ProjectDoc,
+    hosted: &[EmbeddedCircuit],
+    from: &str,
+    to: &str,
+) -> Result<CircuitMirror, String> {
+    let mut mirror = CircuitMirror {
+        ids: BTreeMap::new(),
+        owned: BTreeMap::new(),
+        definitions: BTreeMap::new(),
+    };
+    for circuit in hosted {
+        let id = mirror_id(from, to, &circuit.id);
+        if doc.embedded_circuits.iter().any(|other| other.id == id)
+            || mirror.ids.values().any(|taken| *taken == id)
+        {
+            return Err(format!(
+                "The mirrored embedded circuit {id:?} already exists."
+            ));
+        }
+        let source_prefix = format!("embedded/{}/", circuit.id);
+        let prefix = format!("embedded/{id}/");
+        if doc.parts.iter().any(|p| p.id.starts_with(&prefix))
+            || doc.definitions.iter().any(|d| d.id.starts_with(&prefix))
+            || doc.nets.iter().any(|n| n.id.starts_with(&prefix))
+        {
+            return Err(format!(
+                "The circuit namespace {prefix:?} is already in use."
+            ));
+        }
+        for part in &circuit.part_ids {
+            let mirrored = reprefix(part, &source_prefix, &prefix).ok_or_else(|| {
+                format!(
+                    "Embedded circuit {:?} has member {part:?} outside its namespace.",
+                    circuit.id
+                )
+            })?;
+            mirror.owned.insert(part.clone(), mirrored);
+        }
+        for net in &circuit.net_ids {
+            if let Some(mirrored) = reprefix(net, &source_prefix, &prefix) {
+                mirror.owned.insert(net.clone(), mirrored);
+            }
+        }
+        let (source_definitions, mirror_definitions) = (
+            format!("{source_prefix}definition/"),
+            format!("{prefix}definition/"),
+        );
+        for definition in &doc.definitions {
+            if let Some(mirrored) =
+                reprefix(&definition.id, &source_definitions, &mirror_definitions)
+            {
+                mirror.definitions.insert(definition.id.clone(), mirrored);
+            }
+        }
+        mirror.ids.insert(circuit.id.clone(), id);
+    }
+    Ok(mirror)
 }
 
 fn new_board(
@@ -945,16 +1039,17 @@ fn new_board(
         .find(|board| board.id == from)
         .cloned()
         .ok_or("The source board is unavailable")?;
-    let hosted = hosted_items(doc, &from);
-    if !hosted.is_empty() {
-        return Err(format!(
-            "Board {from:?} hosts {}, which cannot be mirrored yet: they have no reflection rule. \
-             Remove them or create the second half before adding them.",
-            hosted.join(", ")
-        ));
-    }
+    let hosted: Vec<EmbeddedCircuit> = doc
+        .embedded_circuits
+        .iter()
+        .filter(|circuit| circuit.host_board_id == from)
+        .cloned()
+        .collect();
+    let circuits = circuit_mirror(doc, &hosted, &from, &to)?;
 
     let map = |id: &str| mirror_id(&from, &to, id);
+    // A circuit's member or private net takes its namespace's mirror; everything else the board rule.
+    let map_owned = |id: &str| circuits.owned.get(id).cloned().unwrap_or_else(|| map(id));
 
     // Every new id is minted before anything is written, so a collision refuses the record.
     let mut taken = taken_ids(doc);
@@ -992,7 +1087,7 @@ fn new_board(
                 })?;
                 format!("matrix/{}/{rest}", matrix_map[&matrix.id])
             }
-            None => map(part),
+            None => map_owned(part),
         };
         part_map.insert((*part).clone(), mint(&mut taken, mirrored)?);
     }
@@ -1030,7 +1125,7 @@ fn new_board(
         if !doc.nets.iter().any(|item| item.id == *net) {
             return Err(format!("Net {net:?} is unavailable."));
         }
-        let mirrored = mint(&mut taken, map(net))?;
+        let mirrored = mint(&mut taken, map_owned(net))?;
         net_map.insert(net.clone(), mirrored);
     }
     let board_outline = doc
@@ -1161,13 +1256,37 @@ fn new_board(
         }
     }
 
+    // A circuit's component definitions are copied under its mirror namespace. The content is the
+    // source's, with only the ids the namespace gives changed (a profile names its own definition).
+    let copies: Vec<PartDefinition> = doc
+        .definitions
+        .iter()
+        .filter_map(|definition| {
+            let mirrored = circuits.definitions.get(&definition.id)?;
+            let mut copy = definition.clone();
+            copy.id = mirrored.clone();
+            if let Some(profile) = &mut copy.mechanical_profile {
+                profile.definition_id = copy.id.clone();
+            }
+            Some(copy)
+        })
+        .collect();
+    doc.definitions.extend(copies);
+
     // Parts. Matrix members are already placed; other parts copy and reflect here.
     let mut references: BTreeSet<String> = doc
         .parts
         .iter()
         .map(|part| part.reference.clone())
         .collect();
-    for id in &source_parts {
+    // The board's own parts go first, so their mirror references are reserved before a circuit
+    // member takes one. A circuit member's reference is allocated on the host board only, so it may
+    // equal a host part's reference (the mirror of `U1` is `right-U1` for both `left-U1` and a
+    // circuit's `U1`); the member takes the next free reference instead.
+    let (own, members): (Vec<&&String>, Vec<&&String>) = source_parts
+        .iter()
+        .partition(|id| !circuits.owned.contains_key(id.as_str()));
+    for id in own.into_iter().chain(members) {
         correspondences.push(corresponds(MirroredItemKind::Part, id, &part_map[*id]));
         if matrix_owned.contains(id.as_str()) {
             continue;
@@ -1178,17 +1297,25 @@ fn new_board(
             .find(|part| part.id == **id)
             .cloned()
             .ok_or("A board part is unavailable")?;
-        let reference = mirror_reference(&from, &to, &part.reference);
-        if !references.insert(reference.clone()) {
+        let mirrored_reference = mirror_reference(&from, &to, &part.reference);
+        let reference = if circuits.owned.contains_key(id.as_str()) {
+            free_reference(&mirrored_reference, &mut references)
+        } else if references.insert(mirrored_reference.clone()) {
+            mirrored_reference
+        } else {
             return Err(format!(
-                "The mirrored reference {reference:?} is already in use."
+                "The mirrored reference {mirrored_reference:?} is already in use."
             ));
-        }
+        };
         doc.parts.push(Part {
             keycap: part.keycap,
             outline: part.outline.clone(),
             id: part_map[*id].clone(),
-            definition_id: part.definition_id.clone(),
+            definition_id: circuits
+                .definitions
+                .get(&part.definition_id)
+                .cloned()
+                .unwrap_or_else(|| part.definition_id.clone()),
             reference,
             pose: mirror_pose(mapping, part.pose),
             side: part.side.clone(),
@@ -1438,6 +1565,57 @@ fn new_board(
         ));
     }
     doc.modules.extend(mirrored_modules);
+    // Each embedded circuit becomes a record of the mirror: its members, nets and ports by the mirror ids.
+    let mut mirrored_circuits = Vec::new();
+    for circuit in &hosted {
+        let id = circuits.ids[&circuit.id].clone();
+        let outside = |what: &str, item: &str| {
+            format!(
+                "Embedded circuit {:?} has {what} {item:?} outside board {from:?}.",
+                circuit.id
+            )
+        };
+        let part_ids = circuit
+            .part_ids
+            .iter()
+            .map(|part| {
+                part_map
+                    .get(part)
+                    .cloned()
+                    .ok_or_else(|| outside("member", part))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let net_ids = circuit
+            .net_ids
+            .iter()
+            .map(|net| net_map.get(net).cloned().ok_or_else(|| outside("net", net)))
+            .collect::<Result<Vec<_>, _>>()?;
+        let ports = circuit
+            .ports
+            .iter()
+            .map(|(role, net)| {
+                net_map
+                    .get(net)
+                    .cloned()
+                    .map(|mirrored| (role.clone(), mirrored))
+                    .ok_or_else(|| outside("port net", net))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        mirrored_circuits.push(EmbeddedCircuit {
+            id: id.clone(),
+            definition_id: circuit.definition_id.clone(),
+            host_board_id: to.clone(),
+            part_ids,
+            net_ids,
+            ports,
+        });
+        correspondences.push(corresponds(
+            MirroredItemKind::EmbeddedCircuit,
+            &circuit.id,
+            &id,
+        ));
+    }
+    doc.embedded_circuits.extend(mirrored_circuits);
     let mut changed: BTreeSet<String> = link_halves(
         doc,
         request,
@@ -1452,6 +1630,7 @@ fn new_board(
     .into_iter()
     .collect();
     changed.extend([to, instance_id.to_owned()]);
+    changed.extend(circuits.definitions.values().cloned());
     for correspondence in &correspondences {
         changed.insert(correspondence.source_id.clone());
         changed.insert(correspondence.mirror_id.clone());

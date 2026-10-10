@@ -1519,32 +1519,448 @@ fn a_mirrored_outline_identity_that_is_already_used_refuses_the_whole_record() {
     assert!(error.contains("right-link"), "{error}");
 }
 
+/// The VIK DRV2605L reference circuit, imported the way `module_circuit_electrical` imports it.
+const HAPTIC_SOURCE: &str = include_str!(
+    "../../catalogue/modules/sources/sadekbaroudi-vik/pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb"
+);
+
+fn imported_haptic() -> Value {
+    let source = json!({
+        "id":"import", "kind":"import-module-board", "definitionId":"haptic",
+        "name":"DRV2605L reference circuit", "source":HAPTIC_SOURCE,
+        "provenance":{"repository":"https://github.com/sadekbaroudi/vik",
+            "revision":"cd5d16e4cd9137a229fc673412a89d75f4e64553",
+            "path":"pcb/haptic-drv2605l/haptic-drv2605l.kicad_pcb",
+            "license":"CERN-OHL-S-2.0"},
+        "family":"feedback", "variant":"3V3 pullups with JP1 bridged",
+        "repair":"drv2605l-pullups3v3"
+    });
+    let reply: Value =
+        serde_json::from_str(&boardstudio_core::artifact::request(&source.to_string())).unwrap();
+    assert_eq!(reply["kind"], "import-module-board", "{reply}");
+    reply["result"].clone()
+}
+
+/// Embeds the haptic circuit as `id` on `board`, joining the given ports to host nets, and returns
+/// the document after the edit.
+fn embed_haptic(
+    engine: &mut CoreEngine,
+    document: &Value,
+    board: &str,
+    id: &str,
+    joins: Value,
+) -> Value {
+    let reply = request(
+        engine,
+        json!({"id": format!("embed-{id}"), "kind": "edit", "command": {
+            "baseRevision": document["revision"], "transactionId": format!("embed-{id}"),
+            "phase": "commit", "targetIds": [id], "operation": {
+                "kind": "embed-module-circuit", "id": id, "definition": imported_haptic(),
+                "hostBoardId": board, "pose": {"at": {"x": 120.0, "y": 40.0}, "rotation": 0.0},
+                "side": "front", "joins": joins}}}),
+    );
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    reply["document"].clone()
+}
+
+/// The net ids of `board`, in the board's order.
+fn board_nets(document: &Value, board: &str) -> Vec<String> {
+    document["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["id"] == board)
+        .unwrap()["netIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|id| id.as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn record<'a>(document: &'a Value, id: &str) -> &'a Value {
+    document["embeddedCircuits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == id)
+        .unwrap_or_else(|| panic!("embedded circuit {id} is missing"))
+}
+
+fn definition<'a>(document: &'a Value, id: &str) -> &'a Value {
+    document["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["id"] == id)
+        .unwrap_or_else(|| panic!("definition {id} is missing"))
+}
+
+fn net<'a>(document: &'a Value, id: &str) -> &'a Value {
+    document["nets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["id"] == id)
+        .unwrap()
+}
+
+/// The record's correspondences of one kind as (source id, mirror id) pairs.
+fn pairs_of_kind(document: &Value, pair_id: &str, kind: &str) -> BTreeSet<(String, String)> {
+    pair(document, pair_id)["halves"]["correspondences"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|c| c["kind"] == kind)
+        .map(|c| {
+            (
+                c["sourceId"].as_str().unwrap().to_owned(),
+                c["mirrorId"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// An embedded circuit mirrors with its namespace intact (ticket 28). `left-haptic` carries a board
+/// token, so it mirrors as `right-haptic`; `review/haptic` carries none, so it mirrors as
+/// `right/review/haptic`. Under the board-prefix rule alone a member would become
+/// `right/embedded/...`, outside the `embedded/<id>/` namespace that `modules::circuit` reads. Each
+/// member and private net moves under its circuit's mirror namespace, each member keeps its side and
+/// generator parameters, takes the pair map and the full heading rule, and each copied definition
+/// is the source's with only its id changed. A port that joins a host net mirrors to the host
+/// mirror net.
 #[test]
-fn hosted_embedded_circuits_are_refused_by_name() {
+fn a_board_with_embedded_circuits_mirrors_with_valid_namespaces_and_records() {
     let shipped = &projects()["corne"];
-    let mut doc = seed_document(shipped, "left");
-    doc["embeddedCircuits"] = json!([{"id": "circuit-1", "definitionId": "d", "hostBoardId": "left",
-        "partIds": [], "netIds": [], "ports": {}}]);
-    let opened: Value = serde_json::from_str(
-        &CoreEngine::new().request(&json!({"id":"o","kind":"open","document":doc}).to_string()),
-    )
-    .unwrap();
-    assert_ne!(opened["kind"], "error", "{opened}");
-    let (mut engine, seed) = open(&doc);
-    let error = refused(
-        &mut engine,
-        &seed,
-        operation(
-            "p",
+    for map in [
+        mapping(300.0),
+        json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
+    ] {
+        let (mut engine, seed) = seed(shipped, "left");
+        // The first host net of the left board stands for a host net the circuit joins.
+        let joined = board_nets(&seed, "left")[0].clone();
+        let one = embed_haptic(
+            &mut engine,
+            &seed,
+            "left",
+            "left-haptic",
+            json!({"gnd": joined}),
+        );
+        let source = embed_haptic(&mut engine, &one, "left", "review/haptic", json!({}));
+        let before = snapshot(&mut engine);
+        let reply = create(
+            &mut engine,
+            &source,
+            "pair-right",
             "left",
             new_board("right", "right"),
-            shipped_mapping(shipped),
+            map.clone(),
+        )
+        .unwrap();
+        let document = &reply["document"];
+        let rotation = map["rotation"].as_f64().unwrap();
+        let mirror_joined = pairs_of_kind(document, "pair-right", "net")
+            .into_iter()
+            .find(|(source, _)| *source == joined)
+            .expect("the joined host net has a mirror")
+            .1;
+        let at = |p: &Value| {
+            (
+                p["pose"]["at"]["x"].as_f64().unwrap(),
+                p["pose"]["at"]["y"].as_f64().unwrap(),
+            )
+        };
+
+        for (source_id, mirror_id) in [
+            ("left-haptic", "right-haptic"),
+            ("review/haptic", "right/review/haptic"),
+        ] {
+            let original = record(&source, source_id);
+            let mirrored = record(document, mirror_id);
+            let from = format!("embedded/{source_id}/");
+            let to = format!("embedded/{mirror_id}/");
+            let mapped = |id: &str| -> String {
+                id.strip_prefix(&from)
+                    .map_or_else(|| id.to_owned(), |rest| format!("{to}{rest}"))
+            };
+            assert_eq!(mirrored["hostBoardId"], "right", "{mirror_id}");
+            assert_eq!(
+                mirrored["definitionId"], original["definitionId"],
+                "{mirror_id}"
+            );
+
+            let source_parts: Vec<&str> = original["partIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| p.as_str().unwrap())
+                .collect();
+            let mirror_parts: Vec<String> = source_parts.iter().map(|p| mapped(p)).collect();
+            assert_eq!(
+                mirrored["partIds"],
+                json!(mirror_parts),
+                "{mirror_id} parts"
+            );
+            assert!(
+                mirror_parts.iter().all(|p| p.starts_with(&to)),
+                "{mirror_id}: a member is outside {to}"
+            );
+
+            // Private nets move under the namespace; the joined host ground maps to the host mirror.
+            let mut mirror_nets = Vec::new();
+            for net_id in original["netIds"].as_array().unwrap() {
+                let net_id = net_id.as_str().unwrap();
+                if net_id.starts_with(&from) {
+                    mirror_nets.push(mapped(net_id));
+                } else {
+                    assert_eq!(
+                        net_id, joined,
+                        "{mirror_id}: only the joined net is a host net"
+                    );
+                    mirror_nets.push(mirror_joined.clone());
+                }
+            }
+            assert_eq!(mirrored["netIds"], json!(mirror_nets), "{mirror_id} nets");
+            let mirror_ports: serde_json::Map<String, Value> = original["ports"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(role, net_id)| {
+                    let net_id = net_id.as_str().unwrap();
+                    let mirrored_net = if net_id == joined {
+                        mirror_joined.clone()
+                    } else {
+                        mapped(net_id)
+                    };
+                    (role.clone(), json!(mirrored_net))
+                })
+                .collect();
+            assert_eq!(
+                mirrored["ports"],
+                Value::Object(mirror_ports),
+                "{mirror_id} ports"
+            );
+
+            for (source_part, mirror_part) in source_parts.iter().zip(&mirror_parts) {
+                let (s, m) = (part(&source, source_part), part(document, mirror_part));
+                assert_eq!(m["side"], s["side"], "{mirror_part} side");
+                assert_eq!(
+                    m["generatorParameters"], s["generatorParameters"],
+                    "{mirror_part} parameters"
+                );
+                // The component definition moves with the namespace and keeps its content.
+                let (source_def, mirror_def) = (
+                    s["definitionId"].as_str().unwrap(),
+                    mapped(s["definitionId"].as_str().unwrap()),
+                );
+                assert_eq!(
+                    m["definitionId"],
+                    json!(mirror_def),
+                    "{mirror_part} definition"
+                );
+                let mut expected_def = definition(&source, source_def).clone();
+                expected_def["id"] = json!(mirror_def);
+                if expected_def["mechanicalProfile"].is_object() {
+                    expected_def["mechanicalProfile"]["definitionId"] = json!(mirror_def);
+                }
+                assert_eq!(
+                    definition(document, &mirror_def),
+                    &expected_def,
+                    "{mirror_part} definition copy"
+                );
+                // Position through the pair map, heading by the full rule (180 - r on an axis map).
+                let source_at = at(s);
+                let expected_at = reflected_point(&map, source_at);
+                assert_point(at(m), expected_at, mirror_part);
+                let heading = s["pose"]["rotation"].as_f64().unwrap();
+                assert!(
+                    angles_match(
+                        m["pose"]["rotation"].as_f64().unwrap(),
+                        rotation + 180.0 - heading
+                    ),
+                    "{mirror_part}: {} from {heading} under map {rotation}",
+                    m["pose"]["rotation"]
+                );
+            }
+
+            // Each private net keeps its pins on the mirrored members.
+            for net_id in original["netIds"].as_array().unwrap() {
+                let net_id = net_id.as_str().unwrap();
+                if !net_id.starts_with(&from) {
+                    continue;
+                }
+                let pins: Vec<Value> = net(&source, net_id)["pins"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|pin| json!({"partId": mapped(pin["partId"].as_str().unwrap()), "padId": pin["padId"]}))
+                    .collect();
+                assert_eq!(
+                    net(document, &mapped(net_id))["pins"],
+                    json!(pins),
+                    "{mapped_net} pins",
+                    mapped_net = mapped(net_id)
+                );
+            }
+            // The mirror of the joined host net carries every member pin this circuit puts on it.
+            if original["ports"]["gnd"] == joined.as_str() {
+                let mirror_pins = net(document, &mirror_joined)["pins"].as_array().unwrap();
+                for pin in net(&source, &joined)["pins"].as_array().unwrap() {
+                    let partid = pin["partId"].as_str().unwrap();
+                    if partid.starts_with(&from) {
+                        let expected = json!({"partId": mapped(partid), "padId": pin["padId"]});
+                        assert!(
+                            mirror_pins.contains(&expected),
+                            "{mirror_id}: {expected} on the mirror of the joined net"
+                        );
+                    }
+                }
+            }
+            assert!(
+                pairs_of_kind(document, "pair-right", "embedded-circuit")
+                    .contains(&(source_id.to_owned(), mirror_id.to_owned())),
+                "{mirror_id} correspondence"
+            );
+        }
+
+        // No mirror id leaves the namespace, and the part and circuit correspondences are recorded.
+        assert!(
+            !document.to_string().contains("right/embedded/"),
+            "a mirror id left the namespace"
+        );
+        assert_eq!(
+            pairs_of_kind(document, "pair-right", "embedded-circuit"),
+            [
+                ("left-haptic", "right-haptic"),
+                ("review/haptic", "right/review/haptic"),
+            ]
+            .map(|(a, b)| (a.to_owned(), b.to_owned()))
+            .into()
+        );
+        assert!(pairs_of_kind(document, "pair-right", "part").contains(&(
+            "embedded/left-haptic/C1".into(),
+            "embedded/right-haptic/C1".into()
+        )));
+
+        // Every new circuit member, net and definition is reported as changed.
+        let changed: BTreeSet<String> = reply["scene"]["changedIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| id.as_str().unwrap().to_owned())
+            .collect();
+        for id in [
+            "right-haptic",
+            "right/review/haptic",
+            "embedded/right-haptic/C1",
+        ] {
+            assert!(changed.contains(id), "{id} missing from {changed:?}");
+        }
+        // The whole edit is one Undo step, and the record reopens as a valid document.
+        let mut undone =
+            request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+        undone["revision"] = before["revision"].clone();
+        assert_eq!(undone, before);
+        let (_, reopened) = open(document);
+        assert_eq!(record(&reopened, "right-haptic")["hostBoardId"], "right");
+    }
+}
+
+/// A board with a mounted module and an embedded circuit mirrors both: the module by ticket 27's
+/// rule, the circuit by ticket 28's, and the record names each of them.
+#[test]
+fn a_circuit_and_a_module_on_one_board_mirror_together() {
+    let shipped = &projects()["corne"];
+    let mut source = seed_document(shipped, "left");
+    add_two_splitters(&mut source, "left", "left");
+    let (mut engine, seed) = open(&source);
+    let with_circuit = embed_haptic(&mut engine, &seed, "left", "left-haptic", json!({}));
+    let reply = create(
+        &mut engine,
+        &with_circuit,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    let expected_modules: BTreeSet<(String, String)> = [
+        ("left/splitter-above", "right/splitter-above"),
+        ("left/splitter-below", "right/splitter-below"),
+    ]
+    .map(|(a, b)| (a.to_owned(), b.to_owned()))
+    .into();
+    assert_eq!(module_pairs(document, "pair-right"), expected_modules);
+    assert_eq!(
+        pairs_of_kind(document, "pair-right", "embedded-circuit"),
+        [("left-haptic", "right-haptic")]
+            .map(|(a, b)| (a.to_owned(), b.to_owned()))
+            .into()
+    );
+    assert_eq!(
+        module(document, "right/splitter-above")["connection"]["hostConnectorPartId"],
+        "right/TRRS"
+    );
+    assert_eq!(record(document, "right-haptic")["hostBoardId"], "right");
+}
+
+/// A mirror circuit id that is already a circuit on the source board refuses the record by name, and
+/// the document stays byte-identical.
+#[test]
+fn a_mirror_circuit_id_already_in_use_refuses_the_record_and_changes_nothing() {
+    let shipped = &projects()["corne"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let one = embed_haptic(&mut engine, &seed, "left", "left-haptic", json!({}));
+    let two = embed_haptic(&mut engine, &one, "left", "right-haptic", json!({}));
+    let error = refused(
+        &mut engine,
+        &two,
+        operation(
+            "pair-right",
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
         ),
     );
     assert!(
-        error.contains("embedded circuit circuit-1") && error.contains("cannot be mirrored yet"),
+        error.contains("\"right-haptic\" already exists")
+            && !error.contains("cannot be mirrored yet"),
         "{error}"
     );
+}
+
+/// Reuse-board copies no circuit. An embedded circuit belongs to its board, not to an instance (the
+/// model has no instance pin), so the flipped instance shows it without a copy.
+#[test]
+fn reuse_board_copies_no_embedded_circuit_because_it_belongs_to_the_board() {
+    let shipped = &projects()["corne"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let with_circuit = embed_haptic(&mut engine, &seed, "left", "left-haptic", json!({}));
+    let before = snapshot(&mut engine);
+    let reply = create(
+        &mut engine,
+        &with_circuit,
+        "pair-flip",
+        "left",
+        json!({"kind":"reuse-board","instanceId":"flipped"}),
+        json!({"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    assert_eq!(document["embeddedCircuits"], before["embeddedCircuits"]);
+    let circuit_parts = |doc: &Value| -> Vec<Value> {
+        doc["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["id"].as_str().unwrap().starts_with("embedded/"))
+            .cloned()
+            .collect()
+    };
+    assert_eq!(circuit_parts(document), circuit_parts(&before));
+    assert!(instance(document, "flipped")["flipped"].as_bool().unwrap());
+    assert!(pairs_of_kind(document, "pair-flip", "embedded-circuit").is_empty());
 }
 
 /// The VIK module catalogue the shipped demo takes its definitions from.

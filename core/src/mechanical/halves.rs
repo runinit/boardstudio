@@ -188,8 +188,8 @@ fn validate_halves(
 
 /// Whether an item of `kind` with `id` exists on the board `board_id`. Assemblies are definitions
 /// that belong to the document rather than to a board, so the board is not consulted for them.
-/// Parts, outlines and nets are listed by the board; a matrix, layout or module names its board;
-/// mechanical features belong to the pair.
+/// Parts, outlines and nets are listed by the board; a matrix, layout, module or embedded circuit names
+/// its board; mechanical features belong to the pair.
 fn item_exists(
     document: &ProjectDoc,
     pair: &MechanicalMirrorPair,
@@ -236,6 +236,10 @@ fn item_exists(
             outline.board_id == board_id && outline.versions.iter().any(|version| version.id == id)
         }),
         MirroredItemKind::MechanicalFeature => pair.features.iter().any(|feature| feature.id == id),
+        MirroredItemKind::EmbeddedCircuit => document
+            .embedded_circuits
+            .iter()
+            .any(|circuit| circuit.id == id && circuit.host_board_id == board_id),
     }
 }
 
@@ -252,6 +256,7 @@ fn kind_name(kind: MirroredItemKind) -> &'static str {
         MirroredItemKind::ElectricalBoard => "electrical-board",
         MirroredItemKind::OutlineVersion => "outline-version",
         MirroredItemKind::MechanicalFeature => "mechanical-feature",
+        MirroredItemKind::EmbeddedCircuit => "embedded-circuit",
     }
 }
 

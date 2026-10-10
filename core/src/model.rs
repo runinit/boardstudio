@@ -1092,6 +1092,8 @@ pub enum MirroredItemKind {
     /// A fixed outline version of a board (`boardOutlines`, by version id).
     OutlineVersion,
     MechanicalFeature,
+    /// An embedded circuit hosted on the board (`embeddedCircuits`, by its host board).
+    EmbeddedCircuit,
 }
 
 /// Where a [`EditOperation::CreateMirroredHalf`] puts the second half.
