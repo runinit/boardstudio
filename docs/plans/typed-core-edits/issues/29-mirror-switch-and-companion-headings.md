@@ -1,6 +1,6 @@
 # 29: Mirror switches on X only and choose companion headings
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-key-switches-and-their-companions-2026-10-10)
