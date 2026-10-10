@@ -246,10 +246,8 @@ const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
     "ceoloide/mounting_hole_npth",
 ];
 
-/// Imported footprints that equal their own mirror image about the vertical axis, so a mirrored
-/// copy at the reflected heading is certain. The MX stabilisers (`STAB_MX_2u`, `STAB_MX_6.25u`)
-/// have pads at exactly `+-x` on the same `y`; they are not symmetric under a half turn, which is
-/// why they are matched here and the mirror (not a turn) places them.
+/// Imported MX stabilisers: ADR-0010 keeps their world heading in every companion mode. Their
+/// position takes the X reflection, and they never raise an uncertain-heading finding.
 const SYMMETRIC_DEFINITIONS: [&str; 2] = [
     "kicad:marbastlib/STAB_MX_2u",
     "kicad:marbastlib/STAB_MX_6.25u",
@@ -1120,6 +1118,81 @@ fn circuit_mirror(
     Ok(mirror)
 }
 
+/// Repairs only absent matrix companions on the draft. Generate into a scratch document so
+/// existing source parts, authored poses, sides and generator parameters remain untouched.
+/// Return the repaired ids: their mirrors keep a durable literal fallback instead of the
+/// requested duplicate/tweak mode. A missing switch is a validation error, never a repair.
+fn materialise_missing_companions(
+    doc: &mut ProjectDoc,
+    board_id: &str,
+) -> Result<BTreeSet<String>, String> {
+    let matrices: Vec<_> = doc
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.board_id.as_deref() == Some(board_id))
+        .cloned()
+        .collect();
+    let mut repaired = BTreeSet::new();
+    for matrix in matrices {
+        crate::matrix::valid_matrix(&matrix, doc)?;
+        let mut missing = BTreeSet::new();
+        for row in 0..matrix.rows {
+            for column in 0..matrix.columns {
+                let cell = matrix
+                    .cells
+                    .iter()
+                    .find(|cell| cell.row == row && cell.column == column);
+                if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
+                    continue;
+                }
+                let key_id = format!("matrix/{}/r{row}c{column}", matrix.id);
+                if !doc.parts.iter().any(|part| part.id == key_id) {
+                    return Err(format!(
+                        "A companion's source switch {key_id:?} is unavailable"
+                    ));
+                }
+                for assembly in cell.into_iter().flat_map(|cell| &cell.assemblies) {
+                    let id = crate::matrix::companion_id(&key_id, &assembly.id);
+                    if !doc.parts.iter().any(|part| part.id == id) {
+                        missing.insert(id);
+                    }
+                }
+            }
+        }
+        if missing.is_empty() {
+            continue;
+        }
+        let mut generated = doc.clone();
+        crate::matrix::set_matrix(&mut generated, &matrix)?;
+        doc.parts.extend(
+            generated
+                .parts
+                .into_iter()
+                .filter(|part| missing.contains(&part.id)),
+        );
+        let source_matrix = doc
+            .matrices
+            .iter_mut()
+            .find(|source| source.id == matrix.id)
+            .ok_or("The source matrix is unavailable")?;
+        let board = doc
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .ok_or("The source board is unavailable")?;
+        for id in &missing {
+            if !source_matrix.part_ids.contains(id) {
+                source_matrix.part_ids.push(id.clone());
+            }
+            if !board.part_ids.contains(id) {
+                board.part_ids.push(id.clone());
+            }
+        }
+        repaired.extend(missing);
+    }
+    Ok(repaired)
+}
+
 fn new_board(
     doc: &mut ProjectDoc,
     request: &Request,
@@ -1135,6 +1208,7 @@ fn new_board(
         return Err(format!("Board {to:?} already exists."));
     }
     ensure_instance_fresh(doc, instance_id)?;
+    let repaired_companions = materialise_missing_companions(doc, &from)?;
     let source_board = doc
         .boards
         .iter()
@@ -1343,11 +1417,32 @@ fn new_board(
                 continue;
             }
             for assembly in &mut cell.assemblies {
+                let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+                let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
+                if SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str()) {
+                    let key = doc
+                        .parts
+                        .iter()
+                        .find(|part| part.id == key_id)
+                        .ok_or("A companion's source switch is unavailable")?;
+                    let companion = doc
+                        .parts
+                        .iter()
+                        .find(|part| part.id == companion_id)
+                        .ok_or("A source companion is unavailable")?;
+                    // Assemblies store a heading relative to the mirrored switch. Cancel that
+                    // switch's reflected tilt so the stabiliser keeps its source world heading.
+                    assembly.rotation = Some(
+                        companion.pose.rotation - pair::forward_angle(mapping, key.pose.rotation),
+                    );
+                    continue;
+                }
+                if repaired_companions.contains(&companion_id) {
+                    continue;
+                }
                 match request.companion_mode {
                     MirroredCompanionMode::LiteralMirror => {}
                     MirroredCompanionMode::DuplicatePosition => {
-                        let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
-                        let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
                         let key = doc
                             .parts
                             .iter()
@@ -1440,7 +1535,9 @@ fn new_board(
         .partition(|id| !circuits.owned.contains_key(id.as_str()));
     for id in own.into_iter().chain(members) {
         let mut correspondence = corresponds(MirroredItemKind::Part, id, &part_map[*id]);
-        if companion_ids.contains(id.as_str()) {
+        if repaired_companions.contains(id.as_str()) {
+            correspondence.companion_mode = Some(MirroredCompanionMode::LiteralMirror);
+        } else if companion_ids.contains(id.as_str()) {
             correspondence.companion_tweak = request.companion_tweak;
         }
         correspondences.push(correspondence);
