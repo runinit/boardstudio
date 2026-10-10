@@ -1,6 +1,6 @@
 # 37: Replace fixed sleeps in the remaining browser suites (layout, library, ui-shared, keycaps, keymap helpers, page; plus what 36 left in case, pcb and parts)
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [36](36-sleeps-case-pcb-parts.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
