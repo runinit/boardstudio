@@ -6,7 +6,8 @@ before planning a dispatch, changing files, requesting checks or handing work to
 may lag. Confirm current worktree status and index freshness in the granted command window; a snapshot is not a lease.
 
 [Parallel-streams decision](parallel-streams-review.md) is approved: B Core work remains serial; isolated A/F streams
-may receive separate edit leases after exact audits and105 verification. Approval does not grant unlisted files or commands.
+may receive separate edit leases after exact audits and the original 105 verification session ends. A Core-only acceptance
+gap does not block audited independent work. Approval does not grant unlisted files or commands.
 
 ## Coordinators
 
@@ -21,8 +22,8 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
-| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | Reserved `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`; root setup before reads | START focused remaining37 path/helper audit in a root read window, then one bounded test-only implementation lease after105 verification. 38 still waits for complete37. |
-| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 implemented at `ddfd81b2c`, awaiting fresh verifier. Core children stay serial with exclusive Core leases; no automatic106 release. |
+| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`, base `f2d180c6`; own target/CAD cache | Child128 claimed at `cf148ed6`; full30-test list and five-test pre-edit baseline passed. Luna high may edit leased tests without shell; next check window requested separately. 38 still waits for complete37. |
+| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 resolved at `09e07a7a`, integrated by root. 106 brief ready; setup/edits wait root sync/index and START. Core chain remains serial. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
@@ -63,12 +64,63 @@ it never grants concurrent builds, browsers or timing work. Request a window fro
 the last command. Root waits for release before granting the next owner. Web research or planning without shell commands
 may continue. Read-only shell commands also use the window. See [parallel-lanes.md](parallel-lanes.md) for shared file owners.
 
-Current root window: approved scheduling/docs/setup and A focused audit; B105 implementation is finished and its fresh
-verifier waits for root to return the command window. F continues web/evidence review without shell. Root publishes explicit
-handovers; A/F code starts only after105 verification and exact readiness leases. C/D/E implementation remains gated.
+Current queue: A128 initial setup is released at `cf148ed6`, before baseline/list compilation or source edits.
+F119 claim is committed at `a5bc4359`; its drawing download/render window is released with independently viewed manufacturer pixels.
+A128 baseline/list is released: exactly30 names, five leased tests pass. Root's tiny source read supplied F the v2 SW26 pose
+from `content/layouts/sofle-layouts.json:178` (96.7,133.41,300 degrees). B105 red exited101 solely for four missing
+`companion_assembly` calls, without incidental fixture errors, and its command window is released. Root grants B bounded
+non-shell production extraction in its two leased Rust source files; this is structural missing-helper evidence, not proof of
+a behavior bug. A/F may edit disjoint leased tests without shell. Root commits this tracking update, then F119 focused
+checks and A128 probes/checks request subsequent command slots; B targeted green follows when ready.
+Root's tracking update is committed at `ae523b45`. F119 focused qualification tests pass4/4 and its window is released;
+test/ticket edits await format/lint/repo/commit and fresh independent acceptance, especially reference-dimension tolerance.
+B105 targeted helper1/1 and affected repo/lint/test/typecheck pass (98.8s), implementation committed `06983eb9` after
+complete graph coverage (17symbols/3files/10creationflows,HIGH). F119 repo/lint and77footprints tests pass, implementation
+committed `a0ec8456` after complete staged graph coverage (20symbols/2files,LOW); report/118 remain outside that commit.
+Both implementers stopped. A128 focused run released after import correction and repeated dimensions-gate timeout;
+three converted tests and unchanged retirement pass, dimensions and retirement-proof acceptance remain open. A's diagnosis
+found the previous attempted readiness correction was after the failing point. Root allows one non-shell correction at the
+actual pre-legend boundary, then one focused dimensions test in a later slot; no speculative reruns or retirement change.
+B105 is independently VERIFIED/resolved at `09e07a7a`; four new helper mutants were caught, restored affected checks pass,
+and the lane is clean with Rust bytes unchanged from `06983eb9`. Its command window is released. A's corrected dimensions
+run released: original timeout cleared, later Undo assertion fails because the accepted-None wait was vacuous; edits/reruns
+paused for exact-operation completion diagnosis. F119 now owns fresh Luna high revision setup, then non-shell test edits.
+Root merges verified105 and updates tracking/index before releasing106. Parent19 remains open.
+F119 fresh independent review found incomplete acceptance: reference-pad tolerance
+unestablished, rotation oracle has wrong sign, B300/model-transform coverage missing. No F mutation or source-fix lease yet;
+Root approves the original119-compatible selected nominal configuration: existing public front/back outer pad widths2.55,
+nonreversible hot-swap F/B0/90/300, numerical epsilon only. Default2.6 stays unchanged and explicitly unqualified against
+that target; no recipe application or physical fit claim. F's bounded test-only revision lease is new qualification test+119
+tracking only, using fresh Luna high after its upcoming setup grant. No revision dispatch or commands until B then A release.
+A's one corrected focused test is queued. F119 remains implemented awaiting verification despite passing77crate tests.
+All heavy checks need explicit grants. B's Core-only acceptance
+gap stays in B and does not block A/F. Root publishes explicit handovers; exact readiness leases remain required.
+C/D/E implementation remains gated. Non-shell disjoint edits may overlap ordinary checks in another checkout.
 105's source lease is `core/src/mirrored_half.rs`, narrowly necessary existing helpers in `core/src/matrix/layout.rs`,
 creation tests in `core/tests/mirrored_half.rs`, and permitted private `core/src/mirrored_half/` child modules.
 Ticket 105's own tracking file is writable by its implementer/verifier. Other paths require root assignment first.
+Proposed106 initial write lease: `core/src/mirrored_half.rs` (private module/glue only), new private
+`core/src/mirrored_half/reconcile.rs` (forward kernel and direct unit tests), and106 tracking. Existing derive.rs,
+mechanical/halves.rs, matrix.rs, matrix/layout.rs and creation tests are read-only initially. Before necessary helper edits,
+B reports exact symbol/behavior/callers/risk for root's additional lease; no existing visibility widening or lib.rs activation.
+The current105 revision is narrower: only `core/src/mirrored_half.rs`, `core/src/mirrored_half/derive.rs`,
+`core/tests/mirrored_half.rs` and105 tracking. No additional child file, layout/model/lib/API/golden/runtime activation edit.
+Extract private companion/tweak/stabiliser value derivation; preserve existing Part helper evidence and31/39 contracts.
+Reserved A128 lease: `web/crates/keycaps/src/keycaps_settings.rs`, restricted to `queued_settings_tests` and local
+`mounted_legend`; plus `docs/plans/typed-core-edits/issues/128-keycaps-queued-settings-waits.md`. No production/shared-helper,
+Core, catalogue, model or golden edits. Audit found LOW impact for `mounted_legend` (four test callers) and UNKNOWN for a
+WASM test entrypoint, confirmed in source; this is not complete graph proof of independence. Keep five test names/assertions,
+all30 keycaps test names and an explicit bounded negative-idle proof for owner retirement. Parent37/38 gates stay intact.
+Root permits test-local `Probe`, `host` and their initializer sites within that same module for causal retirement evidence.
+This does not approve hook-order/version assumptions or a render-counter proof; implementation and fresh verification must
+establish causal sufficiency. No production/shared helper is added to the lease, and baseline/list precedes source edits.
+F's non-shell documentation lease covers `docs/plans/typed-core-edits/audit/sofle-adaptation-hardware-candidates.md`
+and `docs/plans/typed-core-edits/issues/118-sofle-adaptation-hardware-contract.md`; Luna medium has drafted them.
+F's audit confirmed existing `footprints/src/generators/ceoloide/switch_mx.rs` stays read-only. F may draft
+`docs/plans/typed-core-edits/issues/119-mx-hotswap-socket-qualification.md` without shell. F119's granted source lease is only
+new `footprints/tests/mx_socket_qualification.rs` plus119 tracking: Luna medium starts with its explicit setup window,
+then non-shell test writing may overlap A's ordinary checks in a separate checkout. No geometry edit is authorized.
+Official drawing comparison remains to be implemented. Electrical/firmware/stack qualification remains open.
 Maps, this registry, CONTEXT, ADRs and generated goldens remain root-owned. `scripts/check.py` remains C-owned,
 with edits requiring C's explicit active lease. F owns its report/component plans only after a root write window.
 
@@ -80,15 +132,15 @@ checkout or inputs; every shell command, including reads and commits, uses the s
 
 ## Integration and graph snapshot
 
-2026-10-10: integration at `bc4dbc7d`; full default check passed source batch `12a6784d` in 813.3 s
+2026-10-10: integration includes verified105 from `09e07a7a`; full default check last passed source batch `12a6784d` in 813.3 s
 (70 presentation tests, zero failures; 15 CAD browser checks). Later changes are orchestration documentation.
-B is synchronized at `3570e8d9`; `boardstudio-lane-mirror-core` was confirmed current before dispatch.
+B is at `09e07a7a`; `boardstudio-lane-mirror-core` was current at `06983eb9` before the resolution-only documentation commit.
 Integration uses `boardstudio-tce-matrix`; root refreshes after this documentation commit.
 F has synced source `64510cb0` and candidate report `b9e93fab`; its bound index is `boardstudio-ts-boardstudio2`,
 behind these documentation commits. F source research must state this limitation and confirm unresolved graph answers.
 Each actual dispatch rechecks HEAD/status/freshness; coordinator prompts do not certify future state.
 
 Sofle hardware selection/review and eventual component implementation stay in F. Root retains shared scheduling/merges.
-The candidate report predates the delegated-selection instruction; F will update its selection gates in its next write window.
+F's delegated-selection report amendment and118 draft await safe inspection/checks/commit in a command window.
 The entire 19 parent remains open until final child activation and complete acceptance; 114 still needs constraint decisions.
 Ticket 37 remains partial, and 38 is blocked. These distinctions survive every handoff.
