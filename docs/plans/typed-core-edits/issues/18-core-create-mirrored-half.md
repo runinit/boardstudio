@@ -34,3 +34,16 @@ Create the second half from the first in Core. Today `CreateMirroredPair`
 
 Core native tests; boundary transcript appended and passing native and WASM.
 GitNexus `impact` on `layout::reflected` and the edit apply path first.
+
+## Carried from 17's verification
+
+- Add the item kinds the record still lacks when this ticket first writes them: embedded circuits,
+  the electrical board configuration, fixed outline versions (`BoardOutline` is per board) and keycap
+  configuration. `MirroredItemKind` has `module` already. Validation must learn each kind's owner
+  (`core/src/mechanical/halves.rs` `item_exists`).
+- Validation allows source and mirror on one board (reuse-board) but refuses a second record that
+  names a board already in a record. Decide whether a reused or reversible board can be a half of
+  several records, and relax the rule with a test if so.
+- `halves` requires `constructionSource`, and its boards must be the boards of the two members, so
+  create the pair and its instances in one accepted edit.
+- Linking a pair never empties a half's stored closure list; a created half starts with none.

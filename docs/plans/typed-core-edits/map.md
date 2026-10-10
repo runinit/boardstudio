@@ -71,6 +71,12 @@ and for any bulk action a recorded decision permits.
   moved, a reused flipped-PCB demonstration and six Core request tests landed; repo, lint, build
   and native test pass, while mounted/live checks and the Standards/Spec reviews remain:
   [Outcome](issues/04-refresh-included-keyboards.md#outcome).
+- 17 mirrored-half schema and format version 5 land: the mechanical pair gains optional
+  `constructionSource` (recorded by `link-mirror-pair` and used by the closure rule, first member
+  when absent) and `halves` (boards, correspondences, exceptions) with located validation that
+  also runs on Open; the v4 to v5 step changes only `formatVersion`; the boundary transcript moves
+  by `formatVersion` only. Verification removed an implementer change that could delete a half's
+  own closure mounts and added the module kind: [Outcome](issues/17-mirrored-half-schema-and-format-5.md#outcome).
 - 01 `SetWiringMode` lands through a typed Core intent with precise board IDs and ordered
   Undo: [Outcome](issues/01-set-wiring-mode.md#outcome).
 - 15 integrated outline verification closes the outline phase: the typed outline transcript is
@@ -116,6 +122,8 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
+- Native mirrored halves: [18](issues/18-core-create-mirrored-half.md) is ready (17 is resolved);
+  19 to 23 follow it.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
   (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
   which is blocked only by matrix 11.

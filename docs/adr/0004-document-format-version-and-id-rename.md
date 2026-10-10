@@ -32,4 +32,5 @@ Format version 5 (mirrored halves, [ticket 17](../plans/typed-core-edits/issues/
 [ADR-0010](0010-mirrored-half-is-a-core-maintained-reflection.md)) adds optional `constructionSource`
 and `halves` to mechanical mirror pairs. The version 4 to 5 step changes only `formatVersion`, so
 no data is rewritten and a pair without the new fields stays unpaired. An older build refuses a
-version 5 document, so it cannot drop the record silently.
+version 5 document, so it cannot drop the record silently. Core's `Open` refuses a record that
+names a missing board or item, or repeats a correspondence, with a message that locates it.

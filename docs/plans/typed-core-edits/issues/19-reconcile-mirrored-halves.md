@@ -33,3 +33,10 @@ made on the mirror.
 
 Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply` and
 `layout::resolve` is CRITICAL: list callers before editing.
+
+## Carried from 17's verification
+
+- Record validation runs on mechanical edits, ReplaceDocument and Open only. Re-validate after every
+  accepted edit, and drop or repair correspondences and exceptions when an unrelated edit removes
+  an item they name; otherwise every later mechanical edit is refused with a located message about
+  a record the user never touched.
