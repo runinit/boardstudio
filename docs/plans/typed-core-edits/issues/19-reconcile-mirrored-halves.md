@@ -46,3 +46,5 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
 - Companion placement mode and tweak per item ([31](31-companion-placement-modes.md)): reconciliation re-derives each companion by its stored mode
   and keeps its tweak.
 - Labels ([32](32-mirrored-half-labels.md)): reconciliation never rewrites instance labels.
+
+- Stabilisers keep their heading and companions fall back to the X mirror ([39](39-stabilisers-and-companion-fallback.md)); the mode is editable later through [40](40-set-companion-placement-operation.md), which needs reconciliation to re-derive the affected companions.

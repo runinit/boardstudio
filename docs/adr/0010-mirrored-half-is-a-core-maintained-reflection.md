@@ -133,3 +133,14 @@ for lack of a reflection rule any more.
 - **Labels.** Core does not refuse a source that is neither left nor right. The
   `CreateMirroredHalf` request carries optional labels for the source and the mirror
   (name, half, role) so the caller can rename them; otherwise the labels are kept.
+
+## Amendment: stabilisers, fallbacks and editing the mode (2026-10-10)
+
+- **Stabilisers are never rotated.** A stabiliser keeps its position mirrored on X and its heading unchanged, in
+  every companion mode. The relative-heading difference between duplicate and literal mirror does not apply to it.
+- **No unmaterialised parts, and a safe default.** Every matrix cell on a mirrored half has its parts. If a
+  companion's source part is missing anyway, the mirror defaults to the X-coordinate mirror of the switch's
+  companion position instead of erroring.
+- **The mode is editable after creation, in the Inspector.** The Inspector panel changes the companion placement
+  mode (and tweak) for one companion, a row or a column, a whole matrix, one part, or several selected parts
+  at once. Core exposes one typed operation for it; the Inspector builds the target list from the selection.
