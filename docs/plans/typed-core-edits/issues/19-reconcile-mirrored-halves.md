@@ -63,10 +63,14 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
 Status remains `ready-for-agent`, but this parent is blocked until **all 105–117 are
 independently resolved** and root explicitly grants a fresh verifier the final parent
 acceptance review. Root coordinates that gate; it does not verify its dispatched work.
-The original acceptance above is unchanged. The children form one sequential execution
-batch that runs **alone**, with a Luna 6 high implementer followed by a fresh Sol 6.1 xhigh
+The original acceptance above is unchanged. The Core children form one sequential execution
+batch with exclusive Core file/API leases, with a Luna 6 high implementer followed by a fresh Sol 6.1 xhigh
 verifier per slice. Root owns scheduling, integration, the full batch check and graph refresh.
 No partial reconciliation is activated in production before 111 joins the verified slices.
+The user approved independent A/F streams on 2026-10-10: audited disjoint browser-test/component edits may overlap
+Core preparation under the [central registry](../lane-registry.md) and [parallel-streams decision](../parallel-streams-review.md).
+All shell/check commands remain globally sequential; activation and timing require exclusive windows.
+Active 105's original scope and verification remain unchanged; new code streams start after its verification.
 
 - [105](105-mirrored-half-derivation-kernel.md): private derivation kernel, creation unchanged.
 - [106](106-reconcile-mirrored-matrices-layouts-parts.md): matrices/layouts/parts and membership.
@@ -85,8 +89,8 @@ No partial reconciliation is activated in production before 111 joins the verifi
 - [111](111-integrate-mirrored-half-reconciliation.md): bounded final atomic activation, followed
   by a separate fresh verifier for this parent's full acceptance.
 
-Before the first implementation, root finishes 37, integrates/synchronizes prerequisite lanes,
-runs the batch check, refreshes `boardstudio-lane-mirror-core` and grants exclusive ownership.
+The prerequisite lanes and delivered 37 verification slice were integrated and checked at `12a6784d`;
+remaining 37 acceptance is separate A work. Root refreshes `boardstudio-lane-mirror-core` and grants exact ownership.
 Every child needs its own root-granted execution/check slots; completion is not permission
 to dispatch the next writer automatically. Generated transcripts and demo goldens stay root-owned.
 
