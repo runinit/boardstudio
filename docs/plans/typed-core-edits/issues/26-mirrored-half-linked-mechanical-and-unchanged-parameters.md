@@ -1,6 +1,6 @@
 # 26: CreateMirroredHalf mechanical features as linked pair features
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
