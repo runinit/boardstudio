@@ -2333,4 +2333,234 @@ mod tests {
         );
         assert_eq!(doc, accepted);
     }
+
+    // -- Equivalence: physical setup against CreateMirroredHalf (ticket 26) ---------------
+
+    /// The accepted starting document: one board with reversible layout on, and the unibody
+    /// instance a user has before splitting, carrying the board's linked mount and opening.
+    fn reversible_split_start() -> ProjectDoc {
+        let mut doc = document();
+        doc.parameters
+            .insert("reversibleLayout".into(), Value::Bool(true));
+        let mut settings = mechanical(&doc, 4.2);
+        settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
+        settings.openings = Some(vec![opening("opening-1")]);
+        settings.closure_mounts = Some(vec![
+            mount("closure-1", 4.0, 20.0),
+            mount("closure-2", 20.0, 4.0),
+        ]);
+        doc.mechanical = Some(settings.clone());
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![make_instance(
+                "left-new",
+                "board-a",
+                "unibody",
+                "standalone",
+                "Keyboard",
+                false,
+                settings,
+            )],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
+        doc
+    }
+
+    /// Side A: the physical-setup split, reversible layout on, submitted through Core.
+    fn physical_setup_split(start: &ProjectDoc) -> ProjectDoc {
+        propose_with_mirror_pair(
+            start,
+            SetupIntent::Topology {
+                board_id: "board-a".into(),
+                selected_instance_id: Some("left-new".into()),
+                split: true,
+                new_primary_id: "left-new".into(),
+                new_secondary_id: "right-new".into(),
+            },
+            keep_definition,
+        )
+        .expect("the split proposal is accepted")
+        .into_submission(Some(&mounting_hole_template()))
+        .expect("the physical-setup pair is established through Core")
+    }
+
+    /// Side B: the Core `CreateMirroredHalf` ReuseBoard operation on the same starting document,
+    /// with the flip map, the physical-setup pair id and the same mounting-hole template.
+    fn reuse_board_half(start: &ProjectDoc) -> ProjectDoc {
+        use boardstudio_core::model::{MirroredHalfMode, MirroredIdRule};
+        let mut engine = CoreEngine::new();
+        match engine.handle(CoreRequest::Open {
+            id: "equivalence-open".into(),
+            document: start.clone(),
+        }) {
+            CoreReply::Scene { .. } => {}
+            other => panic!("Core did not open the starting document: {other:?}"),
+        }
+        let command = EditCommand {
+            base_revision: start.revision,
+            transaction_id: "equivalence-half".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::CreateMirroredHalf {
+                pair_id: "pair/right-new".into(),
+                source_instance_id: "left-new".into(),
+                mode: MirroredHalfMode::ReuseBoard {
+                    instance_id: "right-new".into(),
+                },
+                mapping: Pose2 {
+                    at: Vec2::default(),
+                    rotation: 0.0,
+                },
+                id_rule: MirroredIdRule::BoardPrefix,
+                mounting_hole: Some(Box::new(mounting_hole_template())),
+            },
+        };
+        match engine.handle(CoreRequest::Edit {
+            id: "equivalence-edit".into(),
+            command,
+        }) {
+            CoreReply::Scene { document, .. } => *document,
+            other => panic!("Core refused CreateMirroredHalf: {other:?}"),
+        }
+    }
+
+    /// Every JSON leaf difference between two values, as (JSON pointer, A, B). A missing side
+    /// is `None`. Arrays of equal length compare element by element; any other mismatch is one row.
+    fn json_differences(
+        path: &str,
+        a: Option<&Value>,
+        b: Option<&Value>,
+        out: &mut Vec<(String, Option<Value>, Option<Value>)>,
+    ) {
+        match (a, b) {
+            (Some(Value::Object(x)), Some(Value::Object(y))) => {
+                let keys: BTreeSet<&String> = x.keys().chain(y.keys()).collect();
+                for key in keys {
+                    let escaped = key.replace('~', "~0").replace('/', "~1");
+                    json_differences(&format!("{path}/{escaped}"), x.get(key), y.get(key), out);
+                }
+            }
+            (Some(Value::Array(x)), Some(Value::Array(y))) if x.len() == y.len() => {
+                for (index, (p, q)) in x.iter().zip(y).enumerate() {
+                    json_differences(&format!("{path}/{index}"), Some(p), Some(q), out);
+                }
+            }
+            _ if a == b => {}
+            _ => out.push((path.into(), a.cloned(), b.cloned())),
+        }
+    }
+
+    /// A short, comparable rendering of one side of a difference row.
+    fn show(value: &Option<Value>) -> String {
+        match value {
+            None => "<absent>".into(),
+            Some(Value::Object(_)) => "object".into(),
+            Some(other) => other.to_string(),
+        }
+    }
+
+    /// Ticket 26: on one accepted reversible split document, physical setup (A) and the Core
+    /// `CreateMirroredHalf` ReuseBoard operation (B) must agree on everything the pair reflects.
+    /// The differences that remain are pinned exactly, so any new or vanished difference fails
+    /// with its JSON pointer. Findings, with their recommendation, are in ticket 26's Outcome.
+    #[test]
+    fn physical_setup_and_reuse_board_agree_on_a_reversible_split_pair() {
+        let start = reversible_split_start();
+        let a = serde_json::to_value(physical_setup_split(&start)).unwrap();
+        let b = serde_json::to_value(reuse_board_half(&start)).unwrap();
+
+        // Must be equal, and present (the comparison is not vacuous).
+        for pointer in [
+            "/hardware/pairs/0/id",
+            "/hardware/pairs/0/members",
+            "/hardware/pairs/0/mapping",
+            "/hardware/pairs/0/constructionSource",
+            "/hardware/pairs/0/construction",
+            "/hardware/pairs/0/features",
+            "/hardware/instances/1/flipped",
+            "/hardware/instances/1/controllerPartId",
+            "/hardware/instances/0/constructionOwnership",
+            "/hardware/instances/1/constructionOwnership",
+            "/hardware/instances/0/mechanical",
+            "/hardware/instances/1/mechanical",
+        ] {
+            let left = a.pointer(pointer);
+            assert!(left.is_some(), "A has no {pointer}");
+            assert_eq!(left, b.pointer(pointer), "{pointer} differs");
+        }
+        let features = a.pointer("/hardware/pairs/0/features").unwrap();
+        assert_eq!(
+            features.as_array().map(Vec::len),
+            Some(4),
+            "the shared mount, opening and both closure mounts are linked: {features}"
+        );
+        let closure_parts = |doc: &Value| {
+            doc["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|part| part["id"].as_str().unwrap().starts_with("case-closure/"))
+                .map(|part| part["id"].clone())
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            !closure_parts(&a).is_empty(),
+            "the generated case-closure parts exist on A"
+        );
+        assert_eq!(
+            closure_parts(&a),
+            closure_parts(&b),
+            "the generated case-closure parts are the same"
+        );
+
+        // Every other difference, pinned exactly: (JSON pointer, A side, B side).
+        let mut rows = Vec::new();
+        json_differences("", Some(&a), Some(&b), &mut rows);
+        let observed: Vec<(String, String, String)> = rows
+            .iter()
+            .map(|(path, left, right)| (path.clone(), show(left), show(right)))
+            .collect();
+        for (path, left, right) in &observed {
+            eprintln!("EQUIVALENCE ROW {path} | A={left} | B={right}");
+        }
+        // In JSON-pointer order, as `json_differences` reports them.
+        let expected = [
+            // A only: physical setup relabels the primary as the left half.
+            ("/hardware/instances/0/half", "\"left\"", "\"unibody\""),
+            (
+                "/hardware/instances/0/name",
+                "\"Left half\"",
+                "\"Keyboard\"",
+            ),
+            (
+                "/hardware/instances/0/role",
+                "\"central\"",
+                "\"standalone\"",
+            ),
+            // Finding (B side): the mirror of a source whose half is not left or right keeps
+            // that label, so it is not labelled as the right half (see ticket 26 Outcome).
+            ("/hardware/instances/1/half", "\"right\"", "\"unibody\""),
+            (
+                "/hardware/instances/1/name",
+                "\"Right half\"",
+                "\"Keyboard mirror\"",
+            ),
+            (
+                "/hardware/instances/1/role",
+                "\"peripheral\"",
+                "\"central\"",
+            ),
+            // B only: the pair record carries the mirrored-half record.
+            ("/hardware/pairs/0/halves", "<absent>", "object"),
+            // A only: physical setup records the shared construction and the split topology.
+            ("/hardware/sharedConstruction", "object", "null"),
+            ("/hardware/topology", "\"split\"", "\"unibody\""),
+            ("/hardware/transport", "\"wireless\"", "\"none\""),
+        ]
+        .map(|(path, left, right)| (path.to_string(), left.to_string(), right.to_string()));
+        assert_eq!(observed, expected, "the differences changed");
+    }
 }
