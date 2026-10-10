@@ -46,6 +46,9 @@ and the rule that keeps it current without a pile of agents re-indexing at once.
 5. **Check before trusting.** `python3 scripts/gitnexus-refresh.py --status` prints "current" or
    why not. A result from a stale index is a hint, not a clean check.
 
+A refresh of this repository takes about one minute (55 s measured on 2026-10-10, 22k nodes), so
+it is cheap enough to do at every batch boundary.
+
 ## The Stop hook (orchestrating session only)
 
 `scripts/gitnexus-refresh.py --background` is wired to the **Stop** event of the session that

@@ -31,6 +31,10 @@ and the page runner's own `--list` plus two filtered launches) and that the host
 6. Core-edit scenario: touch one core source file, then time the browser build set with `--timings`.
 7. Try `WASM_BINDGEN_NO_DEBUG` and `CHROMEDRIVER_REMOTE` (check `--help`) and report the effect.
 
+8. Dev profile A/B (from typed-core-edits 33): `boardstudio_core` at `opt-level = 1` gave native tests about 7-9 s but the one browser run
+   after the change took 312.9 s (cold: every wasm-pack job recompiled core). Run `typecheck browser` twice at each level and compare the
+   warm second runs; if browser is not slower at level 1, `git revert 020d66886` restores the `test` gain (commit `448aa3f53`).
+
 ## Acceptance
 
 - [ ] A measurements table in the Outcome, each row with the command and its output file, replacing every "inference" above with a measured value or marking it unmeasured.
