@@ -25,7 +25,10 @@ recipe geometry consistent as a stopgap.
 ## Acceptance
 
 - [ ] No mirror arithmetic remains (grep `max_x -`, `-k.rotation`); all 20 fixtures regenerate.
-- [ ] Per-keyboard record in the Outcome; KLOR's rotated thumb cluster reflects correctly.
+- [ ] Per-keyboard record in the Outcome. KLOR's second outline equals the first's reflection: its keys, bay,
+      reset and TRRS already reflect exactly, but the automatic gap repair fills a pocket on one outline only,
+      so the halves' outlines differ by 6.4 mm today (generator-parameters 06 Outcome). Remove the 6.5 mm
+      KLOR allowance in `the_split_halves_outlines_are_mirror_images_through_the_pair_map`.
 
 ## Verification
 

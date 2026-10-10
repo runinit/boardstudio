@@ -1,6 +1,6 @@
 # 06: Paired-half closure proposals and linked shipped splits
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: task
 Blocked by: none
 Map: [map.md](../map.md) · Decision: [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md) · Found by: [02](02-restore-closure-mounts-in-recipes.md)
@@ -110,10 +110,15 @@ Standards and Spec reviews are not part of this ticket.
 
 ## Outcome
 
-Status is `implemented (awaiting verification)`, not `resolved`: the Standards and Spec reviews,
-mounted and live product checks on the paired fixtures, and the fit findings below are open.
+Status is `resolved`. Haiku implemented it; the integrating Sonnet session verified it independently
+(see "Verification by the integrating session" at the end), corrected the record, the baseline and the
+tests where they were wrong, and re-ran the checks. Not part of this ticket and still open: the
+Standards and Spec reviews, mounted and live product checks on paired editing, and the fit findings
+below, which [keyboard 04](../../typed-core-edits/issues/04-refresh-included-keyboards.md) (stays
+`claimed`) carries.
 Commits on `typed-core-edits/mechanical`: `895f8e7de` (ticket rewrite), `7007d518d` (failing tests,
-observed red), `b3d27e708` (Core), `affc3ab00` (recipes, baseline, tests), `6a239853b` (notes).
+observed red), `b3d27e708` (Core), `affc3ab00` (recipes, baseline, tests), `6a239853b` (notes),
+`6a23c1195` (this Outcome as first written), `1258372e0` (baseline correction, two added tests).
 
 ### What changed
 
@@ -170,6 +175,14 @@ left half's (new ids), and the left holes' stored definitions are now the normal
 used (`outline: excluded`, no `generatorParameters`). The keys and matrix values are unchanged against the
 recorded baseline at 1e-9.
 
+Baseline scope: the first re-record (`affc3ab00`) replaced every definition of the nine changed fixtures
+with the full generated form. That widened what the baseline pins from the recorded subset to the pads,
+courtyard and envelope of unrelated parts (12 of 19 definitions on Corne). The comparison only checks keys
+the baseline lists, so it still passed. Only the `assembly-closure/*` definitions changed, so `1258372e0`
+returns every other definition to its recorded value. The `revision` of the seven measured splits changed
+(Sofle's did not), and the only parts that differ from the previous baseline are the second half's `U1`,
+`RST` and `TRRS` and the closure holes.
+
 Fit findings (new, computed from the regenerated fixtures; the controller bay is the `opening-1` rectangle,
 hole radius 3.3 mm, switch cutout 14 mm; negative means overlap):
 
@@ -194,10 +207,26 @@ ticket justifies moving one.
 ### Outline mirror
 
 Each half's outline, mapped through the pair map, lies within 0.001 to 0.0014 mm of the other half's boundary
-on nine of the ten pairs (the 1 µm union grid). KLOR is the exception: its thumb cluster deviates by up to
-6.76 mm, at x 316 to 334 and 381 to 383, where the rotated switch envelopes are not mirrored with their key
-positions. The test pins KLOR at 7.0 mm and records this as a finding; it does not move a measured key. The
-ticket does not resolve it.
+on nine of the ten pairs (the 1 µm union grid). KLOR is the exception, by up to 6.38 mm by the test's metric
+(vertex to the other outline's boundary), at right-half x 316 to 334 and y -61 to -69. The first record said
+6.76 mm, a second spot at x 381 to 383, and blamed the rotated thumb cluster. Neither the figure nor the
+spot reproduces, and the cause is not the recipe. The integrating session found:
+
+- KLOR's keys (rotated columns and thumbs included), controller bay, reset switch and TRRS jack are exact
+  reflections of the left half's (the key test and
+  `every_second_half_part_is_the_reflection_of_the_first_halfs_part`, 1e-9). The thumb cluster's rotations
+  are negated correctly.
+- The automatic outline's gap repair (`outline_cleanup::pockets`) fills one concave pocket between two
+  rotated columns on the left outline (span 19.36 mm, under the 20 mm limit) and does not fill its mirror
+  image on the right outline. The repair is not reflection-equivariant on this geometry. The automatic
+  bridges are mirrored exactly and are not involved.
+- Mirroring the right half's diodes as well changed nothing, so the unmirrored matrix diodes are not the
+  cause either.
+
+The test pins KLOR at 6.5 mm so a change is noticed. A recipe fix cannot remove it; the second outline has to
+be the first's reflection, which is what native mirrored halves provide
+([ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md), ticket
+[20](../../typed-core-edits/issues/20-recipes-build-one-half.md)).
 
 ### Test fixes (not hiding a finding)
 
@@ -205,7 +234,7 @@ ticket does not resolve it.
   now has its own board.
 - The local-exception test assumed the bay was local. It now makes the bay local explicitly.
 - The outline test used a 1e-6 vertex match, too strict for the union grid. It now uses a boundary distance
-  of 0.01 mm, with the KLOR exception above.
+  of 0.01 mm, with the KLOR exception above (7.0 mm at first, tightened to 6.5 mm).
 
 ### Open items this ticket does not settle
 
@@ -216,13 +245,12 @@ ticket does not resolve it.
   from that half's outline when the caller computes them. Core's own proposals are routed to the pair; the
   Case caller is not changed.
 - Amendment `436d2eeb4` ("Extend ADR-0008: a mirrored pair reflects the whole second half", user commit,
-  not made in this ticket) plans a Core operation that creates the second half from the first, and says
-  that recipes should not do their own mirror arithmetic. The recipe geometry here is what the Request
-  directed. It is a follow-up under the planned native mirrored-halves ticket, which does not exist yet.
-- That amendment's link to `../plans/typed-core-edits/issues/16-native-mirrored-halves.md` does not resolve,
-  so `python3 scripts/check.py repo` fails on `docs/adr/0008-linked-halves-stay-linked.md`. The failure is
-  in the amendment, not in this ticket's changes; this ticket did not create ticket 16.
-- KLOR's thumb-cluster outline asymmetry (above).
+  not made in this ticket) says the recipes should not do their own mirror arithmetic. The recipe geometry
+  here is what the Request directed, a stopgap. Typed-core-edits ticket 16 and
+  [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) now exist, and ticket
+  [20](../../typed-core-edits/issues/20-recipes-build-one-half.md) removes the arithmetic. Its link from the
+  amendment resolves and `check.py repo` passes.
+- KLOR's outline asymmetry (above) belongs to ticket 20's acceptance.
 - Fit findings above, including the KLOR bay overlap and the tight switch clearances.
 
 ### Commands and results (verify checkout, detached at `6a239853b`)

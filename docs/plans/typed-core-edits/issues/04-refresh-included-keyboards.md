@@ -62,7 +62,7 @@ plus the per-keyboard app review above. Preserve result/source pins in the Outco
 
 > Superseded in part by [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md) and
 > generator-parameters [06](../../generator-parameters/issues/06-paired-half-closure-proposals.md)
-> (implemented, awaiting verification). For the seven measured splits the second half's controller
+> (resolved). For the seven measured splits the second half's controller
 > bay, reset switch and TRRS jack now sit at the reflection of the first half's, so the bay and TRRS
 > openings are linked rather than local on the right, and every closure mount is linked to the pair
 > from the left half. The "Per-keyboard intentional changes", the openings column of the table and

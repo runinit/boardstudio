@@ -854,6 +854,19 @@ fn closure_proposals_on_a_paired_half_are_made_once_from_the_construction_source
             );
         }
         assert_linked_closures_land_on_their_mirror(name, &document);
+        for instance in document["hardware"]["instances"].as_array().unwrap() {
+            let stored = &instance["mechanical"];
+            assert_eq!(
+                stored["closureMounts"],
+                json!([]),
+                "{name}: no private closure mount"
+            );
+            assert_eq!(
+                stored["openings"],
+                json!([]),
+                "{name}: no linked opening is copied"
+            );
+        }
     }
 }
 

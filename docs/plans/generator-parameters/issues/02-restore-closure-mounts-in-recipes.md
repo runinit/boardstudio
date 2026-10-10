@@ -78,7 +78,7 @@ The cause is in the recipe order, not in the closure check:
 Whether Core should link initialization proposals to the pair, and whether `enable` should
 initialize a legacy second half, were Core policy questions. They were decided by
 [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md) and are implemented by
-[06](06-paired-half-closure-proposals.md) (awaiting verification). The "What changed (as shipped)"
+[06](06-paired-half-closure-proposals.md) (resolved). The "What changed (as shipped)"
 recipe below is superseded: the explicit initialize step and its comment are gone, and the shipped
 closure mounts are linked. Core was not changed by this ticket.
 
