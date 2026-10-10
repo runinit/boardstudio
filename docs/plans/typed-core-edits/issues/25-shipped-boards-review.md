@@ -1,6 +1,6 @@
 # 25: Full review of the 20 shipped boards, Sofle first
 
-Status: ready-for-human
+Status: ready-for-agent
 Type: task
 Blocked by: [22](22-mirrored-half-integrated-verification.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
