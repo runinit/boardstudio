@@ -39,7 +39,8 @@ own ticket under this one.
 
 - [x] A written review for every shipped board with findings ranked by severity.
 - [x] AI review completed against tickets 02, 06 and 30 and ADR-0010; corrected current linked-fit values and recorded scope limits.
-- [ ] User reviews the ranked list and hardware-dependent decisions before any board fix starts.
+- [x] User reviews the ranked list and supplies the rebuild direction before any board fix starts.
+- [x] Rebuild direction recorded: configurable standard key spacing, native board-specific key assemblies, real component matches, native outlines/mount generation, regenerated closure clearances, and VIK deferred.
 - [ ] Sofle variants fixed and verified first; user sign-off before the rest.
 - [x] Decisions needing hardware knowledge are asked of the user, not guessed.
 
@@ -47,7 +48,7 @@ Keyboard [04](04-refresh-included-keyboards.md) is redone on the native model in
 
 ## Outcome
 
-Phase 1 research and AI review: [shipped boards review](../audit/shipped-boards-review.md). The review pass corrected the Corne, Sofle RGB and Sofle Choc linked switch-gap values from ticket 06, removed the superseded Sofle RGB 0.009 mm current-gap claim, and ranked the native-mirror recipe mismatch from ticket 20 among the top findings. No recipes, fixtures, footprints or code were changed; no build/export or hardware fit check was run. The report does not independently inventory every pad, drill, courtyard, model asset, wiring assignment or generated PCB/plate/case output. The REVIUNG41 archive JSON was inspected in memory. Hardware-dependent component and clearance decisions remain for the user. Ready for human review before any fix begins.
+Phase 1 research, AI review and human direction: [shipped boards review](../audit/shipped-boards-review.md). The audit now records the user's rebuild rules: repository-default key assembly spacing with a global configurable option; duplicate-position diodes for the current shipped data followed by BoardStudio-native, board-specific assemblies; real component footprints; native outline conversion and mounting-system/clearance generation for splits and unibodies; safe-only footprint flipping and a separate reversible-variant option; and VIK deferred. No recipes, fixtures, footprints or code were changed; no build/export or hardware fit check was run. Exact component matches, Choc cutout geometry, hardware tolerances and actual physical fit remain to be checked in the implementation tickets. The report also records the parts of the footprint/output review that were not performed. This lane stops before implementation; per-board tickets should begin with Sofle after the mirrored-half dependencies are ready.
 
 ### Verification (Sonnet 5.5 reviewer, 2026-10-10, `lane-boards-review`)
 
