@@ -1,7 +1,8 @@
-# Proposed parallel streams
+# Parallel streams decision and rollout
 
-Status: proposed; implementation exclusivity change awaits the user's decision.
-Reviewed baseline: integration `ad1c2804`, 2026-10-10. This proposal does not release code or change active ticket 105.
+Status: scheduling approved by the user on 2026-10-10; per-stream readiness and exact leases still required.
+Reviewed baseline: integration `ad1c2804`. Approval: "Does 19 have to run alone? If not.. spin up the other streams."
+This decision does not change active ticket105's scope or waive independent verification.
 
 ## Recommendation
 
@@ -10,9 +11,9 @@ qualified component work. Keep the six persistent coordinators, with C/D/E prepa
 file/edit lease from the global command window. Builds, browser runs, commits and read-only shell commands remain
 sequential; timing measurements require the machine alone.
 
-The original human handoff said **19 runs ALONE**. Current tickets extend that to the whole child chain. The proposed
-change permits disjoint A/F edits during B preparation, while preserving B's internal order and exclusive integration,
-activation and timing windows. Activate this change only after the user approves it and root grants exact audited leases.
+The original human handoff said **19 runs ALONE**. The user approved narrowing this blanket restriction to actual Core
+file/API ownership and activation/timing windows. Disjoint A/F edits may overlap B preparation, while preserving B's internal
+order. Root grants exact audited leases after readiness gates; approval of scheduling is not blanket path ownership.
 Existing acceptance, independent verification, generated-output ownership and current 105 scope stay binding.
 
 ## Initial streams
@@ -100,15 +101,19 @@ graph-first query against `boardstudio-tce-matrix`; it established symbol locati
 A–F coordinators supplied provisional lane analyses. No new component choice or A/F path lease is certified by this review.
 No active 105 extraction source was inspected or changed. No implementation tests were run for this planning review.
 
-Before activating the proposal:
+Activation checklist:
 
-1. Obtain independent Sol 6.1 xhigh review of this proposal and resolve material findings.
-2. Obtain the user's decision on narrowing the original 19 exclusivity rule.
+1. Independent Sol 6.1 xhigh review completed; both material findings closed.
+2. User approved narrowing the original19 exclusivity rule and starting independent streams.
 3. Complete A/F's focused file/API/qualification audits, assign worktrees and exact leases, and update parent 19/future child
    execution clauses plus map/registry and `parallel-lanes.md` atomically. Update that page's lane descriptions/current-release
    paragraph so its old 19-alone/F-planning rules do not contradict the approved release. Preserve active scopes; no retrospective
    widening of 105. Finish 105's implementation and fresh verification before adding concurrent code streams.
-4. Enforce and verify foreground command-window ownership for automatic refreshes as described above.
+4. Foreground-only refresh established for this batch: root preserved its registration as
+   `.git/gitnexus-orchestrator.suspended-01a1272d-9690-7342-a509-877cc412ec02.json`; the only installed Codex GitNexus Stop
+   command is the registration-gated wrapper. A Stop-event probe returned silently with no registration, and process
+   inspection found no analyzer/refresh. Keep manual refreshes in root foreground windows. Restore registration only
+   after all parallel command/edit leases end and no running process remains; preserve any intervening registration.
 5. Release at most B+A+F initially. Reassess after one verified integration batch; add a fourth code stream only when leases
    and the check queue show capacity. C/D/E preparation can continue throughout without premature code activation.
 

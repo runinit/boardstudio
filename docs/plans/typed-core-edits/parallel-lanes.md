@@ -29,15 +29,16 @@ Persistent coordinator chats, live worktree/file leases, command windows and cro
 | Lane | Tickets, in order | Touches (main files) | Heavy checks | Notes |
 | --- | --- | --- | --- | --- |
 | A web test speed | [36](issues/36-sleeps-case-pcb-parts.md), [37](issues/37-sleeps-layout-library-ui-page.md), [38](issues/38-merge-duplicate-browser-tests.md) | `web/crates/{case,pcb,parts,layout,library,ui-shared,keycaps,keymap}` test code, `web/src/presentation` tests | `browser` (Chrome) | no Core edits; confirm current ticket status before dispatch. |
-| B mirror core | 31, 32, 39 integrated; [105](issues/105-mirrored-half-derivation-kernel.md) through the [19](issues/19-reconcile-mirrored-halves.md) child chain, then 40 and [20](issues/20-recipes-build-one-half.md) | `core/src/mirrored_half.rs`, `core/src/mechanical/halves.rs`, `core/src/model.rs`, `core/tests/mirrored_half.rs`, recipes | ticket-scoped checks; 20 adds `build` | 19 runs alone for code and checks; one child at a time, independent verification before the next dispatch. |
+| B mirror core | 31, 32, 39 integrated; [105](issues/105-mirrored-half-derivation-kernel.md) through the [19](issues/19-reconcile-mirrored-halves.md) child chain, then 40 and [20](issues/20-recipes-build-one-half.md) | `core/src/mirrored_half.rs`, `core/src/mechanical/halves.rs`, `core/src/model.rs`, `core/tests/mirrored_half.rs`, recipes | ticket-scoped checks; 20 adds `build` | Core children stay serial with exact file/API leases; isolated A/F edits may overlap after 105 verification. Activation/timing windows stay exclusive. |
 | C check speed | [11](../check-speed/issues/11-browser-measure.md) (alone, quiet machine), then [12](../check-speed/issues/12-browser-quick-wins.md) | `scripts/check.py`, `scripts/run-wasm-tests.py`, `.github/workflows` | `browser` many times | 11 measures timings, so nothing else may run. 12 waits for lane A to finish 38. |
 | D audit and cleanup | [35](issues/35-test-maintenance-cuts.md) | version literals in tests; goldens (`transcript.json`, the demo baseline) | full `check.py` | Golden edits last, after B merges, then re-bless. |
 | E web adapter | [21](issues/21-mirrored-half-web-adapter.md), 41, then [22](issues/22-mirrored-half-integrated-verification.md) | `web/crates/catalogue`, `web/crates/layout`, physical setup | `typecheck browser` | waits for B's native-model dependencies; follow ticket headers. |
-| F planning (no builds) | [25](issues/25-shipped-boards-review.md) research → AI review → human review; [23](issues/23-redo-keyboard-04-on-native-halves.md) later | docs, read-only fixtures | none | Human rebuild direction is recorded: configurable standard spacing, board-specific native assemblies, real components, native outline/mount generation, regenerated clearances; VIK deferred. Board fixes remain separate tickets, Sofle first. Safe to run any time; fits a different app well. |
+| F boards/components | [25](issues/25-shipped-boards-review.md), selected Sofle component follow-ups 118–127; [23](issues/23-redo-keyboard-04-on-native-halves.md) later | exact component assets/tests after audit; shared registration/recipes have one owner | affected checks in root windows | BOM selection delegated; existing catalogue first. Isolated qualification/onboarding may overlap B after reviewed BOM/path leases; native recipes retain 20+44 dependencies. VIK deferred. |
 
-Current release: B ticket 105 after root sync/index gates. F may do documentation-only hardware research.
-A waits for root scheduling; 38 is blocked by incomplete 37. C, D and E wait as noted. During the 19 child chain,
-no other implementation or check run starts without root releasing the exclusive window.
+Approved scheduling: B Core work remains serial; A's isolated remaining37 tests and F's qualified component work may
+receive disjoint edit leases after 105 verification and exact audits. Root separately grants every foreground command
+window; no concurrent builds/browser runs. A/F audits and planning start now. 38 remains blocked by incomplete37;
+C/D/E preparation may proceed, while their implementation dependencies remain. See the central registry for actual leases.
 
 ## Files with one writer only
 

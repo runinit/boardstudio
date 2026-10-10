@@ -47,9 +47,11 @@ separately; assert meaningful failures. Actual save/reopen and native/WASM trans
 ## Execution and verification gates
 
 This is a child of [19](19-reconcile-mirrored-halves.md); resolving it does not resolve 19.
-The entire 19 execution batch runs **alone**: no independent implementation or heavy checks.
-Root must first finish 37, integrate/sync the verified prerequisite lanes, complete the batch
-check, refresh the bound lane index, and explicitly grant this slice and its exclusive files.
+Core children execute serially with exclusive Core file/API leases. The user approved
+independent A/F streams on 2026-10-10; follow the central lane registry and parallel-streams
+decision for audited disjoint edits. Every shell/check command remains globally sequential;
+activation and timing require exclusive windows. The prerequisite batch and delivered 37
+verification slice are complete; root must refresh the bound index and grant this slice.
 Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`;
 report path/branch/status and inspect overlaps before editing. Every shell call has that
 absolute `workdir`; commands run one at a time in the foreground.

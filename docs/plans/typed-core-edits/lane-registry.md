@@ -5,8 +5,8 @@ Root owns this registry. Read the central copy at
 before planning a dispatch, changing files, requesting checks or handing work to a verifier. A lane's branch copy
 may lag. Confirm current worktree status and index freshness in the granted command window; a snapshot is not a lease.
 
-[Parallel-streams review](parallel-streams-review.md) proposes narrower exclusivity and separate edit/command leases.
-It is not an active grant: 19's existing exclusivity and all current holds remain until the user's decision and exact audits.
+[Parallel-streams decision](parallel-streams-review.md) is approved: B Core work remains serial; isolated A/F streams
+may receive separate edit leases after exact audits and105 verification. Approval does not grant unlisted files or commands.
 
 ## Coordinators
 
@@ -21,12 +21,12 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
-| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | Not assigned; root will create/sync a dedicated worktree | HOLD. 37's delivered slice verified at `fb2fe7bb7`; remaining acceptance stays open. 38 waits for complete 37. |
-| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 31/32/39 integrated. Reserve 105 only, then fresh verifier. 19 child chain runs alone; no automatic release of 106. |
+| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | Reserved `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`; root setup before reads | START focused remaining37 path/helper audit in a root read window, then one bounded test-only implementation lease after105 verification. 38 still waits for complete37. |
+| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 implemented at `ddfd81b2c`, awaiting fresh verifier. Core children stay serial with exclusive Core leases; no automatic106 release. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
-| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | Research/review only. Best-fit Sofle BOM selection and missing-footprint onboarding delegated by the user; existing catalogue first. IDs 118–127 reserved. No implementation/check lease yet. |
+| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | START selected-BOM planning review, then exact component plans118–127 and qualification/asset leases. Existing catalogue first; native recipes retain dependencies. Root write/read window required. |
 
 F's earlier `.worktrees/lane-boards-review` branch is committed and integrated; it is frozen, not another active writer.
 Other existing worktrees and old ticket chats are not active lane leases. Preserve them and confirm ownership before reuse.
@@ -63,13 +63,20 @@ it never grants concurrent builds, browsers or timing work. Request a window fro
 the last command. Root waits for release before granting the next owner. Web research or planning without shell commands
 may continue. Read-only shell commands also use the window. See [parallel-lanes.md](parallel-lanes.md) for shared file owners.
 
-Current reservation: **B105 implementation, then its fresh verifier**, activated only by root's explicit START handoff
-after registry bookkeeping completes. F's prior bounded source-read window is released. A/C/D/E have no command lease.
+Current root window: approved scheduling/docs/setup and A focused audit; B105 implementation is finished and its fresh
+verifier waits for root to return the command window. F continues web/evidence review without shell. Root publishes explicit
+handovers; A/F code starts only after105 verification and exact readiness leases. C/D/E implementation remains gated.
 105's source lease is `core/src/mirrored_half.rs`, narrowly necessary existing helpers in `core/src/matrix/layout.rs`,
 creation tests in `core/tests/mirrored_half.rs`, and permitted private `core/src/mirrored_half/` child modules.
 Ticket 105's own tracking file is writable by its implementer/verifier. Other paths require root assignment first.
 Maps, this registry, CONTEXT, ADRs and generated goldens remain root-owned. `scripts/check.py` remains C-owned,
 with edits requiring C's explicit active lease. F owns its report/component plans only after a root write window.
+
+During this batch the root Stop-hook registration is preserved under the suspended filename recorded in the decision.
+Automatic indexing is prevented; root refreshes manually in foreground command windows and freezes the indexed checkout.
+Every handover waits for the actual analyzer exit and confirms no refresh remains. Re-enable automatic registration only
+after leases end, preserving intervening registration changes. File edit leases never authorize changes to another check's
+checkout or inputs; every shell command, including reads and commits, uses the single global window.
 
 ## Integration and graph snapshot
 

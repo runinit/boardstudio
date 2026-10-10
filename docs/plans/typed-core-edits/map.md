@@ -83,7 +83,8 @@ and for any bulk action a recorded decision permits.
   [105](issues/105-mirrored-half-derivation-kernel.md), ends with atomic activation in
   [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
   [114](issues/114-mirrored-edit-compatibility-constraints.md) remains `needs-info`; it cannot silently pass through
-  unsupported rotated/mixed constraints. Run this reconciliation chain alone for code and checks.
+  unsupported rotated/mixed constraints. Core children stay serial; the user approved isolated A/F streams with
+  exact file/API leases. Every command/check remains globally sequential; activation and timing stay exclusive.
 - **Integration batch check**, 2026-10-10 at `12a6784d`: one sequential foreground
   `BOARDSTUDIO_CHECK_JOBS=1 CARGO_BUILD_JOBS=12 python3 scripts/check.py` passed all default steps.
   Repo 0.1 s, tooling 23.4 s, lint 17.9 s, build 327.1 s, test 94.7 s, browser 350.1 s; total 813.3 s.
@@ -207,8 +208,8 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-Parallel scheduling review: [proposed parallel streams](parallel-streams-review.md). It proposes B+A+F implementation
-with audited leases and sequential commands; the original 19-alone rule remains active until the user's decision.
+Parallel scheduling decision: [parallel streams](parallel-streams-review.md). The user approved B+A+F with audited
+leases and sequential commands. B remains serial; A/F audits start now, then code after105 verification and readiness gates.
 
 - Native mirrored halves: 17, 18, 26–32 and 39 are resolved and integrated. Next: 105 in the 19 child chain,
   with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
