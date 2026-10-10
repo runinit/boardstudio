@@ -1,6 +1,6 @@
 # 129 — Choc v1 socket documented geometry and configuration
 
-Status: ready-for-agent
+Status: claimed
 Type: qualification
 Parent: [118 hardware contract](118-sofle-adaptation-hardware-contract.md)
 Prerequisite: independent plan review passed; root implementation lease not yet granted.
