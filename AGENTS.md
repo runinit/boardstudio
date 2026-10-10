@@ -35,6 +35,7 @@
 ## Docs and tracking
 
 - Issue tracker: specs, wayfinder maps and tickets are Markdown under `docs/plans/<effort>/`; see `docs/agents/issue-tracker.md`.
+- Agent workflow (both Codex and Claude Code, every branch): roles and models, ticket process, lanes, GitNexus ownership, rules: [docs/agents/agent-workflow.md](docs/agents/agent-workflow.md). Lane agents follow it before anything else here.
 - Domain docs: single-context, `CONTEXT.md` at the root and ADRs in `docs/adr/`.
 
 ## Tooling

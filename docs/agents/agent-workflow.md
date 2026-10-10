@@ -1,32 +1,33 @@
-# Handing the planner and orchestrator role to Codex
+# Agent workflow: roles, rules and handoff (Codex and Claude Code)
 
-Written 2026-10-10 by Claude, which has run this effort so far. Everything the orchestrator needs is in the repository;
-nothing depends on Claude's chat history or memory. Read this page, then
+Project-wide, for every branch and both apps. `AGENTS.md` points here. Written 2026-10-10 when the orchestrator role moved from
+Claude to Codex. Everything an orchestrator or lane agent needs is in the repository; nothing depends on chat history or one
+app's private memory. Read this page, then
 [verification-process.md](verification-process.md), [gitnexus-index.md](gitnexus-index.md) and
 [parallel-lanes.md](../plans/typed-core-edits/parallel-lanes.md) (lanes, prompts: [lane-prompts.md](../plans/typed-core-edits/lane-prompts.md)).
 
-## Models and who does what
+## Models and who does what (the same in Codex and Claude)
 
-Fill the blanks for your Codex setup; the roles are fixed, the model names are not. Claude's choices are shown so you can
-match capability.
+Set by the user on 2026-10-10. The roles are fixed; use these models for them in whichever app is running.
 
-| Role | What it does | Claude used | Codex model / effort |
-| --- | --- | --- | --- |
-| Planner / orchestrator | tickets, ADRs, prompts, ordering, lane setup, merging, batch check, GitNexus refresh, answers questions | Sonnet 5.5 (this session) | _choose_ |
-| Planning research (read-only) | design options, plans, audits of code | Opus, medium effort | _choose_ |
-| Implementer | one ticket in one lane worktree, test first | Haiku 5.5 | _choose a fast, cheap model_ |
-| Verifier | reproduces, mutation-checks, fixes small defects, sets `resolved` | Sonnet 5.5, high | **Sol 6.1, xhigh, fast** (user choice) |
-| Browser or CAD runs | needs Chrome, `wasm-pack`, podman | the same sessions, sandbox lifted | _confirm Codex can lift its sandbox for these_ |
+| Role | What it does | Model / effort |
+| --- | --- | --- |
+| Orchestrator | tickets, ADRs, prompts, ordering, lane setup, merging, batch check, GitNexus refresh, answers questions | **Sol 6.1, medium, fast** |
+| Planning research (read-only) | design options, plans, audits of code | **Sol 6.1, max, fast**; **Astra, medium** only as a last resort |
+| Implementer | one ticket in one lane worktree, test first | **Luna 6, high, fast** |
+| Verifier / reviewer | reproduces, mutation-checks, fixes small defects, sets `resolved` | **Sol 6.1, xhigh, fast** |
+| Browser or CAD runs | needs Chrome, `wasm-pack`, podman | the same sessions, sandbox lifted |
 
-Implementer and verifier must be different models (ideally different apps). Commit trailers name the agent that made the
-commit (for example `Co-Authored-By: Codex <noreply@openai.com>`).
+Implementer and verifier must be different sessions with different models (Luna implements, Sol verifies). Commit trailers name
+the agent that made the commit (for example `Co-Authored-By: Codex <noreply@openai.com>` or the Claude trailer for work done in
+Claude Code). Until 2026-10-10 Claude Haiku, Sonnet and Opus filled these roles; tickets resolved before then say so.
 
-## Differences to settle when porting
+## Differences between the apps
 
 - **Spawning agents.** Claude started implementers and verifiers as background subagents. In Codex use one session per lane
   worktree (or Codex's own subagent feature, if it has one; confirm it can use a different worktree and model). The briefs are in
   `lane-prompts.md`; they carry the rules because a lane agent does not remember between tasks.
-- **No memory directory.** Claude kept five notes in its memory (below). They are restated here so Codex has them.
+- **Memory.** Cross-session memory is `memsearch`, shared by both apps (use the `memsearch:memory-recall` skill for "why did we do X"). It is a recall aid, not a rulebook: the rules below and the docs are what bind, and where memory disagrees with the docs, the docs win.
 - **Hooks.** The GitNexus Stop hook is a Claude settings entry (`docs/agents/gitnexus-index.md`). Codex has its own hook or
   automation mechanism; either wire `python3 scripts/gitnexus-refresh.py --background` to its end-of-turn event, or run
   `python3 scripts/gitnexus-refresh.py` by hand at batch boundaries. The script is single-flight and idempotent either way.
@@ -34,7 +35,7 @@ commit (for example `Co-Authored-By: Codex <noreply@openai.com>`).
   writable. Note any step Codex cannot run and let the user or another session run it.
 - **Settings files.** The harness protects `.claude/settings*.json` from agent edits; the user adds hook entries.
 
-## Rules the user set (Claude's memory, restated)
+## Rules the user set
 
 1. Never `git stash`; stage explicit paths only; never `git add -A` or `git add .`; no push, merge to `dev` or PR without the
    user. Use a temporary commit to set work aside.
@@ -82,7 +83,7 @@ Worktrees: `.worktrees/tce-matrix` (integration), `.worktrees/lane-mirror-core` 
 - Ticket 13: whether to pursue a structural browser-step change after tickets 11 and 12 measure.
 - Before anything leaves the machine or merges to `dev`: the main checkout's uncommitted docs conflict with a merge; the user decides.
 
-## First steps for the new orchestrator
+## First steps for the orchestrator
 
 1. `git -C .worktrees/tce-matrix log --oneline -15` and read the ticket statuses above to confirm the snapshot.
 2. Wait for (or ask about) ticket 37, then verify it with Codex Sol 6.1.

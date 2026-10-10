@@ -8,16 +8,15 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 
 ## Roles
 
-- **Implement** (Haiku 5.5 unless the ticket says otherwise): test first, make the change,
+- **Implement** (Luna 6, high, fast, from 2026-10-10; before that Haiku 5.5): test first, make the change,
   run only the steps the change needs (below), write the Outcome honestly, set
   `Status: implemented (awaiting verification)`. Never `resolved`. Time box: about an hour.
-- **Verify and integrate** (Codex on model Sol 6.1 at xhigh effort in fast mode, from 2026-10-10; before that
-  Sonnet 5.5 at high effort): do not trust the
+- **Verify and integrate** (Sol 6.1, xhigh, fast, from 2026-10-10; before that Sonnet 5.5 at high effort): do not trust the
   implementer's report. Reproduce its claims, mutation-check the main assertions (disable one site at a time,
   confirm a test fails, restore), review the code, fix **small** defects with tests, then set `resolved` with
   who-verified-what evidence. Time box: about 30 to 45 minutes of work. The verifier is always a different app or
   model than the implementer.
-- **Planner / orchestrator** (Claude, from 2026-10-10): writes tickets, ADRs and prompts, decides the order, hands
+- **Planner / orchestrator** (Sol 6.1, medium, fast, from 2026-10-10; planning research Sol 6.1 max fast, Astra medium as a last resort; before that Claude): writes tickets, ADRs and prompts, decides the order, hands
   tickets to implementers and verifiers, merges lanes, runs the batch check and refreshes GitNexus. It does not
   verify, and it does not implement unless a task is tiny and documentation-only.
 - The verifier is a reviewer, not a second implementer. A defect that needs more than a
@@ -28,7 +27,7 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
   into messages to a running agent. This is what made one verification run over an hour.
 - Small tickets (docs, one file, no behaviour) may be implemented and verified in a single
   Sonnet pass.
-- Planning and decision work (Opus, medium) is read-only; the user answers decisions.
+- Planning and decision work is read-only; the user answers decisions. All role models are in [agent-workflow.md](agent-workflow.md).
 - Say which model did what in the Outcome. Never claim a result you did not observe.
 
 ## Ticket size
