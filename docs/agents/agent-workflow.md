@@ -61,20 +61,23 @@ Claude Code). Until 2026-10-10 Claude Haiku, Sonnet and Opus filled these roles;
    GitNexus, delete finished lane worktrees and Chromium profiles older than 30 minutes.
 6. Keep the single-writer files (`map.md`, `CONTEXT.md`, ADRs, goldens, `scripts/check.py`) to yourself.
 
-## State snapshot (2026-10-10)
+## State snapshot (2026-10-10, late)
 
-Integration branch `typed-core-edits/mechanical` at `a1672ca91` or later; nothing is merged to `dev` and nothing is pushed.
+Integration branch `typed-core-edits/mechanical` at `9b2be0d1e` or later; nothing is merged to `dev` and nothing is pushed.
 
-| Area | Done (resolved) | In flight or ready |
+| Area | Resolved | In flight or ready |
 | --- | --- | --- |
-| generator parameters (map: `docs/plans/generator-parameters/map.md`) | 01-06 | none |
-| mirrored halves (map: `docs/plans/typed-core-edits/map.md`) | 16, 17, 18, 26, 27, 28, 29, 30 | **31, 32 resolved on `lane/mirror-core` (not merged)**; 39 ready (Codex); 19 (alone, riskiest), 40, 41, 20, 21, 22, 23 later |
-| test speed / audit | 33, 34, 36 | **37 in progress in `.worktrees/tce-matrix` (Haiku, uncommitted edits)**; 38, 35, 24 later |
+| generator parameters (`docs/plans/generator-parameters/map.md`) | 01-06 | none |
+| mirrored halves (`docs/plans/typed-core-edits/map.md`) | 16, 17, 18, 26, 27, 28, 29, 30 on the integration branch; **31, 32 resolved only on `lane/mirror-core`** (verified by Claude Sonnet) | **39 claimed by Codex in `lane-mirror-core`, uncommitted work in progress**; then 19 (alone, riskiest), 40, 41, 20, 21, 22, 23 |
+| test speed / audit | 33, 34, 36 | **37: a Claude Haiku subagent is still running in `.worktrees/tce-matrix` (commits `8e26b1a8e`, `a1672ca91` so far; it will set `implemented (awaiting verification)`)**; then 38, 35, 24 |
 | check speed | 10 | 11 (needs the machine alone), 12, 13 (decision) |
-| boards review | ticket 25 phase 1 done and verified on `lane/boards-review` | the user has since recorded hardware decisions there (commit `c47a27df5`); read ticket 25 and the audit doc, then write the per-board fix tickets, Sofle first |
+| boards review | ticket 25 phase 1 done and verified (`lane/boards-review`) | the user recorded hardware decisions (`c47a27df5`) and the ticket is `ready-for-agent` again: phase 2 = per-board fix tickets, Sofle first |
 
-Worktrees: `.worktrees/tce-matrix` (integration), `.worktrees/lane-mirror-core` (`lane/mirror-core`, merged with integration at
-`21e4ea385`), `.worktrees/lane-boards-review` (`lane/boards-review`, docs only). Older worktrees from earlier efforts remain; leave them.
+Worktrees: `.worktrees/tce-matrix` (integration), `.worktrees/lane-mirror-core` (`lane/mirror-core`, merged with integration at `21e4ea385`,
+then the 39 claim), `.worktrees/lane-boards-review` (`lane/boards-review`, docs only). Older worktrees from earlier efforts remain; leave them.
+
+Do not touch `.worktrees/tce-matrix` (no commits, no check runs) until ticket 37's status is `implemented (awaiting verification)` and
+`git status` there is clean: the Haiku agent is running browser checks in it, and any extra build or merge would corrupt its timings.
 
 ## Open items that need the user
 
@@ -85,7 +88,19 @@ Worktrees: `.worktrees/tce-matrix` (integration), `.worktrees/lane-mirror-core` 
 
 ## First steps for the orchestrator
 
-1. `git -C .worktrees/tce-matrix log --oneline -15` and read the ticket statuses above to confirm the snapshot.
+1. `git -C .worktrees/tce-matrix log --oneline -15` and `git worktree list`; read the ticket statuses above to confirm the snapshot.
 2. Wait for (or ask about) ticket 37, then verify it with Codex Sol 6.1.
 3. Merge `lane/mirror-core` (31, 32) and `lane/boards-review` into the integration branch once 37 has landed; run the batch check once; refresh GitNexus.
 4. Hand ticket 39 to an implementer, then 19 alone.
+
+## Kickoff prompt for a new orchestrator session
+
+Open Codex (Sol 6.1, medium, fast) with `/home/chris/01_Projects/ts-boardstudio2/.worktrees/tce-matrix` as the working folder and paste:
+
+> You are the orchestrator for the typed-core-edits effort in BoardStudio. Read, in this order: `AGENTS.md`,
+> `docs/agents/agent-workflow.md` (roles, models, rules, the state snapshot at its end), `docs/agents/verification-process.md`,
+> `docs/agents/gitnexus-index.md`, `docs/plans/typed-core-edits/parallel-lanes.md` and `lane-prompts.md`, then
+> `docs/plans/typed-core-edits/map.md`. You plan and orchestrate: you write tickets, hand them to implementers (Luna 6, high, fast)
+> and verifiers (Sol 6.1, xhigh, fast) as separate sessions, merge verified lanes with `git merge --no-ff`, run the batch check, and
+> refresh GitNexus with `python3 scripts/gitnexus-refresh.py`. You do not verify tickets you hand out and you do not merge to `dev`
+> or push. Start with "First steps for the orchestrator", then report the plan and wait for the user.
