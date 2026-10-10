@@ -83,7 +83,8 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
   (`/tmp/org.chromium.Chromium.scoped_dir.*`) and any scratch checkouts you created.
   `/tmp` is a tmpfs and filled to 98% once.
 - GitNexus: run `impact` before editing a symbol and `detect-changes` before committing.
-  A stale index or capped result is not a clean check; say so.
+  A stale index or capped result is not a clean check; say so. Agents never re-index: the
+  orchestrating session does, once, at batch boundaries ([gitnexus-index.md](gitnexus-index.md)).
 
 ## Honest reporting
 
