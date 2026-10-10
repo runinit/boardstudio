@@ -108,4 +108,4 @@ delta is provisional, not a clean or full-symbol-coverage result. Staged-diff in
 the new helper and its only caller in `new_board`; the changed path stays within the four leased files. This lane did
 not refresh the index; root owns refresh after verified merge.
 
-Commits: claim `79cbef72`; implementation commit ID will be added in the final handoff update.
+Commits: claim `79cbef72`; implementation `f000e62f`.
