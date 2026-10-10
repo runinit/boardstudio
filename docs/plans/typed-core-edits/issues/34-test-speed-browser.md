@@ -1,6 +1,6 @@
 # 34: Replace fixed sleeps in the browser tests (audit phase 2, part 2)
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [33](33-test-speed-rust.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
