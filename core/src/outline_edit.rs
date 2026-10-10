@@ -409,7 +409,7 @@ fn belongs_to_generated(doc: &ProjectDoc, board_id: &str, id: &str) -> bool {
 }
 
 /// Every persisted outline identity: the single-namespace collision set.
-fn persisted_identities(doc: &ProjectDoc) -> Vec<String> {
+pub(crate) fn persisted_identities(doc: &ProjectDoc) -> Vec<String> {
     let mut ids: Vec<String> = doc
         .outline
         .iter()

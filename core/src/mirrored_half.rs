@@ -4,19 +4,44 @@
 //!
 //! Everything is built on a clone of the document and committed only when the whole record
 //! validates, so a refusal changes nothing. The changed ids are the new pair, both instances,
-//! the new board, and the source and mirror id of every correspondence.
+//! the new board, the ids the mechanical link and its generated clearance holes changed, and the
+//! source and mirror id of every correspondence.
+//!
+//! What a new board does not receive, and why:
+//!
+//! - keymap bindings, the half's role and name, board references, copper and the
+//!   protected wiring handoff: never reflected by nature (ADR-0010);
+//! - `case-closure/*` clearance holes: generated from the pair's linked closure mounts;
+//! - mounted modules and embedded circuits: refused with the ids named (no reflection rule yet);
+//! - hardware specifications, critical fits and a battery: they name the source board's parts or
+//!   one physical item, so the mirror starts without them.
 
 use crate::matrix::layout;
-use crate::mechanical::MechanicalTarget;
-use crate::mechanical::{features, halves, inputs::effective_inputs, pair};
+use crate::mechanical::change::{
+    MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence,
+};
+use crate::mechanical::{self, MechanicalTarget, halves, inputs::effective_inputs, pair};
 use crate::model::{
     Board, BoardOutline, ElectricalBoardConfiguration, Layout, MechanicalConfiguration,
-    MechanicalConstructionOwnership, MechanicalMirrorPair, MirroredCorrespondence,
+    MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCorrespondence,
     MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
-    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSnapshot,
-    OutlineVersion, Part, PhysicalBoardInstance, Pin, Pose2, ProjectDoc,
+    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
+    OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
+    ProjectDoc, ProtectedOutlineGap, Vec2,
 };
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Generated closure-clearance parts. They are regenerated from the pair, never copied.
+const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
+
+/// What every mode of the operation shares.
+struct Request<'a> {
+    pair_id: &'a str,
+    source_id: &'a str,
+    mapping: Pose2,
+    mounting_hole: Option<&'a PartDefinition>,
+}
 
 /// Creates the second half and returns the changed ids, sorted.
 pub(crate) fn create(
@@ -26,30 +51,32 @@ pub(crate) fn create(
     mode: &MirroredHalfMode,
     mapping: Pose2,
     id_rule: MirroredIdRule,
+    mounting_hole: Option<&PartDefinition>,
 ) -> Result<Vec<String>, String> {
     let MirroredIdRule::BoardPrefix = id_rule;
     if !(mapping.at.x.is_finite() && mapping.at.y.is_finite() && mapping.rotation.is_finite()) {
         return Err("The mirrored half's mapping must be finite.".into());
     }
+    let request = Request {
+        pair_id,
+        source_id: source_instance_id,
+        mapping,
+        mounting_hole,
+    };
     let mut next = doc.clone();
-    let changed = match mode {
+    let mut changed = match mode {
         MirroredHalfMode::ReuseBoard { instance_id } => {
-            reuse_board(&mut next, pair_id, source_instance_id, instance_id, mapping)?
+            reuse_board(&mut next, &request, instance_id)?
         }
         MirroredHalfMode::NewBoard {
             board_id,
             instance_id,
-        } => new_board(
-            &mut next,
-            pair_id,
-            source_instance_id,
-            board_id,
-            instance_id,
-            mapping,
-        )?,
+        } => new_board(&mut next, &request, board_id, instance_id)?,
     };
     layout::validate(&next)?;
     halves::validate_document(&next)?;
+    changed.sort();
+    changed.dedup();
     *doc = next;
     Ok(changed)
 }
@@ -63,22 +90,53 @@ pub(crate) fn mirror_id(from: &str, to: &str, id: &str) -> String {
 /// Replaces each whole token equal to `from` (tokens are split at `/` and `-`), or `None` when
 /// no token matched.
 fn substitute_token(text: &str, from: &str, to: &str) -> Option<String> {
+    substitute_delimited(text, &['/', '-'], |token| {
+        (token == from).then(|| to.to_owned())
+    })
+}
+
+/// Rewrites the tokens of `text` (split at any of `delimiters`) that `rename` answers for, or
+/// `None` when no token was renamed.
+fn substitute_delimited(
+    text: &str,
+    delimiters: &[char],
+    rename: impl Fn(&str) -> Option<String>,
+) -> Option<String> {
     let mut out = String::new();
     let mut matched = false;
-    for piece in text.split_inclusive(['/', '-']) {
+    for piece in text.split_inclusive(delimiters) {
         let (token, delimiter) = match piece.chars().last() {
-            Some('/' | '-') => (&piece[..piece.len() - 1], &piece[piece.len() - 1..]),
+            Some(last) if delimiters.contains(&last) => (
+                &piece[..piece.len() - last.len_utf8()],
+                &piece[piece.len() - last.len_utf8()..],
+            ),
             _ => (piece, ""),
         };
-        if token == from {
-            out.push_str(to);
-            matched = true;
-        } else {
-            out.push_str(token);
+        match rename(token) {
+            Some(renamed) => {
+                out.push_str(&renamed);
+                matched = true;
+            }
+            None => out.push_str(token),
         }
         out.push_str(delimiter);
     }
     matched.then_some(out)
+}
+
+/// A generated net name such as `PERIPHERAL_LEFT_TRRS_SPLIT-RX` names the part it wires; the
+/// mirror's name carries the mirror board's token in the same case.
+fn mirror_net_name(from: &str, to: &str, name: &str) -> String {
+    substitute_delimited(name, &['_', '-', '/'], |token| {
+        if token == from.to_uppercase() {
+            Some(to.to_uppercase())
+        } else if token == from {
+            Some(to.to_owned())
+        } else {
+            None
+        }
+    })
+    .unwrap_or_else(|| name.to_owned())
 }
 
 /// A reflected pose: the point through the pair map, the heading by the pair's rule.
@@ -89,21 +147,81 @@ pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
     }
 }
 
-/// The mirror's stored configuration: the source's settings, with its openings and mounts
-/// removed. Linked features reach the mirror through the pair (reconcile, ticket 19), and closure
-/// mounts are regenerated from the pair, never copied.
-fn mirror_configuration(source: &MechanicalConfiguration) -> MechanicalConfiguration {
+/// A point in a part's own frame keeps its place in that frame; only the handedness flips,
+/// because the mirror part already carries the reflected position and heading.
+fn mirror_local(point: Vec2) -> Vec2 {
+    Vec2 {
+        x: -point.x,
+        y: point.y,
+    }
+}
+
+/// The mirror's stored configuration: the source's, for the board it is placed on.
+///
+/// A new board starts without the lists that name the source board's parts or one physical item
+/// (hardware specifications, critical fits, a battery). Openings, mounts, closure mounts and
+/// gasket supports are linked through the pair, so they reach the mirror reflected.
+fn mirror_configuration(
+    source: &MechanicalConfiguration,
+    board_id: &str,
+    new_board: bool,
+) -> MechanicalConfiguration {
     let mut configuration = source.clone();
-    configuration.openings = Some(vec![]);
-    configuration.mounts.clear();
+    configuration.board_id = board_id.into();
+    if new_board {
+        configuration.hardware = None;
+        configuration.critical_fits = None;
+        configuration.battery = None;
+    }
     configuration
+}
+
+/// Every mechanical feature the configuration carries, matched to itself on the other half.
+fn feature_correspondences(
+    configuration: &MechanicalConfiguration,
+) -> Vec<MechanicalFeatureCorrespondence> {
+    let same = |kind: MechanicalFeatureKind, id: &str| MechanicalFeatureCorrespondence {
+        kind,
+        first_feature_id: id.into(),
+        second_feature_id: id.into(),
+        source_instance_id: None,
+    };
+    let mut features = Vec::new();
+    features.extend(
+        configuration
+            .mounts
+            .iter()
+            .map(|mount| same(MechanicalFeatureKind::Mount, &mount.id)),
+    );
+    features.extend(
+        configuration
+            .closure_mounts
+            .iter()
+            .flatten()
+            .map(|mount| same(MechanicalFeatureKind::ClosureMount, &mount.id)),
+    );
+    features.extend(
+        configuration
+            .openings
+            .iter()
+            .flatten()
+            .map(|opening| same(MechanicalFeatureKind::Opening, &opening.id)),
+    );
+    features.extend(
+        configuration
+            .gasket_layout
+            .iter()
+            .flat_map(|layout| &layout.supports)
+            .map(|support| same(MechanicalFeatureKind::GasketSupport, &support.id)),
+    );
+    features
 }
 
 fn source_half(
     doc: &ProjectDoc,
-    pair_id: &str,
-    source_id: &str,
+    request: &Request,
 ) -> Result<(PhysicalBoardInstance, MechanicalConfiguration), String> {
+    let (pair_id, source_id) = (request.pair_id, request.source_id);
     let hardware = doc
         .hardware
         .as_ref()
@@ -139,7 +257,10 @@ fn source_half(
         &MechanicalTarget::Instance {
             instance_id: source_id.into(),
         },
-    )?
+    )
+    .map_err(|error| {
+        format!("Cannot create the mirrored half of {source_id:?}; set up its mechanical configuration first ({error}).")
+    })?
     .configuration;
     Ok((instance, configuration))
 }
@@ -173,8 +294,7 @@ fn ensure_instance_fresh(doc: &ProjectDoc, instance_id: &str) -> Result<(), Stri
     Ok(())
 }
 
-/// The mirror's half label and role: the opposite half of a left/right pair, with the recipes'
-/// central/peripheral roles.
+/// The mirror's half label: the opposite half of a left/right pair; other labels are kept.
 fn mirror_half_label(source_half: &str) -> &str {
     match source_half {
         "left" => "right",
@@ -183,86 +303,136 @@ fn mirror_half_label(source_half: &str) -> &str {
     }
 }
 
-fn push_pair(doc: &mut ProjectDoc, pair: MechanicalMirrorPair) {
-    if let Some(hardware) = doc.hardware.as_mut() {
-        hardware.pairs.push(pair);
+/// The second half's instance: the opposite half label with the recipes' central/peripheral
+/// roles, owning its configuration until the link promotes both members to the pair.
+fn mirror_instance(
+    source: &PhysicalBoardInstance,
+    id: &str,
+    board_id: &str,
+    flipped: bool,
+    controller_part_id: Option<String>,
+    configuration: MechanicalConfiguration,
+) -> PhysicalBoardInstance {
+    let half = mirror_half_label(&source.half).to_owned();
+    PhysicalBoardInstance {
+        id: id.into(),
+        name: match half.as_str() {
+            "left" => "Left half".into(),
+            "right" => "Right half".into(),
+            _ => format!("{} mirror", source.name),
+        },
+        board_id: board_id.into(),
+        role: if half == "right" {
+            "peripheral"
+        } else {
+            "central"
+        }
+        .into(),
+        half,
+        flipped,
+        controller_part_id,
+        mechanical: Some(configuration),
+        construction_ownership: MechanicalConstructionOwnership::Local,
+        mechanical_identity_reservation: None,
     }
 }
 
-fn source_owned_by_pair(
+/// Links the two members through the mechanical `LinkMirrorPair` operation: the pair, its
+/// shared construction, every linked feature authored by the source, the generated clearance
+/// holes, and the mirrored-half record. The mirror instance must already be in the document with
+/// a configuration that carries the same feature ids as the source.
+fn link_halves(
     doc: &mut ProjectDoc,
-    source_id: &str,
-    configuration: &MechanicalConfiguration,
-) {
-    if let Some(hardware) = doc.hardware.as_mut()
-        && let Some(instance) = hardware
-            .instances
-            .iter_mut()
-            .find(|instance| instance.id == source_id)
-    {
-        if instance.mechanical.is_none() {
-            instance.mechanical = Some(configuration.clone());
-        }
-        instance.construction_ownership = MechanicalConstructionOwnership::Pair;
-    }
+    request: &Request,
+    mirror_id: &str,
+    halves: MirroredHalves,
+) -> Result<Vec<String>, String> {
+    let mirror = effective_inputs(
+        doc,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: mirror_id.into(),
+        },
+    )?
+    .configuration;
+    let edit = MechanicalEdit {
+        target: MechanicalTarget::Instance {
+            instance_id: request.source_id.into(),
+        },
+        change: MechanicalChange::LinkMirrorPair {
+            pair_id: request.pair_id.into(),
+            members: [request.source_id.into(), mirror_id.into()],
+            mapping: request.mapping,
+            construction_source: request.source_id.into(),
+            correspondences: feature_correspondences(&mirror),
+        },
+        mounting_hole: request
+            .mounting_hole
+            .map(|definition| Box::new(definition.clone())),
+    };
+    let changed = mechanical::edit::apply(doc, &[], &edit)?;
+    doc.hardware
+        .as_mut()
+        .and_then(|hardware| {
+            hardware
+                .pairs
+                .iter_mut()
+                .find(|pair| pair.id == request.pair_id)
+        })
+        .ok_or("The mechanical pair was not recorded.")?
+        .halves = Some(halves);
+    Ok(changed)
 }
 
 fn reuse_board(
     doc: &mut ProjectDoc,
-    pair_id: &str,
-    source_id: &str,
+    request: &Request,
     instance_id: &str,
-    mapping: Pose2,
 ) -> Result<Vec<String>, String> {
-    let (source, configuration) = source_half(doc, pair_id, source_id)?;
+    let (source, configuration) = source_half(doc, request)?;
     if source.flipped {
         return Err(format!(
-            "Physical instance {source_id:?} is already flipped; a reused board needs an unflipped source."
+            "Physical instance {:?} is already flipped; a reused board needs an unflipped source.",
+            request.source_id
+        ));
+    }
+    // A flipped instance of the same board is the physical reflection `q = (-p.x, p.y)`, which is
+    // the pair map with no translation and no turn; any other map describes a different part.
+    if request.mapping.at.x != 0.0 || request.mapping.at.y != 0.0 || request.mapping.rotation != 0.0
+    {
+        return Err(format!(
+            "A flipped instance of board {:?} is the plain reflection: its map must be zero \
+             translation and zero rotation, not {:?}. Create a new board for any other map.",
+            source.board_id, request.mapping
         ));
     }
     ensure_board_unclaimed(doc, &source.board_id)?;
     ensure_instance_fresh(doc, instance_id)?;
     let board = source.board_id.clone();
-    source_owned_by_pair(doc, source_id, &configuration);
-    if let Some(hardware) = doc.hardware.as_mut() {
-        hardware.instances.push(PhysicalBoardInstance {
-            id: instance_id.into(),
-            name: "Right half".into(),
-            board_id: board.clone(),
-            half: "right".into(),
-            role: "peripheral".into(),
-            flipped: true,
-            controller_part_id: None,
-            mechanical: Some(mirror_configuration(&configuration)),
-            construction_ownership: MechanicalConstructionOwnership::Pair,
-            mechanical_identity_reservation: None,
-        });
-    }
-    push_pair(
-        doc,
-        MechanicalMirrorPair {
-            id: pair_id.into(),
-            members: [source_id.into(), instance_id.into()],
-            mapping,
-            construction: features::shared_construction(&configuration),
-            construction_source: Some(source_id.into()),
-            halves: Some(MirroredHalves {
-                source_board_id: board.clone(),
-                mirror_board_id: board,
-                correspondences: vec![],
-                exceptions: vec![],
-            }),
-            features: vec![],
-        },
+    let mirror = mirror_instance(
+        &source,
+        instance_id,
+        &board,
+        true,
+        None,
+        mirror_configuration(&configuration, &board, false),
     );
-    let mut changed = vec![
-        pair_id.to_owned(),
-        source_id.to_owned(),
-        instance_id.to_owned(),
-    ];
-    changed.sort();
-    changed.dedup();
-    Ok(changed)
+    doc.hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?
+        .instances
+        .push(mirror);
+    link_halves(
+        doc,
+        request,
+        instance_id,
+        MirroredHalves {
+            source_board_id: board.clone(),
+            mirror_board_id: board,
+            correspondences: vec![],
+            exceptions: vec![],
+        },
+    )
 }
 
 /// Every id a document already uses in the namespaces a mirror writes into.
@@ -289,13 +459,64 @@ fn mint(taken: &mut BTreeSet<String>, id: String) -> Result<String, String> {
     Ok(id)
 }
 
-/// Maps the points of a feature through the pair; a reflected polygon keeps its orientation by
-/// reversing its point order.
-fn mirror_feature(
-    feature: &OutlineFeature,
+/// How a feature's ids are renamed. Outline identities share one document namespace, so every
+/// identity the rename makes is recorded and checked once the whole outline is built.
+struct Renames<'a> {
+    /// Maps an outline identity (a feature, connection, gap or bridge) and records the result.
+    identity: &'a dyn Fn(&str) -> String,
+    /// Maps a reference to a part of the source board to its mirror; foreign ids stay as they are.
+    part: &'a dyn Fn(&str) -> String,
+}
+
+fn mirror_control(
+    point: &OutlineControlPoint,
     mapping: Pose2,
-    map: &dyn Fn(&str) -> String,
-) -> OutlineFeature {
+    renames: &Renames,
+) -> OutlineControlPoint {
+    match &point.part_id {
+        // Attached to a part: the point is in that part's frame.
+        Some(part) => OutlineControlPoint {
+            at: mirror_local(point.at),
+            part_id: Some((renames.part)(part)),
+        },
+        None => OutlineControlPoint {
+            at: pair::forward(mapping, point.at),
+            part_id: None,
+        },
+    }
+}
+
+fn mirror_gap(gap: &ProtectedOutlineGap, mapping: Pose2, renames: &Renames) -> ProtectedOutlineGap {
+    ProtectedOutlineGap {
+        id: (renames.identity)(&gap.id),
+        points: gap
+            .points
+            .iter()
+            .map(|point| mirror_control(point, mapping, renames))
+            .collect(),
+    }
+}
+
+fn mirror_settings(
+    settings: &OutlineSettings,
+    mapping: Pose2,
+    renames: &Renames,
+) -> OutlineSettings {
+    let mut mirrored = settings.clone();
+    if let Some(repair) = mirrored.repair.as_mut() {
+        repair.keep_gaps = repair
+            .keep_gaps
+            .iter()
+            .map(|gap| mirror_gap(gap, mapping, renames))
+            .collect();
+    }
+    mirrored
+}
+
+/// Reflects a feature. A point in world coordinates goes through the pair map; a point anchored
+/// to a part is in that part's frame and only flips handedness. A reflected polygon keeps its
+/// orientation by reversing its point order.
+fn mirror_feature(feature: &OutlineFeature, mapping: Pose2, renames: &Renames) -> OutlineFeature {
     match feature {
         OutlineFeature::Polygon {
             anchor_part_id,
@@ -303,12 +524,18 @@ fn mirror_feature(
             points,
             operation,
         } => OutlineFeature::Polygon {
-            anchor_part_id: anchor_part_id.as_deref().map(map),
-            id: map(id),
+            anchor_part_id: anchor_part_id.as_deref().map(renames.part),
+            id: (renames.identity)(id),
             points: points
                 .iter()
                 .rev()
-                .map(|point| pair::forward(mapping, *point))
+                .map(|point| {
+                    if anchor_part_id.is_some() {
+                        mirror_local(*point)
+                    } else {
+                        pair::forward(mapping, *point)
+                    }
+                })
                 .collect(),
             operation: *operation,
         },
@@ -321,11 +548,19 @@ fn mirror_feature(
             radius,
             operation,
         } => OutlineFeature::Rect {
-            rotation: (rotation.is_some() || mapping.rotation != 0.0)
-                .then(|| pair::forward_angle(mapping, rotation.unwrap_or(0.0))),
-            anchor_part_id: anchor_part_id.as_deref().map(map),
-            id: map(id),
-            center: pair::forward(mapping, *center),
+            rotation: if anchor_part_id.is_some() {
+                rotation.map(|angle| -angle)
+            } else {
+                (rotation.is_some() || mapping.rotation != 0.0)
+                    .then(|| pair::forward_angle(mapping, rotation.unwrap_or(0.0)))
+            },
+            anchor_part_id: anchor_part_id.as_deref().map(renames.part),
+            id: (renames.identity)(id),
+            center: if anchor_part_id.is_some() {
+                mirror_local(*center)
+            } else {
+                pair::forward(mapping, *center)
+            },
             size: *size,
             radius: *radius,
             operation: *operation,
@@ -341,58 +576,59 @@ fn mirror_feature(
             connections: connections
                 .iter()
                 .map(|connection| OutlineConnection {
-                    id: map(&connection.id),
+                    id: (renames.identity)(&connection.id),
                     width: connection.width,
                     points: connection
                         .points
                         .iter()
-                        .map(|point| OutlineControlPoint {
-                            at: pair::forward(mapping, point.at),
-                            part_id: point.part_id.as_deref().map(map),
-                        })
+                        .map(|point| mirror_control(point, mapping, renames))
                         .collect(),
                 })
                 .collect(),
-            settings: settings.clone(),
-            id: map(id),
-            part_ids: part_ids.iter().map(|part| map(part)).collect(),
+            settings: mirror_settings(settings, mapping, renames),
+            id: (renames.identity)(id),
+            part_ids: part_ids
+                .iter()
+                .filter(|part| !part.starts_with(GENERATED_CLOSURE_PREFIX))
+                .map(|part| (renames.part)(part))
+                .collect(),
             margin: *margin,
             operation: *operation,
         },
     }
 }
 
-/// A fixed outline version's snapshot, reflected. Protected gaps are not mirrored yet, so a
-/// snapshot that has any is refused rather than silently losing them.
+/// A fixed outline version's snapshot, reflected: features, authored bridges and protected gaps.
 fn mirror_snapshot(
     snapshot: &OutlineSnapshot,
     mapping: Pose2,
-    map: &dyn Fn(&str) -> String,
+    renames: &Renames,
     matrix_map: &BTreeMap<String, String>,
-) -> Result<OutlineSnapshot, String> {
-    if !snapshot.protected_gaps.is_empty() {
-        return Err("Protected outline gaps cannot be mirrored yet; remove them first.".into());
-    }
-    Ok(OutlineSnapshot {
+) -> OutlineSnapshot {
+    OutlineSnapshot {
         features: snapshot
             .features
             .iter()
-            .map(|feature| mirror_feature(feature, mapping, map))
+            .map(|feature| mirror_feature(feature, mapping, renames))
             .collect(),
-        settings: snapshot.settings.clone(),
+        settings: mirror_settings(&snapshot.settings, mapping, renames),
         expected_regions: snapshot.expected_regions,
         bridges: snapshot
             .bridges
             .iter()
             .map(|bridge| OutlineBridge {
-                id: map(&bridge.id),
+                id: (renames.identity)(&bridge.id),
                 width: bridge.width,
                 points: bridge
                     .points
                     .iter()
                     .map(|point| pair::forward(mapping, *point))
                     .collect(),
-                part_ids: bridge.part_ids.iter().map(|part| map(part)).collect(),
+                part_ids: bridge
+                    .part_ids
+                    .iter()
+                    .map(|part| (renames.part)(part))
+                    .collect(),
                 matrix_ids: bridge
                     .matrix_ids
                     .iter()
@@ -406,13 +642,49 @@ fn mirror_snapshot(
                 authored: bridge.authored,
             })
             .collect(),
-        protected_gaps: vec![],
-    })
+        protected_gaps: snapshot
+            .protected_gaps
+            .iter()
+            .map(|gap| mirror_gap(gap, mapping, renames))
+            .collect(),
+    }
 }
 
 /// A mirror's reference: the board token substituted, or `to-reference` when none matches.
 fn mirror_reference(from: &str, to: &str, reference: &str) -> String {
     substitute_token(reference, from, to).unwrap_or_else(|| format!("{to}-{reference}"))
+}
+
+/// Renames a wiring function key or value that names a part or net of the source board
+/// (`peripheral/left/TRRS/split-rx`, a net id). The longest whole-segment match wins; a
+/// terminal such as `P21` names nothing and is kept.
+fn remap_wiring_key(text: &str, renames: &BTreeMap<String, String>) -> String {
+    let bounded = |start: usize, end: usize| {
+        (start == 0 || text.as_bytes()[start - 1] == b'/')
+            && (end == text.len() || text.as_bytes()[end] == b'/')
+    };
+    let mut best: Option<(usize, usize, &String)> = None;
+    for (source, mirror) in renames {
+        let mut from = 0;
+        while let Some(found) = text[from..].find(source.as_str()) {
+            let start = from + found;
+            let end = start + source.len();
+            if bounded(start, end) && best.is_none_or(|(_, length, _)| source.len() > length) {
+                best = Some((start, source.len(), mirror));
+                break;
+            }
+            from = start + 1;
+            while !text.is_char_boundary(from) {
+                from += 1;
+            }
+        }
+    }
+    match best {
+        Some((start, length, mirror)) => {
+            format!("{}{}{}", &text[..start], mirror, &text[start + length..])
+        }
+        None => text.to_owned(),
+    }
 }
 
 fn corresponds(kind: MirroredItemKind, source: &str, mirror: &str) -> MirroredCorrespondence {
@@ -423,15 +695,31 @@ fn corresponds(kind: MirroredItemKind, source: &str, mirror: &str) -> MirroredCo
     }
 }
 
+/// The ids a refusal names: modules and embedded circuits hosted on `board`.
+fn hosted_items(doc: &ProjectDoc, board: &str) -> Vec<String> {
+    let mut hosted: Vec<String> = doc
+        .modules
+        .iter()
+        .filter(|module| module.host_board_id == board)
+        .map(|module| format!("module {}", module.id))
+        .collect();
+    hosted.extend(
+        doc.embedded_circuits
+            .iter()
+            .filter(|circuit| circuit.host_board_id == board)
+            .map(|circuit| format!("embedded circuit {}", circuit.id)),
+    );
+    hosted
+}
+
 fn new_board(
     doc: &mut ProjectDoc,
-    pair_id: &str,
-    source_id: &str,
+    request: &Request,
     board_id: &str,
     instance_id: &str,
-    mapping: Pose2,
 ) -> Result<Vec<String>, String> {
-    let (source, configuration) = source_half(doc, pair_id, source_id)?;
+    let mapping = request.mapping;
+    let (source, configuration) = source_half(doc, request)?;
     let from = source.board_id.clone();
     let to = board_id.to_owned();
     ensure_board_unclaimed(doc, &from)?;
@@ -445,17 +733,12 @@ fn new_board(
         .find(|board| board.id == from)
         .cloned()
         .ok_or("The source board is unavailable")?;
-    if doc
-        .modules
-        .iter()
-        .any(|module| module.host_board_id == from)
-        || doc
-            .embedded_circuits
-            .iter()
-            .any(|circuit| circuit.host_board_id == from)
-    {
+    let hosted = hosted_items(doc, &from);
+    if !hosted.is_empty() {
         return Err(format!(
-            "Board {from:?} hosts modules or embedded circuits, which cannot be mirrored yet."
+            "Board {from:?} hosts {}, which cannot be mirrored yet: they have no reflection rule. \
+             Remove them or create the second half before adding them.",
+            hosted.join(", ")
         ));
     }
 
@@ -464,11 +747,12 @@ fn new_board(
     // Every new id is minted before anything is written, so a collision refuses the record.
     let mut taken = taken_ids(doc);
     mint(&mut taken, to.clone())?;
-    let mut part_map = BTreeMap::new();
-    for part in &source_board.part_ids {
-        let mirrored = mint(&mut taken, map(part))?;
-        part_map.insert(part.clone(), mirrored);
-    }
+    // Generated clearance holes are regenerated from the pair, never copied.
+    let source_parts: Vec<&String> = source_board
+        .part_ids
+        .iter()
+        .filter(|id| !id.starts_with(GENERATED_CLOSURE_PREFIX))
+        .collect();
     let matrices: Vec<_> = doc
         .matrices
         .iter()
@@ -477,8 +761,28 @@ fn new_board(
         .collect();
     let mut matrix_map = BTreeMap::new();
     for matrix in &matrices {
-        let mirrored = mint(&mut taken, map(&matrix.id))?;
+        // Matrix ids allow letters, digits, `_` and `-` only, so an id without the board token is
+        // joined with `-`, not `/`.
+        let mirrored = mint(&mut taken, mirror_reference(&from, &to, &matrix.id))?;
         matrix_map.insert(matrix.id.clone(), mirrored);
+    }
+    // A matrix places its members itself, under `matrix/<matrix id>/`: follow the mirror matrix.
+    let mut part_map = BTreeMap::new();
+    for part in &source_parts {
+        let owner = matrices
+            .iter()
+            .find(|matrix| matrix.part_ids.iter().any(|member| member == part.as_str()));
+        let mirrored = match owner {
+            Some(matrix) => {
+                let prefix = format!("matrix/{}/", matrix.id);
+                let rest = part.strip_prefix(&prefix).ok_or_else(|| {
+                    format!("Matrix member {part:?} is not named under {prefix:?}.")
+                })?;
+                format!("matrix/{}/{rest}", matrix_map[&matrix.id])
+            }
+            None => map(part),
+        };
+        part_map.insert((*part).clone(), mint(&mut taken, mirrored)?);
     }
     let matrix_owned: BTreeSet<&str> = matrices
         .iter()
@@ -492,7 +796,7 @@ fn new_board(
         .collect();
     let mut layout_map = BTreeMap::new();
     for layout in &layouts {
-        let mirrored = mint(&mut taken, map(&layout.id))?;
+        let mirrored = mint(&mut taken, mirror_reference(&from, &to, &layout.id))?;
         layout_map.insert(layout.id.clone(), mirrored);
     }
     let mut outline_map = BTreeMap::new();
@@ -530,16 +834,28 @@ fn new_board(
             .find(|entry| entry.board_id == from)
             .cloned()
     });
-    let part_set: BTreeSet<&str> = source_board.part_ids.iter().map(String::as_str).collect();
-    let net_set: BTreeSet<&str> = source_board.net_ids.iter().map(String::as_str).collect();
+    let part_set: BTreeSet<&str> = source_parts.iter().map(|id| id.as_str()).collect();
     let mapped_reference = |id: &str| -> String {
-        if let Some(part) = part_map.get(id) {
-            part.clone()
-        } else if let Some(net) = net_map.get(id) {
-            net.clone()
-        } else {
-            id.to_owned()
-        }
+        part_map
+            .get(id)
+            .or_else(|| net_map.get(id))
+            .cloned()
+            .unwrap_or_else(|| id.to_owned())
+    };
+    // Outline identities share one namespace: record what the renames mint, check it later.
+    let outline_namespace: BTreeSet<String> = crate::outline_edit::persisted_identities(doc)
+        .into_iter()
+        .collect();
+    let minted = RefCell::new(Vec::<(String, String)>::new());
+    let record_identity = |id: &str| {
+        let mirrored = map(id);
+        minted.borrow_mut().push((id.to_owned(), mirrored.clone()));
+        mirrored
+    };
+    let part_reference = |id: &str| mapped_reference(id);
+    let renames = Renames {
+        identity: &record_identity,
+        part: &part_reference,
     };
 
     let mut correspondences = Vec::new();
@@ -572,7 +888,13 @@ fn new_board(
             .find(|feature| feature.id() == outline)
             .cloned()
             .ok_or("Board outline is unavailable")?;
-        doc.outline.push(mirror_feature(&feature, mapping, &map));
+        let mirrored = mirror_feature(&feature, mapping, &renames);
+        if mirrored.id() != outline_map[outline] {
+            return Err(format!(
+                "Board outline {outline:?} was renamed unexpectedly."
+            ));
+        }
+        doc.outline.push(mirrored);
         correspondences.push(corresponds(
             MirroredItemKind::Outline,
             outline,
@@ -610,7 +932,7 @@ fn new_board(
                 .parts
                 .iter_mut()
                 .find(|part| part.id == mirrored)
-                .ok_or("A mirrored matrix member was not placed")?;
+                .ok_or_else(|| format!("The mirror of matrix member {member:?} was not placed."))?;
             placed.keycap = source_part.keycap;
             placed.outline = source_part.outline.clone();
             placed.locked = source_part.locked;
@@ -625,15 +947,15 @@ fn new_board(
         .iter()
         .map(|part| part.reference.clone())
         .collect();
-    for id in &source_board.part_ids {
-        correspondences.push(corresponds(MirroredItemKind::Part, id, &part_map[id]));
+    for id in &source_parts {
+        correspondences.push(corresponds(MirroredItemKind::Part, id, &part_map[*id]));
         if matrix_owned.contains(id.as_str()) {
             continue;
         }
         let part = doc
             .parts
             .iter()
-            .find(|part| part.id == *id)
+            .find(|part| part.id == **id)
             .cloned()
             .ok_or("A board part is unavailable")?;
         let reference = mirror_reference(&from, &to, &part.reference);
@@ -642,24 +964,17 @@ fn new_board(
                 "The mirrored reference {reference:?} is already in use."
             ));
         }
-        // A footprint with a reversible variant takes it on the mirror.
-        let mut generator_parameters = part.generator_parameters.clone();
-        if let Some(parameters) = generator_parameters.as_mut()
-            && parameters.contains_key("reversible")
-        {
-            parameters.insert("reversible".into(), serde_json::json!(true));
-        }
         doc.parts.push(Part {
             keycap: part.keycap,
             outline: part.outline.clone(),
-            id: part_map[id].clone(),
+            id: part_map[*id].clone(),
             definition_id: part.definition_id.clone(),
             reference,
             pose: mirror_pose(mapping, part.pose),
             side: part.side.clone(),
             locked: part.locked,
             properties: part.properties.clone(),
-            generator_parameters,
+            generator_parameters: part.generator_parameters.clone(),
         });
     }
 
@@ -672,6 +987,7 @@ fn new_board(
         let part_ids = layout
             .part_ids
             .iter()
+            .filter(|id| !id.starts_with(GENERATED_CLOSURE_PREFIX))
             .map(|id| {
                 part_map
                     .get(id)
@@ -705,22 +1021,24 @@ fn new_board(
         let pins = source_net
             .pins
             .iter()
-            .filter(|pin| part_set.contains(pin.part_id.as_str()))
-            .map(|pin| Pin {
-                part_id: part_map[&pin.part_id].clone(),
-                pad_id: pin.pad_id.clone(),
+            .filter_map(|pin| {
+                part_map.get(&pin.part_id).map(|part_id| Pin {
+                    part_id: part_id.clone(),
+                    pad_id: pin.pad_id.clone(),
+                })
             })
             .collect();
         doc.nets.push(Net {
             id: net_map[net].clone(),
-            name: source_net.name.clone(),
+            name: mirror_net_name(&from, &to, &source_net.name),
             pins,
         });
         correspondences.push(corresponds(MirroredItemKind::Net, net, &net_map[net]));
     }
 
-    // Keycap settings keyed by the source board, its matrices and its keys. A setting that
-    // already names a mirror id is stale data, so it refuses rather than being overwritten.
+    // Keycap settings keyed by the source board, its matrices and its keys, legends included
+    // (a keymap binding is not copied, its legend is). A setting that already names a mirror id
+    // is stale data, so it refuses rather than being overwritten.
     if let Some(source_keycaps) = doc.keycaps.clone()
         && let Some(target) = doc.keycaps.as_mut()
     {
@@ -748,28 +1066,28 @@ fn new_board(
         }
     }
 
-    // The electrical configuration of the source board, with the ids it names reflected.
+    // The electrical configuration of the source board. The mirror keeps the source's matrix
+    // numbering, so it keeps the same pins: functions are renamed only where they name a part
+    // or net (`peripheral/<part>/...`). Keymap bindings are never reflected, and the protected
+    // handoff baseline belongs to the source's reviewed wiring.
     if let Some(entry) = electrical {
         let controller_part_id = entry
             .controller_part_id
             .as_deref()
             .filter(|id| part_set.contains(id))
             .map(mapped_reference);
+        let renamed: BTreeMap<String, String> = part_map
+            .iter()
+            .chain(net_map.iter())
+            .map(|(source, mirror)| (source.clone(), mirror.clone()))
+            .collect();
         let remap = |map: &BTreeMap<String, String>| -> BTreeMap<String, String> {
             map.iter()
                 .map(|(key, value)| {
-                    let key = if part_set.contains(key.as_str()) {
-                        mapped_reference(key)
-                    } else {
-                        key.clone()
-                    };
-                    let value =
-                        if part_set.contains(value.as_str()) || net_set.contains(value.as_str()) {
-                            mapped_reference(value)
-                        } else {
-                            value.clone()
-                        };
-                    (key, value)
+                    (
+                        remap_wiring_key(key, &renamed),
+                        remap_wiring_key(value, &renamed),
+                    )
                 })
                 .collect()
         };
@@ -779,7 +1097,7 @@ fn new_board(
             mode: entry.mode,
             locks: remap(&entry.locks),
             assignments: remap(&entry.assignments),
-            key_bindings: remap(&entry.key_bindings),
+            key_bindings: BTreeMap::new(),
             jumper_states: entry.jumper_states.clone(),
             protected_handoff: None,
         };
@@ -804,7 +1122,7 @@ fn new_board(
         }
         let mut versions = Vec::new();
         for version in &outline.versions {
-            let geometry = mirror_snapshot(&version.geometry, mapping, &map, &matrix_map)?;
+            let geometry = mirror_snapshot(&version.geometry, mapping, &renames, &matrix_map);
             let provenance = OutlineProvenance {
                 revision: version.source.revision,
                 version_id: version
@@ -838,72 +1156,63 @@ fn new_board(
         });
     }
 
+    // Outline identities share one namespace. Every identity the renames made must be new, and
+    // two different source identities must not meet at one mirror identity. (A gap kept on the
+    // live outline and the same gap protected in a fixed copy share their source identity.)
+    let mut sources: BTreeMap<String, String> = BTreeMap::new();
+    for (source_identity, identity) in minted.into_inner() {
+        let first = sources
+            .entry(identity.clone())
+            .or_insert_with(|| source_identity.clone());
+        if outline_namespace.contains(&identity) || *first != source_identity {
+            return Err(format!(
+                "The mirrored outline identity {identity:?} is already in use."
+            ));
+        }
+    }
+
     // The board lists its parts in the source's order.
-    let board_parts: Vec<String> = source_board
-        .part_ids
+    let board_parts: Vec<String> = source_parts
         .iter()
-        .map(|id| part_map[id].clone())
+        .map(|id| part_map[*id].clone())
         .collect();
     if let Some(board) = doc.boards.iter_mut().find(|board| board.id == to) {
         board.part_ids = board_parts;
     }
 
-    // The mirror instance, and the source instance that the pair now owns.
-    source_owned_by_pair(doc, source_id, &configuration);
-    let half = mirror_half_label(&source.half).to_owned();
-    let mirror_config = mirror_configuration(&configuration);
-    if let Some(hardware) = doc.hardware.as_mut() {
-        hardware.instances.push(PhysicalBoardInstance {
-            id: instance_id.into(),
-            name: match half.as_str() {
-                "left" => "Left half".into(),
-                "right" => "Right half".into(),
-                _ => format!("{} mirror", source.name),
-            },
-            board_id: to.clone(),
-            role: if half == "right" {
-                "peripheral"
-            } else {
-                "central"
-            }
-            .into(),
-            half,
-            flipped: false,
-            controller_part_id: source
-                .controller_part_id
-                .as_deref()
-                .filter(|id| part_set.contains(id))
-                .map(mapped_reference),
-            mechanical: Some(mirror_config),
-            construction_ownership: MechanicalConstructionOwnership::Pair,
-            mechanical_identity_reservation: None,
-        });
-    }
-    push_pair(
-        doc,
-        MechanicalMirrorPair {
-            id: pair_id.into(),
-            members: [source_id.into(), instance_id.into()],
-            mapping,
-            construction: features::shared_construction(&configuration),
-            construction_source: Some(source_id.into()),
-            halves: Some(MirroredHalves {
-                source_board_id: from,
-                mirror_board_id: to.clone(),
-                correspondences: correspondences.clone(),
-                exceptions: vec![],
-            }),
-            features: vec![],
-        },
+    // The second half, then the link: the pair, its shared construction, every linked feature
+    // and the generated clearance holes for both halves.
+    let mirror = mirror_instance(
+        &source,
+        instance_id,
+        &to,
+        false,
+        source
+            .controller_part_id
+            .as_deref()
+            .filter(|id| part_set.contains(id))
+            .map(mapped_reference),
+        mirror_configuration(&configuration, &to, true),
     );
-
-    let mut changed: BTreeSet<String> = BTreeSet::new();
-    changed.extend([
-        pair_id.to_owned(),
-        source_id.to_owned(),
-        instance_id.to_owned(),
-        to,
-    ]);
+    doc.hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?
+        .instances
+        .push(mirror);
+    let mut changed: BTreeSet<String> = link_halves(
+        doc,
+        request,
+        instance_id,
+        MirroredHalves {
+            source_board_id: from,
+            mirror_board_id: to.clone(),
+            correspondences: correspondences.clone(),
+            exceptions: vec![],
+        },
+    )?
+    .into_iter()
+    .collect();
+    changed.extend([to, instance_id.to_owned()]);
     for correspondence in &correspondences {
         changed.insert(correspondence.source_id.clone());
         changed.insert(correspondence.mirror_id.clone());
@@ -970,6 +1279,7 @@ mod tests {
             },
             mapping,
             MirroredIdRule::BoardPrefix,
+            None,
         )
         .unwrap_err();
         assert!(error.contains("finite"), "{error}");

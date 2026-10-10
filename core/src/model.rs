@@ -1481,6 +1481,14 @@ pub enum EditOperation {
         mapping: Pose2,
         #[serde(rename = "idRule")]
         id_rule: MirroredIdRule,
+        /// The normalized mounting-hole definition, needed when the source has closure mounts:
+        /// the second half's clearance holes are generated from them, as for `LinkMirrorPair`.
+        #[serde(
+            default,
+            rename = "mountingHole",
+            skip_serializing_if = "Option::is_none"
+        )]
+        mounting_hole: Option<Box<PartDefinition>>,
     },
     SetLayout {
         layout: Layout,

@@ -505,11 +505,6 @@ impl CoreEngine {
             return self.error(id, "Stale base revision");
         }
         if command.phase == EditPhase::Preview
-            && matches!(&command.operation, EditOperation::CreateMirroredHalf { .. })
-        {
-            return self.error(id, "Creating a mirrored half is a commit, not a preview");
-        }
-        if command.phase == EditPhase::Preview
             && matches!(
                 &command.operation,
                 EditOperation::MoveParts { .. }
@@ -1584,7 +1579,16 @@ fn apply(
             mode,
             mapping,
             id_rule,
-        } => mirrored_half::create(doc, pair_id, source_instance_id, mode, *mapping, *id_rule),
+            mounting_hole,
+        } => mirrored_half::create(
+            doc,
+            pair_id,
+            source_instance_id,
+            mode,
+            *mapping,
+            *id_rule,
+            mounting_hole.as_deref(),
+        ),
         EditOperation::SetLayout { layout: incoming } => {
             let current = doc
                 .layouts

@@ -161,14 +161,6 @@ fn assert_same_switches(actual: &[(f64, f64, f64)], expected: &[(f64, f64, f64)]
     }
 }
 
-/// The reflection constant of the pair map: the shipped mirror's least x plus the source's
-/// greatest x, so `x' = axis - x` maps the source set exactly onto the shipped set.
-fn axis(source: &[(f64, f64, f64)], shipped: &[(f64, f64, f64)]) -> f64 {
-    let least = shipped.iter().map(|k| k.0).fold(f64::INFINITY, f64::min);
-    let greatest = source.iter().map(|k| k.0).fold(f64::NEG_INFINITY, f64::max);
-    least + greatest
-}
-
 fn mapping(axis: f64) -> Value {
     json!({"at": {"x": axis, "y": 0.0}, "rotation": 0.0})
 }
@@ -177,7 +169,55 @@ fn new_board(board: &str, instance: &str) -> Value {
     json!({"kind":"new-board","boardId":board,"instanceId":instance})
 }
 
-/// Submits one `CreateMirroredHalf` commit and returns the reply, or the refusal message.
+/// The normalized bundled mounting-hole catalogue entry that closure projection needs.
+fn mounting_hole() -> Value {
+    json!({
+        "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+        "kind": "custom",
+        "pads": [{ "id": "pad-0", "number": "", "at": { "x": 0, "y": 0 },
+            "size": { "x": 2.2, "y": 2.2 }, "shape": "circle", "drill": 2.2, "plated": false, "rotation": 0 }],
+        "courtyard": [{ "x": -1.1, "y": -1.1 }, { "x": 1.1, "y": -1.1 }, { "x": 1.1, "y": 1.1 }, { "x": -1.1, "y": 1.1 }],
+        "envelopeSource": { "courtyard": "generated" },
+        "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+        "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {} }
+    })
+}
+
+/// The shipped pair's map, which takes its first member to its second. A vertical-axis
+/// reflection is its own inverse, so it also takes a source on the right to the left.
+fn shipped_mapping(shipped: &Value) -> Value {
+    shipped["hardware"]["pairs"][0]["mapping"].clone()
+}
+
+/// The shipped project's half as a one-half project would hold it: one board with the parts,
+/// matrices and outline it owns, and the mechanical configuration the shipped pair resolves
+/// for it (the linked openings and closure mounts folded into the half's own configuration).
+fn seed_document(shipped: &Value, board: &str) -> Value {
+    let mut doc = half_only(shipped, board);
+    let typed: ProjectDoc = serde_json::from_value(shipped.clone()).unwrap();
+    let configuration = effective_inputs(
+        &typed,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: board.into(),
+        },
+    )
+    .unwrap()
+    .configuration;
+    for instance in doc["hardware"]["instances"].as_array_mut().unwrap() {
+        if instance["id"] == board {
+            instance["mechanical"] = serde_json::to_value(&configuration).unwrap();
+        }
+    }
+    doc
+}
+
+fn seed(shipped: &Value, board: &str) -> (CoreEngine, Value) {
+    open(&seed_document(shipped, board))
+}
+
+/// Submits one `CreateMirroredHalf` commit with the mounting-hole definition, and returns the
+/// reply or the refusal message.
 fn create(
     engine: &mut CoreEngine,
     document: &Value,
@@ -186,18 +226,36 @@ fn create(
     mode: Value,
     mapping: Value,
 ) -> Result<Value, String> {
-    let operation = json!({
+    create_with(
+        engine,
+        document,
+        "commit",
+        operation(pair, source, mode, mapping),
+    )
+}
+
+fn operation(pair: &str, source: &str, mode: Value, mapping: Value) -> Value {
+    json!({
         "kind": "create-mirrored-half",
         "pairId": pair,
         "sourceInstanceId": source,
         "mode": mode,
         "mapping": mapping,
         "idRule": "board-prefix",
-    });
+        "mountingHole": mounting_hole(),
+    })
+}
+
+fn create_with(
+    engine: &mut CoreEngine,
+    document: &Value,
+    phase: &str,
+    operation: Value,
+) -> Result<Value, String> {
     let reply: Value = serde_json::from_str(
         &engine.request(
             &json!({"id":"half","kind":"edit","command":{
-            "baseRevision":document["revision"],"transactionId":"half","phase":"commit",
+            "baseRevision":document["revision"],"transactionId":"half","phase":phase,
             "targetIds":[],"operation":operation}})
             .to_string(),
         ),
@@ -206,7 +264,6 @@ fn create(
     if reply["kind"] == "error" {
         return Err(reply["message"].as_str().unwrap().to_owned());
     }
-    assert_eq!(reply["kind"], "scene", "{reply}");
     Ok(reply)
 }
 
@@ -228,122 +285,390 @@ fn instance<'a>(document: &'a Value, id: &str) -> &'a Value {
         .unwrap()
 }
 
+/// Numbers match to 1e-9 (relative); everything else exactly.
+fn close(actual: &Value, expected: &Value, path: &str) {
+    match expected {
+        Value::Number(number) => {
+            let expected = number.as_f64().unwrap();
+            let actual = actual
+                .as_f64()
+                .unwrap_or_else(|| panic!("{path}: expected a number, got {actual}"));
+            assert!(
+                (actual - expected).abs() <= 1e-9 * expected.abs().max(1.0),
+                "{path}: {actual} != {expected}"
+            );
+        }
+        Value::Object(object) => {
+            assert_eq!(
+                actual.as_object().map(|o| o.len()),
+                Some(object.len()),
+                "{path}: keys {actual}"
+            );
+            for (key, value) in object {
+                close(&actual[key], value, &format!("{path}/{key}"));
+            }
+        }
+        Value::Array(items) => {
+            let actual = actual
+                .as_array()
+                .unwrap_or_else(|| panic!("{path}: expected an array"));
+            assert_eq!(actual.len(), items.len(), "{path}");
+            for (index, (actual, expected)) in actual.iter().zip(items).enumerate() {
+                close(actual, expected, &format!("{path}/{index}"));
+            }
+        }
+        _ => assert_eq!(actual, expected, "{path}"),
+    }
+}
+
+/// A part's pose, reference, side and footprint must agree with the shipped one.
+fn assert_part_matches(actual: &Value, expected: &Value, id: &str) {
+    assert_eq!(actual["reference"], expected["reference"], "{id} reference");
+    assert_eq!(actual["side"], expected["side"], "{id} side");
+    assert_eq!(
+        actual["definitionId"], expected["definitionId"],
+        "{id} footprint"
+    );
+    for axis in ["x", "y"] {
+        let (a, b) = (
+            actual["pose"]["at"][axis].as_f64().unwrap(),
+            expected["pose"]["at"][axis].as_f64().unwrap(),
+        );
+        assert!((a - b).abs() < 1e-9, "{id} {axis}: {a} vs {b}");
+    }
+    assert!(
+        angles_match(
+            actual["pose"]["rotation"].as_f64().unwrap(),
+            expected["pose"]["rotation"].as_f64().unwrap(),
+        ),
+        "{id} rotation"
+    );
+}
+
+fn closure_holes(document: &Value, board: &str) -> BTreeSet<String> {
+    document["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap().to_owned())
+        .filter(|id| id.starts_with(&format!("case-closure/{board}/")))
+        .collect()
+}
+
+/// The effective mechanical configuration of one instance, as the Case workspace reads it.
+fn effective(document: &Value, instance_id: &str) -> Value {
+    let typed: ProjectDoc = serde_json::from_value(document.clone()).unwrap();
+    serde_json::to_value(
+        effective_inputs(
+            &typed,
+            &[],
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.into(),
+            },
+        )
+        .unwrap()
+        .configuration,
+    )
+    .unwrap()
+}
+
 #[test]
-fn corne_second_half_reproduces_the_shipped_right_keys() {
+fn corne_second_half_reproduces_the_shipped_right_half() {
     let shipped = &projects()["corne"];
-    let (mut engine, seed) = open(&half_only(shipped, "left"));
-    let shipped_right = switches(shipped, "right");
-    let left = switches(&seed, "left");
+    let (mut engine, seed) = seed(shipped, "left");
     let reply = create(
         &mut engine,
         &seed,
         "pair-right",
         "left",
         new_board("right", "right"),
-        mapping(axis(&left, &shipped_right)),
+        shipped_mapping(shipped),
     )
     .unwrap();
     let mirrored = &reply["document"];
+    // Every key and diode lands where the shipped right half has one, by correspondence (the
+    // mirror keeps the source's numbering; the recipe reversed it).
     assert_same_switches(
         &switches(mirrored, "right"),
-        &shipped_right,
-        "corne right half",
+        &switches(shipped, "right"),
+        "keys",
     );
-    // The controller and reset switch are not matrix members: their poses and references match
-    // the shipped right half by id, as the recipe places them.
-    for id in ["right/U1", "right/RST"] {
-        let shipped_part = part(shipped, id);
-        let mirrored_part = part(mirrored, id);
-        assert_eq!(
-            mirrored_part["reference"], shipped_part["reference"],
-            "{id}"
-        );
-        assert_eq!(mirrored_part["side"], shipped_part["side"], "{id}");
-        assert_eq!(
-            mirrored_part["definitionId"], shipped_part["definitionId"],
-            "{id}"
-        );
-        for axis in ["x", "y"] {
-            let (a, b) = (
-                mirrored_part["pose"]["at"][axis].as_f64().unwrap(),
-                shipped_part["pose"]["at"][axis].as_f64().unwrap(),
-            );
-            assert!((a - b).abs() < 1e-9, "{id} {axis}: {a} vs {b}");
-        }
-        assert!(
-            angles_match(
-                mirrored_part["pose"]["rotation"].as_f64().unwrap(),
-                shipped_part["pose"]["rotation"].as_f64().unwrap(),
-            ),
-            "{id} rotation"
-        );
+    // The recipe places a diode at the same offset and turn beside every key of both halves
+    // (it is not a reflection), so the shipped right diodes are not compared: the mirror's are
+    // checked against the pair rule by `assert_reflects_every_part`.
+    assert_reflects_every_part(mirrored, "pair-right", "corne");
+    // The controller, reset switch and TRRS jack match the recipe's reflected bay by id.
+    for id in ["right/U1", "right/RST", "right/TRRS"] {
+        assert_part_matches(part(mirrored, id), part(shipped, id), id);
     }
     // The source half is untouched by its own reflection.
-    assert_same_switches(&switches(mirrored, "left"), &left, "corne source half");
-    // The new instance is a pair member that resolves through the pair's construction.
-    effective_inputs(
-        &serde_json::from_value::<ProjectDoc>(mirrored.clone()).unwrap(),
-        &[],
-        &MechanicalTarget::Instance {
-            instance_id: "right".into(),
-        },
-    )
-    .unwrap();
+    assert_same_switches(
+        &switches(mirrored, "left"),
+        &switches(&seed, "left"),
+        "source half",
+    );
+    // The pair carries the same linked closure mounts and openings, authored by the source.
+    close(
+        &pair(mirrored, "pair-right")["features"],
+        &shipped["hardware"]["pairs"][0]["features"],
+        "features",
+    );
+}
+
+/// Every corresponded part sits at the pair map's image of its source: the point through
+/// `q = R(rotation) * (-p.x, p.y) + at`, the heading by `rotation - angle`, on the same side.
+fn assert_reflects_every_part(document: &Value, pair_id: &str, label: &str) {
+    let record = pair(document, pair_id);
+    let map = &record["mapping"];
+    let (at_x, at_y, turn) = (
+        map["at"]["x"].as_f64().unwrap(),
+        map["at"]["y"].as_f64().unwrap(),
+        map["rotation"].as_f64().unwrap(),
+    );
+    let (sin, cos) = turn.to_radians().sin_cos();
+    let mut compared = 0;
+    for correspondence in record["halves"]["correspondences"].as_array().unwrap() {
+        if correspondence["kind"] != "part" {
+            continue;
+        }
+        let source = part(document, correspondence["sourceId"].as_str().unwrap());
+        let mirror = part(document, correspondence["mirrorId"].as_str().unwrap());
+        let (x, y) = (
+            source["pose"]["at"]["x"].as_f64().unwrap(),
+            source["pose"]["at"]["y"].as_f64().unwrap(),
+        );
+        let expected = (-x * cos - y * sin + at_x, -x * sin + y * cos + at_y);
+        let actual = (
+            mirror["pose"]["at"]["x"].as_f64().unwrap(),
+            mirror["pose"]["at"]["y"].as_f64().unwrap(),
+        );
+        let id = correspondence["sourceId"].as_str().unwrap();
+        assert!(
+            (actual.0 - expected.0).abs() < 1e-9 && (actual.1 - expected.1).abs() < 1e-9,
+            "{label} {id}: at {actual:?}, expected {expected:?}"
+        );
+        assert!(
+            angles_match(
+                mirror["pose"]["rotation"].as_f64().unwrap(),
+                turn - source["pose"]["rotation"].as_f64().unwrap(),
+            ),
+            "{label} {id}: rotation {} from {}",
+            mirror["pose"]["rotation"],
+            source["pose"]["rotation"]
+        );
+        assert_eq!(mirror["side"], source["side"], "{label} {id}: side");
+        compared += 1;
+    }
+    assert!(compared > 20, "{label}: only {compared} parts compared");
 }
 
 #[test]
-fn source_right_splits_reproduce_the_shipped_left_keys() {
+fn a_rotated_pair_map_reflects_keys_companions_and_other_parts_by_the_pair_rule() {
+    for (name, source_board) in [("corne", "left"), ("lily58", "right"), ("klor", "right")] {
+        let shipped = &projects()[name];
+        let (mut engine, seed) = seed(shipped, source_board);
+        let reply = create(
+            &mut engine,
+            &seed,
+            "pair-rotated",
+            source_board,
+            new_board("mirror", "mirror"),
+            json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
+        )
+        .unwrap();
+        assert_reflects_every_part(&reply["document"], "pair-rotated", name);
+    }
+}
+
+#[test]
+fn a_vertical_axis_map_reflects_every_part_by_the_pair_rule() {
+    for (name, source_board) in [("corne", "left"), ("klor", "right")] {
+        let shipped = &projects()[name];
+        let (mut engine, seed) = seed(shipped, source_board);
+        let reply = create(
+            &mut engine,
+            &seed,
+            "pair-flat",
+            source_board,
+            new_board("mirror", "mirror"),
+            mapping(300.0),
+        )
+        .unwrap();
+        assert_reflects_every_part(&reply["document"], "pair-flat", name);
+    }
+}
+
+fn closure_positions(configuration: &Value) -> Vec<(f64, f64)> {
+    let mut positions: Vec<(f64, f64)> = configuration["closureMounts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            (
+                m["at"]["x"].as_f64().unwrap(),
+                m["at"]["y"].as_f64().unwrap(),
+            )
+        })
+        .collect();
+    positions.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    positions
+}
+
+#[test]
+fn source_right_splits_reproduce_the_shipped_left_half() {
     for name in ["lily58", "klor"] {
         let shipped = &projects()[name];
-        let (mut engine, seed) = open(&half_only(shipped, "right"));
-        let shipped_left = switches(shipped, "left");
-        let right = switches(&seed, "right");
+        let (mut engine, seed) = seed(shipped, "right");
         let reply = create(
             &mut engine,
             &seed,
             "pair-left",
             "right",
             new_board("left", "left"),
-            mapping(axis(&right, &shipped_left)),
+            shipped_mapping(shipped),
         )
         .unwrap();
-        assert_same_switches(&switches(&reply["document"], "left"), &shipped_left, name);
+        let mirrored = &reply["document"];
+        assert_same_switches(
+            &switches(mirrored, "left"),
+            &switches(shipped, "left"),
+            name,
+        );
+        for id in ["left/U1", "left/RST", "left/TRRS"] {
+            assert_part_matches(
+                part(mirrored, id),
+                part(shipped, id),
+                &format!("{name} {id}"),
+            );
+        }
+        assert_reflects_every_part(mirrored, "pair-left", name);
         assert_eq!(
-            pair(&reply["document"], "pair-left")["constructionSource"],
+            pair(mirrored, "pair-left")["constructionSource"],
             "right",
             "{name}"
         );
+        assert_eq!(instance(mirrored, "left")["half"], "left", "{name}");
+        assert_eq!(instance(mirrored, "left")["role"], "central", "{name}");
+        // The mirror's closure mounts are the reflection of the source's, which are the
+        // shipped left half's again.
+        let shipped_left = effective(shipped, "left");
+        let created_left = effective(mirrored, "left");
+        let (expected, actual) = (
+            closure_positions(&shipped_left),
+            closure_positions(&created_left),
+        );
+        assert_eq!(expected.len(), actual.len(), "{name} closure mounts");
+        for (e, a) in expected.iter().zip(&actual) {
+            assert!(
+                (e.0 - a.0).abs() < 1e-6 && (e.1 - a.1).abs() < 1e-6,
+                "{name}: {e:?} {a:?}"
+            );
+        }
+        // The shipped pair's generated holes exist on both created boards.
         assert_eq!(
-            instance(&reply["document"], "left")["half"],
-            "left",
+            closure_holes(mirrored, "left"),
+            closure_holes(shipped, "left"),
             "{name}"
         );
         assert_eq!(
-            instance(&reply["document"], "left")["role"],
-            "central",
+            closure_holes(mirrored, "right"),
+            closure_holes(shipped, "right"),
             "{name}"
         );
     }
 }
 
 #[test]
-fn changed_ids_are_exactly_the_new_items_and_their_source_ids() {
+fn the_pair_holds_the_shipped_linked_features_and_generated_holes_are_not_copied() {
     let shipped = &projects()["corne"];
-    let (mut engine, seed) = open(&half_only(shipped, "left"));
-    let shipped_right = switches(shipped, "right");
-    let left = switches(&seed, "left");
+    let (mut engine, seed) = seed(shipped, "left");
     let reply = create(
         &mut engine,
         &seed,
         "pair-right",
         "left",
         new_board("right", "right"),
-        mapping(axis(&left, &shipped_right)),
+        shipped_mapping(shipped),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    // Linked, authored by the source, with the shipped identities.
+    let record = pair(document, "pair-right");
+    let shipped_features = &shipped["hardware"]["pairs"][0]["features"];
+    let key = |features: &Value| -> Vec<Value> {
+        let mut list: Vec<Value> = features.as_array().unwrap().clone();
+        list.sort_by_key(|f| f["id"].as_str().unwrap().to_owned());
+        list
+    };
+    close(
+        &Value::Array(key(&record["features"])),
+        &Value::Array(key(shipped_features)),
+        "features",
+    );
+    // Both instances have their openings and closure mounts in the pair, not in their lists.
+    for half in ["left", "right"] {
+        let stored = &instance(document, half)["mechanical"];
+        assert_eq!(stored["closureMounts"], json!([]), "{half}");
+        assert_eq!(stored["openings"], json!([]), "{half}");
+        assert_eq!(stored["boardId"], half, "{half}");
+        assert_eq!(instance(document, half)["constructionOwnership"], "pair");
+    }
+    // The mirror reads the reflection of the shipped right half's configuration.
+    close(
+        &json!(closure_positions(&effective(document, "right"))),
+        &json!(closure_positions(&effective(shipped, "right"))),
+        "right closure mounts",
+    );
+    // Holes are regenerated from the pair: the right board has exactly the shipped holes, none at
+    // the source's coordinates, and the left board kept its own.
+    assert_eq!(
+        closure_holes(document, "right"),
+        closure_holes(shipped, "right")
+    );
+    assert_eq!(
+        closure_holes(document, "left"),
+        closure_holes(shipped, "left")
+    );
+    assert_eq!(closure_holes(document, "right").len(), 4);
+    let source_holes: BTreeSet<String> = closure_holes(document, "left")
+        .iter()
+        .map(|id| id.replace("/left/", "/right/"))
+        .collect();
+    assert!(source_holes.is_disjoint(&closure_holes(document, "right")));
+    for hole in closure_holes(document, "right") {
+        let board = document["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|b| b["id"] == "right")
+            .unwrap();
+        assert!(
+            board["partIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|id| *id == hole),
+            "{hole}"
+        );
+    }
+}
+
+#[test]
+fn changed_ids_are_exactly_the_new_items_the_source_ids_and_the_generated_holes() {
+    let shipped = &projects()["corne"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        shipped_mapping(shipped),
     )
     .unwrap();
     let document = &reply["document"];
     let record = &pair(document, "pair-right")["halves"];
-    let mut expected: BTreeSet<String> = ["pair-right", "left", "right", "right"]
+    let mut expected: BTreeSet<String> = ["pair-right", "left", "right"]
         .into_iter()
         .map(str::to_owned)
         .collect();
@@ -351,6 +676,29 @@ fn changed_ids_are_exactly_the_new_items_and_their_source_ids() {
         expected.insert(correspondence["sourceId"].as_str().unwrap().to_owned());
         expected.insert(correspondence["mirrorId"].as_str().unwrap().to_owned());
     }
+    // Generated clearance holes and their definitions that appeared or went away.
+    let generated = |doc: &Value| -> BTreeSet<String> {
+        let ids = |key: &str| {
+            doc[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v["id"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        ids("parts")
+            .into_iter()
+            .chain(ids("definitions"))
+            .filter(|id| id.starts_with("case-closure/") || id.starts_with("assembly-closure/"))
+            .collect()
+    };
+    let (before, after) = (generated(&seed), generated(document));
+    expected.extend(before.symmetric_difference(&after).cloned());
+    assert!(
+        expected
+            .iter()
+            .any(|id| id.starts_with("case-closure/right/"))
+    );
     let changed: BTreeSet<String> = reply["scene"]["changedIds"]
         .as_array()
         .unwrap()
@@ -358,58 +706,36 @@ fn changed_ids_are_exactly_the_new_items_and_their_source_ids() {
         .map(|v| v.as_str().unwrap().to_owned())
         .collect();
     assert_eq!(changed, expected);
-    assert!(changed.contains("matrix/right-keys/r0c0"));
-    assert!(changed.contains("matrix/left-keys/r0c0"));
+    assert!(
+        changed.contains("matrix/right-keys/r0c0") && changed.contains("matrix/left-keys/r0c0")
+    );
+    assert!(changed.contains("right/TRRS") && changed.contains("left/TRRS"));
 }
 
 #[test]
 fn one_undo_step_removes_the_half_and_redo_restores_it() {
     let shipped = &projects()["corne"];
-    let (mut engine, seed) = open(&half_only(shipped, "left"));
+    let (mut engine, seed) = seed(shipped, "left");
     let before = snapshot(&mut engine);
-    let shipped_right = switches(shipped, "right");
-    let left = switches(&seed, "left");
     let reply = create(
         &mut engine,
         &seed,
         "pair-right",
         "left",
         new_board("right", "right"),
-        mapping(axis(&left, &shipped_right)),
+        shipped_mapping(shipped),
     )
     .unwrap();
-    assert_eq!(
-        reply["document"]["revision"].as_u64().unwrap(),
-        before["revision"].as_u64().unwrap() + 1
-    );
-    let made_revision = reply["document"]["revision"].as_u64().unwrap();
-    // Undo and redo are new revisions, so the restored document matches the one before the
-    // edit in everything but its revision.
+    let made = reply["document"]["revision"].as_u64().unwrap();
+    assert_eq!(made, before["revision"].as_u64().unwrap() + 1);
     let mut undone = request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
-    assert_eq!(undone["revision"].as_u64().unwrap(), made_revision + 1);
+    assert_eq!(undone["revision"].as_u64().unwrap(), made + 1);
     undone["revision"] = before["revision"].clone();
     assert_eq!(undone, before);
     let mut redone = request(&mut engine, json!({"id":"redo","kind":"redo"}))["document"].clone();
-    assert_eq!(redone["revision"].as_u64().unwrap(), made_revision + 2);
     redone["revision"] = reply["document"]["revision"].clone();
     assert_eq!(redone, reply["document"]);
-}
-
-#[test]
-fn the_produced_record_reopens_as_a_valid_document() {
-    let shipped = &projects()["corne"];
-    let (mut engine, seed) = open(&half_only(shipped, "left"));
-    let shipped_right = switches(shipped, "right");
-    let left = switches(&seed, "left");
-    let reply = create(
-        &mut engine,
-        &seed,
-        "pair-right",
-        "left",
-        new_board("right", "right"),
-        mapping(axis(&left, &shipped_right)),
-    )
-    .unwrap();
+    // The produced record reopens as a valid document.
     let (_, reopened) = open(&reply["document"]);
     assert_eq!(pair(&reopened, "pair-right")["constructionSource"], "left");
     assert_eq!(
@@ -418,89 +744,122 @@ fn the_produced_record_reopens_as_a_valid_document() {
     );
 }
 
-#[test]
-fn refused_requests_leave_the_document_unchanged() {
-    let shipped = &projects()["corne"];
-    let (mut engine, seed) = open(&half_only(shipped, "left"));
-    let shipped_right = switches(shipped, "right");
-    let left = switches(&seed, "left");
-    let good_mapping = mapping(axis(&left, &shipped_right));
-    let before = snapshot(&mut engine);
-
-    // A new instance id that an existing instance already uses.
-    let error = create(
-        &mut engine,
-        &seed,
-        "pair-right",
-        "left",
-        new_board("right", "left"),
-        good_mapping.clone(),
-    )
-    .unwrap_err();
-    assert!(error.contains("left"), "{error}");
-    assert_eq!(snapshot(&mut engine), before);
-
-    // An unknown source instance.
-    create(
-        &mut engine,
-        &seed,
-        "pair-right",
-        "nowhere",
-        new_board("right", "right"),
-        good_mapping.clone(),
-    )
-    .unwrap_err();
-    assert_eq!(snapshot(&mut engine), before);
-
-    // A new board id that the document already has.
-    create(
-        &mut engine,
-        &seed,
-        "pair-right",
-        "left",
-        new_board("left", "right"),
-        good_mapping.clone(),
-    )
-    .unwrap_err();
-    assert_eq!(snapshot(&mut engine), before);
-
-    // A good creation, then a second half of the same source and a reused pair id.
-    let made = create(
-        &mut engine,
-        &seed,
-        "pair-right",
-        "left",
-        new_board("right", "right"),
-        good_mapping.clone(),
-    )
-    .unwrap();
-    let after = snapshot(&mut engine);
-    assert_eq!(after, made["document"]);
-    create(
-        &mut engine,
-        &after,
-        "pair-second",
-        "left",
-        new_board("second", "second"),
-        good_mapping.clone(),
-    )
-    .unwrap_err();
-    create(
-        &mut engine,
-        &after,
-        "pair-right",
-        "left",
-        new_board("third", "third"),
-        good_mapping,
-    )
-    .unwrap_err();
-    assert_eq!(snapshot(&mut engine), after);
+/// A refused request names the problem and leaves the accepted document byte-identical.
+fn refused(engine: &mut CoreEngine, seed: &Value, operation: Value) -> String {
+    let before = serde_json::to_string(&snapshot(engine)).unwrap();
+    let error = create_with(engine, seed, "commit", operation).unwrap_err();
+    assert_eq!(
+        serde_json::to_string(&snapshot(engine)).unwrap(),
+        before,
+        "{error}"
+    );
+    error
 }
 
 #[test]
-fn reuse_board_is_a_flipped_instance_that_copies_nothing() {
+fn refused_requests_name_the_problem_and_leave_the_document_byte_identical() {
     let shipped = &projects()["corne"];
-    let (mut engine, seed) = open(&half_only(shipped, "left"));
+    let (mut engine, seed) = seed(shipped, "left");
+    let good = shipped_mapping(shipped);
+    let op = |pair: &str, source: &str, mode: Value| operation(pair, source, mode, good.clone());
+    assert!(
+        refused(
+            &mut engine,
+            &seed,
+            op("p", "left", new_board("right", "left"))
+        )
+        .contains("\"left\"")
+    );
+    assert!(
+        refused(
+            &mut engine,
+            &seed,
+            op("p", "nowhere", new_board("right", "right"))
+        )
+        .contains("nowhere")
+    );
+    assert!(
+        refused(
+            &mut engine,
+            &seed,
+            op("p", "left", new_board("left", "right"))
+        )
+        .contains("already exists")
+    );
+    assert!(
+        refused(
+            &mut engine,
+            &seed,
+            op(" ", "left", new_board("right", "right"))
+        )
+        .contains("pair named")
+    );
+    // An id the mirror would mint that another item already owns.
+    assert!(
+        refused(
+            &mut engine,
+            &seed,
+            op("p", "left", new_board("left/U1", "x"))
+        )
+        .contains("already")
+    );
+    // Closure mounts need the mounting-hole definition, as they do for `LinkMirrorPair`.
+    let mut without = op("p", "left", new_board("right", "right"));
+    without.as_object_mut().unwrap().remove("mountingHole");
+    assert!(refused(&mut engine, &seed, without).contains("mounting-hole"));
+    // The good request still succeeds after the refusals, and then cannot repeat.
+    let (mut engine, seed) = open(&seed);
+    let made = create_with(
+        &mut engine,
+        &seed,
+        "commit",
+        op("p", "left", new_board("right", "right")),
+    )
+    .unwrap();
+    let after = made["document"].clone();
+    assert!(
+        refused(
+            &mut engine,
+            &after,
+            op("p2", "left", new_board("second", "second"))
+        )
+        .contains("already belongs")
+    );
+    assert!(
+        refused(
+            &mut engine,
+            &after,
+            op("p", "right", new_board("third", "third"))
+        )
+        .contains("pair named")
+    );
+}
+
+#[test]
+fn a_preview_changes_nothing_and_a_commit_still_follows() {
+    let shipped = &projects()["corne"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let before = serde_json::to_string(&snapshot(&mut engine)).unwrap();
+    let op = operation(
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        shipped_mapping(shipped),
+    );
+    let preview = create_with(&mut engine, &seed, "preview", op.clone()).unwrap();
+    assert_eq!(preview["kind"], "preview");
+    assert_eq!(
+        serde_json::to_string(&snapshot(&mut engine)).unwrap(),
+        before
+    );
+    let committed = create_with(&mut engine, &seed, "commit", op).unwrap();
+    assert_eq!(committed["kind"], "scene");
+}
+
+#[test]
+fn reuse_board_creates_a_flipped_instance_with_linked_features_and_copies_nothing() {
+    let shipped = &projects()["corne"];
+    let (mut engine, seed) = seed(shipped, "left");
     let reply = create(
         &mut engine,
         &seed,
@@ -511,46 +870,662 @@ fn reuse_board_is_a_flipped_instance_that_copies_nothing() {
     )
     .unwrap();
     let document = &reply["document"];
-    // Nothing is copied: boards, parts, matrices and layouts are the same as the seed's.
-    assert_eq!(document["boards"], seed["boards"]);
-    assert_eq!(document["parts"], seed["parts"]);
+    // Nothing is copied: boards, matrices, layouts, nets and every part but the generated holes.
+    let owned = |doc: &Value, key: &str| -> Vec<Value> {
+        doc[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|v| !v["id"].as_str().unwrap().starts_with("case-closure/"))
+            .cloned()
+            .collect()
+    };
+    assert_eq!(owned(document, "parts"), owned(&seed, "parts"));
     assert_eq!(document["matrices"], seed["matrices"]);
     assert_eq!(document["layouts"], seed["layouts"]);
-    // The flipped instance is what physical setup makes for a reused PCB.
+    assert_eq!(document["nets"], seed["nets"]);
+    assert_eq!(document["hardware"]["boards"], seed["hardware"]["boards"]);
+    assert_eq!(document["boards"].as_array().unwrap().len(), 1);
     let flipped = instance(document, "flipped");
     assert_eq!(flipped["boardId"], "left");
     assert_eq!(flipped["half"], "right");
     assert_eq!(flipped["role"], "peripheral");
     assert_eq!(flipped["flipped"], true);
     assert_eq!(flipped["controllerPartId"], Value::Null);
+    assert_eq!(flipped["constructionOwnership"], "pair");
+    assert_eq!(instance(document, "left")["constructionOwnership"], "pair");
+    // The shipped linked features, not cleared copies: the flipped half reads the reflection.
     let record = pair(document, "pair-flipped");
     assert_eq!(record["members"], json!(["left", "flipped"]));
-    assert_eq!(
-        record["mapping"],
-        json!({"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0})
-    );
     assert_eq!(record["constructionSource"], "left");
     assert_eq!(record["halves"]["sourceBoardId"], "left");
     assert_eq!(record["halves"]["mirrorBoardId"], "left");
-    // The reused board is one half of one record, so a second reuse of it is refused.
+    assert_eq!(record["features"].as_array().unwrap().len(), 6);
+    for half in ["left", "flipped"] {
+        assert_eq!(
+            instance(document, half)["mechanical"]["closureMounts"],
+            json!([]),
+            "{half}"
+        );
+        assert_eq!(
+            instance(document, half)["mechanical"]["openings"],
+            json!([]),
+            "{half}"
+        );
+    }
+    let (source, mirror) = (effective(document, "left"), effective(document, "flipped"));
+    assert_eq!(source["openings"].as_array().unwrap().len(), 2);
+    assert_eq!(mirror["openings"].as_array().unwrap().len(), 2);
+    assert_eq!(closure_positions(&mirror).len(), 4);
+    // The flipped half's holes land on the source's: a flipped board reflects the map back.
+    assert_eq!(closure_holes(document, "left").len(), 4);
+    // A reused board is one half of one record.
     let (_, reopened) = open(document);
     assert_eq!(pair(&reopened, "pair-flipped")["id"], "pair-flipped");
-    let refusal = create(
+    assert!(
+        refused(
+            &mut engine,
+            document,
+            operation(
+                "again",
+                "left",
+                json!({"kind":"reuse-board","instanceId":"again"}),
+                mapping(0.0)
+            )
+        )
+        .contains("already")
+    );
+}
+
+#[test]
+fn parts_keep_their_side_and_every_generator_parameter_exactly() {
+    let shipped = &projects()["corne"];
+    let mut doc = seed_document(shipped, "left");
+    for part in doc["parts"].as_array_mut().unwrap() {
+        match part["id"].as_str().unwrap() {
+            "left/U1" => part["generatorParameters"] = json!({"reversible": false, "custom": 9}),
+            "left/RST" => {
+                part["side"] = json!("back");
+                part["generatorParameters"] = json!({"reversible": true});
+            }
+            _ => {}
+        }
+    }
+    let (mut engine, seed) = open(&doc);
+    let reply = create(
         &mut engine,
-        document,
-        "pair-again",
+        &seed,
+        "pair-right",
         "left",
-        json!({"kind":"reuse-board","instanceId":"again"}),
-        mapping(0.0),
-    )
-    .unwrap_err();
-    assert!(!refusal.is_empty());
-    effective_inputs(
-        &serde_json::from_value::<ProjectDoc>(document.clone()).unwrap(),
-        &[],
-        &MechanicalTarget::Instance {
-            instance_id: "flipped".into(),
-        },
+        new_board("right", "right"),
+        shipped_mapping(shipped),
     )
     .unwrap();
+    let document = &reply["document"];
+    for (source, mirror) in [
+        ("left/U1", "right/U1"),
+        ("left/RST", "right/RST"),
+        ("left/TRRS", "right/TRRS"),
+    ] {
+        assert_eq!(
+            part(document, source)["side"],
+            part(document, mirror)["side"],
+            "{mirror}"
+        );
+        assert_eq!(
+            part(document, source)["generatorParameters"],
+            part(document, mirror)["generatorParameters"],
+            "{mirror}"
+        );
+    }
+    assert_eq!(
+        part(document, "right/U1")["generatorParameters"],
+        json!({"reversible": false, "custom": 9})
+    );
+    assert_eq!(
+        part(document, "right/RST")["generatorParameters"],
+        json!({"reversible": true})
+    );
+    assert_eq!(part(document, "right/RST")["side"], "back");
+    // The source is untouched too.
+    assert_eq!(
+        part(document, "left/U1")["generatorParameters"],
+        json!({"reversible": false, "custom": 9})
+    );
+}
+
+#[test]
+fn layouts_keycaps_and_electrical_configuration_follow_the_mapped_ids() {
+    let shipped = &projects()["corne"];
+    let mut doc = seed_document(shipped, "left");
+    doc["keycaps"] = json!({
+        "boards": {"left": {"color": "#111111", "legendColor": "#222222", "clearance": 0.6}},
+        "matrices": {"left-keys": {"profile": "dsa", "mount": "mx", "firstRow": 2, "wallThickness": 1.4}},
+        "keys": {"matrix/left-keys/r0c0": {"legend": "Q", "color": "#ff0000", "row": 3}},
+    });
+    let board = &mut doc["hardware"]["boards"][0];
+    board["locks"] = json!({"row/0": "P10", "peripheral/left/TRRS/split-rx": "P14"});
+    board["keyBindings"] = json!({"matrix/left-keys/r0c0": "&kp Q"});
+    board["jumperStates"] = json!({});
+    board["protectedHandoff"] =
+        json!({"fingerprint": "f", "revision": 1, "assignments": {"row/0": "P10"}});
+    let (mut engine, seed) = open(&doc);
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        shipped_mapping(shipped),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    // Layouts: mapped ids and board, parts in order, no layout link, the source's untouched.
+    let layout = |id: &str| {
+        document["layouts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|l| l["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    let expected = json!({"boardId": "right", "id": "right-keys-layout", "matrixId": "right-keys", "name": "keys", "partIds": ["right/U1", "right/RST", "right/TRRS"]});
+    assert_eq!(layout("right-keys-layout"), expected);
+    assert_eq!(layout("right-thumbs-layout")["partIds"], json!([]));
+    assert_eq!(layout("left-keys-layout"), seed["layouts"][0]);
+    assert_eq!(document["layouts"].as_array().unwrap().len(), 4);
+    // Keycaps: settings follow the mapped ids; a legend is copied as it is (a binding is not).
+    let keycaps = &document["keycaps"];
+    assert_eq!(keycaps["boards"]["right"], keycaps["boards"]["left"]);
+    assert_eq!(
+        keycaps["matrices"]["right-keys"],
+        keycaps["matrices"]["left-keys"]
+    );
+    assert_eq!(
+        keycaps["keys"]["matrix/right-keys/r0c0"]["color"],
+        "#ff0000"
+    );
+    assert_eq!(keycaps["keys"]["matrix/right-keys/r0c0"]["row"], 3);
+    assert_eq!(keycaps["keys"]["matrix/right-keys/r0c0"]["legend"], "Q");
+    assert_eq!(keycaps["keys"]["matrix/left-keys/r0c0"]["legend"], "Q");
+    // Electrical: the same pins on the renamed functions, nothing of the source in the names.
+    let boards = document["hardware"]["boards"].as_array().unwrap();
+    let (left, right) = (&boards[0], &boards[1]);
+    assert_eq!(right["boardId"], "right");
+    assert_eq!(right["controllerPartId"], "right/U1");
+    assert_eq!(right["keyBindings"], json!({}));
+    assert_eq!(right["protectedHandoff"], Value::Null);
+    assert_eq!(
+        left["keyBindings"],
+        json!({"matrix/left-keys/r0c0": "&kp Q"})
+    );
+    assert_eq!(
+        right["locks"],
+        json!({"row/0": "P10", "peripheral/right/TRRS/split-rx": "P14"})
+    );
+    assert_eq!(
+        right["assignments"]["column/0"],
+        left["assignments"]["column/0"]
+    );
+    assert_eq!(
+        right["assignments"]["peripheral/right/TRRS/split-tx"],
+        left["assignments"]["peripheral/left/TRRS/split-tx"]
+    );
+    assert!(
+        right["assignments"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .all(|k| !k.contains("left"))
+    );
+    let right_nets: Vec<&Value> = document["nets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|n| {
+            n["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("generated/electrical/right/")
+        })
+        .collect();
+    assert_eq!(right_nets.len(), 35);
+    for net in right_nets {
+        assert!(!net["name"].as_str().unwrap().contains("LEFT"), "{net}");
+        for pin in net["pins"].as_array().unwrap() {
+            assert!(!pin["partId"].as_str().unwrap().contains("left"), "{net}");
+        }
+    }
+    assert!(
+        document["nets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["name"] == "PERIPHERAL_RIGHT_TRRS_SPLIT-RX")
+    );
+}
+
+#[test]
+fn a_board_with_nothing_on_it_and_a_matrix_id_without_the_board_token_still_mirror() {
+    // An empty board mirrors to an empty board.
+    let shipped = &projects()["corne"];
+    let mut doc = seed_document(shipped, "left");
+    doc["parts"] = json!([]);
+    doc["matrices"] = json!([]);
+    doc["layouts"] = json!([]);
+    doc["outline"] = json!([]);
+    doc["nets"] = json!([]);
+    doc["boards"][0]["partIds"] = json!([]);
+    doc["boards"][0]["outlineIds"] = json!([]);
+    doc["boards"][0]["netIds"] = json!([]);
+    doc["hardware"]["boards"] = json!([]);
+    let (mut engine, seed) = open(&doc);
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        shipped_mapping(shipped),
+    )
+    .unwrap();
+    assert_eq!(reply["document"]["boards"].as_array().unwrap().len(), 2);
+    // A matrix whose id does not contain the board id follows its members.
+    let mut doc = seed_document(shipped, "left");
+    let text = serde_json::to_string(&doc)
+        .unwrap()
+        .replace("left-keys", "alpha")
+        .replace("left-thumbs", "thumbs");
+    doc = serde_json::from_str(&text).unwrap();
+    let (mut engine, seed) = open(&doc);
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        shipped_mapping(shipped),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    assert!(
+        document["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["id"] == "right-alpha")
+    );
+    assert!(
+        document["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["id"] == "matrix/right-alpha/r0c0")
+    );
+    assert_reflects_every_part(document, "pair-right", "token-free matrix ids");
+}
+
+#[test]
+fn reuse_board_refuses_a_map_other_than_the_flip_itself() {
+    let shipped = &projects()["corne"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let reuse = json!({"kind":"reuse-board","instanceId":"flipped"});
+    for map in [
+        json!({"at": {"x": 12.0, "y": 0.0}, "rotation": 0.0}),
+        json!({"at": {"x": 0.0, "y": 3.0}, "rotation": 0.0}),
+        json!({"at": {"x": 0.0, "y": 0.0}, "rotation": 90.0}),
+    ] {
+        let error = refused(
+            &mut engine,
+            &seed,
+            operation("p", "left", reuse.clone(), map),
+        );
+        assert!(
+            error.contains("flipped instance") && error.contains("plain reflection"),
+            "{error}"
+        );
+    }
+}
+
+/// One typed outline edit on `board`'s outline, returning the accepted document.
+fn outline_edit(
+    engine: &mut CoreEngine,
+    document: &Value,
+    target: Value,
+    change: Value,
+    seed: u64,
+) -> Value {
+    let reply: Value = serde_json::from_str(
+        &engine.request(
+            &json!({"id":"outline","kind":"edit","command":{
+                "baseRevision": document["revision"], "transactionId": "outline", "phase": "commit",
+                "targetIds": [], "operation": {"kind": "apply-outline-edit",
+                    "edit": {"target": target, "change": change, "seed": seed}}}})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    reply["document"].clone()
+}
+
+/// A point in a part's frame as the document places it: side-aware, turned by the part's heading.
+fn world_of(document: &Value, part_id: &str, at: &Value) -> (f64, f64) {
+    let part = part(document, part_id);
+    let x = at["x"].as_f64().unwrap() * if part["side"] == "back" { -1.0 } else { 1.0 };
+    let y = at["y"].as_f64().unwrap();
+    let (sin, cos) = part["pose"]["rotation"]
+        .as_f64()
+        .unwrap()
+        .to_radians()
+        .sin_cos();
+    (
+        part["pose"]["at"]["x"].as_f64().unwrap() + x * cos - y * sin,
+        part["pose"]["at"]["y"].as_f64().unwrap() + x * sin + y * cos,
+    )
+}
+
+/// The pair map applied to a point: `q = R(rotation) * (-p.x, p.y) + at`.
+fn reflected_point(map: &Value, p: (f64, f64)) -> (f64, f64) {
+    let (sin, cos) = map["rotation"].as_f64().unwrap().to_radians().sin_cos();
+    (
+        -p.0 * cos - p.1 * sin + map["at"]["x"].as_f64().unwrap(),
+        -p.0 * sin + p.1 * cos + map["at"]["y"].as_f64().unwrap(),
+    )
+}
+
+fn assert_point(actual: (f64, f64), expected: (f64, f64), label: &str) {
+    assert!(
+        (actual.0 - expected.0).abs() < 1e-9 && (actual.1 - expected.1).abs() < 1e-9,
+        "{label}: {actual:?} vs {expected:?}"
+    );
+}
+
+/// Every outline identity in the document: features, connections, gaps, bridges and versions.
+fn outline_identities(document: &Value) -> Vec<String> {
+    fn feature(ids: &mut Vec<String>, f: &Value) {
+        ids.push(f["id"].as_str().unwrap().to_owned());
+        for c in f["connections"].as_array().into_iter().flatten() {
+            ids.push(c["id"].as_str().unwrap().to_owned());
+        }
+        for g in f["settings"]["repair"]["keepGaps"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            ids.push(g["id"].as_str().unwrap().to_owned());
+        }
+    }
+    let mut ids = Vec::new();
+    for f in document["outline"].as_array().unwrap() {
+        feature(&mut ids, f);
+    }
+    for state in document["boardOutlines"].as_array().into_iter().flatten() {
+        for v in state["versions"].as_array().unwrap() {
+            ids.push(v["id"].as_str().unwrap().to_owned());
+            for f in v["geometry"]["features"].as_array().unwrap() {
+                feature(&mut ids, f);
+            }
+            for g in v["geometry"]["protectedGaps"]
+                .as_array()
+                .into_iter()
+                .flatten()
+            {
+                ids.push(g["id"].as_str().unwrap().to_owned());
+            }
+            for b in v["geometry"]["bridges"].as_array().into_iter().flatten() {
+                ids.push(b["id"].as_str().unwrap().to_owned());
+            }
+        }
+    }
+    ids
+}
+
+#[test]
+fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identities() {
+    let shipped = &projects()["corne"];
+    let (mut engine, mut document) = seed(shipped, "left");
+    let board = json!({"kind": "board", "boardId": "left"});
+    let live = json!({"kind": "board", "boardId": "left"});
+    // Live outline: an authored connection and a kept gap, some points attached to the controller.
+    document = outline_edit(
+        &mut engine,
+        &document,
+        board.clone(),
+        json!({"add-connection": {"connection": {
+        "id": "conn-live", "width": 3.0,
+        "points": [{"at": {"x": 4.0, "y": 2.0}, "partId": "left/U1"}, {"at": {"x": 30.0, "y": -20.0}}]}}}),
+        1,
+    );
+    document = outline_edit(
+        &mut engine,
+        &document,
+        live,
+        json!({"set-protected-gap": {"gap_id": "gap-live", "points": [
+        {"at": {"x": 1.0, "y": 2.0}, "partId": "left/U1"}, {"at": {"x": 6.0, "y": 2.0}, "partId": "left/U1"},
+        {"at": {"x": 6.0, "y": 8.0}, "partId": "left/U1"}]}}),
+        2,
+    );
+    // A fixed copy with an anchored cutout and an anchored polygon.
+    document = outline_edit(
+        &mut engine,
+        &document,
+        board,
+        json!({"copy": {"version_id": "fixed", "name": "Fixed"}}),
+        3,
+    );
+    let version = json!({"kind": "version", "boardId": "left", "versionId": "fixed"});
+    document = outline_edit(
+        &mut engine,
+        &document,
+        version.clone(),
+        json!({"add-feature": {"feature": {
+        "kind": "polygon", "id": "cut-poly", "anchorPartId": "left/U1",
+        "points": [{"x": 0.0, "y": 0.0}, {"x": 5.0, "y": 0.0}, {"x": 5.0, "y": 7.0}], "operation": "subtract"}}}),
+        5,
+    );
+    document = outline_edit(
+        &mut engine,
+        &document,
+        version,
+        json!({"set-protected-gap": {"gap_id": "gap-fixed", "points": [
+        {"at": {"x": 40.0, "y": -40.0}}, {"at": {"x": 50.0, "y": -40.0}}, {"at": {"x": 50.0, "y": -30.0}}]}}),
+        6,
+    );
+    // A version-local edit can only add polygons; an anchored cutout reaches a version from older
+    // data, so it is placed in the stored document directly.
+    document["boardOutlines"][0]["versions"][0]["geometry"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"kind": "rect", "id": "cut-rect", "anchorPartId": "left/RST", "center": {"x": 2.0, "y": 3.0},
+            "size": {"x": 4.0, "y": 5.0}, "radius": 0.0, "rotation": 20.0, "operation": "subtract"}));
+    let (mut engine, seed_doc) = open(&document);
+    let map = json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0});
+    let reply = create(
+        &mut engine,
+        &seed_doc,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        map.clone(),
+    )
+    .unwrap();
+    let out = &reply["document"];
+    let find = |list: &Value, id: &str| {
+        list.as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["id"] == id)
+            .unwrap()
+            .clone()
+    };
+
+    // Live outline, in the part frame: the attached point flips handedness, the free one maps.
+    let live = find(&out["outline"], "right-outline");
+    let connection = &live["connections"][0];
+    assert_eq!(connection["points"][0]["partId"], "right/U1");
+    assert_eq!(connection["points"][0]["at"], json!({"x": -4.0, "y": 2.0}));
+    assert_point(
+        world_of(out, "right/U1", &connection["points"][0]["at"]),
+        reflected_point(&map, world_of(out, "left/U1", &json!({"x": 4.0, "y": 2.0}))),
+        "attached connection point",
+    );
+    let free = &connection["points"][1];
+    assert!(free["partId"].is_null());
+    assert_point(
+        (
+            free["at"]["x"].as_f64().unwrap(),
+            free["at"]["y"].as_f64().unwrap(),
+        ),
+        reflected_point(&map, (30.0, -20.0)),
+        "free connection point",
+    );
+    let gap = &live["settings"]["repair"]["keepGaps"][0];
+    for (index, source) in [
+        (0, json!({"x": 1.0, "y": 2.0})),
+        (1, json!({"x": 6.0, "y": 2.0})),
+        (2, json!({"x": 6.0, "y": 8.0})),
+    ] {
+        assert_eq!(gap["points"][index]["partId"], "right/U1");
+        assert_point(
+            world_of(out, "right/U1", &gap["points"][index]["at"]),
+            reflected_point(&map, world_of(out, "left/U1", &source)),
+            "kept gap point",
+        );
+    }
+
+    // The fixed copy: anchored cutouts reflect in the part frame, world geometry through the map.
+    let state = out["boardOutlines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["boardId"] == "right")
+        .unwrap();
+    assert_eq!(state["activeVersionId"], "right/fixed");
+    let geometry = &state["versions"][0]["geometry"];
+    let rect = find(&geometry["features"], "right/cut-rect");
+    assert_eq!(rect["anchorPartId"], "right/RST");
+    assert_point(
+        world_of(out, "right/RST", &rect["center"]),
+        reflected_point(
+            &map,
+            world_of(out, "left/RST", &json!({"x": 2.0, "y": 3.0})),
+        ),
+        "anchored rect centre",
+    );
+    assert_eq!(rect["rotation"].as_f64().unwrap(), -20.0);
+    let polygon = find(&geometry["features"], "right/cut-poly");
+    let source_points = [(0.0, 0.0), (5.0, 0.0), (5.0, 7.0)];
+    let mirrored_world: Vec<(f64, f64)> = polygon["points"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| world_of(out, "right/U1", p))
+        .collect();
+    for (x, y) in source_points {
+        let expected = reflected_point(&map, world_of(out, "left/U1", &json!({"x": x, "y": y})));
+        assert!(
+            mirrored_world
+                .iter()
+                .any(|w| (w.0 - expected.0).abs() < 1e-9 && (w.1 - expected.1).abs() < 1e-9),
+            "{x},{y}"
+        );
+    }
+    // Reflection reverses the winding, so the points come back in the reverse order.
+    assert_eq!(polygon["points"][0], json!({"x": -5.0, "y": 7.0}));
+    let fixed_gap = &geometry["protectedGaps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == "right/gap-fixed")
+        .unwrap();
+    assert_point(
+        (
+            fixed_gap["points"][0]["at"]["x"].as_f64().unwrap(),
+            fixed_gap["points"][0]["at"]["y"].as_f64().unwrap(),
+        ),
+        reflected_point(&map, (40.0, -40.0)),
+        "protected gap",
+    );
+
+    // One namespace: the only repeated identity is the gap kept on the live outline and
+    // protected in the fixed copy, which is one gap with one identity on each half.
+    let ids = outline_identities(out);
+    let repeated: BTreeSet<&String> = ids
+        .iter()
+        .filter(|id| ids.iter().filter(|other| other == id).count() > 1)
+        .collect();
+    let expected: BTreeSet<String> = ["gap-live", "right/gap-live"].map(str::to_owned).into();
+    assert_eq!(
+        repeated,
+        expected.iter().collect::<BTreeSet<_>>(),
+        "{ids:?}"
+    );
+    assert!(ids.iter().any(|id| id == "right/conn-live") && ids.iter().any(|id| id == "conn-live"));
+    assert_eq!(
+        find(&out["outline"], "left-outline"),
+        find(&seed_doc["outline"], "left-outline")
+    );
+}
+
+#[test]
+fn a_mirrored_outline_identity_that_is_already_used_refuses_the_whole_record() {
+    let shipped = &projects()["corne"];
+    let (mut engine, mut document) = seed(shipped, "left");
+    document = outline_edit(
+        &mut engine,
+        &document,
+        json!({"kind": "board", "boardId": "left"}),
+        json!({"add-connection": {"connection": {
+        "id": "left-link", "width": 3.0,
+        "points": [{"at": {"x": 4.0, "y": 2.0}, "partId": "left/U1"}, {"at": {"x": 30.0, "y": -20.0}}]}}}),
+        1,
+    );
+    // Another top-level feature already owns the id the mirror's connection would take.
+    let mut stray = document.clone();
+    stray["outline"].as_array_mut().unwrap().push(
+        json!({"kind": "polygon", "id": "right-link", "operation": "add",
+        "points": [{"x": 0.0, "y": 0.0}, {"x": 1.0, "y": 0.0}, {"x": 1.0, "y": 1.0}]}),
+    );
+    let (mut engine, stray) = open(&stray);
+    let error = refused(
+        &mut engine,
+        &stray,
+        operation(
+            "p",
+            "left",
+            new_board("right", "right"),
+            shipped_mapping(shipped),
+        ),
+    );
+    assert!(error.contains("right-link"), "{error}");
+}
+
+#[test]
+fn hosted_modules_and_embedded_circuits_are_refused_by_name() {
+    let shipped = &projects()["corne"];
+    let mut doc = seed_document(shipped, "left");
+    doc["embeddedCircuits"] = json!([{"id": "circuit-1", "definitionId": "d", "hostBoardId": "left",
+        "partIds": [], "netIds": [], "ports": {}}]);
+    let opened: Value = serde_json::from_str(
+        &CoreEngine::new().request(&json!({"id":"o","kind":"open","document":doc}).to_string()),
+    )
+    .unwrap();
+    assert_ne!(opened["kind"], "error", "{opened}");
+    let (mut engine, seed) = open(&doc);
+    let error = refused(
+        &mut engine,
+        &seed,
+        operation(
+            "p",
+            "left",
+            new_board("right", "right"),
+            shipped_mapping(shipped),
+        ),
+    );
+    assert!(
+        error.contains("embedded circuit circuit-1") && error.contains("cannot be mirrored yet"),
+        "{error}"
+    );
 }
