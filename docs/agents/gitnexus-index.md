@@ -51,6 +51,42 @@ it is cheap enough to do at every batch boundary.
 
 ## The Stop hook (orchestrating session only)
 
+Codex's global hooks also run in lane sessions. Checking only for `scripts/gitnexus-refresh.py` does not establish ownership:
+every lane contains that script, and native subagents share their parent's initial working directory. Use
+`scripts/gitnexus-stop-hook.py` to select the one orchestrator session and the integration checkout it owns.
+
+At orchestrator startup, register the current session and the intended integration worktree. For the current effort:
+
+```bash
+python3 /home/chris/01_Projects/ts-boardstudio2/scripts/gitnexus-stop-hook.py \
+  --register "$CODEX_THREAD_ID" \
+  --worktree /home/chris/01_Projects/ts-boardstudio2/.worktrees/tce-matrix
+```
+
+The registration is local, in `gitnexus-orchestrator.json` in the absolute git common directory. A new orchestrator replaces
+the previous registration; implementers and verifiers never register. The wrapper reads the hook's `session_id` (or `thread_id`)
+and `cwd`, requires that session to match the registration, and checks that the registered worktree belongs to the same repository
+family. A missing registration, a lane/child session, invalid input or a removed worktree silently skips the refresh. It invokes
+the registered checkout's `gitnexus-refresh.py --background`, even when the orchestrator chat started in the main checkout.
+
+In `~/.codex/hooks.json`, append this command to the existing `Stop` hooks, preserving memsearch and other entries:
+
+```json
+{
+  "type": "command",
+  "command": "python3 /home/chris/01_Projects/ts-boardstudio2/scripts/gitnexus-stop-hook.py",
+  "timeout": 10,
+  "statusMessage": "Checking the orchestrator's GitNexus index"
+}
+```
+
+The command points at the main checkout's wrapper so lanes need no copy of it. Remove the earlier unguarded command that
+invoked `gitnexus-refresh.py --background` directly. Restart or reload Codex hooks if needed, and register the new session ID.
+Running the command directly validates the wrapper; only observing a Stop event confirms the app loaded the hook.
+Batch-boundary foreground refreshes remain required because the background hook may skip busy periods.
+
+### Background refresh behaviour
+
 `scripts/gitnexus-refresh.py --background` is wired to the **Stop** event of the session that
 orchestrates the work, so the index catches up between turns without anyone remembering to. It
 is deliberately cautious:
@@ -63,8 +99,9 @@ is deliberately cautious:
 - At most one attempt per 15 minutes per checkout (a stamp in the git common dir), one analyze at
   a time for the whole repository family (the lock), detached, `nice 19`, silent, always exit 0.
   Output goes to `.gitnexus/refresh.log`.
-- A hook fires only in the session whose settings contain it. Subagents do not run it for their
-  own commits, and the rule above still holds: agents never analyze.
+- The Codex wrapper gates refreshes by the registered session ID. A lane or child Stop event does not start analyze.
+
+### Claude settings
 
 The hook lives in the checkout's local, untracked settings (`.claude/` is gitignored), so each
 checkout that wants it needs the entry below. It is a guarded one-liner, so it is harmless in a
@@ -89,16 +126,5 @@ checkout that lacks the script:
 }
 ```
 
-**Codex.** The same script is wired into Codex's `~/.codex/hooks.json` as a second command in the existing `Stop` group (a backup is
-beside it as `hooks.json.bak-gitnexus-refresh-*`). Because that file is global, the command first checks that the session's git checkout
-contains `scripts/gitnexus-refresh.py` and does nothing elsewhere:
-
-```sh
-root=$(git rev-parse --show-toplevel 2>/dev/null) && [ -f "$root/scripts/gitnexus-refresh.py" ] && python3 "$root/scripts/gitnexus-refresh.py" --background; exit 0
-```
-
-It refreshes the index of whichever checkout (main or worktree) the Codex session is in. Re-add it if Codex's hooks are regenerated.
-
-Settings changes take effect in a new session (or after reopening `/hooks`). To stop it, delete the
-entry. A hook on **PostToolUse** would instead fire after every agent commit, which is what the rule
-avoids.
+For Claude, settings changes take effect in a new session (or after reopening `/hooks`). Install its entry only for the
+orchestrating session. A **PostToolUse** hook would instead fire after every commit, which the ownership rule avoids.

@@ -6,15 +6,20 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 
 ## Common rules (every lane prompt starts with these)
 
-> Read `AGENTS.md`, `docs/agents/verification-process.md` and `docs/plans/typed-core-edits/parallel-lanes.md`. Work
-> only in your lane worktree on your lane branch. Claim a ticket by setting `Status: claimed` and committing that
-> change. Implement test-first; run only the check steps the process table names, one command at a time in the
-> foreground, with the sandbox lifted only for `wasm-pack`, Chrome and the CAD container. Stage explicit paths; no
-> `git stash`, no `git add -A`, no push, no merge. Do not edit `docs/plans/*/map.md`, `CONTEXT.md`, `docs/adr/*` or the
-> generated goldens (`core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json`)
-> unless your ticket names them; propose text in your ticket Outcome instead. Do not refresh GitNexus; use `rg` for
-> callers and say the index may be stale. Never run `scripts/check.py release`. Time box about two hours. When done,
-> set the ticket `Status: implemented (awaiting verification)` and write an honest `## Outcome`: commands with
+> Read `AGENTS.md`, `docs/agents/agent-workflow.md`, `docs/agents/verification-process.md` and
+> `docs/plans/typed-core-edits/parallel-lanes.md`. Work only in your lane worktree on your lane branch. Use its absolute
+> path as `exec_command`'s `workdir` on every shell call; report the path, branch and status before editing.
+> Implementers claim a ticket by setting `Status: claimed` and committing; verifiers keep its awaiting-verification status
+> until acceptance holds. Implement test-first; run only the check steps the process table names, one command at a time in
+> the foreground. Follow `verification-process.md` for the active app's sandbox policy. Stage explicit paths; no
+> `git stash`, no `git add -A`, no push, no merge. Maps (`docs/plans/*/map.md`), `CONTEXT.md` and `docs/adr/*` belong to
+> the orchestrator; propose text in your ticket Outcome. Edit generated goldens (`core/tests/fixtures/boundary/transcript.json`,
+> `core/tests/fixtures/demo-projects-baseline.json`) only when your ticket names them AND their ownership is assigned to you.
+> Run GitNexus impact before edits and
+> detect-changes before commits, bound to your checkout. Do not refresh GitNexus or register for its Stop hook; confirm
+> stale, empty or UNKNOWN caller answers with `rg` and report the limitation. Never run `scripts/check.py release`.
+> Follow the role time boxes in `verification-process.md`. Implementers finish with
+> `Status: implemented (awaiting verification)` and an honest `## Outcome`: commands with
 > timings, what you did not run, decisions, deviations. Report exactly what you observed.
 
 ## Lane B: mirror core (worktree `.worktrees/lane-mirror-core`, branch `lane/mirror-core`)
@@ -37,8 +42,9 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 ### B3: ticket 19, reconcile on every edit (run alone in the lane, after B1 and B2 are resolved)
 
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/19-reconcile-mirrored-halves.md`, including its
-> "Contracts from other tickets". It edits the CRITICAL-impact apply path: list the callers with `rg` before you
-> change it, keep `core/tests/matrix_performance.rs` passing and record the added per-edit cost. Check steps: `repo`,
+> "Contracts from other tickets". It edits the CRITICAL-impact apply path: run GitNexus impact and report its callers and
+> risk before changing it; confirm unresolved answers with `rg`. Keep `core/tests/matrix_performance.rs` passing and record
+> the added per-edit cost. Check steps: `repo`,
 > `lint`, `test`, `typecheck`, wasm boundary parity.
 
 ## Lane A: web test speed (worktree `.worktrees/lane-web-sleeps`, branch `lane/web-sleeps`; set up after ticket 36 is resolved)
