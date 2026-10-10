@@ -104,7 +104,7 @@ Nothing merges to `dev` without the user.
 | Lane | Worktree | Branch | Target dir | State (2026-10-10) |
 | --- | --- | --- | --- | --- |
 | integration | `.worktrees/tce-matrix` | `typed-core-edits/mechanical` | shared `target` (main checkout) | ticket 36 (lane A) in progress here |
-| B mirror core | `.worktrees/lane-mirror-core` | `lane/mirror-core` | `~/.cache/boardstudio-target/mirror-core` | Codex started ticket 31 (B1) on 2026-10-10; first build is cold. Verify with a different app when it reports |
-| F boards review | `.worktrees/lane-boards-review` | `lane/boards-review` | none (read-only) | ready: phase 1 research of ticket 25 |
+| B mirror core | `.worktrees/lane-mirror-core` | `lane/mirror-core` | `~/.cache/boardstudio-target/mirror-core` | Codex finished ticket 31 (`b49904cad`, awaiting verification); Claude verifier running. Next: B2 (ticket 32) after 31 is verified |
+| F boards review | `.worktrees/lane-boards-review` | `lane/boards-review` | none (read-only) | research done (`089f76eef`, ticket 25 `ready-for-human`); Claude verifier checking the document. Next: your review, then per-board fix tickets, Sofle first |
 
 Lanes C, D and E are not set up yet; set them up with the commands above when their predecessors merge.

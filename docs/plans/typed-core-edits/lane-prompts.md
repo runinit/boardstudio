@@ -41,6 +41,23 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > change it, keep `core/tests/matrix_performance.rs` passing and record the added per-edit cost. Check steps: `repo`,
 > `lint`, `test`, `typecheck`, wasm boundary parity.
 
+## Lane A: web test speed (worktree `.worktrees/lane-web-sleeps`, branch `lane/web-sleeps`; set up after ticket 36 is resolved)
+
+### A1: ticket 37, remaining fixed sleeps (includes the work carried from 36)
+
+> Common rules above. Ticket: `docs/plans/typed-core-edits/issues/37-sleeps-layout-library-ui-page.md` including its
+> "Carried from 36" section. Read tickets 34 and 36 (Outcome and Verification) first: the lessons there are binding
+> (the predicate must be the precondition of the NEXT assertion; negative assertions need a sentinel or a note; every gate
+> is bounded), and use `web/crates/ui-shared/src/test_wait.rs` (`wait_until`, `wait_until_step`, `wait_until_future`).
+> Check steps: `repo`, `lint`, `typecheck`, `browser` three times in a row at the end, run alone on the machine if you can
+> (note `uptime` load before each timed run). Diff the crate `--list` outputs before and after for every crate you touch.
+> Mutation-check three waits per suite family. Remove Chromium profiles older than 30 minutes when you finish.
+
+### A2: ticket 38, merge exact duplicate browser tests (after A1 is verified)
+
+> Common rules above. Ticket: `docs/plans/typed-core-edits/issues/38-merge-duplicate-browser-tests.md`. Re-read both
+> bodies first; merge only exact duplicates; list what each merge preserves. Check steps as A1.
+
 ## Lane F: shipped boards review research (worktree `.worktrees/lane-boards-review`, branch `lane/boards-review`; no builds)
 
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/25-shipped-boards-review.md`. This is PHASE 1,
