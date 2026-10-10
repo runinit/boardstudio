@@ -1,6 +1,6 @@
 # 105: Reusable mirrored-half derivation kernel
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [28](28-mirror-embedded-circuits.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md), [39](39-stabilisers-and-companion-fallback.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -35,11 +35,11 @@ source path requires root to assign ownership before editing.
 
 ## Test-first and acceptance
 
-- [ ] Add focused derivation cases for an axis and translated/rotated map before extracting;
+- [x] Add focused derivation cases for an axis and translated/rotated map before extracting;
       preserve the existing creation test suite and its failure assertions.
-- [ ] Creation results and changed IDs remain equivalent, including modules/circuits,
+- [x] Creation results and changed IDs remain equivalent, including modules/circuits,
       labels, modes/tweaks, stabilisers, side and parameters.
-- [ ] A helper can derive into caller-supplied existing identities without allocating
+- [x] A helper can derive into caller-supplied existing identities without allocating
       another board or pair; no runtime reconciliation is enabled.
 
 Independent verifier: mutation-check a reused heading/mapping rule and retention of an
@@ -254,3 +254,91 @@ Core edit flow through `apply`, affecting three indexed modules. Source confirme
 commit), so impact coverage is provisional; no refresh was performed. Root will inspect new-helper coverage
 and run the complete bound graph delta before commit. The revision remains `implemented (awaiting verification)`;
 the prior independent-verifier acceptance gap remains the reason 105 is not resolved. No 106 work was started.
+
+
+**Revision 2 independent verification — resolved, 2026-10-10.** Fresh Codex verifier
+`/root/verify105_revision`, explicitly dispatched as `gpt-6.1-sol` with `xhigh` reasoning,
+reviewed `06983eb9bb4168111076b3e38e47fe5f4050d820` from a clean checkout at
+`/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`.
+This is a different session from both the original Sol verifier and the Luna high revision
+implementer. Dispatch supplies model/effort evidence; no runtime service-tier evidence was
+available, so no priority/fast claim is made. The central registry/prompts, workflow, original
+105/19 acceptance, ADR-0010 and 31/39 contracts were reviewed. Historical incomplete verification
+above is retained; this verdict closes its companion/stabiliser extraction blocker.
+
+The private companion helper derives only offset/relative-heading values, with no document,
+board, pair, identity allocator or insertion API. Each call accepts its own effective mode,
+tweak and stabiliser/fallback state; it reads no creation-wide default. A caller can therefore
+apply those values to an established target assembly without allocating a board or pair.
+`layout::reflected` already keeps caller-supplied matrix identities. `new_board` supplies its
+creation settings to the same helper, and retains identity planning, collision/refusal checks,
+materialization, attribute copying, correspondence seeding and pair creation. Stabiliser
+precedence over fallback and fallback suppression of mode/tweak match the previous code.
+Source review and the unchanged creation tests found no API/visibility, reconciliation/Open,
+ticket-40, label, module/circuit namespace, layout/model, configuration or golden changes.
+No production fix or new test was needed in this verification.
+
+The corrected stabiliser oracle was derived independently from `pair::forward_angle`,
+`layout::reflected` and `set_matrix`: the mirrored switch heading is map rotation minus source
+switch heading; assembly materialization adds its stored relative heading. Subtracting that
+mirrored switch heading from the source stabiliser heading consequently preserves the world
+heading, for axis and translated 27-degree maps. Duplicate mode uses the source switch's inverse
+local transform and relative heading; tweaks add to the literal assembly in the mirrored switch
+frame. Existing integration assertions check materialized world/local poses, all stabiliser
+modes and literal fallback, separately from the direct helper's stored-value assertions.
+The helper's initial E0425 red was structural missing-interface evidence, not a production
+regression or validation of the then-uncompiled fixture/oracle.
+
+The original `pose`/`part` production helpers are byte-identical to `3a7ba67b8` (extracted block
+SHA-256 `614b54632581ab59742b0c897a0b1dd5d6cfd469d6728bf30016e09aba77eb79`). The prior
+Part unit test differs only in rustfmt whitespace; `core/tests/mirrored_half.rs` is byte-identical.
+The original independent Part identity/attribute test and heading/parameter mutation evidence
+above are reused on that basis. This pass independently ran both direct helper tests, the full
+creation suite and four new-helper mutations.
+
+All commands were sequential in this lane with `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1`:
+
+- `cargo test --locked -p boardstudio_core --lib mirrored_half::derive::tests:: -- --nocapture`:
+  passed 2/2, 4.09 s wall.
+- `cargo test --locked -p boardstudio_core --test integration mirrored_half:: -- --nocapture`:
+  passed 45/45, 21.63 s wall. Exact changed IDs/refusals, axis/rotated maps, distinct switch/general
+  headings, side/all parameters, modes/tweaks, labels, stabilisers/fallback, modules/circuits and
+  namespaces remain covered with their original test names and failure assertions.
+- Each mutant below used `cargo test --locked -p boardstudio_core --test integration
+  mirrored_half::<test-name> -- --exact --nocapture`. Each compiled and exited 101 at its intended
+  assertion, rather than failing in fixture setup or compilation.
+
+| One-site helper mutation | Exact test name and observed failure | Wall seconds |
+| --- | --- | --- |
+| Reverse duplicate inverse-frame Y sine sign | `duplicate_companions_keep_the_source_local_pose_and_match_shipped_diodes`: materialized diode local Y 2.4009618943 instead of -1.5 (`core/tests/mirrored_half.rs:2544`) | 20.23 |
+| Drop tweak rotation only | `tweaked_companions_add_the_adjustment_in_the_mirrored_switch_frame`: relative heading -90 instead of -77 (`:3146`) | 17.76 |
+| Add instead of subtract mirrored switch tilt in stabiliser heading | `stabilisers_keep_their_source_heading_and_mirrored_position_in_every_mode`: world heading -15 instead of source 15 (`:3808`) | 17.86 |
+| Let repaired mode-3 fallback receive its tweak | `missing_source_companions_materialise_with_a_literal_fallback_in_modes_two_and_three`: materialized world position (293.4335085, -34.2890033) instead of literal (292.7437393, -32.0336278) (`:2544`) | 18.12 |
+
+Each mutation restored the exact saved bytes in a `finally` block, verified them and touched the
+source before the next run. Every restored `derive.rs` had SHA-256
+`767f4378313e2b32a313061e695aa60c997c5985654ebaae9e8da2d7dd2d5795`.
+The restored tree was clean before `python3 scripts/check.py repo lint test typecheck`, which
+passed: repo 0.1 s, lint 7.8 s, test 69.1 s, typecheck 6.4 s, total 83.4 s (83.47 s wrapper wall).
+Core reported 303 unit passed/3 ignored and 561 integration passed, including both native boundary
+parity tests; CAD reported 51 passed/4 ignored. WASM page typecheck passed. Existing vendored
+cgmath/OCCT and catalogue/case warnings were observed. `git diff --check` passed.
+
+`python3 scripts/gitnexus-refresh.py --status` reported the bound
+`boardstudio-lane-mirror-core` index current at `06983eb9`; `list_repos` confirmed its exact path
+and commit (13 entries, no further page). Before each mutation, bound upstream impact on
+`companion_assembly` was HIGH and was reported: five impacted symbols, two direct callers
+(`new_board` and its direct helper test), through `create` to `apply` and the refusal test,
+with ten indexed `new_board` flows across four modules. Results were exact with no reported
+partial/truncated/enrichment cap. Bound compare delta against `3a7ba67b8` returned 18 changed
+symbols in the three expected files and ten creation flows, HIGH, with full listing and no
+partial/truncated flag; it includes the new input fields, helper and test. The ticket Section
+impact returned UNKNOWN/no callers; text search confirmed its parent19/child106 links. That
+empty result is not a safety claim. No index refresh, hook registration or sync was performed.
+The final ticket-only all/staged graph gates and repository check are recorded with this handoff.
+
+Not run: reconstructed pre-extraction tests, full browser/build/release/batch checks, dedicated
+WASM boundary parity or ignored performance benchmarks. There is no runtime activation,
+transcript/golden change, dependency or mounted-web behavior change requiring those runs.
+The original 105 acceptance holds. Parent19 remains open; no 106 work or automatic dispatch,
+merge, push, PR, golden regeneration or unrelated edit is authorized by this verification.
