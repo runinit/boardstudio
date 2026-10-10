@@ -1,6 +1,6 @@
 # 24: Audit the tests after the typed-edit, matrix and mirrored-half changes
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
