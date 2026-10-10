@@ -28,12 +28,14 @@ use crate::model::{
     MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfLabel, MirroredHalfLabels,
     MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
     OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
-    OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
-    ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
+    OutlineSnapshot, OutlineVersion, PartDefinition, PhysicalBoardInstance, Pin, Pose2, ProjectDoc,
+    ProtectedOutlineGap, Scope, Severity, Vec2,
 };
 use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+
+mod derive;
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
@@ -355,10 +357,7 @@ pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
 /// (`rotation == 0`) this is `180 - r`: a part facing left faces right on the mirror. The result is
 /// kept in `[0, 360)`; the rule never reduces the heading modulo 180.
 pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
-    Pose2 {
-        at: pair::forward(mapping, pose.at),
-        rotation: (pair::forward_angle(mapping, pose.rotation) + 180.0).rem_euclid(360.0),
-    }
+    derive::pose(mapping, pose)
 }
 
 /// A point in a part's own frame keeps its place in that frame; only the handedness flips,
@@ -1560,22 +1559,17 @@ fn new_board(
                 "The mirrored reference {mirrored_reference:?} is already in use."
             ));
         };
-        doc.parts.push(Part {
-            keycap: part.keycap,
-            outline: part.outline.clone(),
-            id: part_map[*id].clone(),
-            definition_id: circuits
-                .definitions
-                .get(&part.definition_id)
-                .cloned()
-                .unwrap_or_else(|| part.definition_id.clone()),
-            reference,
-            pose: mirror_pose(mapping, part.pose),
-            side: part.side.clone(),
-            locked: part.locked,
-            properties: part.properties.clone(),
-            generator_parameters: part.generator_parameters.clone(),
-        });
+        let definition_id = circuits
+            .definitions
+            .get(&part.definition_id)
+            .unwrap_or(&part.definition_id);
+        doc.parts.push(derive::part(
+            &part,
+            &part_map[*id],
+            definition_id,
+            &reference,
+            mapping,
+        ));
     }
 
     // Layouts: independent copies of the source's layouts on the new board.

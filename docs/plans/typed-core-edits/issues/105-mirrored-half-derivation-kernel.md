@@ -1,6 +1,6 @@
 # 105: Reusable mirrored-half derivation kernel
 
-Status: claimed
+Status: implemented (awaiting verification)
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [28](28-mirror-embedded-circuits.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md), [39](39-stabilisers-and-companion-fallback.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -74,3 +74,38 @@ Maps, ADRs, CONTEXT.md, scripts/check.py and generated goldens remain root-owned
 No merges/push/PR, stash/reset/discard or broad staging; explicit paths only.
 Commit only after root permits it, with the actual-author trailer. Outcome records exact
 commands/results/timings, mutation failures/restoration and every unrun or blocked gate.
+
+## Outcome
+
+Implemented by Luna 6 high in `lane/mirror-core`. Added a private `derive` child module with pure pose and part
+projection helpers. `new_board` keeps identity planning, collision refusal, and insertion; it supplies the chosen
+mirror part id, definition id, and reference to the derivation helper. `layout::reflected` remains unchanged: it
+already derives a matrix into a caller-supplied target identity and is used by shared edit paths.
+
+Added a focused creation case for axis and translated/rotated maps. It checks mapped pose and heading, side, and
+generator parameters. The focused case passed before and after extraction; the preserved creation suite passed
+45/45, including refusal and changed-id assertions. Existing tests continue covering companion modes/tweaks,
+stabilisers, labels, modules, circuits, and parameters. No reconciliation hook or public API was added.
+
+Checks (all with `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1`): `python3 scripts/check.py repo` passed (0.1 s);
+`lint` passed (9.1 s); `test` passed (74.1 s; its final CAD binary reported 51 passed, 4 ignored); `typecheck`
+passed (8.5 s, including the `wasm32-unknown-unknown` page check). The post-extraction focused test passed (17.43 s). The first focused runs exposed test setup
+mistakes (the fixture part id and reusing a stale engine revision); both were corrected before the passing
+pre-extraction baseline. The earlier full creation run also passed 45/45. Clippy printed warnings from vendored
+`cgmath`; typecheck printed existing warnings in the catalogue and case crates. No browser run was needed because
+the boundary transcript did not change. Full browser, build, release, and boundary-parity runs were not run.
+
+GitNexus impact before edits: `mirror_pose` was HIGH (10 impacted, 6 direct callers, one `new_board` process);
+text search confirmed its production callers and four internal test sites. `layout::reflected` was CRITICAL (21
+impacted, 5 direct callers, 8 affected processes); its direct source callers were `new_board`, `sync`, two layout
+tests, and the Core resolver. Its implementation was not edited. The initial `new_board` resolution was ambiguous;
+the Core candidate was LOW with enrichment skipped, and source search confirmed `create` as its caller. GitNexus
+was current when the work began. Before commit, complete `detect_changes` returned no partial/truncated flag,
+`changed_files=4` (all four staged leased files, including the new `derive.rs`), `changed_count=8`, `affected_count=10`,
+and HIGH risk; all 10 listed processes were `new_board` flows. The delta did not list the new helper symbol. The
+freshness check showed the index at `3570e8d94` while this lane was at claim commit `79cbef72b`; therefore the graph
+delta is provisional, not a clean or full-symbol-coverage result. Staged-diff inspection and source search confirmed
+the new helper and its only caller in `new_board`; the changed path stays within the four leased files. This lane did
+not refresh the index; root owns refresh after verified merge.
+
+Commits: claim `79cbef72`; implementation commit ID will be added in the final handoff update.
