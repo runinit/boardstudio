@@ -1159,6 +1159,27 @@ pub enum MirroredHalfMode {
     },
 }
 
+/// Optional replacements for one physical instance's labels at mirror creation.
+/// Omitted fields keep the source's stored labels or the mirror's default labels.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredHalfLabel {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub half: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+}
+
+/// Labels applied to the source and mirror in the same creation edit (ADR-0010).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredHalfLabels {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<MirroredHalfLabel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mirror: Option<MirroredHalfLabel>,
+}
+
 /// How copied item ids are named. Ids are `<board>/<local>` or `matrix/<board>-<cluster>/...`:
 /// every whole `<source board>` token is replaced by the mirror board id, and an id that names
 /// no such token is prefixed with `<mirror board>/`.
@@ -1525,6 +1546,9 @@ pub enum EditOperation {
         #[serde(rename = "sourceInstanceId")]
         source_instance_id: String,
         mode: MirroredHalfMode,
+        /// Optional source and mirror labels, validated and applied atomically with creation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        labels: Option<MirroredHalfLabels>,
         /// Default switch-companion placement for the created pair.
         #[serde(
             default,

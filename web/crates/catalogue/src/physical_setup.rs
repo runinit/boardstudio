@@ -2388,9 +2388,11 @@ mod tests {
     }
 
     /// Side B: the Core `CreateMirroredHalf` ReuseBoard operation on the same starting document,
-    /// with the flip map, the physical-setup pair id and the same mounting-hole template.
+    /// with the flip map, physical setup's labels and pair id, and the same mounting-hole template.
     fn reuse_board_half(start: &ProjectDoc) -> ProjectDoc {
-        use boardstudio_core::model::{MirroredHalfMode, MirroredIdRule};
+        use boardstudio_core::model::{
+            MirroredHalfLabel, MirroredHalfLabels, MirroredHalfMode, MirroredIdRule,
+        };
         let mut engine = CoreEngine::new();
         match engine.handle(CoreRequest::Open {
             id: "equivalence-open".into(),
@@ -2407,6 +2409,18 @@ mod tests {
             operation: EditOperation::CreateMirroredHalf {
                 pair_id: "pair/right-new".into(),
                 source_instance_id: "left-new".into(),
+                labels: Some(MirroredHalfLabels {
+                    source: Some(MirroredHalfLabel {
+                        name: Some("Left half".into()),
+                        half: Some("left".into()),
+                        role: Some("central".into()),
+                    }),
+                    mirror: Some(MirroredHalfLabel {
+                        name: Some("Right half".into()),
+                        half: Some("right".into()),
+                        role: Some("peripheral".into()),
+                    }),
+                }),
                 companion_mode: Default::default(),
                 companion_tweak: None,
                 mode: MirroredHalfMode::ReuseBoard {
@@ -2467,7 +2481,8 @@ mod tests {
     /// Ticket 26: on one accepted reversible split document, physical setup (A) and the Core
     /// `CreateMirroredHalf` ReuseBoard operation (B) must agree on everything the pair reflects.
     /// The differences that remain are pinned exactly, so any new or vanished difference fails
-    /// with its JSON pointer. Findings, with their recommendation, are in ticket 26's Outcome.
+    /// with its JSON pointer. Ticket 32 supplies labels, resolving the six relabelling differences
+    /// recorded in ticket 26's Outcome; the four other differences stay pinned.
     #[test]
     fn physical_setup_and_reuse_board_agree_on_a_reversible_split_pair() {
         let start = reversible_split_start();
@@ -2476,6 +2491,12 @@ mod tests {
 
         // Must be equal, and present (the comparison is not vacuous).
         for pointer in [
+            "/hardware/instances/0/name",
+            "/hardware/instances/0/half",
+            "/hardware/instances/0/role",
+            "/hardware/instances/1/name",
+            "/hardware/instances/1/half",
+            "/hardware/instances/1/role",
             "/hardware/pairs/0/id",
             "/hardware/pairs/0/members",
             "/hardware/pairs/0/mapping",
@@ -2530,31 +2551,6 @@ mod tests {
         }
         // In JSON-pointer order, as `json_differences` reports them.
         let expected = [
-            // A only: physical setup relabels the primary as the left half.
-            ("/hardware/instances/0/half", "\"left\"", "\"unibody\""),
-            (
-                "/hardware/instances/0/name",
-                "\"Left half\"",
-                "\"Keyboard\"",
-            ),
-            (
-                "/hardware/instances/0/role",
-                "\"central\"",
-                "\"standalone\"",
-            ),
-            // Finding (B side): the mirror of a source whose half is not left or right keeps
-            // that label, so it is not labelled as the right half (see ticket 26 Outcome).
-            ("/hardware/instances/1/half", "\"right\"", "\"unibody\""),
-            (
-                "/hardware/instances/1/name",
-                "\"Right half\"",
-                "\"Keyboard mirror\"",
-            ),
-            (
-                "/hardware/instances/1/role",
-                "\"peripheral\"",
-                "\"central\"",
-            ),
             // B only: the pair record carries the mirrored-half record.
             ("/hardware/pairs/0/halves", "<absent>", "object"),
             // A only: physical setup records the shared construction and the split topology.

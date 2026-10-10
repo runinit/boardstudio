@@ -25,11 +25,11 @@ use crate::mechanical::{self, MechanicalTarget, halves, inputs::effective_inputs
 use crate::model::{
     Board, BoardOutline, ElectricalBoardConfiguration, Finding, Layout, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCompanionMode,
-    MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfMode, MirroredHalves,
-    MirroredIdRule, MirroredItemKind, Net, OutlineBridge, OutlineConnection, OutlineControlPoint,
-    OutlineFeature, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion, Part,
-    PartDefinition, PhysicalBoardInstance, Pin, Pose2, ProjectDoc, ProtectedOutlineGap, Scope,
-    Severity, Vec2,
+    MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfLabel, MirroredHalfLabels,
+    MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
+    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
+    OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
+    ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
 };
 use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
@@ -60,6 +60,7 @@ pub(crate) fn create(
     mounting_hole: Option<&PartDefinition>,
     companion_mode: MirroredCompanionMode,
     companion_tweak: Option<MirroredCompanionTweak>,
+    labels: Option<&MirroredHalfLabels>,
 ) -> Result<Vec<String>, String> {
     let MirroredIdRule::BoardPrefix = id_rule;
     halves::validate_companion(companion_mode, companion_tweak)?;
@@ -84,12 +85,98 @@ pub(crate) fn create(
             instance_id,
         } => new_board(&mut next, &request, board_id, instance_id)?,
     };
+    if let Some(labels) = labels {
+        let mirror_id = match mode {
+            MirroredHalfMode::ReuseBoard { instance_id }
+            | MirroredHalfMode::NewBoard { instance_id, .. } => instance_id,
+        };
+        apply_labels(&mut next, pair_id, source_instance_id, mirror_id, labels)?;
+    }
     layout::validate(&next)?;
     halves::validate_document(&next)?;
     changed.sort();
     changed.dedup();
     *doc = next;
     Ok(changed)
+}
+
+/// Applies replacements to the draft after creation so omitted mirror fields keep the existing
+/// derivation rule, even when the source is relabelled. A refusal discards the whole draft.
+fn apply_labels(
+    doc: &mut ProjectDoc,
+    pair_id: &str,
+    source_id: &str,
+    mirror_id: &str,
+    labels: &MirroredHalfLabels,
+) -> Result<(), String> {
+    let hardware = doc
+        .hardware
+        .as_mut()
+        .ok_or("Physical instances are unavailable")?;
+    for (id, side, label) in [
+        (source_id, "source", labels.source.as_ref()),
+        (mirror_id, "mirror", labels.mirror.as_ref()),
+    ] {
+        if let Some(label) = label {
+            let instance = hardware
+                .instances
+                .iter_mut()
+                .find(|instance| instance.id == id)
+                .ok_or_else(|| format!("Physical instance {id:?} is unavailable."))?;
+            apply_label(
+                instance,
+                label,
+                &format!("mechanical pair {pair_id:?} instance {id:?} labels.{side}"),
+            )?;
+        }
+    }
+    let source = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == source_id)
+        .ok_or("The source instance is unavailable")?;
+    let mirror = hardware
+        .instances
+        .iter()
+        .find(|instance| instance.id == mirror_id)
+        .ok_or("The mirror instance is unavailable")?;
+    if source.half == mirror.half && source.role == mirror.role {
+        return Err(format!(
+            "mechanical pair {pair_id:?} labels.mirror (instance {mirror_id:?}) claims the same half {:?} and role {:?} as labels.source (instance {source_id:?})",
+            mirror.half, mirror.role
+        ));
+    }
+    Ok(())
+}
+
+fn apply_label(
+    instance: &mut PhysicalBoardInstance,
+    label: &MirroredHalfLabel,
+    location: &str,
+) -> Result<(), String> {
+    if let Some(name) = &label.name {
+        if name.trim().is_empty() {
+            return Err(format!("{location}.name must be non-empty"));
+        }
+        instance.name.clone_from(name);
+    }
+    if let Some(half) = &label.half {
+        if !matches!(half.as_str(), "left" | "right" | "unibody") {
+            return Err(format!(
+                "{location}.half {half:?} must be left, right or unibody"
+            ));
+        }
+        instance.half.clone_from(half);
+    }
+    if let Some(role) = &label.role {
+        if !matches!(role.as_str(), "central" | "peripheral" | "standalone") {
+            return Err(format!(
+                "{location}.role {role:?} must be central, peripheral or standalone"
+            ));
+        }
+        instance.role.clone_from(role);
+    }
+    Ok(())
 }
 
 /// The mirror id of a source id under the board-prefix rule: every whole `from` token becomes
@@ -1977,6 +2064,7 @@ mod tests {
             MirroredIdRule::BoardPrefix,
             None,
             MirroredCompanionMode::LiteralMirror,
+            None,
             None,
         )
         .unwrap_err();

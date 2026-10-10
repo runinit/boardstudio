@@ -1577,6 +1577,7 @@ fn apply(
             pair_id,
             source_instance_id,
             mode,
+            labels,
             companion_mode,
             companion_tweak,
             mapping,
@@ -1592,6 +1593,7 @@ fn apply(
             mounting_hole.as_deref(),
             *companion_mode,
             *companion_tweak,
+            labels.as_ref(),
         ),
         EditOperation::SetLayout { layout: incoming } => {
             let current = doc

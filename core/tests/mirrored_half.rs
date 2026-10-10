@@ -3505,3 +3505,164 @@ fn duplicate_placement_reproduces_every_shipped_right_half_companion_one_to_one(
         }
     }
 }
+
+/// A source that needs labelling is still a valid source in either creation mode.
+fn unibody_label_seed() -> (CoreEngine, Value) {
+    let mut document = seed_document(&projects()["corne"], "left");
+    let source = &mut document["hardware"]["instances"][0];
+    source["half"] = json!("unibody");
+    source["name"] = json!("Keyboard");
+    source["role"] = json!("standalone");
+    open(&document)
+}
+
+fn split_labels() -> Value {
+    json!({
+        "source": {"name":"Left half", "half":"left", "role":"central"},
+        "mirror": {"name":"Right half", "half":"right", "role":"peripheral"}
+    })
+}
+
+#[test]
+fn creation_labels_apply_atomically_in_both_modes_and_undo_redo_together() {
+    for mode in [
+        new_board("right", "right"),
+        json!({"kind":"reuse-board","instanceId":"right"}),
+    ] {
+        let (mut engine, before) = unibody_label_seed();
+        let mut op = operation("pair-labels", "left", mode, mapping(0.0));
+        op["labels"] = split_labels();
+        let preview = create_with(&mut engine, &before, "preview", op.clone()).unwrap();
+        assert_eq!(preview["kind"], "preview");
+        assert_eq!(
+            snapshot(&mut engine),
+            before,
+            "preview must not mutate the accepted source"
+        );
+        let reply = create_with(&mut engine, &before, "commit", op).unwrap();
+        let made = &reply["document"];
+        for (id, side) in [("left", "source"), ("right", "mirror")] {
+            for field in ["name", "half", "role"] {
+                assert_eq!(
+                    instance(made, id)[field],
+                    split_labels()[side][field],
+                    "{id}.{field}"
+                );
+            }
+            assert!(
+                reply["scene"]["changedIds"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!(id))
+            );
+        }
+        assert_eq!(
+            made["revision"].as_u64().unwrap(),
+            before["revision"].as_u64().unwrap() + 1
+        );
+        let (_, reopened) = open(made);
+        assert_eq!(
+            reopened["hardware"]["instances"],
+            made["hardware"]["instances"]
+        );
+        let mut undone =
+            request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+        undone["revision"] = before["revision"].clone();
+        assert_eq!(undone, before);
+        let mut redone =
+            request(&mut engine, json!({"id":"redo","kind":"redo"}))["document"].clone();
+        redone["revision"] = made["revision"].clone();
+        assert_eq!(&redone, made);
+    }
+}
+
+#[test]
+fn omitted_and_empty_creation_labels_preserve_unibody_defaults() {
+    for mode in [
+        new_board("right", "right"),
+        json!({"kind":"reuse-board","instanceId":"right"}),
+    ] {
+        for labels in [
+            None,
+            Some(json!({})),
+            Some(json!({"source":{},"mirror":{}})),
+        ] {
+            let (mut engine, before) = unibody_label_seed();
+            let mut op = operation("pair-labels", "left", mode.clone(), mapping(0.0));
+            if let Some(labels) = labels {
+                op["labels"] = labels;
+            }
+            let made = create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
+            for (id, name, role) in [
+                ("left", "Keyboard", "standalone"),
+                ("right", "Keyboard mirror", "central"),
+            ] {
+                let half = instance(&made, id);
+                assert_eq!(half["name"], name);
+                assert_eq!(half["half"], "unibody");
+                assert_eq!(half["role"], role);
+            }
+        }
+    }
+}
+
+#[test]
+fn partial_creation_labels_only_replace_the_supplied_fields() {
+    for labels in [
+        json!({"source":{"name":"Primary"}}),
+        json!({"mirror":{"half":"right"}}),
+        json!({"source":{"half":"right"},"mirror":{"role":"standalone"}}),
+        json!({"source":{"role":"central"},"mirror":{"half":"right"}}),
+    ] {
+        let (mut engine, before) = unibody_label_seed();
+        let mut op = operation(
+            "pair-labels",
+            "left",
+            new_board("right", "right"),
+            mapping(0.0),
+        );
+        op["labels"] = labels.clone();
+        let made = create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
+        for (id, side, name, role) in [
+            ("left", "source", "Keyboard", "standalone"),
+            ("right", "mirror", "Keyboard mirror", "central"),
+        ] {
+            for (field, default) in [("name", name), ("half", "unibody"), ("role", role)] {
+                assert_eq!(
+                    instance(&made, id)[field],
+                    labels[side].get(field).cloned().unwrap_or(json!(default)),
+                    "{id}.{field}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn invalid_creation_labels_are_located_and_refused_without_mutation() {
+    for mode in [
+        new_board("right", "right"),
+        json!({"kind":"reuse-board","instanceId":"right"}),
+    ] {
+        for (labels, location) in [
+            (json!({"source":{"name":" \t"}}), "labels.source.name"),
+            (json!({"mirror":{"name":""}}), "labels.mirror.name"),
+            (json!({"source":{"half":"middle"}}), "labels.source.half"),
+            (json!({"mirror":{"half":""}}), "labels.mirror.half"),
+            (json!({"source":{"role":"primary"}}), "labels.source.role"),
+            (json!({"mirror":{"role":"unknown"}}), "labels.mirror.role"),
+            (
+                json!({"source":{"half":"left","role":"central"},"mirror":{"half":"left","role":"central"}}),
+                "labels.mirror",
+            ),
+            (json!({"source":{"role":"central"}}), "labels.mirror"),
+            (json!({"mirror":{"role":"standalone"}}), "labels.mirror"),
+        ] {
+            let (mut engine, before) = unibody_label_seed();
+            let mut op = operation("pair-labels", "left", mode.clone(), mapping(0.0));
+            op["labels"] = labels;
+            let error = refused(&mut engine, &before, op);
+            assert!(error.contains(location), "{location}: {error}");
+        }
+    }
+}
