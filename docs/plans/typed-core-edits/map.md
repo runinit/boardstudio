@@ -223,6 +223,11 @@ verification window ended. Full parent acceptance is not waived by partial slice
   qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
   native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
   board work and sign-off; the user has delegated hardware selection.
+- [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
+  configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
+  Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
+  focused, repo/lint and all 77 footprint tests. Default 2.6 mm pads, physical fit/model alignment and whole-board
+  qualification remain unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) stays open.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
