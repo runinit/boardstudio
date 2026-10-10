@@ -1,9 +1,9 @@
 # 129 — Choc v1 socket documented geometry and configuration
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: qualification
 Parent: [118 hardware contract](118-sofle-adaptation-hardware-contract.md)
-Prerequisite: independent plan review passed; fresh independent implementation verification pending.
+Prerequisite: independent plan review and fresh independent verification of the corrected bounded acceptance passed; full asset qualification remains open.
 
 ## Scope
 
@@ -70,4 +70,33 @@ An independent implementation verification at `2cff220ec9eeea922ab8c88adeda2b364
 
 Earlier focused runs exposed a moved `Side` value, an overbroad five-hole selection, missing angle components in emitted three-number `(at ...)` fields, and the exact NPTH layer set (`*.Cu` and `*.Mask`). These were corrected without changing fixed geometry expectations or broadening tolerances. The first `repo lint` run then found `clippy::let_and_return` in the new test; returning the render expression directly fixed it. Final focused test passed (2 tests), `python3 scripts/check.py repo lint` passed (repo and lint), and `cargo test --locked -p boardstudio-footprints` passed (all crate tests). Producer files and ticket 118 were not changed; ticket 118 remains open. Fresh independent implementation verification, root-owned GitNexus change detection and commit remain pending.
 
-After the source-attribution correction, scoped `rustfmt --edition 2024 footprints/tests/choc_socket_qualification.rs` passed (exit 0, 0.40 s); the focused qualification test passed (2/2, exit 0, 0.87 s); `python3 scripts/check.py repo lint` passed (exit 0, 3.81 s); and `cargo test --locked -p boardstudio-footprints` passed (exit 0, 6.54 s). Exact command/exit/elapsed records are in ignored `.scratch/source-evidence/129-corrected-validation.log`. These checks do not resolve the failed independent verification; ticket 129 remains implemented and awaiting a fresh independent review.
+After the source-attribution correction, scoped `rustfmt --edition 2024 footprints/tests/choc_socket_qualification.rs` passed (exit 0, 0.40 s); the focused qualification test passed (2/2, exit 0, 0.87 s); `python3 scripts/check.py repo lint` passed (exit 0, 3.81 s); and `cargo test --locked -p boardstudio-footprints` passed (exit 0, 6.54 s). Exact command/exit/elapsed records are in ignored `.scratch/source-evidence/129-corrected-validation.log`. These checks did not themselves resolve the failed independent verification; the subsequent independent results are recorded below.
+
+## Verification
+
+Fresh independent Codex Sol 6.1 xhigh verification passed the root-approved corrected bounded acceptance at `0c9a1178d475c80c805ebc776f28068eca291bea`. The earlier `NOT VERIFIED` verdict at `2cff220ec9eeea922ab8c88adeda2b3646c429e5` remains valid history: attributing the Ø3.00 leader to both holes was unsupported. The correction changed the source attribution and acceptance explicitly; both numeric 3.0 mm drill assertions and all other geometry/configuration assertions were preserved. Resolution applies only to the corrected scope, not to the original stronger two-hole manufacturer-diameter claim.
+
+The verifier read the original claim-commit acceptance and inspected the actual recommended-layout and profile pixels. The saved PDF hash remained `c94a6b45abbbdd456fcc1549a60b4454ad897c027f04dafb26d5797e76061f93`. The drawing's lower-left hole and adjacent dimensioned LEFT land map to the selected face-specific lower socket hole and outer pad 2; the common upper-hole diameter is configuration-only. The six fixed F/B vectors, stored 120° placements, explicit V1-only configuration, configured terminal identities, exact effective layer sets and model binding/transforms were reviewed against those evidence distinctions.
+
+Under root's separate temporary lease, the verifier changed only the F lower socket NPTH drill from 3 to 3.2 mm in `footprints/src/generators/ceoloide/switch_choc_v1_v2.rs:646`, at `(-5,-3.75)`. The common upper hole, B lower hole, center hole and stabilizers were untouched. The focused test compiled and failed with exit 101, one test passed and one failed, on the intended dimension assertion: `dimensioned lower-left hole nominal drill: expected 3, got 3.2`. This was not a selector, count, parser or compilation failure.
+
+The producer was backed up byte-for-byte to ignored `.scratch/source-evidence/129-verifier-0c9a1178-producer.preimage.rs`, restored from that backup and touched with `os.utime`. Preimage, backup and final SHA-256 all matched `138134ee039fb538dd36ef8ec1c86b0cc2d538a7b5b8c1f33d6232ed23e19484`; the temporary mutant hash was `31a27f9e0aad632f7a5bdeaf03d827c6948ebc7be6d68c120521cab2b2d34476`. The restored focused run rebuilt and passed. Final `git status --short` was empty and the producer/test/ticket diff against that verification HEAD was empty. No production mutation or test repair was retained.
+
+All check commands used `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1`, sequentially in the exact F worktree:
+
+| Check | Result | Wall time |
+| --- | --- | --- |
+| `rustfmt --edition 2024 --check footprints/tests/choc_socket_qualification.rs` | exit 0 | 0.030 s |
+| `cargo test --locked -p boardstudio-footprints --test choc_socket_qualification` — baseline | exit 0, 2/2 passed | 0.096 s |
+| Same focused command — lower-drill mutant | exit 101, intended assertion above | 0.626 s |
+| Same focused command — exact restoration | exit 0, 2/2 passed | 0.525 s |
+| `python3 scripts/check.py repo lint` | exit 0; vendored cgmath warnings emitted | 8.349 s |
+| `cargo test --locked -p boardstudio-footprints` | exit 0, all 79 tests passed | 6.080 s |
+
+Full commands, exits, timings, mutant diff, failure output and restoration proof are in ignored `.scratch/source-evidence/129-independent-reverification.log`. No browser or full integration batch was run for this test/evidence slice; root owns cohort integration checks and graph/commit work.
+
+The selector asserts five NPTHs and takes the final two in the source-confirmed order: center hole, two V1 stabilizers, common upper socket hole, face-specific lower socket hole. It depends on the selected configuration and current producer fragment order, not stable emitted IDs or manufacturer numbering. The mutation demonstrates that it selects the intended lower drill in this configuration; it does not establish general selector robustness. Upper angle `r` and lower angle `195° + r` on both faces remain producer configuration regressions only; circular-hole angles establish no physical fit property.
+
+The current bound `boardstudio-ts-boardstudio2` impact for producer `body` returned UNKNOWN, zero resolved callers/processes and lower-bound coverage with 25 receiver-typing gaps. Actual source confirmed registration and `spec.body` dispatch. Index metadata was at `2cff220e`, one commit behind the corrected verification HEAD; no clean-current-index or unused-symbol claim follows, and the verifier did not refresh it.
+
+The upper-hole manufacturer diameter, undimensioned RIGHT land, host polarity/numbering, mounting face, reversible connectivity, absolute datum and pad gaps remain unqualified. Model checks establish emitted binding/configuration only; independent model datum/alignment/contact, PCB thickness range, switch travel, keycap/plate fit and physical/full asset qualification remain open. Ticket 118 remains open, and later recipe/assembly integration retains its 19/20/44 dependencies. No defaults, models, recipes or production geometry changed. Ticket 129 is resolved only for its corrected bounded acceptance.
