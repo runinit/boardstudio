@@ -4,7 +4,7 @@ Project-wide, for every branch and both apps. `AGENTS.md` points here. Written 2
 Claude to Codex. Everything an orchestrator or lane agent needs is in the repository; nothing depends on chat history or one
 app's private memory. Read this page, then
 [verification-process.md](verification-process.md), [gitnexus-index.md](gitnexus-index.md) and
-[parallel-lanes.md](../plans/typed-core-edits/parallel-lanes.md) (lanes, prompts: [lane-prompts.md](../plans/typed-core-edits/lane-prompts.md)).
+`docs/plans/typed-core-edits/parallel-lanes.md` (lanes, prompts: `docs/plans/typed-core-edits/lane-prompts.md`).
 
 ## Models and who does what (the same in Codex and Claude)
 

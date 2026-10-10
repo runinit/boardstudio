@@ -72,7 +72,7 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
 
 - Work in the ticket's worktree. A nested worktree (under `.worktrees/`) runs every check step,
   including native `test` and `build`; no second "verify" checkout is needed (see
-  [ticket 10](../plans/check-speed/issues/10-nested-worktrees.md)). Its `cad/.cache`,
+  `docs/plans/check-speed/issues/10-nested-worktrees.md`). Its `cad/.cache`,
   `cad/wasm/pkg` and `cad/wasm/target` must be real directories, not symlinks into another
   checkout: `build` refuses a symlink because the CAD container cannot resolve it.
 - The sandbox must be lifted (`dangerouslyDisableSandbox`) for `wasm-pack`, Chrome and
