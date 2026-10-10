@@ -1,4 +1,4 @@
-use crate::{matrix, model::*};
+use crate::{matrix, mechanical::pair, model::*};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MIRRORED_COMPONENT_SOURCE: &str = "boardstudio.mirroredComponentSource";
@@ -90,7 +90,27 @@ pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)
     Some((other.matrix_id.clone(), other.mirror_link.as_ref()?.axis_x))
 }
 
-pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result<Matrix, String> {
+/// The pair map of a vertical mirror line at `axis_x`: the reflection `x' = 2 * axis_x - x`.
+pub(crate) fn axis_mapping(axis_x: f64) -> Pose2 {
+    Pose2 {
+        at: Vec2 {
+            x: 2.0 * axis_x,
+            y: 0.0,
+        },
+        rotation: 0.0,
+    }
+}
+
+/// Reflects `source` through a pair's `mapping` onto `target`, which keeps its identity, board and
+/// part ids. The local frame flips (`mirror` toggles) so the mirror keeps the source's numbering:
+/// column 0 is the same physical column on both halves. Headings take the pair's rule,
+/// [`crate::mechanical::pair::forward_angle`], and so do assembly directions.
+pub(crate) fn reflected(
+    source: &Matrix,
+    target: &Matrix,
+    mapping: Pose2,
+    local_companions: bool,
+) -> Result<Matrix, String> {
     // The pair uses a vertical reflection of the local None/X frames.
     // Switching to a horizontal local frame requires an independent layout.
     if source.mirror == Some(Mirror::Y) {
@@ -101,11 +121,12 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
     result.columns = source.columns;
     result.pitch = source.pitch;
     result.edge_gap = source.edge_gap;
-    result.origin = Vec2 {
-        x: 2.0 * axis_x - source.origin.x,
-        y: source.origin.y,
+    result.origin = pair::forward(mapping, source.origin);
+    result.rotation = if source.rotation.is_some() || mapping.rotation != 0.0 {
+        Some(pair::forward_angle(mapping, source.rotation.unwrap_or(0.0)))
+    } else {
+        None
     };
-    result.rotation = source.rotation.map(|angle| -angle);
     result.mirror = Some(if source.mirror == Some(Mirror::X) {
         Mirror::None
     } else {
@@ -174,9 +195,11 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
         cell.offset = source_cell.and_then(|cell| cell.offset);
         cell.rotation = source_cell
             .and_then(|cell| cell.rotation)
-            .map(|angle| -angle);
+            .map(|angle| pair::forward_angle(mapping, angle));
+        // A sync keeps the other half's local companions; a new half copies them, since it has none.
         if cell.assemblies_local != Some(true)
-            && !source_cell.is_some_and(|cell| cell.assemblies_local == Some(true))
+            && (local_companions
+                || !source_cell.is_some_and(|cell| cell.assemblies_local == Some(true)))
         {
             cell.definition_id = source_cell.and_then(|cell| cell.definition_id.clone());
             cell.variant = source_cell.and_then(|cell| cell.variant.clone());
@@ -186,14 +209,20 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
                         .iter()
                         .cloned()
                         .map(|mut assembly| {
-                            assembly.offset.x = -assembly.offset.x;
-                            assembly.rotation = assembly.rotation.map(|rotation| -rotation);
+                            assembly.offset = pair::forward_vector(mapping, assembly.offset);
+                            assembly.rotation = assembly
+                                .rotation
+                                .map(|rotation| pair::forward_angle(mapping, rotation));
                             assembly
                         })
                         .collect()
                 })
                 .unwrap_or_default();
-            cell.assemblies_local = None;
+            cell.assemblies_local = if local_companions {
+                source_cell.and_then(|cell| cell.assemblies_local)
+            } else {
+                None
+            };
         }
     }
     result.cells = cells.into_values().collect();
@@ -229,7 +258,8 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                 .map(|size| (cell, size))
         })
         .collect();
-    let mut reflected_matrix = reflected(source, target, axis_x)?;
+    let mapping = axis_mapping(axis_x);
+    let mut reflected_matrix = reflected(source, target, mapping, false)?;
     if source_is_target {
         let canonical_cells: BTreeMap<_, _> = target
             .cells
@@ -287,8 +317,10 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                     .iter()
                     .cloned()
                     .map(|mut assembly| {
-                        assembly.offset.x = -assembly.offset.x;
-                        assembly.rotation = assembly.rotation.map(|rotation| -rotation);
+                        assembly.offset = pair::forward_vector(mapping, assembly.offset);
+                        assembly.rotation = assembly
+                            .rotation
+                            .map(|rotation| pair::forward_angle(mapping, rotation));
                         assembly
                     })
                     .collect();

@@ -17,6 +17,7 @@ mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;
+mod mirrored_half;
 pub mod model;
 mod modules;
 mod outline_controls;
@@ -502,6 +503,11 @@ impl CoreEngine {
     fn edit(&mut self, id: String, command: EditCommand) -> CoreReply {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
+        }
+        if command.phase == EditPhase::Preview
+            && matches!(&command.operation, EditOperation::CreateMirroredHalf { .. })
+        {
+            return self.error(id, "Creating a mirrored half is a commit, not a preview");
         }
         if command.phase == EditPhase::Preview
             && matches!(
@@ -1111,6 +1117,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::SetMatrixSplay { .. }
             | EditOperation::SetMatrixPlacement { .. }
             | EditOperation::CreateMirroredPair { .. }
+            | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
@@ -1563,13 +1570,21 @@ fn apply(
                     assembly.rotation = assembly.rotation.map(|angle| -angle);
                 }
             }
-            let target = layout::reflected(matrix, &target, link.axis_x)?;
+            let target =
+                layout::reflected(matrix, &target, layout::axis_mapping(link.axis_x), false)?;
             changed.extend(matrix::set_matrix(doc, &target)?);
             doc.layouts.extend([left.clone(), right.clone()]);
             layout::validate(doc)?;
             changed.extend([left.id.clone(), right.id.clone()]);
             Ok(changed)
         }
+        EditOperation::CreateMirroredHalf {
+            pair_id,
+            source_instance_id,
+            mode,
+            mapping,
+            id_rule,
+        } => mirrored_half::create(doc, pair_id, source_instance_id, mode, *mapping, *id_rule),
         EditOperation::SetLayout { layout: incoming } => {
             let current = doc
                 .layouts

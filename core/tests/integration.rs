@@ -53,6 +53,8 @@ mod mechanical_integration;
 mod mechanical_settings_edits;
 #[path = "mechanical_workflow.rs"]
 mod mechanical_workflow;
+#[path = "mirrored_half.rs"]
+mod mirrored_half;
 #[path = "mixed_project_acceptance.rs"]
 mod mixed_project_acceptance;
 #[path = "module_board_supports.rs"]

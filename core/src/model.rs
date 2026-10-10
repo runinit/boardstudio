@@ -1087,7 +1087,38 @@ pub enum MirroredItemKind {
     Assembly,
     /// A module mounted on the board (`modules`, by its host board).
     Module,
+    /// A board's electrical configuration (`hardware.boards`, by board id).
+    ElectricalBoard,
+    /// A fixed outline version of a board (`boardOutlines`, by version id).
+    OutlineVersion,
     MechanicalFeature,
+}
+
+/// Where a [`EditOperation::CreateMirroredHalf`] puts the second half.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MirroredHalfMode {
+    /// A new board that receives a reflected copy of the source board.
+    NewBoard {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(rename = "instanceId")]
+        instance_id: String,
+    },
+    /// A flipped instance of the source board. It copies nothing: the same board is used twice.
+    ReuseBoard {
+        #[serde(rename = "instanceId")]
+        instance_id: String,
+    },
+}
+
+/// How copied item ids are named. Ids are `<board>/<local>` or `matrix/<board>-<cluster>/...`:
+/// every whole `<source board>` token is replaced by the mirror board id, and an id that names
+/// no such token is prefixed with `<mirror board>/`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredIdRule {
+    BoardPrefix,
 }
 
 /// The states an exception can take. A linked item needs no exception.
@@ -1436,6 +1467,20 @@ pub enum EditOperation {
         matrix: Box<Matrix>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         definitions: Option<Vec<PartDefinition>>,
+    },
+    /// Creates the second half of a mechanical pair from its source instance (ADR-0010): a new
+    /// board that receives a reflection of the source board through `mapping`, or a flipped
+    /// instance of the same board. The pair, its construction source and its mirrored-half
+    /// record are created in the same accepted edit. Every new id must be fresh.
+    CreateMirroredHalf {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        #[serde(rename = "sourceInstanceId")]
+        source_instance_id: String,
+        mode: MirroredHalfMode,
+        mapping: Pose2,
+        #[serde(rename = "idRule")]
+        id_rule: MirroredIdRule,
     },
     SetLayout {
         layout: Layout,
