@@ -55,3 +55,5 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
   matrix assemblies and stored parts must agree. `reuse-board` copies no companions and refuses an
   explicit creation tweak, which would have no item record to retain it.
 - Labels ([32](32-mirrored-half-labels.md)): reconciliation never rewrites instance labels.
+
+- Stabilisers keep their heading and companions fall back to the X mirror ([39](39-stabilisers-and-companion-fallback.md)); the mode is editable later through [40](40-set-companion-placement-operation.md), which needs reconciliation to re-derive the affected companions.

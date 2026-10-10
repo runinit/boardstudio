@@ -11,11 +11,14 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 - **Implement** (Haiku 5.5 unless the ticket says otherwise): test first, make the change,
   run only the steps the change needs (below), write the Outcome honestly, set
   `Status: implemented (awaiting verification)`. Never `resolved`. Time box: about an hour.
-- **Verify and integrate** (Sonnet 5.5, high effort): do not trust the implementer's
-  report. Reproduce its claims, mutation-check the main assertions (disable one site at a
-  time, confirm a test fails, restore), review the code, fix **small** defects with tests,
-  then set `resolved` with who-verified-what evidence and update the map. Time box: about
-  30 minutes of work.
+- **Verify and integrate** (Codex, from 2026-10-10; before that Sonnet 5.5 at high effort): do not trust the
+  implementer's report. Reproduce its claims, mutation-check the main assertions (disable one site at a time,
+  confirm a test fails, restore), review the code, fix **small** defects with tests, then set `resolved` with
+  who-verified-what evidence. Time box: about 30 to 45 minutes of work. The verifier is always a different app or
+  model than the implementer.
+- **Planner / orchestrator** (Claude, from 2026-10-10): writes tickets, ADRs and prompts, decides the order, hands
+  tickets to implementers and verifiers, merges lanes, runs the batch check and refreshes GitNexus. It does not
+  verify, and it does not implement unless a task is tiny and documentation-only.
 - The verifier is a reviewer, not a second implementer. A defect that needs more than a
   small, clearly correct fix (roughly a screen of code and one test) becomes a follow-up
   ticket with file:line and a test plan; the ticket is resolved only if its own acceptance

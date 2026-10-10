@@ -4,6 +4,7 @@ use boardstudio_core::model::{
     Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance,
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -93,7 +94,12 @@ async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_dr
         VirtualDom::new(coordinate_history_host),
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    settle_dimension().await;
+    wait_until("the coordinate inputs mount", || {
+        root.query_selector("input[aria-label='Point 1 X mm']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let x = root
         .query_selector("input[aria-label='Point 1 X mm']")
         .unwrap()
@@ -129,7 +135,10 @@ async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_dr
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
-    settle_dimension().await;
+    wait_until("Undo shows the restored accepted coordinate", || {
+        x.value() == "0"
+    })
+    .await;
     assert_eq!(
         x.value(),
         "0",
@@ -200,6 +209,12 @@ async fn settle_dimension() {
     gloo_timers::future::TimeoutFuture::new(35).await;
 }
 
+/// One event-loop turn before a negative check. It waits for no condition, so a negative
+/// assertion after it is recorded as render-unproven in the Outcome.
+async fn yield_turn() {
+    gloo_timers::future::TimeoutFuture::new(0).await;
+}
+
 fn dimension_input() -> web_sys::HtmlInputElement {
     web_sys::window()
         .unwrap()
@@ -237,22 +252,40 @@ fn send_key(input: &web_sys::HtmlInputElement, key: &str) {
 #[wasm_bindgen_test]
 async fn outline_dimension_enter_commits_and_escape_restores_accepted_value() {
     let (probe, root) = mount_dimension();
-    settle_dimension().await;
+    wait_until("the outline margin input mounts", || {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(
+                "#outline-dimension-mount #outline-dimension-test-root input[aria-label='Outline margin']",
+            )
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let input = dimension_input();
 
     input.focus().unwrap();
     send_input(&input, "5.25");
     send_key(&input, "Enter");
-    settle_dimension().await;
+    wait_until("Enter commits 5.25", || {
+        probe.committed.borrow().as_slice() == [5.25]
+    })
+    .await;
     assert_eq!(probe.committed.borrow().as_slice(), &[5.25]);
 
     input.focus().unwrap();
     send_input(&input, "9");
     send_key(&input, "Escape");
-    settle_dimension().await;
+    wait_until("Escape restores the accepted baseline", || {
+        input.value() == "4"
+    })
+    .await;
     assert_eq!(input.value(), "4");
     input.blur().unwrap();
-    settle_dimension().await;
+    // Negative check (no commit): one event-loop turn, recorded as unproven in the Outcome.
+    yield_turn().await;
     assert_eq!(
         probe.committed.borrow().as_slice(),
         &[5.25],
@@ -412,7 +445,10 @@ async fn mounted_outline_inspector_with_version(
 #[wasm_bindgen_test]
 async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
     let (probe, root) = mounted_polygon_outline_inspector(true).await;
-    settle_dimension().await;
+    wait_until("the mounted Outline publishes its selected context", || {
+        probe.selected_context.borrow().is_some()
+    })
+    .await;
     let document = web_sys::window().unwrap().document().unwrap();
     let selection = *probe
         .selected_context
@@ -431,7 +467,13 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap();
     open.click();
-    settle_dimension().await;
+    wait_until("Edit perimeter points renders the point editor", || {
+        document
+            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor button")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let done = document
         .query_selector("#outline-points-inspector-mount .m1-outline-point-editor button")
         .unwrap()
@@ -446,8 +488,26 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
         &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
     )
     .unwrap();
-    settle_dimension().await;
-
+    // Selection changes before the nested editor unmounts and before focus moves, so the wait
+    // covers all three: the assertions below read the unmounted editor and the focused field.
+    wait_until(
+        "Escape from the focused Perimeter Done button returns selection to the board inspector",
+        || {
+            matches!(
+                selection.read().as_ref().map(|selected| &selected.context),
+                Some(super::super::objects::TreeContext::Board { board_id }) if board_id == &probe.scope.board_id
+            ) && document
+                .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+                .unwrap()
+                .is_none()
+                && document
+                    .active_element()
+                    .and_then(|active| active.get_attribute("aria-label"))
+                    .as_deref()
+                    == Some("Board name")
+        },
+    )
+    .await;
     assert!(
         matches!(
             selection.read().as_ref().map(|selected| &selected.context),
@@ -481,7 +541,10 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
 #[wasm_bindgen_test]
 async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_editing() {
     let (probe, root) = mounted_polygon_outline_inspector(true).await;
-    settle_dimension().await;
+    wait_until("the mounted Outline publishes its selected context", || {
+        probe.selected_context.borrow().is_some()
+    })
+    .await;
     let document = web_sys::window().unwrap().document().unwrap();
     let selected_context = *probe
         .selected_context
@@ -502,7 +565,13 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
-    settle_dimension().await;
+    wait_until("the canvas point handle mounts", || {
+        document
+            .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
 
     let point = document
         .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
@@ -528,7 +597,17 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
             &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
         )
         .unwrap();
-    settle_dimension().await;
+    wait_until("Escape closes the canvas point editor", || {
+        document
+            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor")
+            .unwrap()
+            .is_none()
+            && document
+                .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
+                .unwrap()
+                .is_none()
+    })
+    .await;
 
     assert!(
         matches!(
@@ -595,7 +674,16 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         Vec2 { x: 13.0, y: 13.0 },
     ];
     let (probe, root) = mounted_polygon_outline_inspector_with_points(true, points).await;
-    settle_dimension().await;
+    wait_until("the fixed outline exposes Edit perimeter points", || {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let document = web_sys::window().unwrap().document().unwrap();
     let revision_before = accepted_revision(&probe);
 
@@ -606,7 +694,13 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
-    settle_dimension().await;
+    wait_until("the perimeter point handles mount", || {
+        document
+            .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
 
     let point = document
         .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
@@ -626,7 +720,11 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         "the mounted production pointerdown handler started a point interaction"
     );
     dispatch_test_pointer_at(&point, "pointerup", 0, client_x, client_y);
-    settle_dimension().await;
+    wait_until(
+        "the mounted production pointerup handler finishes the point interaction",
+        || captured.captured.get().is_none(),
+    )
+    .await;
     assert_eq!(
         captured.captured.get(),
         None,
@@ -642,7 +740,11 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
     dispatch_test_pointer_at(&point, "pointerdown", 1, client_x, client_y);
     assert_eq!(captured.captured.get(), Some(17));
     dispatch_test_pointer_at(&point, "pointerup", 0, client_x + 4, client_y);
-    settle_dimension().await;
+    wait_until(
+        "the displaced pointerup finishes the point interaction",
+        || captured.captured.get().is_none(),
+    )
+    .await;
     assert_eq!(captured.captured.get(), None);
     accept(&probe).await;
     assert_eq!(
@@ -1126,7 +1228,12 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
         ownership: boardstudio_core::model::OutlineOwnership::Fixed,
     }))
     .await;
-    settle_dimension().await;
+    wait_until("the Active outline select mounts", || {
+        root.query_selector("select[aria-label='Active outline']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let select = root
         .query_selector("select[aria-label='Active outline']")
         .unwrap()
@@ -1152,7 +1259,16 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
 #[wasm_bindgen_test]
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
     let (probe, root) = mounted_outline_inspector().await;
-    settle_dimension().await;
+    wait_until("the Generate action mounts", || {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#outline-inspector-mount button.m1-outline-action")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let button = web_sys::window()
         .unwrap()
         .document()
@@ -1237,8 +1353,17 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
 #[wasm_bindgen_test]
 async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_points() {
     let (probe, root) = mounted_polygon_outline_inspector(false).await;
-    settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
+    wait_until(
+        "the generated perimeter exposes its point editor action",
+        || {
+            document
+                .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+                .unwrap()
+                .is_some()
+        },
+    )
+    .await;
     let open = document
         .query_selector("#outline-points-inspector-mount button.m1-outline-action")
         .unwrap()
@@ -1246,7 +1371,13 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap();
     open.click();
-    settle_dimension().await;
+    wait_until("Insert point renders in the point editor", || {
+        document
+            .query_selector("#outline-points-inspector-mount button.m1-outline-insert-point")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let insert = document
         .query_selector("#outline-points-inspector-mount button.m1-outline-insert-point")
         .unwrap()
@@ -1254,6 +1385,7 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap();
     insert.click();
+    // The insert's effect is the accepted revision, which the accept drain below reads.
     settle_dimension().await;
 
     accept(&probe).await;
@@ -1300,8 +1432,17 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
 #[wasm_bindgen_test]
 async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_feature() {
     let (probe, root) = mounted_polygon_outline_inspector(true).await;
-    settle_dimension().await;
     let document = web_sys::window().unwrap().document().unwrap();
+    wait_until(
+        "the fixed perimeter exposes its point editor action",
+        || {
+            document
+                .query_selector("#outline-points-inspector-mount button.m1-outline-action")
+                .unwrap()
+                .is_some()
+        },
+    )
+    .await;
     let open = document
         .query_selector("#outline-points-inspector-mount button.m1-outline-action")
         .unwrap()
@@ -1309,7 +1450,13 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap();
     open.click();
-    settle_dimension().await;
+    wait_until("the point editor renders Point 1 X", || {
+        document
+            .query_selector("#outline-points-inspector-mount input[aria-label='Point 1 X mm']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let input = document
         .query_selector("#outline-points-inspector-mount input[aria-label='Point 1 X mm']")
         .unwrap()
@@ -1319,7 +1466,10 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
     input.focus().unwrap();
     send_input(&input, "9.5");
     send_key(&input, "Escape");
-    settle_dimension().await;
+    wait_until("Escape restores the accepted X coordinate", || {
+        input.value() == "0"
+    })
+    .await;
     assert_eq!(input.value(), "0");
     let selected = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(

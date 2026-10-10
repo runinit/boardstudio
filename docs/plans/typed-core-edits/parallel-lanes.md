@@ -14,8 +14,9 @@ timing work must run alone, and a few files can only have one writer. Process fo
 - **Lane agent (one per lane at a time):** works only in its lane worktree on its lane branch, on the files its
   tickets name, and writes an `## Outcome` in its ticket files. It never edits `map.md`, never merges, never
   pushes, never refreshes GitNexus.
-- **Implementer and verifier are different agents, ideally from different apps** (for example Codex implements,
-  Claude verifies, or the reverse). An independent model reviewing the work is the point of the verify step.
+- **Implementer and verifier are different agents from different apps.** From 2026-10-10 Codex verifies and reviews
+  (Claude Haiku or Sonnet subagents, or another app, implement); Claude plans and orchestrates. An independent model
+  reviewing the work is the point of the verify step.
 - **Human:** answers decision tickets and approves anything that leaves the machine.
 
 ## Lanes
@@ -98,3 +99,13 @@ Nothing merges to `dev` without the user.
 - Sandboxes differ. `wasm-pack`, Chrome and the CAD container need network-free but unsandboxed execution; say so in
   the lane brief for the app being used.
 - A lane that cannot run a heavy check (no Chrome, no podman) reports "not run" and the orchestrator runs it at merge.
+
+## Lane status (orchestrator keeps this current)
+
+| Lane | Worktree | Branch | Target dir | State (2026-10-10) |
+| --- | --- | --- | --- | --- |
+| integration | `.worktrees/tce-matrix` | `typed-core-edits/mechanical` | shared `target` (main checkout) | ticket 36 (lane A) in progress here |
+| B mirror core | `.worktrees/lane-mirror-core` | `lane/mirror-core` | `~/.cache/boardstudio-target/mirror-core` | Codex finished ticket 31 (`b49904cad`, awaiting verification); Claude verifier running. Next: B2 (ticket 32) after 31 is verified |
+| F boards review | `.worktrees/lane-boards-review` | `lane/boards-review` | none (read-only) | research done (`089f76eef`, ticket 25 `ready-for-human`); Claude verifier checking the document. Next: your review, then per-board fix tickets, Sofle first |
+
+Lanes C, D and E are not set up yet; set them up with the commands above when their predecessors merge.
