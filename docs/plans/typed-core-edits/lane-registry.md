@@ -64,10 +64,14 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root, recording F129's active test-only implementation lease.
+Current command owner: root, recording the phased A support lease; F129 focused validation follows.
 The full default check at `4fd8f7f3` passed in 535.5 s, including 70 presentation tests and 15 CAD browser checks.
 A has identified both publisher composition and mutually overwriting failure/gate fixtures. Publisher composition
-may be corrected inside the test module; a compound held-failure fixture is planning-only with no shared-support lease.
+is corrected and frozen. A bounded compound held-failure fixture scaffold and runtime adapter regression are now
+leased for test-first work in `web/crates/runtime/src/in_process_support.rs` and the test-support facade/adapter tests
+inside `web/crates/runtime/src/runtime.rs`, plus existing keycaps tests and128tracking. Existing failure/gate semantics
+and visibility remain unchanged; no GateDriver/shared enum/native-stub edits. Actual private failure state awaits
+the intended behavioral RED and a separate root grant. Existing gate/failure facade impacts are CRITICAL.
 B's matrix/part projection and rotated map tests pass. Sol max is planning the complete document kernel; further
 materialization/cleanup/fixture/exclusivity reads need explicit windows. Full106 remains open.
 F129 was independently planned, synced at `1eaad0c8`, claimed at `cf97b035` and completed mandatory instruction reads.
@@ -97,7 +101,13 @@ local/omitted inputs, per-item settings, changed IDs/idempotence and rotated map
 
 Write lease: `web/crates/keycaps/src/keycaps_settings.rs` only inside `queued_settings_tests`, its local
 `mounted_legend`, `Probe`, `host` and their initializer sites; plus ticket128 tracking. Preserve the five original
-test names/assertions and all 30 keycaps test names. No production/shared helper, Core, model, catalogue or golden edits.
+test names/assertions and all 30 keycaps test names. No production Core, model, catalogue or golden edits. The following bounded runtime test-support extension supersedes the earlier shared-helper exclusion.
+Additional phased lease: `web/crates/runtime/src/in_process_support.rs` and only the test-support facade plus
+focused in_process_adapter_tests inside `web/crates/runtime/src/runtime.rs`. First add a gate-only compound
+fixture scaffold and one behavioral RED test; actual private failure-state implementation needs a separate grant.
+Preserve existing failure/gate behavior and visibility. No GateDriver enum/native stub or production Core edits.
+Existing facade impacts are CRITICAL; stale, lower-bound and UNKNOWN adapter answers remain explicit.
+
 `mounted_legend` impact was LOW with four test callers; test-entrypoint UNKNOWN results were source-confirmed,
 not treated as proof of complete independence. Use existing `boardstudio_web_ui_shared::test_wait` dependency.
 
