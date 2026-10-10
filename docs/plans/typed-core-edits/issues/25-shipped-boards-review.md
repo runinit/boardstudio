@@ -1,6 +1,6 @@
 # 25: Full review of the 20 shipped boards, Sofle first
 
-Status: claimed
+Status: ready-for-human
 Type: [22](22-mirrored-half-integrated-verification.md)
 Blocked by: 
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -40,3 +40,7 @@ with the implement/verify process. Each board's fixes are their own ticket under
 - [ ] Decisions needing hardware knowledge are asked of the user, not guessed.
 
 Keyboard [04](04-refresh-included-keyboards.md) is redone on the native model in [23](23-redo-keyboard-04-on-native-halves.md); this review feeds it and may supersede part of it.
+
+## Outcome
+
+Phase 1 review: [shipped boards review](../audit/shipped-boards-review.md). This was read-only research; no recipes, fixtures, footprints or code were changed and no builds/exports or hardware fit checks were run. The REVIUNG41 archive JSON was inspected in memory; hardware-dependent component and clearance decisions remain for the user.
