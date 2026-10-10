@@ -36,7 +36,8 @@ Persistent coordinator chats, live worktree/file leases, command windows and cro
 | F boards/components | [25](issues/25-shipped-boards-review.md), selected Sofle component follow-ups 118–127; [23](issues/23-redo-keyboard-04-on-native-halves.md) later | exact component assets/tests after audit; shared registration/recipes have one owner | affected checks in root windows | BOM selection delegated; existing catalogue first. Isolated qualification/onboarding may overlap B after reviewed BOM/path leases; native recipes retain 20+44 dependencies. VIK deferred. |
 
 Approved scheduling: B Core work remains serial; A's isolated remaining37 tests and F's qualified component work may
-receive disjoint edit leases after 105 verification and exact audits. Root separately grants every foreground command
+receive disjoint edit leases after the original 105 verifier releases its window and exact audits. A Core-only acceptance
+gap stays in B and does not block those independent leases. Root separately grants every foreground command
 window; no concurrent builds/browser runs. A/F audits and planning start now. 38 remains blocked by incomplete37;
 C/D/E preparation may proceed, while their implementation dependencies remain. See the central registry for actual leases.
 

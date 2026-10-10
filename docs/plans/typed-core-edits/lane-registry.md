@@ -6,7 +6,8 @@ before planning a dispatch, changing files, requesting checks or handing work to
 may lag. Confirm current worktree status and index freshness in the granted command window; a snapshot is not a lease.
 
 [Parallel-streams decision](parallel-streams-review.md) is approved: B Core work remains serial; isolated A/F streams
-may receive separate edit leases after exact audits and105 verification. Approval does not grant unlisted files or commands.
+may receive separate edit leases after exact audits and the original 105 verification session ends. A Core-only acceptance
+gap does not block audited independent work. Approval does not grant unlisted files or commands.
 
 ## Coordinators
 
@@ -21,8 +22,8 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
-| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`, base `f2d180c6`; own target/CAD cache | Audit complete. Child128 selects five keycaps queued-settings tests; docs drafting allowed, source edits after105 verification and root START. 38 still waits for complete37. |
-| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 implemented at `ddfd81b2c`, awaiting fresh verifier. Core children stay serial with exclusive Core leases; no automatic106 release. |
+| A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`, base `f2d180c6`; own target/CAD cache | Audit complete. Child128 selects five keycaps queued-settings tests; root START follows F's short audit window. 38 still waits for complete37. |
+| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | Fresh 105 verification finished at `3a7ba67b8`: acceptance incomplete, companion/stabiliser derivation must become reusable. Verifier stopped and released commands. B prepares bounded Luna revision; no106. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
@@ -63,9 +64,10 @@ it never grants concurrent builds, browsers or timing work. Request a window fro
 the last command. Root waits for release before granting the next owner. Web research or planning without shell commands
 may continue. Read-only shell commands also use the window. See [parallel-lanes.md](parallel-lanes.md) for shared file owners.
 
-Current root window: B source-index refresh before its fresh105 verifier; A audit is complete/released and only child128
-documentation drafting is allowed. F continues web/evidence review without shell. Root publishes explicit
-handovers; A/F code starts only after105 verification and exact readiness leases. C/D/E implementation remains gated.
+Current queue: the original 105 verifier has stopped and released commands. Root records this handoff, F receives a short
+read-only socket/docs audit, then A receives the child128 implementation command window. B's Core-only acceptance gap
+stays in B and does not block A/F. Root publishes explicit handovers; exact readiness leases remain required.
+C/D/E implementation remains gated. Non-shell disjoint edits may overlap ordinary checks in another checkout.
 105's source lease is `core/src/mirrored_half.rs`, narrowly necessary existing helpers in `core/src/matrix/layout.rs`,
 creation tests in `core/tests/mirrored_half.rs`, and permitted private `core/src/mirrored_half/` child modules.
 Ticket 105's own tracking file is writable by its implementer/verifier. Other paths require root assignment first.
@@ -74,6 +76,10 @@ Reserved A128 lease: `web/crates/keycaps/src/keycaps_settings.rs`, restricted to
 Core, catalogue, model or golden edits. Audit found LOW impact for `mounted_legend` (four test callers) and UNKNOWN for a
 WASM test entrypoint, confirmed in source; this is not complete graph proof of independence. Keep five test names/assertions,
 all30 keycaps test names and an explicit bounded negative-idle proof for owner retirement. Parent37/38 gates stay intact.
+F's non-shell documentation lease covers `docs/plans/typed-core-edits/audit/sofle-adaptation-hardware-candidates.md`
+and `docs/plans/typed-core-edits/issues/118-sofle-adaptation-hardware-contract.md`; Luna medium has drafted them.
+F's next read-only audit determines exact existing MX socket generator/test ownership for provisional119. No component
+source edit is released before that audit and root's exact lease. Electrical/firmware/stack qualification remains open.
 Maps, this registry, CONTEXT, ADRs and generated goldens remain root-owned. `scripts/check.py` remains C-owned,
 with edits requiring C's explicit active lease. F owns its report/component plans only after a root write window.
 
@@ -85,15 +91,15 @@ checkout or inputs; every shell command, including reads and commits, uses the s
 
 ## Integration and graph snapshot
 
-2026-10-10: integration at `bc4dbc7d`; full default check passed source batch `12a6784d` in 813.3 s
+2026-10-10: integration at `cc3bdf8f`; full default check passed source batch `12a6784d` in 813.3 s
 (70 presentation tests, zero failures; 15 CAD browser checks). Later changes are orchestration documentation.
-B is synchronized at `3570e8d9`; `boardstudio-lane-mirror-core` was confirmed current before dispatch.
+B is at `3a7ba67b8`; `boardstudio-lane-mirror-core` was current at `1edddb94` before verification, now behind its evidence commit.
 Integration uses `boardstudio-tce-matrix`; root refreshes after this documentation commit.
 F has synced source `64510cb0` and candidate report `b9e93fab`; its bound index is `boardstudio-ts-boardstudio2`,
 behind these documentation commits. F source research must state this limitation and confirm unresolved graph answers.
 Each actual dispatch rechecks HEAD/status/freshness; coordinator prompts do not certify future state.
 
 Sofle hardware selection/review and eventual component implementation stay in F. Root retains shared scheduling/merges.
-The candidate report predates the delegated-selection instruction; F will update its selection gates in its next write window.
+F's delegated-selection report amendment and118 draft await safe inspection/checks/commit in a command window.
 The entire 19 parent remains open until final child activation and complete acceptance; 114 still needs constraint decisions.
 Ticket 37 remains partial, and 38 is blocked. These distinctions survive every handoff.

@@ -108,7 +108,9 @@ Activation checklist:
 3. Complete A/F's focused file/API/qualification audits, assign worktrees and exact leases, and update parent 19/future child
    execution clauses plus map/registry and `parallel-lanes.md` atomically. Update that page's lane descriptions/current-release
    paragraph so its old 19-alone/F-planning rules do not contradict the approved release. Preserve active scopes; no retrospective
-   widening of 105. Finish 105's implementation and fresh verification before adding concurrent code streams.
+   widening of 105. Finish its original implementation and fresh verification session before adding concurrent code streams.
+   That session ended at `3a7ba67b8` with incomplete acceptance: companion/stabiliser derivation still needs extraction.
+   Keep that revision in B; it is not a dependency of audited independent A/F work. 106 still requires resolved105.
 4. Foreground-only refresh established for this batch: root preserved its registration as
    `.git/gitnexus-orchestrator.suspended-01a1272d-9690-7342-a509-877cc412ec02.json`; the only installed Codex GitNexus Stop
    command is the registration-gated wrapper. A Stop-event probe returned silently with no registration, and process
