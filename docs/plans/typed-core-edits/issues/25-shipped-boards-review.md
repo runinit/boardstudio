@@ -1,6 +1,6 @@
 # 25: Full review of the 20 shipped boards, Sofle first
 
-Status: claimed
+Status: ready-for-human
 Type: [22](22-mirrored-half-integrated-verification.md)
 Blocked by: 
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -30,17 +30,21 @@ Sofle v2, RGB and Choc:
   qualification as findings, since rebuilding does not establish physical fit.
 
 Method: a planning pass producing a per-board checklist and severity list (read-only
-research with the real fixtures), then user review of the list, then fixes board by board
-with the implement/verify process. Each board's fixes are their own ticket under this one.
+research with the real fixtures), an AI review against the recorded outcomes and ADR rules,
+then user review of the ranked list. No board fixes start before the user review; afterwards,
+fixes proceed board by board with the implement/verify process. Each board's fixes are their
+own ticket under this one.
 
 ## Acceptance
 
-- [ ] A written review for every shipped board with findings ranked by severity.
+- [x] A written review for every shipped board with findings ranked by severity.
+- [x] AI review completed against tickets 02, 06 and 30 and ADR-0010; corrected current linked-fit values and recorded scope limits.
+- [ ] User reviews the ranked list and hardware-dependent decisions before any board fix starts.
 - [ ] Sofle variants fixed and verified first; user sign-off before the rest.
-- [ ] Decisions needing hardware knowledge are asked of the user, not guessed.
+- [x] Decisions needing hardware knowledge are asked of the user, not guessed.
 
 Keyboard [04](04-refresh-included-keyboards.md) is redone on the native model in [23](23-redo-keyboard-04-on-native-halves.md); this review feeds it and may supersede part of it.
 
 ## Outcome
 
-Phase 1 review: [shipped boards review](../audit/shipped-boards-review.md). This was read-only research; no recipes, fixtures, footprints or code were changed and no builds/exports or hardware fit checks were run. The REVIUNG41 archive JSON was inspected in memory; hardware-dependent component and clearance decisions remain for the user.
+Phase 1 research and AI review: [shipped boards review](../audit/shipped-boards-review.md). The review pass corrected the Corne, Sofle RGB and Sofle Choc linked switch-gap values from ticket 06, removed the superseded Sofle RGB 0.009 mm current-gap claim, and ranked the native-mirror recipe mismatch from ticket 20 among the top findings. No recipes, fixtures, footprints or code were changed; no build/export or hardware fit check was run. The report does not independently inventory every pad, drill, courtyard, model asset, wiring assignment or generated PCB/plate/case output. The REVIUNG41 archive JSON was inspected in memory. Hardware-dependent component and clearance decisions remain for the user. Ready for human review before any fix begins.
