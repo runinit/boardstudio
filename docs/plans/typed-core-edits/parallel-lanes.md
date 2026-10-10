@@ -98,3 +98,13 @@ Nothing merges to `dev` without the user.
 - Sandboxes differ. `wasm-pack`, Chrome and the CAD container need network-free but unsandboxed execution; say so in
   the lane brief for the app being used.
 - A lane that cannot run a heavy check (no Chrome, no podman) reports "not run" and the orchestrator runs it at merge.
+
+## Lane status (orchestrator keeps this current)
+
+| Lane | Worktree | Branch | Target dir | State (2026-10-10) |
+| --- | --- | --- | --- | --- |
+| integration | `.worktrees/tce-matrix` | `typed-core-edits/mechanical` | shared `target` (main checkout) | ticket 36 (lane A) in progress here |
+| B mirror core | `.worktrees/lane-mirror-core` | `lane/mirror-core` | `~/.cache/boardstudio-target/mirror-core` | ready: start with B1 (ticket 31) from [lane-prompts.md](lane-prompts.md); first build is cold |
+| F boards review | `.worktrees/lane-boards-review` | `lane/boards-review` | none (read-only) | ready: phase 1 research of ticket 25 |
+
+Lanes C, D and E are not set up yet; set them up with the commands above when their predecessors merge.
