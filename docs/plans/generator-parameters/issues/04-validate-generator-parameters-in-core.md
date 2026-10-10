@@ -1,6 +1,6 @@
 # 04: Validate generator parameters at the Core boundary
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: 03
 Map: [map.md](../map.md) · Decision: [ADR-0009](../../../adr/0009-generator-parameters-checked-in-core.md)
@@ -47,8 +47,10 @@ covers that. ADR warranted: it changes what Core accepts.
 
 ## Outcome
 
-Status: implemented (awaiting verification). Not marked resolved: the checks below ran on
-`71b23c165`, the commit before this docs commit; the code did not change after it. Decision:
+Status: resolved. Implemented by a Haiku agent (`322f4c20c`, `0f62b2ea3`, `71b23c165`, `c2abfdd35`),
+then verified and corrected by an integrating Sonnet session (`8952b497c`; see
+[Verification](#verification-integrating-sonnet-session-2026-10-09)). The implementer's own results
+below ran on `71b23c165`; where the verification changed a policy, the text says so. Decision:
 [ADR-0009](../../../adr/0009-generator-parameters-checked-in-core.md).
 
 ### What changed
@@ -58,7 +60,7 @@ Status: implemented (awaiting verification). Not marked resolved: the checks bel
   `ParamKind::accepts` to one saved map in name order. A null value is absent, as at render.
 - `core/src/generators.rs`: one check over every saved map: a definition's own parameters at the
   definition, a part's own at the part, a member's at the member. Each value is judged once. Wrappers:
-  `document_error` (Open and ReplaceDocument refuse wrong types, except non-empty list text),
+  `document_error` (Open and ReplaceDocument refuse wrong types, except text for a number or a list),
   `introduced_error` (an edit refuses what it introduces or changes), `definition_error` (strict, for
   the web test), and `parameter_findings` (warnings and errors through `validate`).
 - `core/src/lib.rs`: Open calls `document_error`; the commit path of `edit` calls `introduced_error`
@@ -69,8 +71,10 @@ Status: implemented (awaiting verification). Not marked resolved: the checks bel
   definition's unknown name on every part and hide a wrong definition value that a part overrides. Each
   map is therefore checked where it is stored, which judges the same values and gives one finding per
   location.
-- Divergence in policy: non-empty list text is a warning on Open and ReplaceDocument, not a refusal,
-  because it can occur in saved data (see inventory). It is refused on any edit that writes it.
+- Divergence in policy: text where a number or a list is declared is a warning on Open and
+  ReplaceDocument, not a refusal, because it can occur in saved data (see inventory). It is refused on
+  any edit that writes it. The implementer limited this to non-empty list text; the verification
+  widened it to number text, which the migration also keeps (see Verification).
 
 ### Inventory (before the Open policy was coded)
 
@@ -149,17 +153,99 @@ Status: implemented (awaiting verification). Not marked resolved: the checks bel
 
 - `check.py release` was not run (not allowed). `check.py quick` was not run (the ticket named the steps).
   `security` and `deny` were not run (no dependency change).
-- Preview cost was not measured. The check walks the saved parameter maps twice per edit (before and
-  after), and once per preview edit, so the cost grows with saved generator parameters.
-- `preview_edit`'s own refusal path has no test: its operations (MoveParts, matrix operations) cannot
-  write generator parameters. Preview refusal is tested through the generic edit path (AddPart in
-  preview phase). The `preview_edit` check is a guard and does not change behaviour today.
-- A part copied with a legacy undeclared name (for example through a mirror) is refused, because the
-  copy writes the name. The shipped data has no such name. Recorded in ADR-0009.
-- A saved value that is non-numeric text for a number (for example `"two"`) now refuses Open. The
-  migration keeps it, and no shipped project holds one.
+- Preview cost, the `preview_edit` refusal path, copying a part with a legacy name and Open of
+  unconvertible number text were open here; the Verification section closes each of them.
 - The web browser tests were not red first (see Tests).
 - The `unused import Severity` warning in `web/crates/case/src/case_generation_admission.rs` appears in the
   wasm check; it was already in the base commit and is not from this change.
 - Commit trailer: `Co-Authored-By: Claude Sonnet 5.5`, as the lane instruction specified; the session
   environment reports Haiku 5.5.
+
+### Verification (integrating Sonnet session, 2026-10-09)
+
+Verified against `c2abfdd35`, corrected in `8952b497c` (code and tests; the ADR and this ticket in the
+docs commit after it). The implementer's report was not trusted; each point below was read in the diff
+or run.
+
+Findings and what was done:
+
+1. False refusal (fixed). `SetMatrix` can change an existing key's definition (`core/src/matrix.rs`
+   `set_matrix`, the `part.definition_id = definition_id` assignment) and kept the part's saved
+   `generatorParameters`. After electrical wiring those hold the old generator's terminal nets
+   (`from`, `to`), so changing a key from a switch to `rotary_encoder_ec11_ec12` was refused with "has no
+   parameter named from", in preview and commit. Reproduced on `sofle-rgb`, `measured-corne` and
+   `measured-reviung41` with a scratch test (not kept) before any fix. Fix:
+   `generators::drop_foreign_parameters` removes the entries the new generator rejects when the
+   definition changes. Test: `changing_a_matrix_key_to_another_generator_drops_parameters_it_does_not_declare`
+   (red first: the Preview step was refused).
+2. Open refused unconvertible number text (fixed). The migration deliberately keeps `"hole_size": "two"`
+   (its own test `version_3_to_4_keeps_unknown_names_and_unconvertible_values`), and the old policy
+   refused Open on it, leaving a project that could not be opened to repair. Worse, ReplaceDocument
+   must accept whatever Open accepts (the page replaces the whole document), so the policy has one set
+   of legacy-tolerated problems: text where a number or a list is declared, and undeclared names.
+   Open and ReplaceDocument now warn (`...:number-text`, `...:list-text`, `...:undeclared`); edits
+   still refuse. Tests (red first): `a_migrated_project_that_keeps_unconvertible_number_text_opens_with_a_warning`,
+   `a_project_that_opened_with_number_text_still_takes_replace_document_and_unrelated_edits`,
+   `text_for_a_number_is_still_refused_when_an_edit_writes_it`. The two refusal tests that used `"2"` now
+   use a boolean (`open_refuses_a_boolean_for_a_number_...`, `replace_document_refuses_a_boolean_for_a_number`).
+3. Copying a part that carries a legacy undeclared name was refused, and the refusal named the new copy.
+   The Parts editor (`apply_input`) keeps names it does not show, so the user could not remove the name
+   first, which made the ADR's "remove the name first" advice false. Decision: a copy is accepted
+   (`already_held`: the same undeclared name, or the same legacy text value, already held for the same
+   generator anywhere in the document is not introduced); a different new name is still refused. Test
+   (red first): `a_copy_of_a_part_with_a_legacy_name_is_accepted_and_a_new_typo_is_not`. The policy
+   weakens one case on purpose: a new part may repeat a typo that the document already holds.
+4. "Judged only on values the edit introduces" is correct for the cases tried: an edit that touches a map
+   holding a legacy warning is not blocked by it (`introduced_error` compares the problem list of the
+   starting document), a changed legacy value on the same map is judged as new for wrong types and for
+   text, and (after finding 3) an undeclared name is judged by name.
+5. Other Core writers of generator parameters were read: electrical wiring writes net-name strings for
+   the definition's terminals (new guard test `every_terminal_of_a_bundled_generator_is_a_declared_net_parameter`
+   confirms every bundled terminal is a declared net, so the write cannot fail the check); mechanical
+   mirror and electrical `populated` write `side` into derived clones that are never saved or checked;
+   closure clearance writes numbers (ticket 01); matrix and mirror copies clone the source; module and
+   KiCad import write no generator parameters. The web physical setup and Parts editor go through
+   `ReplaceDocument`, which allows warnings. No path remains that saves a mistyped value without the
+   check, except History undo/redo, which restores states that were already accepted.
+6. Cost (measured, release build, `parameter_problems` alone, 20 runs): 0.012 ms on a 98-part Corne,
+   0.027 ms on the 220-part Sofle RGB, 0.024 ms on the 218-part Voyager 104; a `move-parts` preview takes
+   3 to 5 ms and a commit 4 to 7 ms on the Sofle, Mysterium and Voyager 104 demos. Two walks per edit are
+   under 1 percent, so nothing was changed.
+7. `preview_edit` refusal is reachable: a `SetMatrix` preview that carries a new definition with a
+   wrong-typed parameter runs through `preview_edit`. Test:
+   `a_matrix_preview_that_brings_a_wrong_typed_definition_is_refused_and_leaves_no_trace` (it passed on
+   the implementer's code, so it is a guard, not red first; it fails when the preview check is removed).
+   The implementer's `a_preview_that_writes_text_for_a_number_is_refused_the_same_way` goes through the
+   commit path (AddPart is not routed to `preview_edit`), so it does not cover that check.
+8. Policy table versus code: matches after the changes above. ADR-0009 was corrected (table column, the
+   copy rule, the matrix key rule, the consequences, cost); it had stated that a non-numeric number
+   was a refusal and that the user could remove a legacy name first.
+
+Mutation checks (each change made alone, then reverted; `generator_parameters::` tests run): Open
+check removed fails `open_refuses_a_boolean...`; ReplaceDocument check removed fails
+`replace_document_refuses_a_boolean...`; edit commit check removed fails 6 tests; `preview_edit` check
+removed fails only the matrix preview test; `validate` findings removed fails 5; the matrix drop removed
+fails the matrix key test; name inheritance removed fails the copy test; the legacy-text exemption
+removed fails 5.
+
+Commands run and observed, with the working tree at `8952b497c` (plus only the ADR edit while they ran):
+
+- `cargo test --manifest-path core/Cargo.toml --lib --test integration` (nested): 274 lib passed;
+  501 integration passed, 0 failed.
+- `python3 scripts/check.py repo lint typecheck build browser` (nested worktree, run in the
+  background and awaited, sandbox lifted for wasm-pack and Chrome): `check: all steps passed: repo, lint, typecheck, build,
+  browser`; step times repo 0.1 s, lint 3.0 s, build 107.3 s, browser 195.5 s; `run-wasm-tests: executed
+  70, failed 0`; the three `core_check_tests` ran and passed. The same command before the sandbox was
+  lifted failed at `build` ("failed to create temp dir for `cargo install wasm-bindgen`", read-only file
+  system), which is the sandbox, not the code; `repo`, `lint` and `typecheck` passed in that run too.
+- `python3 scripts/check.py test` in `/tmp/claude-1000/boardstudio-tce-verify` detached at `8952b497c`:
+  `check: all steps passed: test` (128.4 s; 1307 tests passed, 0 failed, 52 test binaries).
+
+Not verified or not done: `check.py release`, `quick`, `security` and `deny` were not run. The index
+GitNexus reads is stale (indexed at `4b372b2`); `impact` on `set_matrix` reported CRITICAL (18 impacted,
+6 processes) before the edit and `detect-changes` listed only `set_matrix`, so those numbers say little.
+The matrix change is covered by the whole `core` suite above, not by a full demo-project matrix swap
+test. The web browser tests are still guards rather than red-first tests (no native seam for `apply_input`).
+The shipped data holds no undeclared name, no wrong type and no text for a number or list; whether older
+saves outside this repository do is not known, which is why Open warns. Stale chromium profiles in
+`/tmp` were not touched; `/tmp` was at 98 percent (369 MB free) when this started.
