@@ -1,6 +1,6 @@
 # 26: CreateMirroredHalf mechanical features as linked pair features
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -28,11 +28,14 @@ this ticket with a pointer to the commits.
 
 ## Acceptance
 
-- [ ] Linked openings/mounts exist on the mirror in both modes; none cleared, none cloned.
-- [ ] No parameter differs between source and mirrored parts (mutation-checked).
-- [ ] Physical setup and the Core operation agree on the reused-PCB result.
+- [x] Linked openings/mounts exist on the mirror in both modes; none cleared, none cloned. (Ticket 18's
+  verification; re-seen here for `reuse-board` in the equivalence test: four linked features, mutation-checked.)
+- [x] No parameter differs between source and mirrored parts (mutation-checked). (Ticket 18's verification;
+  not re-run here.)
+- [x] Physical setup and the Core operation agree on the reused-PCB result, with every difference pinned and
+  recorded (10 rows, see Verification) on the synthetic fixture. Shipped-project coverage is a follow-up.
 
-## Verification
+## Verification plan
 
 Core tests, boundary parity native and wasm, `repo lint test typecheck browser`.
 
@@ -168,3 +171,73 @@ The pinned difference set is exact: a row that appears or vanishes fails the tes
 
 - F1 above (the mirror's label rule for a non-left/right source). Decide whether a reused board's mirror is always
   the right half, and whether ReuseBoard should refuse a unibody source.
+
+## Verification
+
+Sonnet 5.5, 2026-10-10, `tce-matrix` worktree on top of `b3f4cbd41`. Reviewer pass, not a second implementation. No
+source file was changed; only this ticket and ticket 21 were edited. Acceptance holds, so the ticket is resolved. The
+GitNexus index does not know `reuse_board` or `derived_mapping` (`impact` returned "not found", risk UNKNOWN); callers
+were taken from the implementer's text search and the mutations were temporary, so this is not a clean graph check.
+
+### Claims reproduced
+
+- **Both paths start from one document and run as the product does.** A is `propose_with_mirror_pair` with the
+  `Topology` intent and the same normaliser the app uses for topology intents (`catalogue.rs:373-377` returns the
+  definition unchanged, as `keep_definition` does), then `into_submission(Some(&mounting_hole_template()))`, which
+  opens `CoreEngine` and applies `LinkMirrorPair` through `ApplyMechanicalEdit` (the same call the controller makes at
+  `pcb_physical_setup/controller.rs:710`). B opens the same document in a fresh `CoreEngine` and applies the real
+  `CreateMirroredHalf` `ReuseBoard` edit with the zero map, the same pair id and the same template. Neither side
+  shortcuts the engine.
+- **The pinned difference set is exact (10 rows).** The test compares the full JSON of both documents (every leaf, by
+  JSON pointer) and `assert_eq!`s the observed rows against a literal list of 10, so any new or vanished row fails.
+  Ten rows reproduced on a fresh run.
+- **Mutations, each run once, then restored (`git checkout` of the file, then `touch`; sha1 of both files equal to
+  `HEAD` afterwards, `git status` clean):**
+  - (a) `reuse_board` gives the mirror configuration empty mounts, openings and closure mounts: the test FAILS at
+    `/hardware/pairs/0/features differs` (A has four linked features, B has none).
+  - (b) `derived_mapping` in `physical_setup.rs` returns rotation 180 instead of 0: FAILS at
+    `/hardware/pairs/0/mapping differs` (A 180, B 0). Core accepts the rotated pair, so only the comparison catches it.
+  - (c) the `/hardware/transport` row removed from the pinned set: FAILS with "the differences changed" and the
+    observed list contains the row.
+- **Commands (sequential, foreground, each once, on the restored sources):** `check.py lint` 8.9 s, `check.py test`
+  90.0 s (workspace, footprints and cadrum steps; the new test among them), `check.py typecheck` 8.5 s, `check.py
+  repo` 0.1 s (after the doc edits); all passed. Mutation runs: `cargo test -p boardstudio-web-catalogue
+  physical_setup_and_reuse_board`, about 4 s each. `browser`, `build` and `release` were not run (a test-only change in
+  a native test module).
+
+### Findings
+
+- **F1 judgment: both a Core defect and an adapter responsibility; neither is fixed here.**
+  `mirror_half_label` (`core/src/mirrored_half.rs`) keeps any label other than left and right, so a `unibody` source
+  gets a mirror with half `unibody`, role `central` (the role rule is `half == "right"`) and the name "Keyboard
+  mirror". The result is a pair of two `central` instances with the same half, which no physical setup produces.
+  - *Adapter (needed whatever Core does).* ADR-0010 says half, role and name are never reflected and are set by the
+    web adapter. Physical setup relabels the primary as left, central, "Left half" before the second half exists (rows
+    1 to 3 are that relabel). When ticket 21 moves physical setup onto `CreateMirroredHalf` it must relabel the source
+    first, in the same proposal, and set topology, transport and `sharedConstruction` afterwards. With that, rows 1 to
+    6 vanish and the test's pinned set shrinks to rows 7 to 10; 21's implementer should update the literal list.
+  - *Core (recommended for the user to decide, a small follow-up).* Core should not invent a meaningless pair: for
+    both modes either refuse a source whose half is neither left nor right with a named error ("a mirrored half needs a
+    left or right source, found unibody"), or label the reused board's mirror as the right half. Refusal is the
+    smaller and safer change (no source in `core/tests/mirrored_half.rs` or `core/src/mirrored_half.rs` is unibody; their sources are shipped left or right halves);
+    it needs one Core test and a note in ADR-0010's "details of creation". Not done here because the choice (refuse or
+    relabel) is a product decision and the fix is not a one-liner with a unique right answer.
+- **Rows 1 to 3 and 7 to 10 are expected** (adapter-set topology, transport, shared construction, relabel of the
+  primary; `halves` only on B). No difference was found in instances' `mechanical`, `flipped`, `constructionOwnership`,
+  the pair `id`, `members`, `mapping`, `constructionSource`, `construction`, `features`, or the `case-closure/*` parts.
+
+### Gaps in the test (not fixed; follow-ups)
+
+- **Fixture is synthetic.** One board with one instance, one mount, one opening and two closure mounts. Not compared:
+  matrices, parts other than `case-closure/*`, outlines, modules, wiring. Rerun the comparison on such a project when ticket
+  [21](21-mirrored-half-web-adapter.md) or ticket [22](22-mirrored-half-integrated-verification.md) can reach a shipped
+  project from the catalogue crate (today it is only reachable from `core/tests/included_keyboards.rs`); then rerun the
+  comparison on it. If that is not reachable, 22 should assert the same equivalence in a mounted test.
+- **Object-valued rows are pinned by presence, not content.** `show` renders any object as "object", so rows 7
+  (`halves`) and 8 (`sharedConstruction`, A) would still pass if the object's content changed. A small hardening: render
+  compact JSON for these two rows. Not needed for the acceptance.
+- **Only the `ReuseBoard` mode.** `NewBoard` has no physical-setup counterpart, so there is nothing to compare; the
+  reversible/flip designs and a single-sided design are covered by ticket 18's tests.
+- **B is given the zero map; A derives it.** The test shows the values are equal, not that Core would derive one.
+  Adequate: ADR-0010 has Core validate a supplied map against the flip.
+- The test runs natively. It uses only core and `serde_json`; it is not run as wasm.

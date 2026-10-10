@@ -144,7 +144,7 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- Native mirrored halves: 17, 18, 27, 29 and 30 are resolved. Ready: 26, 28, 24. 19 follows 26 (its other blockers are resolved),
+- Native mirrored halves: 17, 18, 26, 27, 29 and 30 are resolved. Ready: 28, 24. 19 is unblocked by 26 (its other blockers are resolved),
   and needs the diode-side decision from 29; 20 to 23 follow 19.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
   (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
