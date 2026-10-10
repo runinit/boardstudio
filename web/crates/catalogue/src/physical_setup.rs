@@ -1309,6 +1309,30 @@ mod tests {
         assert!(result.hardware.as_ref().unwrap().instances[1].flipped);
     }
 
+    /// The `reversible` flag the proposal writes into a part's parameters is a boolean, as the
+    /// generator declares it, so Core's parameter check (ADR-0009) accepts the proposed document.
+    #[test]
+    fn reversible_writes_a_boolean_that_the_core_parameter_check_accepts() {
+        let mut doc = document();
+        doc.definitions = vec![definition("supported", "ceoloide/switch_mx")];
+        doc.parts = vec![part("explicit", "supported", json!({"reversible": false}))];
+        assert_eq!(boardstudio_core::generators::parameter_problems(&doc), []);
+        let result = propose(
+            &doc,
+            SetupIntent::ReversibleLayout(true),
+            |definition, _| Ok((definition.clone(), true)),
+        )
+        .unwrap();
+        assert_eq!(
+            boardstudio_core::generators::parameter_problems(&result),
+            []
+        );
+        assert_eq!(
+            result.parts[0].generator_parameters.as_ref().unwrap()["reversible"],
+            json!(true)
+        );
+    }
+
     fn definition(id: &str, source: &str) -> PartDefinition {
         serde_json::from_value(json!({
             "id":id,"name":id,"kind":"switch","courtyard":[],"pads":[],

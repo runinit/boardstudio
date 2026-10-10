@@ -696,3 +696,88 @@ fn every_value_a_core_writer_produces_passes_the_parameter_check() {
         }
     }
 }
+
+/// Applying a board's wiring writes each terminal's net name into the part's parameters
+/// (`electrical::materialize`). Run on every board of the bundled projects that names a
+/// controller, the saved document it returns must still pass the check, and the terminal nets
+/// must actually have been written (so the test cannot pass by writing nothing).
+#[test]
+fn applying_a_boards_wiring_writes_only_values_the_parameter_check_accepts() {
+    let (mut applied, mut written) = (0, 0);
+    for (name, project) in included_keyboards::projects() {
+        let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
+        let boards = typed.hardware.as_ref().map_or(&[][..], |h| &h.boards[..]);
+        for board in boards {
+            let Some(controller_id) = board.controller_part_id.clone() else {
+                continue;
+            };
+            let controller = typed
+                .parts
+                .iter()
+                .find(|part| part.id == controller_id)
+                .unwrap_or_else(|| panic!("{name}: controller part {controller_id}"));
+            let source = typed
+                .definitions
+                .iter()
+                .find(|definition| definition.id == controller.definition_id)
+                .and_then(|definition| definition.generator.as_ref())
+                .map(|generator| generator.source.clone());
+            let mut engine = CoreEngine::new();
+            let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
+                id: "open".into(),
+                document: typed.clone(),
+            }) else {
+                panic!("{name}: the project does not open");
+            };
+            let plan = boardstudio_core::electrical::resolve(
+                boardstudio_core::electrical::ElectricalPlanRequest {
+                    document: (*document).clone(),
+                    instance_id: None,
+                    mode: board.mode,
+                    locks: Default::default(),
+                    controller_profile: source,
+                    board_id: Some(board.board_id.clone()),
+                    controller_part_id: Some(controller_id.clone()),
+                },
+            );
+            let reply = engine.handle(CoreRequest::ApplyElectrical {
+                id: "apply".into(),
+                base_revision: document.revision,
+                plan,
+                draft: true,
+            });
+            let CoreReply::Scene { document, .. } = reply else {
+                panic!("{name} {}: applying the wiring: {reply:?}", board.board_id);
+            };
+            assert_accepted(
+                &generators::parameter_problems(&document),
+                &format!("{name} {}: after applying the wiring", board.board_id),
+            );
+            written += document
+                .parts
+                .iter()
+                .filter(|part| {
+                    let terminals = document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == part.definition_id)
+                        .map(|definition| &definition.terminals);
+                    terminals.is_some_and(|terminals| {
+                        terminals.keys().any(|terminal| {
+                            part.generator_parameters
+                                .as_ref()
+                                .and_then(|parameters| parameters.get(terminal))
+                                .is_some_and(Value::is_string)
+                        })
+                    })
+                })
+                .count();
+            applied += 1;
+        }
+    }
+    assert!(applied > 0, "no bundled board names a controller");
+    assert!(
+        written > 0,
+        "applying the wiring wrote no terminal net name"
+    );
+}
