@@ -1,8 +1,8 @@
 # 25: Full review of the 20 shipped boards, Sofle first
 
 Status: ready-for-human
-Type: [22](22-mirrored-half-integrated-verification.md)
-Blocked by: 
+Type: task
+Blocked by: [22](22-mirrored-half-integrated-verification.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 
 ## Request
@@ -48,3 +48,7 @@ Keyboard [04](04-refresh-included-keyboards.md) is redone on the native model in
 ## Outcome
 
 Phase 1 research and AI review: [shipped boards review](../audit/shipped-boards-review.md). The review pass corrected the Corne, Sofle RGB and Sofle Choc linked switch-gap values from ticket 06, removed the superseded Sofle RGB 0.009 mm current-gap claim, and ranked the native-mirror recipe mismatch from ticket 20 among the top findings. No recipes, fixtures, footprints or code were changed; no build/export or hardware fit check was run. The report does not independently inventory every pad, drill, courtyard, model asset, wiring assignment or generated PCB/plate/case output. The REVIUNG41 archive JSON was inspected in memory. Hardware-dependent component and clearance decisions remain for the user. Ready for human review before any fix begins.
+
+### Verification (Sonnet 5.5 reviewer, 2026-10-10, `lane-boards-review`)
+
+Read-only: no build, cargo, export or hardware check. Reproduced from `core/tests/fixtures/demo-projects-baseline.json`, the layout JSON, the REVIUNG41 archive and the tickets: all 20 part counts; the closure-to-bay and closure-to-switch values (KLOR 1.42 mm overlap, Cantor 0.031, TOTEM 0.048, Sofle Choc 0.109, and the rest, for both halves); the diode offset; the ticket 30 headings; the Sofle peripheral provenance; the 15 measured and three Sofle switch layouts (distance and rotation test). Wrong in the draft and corrected in the document: Sofle RGB 0.009 mm and the Sofle −3.30 mm bay overlap (both superseded by ticket 06, the baseline gives 1.066 mm and 0.10 mm on both halves); Sweep, Chocofi, TOTEM and Cantor are Choc boards at 18 x 17 mm pitch, not MX at 19.05 mm; key counts for Sweep, Chocofi and Cantor; the Lily58 and Sweep sources; stabiliser counts for Discipline, Mysterium and REVIUNG41; the ticket 30 heading difference applies to all seven measured splits. Decisions 1 (diodes) and 4 (pads) were already answered in ADR-0010 and ticket 31; reworded to the physical question that remains. A "Proposed tickets per board" list (Sofle first) is in the document. Not checked: pads, drills, courtyards, model assets, wiring and pin assignments, exported PCB, plate and case output, any real-hardware fit. Coverage gaps and the full claim table are in the document's Verification section. Status stays `ready-for-human`.
