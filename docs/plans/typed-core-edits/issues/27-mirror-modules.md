@@ -18,17 +18,18 @@ because 19 requires "a module edit moves both halves".
   keep the definition, faces, gap, attachment and supports. Map the module id,
   `host_connector_part_id`, `bus_id`, the upstream ids and `host_instance_id` (to the mirror
   instance). Add `module` correspondences (kind exists since 17).
-- Resolve chirality with the user before building (see Questions): module geometry mirrors
+- Chirality is decided (see Decision): module geometry mirrors
   only when the host is `flipped` (`placement.rs` ~:347), so the same definition at a mirrored
   pose is not a mirror image. For `reuse-board`, `resolve` already reflects modules for a flipped
   host (`placement.rs` ~:545-552); only modules pinned by `host_instance_id` need mapping.
 - Never change module or generator parameters.
 
-## Questions for the user
+## Decision
 
-- A module whose geometry is not its own mirror image (a connector, a display, a chiral
-  module): should the mirror use the same definition at the mirrored pose, be refused, or be
-  flagged with a finding?
+User, 2026-10-10 ([ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-the-heading-rule-in-practice-2026-10-10)):
+a module takes the same heading rule as any part, `180 - r` over the full 360 degrees; the module
+is not flipped. Core adds a finding when the result is uncertain (a handed module), asking a
+person to confirm; it neither refuses nor stays silent.
 
 ## Acceptance
 

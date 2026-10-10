@@ -69,3 +69,24 @@ design for how Core stores and maintains it
 - **Modules and embedded circuits** on the source board are refused by the first
   implementation with a named, located error; mirroring them follows in two tickets before
   the reconcile step.
+
+## Amendment: the heading rule in practice (2026-10-10)
+
+The user's description of the single reflected-heading rule, which also answers the
+question about handed modules:
+
+- **Mirroring across the vertical axis maps a heading `r` to `180 - r`, over the full
+  360 degrees, never modulo 180.** A part at the left or right edge that faces outward,
+  such as a TRRS jack or a side reset button, turns through 180 degrees: it must face
+  outward on the mirrored half. A part facing up or down needs no rotation, only the
+  mirrored X coordinate. A part away from the edge, such as an RGB LED, takes the same
+  rule: mirrored position, reflected heading.
+- **The part is not flipped.** It stays on its authored side with unchanged parameters
+  (the earlier amendment), so a mirrored board keeps nearly the same routing on both
+  halves.
+- **Modules take the same rule.** A handed module is placed at the reflected pose; Core adds
+  a finding for a part or module whose result is uncertain: a non-symmetric footprint at a
+  heading that is not a multiple of 90 degrees, or a module whose own geometry is handed.
+  The finding asks a person to confirm it. Core does not refuse and does not guess silently.
+- **The pair's angle function must use the full 360 degrees.** The earlier comparison of
+  headings modulo 180 is not enough for this rule.
