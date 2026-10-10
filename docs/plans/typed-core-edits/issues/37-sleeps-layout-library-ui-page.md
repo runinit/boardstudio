@@ -188,3 +188,115 @@ A test-support render or idle signal (ticket 36 follow-up) would make these rend
 - Clippy on the wasm target was not run for the web crates (the lint step is native). Running it on the runtime crate
   alone reports 6 `await_holding_refcell_ref` errors in `boardstudio-web-runtime`. I did not check whether they predate this change; no runtime file was touched.
 - The page runner's total does not show a gain (see Page binary), so the page's effect is not demonstrated by the step wall.
+
+## Verification
+
+Independent review by **Codex, Sol 6.1 at xhigh**, 2026-10-10, in `.worktrees/tce-matrix`,
+branch `typed-core-edits/mechanical`, starting at `2c9fcd6d6`. Runtime service tier was not exposed.
+**The delivered slice passes after one small test-only correction. Full ticket acceptance remains open;
+status stays `implemented (awaiting verification)` and both acceptance boxes remain unchecked.**
+
+**Reviewed scope and correction.** Read the four converted files against `f7dc7b75b` (before ticket 37),
+checking every converted predicate against the next assertion or action. Library gate waits are bounded,
+outline waits cover their relevant inputs, controls and pointer capture, and the two page files wait on
+rendered counts/classes. The residual negative assertions documented in the Outcome still have no idle or
+render proof; this review does not close them.
+
+The current-project deletion test (`web/crates/library/src/library.rs`, wait near line 1518) waited for a
+replacement accepted ID and deletion from storage, then asserted the active-project ID and closed dialog.
+The dialog closes in a later effect. A temporary **50 ms delay between `saved.set(remaining)` and
+`pending_delete.set(None)`** reproduced the weak wait: the existing test failed at `!dialog.open()`
+(test 0.18 s, command 11.34 s). The wait now also requires the active stored ID to equal the replacement
+and the dialog to be closed. With the identical delay still in place, the test passed (0.20 s,
+command 9.67 s). The delay was then removed; no production change remains.
+
+**Executed names, independently reproduced.** Ran `wasm-pack test --headless --chrome ... --locked ...
+-- --list` with the touched sources from `f7dc7b75b`, then with the current sources plus the correction.
+Each replacement and restoration used this same checkout; restored bytes were compared with saved copies
+and sources touched. Sorted complete lists are byte-identical:
+
+| Suite | Baseline names | Current names | Diff |
+| --- | ---: | ---: | --- |
+| library (`web/crates/library --lib`) | 16 | 16 | empty |
+| layout (`web/crates/layout --lib`, including setup guide) | 167 | 167 | empty |
+| page (`web --no-default-features --features page --bin boardstudio-web`) | 70 | 70 | empty |
+
+The four source files' test declarations also match. Library assert macros fell from 123 to 113 and
+relation-highlight macros from 18 to 16 in the implementation: the removed checks are enforced by
+bounded waits for the same conditions. Outline (114) and layers (10) assert counts are unchanged.
+
+**Mutation checks, independently reproduced.** One site at a time, one filtered test per run, then
+exact source restoration and touch in this checkout. Each failure printed `wait_until: <named wait>
+did not hold within 5000 ms`; none reached the runner's 120 s timeout. Times below are test / command wall.
+
+| Representative wait | Never-true predicate | Production dependency disabled |
+| --- | --- | --- |
+| library, `the rename reaches the gated Core reply` | 5.10 / 15.28 s | `ProjectNameCommitAction::commit` returned early: 5.11 / 14.62 s |
+| outline, `Enter commits 5.25` | 5.07 / 19.67 s | `OutlineDimension`'s commit callback suppressed: 5.06 / 18.55 s |
+| page, `keyboard focus highlights Column 4's keys` | 5.63 / 25.19 s | production relation-highlight class branch suppressed: 5.70 / 24.89 s |
+
+The tests were `pending_project_rename_preserves_typing_and_escape_does_not_commit`,
+`outline_dimension_enter_commits_and_escape_restores_accepted_value`, and
+`keyboard_focus_highlights_and_blur_clears`. Full passing runs below recompiled and exercised the restored
+sources. All temporary mutations, including `outline/overlays.rs` and `web/src/presentation.rs`, were
+byte-compared after restoration.
+
+**Checks and repetition.** `python3 scripts/check.py repo lint typecheck` passed in 0.1 / 31.9 / 38.3 s.
+Then two consecutive full `python3 scripts/check.py browser` runs passed, sequentially in the foreground.
+`BOARDSTUDIO_CHECK_JOBS=1` enforced serial crate launches; Cargo used the configured 12 jobs
+(`CARGO_BUILD_JOBS` unset). No other lane was allowed heavy checks during these runs. The full-step
+walls below therefore are **not comparable** with the implementer's default parallel launch walls.
+
+| Browser suite (passed count) | Verifier run 1 | Verifier run 2 |
+| --- | ---: | ---: |
+| host storage (10; 8 filtered) | 0.45 s | 0.45 s |
+| runtime (29) | 1.34 s | 1.33 s |
+| ui-model (5) | 0.01 s | 0.01 s |
+| ui-shared (33) | 8.82 s | 8.82 s |
+| ui-shared panels (1) | 0.13 s | 0.13 s |
+| keycaps (30) | 2.54 s | 2.55 s |
+| library (16) | 1.02 s | 1.01 s |
+| keymap (40) | 9.67 s | 9.69 s |
+| catalogue (12) | 0.25 s | 0.24 s |
+| case (81) | 14.67 s | 14.87 s |
+| parts (68) | 16.18 s | 16.23 s |
+| pcb (49) | 18.59 s | 18.24 s |
+| layout (166) | 12.93 s | 12.99 s |
+| layout setup guide (1) | 0.37 s | 0.37 s |
+| page runner (70, whole launch wall) | 43.8 s | 43.5 s |
+| full browser step | 251.3 s | 248.3 s |
+
+Both runs passed the CAD browser gate and reported page `executed 70, failed 0`. `uptime` immediately
+before run 1: 15:25:24, load 3.87 / 7.58 / 12.56; before run 2: 15:29:49, load 4.37 / 5.87 / 10.59.
+Against the implementation's single pre-edit baseline (library 11.00 s, layout 15.41 s, page launch
+47.2 s), these runs reproduce the substantial library saving; smaller layout/page differences remain
+indicative because load and launch policy differ. The implementer's three consecutive passing runs
+(137.9 / 146.3 / 167.0 s) are retained as historical repetition evidence. There are **two**, not three,
+fresh full runs after this verifier correction; a third post-correction run was not requested.
+A final `repo` check after this verification note also passed (0.1 s).
+
+**Remaining acceptance gates.** The unconverted scope in the Outcome remains outstanding: ui-shared,
+keymap helpers, keycaps, most layout/page files, and the case/pcb/parts work carried from 36. The original
+per-suite conversion or justified stopping rule has not been met for that scope. The pcb unrelated-edit
+recovery defect and residual negative assertions carried from 36 also remain open. They need their
+listed implementation and mutation plans, not a resolution based on this slice passing. In particular,
+no idle signal was added, no slower-machine bound validation was run, no wasm Clippy gate was added,
+and the page's speed gain is not established by comparable measurements.
+
+**Graph and hygiene.** Bound GitNexus calls used `boardstudio-tce-matrix`; its index remains at
+`011f39a1c`, 37 commits behind the reviewed HEAD. `context`, compare change analysis, and pre-edit
+`impact` were run. Test entry points and `Library`, `OutlineDimension`, and `Editor` returned UNKNOWN
+with no resolved callers; source searches confirmed wasm-test registration, component uses and handlers.
+`ProjectNameCommitAction::commit` returned LOW with one retained-action test caller and one missing
+receiver-typed call; the production blur handler was confirmed by source search. File impact was MEDIUM
+for library; ticket-document impact was HIGH (5 direct / 126 total document dependents, no processes),
+reported before appending this evidence. These answers are provisional because the index is stale;
+no refresh was performed. Final bound `detect_changes(scope="all")` reported four changed symbols across
+the two intended files, zero affected processes and LOW risk, without partial/truncated flags. Its zero
+process result remains provisional under this stale index; the test is browser-registered and its
+production dependencies were exercised by the probes above. Removed 62 stale Chromium profiles older
+than 30 minutes after the runs,
+checking live process arguments and lock PIDs first; no active profile was removed.
+
+Raw logs and the three empty name diffs are retained locally under
+`/home/chris/.cache/boardstudio-verification/ticket37-20261010-codex/`.
