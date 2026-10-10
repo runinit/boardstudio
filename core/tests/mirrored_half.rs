@@ -1930,6 +1930,136 @@ fn a_mirror_circuit_id_already_in_use_refuses_the_record_and_changes_nothing() {
     );
 }
 
+/// The mirror of a board with embedded circuits is as valid as its source (ticket 28 verification):
+/// each circuit finding of the source recurs on the mirror under the mirror circuit id with the same
+/// severity and message, no finding is new, every finding target exists on the mirror, no part
+/// reference repeats (a circuit member whose mirror reference a host part already holds takes the next
+/// free one), and the same edit on the same source gives the same references.
+#[test]
+fn a_mirrored_circuit_reports_the_findings_of_its_source_and_no_reference_repeats() {
+    let shipped = &projects()["corne"];
+    let build = || {
+        let (mut engine, seed) = seed(shipped, "left");
+        let joined = board_nets(&seed, "left")[0].clone();
+        let one = embed_haptic(
+            &mut engine,
+            &seed,
+            "left",
+            "left-haptic",
+            json!({"gnd": joined}),
+        );
+        let source = embed_haptic(&mut engine, &one, "left", "review/haptic", json!({}));
+        let reply = create(
+            &mut engine,
+            &source,
+            "pair-right",
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
+        )
+        .unwrap();
+        (source, reply)
+    };
+    let (source, reply) = build();
+    let document = &reply["document"];
+    let opened: Value = serde_json::from_str(
+        &CoreEngine::new().request(&json!({"id":"o","kind":"open","document":source}).to_string()),
+    )
+    .unwrap();
+    let circuit_findings =
+        |scene: &Value, circuits: [&str; 2]| -> BTreeSet<(String, String, String)> {
+            scene["findings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|f| {
+                    circuits.iter().any(|c| {
+                        f["id"]
+                            .as_str()
+                            .unwrap()
+                            .starts_with(&format!("embedded/{c}/"))
+                    })
+                })
+                .map(|f| {
+                    (
+                        f["id"].as_str().unwrap().to_owned(),
+                        f["severity"].as_str().unwrap().to_owned(),
+                        f["message"].as_str().unwrap().to_owned(),
+                    )
+                })
+                .collect()
+        };
+    let on_source = circuit_findings(&opened["scene"], ["left-haptic", "review/haptic"]);
+    let on_mirror = circuit_findings(&reply["scene"], ["right-haptic", "right/review/haptic"]);
+    assert!(!on_source.is_empty(), "the fixture raises circuit findings");
+    let renamed: BTreeSet<(String, String, String)> = on_source
+        .iter()
+        .map(|(id, severity, message)| {
+            let id = id
+                .replacen("embedded/left-haptic/", "embedded/right-haptic/", 1)
+                .replacen(
+                    "embedded/review/haptic/",
+                    "embedded/right/review/haptic/",
+                    1,
+                );
+            (id, severity.clone(), message.clone())
+        })
+        .collect();
+    assert_eq!(on_mirror, renamed);
+
+    let exists = |id: &str| {
+        document["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["id"] == id)
+            || document["embeddedCircuits"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["id"] == id)
+    };
+    for finding in reply["scene"]["findings"].as_array().unwrap() {
+        if !finding["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("embedded/right")
+        {
+            continue;
+        }
+        for target in finding["targetIds"].as_array().unwrap() {
+            assert!(exists(target.as_str().unwrap()), "{finding}");
+        }
+    }
+
+    let references = |doc: &Value| -> Vec<(String, String)> {
+        doc["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| {
+                (
+                    p["id"].as_str().unwrap().to_owned(),
+                    p["reference"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect()
+    };
+    let all = references(document);
+    let distinct: BTreeSet<&String> = all.iter().map(|(_, reference)| reference).collect();
+    assert_eq!(
+        distinct.len(),
+        all.len(),
+        "a part reference repeats: {all:?}"
+    );
+    let (_, again) = build();
+    assert_eq!(
+        references(&again["document"]),
+        all,
+        "references are deterministic"
+    );
+}
+
 /// Reuse-board copies no circuit. An embedded circuit belongs to its board, not to an instance (the
 /// model has no instance pin), so the flipped instance shows it without a copy.
 #[test]

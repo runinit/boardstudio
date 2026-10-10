@@ -66,9 +66,13 @@ design for how Core stores and maintains it
 - **`reuse-board`** validates the map against the flip and refuses a non-zero map.
 - **Topology, transport and relabelling** of the primary half are set by the web adapter
   (physical setup), not by `CreateMirroredHalf`.
-- **Modules and embedded circuits** on the source board are refused by the first
-  implementation with a named, located error; mirroring them follows in two tickets before
-  the reconcile step.
+- **Modules and embedded circuits** on the source board are mirrored by `new-board`:
+  modules by pose and id ([ticket 27](../plans/typed-core-edits/issues/27-mirror-modules.md)),
+  embedded circuits under their own `embedded/<mirror id>/` namespace with their component
+  definitions copied ([ticket 28](../plans/typed-core-edits/issues/28-mirror-embedded-circuits.md)).
+  Neither is refused. A mirror id or namespace that is already taken refuses the record by
+  name, as does a module reference the mirror cannot follow. `reuse-board` copies neither (an
+  embedded circuit has no instance pin).
 
 ## Amendment: the heading rule in practice (2026-10-10)
 
@@ -111,4 +115,5 @@ encoder) are therefore not an exact mirror even on the grid. Proposed for the us
 independent part whose pad layout is not symmetric about its heading axis, computed from the footprint, in place of
 the off-grid-only trigger. Details and the shipped footprints:
 [ticket 27, Verification](../plans/typed-core-edits/issues/27-mirror-modules.md#verification). Mounted modules are
-reflected (ticket 27), so the refusal named in "details of creation" now applies to embedded circuits only.
+reflected (ticket 27) and embedded circuits are reflected too (ticket 28), so no hosted item is refused
+for lack of a reflection rule any more.
