@@ -922,7 +922,9 @@ fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
 
 /// A pair records its construction source, and closure proposals come from that source even
 /// when it is the second member (ADR-0008; generator-parameters ticket 06). The proposals are
-/// authored by the recorded source, and neither half stores a private closure list.
+/// authored by the recorded source. The source stores no private list, and the other half keeps
+/// whatever closure mounts it already stored: linking never deletes hardware a half carries, so
+/// anything the user wants merged is linked through a reviewed correspondence instead.
 #[test]
 fn closure_proposals_come_from_the_recorded_construction_source() {
     use boardstudio_core::mechanical::edit::apply;
@@ -964,13 +966,16 @@ fn closure_proposals_come_from_the_recorded_construction_source() {
         closures.iter().all(|feature| feature.author == "b"),
         "authored by the recorded construction source, not by the first member"
     );
-    for half in ["a", "b"] {
-        assert_eq!(
-            stored_closure_mounts(&document, half).map(|mounts| mounts.len()),
-            Some(0),
-            "{half} stores no private closure mount"
-        );
-    }
+    assert_eq!(
+        stored_closure_mounts(&document, "b").map(|mounts| mounts.len()),
+        Some(0),
+        "the source stores no private closure mount"
+    );
+    assert_eq!(
+        stored_closure_mounts(&document, "a"),
+        Some(proposed),
+        "the other half keeps the closure mounts it already stored"
+    );
 }
 
 /// A pair without a recorded construction source (every pair linked before format 5) keeps the
@@ -1354,6 +1359,82 @@ fn a_topology_replacement_never_leaves_a_dangling_pair() {
         Vec2 { x: 2.0, y: 3.0 },
         "the survivor keeps the geometry it showed"
     );
+}
+
+/// A linked pair whose record names `mirror_board` as the mirror half's board.
+fn paired_document_with_halves(mirror_board: &str) -> ProjectDoc {
+    let mut document = pair_document();
+    link_pair(&mut document);
+    document.hardware.as_mut().unwrap().pairs[0].halves = Some(
+        serde_json::from_value(json!({
+            "sourceBoardId": "board", "mirrorBoardId": mirror_board,
+            "correspondences": [], "exceptions": []
+        }))
+        .unwrap(),
+    );
+    document
+}
+
+/// Open and ReplaceDocument refuse a malformed mirrored-half record with a located message, and
+/// the engine keeps the accepted document. A stored record is no more trusted than an edit's.
+/// Open checks the record directly. ReplaceDocument reaches the same check through the pair
+/// validation that closes its topology reconciliation.
+#[test]
+fn a_malformed_mirrored_half_record_is_refused_on_open_and_replace() {
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+
+    let mut engine = CoreEngine::new();
+    let refused = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: paired_document_with_halves("ghost"),
+    });
+    let CoreReply::Error { message, .. } = refused else {
+        panic!("Open must refuse the record: {refused:?}");
+    };
+    assert!(message.contains("\"pair-left-right\""), "{message}");
+    assert!(message.contains("halves.mirrorBoardId"), "{message}");
+    assert!(message.contains("\"ghost\""), "{message}");
+
+    // A consistent record opens and replaces.
+    let accepted = match engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: paired_document_with_halves("board"),
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("a consistent record opens: {other:?}"),
+    };
+    assert!(
+        accepted.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .is_some()
+    );
+
+    let replace = |engine: &mut CoreEngine, replacement: ProjectDoc| {
+        engine.handle(CoreRequest::Edit {
+            id: "replace".into(),
+            command: EditCommand {
+                base_revision: accepted.revision,
+                transaction_id: "replace".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(replacement),
+                },
+            },
+        })
+    };
+    let refused = replace(&mut engine, paired_document_with_halves("ghost"));
+    let CoreReply::Error { message, .. } = refused else {
+        panic!("ReplaceDocument must refuse the record: {refused:?}");
+    };
+    assert!(message.contains("halves.mirrorBoardId"), "{message}");
+    // The refusal changed nothing: the same consistent replacement still applies on the same
+    // base revision.
+    assert!(matches!(
+        replace(&mut engine, paired_document_with_halves("board")),
+        CoreReply::Scene { .. }
+    ));
 }
 
 /// Gives the fixture board a real outline so export readiness is meaningful.

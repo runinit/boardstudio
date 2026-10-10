@@ -458,8 +458,9 @@ fn initialize_target_closures(
 /// format 5 records none, and its first member is the source. When the source already has a
 /// closure list, that list becomes the pair's linked mounts; otherwise the source's own outline
 /// proposes them. The source then stores an empty list of its own, so the same mounts are never
-/// stored twice. A pair that already has closure mounts proposes nothing, and neither does a
-/// pair whose source is a gasket. Returns whether mounts were linked.
+/// stored twice. The other half's stored closure list is left as it is: it is hardware that half
+/// carries, and linking does not delete it. A pair that already has closure mounts proposes
+/// nothing, and neither does a pair whose source is a gasket. Returns whether mounts were linked.
 fn link_pair_closure_proposals(
     doc: &mut ProjectDoc,
     board_contours: &[BoardContours],
@@ -477,8 +478,6 @@ fn link_pair_closure_proposals(
     {
         return Ok(false);
     }
-    let recorded_source = pair.construction_source.is_some();
-    let members = pair.members.clone();
     let source = pair
         .construction_source
         .clone()
@@ -495,17 +494,6 @@ fn link_pair_closure_proposals(
         None => initialize_closure_mounts(doc, board_contours, &target, &configuration)?,
     };
     instance_configuration_mut(doc, &source)?.closure_mounts = Some(Vec::new());
-    // A pair that records its source keeps no private closure list on the other half either.
-    // That half may have proposed its own mounts before linking, and they would duplicate the
-    // linked ones. A pair without a recorded source keeps the legacy behaviour exactly.
-    if recorded_source {
-        let other = members
-            .iter()
-            .find(|member| **member != source)
-            .cloned()
-            .ok_or("The mechanical pair has no second member.")?;
-        instance_configuration_mut(doc, &other)?.closure_mounts = Some(Vec::new());
-    }
     let pair = &mut doc
         .hardware
         .as_mut()

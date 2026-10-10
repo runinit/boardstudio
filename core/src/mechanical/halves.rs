@@ -10,7 +10,10 @@ use crate::model::{MechanicalMirrorPair, MirroredHalves, MirroredItemKind, Proje
 ///
 /// Returns the first violation, located by pair id and by the record's index. It only reads the
 /// document, so a refused record changes nothing. Pairs without `halves` are checked for their
-/// construction source only. A board may be a half of one record only.
+/// construction source only. A record needs a construction source, and its boards are the boards
+/// of the two members. A board may be a half of one record only; a record whose source and mirror
+/// are the same board (a reused board) is one record. Ticket 18 decides whether one board can be
+/// a half of several records.
 pub fn validate_document(document: &ProjectDoc) -> Result<(), String> {
     let Some(hardware) = document.hardware.as_ref() else {
         return Ok(());
@@ -59,6 +62,41 @@ fn validate_halves(
         if !document.boards.iter().any(|board| board.id == *board_id) {
             return Err(format!(
                 "mechanical pair {:?} halves.{field} {board_id:?} is not a board in the document",
+                pair.id
+            ));
+        }
+    }
+    // The record is relative to the construction source, so it needs one, and the source half
+    // must sit on the source board. A member that is not an instance is reported by the pair
+    // checks, so it is not repeated here.
+    let Some(source) = pair.construction_source.as_deref() else {
+        return Err(format!(
+            "mechanical pair {:?} records halves without a constructionSource",
+            pair.id
+        ));
+    };
+    let instance_board = |member: &str| {
+        document
+            .hardware
+            .as_ref()
+            .and_then(|hardware| hardware.instances.iter().find(|entry| entry.id == member))
+            .map(|entry| entry.board_id.as_str())
+    };
+    let mirror = pair.members.iter().find(|member| member.as_str() != source);
+    for (field, member, board_id) in [
+        ("sourceBoardId", Some(source), &halves.source_board_id),
+        (
+            "mirrorBoardId",
+            mirror.map(String::as_str),
+            &halves.mirror_board_id,
+        ),
+    ] {
+        if let Some(member) = member
+            && let Some(actual) = instance_board(member)
+            && actual != board_id
+        {
+            return Err(format!(
+                "mechanical pair {:?} halves.{field} {board_id:?} is not the board of {member:?}, which is on {actual:?}",
                 pair.id
             ));
         }
@@ -148,9 +186,10 @@ fn validate_halves(
     Ok(())
 }
 
-/// Whether an item of `kind` with `id` exists on the board `board_id`. Matrices, layouts and
-/// assemblies belong to the document rather than to a board, so the board is not consulted for
-/// them. Mechanical features belong to the pair.
+/// Whether an item of `kind` with `id` exists on the board `board_id`. Assemblies are definitions
+/// that belong to the document rather than to a board, so the board is not consulted for them.
+/// Parts, outlines and nets are listed by the board; a matrix, layout or module names its board;
+/// mechanical features belong to the pair.
 fn item_exists(
     document: &ProjectDoc,
     pair: &MechanicalMirrorPair,
@@ -170,9 +209,23 @@ fn item_exists(
         MirroredItemKind::Net => {
             board.is_some_and(|board| board.net_ids.iter().any(|net| net == id))
         }
-        MirroredItemKind::Matrix => document.matrices.iter().any(|matrix| matrix.id == id),
-        MirroredItemKind::Layout => document.layouts.iter().any(|layout| layout.id == id),
+        // A matrix that names no board is not placed on one, so it matches either half.
+        MirroredItemKind::Matrix => document.matrices.iter().any(|matrix| {
+            matrix.id == id
+                && matrix
+                    .board_id
+                    .as_deref()
+                    .is_none_or(|matrix_board| matrix_board == board_id)
+        }),
+        MirroredItemKind::Layout => document
+            .layouts
+            .iter()
+            .any(|layout| layout.id == id && layout.board_id == board_id),
         MirroredItemKind::Assembly => document.assemblies.iter().any(|assembly| assembly.id == id),
+        MirroredItemKind::Module => document
+            .modules
+            .iter()
+            .any(|module| module.id == id && module.host_board_id == board_id),
         MirroredItemKind::MechanicalFeature => pair.features.iter().any(|feature| feature.id == id),
     }
 }
@@ -186,6 +239,7 @@ fn kind_name(kind: MirroredItemKind) -> &'static str {
         MirroredItemKind::Outline => "outline",
         MirroredItemKind::Net => "net",
         MirroredItemKind::Assembly => "assembly",
+        MirroredItemKind::Module => "module",
         MirroredItemKind::MechanicalFeature => "mechanical-feature",
     }
 }
@@ -396,6 +450,7 @@ mod tests {
         let first = pair(halves(valid_correspondence(), json!([])));
         let second = pair(json!({
             "id": "second", "members": ["other-left", "other-right"],
+            "constructionSource": "other-left",
             "halves": { "sourceBoardId": "left-board", "mirrorBoardId": "right-board",
                 "correspondences": [], "exceptions": [] }
         }));
@@ -422,5 +477,134 @@ mod tests {
             json!([]),
         ));
         assert!(message.contains("correspondences[0]"), "{message}");
+    }
+
+    fn module(id: &str, host_board_id: &str) -> crate::modules::MountedModule {
+        serde_json::from_value(json!({
+            "id": id, "definitionId": "reference", "hostBoardId": host_board_id,
+            "hostFace": "front", "facingFace": "back", "at": { "x": 0.0, "y": 0.0 },
+            "rotation": 0.0, "gap": 0.0, "attachment": "board"
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn module_correspondences_must_be_hosted_on_their_board() {
+        let mut document = document(vec![pair(halves(
+            json!([{ "kind": "module", "sourceId": "l-module", "mirrorId": "r-module" }]),
+            json!([{ "kind": "module", "mirrorId": "r-extra-module", "state": "local" }]),
+        ))]);
+        document.modules = vec![
+            module("l-module", "left-board"),
+            module("r-module", "right-board"),
+            module("r-extra-module", "right-board"),
+        ];
+        validate_document(&document).unwrap();
+
+        // A module hosted on the other board is not an item of this half.
+        document.modules[1] = module("r-module", "left-board");
+        let message = validate_document(&document).unwrap_err();
+        assert!(message.contains("correspondences[0]"), "{message}");
+        assert!(message.contains("module \"r-module\""), "{message}");
+        assert!(message.contains("\"right-board\""), "{message}");
+    }
+
+    fn matrix(id: &str, board_id: Option<&str>) -> crate::model::Matrix {
+        serde_json::from_value(json!({
+            "id": id, "rows": 1, "columns": 1, "pitch": { "x": 19.0, "y": 19.0 },
+            "origin": { "x": 0.0, "y": 0.0 }, "definitionId": "switch", "partIds": [],
+            "boardId": board_id
+        }))
+        .unwrap()
+    }
+
+    fn layout(id: &str, board_id: &str) -> crate::model::Layout {
+        serde_json::from_value(json!({
+            "id": id, "name": id, "boardId": board_id, "matrixId": "l-matrix", "partIds": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn matrix_and_layout_correspondences_must_belong_to_their_board() {
+        let correspondences = json!([
+            { "kind": "matrix", "sourceId": "l-matrix", "mirrorId": "r-matrix" },
+            { "kind": "layout", "sourceId": "l-layout", "mirrorId": "r-layout" }
+        ]);
+        let mut document = document(vec![pair(halves(correspondences, json!([])))]);
+        document.matrices = vec![
+            matrix("l-matrix", Some("left-board")),
+            matrix("r-matrix", Some("right-board")),
+        ];
+        document.layouts = vec![
+            layout("l-layout", "left-board"),
+            layout("r-layout", "right-board"),
+        ];
+        validate_document(&document).unwrap();
+
+        // A matrix that names no board is not placed on one, so it is not refused for it.
+        document.matrices[1] = matrix("r-matrix", None);
+        validate_document(&document).unwrap();
+
+        document.matrices[1] = matrix("r-matrix", Some("left-board"));
+        let message = validate_document(&document).unwrap_err();
+        assert!(message.contains("correspondences[0]"), "{message}");
+        assert!(message.contains("matrix \"r-matrix\""), "{message}");
+
+        document.matrices[1] = matrix("r-matrix", Some("right-board"));
+        document.layouts[1] = layout("r-layout", "left-board");
+        let message = validate_document(&document).unwrap_err();
+        assert!(message.contains("correspondences[1]"), "{message}");
+        assert!(message.contains("layout \"r-layout\""), "{message}");
+    }
+
+    fn instance(id: &str, board_id: &str) -> crate::model::PhysicalBoardInstance {
+        serde_json::from_value(json!({
+            "id": id, "name": id, "boardId": board_id, "half": id, "role": "controller",
+            "flipped": false
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn halves_need_a_source_whose_board_is_the_source_board() {
+        let mut document = document(vec![pair(halves(valid_correspondence(), json!([])))]);
+        document.hardware.as_mut().unwrap().instances = vec![
+            instance("left", "left-board"),
+            instance("right", "right-board"),
+        ];
+        validate_document(&document).unwrap();
+
+        // The members' boards are the record's boards in the other order.
+        document.hardware.as_mut().unwrap().instances = vec![
+            instance("left", "right-board"),
+            instance("right", "left-board"),
+        ];
+        let message = validate_document(&document).unwrap_err();
+        assert!(message.contains("halves.sourceBoardId"), "{message}");
+        assert!(message.contains("\"left\""), "{message}");
+
+        // Reusing one board for both halves is a record of one board, not a mismatch.
+        let mut reuse = halves(json!([]), json!([]));
+        reuse["halves"]["mirrorBoardId"] = json!("left-board");
+        let mut document = document_with(reuse);
+        document.hardware.as_mut().unwrap().instances = vec![
+            instance("left", "left-board"),
+            instance("right", "left-board"),
+        ];
+        validate_document(&document).unwrap();
+
+        // A record cannot say which member is its source without a construction source.
+        let mut missing = halves(json!([]), json!([]));
+        missing
+            .as_object_mut()
+            .unwrap()
+            .remove("constructionSource");
+        let message = refusal(missing);
+        assert!(message.contains("constructionSource"), "{message}");
+    }
+
+    fn document_with(extra: Value) -> ProjectDoc {
+        document(vec![pair(extra)])
     }
 }

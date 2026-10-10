@@ -256,6 +256,9 @@ impl CoreEngine {
                 if let Err(message) = generators::document_error(&document) {
                     return self.error(id, &message);
                 }
+                if let Err(message) = mechanical::halves::validate_document(&document) {
+                    return self.error(id, &message);
+                }
                 self.document = document;
                 self.undo.clear();
                 self.redo.clear();

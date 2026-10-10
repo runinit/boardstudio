@@ -47,6 +47,57 @@ fn equivalent(actual: &Value, expected: &Value, path: &str) {
         _ => assert_eq!(actual, expected, "{path}"),
     }
 }
+
+fn pairs_of(
+    document: &boardstudio_core::model::ProjectDoc,
+) -> &[boardstudio_core::model::MechanicalMirrorPair] {
+    document
+        .hardware
+        .as_ref()
+        .map_or(&[], |hardware| hardware.pairs.as_slice())
+}
+
+/// A document saved before format 5 has no `constructionSource` or `halves`. Migrating it
+/// changes only `formatVersion`, and decoding then encoding it adds nothing: a pair without the
+/// new fields stays unpaired (ADR-0004, ADR-0010). The shipped projects stand for saved ones.
+fn version_4_form_migrates_unchanged(name: &str, current: &Value) {
+    let mut saved = current.clone();
+    saved["formatVersion"] = 4.into();
+    for pair in saved
+        .pointer_mut("/hardware/pairs")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+    {
+        pair.as_object_mut().unwrap().remove("constructionSource");
+        assert!(
+            pair.get("halves").is_none(),
+            "{name}: no shipped record yet"
+        );
+    }
+    let (migrated, changed) = boardstudio_core::migrate::migrate_value(saved.clone()).unwrap();
+    assert!(changed, "{name}");
+    let mut expected = saved;
+    expected["formatVersion"] = 5.into();
+    assert_eq!(migrated, expected, "{name}: only formatVersion changes");
+    let document: boardstudio_core::model::ProjectDoc = serde_json::from_value(migrated).unwrap();
+    for pair in pairs_of(&document) {
+        assert_eq!(
+            (&pair.construction_source, &pair.halves),
+            (&None, &None),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        serde_json::to_value(pairs_of(&document)).unwrap(),
+        expected
+            .pointer("/hardware/pairs")
+            .cloned()
+            .unwrap_or(Value::Array(Vec::new())),
+        "{name}: a version 4 document's pairs round-trip without new fields"
+    );
+}
+
 #[test]
 fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
     let output = std::env::temp_dir().join(format!(
@@ -70,6 +121,7 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
                 .unwrap()
                 .sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
             equivalent(&doc, &row["expected"], name);
+            version_4_form_migrates_unchanged(name, &doc);
             let bytes = fs::read(output.join(format!("{name}.boardstudio"))).unwrap();
             let (reply, buffers) =
                 boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &[bytes]);

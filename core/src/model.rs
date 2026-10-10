@@ -1085,6 +1085,8 @@ pub enum MirroredItemKind {
     Outline,
     Net,
     Assembly,
+    /// A module mounted on the board (`modules`, by its host board).
+    Module,
     MechanicalFeature,
 }
 
