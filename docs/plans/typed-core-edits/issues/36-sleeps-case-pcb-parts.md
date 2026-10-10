@@ -1,6 +1,6 @@
 # 36: Replace fixed sleeps in the case, pcb and parts browser tests
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [34](34-test-speed-browser.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
