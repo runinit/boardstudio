@@ -188,7 +188,9 @@ shipped differences are listed and spot-checked, and the switch behaviour from 2
 - **The on-grid finding is correct as it is.** ADR-0010's amendment makes the uncertain case "a non-symmetric
   footprint at a heading that is not a multiple of 90 degrees"; on the grid the rule is certain, so a part
   turned by 180 degrees raises no finding. The Outcome's "real gap" is not one, and the finding scope is not
-  widened. What it does mean: every independent part at heading 0 is turned half a turn, including the MCU,
+  widened. (Correction, ticket 27 verification: this holds for the heading and the position only. A pad off the
+  heading axis lands with its local `y` reversed even on the grid; see
+  [ticket 27](27-mirror-modules.md#verification).) What it does mean: every independent part at heading 0 is turned half a turn, including the MCU,
   encoder, display and mounting holes. That is the rule as written (the shipped halves keep these at 0), so
   whether heading 0 means "facing outward" in a footprint's own frame is a data question for tickets 20 and 25.
 - **Stabilisers** are matrix members (ticket 29), so they keep the switch rule through `layout::reflected`

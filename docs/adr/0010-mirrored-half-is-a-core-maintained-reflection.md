@@ -102,3 +102,13 @@ question about handed modules:
   may be turned so its pads match the switch's LED position. When Core is unsure which
   heading is right, it adds a finding and does not guess silently.
 - **Everything else** follows the general rule above (`180 - r`, full 360 degrees).
+
+Note (ticket 27 verification, 2026-10-10; the rule is unchanged, the user decides): heading `r_map + 180 - r`
+without a flip turns a part rather than mirroring it. A pad at part-frame `(x, y)` lands at the mirror of the
+source pad with its local `y` reversed, off by `2 |y|`, at every heading including the 90-degree grid; it is exact
+only for pads on the heading axis (`y == 0`). Footprints with pads off that axis (the MCU, TRRS jack, display and
+encoder) are therefore not an exact mirror even on the grid. Proposed for the user: a Core finding for any
+independent part whose pad layout is not symmetric about its heading axis, computed from the footprint, in place of
+the off-grid-only trigger. Details and the shipped footprints:
+[ticket 27, Verification](../plans/typed-core-edits/issues/27-mirror-modules.md#verification). Mounted modules are
+reflected (ticket 27), so the refusal named in "details of creation" now applies to embedded circuits only.

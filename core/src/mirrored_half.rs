@@ -1633,6 +1633,79 @@ mod tests {
         }
     }
 
+    /// The world point of a pad at `local` on a part (a back-side part mirrors its local x, as the
+    /// KiCad export does).
+    fn pad_world(pose: Pose2, back: bool, local: Vec2) -> Vec2 {
+        let x = if back { -local.x } else { local.x };
+        world(pose, Vec2 { x, y: local.y })
+    }
+
+    /// Ticket 27 verification. The heading rule turns an independent part by `rotation + 180 - r`
+    /// and does not flip it, so its pad layout is rotated, not mirrored. A pad lands on the true
+    /// mirror of the source pad only when its local `y` is zero (on the heading axis); every other
+    /// pad is off by exactly `2 |y|`, with its local `y` reversed. This holds at every 90-degree
+    /// heading, so the on-grid case is not certain for a footprint with pads off its heading axis.
+    #[test]
+    fn a_turned_part_puts_a_pad_on_the_true_mirror_only_when_it_sits_on_the_heading_axis() {
+        let maps = [
+            Pose2 {
+                at: Vec2 { x: 300.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            Pose2 {
+                at: Vec2 { x: 310.0, y: 42.0 },
+                rotation: 27.0,
+            },
+        ];
+        let offsets = [
+            (1.0, 0.0),
+            (-2.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 1.0),
+            (0.0, -1.0),
+            (1.0, 0.5),
+            (2.0, -3.0),
+        ];
+        for map in maps {
+            for back in [false, true] {
+                for heading in [0.0, 90.0, 180.0, 270.0] {
+                    let source = Pose2 {
+                        at: Vec2 { x: 20.0, y: -15.0 },
+                        rotation: heading,
+                    };
+                    let part = mirror_pose(map, source);
+                    for (x, y) in offsets {
+                        let local = Vec2 { x, y };
+                        let true_mirror = pair::forward(map, pad_world(source, back, local));
+                        let placed = pad_world(part, back, local);
+                        let error = Vec2 {
+                            x: placed.x - true_mirror.x,
+                            y: placed.y - true_mirror.y,
+                        };
+                        // The error vector is the local y reversed, in the mirror part's frame
+                        // taken without the half turn: `R(rotation - r) * (0, -2y)`.
+                        let (sin, cos) = (map.rotation - heading).to_radians().sin_cos();
+                        let expected = Vec2 {
+                            x: 2.0 * y * sin,
+                            y: -2.0 * y * cos,
+                        };
+                        let label = format!(
+                            "map {} back {back} heading {heading} pad ({x}, {y})",
+                            map.rotation
+                        );
+                        assert!(
+                            (error.x - expected.x).abs() < 1e-9
+                                && (error.y - expected.y).abs() < 1e-9,
+                            "{label}: error {error:?} expected {expected:?}"
+                        );
+                        let off = error.x.hypot(error.y);
+                        assert_eq!(off < 1e-9, y == 0.0, "{label}: off by {off}");
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn a_non_finite_mapping_is_refused_before_anything_is_written() {
         let mut doc = ProjectDoc::empty("doc", "doc");
