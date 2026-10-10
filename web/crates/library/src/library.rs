@@ -1515,22 +1515,27 @@ mod mounted_tests {
         wait_until("the delete dialog reopens", || delete_dialog_open(&root)).await;
         click(&root, ".m1-project-delete-confirm");
         let replacement = RefCell::new(None::<String>);
-        wait_until_step("the durable fallback precedes the deletion", async || {
-            let accepted = runtime.model().accepted;
-            if let Some(accepted) = accepted
-                && accepted.document.id != "delete-current-ui"
-                && runtime
-                    .store
-                    .load_document("delete-current-ui".into())
-                    .await
-                    .unwrap()
-                    .is_none()
-            {
-                *replacement.borrow_mut() = Some(accepted.document.id.clone());
-                return true;
-            }
-            false
-        })
+        wait_until_step(
+            "the durable fallback is active and deletion closes its dialog",
+            async || {
+                let accepted = runtime.model().accepted;
+                if let Some(accepted) = accepted
+                    && accepted.document.id != "delete-current-ui"
+                    && runtime.store.active_project_id("").unwrap() == accepted.document.id
+                    && !delete_dialog_open(&root)
+                    && runtime
+                        .store
+                        .load_document("delete-current-ui".into())
+                        .await
+                        .unwrap()
+                        .is_none()
+                {
+                    *replacement.borrow_mut() = Some(accepted.document.id.clone());
+                    return true;
+                }
+                false
+            },
+        )
         .await;
         let replacement_id = replacement
             .into_inner()
