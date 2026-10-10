@@ -14,6 +14,7 @@ fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Findi
 pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
     let mut findings = crate::hardware::nominal_fit(doc).0;
     findings.extend(crate::generators::parameter_findings(doc));
+    findings.extend(crate::mirrored_half::heading_findings(doc));
     for board in &doc.boards {
         findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
         findings.extend(crate::modules::resolve(doc, &board.id).findings);

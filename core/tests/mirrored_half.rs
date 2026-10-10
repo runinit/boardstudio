@@ -1529,3 +1529,264 @@ fn hosted_modules_and_embedded_circuits_are_refused_by_name() {
         "{error}"
     );
 }
+
+fn find_part<'a>(document: &'a Value, id: &str) -> Option<&'a Value> {
+    document["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == id)
+}
+
+/// Sets the turn of matrix cells `(row, column, degrees)` through `set-matrix`, the operation
+/// `layout::sync` writes through, so every member part is projected again from the matrix.
+fn with_cell_turns(
+    engine: &mut CoreEngine,
+    document: &Value,
+    matrix: &str,
+    turns: &[(u64, u64, f64)],
+) -> Value {
+    let mut matrix_json = document["matrices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == matrix)
+        .unwrap()
+        .clone();
+    for (row, column, degrees) in turns {
+        let cell = matrix_json["cells"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|c| c["row"] == *row && c["column"] == *column)
+            .unwrap_or_else(|| panic!("{matrix}: no cell r{row}c{column}"));
+        cell["rotation"] = json!(degrees);
+    }
+    create_with(
+        engine,
+        document,
+        "commit",
+        json!({"kind": "set-matrix", "matrix": matrix_json}),
+    )
+    .unwrap()["document"]
+        .clone()
+}
+
+/// A part's position and heading under the pair map `at`, `rotation`: the rule of
+/// `assert_reflects_every_part`, returned so a test can compare one part at a time.
+fn mapped_pose(map: &Value, pose: &Value) -> ((f64, f64), f64) {
+    let (at_x, at_y) = (
+        map["at"]["x"].as_f64().unwrap(),
+        map["at"]["y"].as_f64().unwrap(),
+    );
+    let turn = map["rotation"].as_f64().unwrap();
+    let (sin, cos) = turn.to_radians().sin_cos();
+    let (x, y) = (
+        pose["at"]["x"].as_f64().unwrap(),
+        pose["at"]["y"].as_f64().unwrap(),
+    );
+    (
+        (-x * cos - y * sin + at_x, -x * sin + y * cos + at_y),
+        turn - pose["rotation"].as_f64().unwrap(),
+    )
+}
+
+/// A companion's position in its switch's frame: the offset turned back by the switch's tilt.
+fn in_switch_frame(companion: &Value, switch: &Value) -> (f64, f64) {
+    let at = |part: &Value| {
+        (
+            part["pose"]["at"]["x"].as_f64().unwrap(),
+            part["pose"]["at"]["y"].as_f64().unwrap(),
+        )
+    };
+    let ((px, py), (sx, sy)) = (at(companion), at(switch));
+    let (sin, cos) = switch["pose"]["rotation"]
+        .as_f64()
+        .unwrap()
+        .to_radians()
+        .sin_cos();
+    let (dx, dy) = (px - sx, py - sy);
+    (dx * cos + dy * sin, -dx * sin + dy * cos)
+}
+
+fn assert_close_pair(actual: (f64, f64), expected: (f64, f64), label: &str) {
+    assert!(
+        (actual.0 - expected.0).abs() < 1e-9 && (actual.1 - expected.1).abs() < 1e-9,
+        "{label}: at {actual:?}, expected {expected:?}"
+    );
+}
+
+/// A key switch takes the pair's heading rule with no half turn: a switch tilted by `r` mirrors to
+/// `forward_angle(map, r)`, which is `-r` on an axis map. Its diode and LED keep their side of the
+/// switch: in the switch's own frame a companion's local x flips and its local y does not. A
+/// `180 - r` rule would move the LED to the other side, which this test catches.
+#[test]
+fn key_switches_mirror_their_tilt_without_a_half_turn_and_keep_their_companion_side() {
+    let cases: [(&str, Option<f64>); 4] = [
+        ("corne", None),
+        ("corne", Some(27.0)),
+        ("sofle-rgb", None),
+        ("sofle-rgb", Some(27.0)),
+    ];
+    for (name, turn) in cases {
+        let shipped = &projects()[name];
+        let (mut engine, seed) = seed(shipped, "left");
+        // Two switches carry a 15 and a -20 degree cell turn (the other two stay flat), so the
+        // tilts are not the zero the shipped matrices use.
+        let tilted = with_cell_turns(
+            &mut engine,
+            &seed,
+            "left-keys",
+            &[(0, 0, 15.0), (1, 0, 0.0), (0, 1, -20.0), (1, 1, 0.0)],
+        );
+        let map = match turn {
+            None => mapping(300.0),
+            Some(degrees) => json!({"at": {"x": 310.0, "y": 42.0}, "rotation": degrees}),
+        };
+        let label = format!("{name} with map rotation {:?}", turn.unwrap_or(0.0));
+        let reply = create(
+            &mut engine,
+            &tilted,
+            "pair-tilt",
+            "left",
+            new_board("right", "right"),
+            map.clone(),
+        )
+        .unwrap();
+        let mirrored = &reply["document"];
+        let source = |r: u64, c: u64| part(&tilted, &format!("matrix/left-keys/r{r}c{c}"));
+        let mirror = |r: u64, c: u64| part(mirrored, &format!("matrix/right-keys/r{r}c{c}"));
+        let tilt = |r: u64, c: u64| source(r, c)["pose"]["rotation"].as_f64().unwrap();
+        assert!(
+            angles_match(tilt(0, 0) - tilt(1, 0), 15.0)
+                && angles_match(tilt(0, 1) - tilt(1, 1), -20.0),
+            "{label}: the source switches must carry the 15 and -20 degree turns"
+        );
+        for (r, c) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+            let (position, heading) = mapped_pose(&map, &source(r, c)["pose"]);
+            assert_close_pair(
+                (
+                    mirror(r, c)["pose"]["at"]["x"].as_f64().unwrap(),
+                    mirror(r, c)["pose"]["at"]["y"].as_f64().unwrap(),
+                ),
+                position,
+                &format!("{label} switch r{r}c{c} position"),
+            );
+            assert!(
+                angles_match(mirror(r, c)["pose"]["rotation"].as_f64().unwrap(), heading),
+                "{label} switch r{r}c{c}: heading {} from the pair rule {heading}",
+                mirror(r, c)["pose"]["rotation"]
+            );
+            // The companions: the diode is on every switch, the LED only on RGB variants.
+            for (suffix, local) in [("diode", (7.4, -1.5)), ("led", (0.0, -4.75))] {
+                let source_id = format!("matrix/left-keys/r{r}c{c}/{suffix}");
+                let Some(companion) = find_part(&tilted, &source_id) else {
+                    continue;
+                };
+                let mirror_id = format!("matrix/right-keys/r{r}c{c}/{suffix}");
+                let mirror_companion = find_part(mirrored, &mirror_id)
+                    .unwrap_or_else(|| panic!("{label}: no mirror part {mirror_id}"));
+                let (lx, ly) = in_switch_frame(companion, source(r, c));
+                assert!(
+                    (lx - local.0).abs() < 1e-6 && (ly - local.1).abs() < 1e-6,
+                    "{label} {source_id}: the shipped offset changed to ({lx}, {ly})"
+                );
+                let (position, heading) = mapped_pose(&map, &companion["pose"]);
+                assert_close_pair(
+                    (
+                        mirror_companion["pose"]["at"]["x"].as_f64().unwrap(),
+                        mirror_companion["pose"]["at"]["y"].as_f64().unwrap(),
+                    ),
+                    position,
+                    &format!("{label} {mirror_id} position"),
+                );
+                assert!(
+                    angles_match(
+                        mirror_companion["pose"]["rotation"].as_f64().unwrap(),
+                        heading
+                    ),
+                    "{label} {mirror_id}: heading from the pair rule {heading}"
+                );
+                let (mx, my) = in_switch_frame(mirror_companion, mirror(r, c));
+                assert!(
+                    (mx + local.0).abs() < 1e-6 && (my - local.1).abs() < 1e-6,
+                    "{label} {mirror_id}: local ({mx}, {my}) is not the mirrored side ({}, {})",
+                    -local.0,
+                    local.1
+                );
+            }
+        }
+    }
+}
+
+/// Every shipped split's mirrored half reproduces the shipped other half: key switches by
+/// correspondence, and every corresponded part (companions included) at the pair map's image.
+#[test]
+fn every_shipped_split_mirror_follows_the_switch_and_companion_rules() {
+    for name in [
+        "corne",
+        "lily58",
+        "klor",
+        "sweep",
+        "chocofi",
+        "totem",
+        "cantor",
+        "sofle-v2",
+        "sofle-rgb",
+        "sofle-choc",
+    ] {
+        let source = if matches!(name, "lily58" | "klor") {
+            "right"
+        } else {
+            "left"
+        };
+        let other = if source == "left" { "right" } else { "left" };
+        let shipped = &projects()[name];
+        let (mut engine, seed) = seed(shipped, source);
+        let reply = create(
+            &mut engine,
+            &seed,
+            "pair-shipped",
+            source,
+            new_board(other, other),
+            shipped_mapping(shipped),
+        )
+        .unwrap();
+        let mirrored = &reply["document"];
+        assert_reflects_every_part(mirrored, "pair-shipped", name);
+        assert_same_switches(&switches(mirrored, other), &switches(shipped, other), name);
+    }
+}
+
+/// A mirrored footprint that is handed and sits off the 90-degree grid is a finding for a person to
+/// confirm. A switch or a diode never is: their outline is the same under a half turn and a mirror.
+#[test]
+fn a_handed_mirrored_footprint_off_the_right_angle_grid_is_a_finding() {
+    let shipped = &projects()["sofle-rgb"];
+    let (mut engine, seed) = seed(shipped, "left");
+    let tilted = with_cell_turns(&mut engine, &seed, "left-keys", &[(0, 0, 15.0)]);
+    let reply = create(
+        &mut engine,
+        &tilted,
+        "pair-finding",
+        "left",
+        new_board("right", "right"),
+        mapping(300.0),
+    )
+    .unwrap();
+    let ids: Vec<&str> = reply["scene"]["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|finding| finding["id"].as_str())
+        .collect();
+    assert!(
+        ids.contains(&"mirror/matrix/right-keys/r0c0/led/heading-uncertain"),
+        "the mirrored LED at -195 degrees is handed and off the grid: {ids:?}"
+    );
+    assert!(
+        !ids.iter()
+            .any(|id| id.contains("/r0c0/diode") || id.ends_with("matrix/right-keys/r0c0")),
+        "a symmetric diode or switch is never a finding: {ids:?}"
+    );
+}

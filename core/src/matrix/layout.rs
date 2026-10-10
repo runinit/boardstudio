@@ -114,6 +114,14 @@ fn reflected_companion(mut assembly: MatrixAssembly) -> MatrixAssembly {
 /// column 0 is the same physical column on both halves. The origin and the matrix heading take
 /// the pair's rule ([`crate::mechanical::pair::forward`] and `forward_angle`); everything the
 /// matrix places relative to that frame (cell turns, companions) only flips handedness.
+///
+/// Key switch rule (ADR-0010, amendment on switches and companions). A switch takes no half turn.
+/// Its world heading is the pair's `forward_angle` of its heading: the mirrored matrix frame carries
+/// `forward_angle(map, matrix rotation)` and the column splays are negated by the mirror, and the
+/// cell turn is `-r`, so the sum reproduces `forward_angle(map, world heading)` exactly for any map
+/// (`-r` on an axis map, `rotation - r` under a rotated map). A companion (diode, LED) is an
+/// assembly of the cell: it keeps its side (local x flips, local y does not) and takes the negated
+/// member heading. No generator parameter is changed to suit the mirror.
 pub(crate) fn reflected(
     source: &Matrix,
     target: &Matrix,

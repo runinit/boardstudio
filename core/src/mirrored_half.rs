@@ -22,12 +22,12 @@ use crate::mechanical::change::{
 };
 use crate::mechanical::{self, MechanicalTarget, halves, inputs::effective_inputs, pair};
 use crate::model::{
-    Board, BoardOutline, ElectricalBoardConfiguration, Layout, MechanicalConfiguration,
+    Board, BoardOutline, ElectricalBoardConfiguration, Finding, Layout, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCorrespondence,
     MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
     OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
-    ProjectDoc, ProtectedOutlineGap, Vec2,
+    ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -137,6 +137,66 @@ fn mirror_net_name(from: &str, to: &str, name: &str) -> String {
         }
     })
     .unwrap_or_else(|| name.to_owned())
+}
+
+/// Footprints whose outline is the same under a half turn and under a mirror (switches, diodes,
+/// mounting holes). Their mirrored heading is never ambiguous, so they never raise a finding.
+const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
+    "ceoloide/switch_mx",
+    "ceoloide/switch_choc_v1_v2",
+    "ceoloide/diode_tht_sod123",
+    "ceoloide/mounting_hole_npth",
+];
+
+/// The uncertain-heading finding (ADR-0010, heading rule). A mirrored part of a pair whose footprint
+/// is handed (any footprint not in [`SYMMETRIC_FOOTPRINTS`]) and whose heading is off the 90-degree
+/// grid is reported for a person to confirm. Core neither refuses it nor turns the part to guess.
+pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
+    let Some(hardware) = doc.hardware.as_ref() else {
+        return Vec::new();
+    };
+    let mut findings = Vec::new();
+    for pair in &hardware.pairs {
+        let Some(halves) = &pair.halves else {
+            continue;
+        };
+        for correspondence in &halves.correspondences {
+            if correspondence.kind != MirroredItemKind::Part {
+                continue;
+            }
+            let Some(part) = doc
+                .parts
+                .iter()
+                .find(|part| part.id == correspondence.mirror_id)
+            else {
+                continue;
+            };
+            let symmetric = doc
+                .definitions
+                .iter()
+                .find(|definition| definition.id == part.definition_id)
+                .and_then(|definition| definition.generator.as_ref())
+                .is_some_and(|generator| SYMMETRIC_FOOTPRINTS.contains(&generator.source.as_str()));
+            if symmetric || !part.pose.rotation.is_finite() {
+                continue;
+            }
+            let off_grid = part.pose.rotation.rem_euclid(90.0);
+            if off_grid.min(90.0 - off_grid) < 1e-9 {
+                continue;
+            }
+            findings.push(Finding {
+                id: format!("mirror/{}/heading-uncertain", part.id),
+                severity: Severity::Warning,
+                scope: Scope::Pcb,
+                message: format!(
+                    "The mirrored {} is handed and sits at {:.1} degrees, off the 90-degree grid. Confirm its pads on the mirrored half.",
+                    part.reference, part.pose.rotation
+                ),
+                target_ids: vec![part.id.clone()],
+            });
+        }
+    }
+    findings
 }
 
 /// A reflected pose: the point through the pair map, the heading by the pair's rule.
