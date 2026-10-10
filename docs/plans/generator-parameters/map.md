@@ -40,10 +40,11 @@ and enum kinds (option C) is out of scope.
 3. [03](issues/03-migrate-saved-generator-strings.md) (resolved)
 4. [04](issues/04-validate-generator-parameters-in-core.md) (resolved; decided by
    [ADR-0009](../../adr/0009-generator-parameters-checked-in-core.md))
-5. [05](issues/05-parameter-lint-and-conventions.md) (implemented, awaiting verification; 04 is resolved)
+5. [05](issues/05-parameter-lint-and-conventions.md) (resolved)
 6. [06](issues/06-paired-half-closure-proposals.md) (decided by
-   [ADR-0008](../../adr/0008-linked-halves-stay-linked.md), awaiting implementation; does not
-   block 04 and 05)
+   [ADR-0008](../../adr/0008-linked-halves-stay-linked.md), awaiting implementation, the one
+   remaining ticket; its Request and Findings still describe the options before that decision and
+   are rewritten as part of its own work)
 
 ## Progress
 
@@ -80,6 +81,16 @@ and enum kinds (option C) is out of scope.
   edit was refused for the old generator's stale terminal nets, Open refused number text the migration
   keeps, and copying a part with a legacy name was refused. Evidence and limits in the
   [ticket Outcome](issues/04-validate-generator-parameters-in-core.md). Next: 05.
+- 05 resolved (implementation `e51dfa794`, `6cc81e4ba`, `0c0de4714` by Haiku; verified and corrected by the
+  integrating Sonnet session in `7bd579ebc`, `2ab64f22b` and the docs commit after them): one lint over
+  every registered generator (unique names, defaults of the declared kind, `side` as text defaulting to
+  `F`, snake_case names, no numeric text) and two Core writer tests, plus a native test of the physical
+  setup's `reversible` write, check that every value a Core writer produces passes the ADR-0009 check.
+  The verification replaced a 138-name exception list by a rule on the declaration (capital `net`
+  parameters and their `<NET>_label` text, counts pinned at 88 and 50), closed three lint mutations that
+  no test caught, and added the wiring-apply writer, which the first writer test did not reach. Native
+  `test` (1325 passed) and `typecheck` passed in the non-nested checkout; `repo` and `lint` passed. Evidence
+  and limits in the [ticket Outcome](issues/05-parameter-lint-and-conventions.md). Remaining: 06.
 - 06 decided (user, 2026-10-09, [ADR-0008](../../adr/0008-linked-halves-stay-linked.md)): a mechanical
   pair keeps everything linked; the known-gap test from 02 and the shipped split data still follow
   the superseded behaviour until 06 is implemented.
