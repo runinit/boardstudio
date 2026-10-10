@@ -109,3 +109,108 @@ the new helper and its only caller in `new_board`; the changed path stays within
 not refresh the index; root owns refresh after verified merge.
 
 Commits: claim `79cbef72`; implementation `f000e62f`.
+
+
+## Verification
+
+**Verdict: incomplete; status remains `implemented (awaiting verification)`.** Creation behavior is
+preserved by the reviewed extraction, but the reusable kernel does not yet cover the companion/stabiliser
+rules required by this ticket. This is an acceptance blocker, not a failure in the existing creation output.
+
+Fresh independent verifier: Codex `/root/verify105`, dispatched explicitly as `gpt-6.1-sol` with `xhigh`
+reasoning, separate from Luna 6 high `/root/implement105`. The dispatch is the model/effort evidence;
+no runtime service-tier evidence was available, so this review does not claim priority/fast mode.
+Reviewed implementation `f000e62fb` (Outcome update `ddfd81b2c`) from clean lane HEAD
+`1edddb94469a81459226b17671384fa417e2d41f`, worktree
+`/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`.
+The central registry/prompts and original 105/19 contracts were read. Root granted the exclusive
+foreground command window and confirmed that the full original acceptance remains binding.
+
+### Acceptance blocker and smallest revision
+
+`core/src/mirrored_half.rs:1413` calls `layout::reflected`, then lines 1414–1474 still derive stabiliser
+headings, literal/duplicate/tweaked companion placement and repaired-companion fallback inside `new_board`.
+Those rules read creation-wide `request.companion_mode` / `request.companion_tweak`, and the next statement
+inserts the result with `set_matrix`. Matrix-member attribute retention remains coupled to document mutation
+at lines 1481–1501. Fallback repair at line 1124 also mutates the draft; fallback selection is carried to this
+inline derivation through `repaired_companions`. `new_board` refuses existing target boards/instances at lines
+1205–1209 and mints their identities at line 1229 onward. It cannot be called to derive an existing mirror.
+The unchanged `layout::reflected` is pure and retains the target matrix identity, but accepts no per-item
+mode/tweak or stabiliser inputs. The new `derive` module only supplies general pose and independent-Part
+projection. Thus preserving creation and proving the Part helper does not finish the requested separation.
+
+Next bounded implementation pass, within the existing leased paths: extract the existing companion mode,
+mirrored-switch-frame tweak, stabiliser heading and fallback value decisions into private pure helpers;
+let callers supply established target identities and each item's effective stored mode/tweak/fallback input.
+Keep identity planning, collision/refusal checks, insertion, correspondence seeding and pair creation in
+`new_board`, which calls those same helpers with its creation settings. Keep matrix assemblies/materialized
+parts consistent and preserve all attributes/parameters. Add direct helper cases with existing identities,
+distinct item settings, axis and translated/rotated maps, stabilisers and fallback, separately from unchanged
+creation equivalence. No reconciliation activation, public API, model/lib change or ticket-40 behavior.
+The missing matrix/member boundary and its direct tests exceed a small clearly correct reviewer fix;
+this verifier did not implement a second production pass. Minimal paths: `core/src/mirrored_half.rs`,
+`core/src/mirrored_half/derive.rs` (or another private child module), creation tests only if needed, and this
+ticket. `core/src/matrix/layout.rs` need not change unless a narrowly necessary existing helper requires it.
+
+### Independent evidence
+
+Reviewed `git show f000e62f` against its parent: the full-heading arithmetic was moved unchanged, and
+independent Part construction now clones the source then replaces only its id, definition, reference and
+pose. The prior creation test names/assertions were preserved. No public visibility, model/lib dispatch,
+configuration, goldens, labels, modules/circuit namespace logic or runtime reconciliation hook changed.
+
+Added the private unit test
+`mirrored_half::derive::tests::part_derivation_reuses_supplied_identities_without_a_board_or_pair`.
+It directly calls the helper with custom existing part/definition/reference identities and no ProjectDoc,
+board or pair context; checks independently calculated axis/translated-rotated poses/headings; preserves
+side, keycap, locked flag, properties and generator parameters; and checks that the source stays unchanged.
+This proves the independent-Part capability, not the missing companion/matrix capability.
+
+Commands used `CARGO_BUILD_JOBS=12 BOARDSTUDIO_CHECK_JOBS=1`, sequentially in the lane:
+
+- `cargo test --locked -p boardstudio_core --lib mirrored_half::derive::tests::part_derivation_reuses_supplied_identities_without_a_board_or_pair -- --exact`:
+  passed 1/1, 25.04 s compile, 0.00 s test execution.
+- `cargo test --locked -p boardstudio_core --test integration mirrored_half:: -- --nocapture`:
+  passed 45/45, 7.18 s compile, 16.51 s test execution. This includes exact changed IDs/refusals,
+  both map families, distinct switch/general headings, modes/tweaks, stabilisers/fallback, labels,
+  side/parameters, modules and embedded circuits/namespaces.
+- Heading mutation, one site in `derive::pose`: changed `+ 180.0` to `+ 0.0` and ran
+  `cargo test --locked -p boardstudio_core --test integration mirrored_half::creation_derives_independent_part_poses_for_axis_and_rotated_maps -- --exact`.
+  Expected exit 101: failed at `core/tests/mirrored_half.rs:552`, the heading assertion (18.82 s).
+- Parameter mutation, one site in `derive::part`: cleared `mirrored.generator_parameters` and ran
+  `cargo test --locked -p boardstudio_core --test integration mirrored_half::parts_keep_their_side_and_every_generator_parameter_exactly -- --exact`.
+  Expected exit 101: failed at `core/tests/mirrored_half.rs:974`, source custom/reversible object versus
+  mirror null (18.85 s). After each mutation the exact saved bytes were restored, verified, and touched;
+  both restored files had SHA-256 `ae583cc7d378d87df8432e90b76082a5331510a37219c4f5432b740301177629`.
+
+Final restored-source gate: `python3 scripts/check.py repo lint test typecheck` passed all four steps:
+`repo` 0.1 s, `lint` 8.1 s, `test` 69.9 s, `typecheck` 7.8 s, total 86.0 s. Core integration passed
+561/561; the native golden boundary transcript test passed within that run; CAD passed 51 with four existing
+ignored benchmarks. The added private unit test compiled in the native test run. WASM page typecheck passed.
+Observed warnings came from vendored cgmath, OCCT, and existing catalogue/case code. An initial direct
+`rustfmt --edition 2024 --check core/src/mirrored_half/derive.rs` found one long test-call line; it was
+formatted before the passing lint/final gate. `git diff --check` passed.
+
+### Graph scope and limits
+
+`python3 scripts/gitnexus-refresh.py --status` reported `boardstudio-lane-mirror-core: current` before
+review. `list_repos` bound that exact path/index to `1edddb944` (all 13 repositories returned; no more pages).
+Before the test addition/mutations, `impact` on `derive::part` reported HIGH: four impacted symbols,
+one direct caller (`new_board`), through `create` to `lib.rs::apply` / the existing refusal test; ten indexed
+`new_board` flows. This HIGH warning was reported before edits. `derive::pose` and its File target returned
+UNKNOWN/no resolved callers. Source search confirmed `derive::pose` is called by `mirror_pose` and the
+Part helper, and `derive::part` by `new_board`; UNKNOWN was not treated as proof of safety.
+No index refresh or hook registration was performed. The added test is unindexed until root's next refresh;
+source/diff inspection, not graph absence, establishes its test-only scope. Complete bound
+`detect_changes({scope: "all", repo: "boardstudio-lane-mirror-core", worktree: <lane absolute path>})`
+returned two changed files, two changed symbols (ticket sections), zero affected processes, LOW summary
+risk, and no partial/truncated flag. It did not list the new test symbol, so zero affected processes is not
+proof of full symbol coverage. The actual diff is only this ticket and the `#[cfg(test)]` addition to
+`core/src/mirrored_half/derive.rs`; production source is byte-equivalent to the reviewed HEAD. Explicit
+staging/diff inspection confirms those two leased paths; root alone refreshes after this handoff.
+
+Not run: reconstructed pre-extraction tests (historical baseline remains the implementer's evidence), full
+browser, build, release, dedicated WASM boundary parity, full batch check or performance measurement. Production behavior
+and the boundary transcript did not change, so those extra runs were not required for this review. Parent19
+remains open; this handoff grants no 106 dispatch. A new implementation and fresh independent verification
+must close the blocker before 105 can be resolved.
