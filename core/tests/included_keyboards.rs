@@ -24,7 +24,7 @@ const MEASURED_SPLITS: [&str; 7] = [
 const SOFLE: [&str; 3] = ["v2", "rgb", "choc"];
 
 /// Every split project and the reused-PCB demonstration, built once.
-fn projects() -> &'static BTreeMap<String, Value> {
+pub(crate) fn projects() -> &'static BTreeMap<String, Value> {
     static PROJECTS: OnceLock<BTreeMap<String, Value>> = OnceLock::new();
     PROJECTS.get_or_init(|| {
         let mut engine = CoreEngine::new();
@@ -546,9 +546,9 @@ fn cutout_clearance(hole: (f64, f64), radius: f64, key: (f64, f64, f64)) -> f64 
     }
 }
 
-/// Exports one half's board to KiCad with that half's effective outline, as the Case
-/// workspace does: the `.kicad_pcb` text, or Core's refusal message.
-fn export_board(project: &Value, half: &str) -> Result<String, String> {
+/// The KiCad export request for one half, built with that half's effective outline as the Case
+/// workspace builds it.
+pub(crate) fn export_request(project: &Value, half: &str) -> PrepareExportRequest {
     let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
     let (_, contours) = effective_document(
         &typed,
@@ -572,7 +572,7 @@ fn export_board(project: &Value, half: &str) -> Result<String, String> {
             }
         }
     }
-    let request = PrepareExportRequest {
+    PrepareExportRequest {
         snapshot_token: "included-keyboards".into(),
         expected_revision: typed.revision,
         document: typed.clone(),
@@ -581,8 +581,13 @@ fn export_board(project: &Value, half: &str) -> Result<String, String> {
         },
         contours,
         model_paths,
-    };
-    let artifact = kicad::export(request).map_err(|error| error.message)?;
+    }
+}
+
+/// Exports one half's board to KiCad with that half's effective outline, as the Case
+/// workspace does: the `.kicad_pcb` text, or Core's refusal message.
+fn export_board(project: &Value, half: &str) -> Result<String, String> {
+    let artifact = kicad::export(export_request(project, half)).map_err(|error| error.message)?;
     Ok(artifact
         .files
         .into_iter()

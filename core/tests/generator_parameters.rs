@@ -5,13 +5,18 @@
 //! generator does not declare, and text where a number or a list is declared (the version 4
 //! migration keeps both). An edit refuses all of these, but only for the values it writes, so a
 //! legacy warning does not block an unrelated edit.
+use crate::included_keyboards;
 use boardstudio_core::archive;
+use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
+use boardstudio_core::mechanical::MechanicalTarget;
+use boardstudio_core::mechanical::inputs::effective_document;
 use boardstudio_core::model::{
     CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Finding, Matrix, Part,
     PartDefinition, Position, ProjectDoc, Severity,
 };
 use boardstudio_core::{CoreEngine, migrate};
+use boardstudio_footprints::bundled;
 use serde_json::{Value, json};
 
 const HOLE: &str = "ceoloide/mounting_hole_npth";
@@ -612,6 +617,82 @@ fn every_terminal_of_a_bundled_generator_is_a_declared_net_parameter() {
                 "{} terminal {terminal}",
                 generator.source
             );
+        }
+    }
+}
+
+/// Asserts that a check found nothing, naming the first problem and how many there were.
+fn assert_accepted(problems: &[generators::GeneratorParameterProblem], context: &str) {
+    assert!(
+        problems.is_empty(),
+        "{context}: {} problems, first {:?}",
+        problems.len(),
+        problems.first()
+    );
+}
+
+/// Every value a Core writer puts into a generator parameter passes the check (ADR-0009).
+///
+/// The writers, in each included split keyboard and the reused PCB, for each half: the closure
+/// holes are numbers on their definitions (ticket 01), electrical wiring and KiCad planning write
+/// terminal net names, and a flipped half's effective read writes `side` as `F` or `B`
+/// (`mechanical/inputs.rs`). The saved document, the effective read, the captured planning
+/// document and every job of the export plan are judged, so a value the check refuses fails here.
+#[test]
+fn every_value_a_core_writer_produces_passes_the_parameter_check() {
+    for (name, project) in included_keyboards::projects() {
+        let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
+        assert_eq!(
+            generators::parameter_problems(&typed),
+            Vec::new(),
+            "{name}: the saved document"
+        );
+        let instances = project["hardware"]["instances"].as_array().unwrap();
+        assert!(!instances.is_empty(), "{name} has no physical instance");
+        for instance in instances {
+            let half = instance["id"].as_str().unwrap();
+            let target = MechanicalTarget::Instance {
+                instance_id: half.into(),
+            };
+            let (effective, _) = effective_document(&typed, &target).unwrap();
+            assert_accepted(
+                &generators::parameter_problems(&effective),
+                &format!("{name} {half}: the effective read"),
+            );
+            // An instance that shares another instance's board (the reused PCB's flipped side)
+            // has no export of its own; its effective read above is its check.
+            if instance["boardId"] != instance["id"] {
+                continue;
+            }
+            let plan = kicad::prepare_export(included_keyboards::export_request(project, half))
+                .unwrap_or_else(|error| panic!("{name} {half}: {}", error.message));
+            assert_accepted(
+                &generators::parameter_problems(&plan.captured_document),
+                &format!("{name} {half}: the captured document"),
+            );
+            for job in &plan.jobs {
+                assert_eq!(
+                    generators::definition_error(&job.definition),
+                    Ok(()),
+                    "{name} {half}: definition of {}",
+                    job.part.id
+                );
+                let source = &job.definition.generator.as_ref().unwrap().source;
+                let parameters = job.part.generator_parameters.clone().unwrap_or_default();
+                assert_accepted(
+                    &bundled()
+                        .check_parameters(source, &parameters)
+                        .unwrap()
+                        .into_iter()
+                        .map(|problem| generators::GeneratorParameterProblem {
+                            owner: generators::ParameterOwner::Part(job.part.id.clone()),
+                            generator: source.clone(),
+                            problem,
+                        })
+                        .collect::<Vec<_>>(),
+                    &format!("{name} {half}: part {}", job.part.id),
+                );
+            }
         }
     }
 }
