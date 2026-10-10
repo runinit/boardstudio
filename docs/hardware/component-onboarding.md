@@ -62,13 +62,16 @@ the declared kind, and Core checks every saved value against it
 - **No numeric strings.** A text parameter must not have a numeric-looking default or end in a
   dimension word (`size`, `drill`, `width`, `diameter`, `offset` and so on). The
   [parameter lint](../../footprints/tests/parameter_lint.rs) reports both.
-- **`side` on every generator.** Each generator declares `side` as text with default `F`.
-  Core writes `B` for a half that a mechanical mirror flips
-  ([ADR-0008](../adr/0008-linked-halves-stay-linked.md)).
-- **Names are snake_case.** Net and pin-label names keep the pad's own name (`GND`, `P21`,
-  `P21_label`) because saved documents hold them. The lint lists each such name, with its
-  reason, in `NOT_SNAKE_CASE`; a new name of that kind is a reviewed change to that list.
-  The lint also pins the list lengths, so an entry cannot be added quietly.
+- **`side` on every generator.** Each generator declares `side` as text with default `F`. Core
+  writes `B` for the effective read of a half that a mechanical mirror flips.
+- **Names are snake_case.** Two kinds of name keep a pad's own name because saved documents
+  hold it: a `net` parameter named for its pad or pin in capitals (`GND`, `P21`, `BAT_P`), and
+  the text parameter `<PAD>_label` that labels that pad's pin (`P21_label`). The lint accepts
+  them by their declaration, not from a list: only a `net` may be named in capitals, and a
+  label needs a declared net of that name. It pins how many of each the bundled generators
+  declare, so adding one is a reviewed change to that count. Any other new name is snake_case.
+- **Duplicate names, defaults and `side`** are also checked when the registry is built, so a
+  wrong declaration stops the program at start. The lint reports them all in one run.
 - **A change of kind is a migration.** Changing what a saved value must be (for example,
   number text saved as text) needs a versioned migration step, as
   [ADR-0004](../adr/0004-document-format-version-and-id-rename.md) requires. Version 4 is the
@@ -84,9 +87,8 @@ names; renaming and new kinds are out of scope for the generator-parameters work
 | Generator (or owner) | Legacy names |
 | --- | --- |
 | Non-plated mounting hole (`ceoloide/mounting_hole_npth`) and closure mounts | `hole_size`, `hole_drill` |
-| Plated mounting hole (`ceoloide/mounting_hole_plated`) | `drill`, `outline` |
-| Mounting hole (`infused-kim/mounting_hole`) and trackpoint mount | `drill` |
-| Diode, LED and MCU generators | `via_size`, `via_drill` |
+| Plated mounting holes (`ceoloide/mounting_hole_plated`, `infused-kim/mounting_hole`) and the trackpoint mount | `drill`, `outline` |
+| Diode, LED, MCU, switch (MX, Choc) and utility router generators | `via_size`, `via_drill` |
 | Case mount fields (not generator parameters) | `hole_diameter`, `boss_diameter` |
 
 ## PCB layer rules
