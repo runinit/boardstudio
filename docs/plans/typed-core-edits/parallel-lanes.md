@@ -14,8 +14,9 @@ timing work must run alone, and a few files can only have one writer. Process fo
 - **Lane agent (one per lane at a time):** works only in its lane worktree on its lane branch, on the files its
   tickets name, and writes an `## Outcome` in its ticket files. It never edits `map.md`, never merges, never
   pushes, never refreshes GitNexus.
-- **Implementer and verifier are different agents, ideally from different apps** (for example Codex implements,
-  Claude verifies, or the reverse). An independent model reviewing the work is the point of the verify step.
+- **Implementer and verifier are different agents from different apps.** From 2026-10-10 Codex verifies and reviews
+  (Claude Haiku or Sonnet subagents, or another app, implement); Claude plans and orchestrates. An independent model
+  reviewing the work is the point of the verify step.
 - **Human:** answers decision tickets and approves anything that leaves the machine.
 
 ## Lanes

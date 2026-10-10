@@ -73,7 +73,10 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > Finish with the ticket `Status: ready-for-human` (the user reviews the ranked list before fixes start) and a short
 > Outcome linking the review.
 
-## Verifier prompts (a different app than the implementer)
+## Verifier prompts (Codex; a different app than the implementer)
+
+Open Codex with the lane worktree as its working folder, paste the common rules, then the prompt below with the ticket named.
+Commit trailers: `Co-Authored-By: Codex <noreply@openai.com>`.
 
 > Common rules above, plus: you are a REVIEWER, time box about 45 minutes. Do not trust the Outcome; reproduce its
 > claims; mutation-check the main assertions (disable one site at a time, confirm a test fails, restore, touch the
