@@ -25,8 +25,8 @@ design for how Core stores and maintains it
 - **Exceptions** are per item: `local` or `omitted`, with `linked` as the default.
   Rejoining reflects the source again.
 - **Reflected heading.** One rule replaces the three current conventions. A footprint
-  keeps its side and takes the reflected heading; where a footprint has a reversible
-  variant, the mirror uses it.
+  keeps its side and takes the reflected heading. (Amended below: parameters are never
+  changed.)
 - **Numbering.** The mirror keeps the source's matrix numbering (column 0 is the same
   physical column on both halves, with the same pins). The recipes' reversed numbering
   goes away, and right-half part and net ids change once.
@@ -41,3 +41,19 @@ design for how Core stores and maintains it
 - **Rejected:** a derived-only half (the page reads stored parts in about 282 places), a
   one-time copy with per-operation propagation (it drifts), recipe mirror arithmetic, and
   links kept in a part property bag.
+
+## Amendment: mechanical features and reversible parts (2026-10-10)
+
+- **Mechanical features are linked pair features, mirrored.** A mirrored half starts with
+  the source's openings and mounts as linked features mapped through the pair, in both
+  modes. They are never cleared and never cloned as independent copies
+  ([ADR-0008](0008-linked-halves-stay-linked.md)).
+- **Two supported designs, both first class.**
+  - A *reversible* design is one board that is flipped: `reuse-board` creates a flipped
+    instance of the same board with its pair record and linked features.
+  - A *mirrored* design has single-sided parts placed as a mirror image: `new-board`.
+  - A linked mirror may also use reversible footprints.
+- **Parameters are never changed by mirroring.** A mirrored copy keeps every generator
+  parameter, including `reversible` and `side`, exactly as the source has it. Mirroring
+  changes pose only: position and heading. This replaces the earlier "use the reversible
+  variant" wording.
