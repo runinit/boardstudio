@@ -232,6 +232,23 @@ workspace = true
                 run.assert_not_called()
                 link.unlink()
 
+    def test_current_provider_skips_before_the_symlink_check(self):
+        # An up-to-date build never reaches the container, so a symlinked cache is harmless then.
+        self.wasm_sources()
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": "1"}
+        output = self.root / "wasm/pkg/boardstudio_cadrum_wasm_bg.wasm"
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "run", side_effect=lambda *a, **k: output.parent.mkdir(parents=True, exist_ok=True) or output.write_bytes(b"wasm")):
+            build.build_wasm()
+        real = self.project / "real-cache"
+        (self.root / ".cache").rename(real)
+        (self.root / ".cache").symlink_to(real, target_is_directory=True)
+        with patch.dict(build.os.environ, environment), patch.object(build, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
+            build.build_wasm()
+        run.assert_not_called()
+        self.assertIn("skipping the container build", printed.getvalue())
+
     def test_native_failure_is_raised(self):
         with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, None, subprocess.CalledProcessError(1, "cargo")]), patch.object(build, "build_wasm") as wasm:
             with self.assertRaises(subprocess.CalledProcessError):

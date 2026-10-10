@@ -12,7 +12,7 @@ and is only for throwaway local notes.
   numbered from `01` in dependency order. Never combine tickets in one file.
 - Each ticket has `Status:`, `Type:` and `Blocked by:` lines near the top.
   Status values: `ready-for-agent`, `ready-for-human`, `needs-info`, `claimed`,
-  `resolved`, `wontfix`. Type values: `build` (implementation slice), or the
+  `implemented (awaiting verification)`, `resolved`, `wontfix`. Type values: `build` (implementation slice), or the
   wayfinder types `research`, `prototype`, `grilling`, `task`.
 - A ticket is unblocked when every ticket in its `Blocked by` line is `resolved`.
   The frontier is the open, unblocked, unclaimed tickets; lowest number first.
@@ -20,6 +20,10 @@ and is only for throwaway local notes.
   any other work. Resolve it by appending `## Answer` (decisions) or `## Outcome`
   (builds: commits, checks run, follow-ups), setting `Status: resolved`, and adding
   a one-line pointer to the map's "Decisions so far" or "Progress" section.
+- `implemented (awaiting verification)` is the implementer's last status: the change and its
+  Outcome are written but a separate verifier has not reproduced them. It counts as open (not
+  `resolved`), so it does not unblock dependents. Only the verifier sets `resolved`; see
+  [verification-process.md](verification-process.md).
 - Comments append under a `## Comments` heading at the bottom of the file.
 - Markdown here is covered by `python3 scripts/check-doc-links.py`; keep relative
   links valid.

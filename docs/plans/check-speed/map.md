@@ -59,9 +59,9 @@ out with a recorded reason), without running fewer tests.
 - [Test whether dropping `touch core/src/lib.rs` is safe](issues/07-drop-the-touch.md): it is not needed;
   cargo rebuilds on a real edit and results match without it.
 
-- [Nested worktrees run every check](issues/10-nested-worktrees.md#outcome): implemented (awaiting
-  verification). The CAD crates declare their own `[workspace]`; `tooling`, `test` and `build` pass
-  from `.worktrees/tce-matrix` with no second checkout.
+- [Nested worktrees run every check](issues/10-nested-worktrees.md#outcome): resolved. The CAD crates
+  declare their own `[workspace]`; the full `check.py` passes from `.worktrees/tce-matrix` (480.1 s)
+  with no second checkout. The `wasm-pack` `invalid type: sequence` error was two overlapping builds.
 
 ## Ready for implementation
 

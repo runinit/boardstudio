@@ -39,7 +39,9 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 
 - Run steps **sequentially, in the foreground**, and report only when they have finished.
   Do not start a second run while one is going; they fight over the build directory and
-  lock, and the results are meaningless.
+  lock, and the results are meaningless. Two overlapping `build`s fail in `wasm-pack` with
+  `Installing wasm-bindgen ... invalid type: sequence, expected a string` because both write the
+  same `--out-dir`; the error disappears when the runs are sequential (ticket 10).
 - Do not arm background monitors for a command you can simply wait for.
 - Never mutate sources in one checkout and test in another when both share a `target`
   directory: restoring a file by copy can leave an artifact the other checkout accepts.
@@ -47,10 +49,11 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 
 ## Checkouts and sandbox
 
-- Work in the ticket's worktree. Native `test` runs there too; a second "verify" checkout
-  is a fallback only while the nested-worktree CAD problem exists (tracked in
-  [check-speed](../plans/check-speed/map.md)). If you must use one, keep a single one with
-  its own `target`, a real `cad/.cache` and no stale copies.
+- Work in the ticket's worktree. A nested worktree (under `.worktrees/`) runs every check step,
+  including native `test` and `build`; no second "verify" checkout is needed (see
+  [ticket 10](../plans/check-speed/issues/10-nested-worktrees.md)). Its `cad/.cache`,
+  `cad/wasm/pkg` and `cad/wasm/target` must be real directories, not symlinks into another
+  checkout: `build` refuses a symlink because the CAD container cannot resolve it.
 - The sandbox must be lifted (`dangerouslyDisableSandbox`) for `wasm-pack`, Chrome and
   podman (the CAD container), and for nothing else.
 - Stage explicit paths; never `git stash` or `git add -A`; no push, merge or PR without the

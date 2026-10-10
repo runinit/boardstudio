@@ -94,7 +94,8 @@ presentation code. Browser setup installs the locked wasm-bindgen runner before 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
 `target/`), so dependencies compile once per profile and target. `cad/wasm` and
 `cad/step-oracle` stay outside it because they build against the pinned WASI and
-native OCCT toolchains.
+native OCCT toolchains. Each declares an empty `[workspace]` so cargo treats it as its own
+root, which also lets it build from a worktree nested under another checkout.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;
