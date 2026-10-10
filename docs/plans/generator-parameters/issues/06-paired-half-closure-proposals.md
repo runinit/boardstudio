@@ -281,3 +281,40 @@ be the first's reflection, which is what native mirrored halves provide
   regeneration) and 16 symbols; the index is stale, so this is not a clean check.
 - Baseline: re-recorded deliberately for the nine paired fixtures with a one-line compact-JSON write (the file
   is one line); `provenance` (the original TypeScript pipeline record) is unchanged.
+
+### Verification by the integrating session
+
+Verified by the integrating Sonnet session (not the Haiku implementer), 2026-10-09, branch
+`typed-core-edits/mechanical`, final commit of this ticket `78c4bd831`.
+
+- Core review: the change is minimal and deterministic. The pair's source is `members[0]` (the map's
+  frame, and the default author in `LinkMirrorPair`'s documentation); there is no other choice to make.
+  `link_mirror_pair` requires both members to resolve, so `link_pair_closure_proposals` can always read
+  the source. The `pair_findings` change (CRITICAL by reach, 37 upstream) is the text of one message; the
+  finding id does not use the message and nothing outside the Core tests matches the text.
+- Red run reproduced: at `7007d518d` (tests only) the integration binary had 8 failures, as recorded.
+- Mutations, each in the non-nested checkout, reverted afterwards: disabling the pair branch of
+  `initialize_target_closures` fails 5 tests; disabling the `enable` initialization fails 5; reverting the
+  refusal text fails 1; making the source `members[1]` fails 6. Making `initialize_closures` write the
+  half's effective configuration back (copying the pair's linked openings into it) survived all 508 tests,
+  so `initializing_a_paired_halfs_closures_does_not_copy_linked_features_into_it` was added and fails
+  under that mutation. `closure_proposals_come_from_the_first_member_even_when_the_second_is_the_source`
+  pins the first-member rule.
+- Shipped data re-derived from freshly regenerated fixtures: the baseline diff, closure counts (4 and 4
+  on nine pairs, 0 and 0 on Sofle v2), linked features (4 closure, 2 opening; Sofle v2 0 and 2), every
+  fit figure in the table above (bay edge, switch cutout) reproduced to the printed digits. Sofle v2 is
+  unchanged. All 20 halves of the ten pairs export to KiCad and report no pair finding
+  (`case_findings_are_clear`); this does not run the Cadrum case build per half.
+- Corrections made: the baseline scope (above), the KLOR explanation and figure (above), two stale test
+  comments, a missing assertion that no half stores a private opening or closure mount after a proposal.
+- Commands, all passing in the final state: `python3 scripts/check.py repo lint typecheck` (worktree);
+  `build` (worktree, sandbox lifted, 98 s); `browser` (worktree, sandbox lifted, 242 s: 15 CAD browser
+  checks, 70 mounted presentation tests, no failure); `test` (non-nested checkout, 88 s, including the
+  Core integration binary at 510 passed). `repo` was run again after the last documentation edit.
+  `browser` was run because Core's logic and the fixtures changed and the WASM boundary parity is part
+  of it. The pre-existing `private_interfaces` warnings in `web/crates/case` appear in typecheck, build
+  and lint output and are not from this ticket.
+- Not run: `check.py release`, `quick`, `deny` (no dependency change); mounted or live paired-editing
+  checks on the shipped fixtures; the Standards and Spec reviews; the Cadrum case build per half.
+- GitNexus: the index is stale (last indexed `4b372b22c`, 51 commits behind); `impact` and
+  `detect-changes` were run and read with that in mind. `detect-changes` reported low risk, test files only.
