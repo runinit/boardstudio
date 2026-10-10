@@ -18,6 +18,8 @@ const TO_NET: &str = "CHOC_COL_QUAL";
 // hotswap_pads_same_side=false. The additional side, terminal names, generator
 // version, definition, reference, and source pose are set explicitly below.
 // The terminal names are configuration identities, not manufacturer polarity.
+// The drawing's Ø3 callout applies only to the lower-left hole; the common
+// upper-hole diameter remains manufacturer-unknown and configuration-only.
 fn render(side: &str, part_side: Side, at: Vec2, rotation: f64) -> Vec<Expr> {
     let generator = GeneratorRef {
         source: SOURCE.into(),
@@ -211,7 +213,12 @@ fn local_hole_delta(holes: &[&[Expr]], expected_rotation: f64) -> [f64; 2] {
     for (index, hole) in holes.iter().enumerate() {
         let drill = numbers_in_field(hole, "drill");
         assert_eq!(drill.len(), 1, "socket hole {index} has one drill diameter");
-        near(drill[0], 3.0, &format!("socket hole {index} nominal drill"));
+        let attribution = if index == 1 {
+            "dimensioned lower-left hole nominal drill"
+        } else {
+            "common upper-hole drill configuration only; manufacturer diameter unknown"
+        };
+        near(drill[0], 3.0, attribution);
     }
     let upper = numbers_in_field(holes[0], "at");
     let lower = numbers_in_field(holes[1], "at");
