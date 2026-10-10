@@ -24,6 +24,11 @@ and is only for throwaway local notes.
 - Markdown here is covered by `python3 scripts/check-doc-links.py`; keep relative
   links valid.
 
+## Building and verifying a ticket
+
+Implementation and verification roles, which check steps to run for which change, and the
+one-run-at-a-time rule are in [verification-process.md](verification-process.md).
+
 ## When a skill says "publish to the issue tracker"
 
 Create the file under `docs/plans/<effort-slug>/` and commit it.
