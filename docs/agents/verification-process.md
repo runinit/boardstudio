@@ -10,13 +10,27 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 
 - **Implement** (Haiku 5.5 unless the ticket says otherwise): test first, make the change,
   run only the steps the change needs (below), write the Outcome honestly, set
-  `Status: implemented (awaiting verification)`. Never `resolved`.
+  `Status: implemented (awaiting verification)`. Never `resolved`. Time box: about an hour.
 - **Verify and integrate** (Sonnet 5.5, high effort): do not trust the implementer's
   report. Reproduce its claims, mutation-check the main assertions (disable one site at a
-  time, confirm a test fails, restore), review the code, fix defects with tests, then set
-  `resolved` with who-verified-what evidence and update the map.
+  time, confirm a test fails, restore), review the code, fix **small** defects with tests,
+  then set `resolved` with who-verified-what evidence and update the map. Time box: about
+  30 minutes of work.
+- The verifier is a reviewer, not a second implementer. A defect that needs more than a
+  small, clearly correct fix (roughly a screen of code and one test) becomes a follow-up
+  ticket with file:line and a test plan; the ticket is resolved only if its own acceptance
+  holds, otherwise it stays `implemented (awaiting verification)` with the exact blockers.
+- **Scope is fixed when the agent starts.** New decisions or requests go into tickets, not
+  into messages to a running agent. This is what made one verification run over an hour.
+- Small tickets (docs, one file, no behaviour) may be implemented and verified in a single
+  Sonnet pass.
 - Planning and decision work (Opus, medium) is read-only; the user answers decisions.
 - Say which model did what in the Outcome. Never claim a result you did not observe.
+
+## Ticket size
+
+One concern per ticket, small enough to implement in about an hour and review in about 30
+minutes. If a ticket needs several unrelated behaviours, split it before starting.
 
 ## Run the steps the change needs, not the whole check
 
@@ -24,10 +38,14 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 | --- | --- |
 | Docs, tickets, ADRs only | `repo` |
 | Rust in Core or other native crates, no web or wasm-visible change | `repo`, `lint`, `test` |
-| Anything the page compiles (web crates, shared types, fixtures, the boundary transcript) | add `typecheck`, `browser` |
+| Core or shared types the page also compiles | add `typecheck`; add the explicit wasm `boundary_parity::` run when the transcript changes |
+| Mounted web behaviour (web crates, Dioxus components, storage) | add `browser` |
 | Generated demo projects or fixtures change | add `build` |
 | Dependencies change | add `deny` |
 
+- The full `browser` step (about 200 seconds) runs for web changes, and otherwise **once per
+  batch**, not per Core ticket. `typecheck` (about 15 seconds) plus the wasm boundary parity
+  run (about 35 seconds) cover Core changes the page compiles.
 - `python3 scripts/check.py quick` runs only the checks covering your changed files; use
   it while iterating.
 - The **full cycle** (`repo lint typecheck build browser test`) runs **once per batch**
