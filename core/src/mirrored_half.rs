@@ -211,11 +211,19 @@ pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
     findings
 }
 
-/// A reflected pose: the point through the pair map, the heading by the pair's rule.
+/// A reflected pose for an independent part (ADR-0010 amendment, the full heading rule): the point
+/// through the pair map, and the heading turned by the map's reflection over the full circle.
+///
+/// The linear part of the map is `R(rotation) * diag(-1, 1)`, a reflection about the axis at angle
+/// `90 + rotation / 2`. For a heading `r`, `forward_angle(map, r) = rotation - r` is the image of
+/// the orientation of a line, which is only fixed modulo 180 degrees. A heading is a direction, so
+/// its image is that line image turned by 180 degrees: `forward_angle + 180`. On an axis map
+/// (`rotation == 0`) this is `180 - r`: a part facing left faces right on the mirror. The result is
+/// kept in `[0, 360)`; the rule never reduces the heading modulo 180.
 pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
     Pose2 {
         at: pair::forward(mapping, pose.at),
-        rotation: pair::forward_angle(mapping, pose.rotation),
+        rotation: (pair::forward_angle(mapping, pose.rotation) + 180.0).rem_euclid(360.0),
     }
 }
 
@@ -225,6 +233,21 @@ fn mirror_local(point: Vec2) -> Vec2 {
     Vec2 {
         x: -point.x,
         y: point.y,
+    }
+}
+
+/// A point of an outline anchored to a part, in the mirror part's frame. A key switch or companion
+/// is reflected with [`mirror_local`], because its heading is `rotation - r`. An independent part
+/// takes `180 - r` (ticket 30), which is the mirror's heading turned by 180 degrees, so the same
+/// world point is `(x, -y)` in its frame. A rect's own rotation is `-angle` under either rule.
+fn anchored_local(point: Vec2, full_rule: bool) -> Vec2 {
+    if full_rule {
+        Vec2 {
+            x: point.x,
+            y: -point.y,
+        }
+    } else {
+        mirror_local(point)
     }
 }
 
@@ -538,6 +561,10 @@ struct Renames<'a> {
     identity: &'a dyn Fn(&str) -> String,
     /// Maps a reference to a part of the source board to its mirror; foreign ids stay as they are.
     part: &'a dyn Fn(&str) -> String,
+    /// Whether a source part takes the full heading rule (an independent part, ticket 30) rather
+    /// than the switch rule (a key or a companion). It decides how an outline anchored to it is
+    /// reflected in the part's frame.
+    full_rule_part: &'a dyn Fn(&str) -> bool,
 }
 
 fn mirror_control(
@@ -548,7 +575,7 @@ fn mirror_control(
     match &point.part_id {
         // Attached to a part: the point is in that part's frame.
         Some(part) => OutlineControlPoint {
-            at: mirror_local(point.at),
+            at: anchored_local(point.at, (renames.full_rule_part)(part)),
             part_id: Some((renames.part)(part)),
         },
         None => OutlineControlPoint {
@@ -601,12 +628,9 @@ fn mirror_feature(feature: &OutlineFeature, mapping: Pose2, renames: &Renames) -
             points: points
                 .iter()
                 .rev()
-                .map(|point| {
-                    if anchor_part_id.is_some() {
-                        mirror_local(*point)
-                    } else {
-                        pair::forward(mapping, *point)
-                    }
+                .map(|point| match anchor_part_id.as_deref() {
+                    Some(anchor) => anchored_local(*point, (renames.full_rule_part)(anchor)),
+                    None => pair::forward(mapping, *point),
                 })
                 .collect(),
             operation: *operation,
@@ -628,10 +652,9 @@ fn mirror_feature(feature: &OutlineFeature, mapping: Pose2, renames: &Renames) -
             },
             anchor_part_id: anchor_part_id.as_deref().map(renames.part),
             id: (renames.identity)(id),
-            center: if anchor_part_id.is_some() {
-                mirror_local(*center)
-            } else {
-                pair::forward(mapping, *center)
+            center: match anchor_part_id.as_deref() {
+                Some(anchor) => anchored_local(*center, (renames.full_rule_part)(anchor)),
+                None => pair::forward(mapping, *center),
             },
             size: *size,
             radius: *radius,
@@ -925,9 +948,11 @@ fn new_board(
         mirrored
     };
     let part_reference = |id: &str| mapped_reference(id);
+    let full_rule_part = |id: &str| !matrix_owned.contains(id);
     let renames = Renames {
         identity: &record_identity,
         part: &part_reference,
+        full_rule_part: &full_rule_part,
     };
 
     let mut correspondences = Vec::new();
@@ -1325,10 +1350,78 @@ mod tests {
             rotation: 20.0,
         };
         let mirrored = mirror_pose(mapping, pose);
-        // The heading is the pair rotation minus the source heading.
-        assert!((mirrored.rotation - 10.0).abs() < 1e-12);
+        // The forward_angle (30 - 20 = 10) turned by 180 degrees: 190.
+        assert_eq!(mirrored.rotation, 190.0);
         let expected = pair::forward(mapping, pose.at);
         assert_eq!(mirrored.at, expected);
+    }
+
+    fn heading_of(mapping: Pose2, rotation: f64) -> f64 {
+        mirror_pose(
+            mapping,
+            Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation,
+            },
+        )
+        .rotation
+    }
+
+    fn same_heading(actual: f64, expected: f64) -> bool {
+        let turn = (actual - expected).rem_euclid(360.0);
+        turn.min(360.0 - turn) < 1e-9
+    }
+
+    /// The heading of the mapped direction, read from the mapped vector itself. It does not use
+    /// `forward_angle`, so it checks the rule against the geometry rather than against itself.
+    fn image_heading(mapping: Pose2, heading: f64) -> f64 {
+        let (sin, cos) = heading.to_radians().sin_cos();
+        let image = pair::forward_vector(mapping, Vec2 { x: cos, y: sin });
+        image.y.atan2(image.x).to_degrees().rem_euclid(360.0)
+    }
+
+    #[test]
+    fn a_turned_part_faces_outward_on_the_mirror_over_the_full_circle() {
+        let axis = Pose2 {
+            at: Vec2 { x: 300.0, y: 0.0 },
+            rotation: 0.0,
+        };
+        // A TRRS jack facing left (180) faces right on the mirror, and the reverse. Modulo 180
+        // (or `-r`) would leave the left-facing jack at 180.
+        assert_eq!(heading_of(axis, 180.0), 0.0);
+        assert_eq!(heading_of(axis, 0.0), 180.0);
+        // A part facing up or down needs no turn, only the mirrored position.
+        assert_eq!(heading_of(axis, 90.0), 90.0);
+        assert_eq!(heading_of(axis, 270.0), 270.0);
+        // An off-axis part (an LED at 135 degrees) takes 180 - r as well.
+        assert_eq!(heading_of(axis, 135.0), 45.0);
+    }
+
+    #[test]
+    fn every_heading_mirrors_to_the_mapped_direction_under_axis_and_rotated_maps() {
+        let maps = [
+            Pose2 {
+                at: Vec2 { x: 300.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            Pose2 {
+                at: Vec2 { x: 310.0, y: 42.0 },
+                rotation: 27.0,
+            },
+        ];
+        for map in maps {
+            for heading in [0.0, 30.0, 45.0, 90.0, 135.0, 200.0, 270.0, 315.0] {
+                let actual = heading_of(map, heading);
+                let expected = image_heading(map, heading);
+                assert!(
+                    same_heading(actual, expected),
+                    "map rotation {} heading {heading}: {actual} from the mapped direction {expected}",
+                    map.rotation
+                );
+            }
+        }
+        // Under the rotated map the rule is 207 - r, so the off-axis LED at 135 goes to 72.
+        assert_eq!(heading_of(maps[1], 135.0), 72.0);
     }
 
     #[test]

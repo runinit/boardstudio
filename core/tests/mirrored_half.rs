@@ -321,7 +321,10 @@ fn close(actual: &Value, expected: &Value, path: &str) {
     }
 }
 
-/// A part's pose, reference, side and footprint must agree with the shipped one.
+/// A part's position, reference, side and footprint must agree with the shipped one. The heading is
+/// not compared: the shipped right halves hand-place some independent parts at the source's `-r`,
+/// while the mirror takes the full rule (ticket 30). `assert_reflects_every_part` checks the heading
+/// by the rule; the differences are listed in ticket 30's Outcome for the recipe and data reviews.
 fn assert_part_matches(actual: &Value, expected: &Value, id: &str) {
     assert_eq!(actual["reference"], expected["reference"], "{id} reference");
     assert_eq!(actual["side"], expected["side"], "{id} side");
@@ -336,13 +339,6 @@ fn assert_part_matches(actual: &Value, expected: &Value, id: &str) {
         );
         assert!((a - b).abs() < 1e-9, "{id} {axis}: {a} vs {b}");
     }
-    assert!(
-        angles_match(
-            actual["pose"]["rotation"].as_f64().unwrap(),
-            expected["pose"]["rotation"].as_f64().unwrap(),
-        ),
-        "{id} rotation"
-    );
 }
 
 fn closure_holes(document: &Value, board: &str) -> BTreeSet<String> {
@@ -416,7 +412,9 @@ fn corne_second_half_reproduces_the_shipped_right_half() {
 }
 
 /// Every corresponded part sits at the pair map's image of its source: the point through
-/// `q = R(rotation) * (-p.x, p.y) + at`, the heading by `rotation - angle`, on the same side.
+/// `q = R(rotation) * (-p.x, p.y) + at`, on the same side. The heading is `rotation - angle` for a
+/// key switch and its companions (the switch rule, ticket 29), and `rotation + 180 - angle` for
+/// every other part (the full heading rule, ADR-0010 amendment, ticket 30).
 fn assert_reflects_every_part(document: &Value, pair_id: &str, label: &str) {
     let record = pair(document, pair_id);
     let map = &record["mapping"];
@@ -447,14 +445,31 @@ fn assert_reflects_every_part(document: &Value, pair_id: &str, label: &str) {
             (actual.0 - expected.0).abs() < 1e-9 && (actual.1 - expected.1).abs() < 1e-9,
             "{label} {id}: at {actual:?}, expected {expected:?}"
         );
+        // Matrix members (keys, diodes, LEDs) are the switch rule's; everything else is the full rule.
+        let in_matrix = document["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|matrix| {
+                matrix["partIds"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|member| member.as_str() == Some(id))
+            });
+        let source_heading = source["pose"]["rotation"].as_f64().unwrap();
+        let expected_heading = if in_matrix {
+            turn - source_heading
+        } else {
+            turn + 180.0 - source_heading
+        };
         assert!(
             angles_match(
                 mirror["pose"]["rotation"].as_f64().unwrap(),
-                turn - source["pose"]["rotation"].as_f64().unwrap(),
+                expected_heading,
             ),
-            "{label} {id}: rotation {} from {}",
+            "{label} {id}: rotation {} from {expected_heading} (source {source_heading})",
             mirror["pose"]["rotation"],
-            source["pose"]["rotation"]
         );
         assert_eq!(mirror["side"], source["side"], "{label} {id}: side");
         compared += 1;
@@ -1361,11 +1376,12 @@ fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identiti
             .clone()
     };
 
-    // Live outline, in the part frame: the attached point flips handedness, the free one maps.
+    // Live outline, in the part frame: U1 is an independent part, so the mirror turns it by 180
+    // degrees (ticket 30) and its attached point is (x, -y) in that frame; the free one maps.
     let live = find(&out["outline"], "right-outline");
     let connection = &live["connections"][0];
     assert_eq!(connection["points"][0]["partId"], "right/U1");
-    assert_eq!(connection["points"][0]["at"], json!({"x": -4.0, "y": 2.0}));
+    assert_eq!(connection["points"][0]["at"], json!({"x": 4.0, "y": -2.0}));
     assert_point(
         world_of(out, "right/U1", &connection["points"][0]["at"]),
         reflected_point(&map, world_of(out, "left/U1", &json!({"x": 4.0, "y": 2.0}))),
@@ -1432,8 +1448,9 @@ fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identiti
             "{x},{y}"
         );
     }
-    // Reflection reverses the winding, so the points come back in the reverse order.
-    assert_eq!(polygon["points"][0], json!({"x": -5.0, "y": 7.0}));
+    // Reflection reverses the winding, so the points come back in the reverse order. U1 is an
+    // independent part turned by 180 degrees, so the local point is (x, -y), not (-x, y).
+    assert_eq!(polygon["points"][0], json!({"x": 5.0, "y": -7.0}));
     let fixed_gap = &geometry["protectedGaps"]
         .as_array()
         .unwrap()
