@@ -10,7 +10,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -318,18 +318,45 @@ pub const MEASURED_SPLITS: [&str; 7] = [
 /// The Sofle variants (`sofle-v2`, `sofle-rgb`, `sofle-choc`).
 pub const SOFLE_VARIANTS: [&str; 3] = ["v2", "rgb", "choc"];
 
+/// A recipe build. Each runs on its own thread with its own engine.
+type Job<'a> = Box<dyn FnOnce() -> Result<Value> + Send + 'a>;
+
+/// Runs the jobs on scoped threads and returns their results in input order, so the fixture
+/// order never depends on which job finishes first.
+fn in_parallel(jobs: Vec<Job<'_>>) -> Result<Vec<Value>> {
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = jobs.into_iter().map(|job| scope.spawn(job)).collect();
+        handles
+            .into_iter()
+            .map(|handle| {
+                handle
+                    .join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            })
+            .collect()
+    })
+}
+
 /// The ten shipped split keyboards as mechanical mirror pairs, keyed `corne` ... `sofle-v2`,
 /// `sofle-rgb` and `sofle-choc`. Native tests share one build of these through `support`.
-pub fn split_projects(engine: &mut CoreEngine) -> Result<BTreeMap<String, Value>> {
+pub fn split_projects() -> Result<BTreeMap<String, Value>> {
     let layouts = read("content/layouts/keyboard-layouts.json")?;
-    let mut built = BTreeMap::new();
+    let mut names = Vec::new();
+    let mut jobs: Vec<Job<'_>> = Vec::new();
     for id in MEASURED_SPLITS {
-        built.insert(id.to_owned(), measured_project(engine, id, &layouts[id])?);
+        names.push(id.to_owned());
+        let layout = &layouts[id];
+        jobs.push(Box::new(move || {
+            measured_project(&mut CoreEngine::new(), id, layout)
+        }));
     }
     for variant in SOFLE_VARIANTS {
-        built.insert(format!("sofle-{variant}"), sofle_project(engine, variant)?);
+        names.push(format!("sofle-{variant}"));
+        jobs.push(Box::new(move || {
+            sofle_project(&mut CoreEngine::new(), variant)
+        }));
     }
-    Ok(built)
+    Ok(names.into_iter().zip(in_parallel(jobs)?).collect())
 }
 
 /// Writes the fixtures. `shipped` holds the split documents from `split_projects` when the
@@ -353,12 +380,11 @@ pub fn prepare(destination: Option<&str>, shipped: Option<&BTreeMap<String, Valu
     fs::create_dir(&staging)?;
     let result = (|| -> Result<()> {
         let mut fixtures = Vec::new();
-        let mut engine = CoreEngine::new();
         let built: BTreeMap<String, Value>;
         let shipped = match shipped {
             Some(shipped) => shipped,
             None => {
-                built = split_projects(&mut engine)?;
+                built = split_projects()?;
                 &built
             }
         };
@@ -388,15 +414,33 @@ pub fn prepare(destination: Option<&str>, shipped: Option<&BTreeMap<String, Valu
             fixtures.push(pack(shipped[&key].clone(), &staging, &name)?);
         }
         let layouts = read("content/layouts/keyboard-layouts.json")?;
-        for (id, layout) in layouts.as_object().unwrap() {
+        let layouts = layouts.as_object().unwrap();
+        // The boards the shipped splits do not cover, and the review, build in parallel.
+        let unshared: Vec<String> = layouts
+            .keys()
+            .filter(|id| !shipped.contains_key(*id))
+            .cloned()
+            .collect();
+        let mut jobs: Vec<Job<'_>> = Vec::new();
+        for id in &unshared {
+            let layout = &layouts[id];
+            jobs.push(Box::new(move || {
+                measured_project(&mut CoreEngine::new(), id, layout)
+            }));
+        }
+        jobs.push(Box::new(|| review::build(&mut CoreEngine::new())));
+        let mut built_docs = in_parallel(jobs)?;
+        let review_doc = built_docs.pop().unwrap();
+        let mut unshared_docs: BTreeMap<String, Value> =
+            unshared.into_iter().zip(built_docs).collect();
+        for id in layouts.keys() {
             let doc = match shipped.get(id) {
                 Some(doc) => doc.clone(),
-                None => measured_project(&mut engine, id, layout)?,
+                None => unshared_docs.remove(id).unwrap(),
             };
             fixtures.push(pack(doc, &staging, &format!("measured-{id}"))?);
         }
-        let doc = review::build(&mut engine)?;
-        fixtures.push(pack(doc, &staging, "vik-module-review")?);
+        fixtures.push(pack(review_doc, &staging, "vik-module-review")?);
         let mut hashes = BTreeMap::new();
         for file in [
             "core/examples/prepare_demo_projects.rs",

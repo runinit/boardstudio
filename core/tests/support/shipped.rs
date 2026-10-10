@@ -12,7 +12,7 @@ pub(crate) fn projects() -> &'static BTreeMap<String, Value> {
     static PROJECTS: OnceLock<BTreeMap<String, Value>> = OnceLock::new();
     PROJECTS.get_or_init(|| {
         let mut engine = CoreEngine::new();
-        let mut built = demo_projects::split_projects(&mut engine).unwrap();
+        let mut built = demo_projects::split_projects().unwrap();
         built.insert(
             "reused-pcb".to_owned(),
             demo_projects::reused_pcb_project(&mut engine).unwrap(),
