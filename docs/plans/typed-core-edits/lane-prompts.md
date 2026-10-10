@@ -73,7 +73,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > Finish with the ticket `Status: ready-for-human` (the user reviews the ranked list before fixes start) and a short
 > Outcome linking the review.
 
-## Verifier prompts (Codex; a different app than the implementer)
+## Verifier prompts (Codex: Sol 6.1, xhigh, fast)
 
 Open Codex with the lane worktree as its working folder, paste the common rules, then the prompt below with the ticket named.
 Commit trailers: `Co-Authored-By: Codex <noreply@openai.com>`.

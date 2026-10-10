@@ -11,7 +11,8 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 - **Implement** (Haiku 5.5 unless the ticket says otherwise): test first, make the change,
   run only the steps the change needs (below), write the Outcome honestly, set
   `Status: implemented (awaiting verification)`. Never `resolved`. Time box: about an hour.
-- **Verify and integrate** (Codex, from 2026-10-10; before that Sonnet 5.5 at high effort): do not trust the
+- **Verify and integrate** (Codex on model Sol 6.1 at xhigh effort in fast mode, from 2026-10-10; before that
+  Sonnet 5.5 at high effort): do not trust the
   implementer's report. Reproduce its claims, mutation-check the main assertions (disable one site at a time,
   confirm a test fails, restore), review the code, fix **small** defects with tests, then set `resolved` with
   who-verified-what evidence. Time box: about 30 to 45 minutes of work. The verifier is always a different app or
