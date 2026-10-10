@@ -42,7 +42,7 @@ leaves them alone and asks.
 | `docs/plans/typed-core-edits/map.md`, `docs/plans/check-speed/map.md` | orchestrator, at merge time |
 | `core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json` | lane B, then lane D; generated, never hand-merged: on a conflict take the integration branch's file and re-run `BOUNDARY_BLESS=1` |
 | `CONTEXT.md`, `docs/adr/*` | orchestrator; lanes propose text in their Outcome |
-| `scripts/check.py` | lane C |
+| `scripts/check.py` | lane C; root owns only the tooling-test-list conflict during the 2026-10-10 workflow merge, returning ownership on that merge's commit |
 | GitNexus index | orchestrator ([gitnexus-index.md](../../agents/gitnexus-index.md)) |
 
 ## Setting up a lane
