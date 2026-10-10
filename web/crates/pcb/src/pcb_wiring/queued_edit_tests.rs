@@ -7,7 +7,11 @@ use boardstudio_core::{
     model::*,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until_step;
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+    rc::Rc,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -19,6 +23,8 @@ struct Probe {
     pins: Rc<RefCell<Option<PcbWiringPinActions>>>,
     apply: Rc<RefCell<Option<BoardWiringApplyActions>>>,
     nets: Rc<RefCell<Option<PartNetActions>>>,
+    /// The accepted revision the host rendered last: Core state reaches a hook only through a render.
+    rendered_revision: Rc<Cell<u64>>,
 }
 
 fn plan(document: &ProjectDoc) -> Rc<ElectricalPlan> {
@@ -55,6 +61,7 @@ fn host() -> Element {
     let workspace = use_signal(|| "PCB");
     let generation = use_signal(|| 0u64);
     let accepted = runtime.model().accepted.unwrap();
+    probe.rendered_revision.set(accepted.document.revision);
     let scope = runtime.scope().unwrap();
     let identity = WiringPlanIdentity {
         scope: scope.clone(),
@@ -183,6 +190,7 @@ async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys:
         pins: Rc::new(RefCell::new(None)),
         apply: Rc::new(RefCell::new(None)),
         nets: Rc::new(RefCell::new(None)),
+        rendered_revision: Rc::new(Cell::new(0)),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -206,6 +214,10 @@ async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool
         done()
     })
     .await;
+}
+/// Whether the host has rendered the revision Core accepted last (hook state is current).
+fn rendered_accepted(probe: &Probe) -> bool {
+    probe.rendered_revision.get() == probe.runtime.model().accepted.unwrap().document.revision
 }
 /// The left board's configuration, once the landed document has one.
 fn configuration_if_present(runtime: &Runtime) -> Option<ElectricalBoardConfiguration> {
@@ -401,18 +413,26 @@ async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_all
         "a field edit does not release the action"
     );
     release.send(()).unwrap();
-    settle_until(runtime, "the first net creation is accepted once", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .nets
-            .iter()
-            .filter(|net| net.name == "Created signal")
-            .count()
-            == 1
-    })
+    settle_until(
+        runtime,
+        "the net creation and the queued pad assignment land and the action re-enables",
+        || {
+            let document = runtime.model().accepted.unwrap().document;
+            document
+                .nets
+                .iter()
+                .filter(|net| net.name == "Created signal")
+                .count()
+                == 1
+                && document
+                    .nets
+                    .iter()
+                    .find(|net| net.id == "net")
+                    .is_some_and(|net| net.pins.iter().any(|pin| pin.part_id == "connector"))
+                && rendered_accepted(&probe)
+                && !button.has_attribute("disabled")
+        },
+    )
     .await;
     let document = runtime.model().accepted.unwrap().document;
     assert_eq!(
@@ -555,13 +575,10 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
     release.send(()).unwrap();
     settle_until(
         runtime,
-        "the pad assignment lands and moves the connector",
+        "the layout move and the pad assignment both land",
         || {
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
+            let document = runtime.model().accepted.unwrap().document;
+            document
                 .parts
                 .iter()
                 .find(|part| part.id == "connector")
@@ -570,6 +587,10 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
                 .at
                 .x
                 == 40.0
+                && document.nets[0]
+                    .pins
+                    .iter()
+                    .any(|pin| pin.part_id == "connector")
         },
     )
     .await;
@@ -690,16 +711,28 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     assert!(!probe.apply.borrow().as_ref().unwrap().editable);
     assert!(probe.mode.borrow().as_ref().unwrap().editable);
     release.send(()).unwrap();
-    settle_until(runtime, "the accepted edit removes the mcu part", || {
-        !runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .parts
-            .iter()
-            .any(|part| part.id == "mcu-left")
-    })
+    settle_until(
+        runtime,
+        "the accepted edit removes the mcu part and the refused apply reports",
+        || {
+            !runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .iter()
+                .any(|part| part.id == "mcu-left")
+                && probe
+                    .apply
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .failure
+                    .as_deref()
+                    .is_some_and(|message| message.contains("deleted"))
+        },
+    )
     .await;
     assert!(
         !runtime
@@ -778,6 +811,11 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         Some("The wiring mode change could not be applied: injected wiring refusal"),
         "the failure stays inline"
     );
+    // The injected Core failure leaves the session in save recovery, so this edit ends as
+    // `BlockedByRecovery` and never lands (found while verifying ticket 36): the test waits for
+    // the edit's terminal outcome, the only signal that it was handled. Ticket 37 carries the
+    // follow-up to make the unrelated edit land.
+    let unrelated = support::observe_next(runtime);
     runtime.submit(Event::ResolveEdit {
         operation_id: runtime.operation(),
         label: "unrelated-name".into(),
@@ -797,8 +835,12 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
     });
     settle_until(
         runtime,
-        "the unrelated edit keeps the field failure",
-        || (probe.mode.borrow().as_ref().unwrap().failure)().is_some(),
+        "the unrelated edit reaches its terminal outcome and the field keeps its failure",
+        || {
+            unrelated.borrow().is_some()
+                && rendered_accepted(&probe)
+                && (probe.mode.borrow().as_ref().unwrap().failure)().is_some()
+        },
     )
     .await;
     assert!(
@@ -868,6 +910,16 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
     assert_eq!(
         accepted.document.hardware.as_ref().unwrap().topology,
         HardwareTopology::Split
+    );
+    assert!(
+        !accepted
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .is_empty(),
+        "the split projected instances, so the undo wait below starts from a state it can change"
     );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),

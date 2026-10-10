@@ -7520,6 +7520,7 @@ mod mounted_settlement_tests {
         let profile_controller = controller.clone();
         let profile = configuration.profiles[0].clone();
         rsx! {
+            span { class: "test-revision", "{current.identity.revision}" }
             button { class: "test-toggle-dimension", onclick: move |_| show_dimension.toggle(), "Toggle dimension" }
             button { class: "test-toggle-case", onclick: move |_| {
                 presentation_generation += 1;
@@ -7672,6 +7673,16 @@ mod mounted_settlement_tests {
         runtime.model().accepted.unwrap().document.revision
     }
 
+    /// Whether the host has rendered the revision Core accepted last: Core state reaches the
+    /// fields only through a render, so a wait on the revision alone can pass before it.
+    fn rendered_accepted(runtime: &Runtime, root: &web_sys::Element) -> bool {
+        root.query_selector(".test-revision")
+            .ok()
+            .flatten()
+            .and_then(|marker| marker.text_content())
+            .is_some_and(|text| text == accepted_revision(runtime).to_string())
+    }
+
     fn has(root: &web_sys::Element, selector: &str) -> bool {
         root.query_selector(selector).ok().flatten().is_some()
     }
@@ -7807,7 +7818,11 @@ mod mounted_settlement_tests {
             settle_until(
                 &runtime,
                 "the held landing is accepted and the newer original draft stays",
-                || accepted_revision(&runtime) > landed && input.value() == original,
+                || {
+                    accepted_revision(&runtime) > landed
+                        && rendered_accepted(&runtime, &root)
+                        && input.value() == original
+                },
             )
             .await;
             assert_eq!(
@@ -8246,6 +8261,7 @@ mod mounted_settlement_tests {
                 "the held Session edit lands beside the newer draft",
                 || {
                     wall_thickness(&runtime) == 3.0
+                        && rendered_accepted(&runtime, &root)
                         && input.value() == newer
                         && inline_failure(&root, "dimension")
                             .is_some_and(|message| message.contains("newer preparation failed"))
