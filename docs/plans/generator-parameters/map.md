@@ -41,10 +41,9 @@ and enum kinds (option C) is out of scope.
 4. [04](issues/04-validate-generator-parameters-in-core.md) (resolved; decided by
    [ADR-0009](../../adr/0009-generator-parameters-checked-in-core.md))
 5. [05](issues/05-parameter-lint-and-conventions.md) (resolved)
-6. [06](issues/06-paired-half-closure-proposals.md) (decided by
-   [ADR-0008](../../adr/0008-linked-halves-stay-linked.md), awaiting implementation, the one
-   remaining ticket; its Request and Findings still describe the options before that decision and
-   are rewritten as part of its own work)
+6. [06](issues/06-paired-half-closure-proposals.md) (implemented, awaiting verification: decided by
+   [ADR-0008](../../adr/0008-linked-halves-stay-linked.md); the known-gap test and the recipe's
+   initialization workaround are gone, see its Outcome)
 
 ## Progress
 
@@ -60,8 +59,8 @@ and enum kinds (option C) is out of scope.
   edits made Core refuse every measured left half; the cause was recipe order (the right half's
   proposals joined the pair after the link), so the recipe now initializes closures before
   linking. Sofle v2 has none (gasket mount). Core still links initialization proposals to the
-  pair and `enable` still skips a legacy second half; ticket 06 asks for that decision, and a
-  known-gap test pins current behaviour (superseded by ADR-0008, see 06). Fit findings (holes inside the controller bay, tight
+  pair and `enable` still skips a legacy second half. Both were superseded by ADR-0008 and are
+  implemented by 06 (the known-gap test was flipped). Fit findings (holes inside the controller bay, tight
   switch gaps) are in the [ticket Outcome](issues/02-restore-closure-mounts-in-recipes.md).
 - 03 resolved (implementation `fd7640a9a`, docs `a115b4c31`, verification follow-ups `0e5a4369f`
   and `f5def9feb`): format version 4 converts the saved numeric strings in generator parameters to
@@ -91,9 +90,12 @@ and enum kinds (option C) is out of scope.
   no test caught, and added the wiring-apply writer, which the first writer test did not reach. Native
   `test` (1325 passed) and `typecheck` passed in the non-nested checkout; `repo` and `lint` passed. Evidence
   and limits in the [ticket Outcome](issues/05-parameter-lint-and-conventions.md). Remaining: 06.
-- 06 decided (user, 2026-10-09, [ADR-0008](../../adr/0008-linked-halves-stay-linked.md)): a mechanical
-  pair keeps everything linked; the known-gap test from 02 and the shipped split data still follow
-  the superseded behaviour until 06 is implemented.
+- 06 decided (user, 2026-10-09, [ADR-0008](../../adr/0008-linked-halves-stay-linked.md)) and
+  implemented, awaiting verification: a mechanical pair keeps its controller bay, TRRS jack and closure
+  mounts linked; a paired half's closure proposals are made once from the construction source; enabling
+  a legacy second half initializes its closures; the second half's generated parts reflect the first's.
+  The known-gap test from 02 is flipped. The per-keyboard record, the fit findings and the open items
+  are in [06's Outcome](issues/06-paired-half-closure-proposals.md#outcome).
 
 ## Not yet specified
 

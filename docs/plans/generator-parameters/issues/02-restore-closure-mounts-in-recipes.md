@@ -76,11 +76,18 @@ The cause is in the recipe order, not in the closure check:
    feature is kept as placed and never relocated or unlinked.
 
 Whether Core should link initialization proposals to the pair, and whether `enable` should
-initialize a legacy second half, are Core policy questions. They are ticket
-[06](06-paired-half-closure-proposals.md), with options and a recommendation. Core is not
-changed here.
+initialize a legacy second half, were Core policy questions. They were decided by
+[ADR-0008](../../../adr/0008-linked-halves-stay-linked.md) and are implemented by
+[06](06-paired-half-closure-proposals.md) (awaiting verification). The "What changed (as shipped)"
+recipe below is superseded: the explicit initialize step and its comment are gone, and the shipped
+closure mounts are linked. Core was not changed by this ticket.
 
 ### What changed (as shipped)
+
+> Superseded by [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md) and
+> [06](06-paired-half-closure-proposals.md): `link_pair` no longer initializes closures explicitly,
+> the known-gap test described under "Verified" was flipped, and the closure mounts of the shipped
+> pairs are linked. The rest of this list records the 02 state as it was shipped.
 
 - `core/examples/demo_projects/mechanical.rs`: `link_pair` no longer sets empty closure
   collections. After `enable`, a half whose closure list is still absent is initialized with the
@@ -152,8 +159,8 @@ mount was moved to hide a conflict.
 4. Closure positions are de-duplicated only against each other. No Sofle closure hole overlaps
    an authored mounting hole (the closest is 19.74 mm away).
 5. Ticket [06](06-paired-half-closure-proposals.md) asks the user to choose how Core handles
-   closure proposals on a paired half. Until then the recipe's explicit initialization is
-   load-bearing and the known-gap test pins Core's current behaviour.
+   closure proposals on a paired half. Superseded by ADR-0008 and
+   06: the known-gap test is flipped and the recipe no longer initializes explicitly.
 6. The flipped-instance hole-collapse that ticket 01 suspected is still not exercised: no
    shipped pair is flipped. For all ten, holes per board equal the mounts stored on that board.
 

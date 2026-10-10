@@ -60,6 +60,14 @@ plus the per-keyboard app review above. Preserve result/source pins in the Outco
 
 ## Outcome
 
+> Superseded in part by [ADR-0008](../../../adr/0008-linked-halves-stay-linked.md) and
+> generator-parameters [06](../../generator-parameters/issues/06-paired-half-closure-proposals.md)
+> (implemented, awaiting verification). For the seven measured splits the second half's controller
+> bay, reset switch and TRRS jack now sit at the reflection of the first half's, so the bay and TRRS
+> openings are linked rather than local on the right, and every closure mount is linked to the pair
+> from the left half. The "Per-keyboard intentional changes", the openings column of the table and
+> "Findings kept open" below describe the state before that change. Keyboard 04 itself stays claimed.
+
 Status stays `claimed`: the data, recipes and Core tests are done and checked, but acceptance
 is not complete (see "Not done" below). Commits on `typed-core-edits/mechanical`: `0e6f1a1ad`
 (recipes, baseline, archive reopen check, README) and `c4673db3b` (Core tests).
@@ -178,8 +186,9 @@ walks the polygon the other way).
 - Rebuilding does not establish physical fit or electrical qualification. The regenerated Sofle v2
   gasket and every new bay opening need a fit review; the bay sizes (20 x 36 mm, jack 12 x 14 or
   14 x 12) are recipe values, not measurements.
-- The right-half bay is local because the recipe places it at the PCB's outer edge; a recipe
-  that mirrors the controller (a placement change) would let it link. That is a separate decision.
+- Superseded by ADR-0008 (generator-parameters 06): the right-half bay was local because the recipe
+  placed it at the PCB's outer edge. It now sits at the reflection of the left half's bay, and the
+  bay, reset and TRRS openings link.
 
 ### Not done (why Status is still `claimed`)
 
