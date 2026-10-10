@@ -33,3 +33,7 @@ Let a user create and manage a mirrored half in the app through the typed operat
 ## Verification
 
 `typecheck`, `browser`, `lint`; GitNexus `impact` on the physical-setup entry points.
+
+## Labels (from ticket [32](32-mirrored-half-labels.md))
+
+The adapter passes the source and mirror labels (name, half, role) in the creation request instead of a separate relabelling edit.

@@ -117,3 +117,19 @@ the off-grid-only trigger. Details and the shipped footprints:
 [ticket 27, Verification](../plans/typed-core-edits/issues/27-mirror-modules.md#verification). Mounted modules are
 reflected (ticket 27) and embedded circuits are reflected too (ticket 28), so no hosted item is refused
 for lack of a reflection rule any more.
+
+## Amendment: companion modes, pads, labels (2026-10-10)
+
+- **Companion placement has three modes** for a switch's diode and LED on the mirror:
+  1. **Literal mirror** (the default): the companion takes the mirrored side of its switch.
+  2. **Duplicate position**: the companion keeps the source's side and offset relative to
+     its switch (how the shipped right halves place their diodes).
+  3. **Literal mirror with an offset or tweak**: the mirror plus a stored adjustment.
+  The mode is a per-pair default with a per-item override; a tweak is stored with the item
+  and survives reconciliation.
+- **A part's pads are not a Core concern.** A port such as a USB-C socket moves to the
+  mirrored X coordinate and takes the heading rule; its pad layout is not altered or
+  checked, so Core adds no pad-symmetry finding. The off-grid heading finding stays.
+- **Labels.** Core does not refuse a source that is neither left nor right. The
+  `CreateMirroredHalf` request carries optional labels for the source and the mirror
+  (name, half, role) so the caller can rename them; otherwise the labels are kept.

@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [29](29-mirror-switch-and-companion-headings.md), [30](30-independent-parts-use-the-full-heading-rule.md)
+Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [29](29-mirror-switch-and-companion-headings.md), [30](30-independent-parts-use-the-full-heading-rule.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
 
 ## Request
@@ -40,3 +40,9 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
   accepted edit, and drop or repair correspondences and exceptions when an unrelated edit removes
   an item they name; otherwise every later mechanical edit is refused with a located message about
   a record the user never touched.
+
+## Contracts from other tickets
+
+- Companion placement mode and tweak per item ([31](31-companion-placement-modes.md)): reconciliation re-derives each companion by its stored mode
+  and keeps its tweak.
+- Labels ([32](32-mirrored-half-labels.md)): reconciliation never rewrites instance labels.

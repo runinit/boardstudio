@@ -1,6 +1,6 @@
 # 24: Audit the tests after the typed-edit, matrix and mirrored-half changes
 
-Status: ready-for-human
+Status: claimed
 Type: task
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -67,3 +67,9 @@ Sonnet 5.5, 2026-10-10, at `92d08fbf2`. Written audit: [test-audit.md](../audit/
 whether the speed-only options in section 7 (especially options 1 and 2, which change test helpers or the dev
 profile) are in scope. Phase 2 executes only the approved items, in small commits with before/after counts and a
 mutation check for each.
+
+## Phase 2 (user approved the audit's recommendations, 2026-10-10)
+
+The user approved everything the audit proposed, including the section 7 speed changes. Phase 2 is split into
+tickets [33](33-test-speed-rust.md), [34](34-test-speed-browser.md) and [35](35-test-maintenance-cuts.md); this ticket resolves when 35 closes
+the audit. The recipe-reflection tests (audit R1) stay until ticket 23.
