@@ -77,6 +77,10 @@ pub(super) fn keyboard(id: &str, layout: &Value) -> Result<(Value, Option<f64>)>
         .fold(f64::NEG_INFINITY, f64::max);
     let min_y = keys.iter().map(|k| k.y).fold(f64::INFINITY, f64::min);
     let width = max_x - min_x + 44.;
+    // Both halves place each key at `x - min_x + 6` or `max_x - x + 6`, the right
+    // one shifted by `width + 25`, so the reflection constant is their sum: the pair
+    // map is `right = (reflection - left.x, left.y)`.
+    let reflection = max_x - min_x + 12. + width + 25.;
     let source_right = id == "lily58" || id == "klor";
     for board_id in if split {
         vec!["left", "right"]
@@ -115,7 +119,14 @@ pub(super) fn keyboard(id: &str, layout: &Value) -> Result<(Value, Option<f64>)>
                 if choc { (18., 17.) } else { (19.05, 19.05) },
             )?;
         }
-        let bay = shift + width - 16.;
+        // The first half's controller bay sits 16 mm in from its inner edge. The second
+        // half's bay, reset switch and TRRS jack are its reflection through the pair map,
+        // so the second outline is the first's mirror image (ADR-0008).
+        let bay = if board_id == "right" {
+            reflection - (width - 16.)
+        } else {
+            width - 16.
+        };
         let mut parts = vec![
             json!({"id":format!("{board_id}/U1"),"definitionId":controller,"reference":format!("{board_id}-U1"),"side":"front","pose":{"at":{"x":bay,"y":-15},"rotation":0}}),
             json!({"id":format!("{board_id}/RST"),"definitionId":reset,"reference":format!("{board_id}-RST"),"side":"front","pose":{"at":{"x":bay,"y":-45},"rotation":0}}),
@@ -136,9 +147,7 @@ pub(super) fn keyboard(id: &str, layout: &Value) -> Result<(Value, Option<f64>)>
             .collect();
         board(&mut doc, board_id, ids, parts, &format!("{board_id}/U1"))?;
     }
-    // Both halves place each key at `x - min_x + 6` or `max_x - x + 6`, the right
-    // one shifted by `width + 25`, so the reflection constant is their sum.
-    Ok((doc, split.then_some(max_x - min_x + 12. + width + 25.)))
+    Ok((doc, split.then_some(reflection)))
 }
 /// Builds a Sofle seed and the X offset of its mirror map, as [`keyboard`].
 pub(super) fn sofle(variant: &str) -> Result<(Value, f64)> {

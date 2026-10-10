@@ -149,9 +149,6 @@ pub(super) enum Counterpart {
     /// The second member's part is the reflection of the first's, so the opening
     /// stays one linked value.
     Linked,
-    /// The second member's part is elsewhere: that member's opening is local and
-    /// placed around its own part.
-    Local,
     /// The second member has no such part: the opening is omitted there.
     Omitted,
 }
@@ -179,11 +176,11 @@ const fn bay(
     }
 }
 
-/// The measured recipes' generated nice!nano bay and TRRS jack. The recipes put
-/// both at each PCB's right edge, which is not the reflection of the left half's.
+/// The measured recipes' generated nice!nano bay and TRRS jack. The recipes place the
+/// second half's at the reflection of the first's through the pair map, so both link.
 pub(super) const MEASURED_BAYS: [Bay; 2] = [
-    bay("controller-bay", "U1", (20., 36.), Counterpart::Local),
-    bay("trrs-jack", "TRRS", (12., 14.), Counterpart::Local),
+    bay("controller-bay", "U1", (20., 36.), Counterpart::Linked),
+    bay("trrs-jack", "TRRS", (12., 14.), Counterpart::Linked),
 ];
 /// Sofle's measured nice!nano and TRRS jack, reflected between its halves.
 pub(super) const SOFLE_BAYS: [Bay; 2] = [
@@ -226,40 +223,23 @@ fn frame_position(doc: &Value, instance_id: &str, part: &str) -> Result<(f64, f6
 
 /// Gives two physical halves an explicit mechanical mirror pair.
 ///
-/// Both halves are enabled with the Core defaults and linked with the explicit map
-/// `second = (x_offset - first.x, first.y)`; the pair shares the first member's
-/// construction. Each bay becomes one linked Case opening around the first
-/// member's part, then follows its [`Counterpart`]: reflected and linked, local and
-/// placed around the second member's own part, or omitted. Local and omitted
-/// members are named, deliberate asymmetry rather than a silent second copy.
+/// The first half is enabled first, and Core proposes its closure mounts from its own
+/// outline. The pair is linked with the explicit map `second = (x_offset - first.x,
+/// first.y)` and shares the first member's construction. Enabling the second half after the
+/// link is the one step that proposes the pair's closure mounts: Core proposes them once,
+/// from the construction source, and links them to the pair (ADR-0008), so no closure mount
+/// is matched or stored twice. Each bay then becomes one linked Case opening around the
+/// first member's part, reflected to the second member, or omitted. A gasket pair (Sofle v2)
+/// sets its gasket mount on the shared construction and has no closure mounts.
 pub(super) fn link_pair(engine: &mut CoreEngine, mut doc: Value, pair: &Pair) -> Result<Value> {
     let [first, second] = pair.members;
-    for half in pair.members {
-        // Enabling proposes closure mounts from the half's own outline, and they are
-        // kept as Core proposes them. Enabling a legacy second half is a no-op (it
-        // already resolves from the shared source), so its closures stay absent until
-        // initialized here. Initializing later, after the link, would join the
-        // proposals to the pair as linked features, and a proposal made from one
-        // outline maps outside the other half's outline: Core then refuses that half's
-        // export. A gasket carries no closure mounts, so there is nothing to
-        // initialize. See generator-parameters ticket 06.
-        doc = instance_edit(
-            engine,
-            doc,
-            half,
-            json!("enable"),
-            &format!("enable-{half}"),
-        )?;
-        if !pair.gasket && instance(&doc, half)?["mechanical"]["closureMounts"].is_null() {
-            doc = instance_edit(
-                engine,
-                doc,
-                half,
-                json!("initialize-closures"),
-                &format!("closures-{half}"),
-            )?;
-        }
-    }
+    doc = instance_edit(
+        engine,
+        doc,
+        first,
+        json!("enable"),
+        &format!("enable-{first}"),
+    )?;
     if pair.gasket {
         doc = instance_edit(
             engine,
@@ -275,6 +255,13 @@ pub(super) fn link_pair(engine: &mut CoreEngine, mut doc: Value, pair: &Pair) ->
         first,
         json!({"link-mirror-pair":{"pair_id":pair.id,"members":[first,second],"mapping":{"at":{"x":pair.x_offset,"y":0},"rotation":0},"construction_source":first,"correspondences":[]}}),
         &format!("link-{}", pair.id),
+    )?;
+    doc = instance_edit(
+        engine,
+        doc,
+        second,
+        json!("enable"),
+        &format!("enable-{second}"),
     )?;
     for bay in pair.bays {
         let first_at = frame_position(&doc, first, bay.part)?;
@@ -296,17 +283,6 @@ pub(super) fn link_pair(engine: &mut CoreEngine, mut doc: Value, pair: &Pair) ->
                 {
                     return Err(format!("{} is not mirrored by the pair map", bay.name).into());
                 }
-            }
-            Counterpart::Local => {
-                doc = instance_edit(
-                    engine,
-                    doc,
-                    second,
-                    json!({"make-feature-local":{"feature_id":id,"instance_id":second}}),
-                    &format!("{}-local", bay.name),
-                )?;
-                let second_at = frame_position(&doc, second, bay.part)?;
-                doc = place_rectangle(engine, doc, second, &id, second_at, bay.size)?;
             }
             Counterpart::Omitted => {
                 doc = instance_edit(

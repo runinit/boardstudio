@@ -264,8 +264,10 @@ pub fn sofle_project(engine: &mut CoreEngine, variant: &str) -> Result<Value> {
 }
 
 /// One measured keyboard from `keyboard-layouts.json`. A split board becomes a
-/// mechanical mirror pair; the generated controller bay sits at each PCB's right
-/// edge, so its openings are local on the right half. Unibody boards are unchanged.
+/// mechanical mirror pair. The generated controller bay sits 16 mm in from the first
+/// PCB's inner edge, and the second half's bay, reset switch and TRRS jack are placed at
+/// its reflection, so every opening and closure mount links (ADR-0008). Unibody boards are
+/// unchanged.
 pub fn measured_project(engine: &mut CoreEngine, id: &str, layout: &Value) -> Result<Value> {
     let (seed, mirror) = recipes::keyboard(id, layout)?;
     let opened = open(engine, seed)?;

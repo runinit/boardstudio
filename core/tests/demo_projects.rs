@@ -8,6 +8,11 @@
 //! ticket 02 re-recorded `revision`, `hardware`, `parts`, `definitions` and the boards'
 //! `partIds` for the same ten: each half keeps its own `case-closure/*` holes (none on
 //! Sofle v2, whose gasket mount carries no closure mounts). No existing part moved.
+//! Generator-parameters ticket 06 (ADR-0008) re-recorded `revision`, `hardware`, `parts`,
+//! `definitions` and `boards` for the same nine paired splits: the second half's controller
+//! bay, reset switch and TRRS jack moved to the reflection of the first half's, and every
+//! closure mount is now one linked pair feature, so each half's holes are regenerated from it.
+//! Sofle v2 is unchanged. Every key and matrix value is still the recorded one.
 #[path = "../examples/demo_projects/mod.rs"]
 #[allow(clippy::module_inception)] // The module is the shared example source, included by path.
 pub(crate) mod demo_projects; // Shared with `included_keyboards`, which cannot include the files twice.
