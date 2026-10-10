@@ -3407,3 +3407,101 @@ fn a_reused_board_cannot_take_a_tweak_that_it_cannot_store_per_item() {
         "{error}"
     );
 }
+
+/// Independent check of the ticket 31 acceptance line: duplicate placement reproduces the shipped
+/// right-half diodes and LEDs one to one (position within 1e-9, heading modulo 360), while the
+/// default literal mirror reproduces the LEDs but puts every diode on the other side of its switch.
+#[test]
+fn duplicate_placement_reproduces_every_shipped_right_half_companion_one_to_one() {
+    for name in ["corne", "sofle-rgb"] {
+        let shipped = &projects()[name];
+        let shipped_companions: Vec<(String, f64, f64, f64)> = shipped["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| {
+                let id = p["id"].as_str().unwrap();
+                let suffix = id.rsplit('/').next().unwrap();
+                (id.starts_with("matrix/right-") && ["diode", "led"].contains(&suffix)).then(|| {
+                    (
+                        suffix.to_owned(),
+                        p["pose"]["at"]["x"].as_f64().unwrap(),
+                        p["pose"]["at"]["y"].as_f64().unwrap(),
+                        p["pose"]["rotation"].as_f64().unwrap(),
+                    )
+                })
+            })
+            .collect();
+        assert!(shipped_companions.len() >= 21, "{name}");
+        assert_eq!(
+            shipped_companions.iter().any(|c| c.0 == "led"),
+            name == "sofle-rgb",
+            "{name}: only the Sofle RGB fixture has LEDs"
+        );
+        for (mode, diodes_match, leds_match) in [
+            (Some("duplicate-position"), true, true),
+            (None, false, true),
+        ] {
+            let (mut engine, source) = seed(shipped, "left");
+            let mut op = operation(
+                "pair-ship",
+                "left",
+                new_board("right", "right"),
+                shipped_mapping(shipped),
+            );
+            if let Some(mode) = mode {
+                op["companionMode"] = json!(mode);
+            }
+            let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+            let created: Vec<(String, f64, f64, f64)> = made["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|p| {
+                    let id = p["id"].as_str().unwrap();
+                    let suffix = id.rsplit('/').next().unwrap();
+                    (id.starts_with("matrix/right-") && ["diode", "led"].contains(&suffix)).then(
+                        || {
+                            (
+                                suffix.to_owned(),
+                                p["pose"]["at"]["x"].as_f64().unwrap(),
+                                p["pose"]["at"]["y"].as_f64().unwrap(),
+                                p["pose"]["rotation"].as_f64().unwrap(),
+                            )
+                        },
+                    )
+                })
+                .collect();
+            assert_eq!(created.len(), shipped_companions.len(), "{name} {mode:?}");
+            for kind in ["diode", "led"] {
+                let want: Vec<_> = shipped_companions.iter().filter(|c| c.0 == kind).collect();
+                let have: Vec<_> = created.iter().filter(|c| c.0 == kind).collect();
+                assert_eq!(want.len(), have.len(), "{name} {kind} count");
+                let mut used = vec![false; have.len()];
+                let mut matched = 0;
+                for (_, x, y, r) in &want {
+                    let found = have.iter().enumerate().position(|(i, (_, hx, hy, hr))| {
+                        !used[i]
+                            && (hx - x).abs() < 1e-9
+                            && (hy - y).abs() < 1e-9
+                            && angles_match(*hr, *r)
+                    });
+                    if let Some(i) = found {
+                        used[i] = true;
+                        matched += 1;
+                    }
+                }
+                let expect_all = if kind == "diode" {
+                    diodes_match
+                } else {
+                    leds_match
+                };
+                if expect_all {
+                    assert_eq!(matched, want.len(), "{name} {mode:?} {kind}");
+                } else {
+                    assert_eq!(matched, 0, "{name} {mode:?} {kind} should not match");
+                }
+            }
+        }
+    }
+}

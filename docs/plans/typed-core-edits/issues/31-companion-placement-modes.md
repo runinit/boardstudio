@@ -1,6 +1,6 @@
 # 31: Companion placement modes for mirrored switches
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [29](29-mirror-switch-and-companion-headings.md), [30](30-independent-parts-use-the-full-heading-rule.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-companion-modes-pads-labels-2026-10-10)
@@ -34,6 +34,59 @@ documented Core's current behaviour (literal mirror: local x -7.40 against the s
 ## Verification
 
 `repo lint test typecheck`; wasm boundary parity if the transcript changes. Part of the batch after Batch A.
+
+### Verified
+
+Claude (Sonnet 5.5), 2026-10-10, in `.worktrees/lane-mirror-core` on top of `b49904cad`, own `target`. Codex
+implemented; Claude verified. Reviewer pass, not a second implementation. Acceptance holds: resolved.
+
+- **Storage and validation (read, not only run).** `halves.companionMode` (kebab-case values, default literal mirror,
+  `skip_serializing_if` default so old v5 documents serialise byte-identically and the boundary golden does not move),
+  optional per-item `companionMode` and `companionTweak {x,y,rotation}` on correspondences and exceptions, all camelCase,
+  `serde(default)`. `MirroredHalves` has no `deny_unknown_fields`, so an older v5 build would silently drop the new fields;
+  v5 is unreleased on this branch (no tag), and ADR-0004 versions only shape changes, so **no version bump or migration** is
+  needed. `validate_companion` is shared by the creation request and by Open for every correspondence and exception
+  (effective mode = item override or pair default): tweak only with mode 3, finite x/y/rotation.
+- **Acceptance 2, reproduced independently.** New test
+  `duplicate_placement_reproduces_every_shipped_right_half_companion_one_to_one`: for Corne and Sofle RGB, mode 2 with the
+  shipped pair mapping gives a one-to-one match (position within 1e-9, heading modulo 360) of every shipped right-half
+  diode and LED (only the Sofle RGB fixture has LEDs; at least 21 companions per fixture), by pose, not by id. The default literal mirror matches **zero**
+  diodes (local -7.40 against the shipped +7.40) and all LEDs (ticket 29's RGB observation). Codex's own shipped check
+  used "any shipped diode matches", which cannot detect two created diodes landing on one shipped pose; mine consumes each
+  shipped companion once. Killed by the `y` mutant below.
+- **Mutation checks, each disabled alone in this worktree, `mirrored_half::` filter, restored with `git checkout` and
+  touched** (36 tests at baseline): literal `offset.x` negation removed (at least 8 tests failed; output capped), literal rotation negation removed
+  (at least 8), duplicate `y`, `x` (rotated-key frame) and relative-heading mutants (2 each), tweak `x`, `y`, `rotation` dropped
+  (2 each), tweak seeding on the correspondence dropped (2), validation "tweak only with mode 3" removed (1), finite check
+  without `rotation` (2), per-item validation call in `halves.rs` fed `None` (1). All die. My new test also dies under the
+  duplicate-`y` mutant (3 failures in that run).
+- **Other claims.** Rotated pair map (27 degrees) and axis map covered for duplicate and tweak on both fixtures; one Undo
+  step restores the source; refused requests (bad mode name, tweak with mode 1 or 2, non-finite via the typed boundary,
+  `reuse-board` with a tweak) leave the document byte-identical (`refused` compares serialised snapshots). The
+  transcript golden and every file under `core/tests/fixtures` are untouched by `b49904cad` (0 diff lines), so the wasm
+  `boundary_parity::` run was not needed and was not run. The native `boundary_parity` test passes in `test`.
+- **Commands and load (shared machine, load average 7 to 30 from other agents; small timing differences mean nothing).**
+  `cargo test -p boardstudio_core --test integration mirrored_half::` baseline 31.8 s wall, 36 passed (load 5.6); mutation
+  runs 23 to 35 s each (load 7 to 17). `python3 scripts/check.py lint` passed 9.1 s (load 8.3); `test` passed, 61.7 s total
+  (load 8.2 to 28; CAD 51 passed, 4 ignored); `typecheck` passed 13.6 s (load 29.8); `repo` passed, see the commit.
+  Not run: `tooling`, `build`, `browser`, `deny`, `release`, wasm parity, ignored benchmarks. Cargo needed the sandbox
+  lifted to write the lane's `target` symlink (read-only otherwise).
+- **GitNexus** not used (stale); callers checked with `rg`: `create` has one non-test caller (`apply` in `core/src/lib.rs`).
+
+### Findings and follow-ups (none blocks acceptance)
+
+1. **Mode 2 and 3 apply to every matrix assembly, including stabilisers and other non-electrical assemblies.** Codex says
+   so ("other matrix assembly companions"), and the plain LED test pins it. Duplicate placement keeps the relative heading, so a
+   stabiliser (`STAB_MX_2u`, mirror-symmetric but not half-turn symmetric, see ticket 29) at a relative heading of 90
+   degrees would keep +90 where the literal mirror gives -90 (a 180-degree difference). No fixture has a stabiliser
+   assembly, so it is untested. Decision for the user, at ticket 19 or 20: skip the `SYMMETRIC_DEFINITIONS` in modes 2
+   and 3, or accept it.
+2. **No way to change a mode after creation, and `reuse-board` stores the default but no per-item record** (Codex's
+   decision, tests pin it). Mode edits and reconciliation belong to ticket 19, whose contract text Codex extended; I read
+   it and it matches the code.
+3. Mode 2 reads the source key and companion **parts** (`doc.parts`) rather than the source assembly's offset, so it fails
+   with "A companion's source switch is unavailable" if a matrix cell's parts are not materialised. A one-line message in
+   a corner no fixture reaches; left as is.
 
 
 ## Outcome
