@@ -382,17 +382,10 @@ fn corne_second_half_reproduces_the_shipped_right_half() {
     )
     .unwrap();
     let mirrored = &reply["document"];
-    // Every key and diode lands where the shipped right half has one, by correspondence (the
-    // mirror keeps the source's numbering; the recipe reversed it).
-    assert_same_switches(
-        &switches(mirrored, "right"),
-        &switches(shipped, "right"),
-        "keys",
-    );
-    // The recipe places a diode at the same offset and turn beside every key of both halves
-    // (it is not a reflection), so the shipped right diodes are not compared: the mirror's are
-    // checked against the pair rule by `assert_reflects_every_part`.
-    assert_reflects_every_part(mirrored, "pair-right", "corne");
+    // Key switches by correspondence and every part at the pair map's image are checked for every
+    // shipped split by `every_shipped_split_mirror_follows_the_switch_and_companion_rules`; the
+    // recipe places a diode beside every key of both halves (it is not a reflection), so that
+    // test checks the mirror's diodes against the pair rule rather than the shipped right diodes.
     // The controller, reset switch and TRRS jack match the recipe's reflected bay by id.
     for id in ["right/U1", "right/RST", "right/TRRS"] {
         assert_part_matches(part(mirrored, id), part(shipped, id), id);
@@ -527,70 +520,6 @@ fn closure_positions(configuration: &Value) -> Vec<(f64, f64)> {
         .collect();
     positions.sort_by(|a, b| a.partial_cmp(b).unwrap());
     positions
-}
-
-#[test]
-fn source_right_splits_reproduce_the_shipped_left_half() {
-    for name in ["lily58", "klor"] {
-        let shipped = &projects()[name];
-        let (mut engine, seed) = seed(shipped, "right");
-        let reply = create(
-            &mut engine,
-            &seed,
-            "pair-left",
-            "right",
-            new_board("left", "left"),
-            shipped_mapping(shipped),
-        )
-        .unwrap();
-        let mirrored = &reply["document"];
-        assert_same_switches(
-            &switches(mirrored, "left"),
-            &switches(shipped, "left"),
-            name,
-        );
-        for id in ["left/U1", "left/RST", "left/TRRS"] {
-            assert_part_matches(
-                part(mirrored, id),
-                part(shipped, id),
-                &format!("{name} {id}"),
-            );
-        }
-        assert_reflects_every_part(mirrored, "pair-left", name);
-        assert_eq!(
-            pair(mirrored, "pair-left")["constructionSource"],
-            "right",
-            "{name}"
-        );
-        assert_eq!(instance(mirrored, "left")["half"], "left", "{name}");
-        assert_eq!(instance(mirrored, "left")["role"], "central", "{name}");
-        // The mirror's closure mounts are the reflection of the source's, which are the
-        // shipped left half's again.
-        let shipped_left = effective(shipped, "left");
-        let created_left = effective(mirrored, "left");
-        let (expected, actual) = (
-            closure_positions(&shipped_left),
-            closure_positions(&created_left),
-        );
-        assert_eq!(expected.len(), actual.len(), "{name} closure mounts");
-        for (e, a) in expected.iter().zip(&actual) {
-            assert!(
-                (e.0 - a.0).abs() < 1e-6 && (e.1 - a.1).abs() < 1e-6,
-                "{name}: {e:?} {a:?}"
-            );
-        }
-        // The shipped pair's generated holes exist on both created boards.
-        assert_eq!(
-            closure_holes(mirrored, "left"),
-            closure_holes(shipped, "left"),
-            "{name}"
-        );
-        assert_eq!(
-            closure_holes(mirrored, "right"),
-            closure_holes(shipped, "right"),
-            "{name}"
-        );
-    }
 }
 
 #[test]
@@ -2674,6 +2603,9 @@ fn key_switches_mirror_their_tilt_without_a_half_turn_and_keep_their_companion_s
 
 /// Every shipped split's mirrored half reproduces the shipped other half: key switches by
 /// correspondence, and every corresponded part (companions included) at the pair map's image.
+/// The two source-right splits (lily58, klor) also reproduce the recipe's left controller bay,
+/// reset switch and TRRS jack by id, the pair's source record, the closure mounts and the
+/// closure holes of the shipped left half.
 #[test]
 fn every_shipped_split_mirror_follows_the_switch_and_companion_rules() {
     for name in [
@@ -2708,6 +2640,45 @@ fn every_shipped_split_mirror_follows_the_switch_and_companion_rules() {
         let mirrored = &reply["document"];
         assert_reflects_every_part(mirrored, "pair-shipped", name);
         assert_same_switches(&switches(mirrored, other), &switches(shipped, other), name);
+        if source == "right" {
+            assert_eq!(
+                pair(mirrored, "pair-shipped")["constructionSource"],
+                "right",
+                "{name}"
+            );
+            assert_eq!(instance(mirrored, "left")["half"], "left", "{name}");
+            assert_eq!(instance(mirrored, "left")["role"], "central", "{name}");
+            for id in ["left/U1", "left/RST", "left/TRRS"] {
+                assert_part_matches(
+                    part(mirrored, id),
+                    part(shipped, id),
+                    &format!("{name} {id}"),
+                );
+            }
+            // The mirror's closure mounts are the reflection of the source's, which are the
+            // shipped left half's again.
+            let shipped_left = effective(shipped, "left");
+            let created_left = effective(mirrored, "left");
+            let (expected, actual) = (
+                closure_positions(&shipped_left),
+                closure_positions(&created_left),
+            );
+            assert_eq!(expected.len(), actual.len(), "{name} closure mounts");
+            for (e, a) in expected.iter().zip(&actual) {
+                assert!(
+                    (e.0 - a.0).abs() < 1e-6 && (e.1 - a.1).abs() < 1e-6,
+                    "{name}: {e:?} {a:?}"
+                );
+            }
+            // The shipped pair's generated holes exist on both created boards.
+            for half in ["left", "right"] {
+                assert_eq!(
+                    closure_holes(mirrored, half),
+                    closure_holes(shipped, half),
+                    "{name} {half}"
+                );
+            }
+        }
     }
 }
 
