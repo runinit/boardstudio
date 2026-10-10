@@ -72,8 +72,9 @@ and for any bulk action a recorded decision permits.
 - 25 phase 1 shipped-board audit and recorded hardware direction are merged from lane F. Phase 2 planning has
   an independently reviewed packet, tickets 42–104 (`a7857b49`): Sofle v2, RGB and Choc first, then the seven
   measured splits and remaining boards. Parent 25 stays open until the board work is verified. Preserve measured
-  layouts; use BoardStudio adaptations with the user's target hardware and existing case generation for plate,
-  gasket and tolerances. Screws and spacers may be added. Hardware selection remains a human gate.
+  layouts; use BoardStudio adaptations and existing case generation for plate, gasket and tolerances.
+  Screws and spacers may be added. The user subsequently delegated best-fit hardware selection and finding/adding
+  missing footprints (2026-10-10); the boards team owns evidence-based BOM selection and component qualification.
 - 37's delivered library/layout/page slice has independent verification at `fb2fe7bb7`, including a reproduced
   and fixed weak library-delete predicate, six bounded mutation failures, unchanged test lists and two sequential
   full browser passes (251.3 s and 248.3 s). The entire ticket remains `implemented (awaiting verification)`:
@@ -208,8 +209,10 @@ and for any bulk action a recorded decision permits.
 
 - Native mirrored halves: 17, 18, 26–32 and 39 are resolved and integrated. Next: 105 in the 19 child chain,
   with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
-- Board planning 42–104 is reviewed. Sofle hardware research may proceed without builds; implementations wait for
-  native-model prerequisites and the user's hardware selection. Final 23 consumes completed board work and sign-off.
+- Board planning 42–104 is reviewed. Sofle BOM selection and missing-footprint research may proceed without shell/check
+  overlap. IDs 118–127 are reserved for bounded Sofle hardware/component follow-ups. Implementations wait for their
+  native-model prerequisites, qualified component plans and root's exclusive command window. Final 23 consumes completed
+  board work and sign-off; the user has delegated hardware selection.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11

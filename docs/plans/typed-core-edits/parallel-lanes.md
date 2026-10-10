@@ -121,5 +121,7 @@ Nothing merges to `dev` without the user.
 are integrated. Ticket 37's delivered slice is independently verified at `fb2fe7bb7`, but its remaining acceptance
 keeps 37 open and 38 blocked. The mirror sub-orchestrator coordinates 105 first, Luna 6 high implementation then
 a fresh Sol 6.1 xhigh verifier; root owns sync, graph refresh, batch tests and merges. The boards sub-orchestrator
-owns the documentation-only Sofle hardware candidate report in the managed `codex/sofle-adaptations` worktree;
-target BOM and implementation prerequisites remain gates. Confirm live status before dispatch.
+owns Sofle BOM selection, the hardware report and bounded component plans in the managed `codex/sofle-adaptations`
+worktree. The user delegated best-fit hardware selection and finding/adding missing footprints; IDs 118–127 are
+reserved for these follow-ups. Component qualification, native-model prerequisites and root command-window scheduling
+remain gates. Confirm live status before dispatch.
