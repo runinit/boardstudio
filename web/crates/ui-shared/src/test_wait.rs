@@ -15,18 +15,19 @@ pub const WAIT_BOUND_MS: f64 = 5_000.0;
 /// Pause between two polls of a condition that does not hold yet.
 pub const POLL_MS: u32 = 5;
 
-/// Polls `condition` until it holds, or fails with `what` once `bound_ms` has elapsed.
+/// Polls `step` until it returns true, or fails with `what` once `bound_ms` has elapsed.
 ///
-/// The condition is checked before the first pause, so a condition that already holds returns
-/// without yielding. The error names the wait and the bound, for the test failure message.
-pub async fn wait_for(
+/// Each poll awaits `step`, so a step can do work before it checks (for example, draining the
+/// effects a test has held). The check is made before the first pause, so a step that already
+/// holds returns without yielding. The error names the wait and the bound.
+pub async fn wait_for_step(
     what: &str,
     bound_ms: f64,
-    mut condition: impl FnMut() -> bool,
+    mut step: impl AsyncFnMut() -> bool,
 ) -> Result<(), String> {
     let started = js_sys::Date::now();
     loop {
-        if condition() {
+        if step().await {
             return Ok(());
         }
         if js_sys::Date::now() - started >= bound_ms {
@@ -38,9 +39,26 @@ pub async fn wait_for(
     }
 }
 
+/// Polls `condition` until it holds, or fails with `what` once `bound_ms` has elapsed.
+pub async fn wait_for(
+    what: &str,
+    bound_ms: f64,
+    mut condition: impl FnMut() -> bool,
+) -> Result<(), String> {
+    wait_for_step(what, bound_ms, async || condition()).await
+}
+
 /// Waits for `condition` with the shared bound, panicking with the wait's name on timeout.
 pub async fn wait_until(what: &str, condition: impl FnMut() -> bool) {
     if let Err(message) = wait_for(what, WAIT_BOUND_MS, condition).await {
+        panic!("{message}");
+    }
+}
+
+/// Waits for `step` (which may do work before it checks) with the shared bound, panicking with
+/// the wait's name on timeout.
+pub async fn wait_until_step(what: &str, step: impl AsyncFnMut() -> bool) {
+    if let Err(message) = wait_for_step(what, WAIT_BOUND_MS, step).await {
         panic!("{message}");
     }
 }
@@ -72,6 +90,17 @@ mod tests {
         })
         .await;
         assert_eq!(polls.get(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_step_runs_on_every_poll_until_it_reports_true() {
+        let steps = Cell::new(0);
+        wait_until_step("the fourth step", async || {
+            steps.set(steps.get() + 1);
+            steps.get() == 4
+        })
+        .await;
+        assert_eq!(steps.get(), 4, "each poll runs the step once");
     }
 
     #[wasm_bindgen_test]
