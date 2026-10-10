@@ -27,7 +27,7 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
-| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | 119 revision c5d2626c passed fresh independent verification, including a drill mutation. Reviewed report/118 and verification record are committed; 119 integrated at4fd8f7f3. 129 Choc socket plan independently reviewed; implementation awaits claim/index gate; 118 remains open. |
+| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | 119 revision c5d2626c passed fresh independent verification, including a drill mutation. Reviewed report/118 and verification record are committed; 119 integrated at4fd8f7f3. 129 claimed cf97b035 after reviewed plan/sync1eaad0c8; mandatory refs complete and test-only implementation active; 118 remains open. |
 
 F's earlier `.worktrees/lane-boards-review` branch is committed and integrated; it is frozen, not another active writer.
 Other existing worktrees and old ticket chats are not active lane leases. Preserve them and confirm ownership before reuse.
@@ -64,15 +64,16 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root, syncing F and preparing ticket129's claim/index gate.
+Current command owner: root, recording F129's active test-only implementation lease.
 The full default check at `4fd8f7f3` passed in 535.5 s, including 70 presentation tests and 15 CAD browser checks.
-A's tiny initializer reads are released; its test-only reactive publication correction is being applied without commands.
-B's part regression observed intended RED then GREEN; its rotated matrix test passed. The next private kernel batch
-is being planned from captured fixture/correspondence evidence. Full106 remains open.
-F129's bounded Choc socket plan passed independent review; only its ticket draft is writable before dispatch.
-The proposed implementation lease is new `footprints/tests/choc_socket_qualification.rs` plus ticket129 only.
-No new source or temporary producer mutation lease is active yet. Root owns allocation of129;128 belongs to A,
-and reserved118–127 retain their existing assignments. Plans do not authorize commands.
+A has identified both publisher composition and mutually overwriting failure/gate fixtures. Publisher composition
+may be corrected inside the test module; a compound held-failure fixture is planning-only with no shared-support lease.
+B's matrix/part projection and rotated map tests pass. Sol max is planning the complete document kernel; further
+materialization/cleanup/fixture/exclusivity reads need explicit windows. Full106 remains open.
+F129 was independently planned, synced at `1eaad0c8`, claimed at `cf97b035` and completed mandatory instruction reads.
+Active NON-SHELL write lease: new `footprints/tests/choc_socket_qualification.rs` and ticket129 tracking ONLY.
+Producer, registry, models, defaults, recipes and existing119 tests remain read-only. No temporary mutation lease.
+Root owns129 allocation;128 belongs to A and reserved118–127 retain their assignments. Every command requires a window.
 
 ### B: Core ticket 106
 
