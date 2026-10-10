@@ -70,8 +70,8 @@ A has identified both publisher composition and mutually overwriting failure/gat
 is corrected and frozen. A bounded compound held-failure fixture scaffold and runtime adapter regression are now
 leased for test-first work in `web/crates/runtime/src/in_process_support.rs` and the test-support facade/adapter tests
 inside `web/crates/runtime/src/runtime.rs`, plus existing keycaps tests and128tracking. Existing failure/gate semantics
-and visibility remain unchanged; no GateDriver/shared enum/native-stub edits. Actual private failure state awaits
-the intended behavioral RED and a separate root grant. Existing gate/failure facade impacts are CRITICAL.
+and visibility remain unchanged; no GateDriver/shared enum/native-stub edits. The intended compiled behavioral RED is confirmed.
+Root now permits the reviewed private failure state, capture before await and focused lifecycle regressions. Existing gate/failure facade impacts are CRITICAL.
 B's matrix/part projection and rotated map tests pass. Sol max is planning the complete document kernel; further
 materialization/cleanup/fixture/exclusivity reads need explicit windows. Full106 remains open.
 F129 was independently planned, synced at `1eaad0c8`, claimed at `cf97b035` and completed mandatory instruction reads.
@@ -104,7 +104,7 @@ Write lease: `web/crates/keycaps/src/keycaps_settings.rs` only inside `queued_se
 test names/assertions and all 30 keycaps test names. No production Core, model, catalogue or golden edits. The following bounded runtime test-support extension supersedes the earlier shared-helper exclusion.
 Additional phased lease: `web/crates/runtime/src/in_process_support.rs` and only the test-support facade plus
 focused in_process_adapter_tests inside `web/crates/runtime/src/runtime.rs`. First add a gate-only compound
-fixture scaffold and one behavioral RED test; actual private failure-state implementation needs a separate grant.
+fixture scaffold and one behavioral RED test; that RED is confirmed and reviewed private failure-state implementation is now granted.
 Preserve existing failure/gate behavior and visibility. No GateDriver enum/native stub or production Core edits.
 Existing facade impacts are CRITICAL; stale, lower-bound and UNKNOWN adapter answers remain explicit.
 
