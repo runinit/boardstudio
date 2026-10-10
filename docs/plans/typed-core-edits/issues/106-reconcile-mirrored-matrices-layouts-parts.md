@@ -1,6 +1,6 @@
 # 106: Forward reconciliation of matrices, layouts and parts
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [105](105-mirrored-half-derivation-kernel.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -10,6 +10,19 @@ Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflec
 
 Build the forward reconciliation kernel for matrices, keys, layouts and parts, using
 stable source/mirror associations. Test it directly; do not wire it into production edits.
+
+## Setup
+
+Claimed by Luna 6 high in `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`
+on `lane/mirror-core` at `767b31fa`. The checkout was clean and matched the granted base.
+The bound index `boardstudio-lane-mirror-core` was queried for `derive::part` (HIGH risk;
+direct caller `new_board`, through `create` and `lib.rs::apply`; 10 creation flows) and
+`matrix::layout::reflected` (CRITICAL risk; direct callers include `apply`, `new_board`,
+`sync`, plus layout tests; 8 affected processes including edit and key movement). No
+existing shared helper or activation path is included in this ticket's initial write lease.
+The Rust-specific skills were unavailable in the configured skill directories; the TDD
+skill and repository Rust instructions were read. Setup command window released before
+test or build work; all runtime behavior remains unimplemented.
 
 ## Evidence and scope
 
