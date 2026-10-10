@@ -1425,6 +1425,73 @@ mod tests {
     }
 
     #[test]
+    fn the_four_edge_headings_and_an_off_axis_led_are_exact_under_a_rotated_map() {
+        // The rule is `rotation + 180 - r`, read independently from the reflection about the
+        // axis at 90 + rotation / 2: a direction at r goes to rotation + 180 - r.
+        let rotated = Pose2 {
+            at: Vec2 { x: 310.0, y: 42.0 },
+            rotation: 27.0,
+        };
+        assert_eq!(heading_of(rotated, 180.0), 27.0);
+        assert_eq!(heading_of(rotated, 0.0), 207.0);
+        assert_eq!(heading_of(rotated, 90.0), 117.0);
+        assert_eq!(heading_of(rotated, 270.0), 297.0);
+        assert_eq!(heading_of(rotated, 135.0), 72.0);
+    }
+
+    /// The world point of a part-frame point: `at + R(heading) * local`.
+    fn world(pose: Pose2, local: Vec2) -> Vec2 {
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
+        Vec2 {
+            x: pose.at.x + local.x * cos - local.y * sin,
+            y: pose.at.y + local.x * sin + local.y * cos,
+        }
+    }
+
+    #[test]
+    fn anchored_points_land_on_the_mapped_world_point_at_every_heading() {
+        let maps = [
+            Pose2 {
+                at: Vec2 { x: 300.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            Pose2 {
+                at: Vec2 { x: 310.0, y: 42.0 },
+                rotation: 27.0,
+            },
+        ];
+        let local = Vec2 { x: 4.0, y: 2.5 };
+        for map in maps {
+            for heading in [0.0, 90.0, 180.0, 270.0, 37.0] {
+                let source = Pose2 {
+                    at: Vec2 { x: 20.0, y: -15.0 },
+                    rotation: heading,
+                };
+                let expected = pair::forward(map, world(source, local));
+                // An independent part: the full rule and the (x, -y) frame.
+                let part = mirror_pose(map, source);
+                let actual = world(part, anchored_local(local, true));
+                assert!(
+                    (actual.x - expected.x).abs() < 1e-9 && (actual.y - expected.y).abs() < 1e-9,
+                    "independent part, map {} heading {heading}: {actual:?} vs {expected:?}",
+                    map.rotation
+                );
+                // A key or companion: the switch rule `rotation - r` and the (-x, y) frame.
+                let key = Pose2 {
+                    at: part.at,
+                    rotation: pair::forward_angle(map, heading),
+                };
+                let actual = world(key, anchored_local(local, false));
+                assert!(
+                    (actual.x - expected.x).abs() < 1e-9 && (actual.y - expected.y).abs() < 1e-9,
+                    "switch, map {} heading {heading}: {actual:?} vs {expected:?}",
+                    map.rotation
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_non_finite_mapping_is_refused_before_anything_is_written() {
         let mut doc = ProjectDoc::empty("doc", "doc");
         let before = doc.clone();

@@ -65,6 +65,13 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- 30 independent parts take the full heading rule `r_map + 180 - r` over 360 degrees (a TRRS facing left
+  faces right on the mirror), with anchored outline geometry reflected as `(x, -y)` in their frame; keys
+  and companions keep the switch rule. Mutation-checked, and the world positions of anchors hold at five
+  headings under an axis and a rotated map. The shipped halves differ for Corne 3, Sofle RGB 19 and Sofle
+  v2 and choc 12 each (tickets 20 and 25 decide):
+  [Verification](issues/30-independent-parts-use-the-full-heading-rule.md#verification).
+
 - 29 key switches mirror their tilt with no half turn (the existing code already did; now pinned
   with 15 and -20 degree tilts and every shipped split, mutation-checked against `180 - r` and the
   ticket 18 `forward_angle` mutant), and Core adds a Warning finding `mirror/<part>/heading-uncertain`
@@ -130,8 +137,7 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- Native mirrored halves: 17, 18 and 29 are resolved. Ready: [30](issues/30-independent-parts-use-the-full-heading-rule.md)
-  (independent parts take the full 360-degree heading rule), 26, 27, 24. 19 follows 26, 27 and 30,
+- Native mirrored halves: 17, 18, 29 and 30 are resolved. Ready: 26, 27, 24. 19 follows 26 and 27,
   and needs the diode-side decision from 29; 20 to 23 follow 19.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
   (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),

@@ -1919,3 +1919,99 @@ fn the_heading_finding_is_one_located_warning_per_part_and_absent_without_a_pair
         "a mirror-symmetric stabiliser is flagged, or the thumb LEDs are not"
     );
 }
+
+/// Outline geometry anchored to a part lands on the pair map's image of its source world point, for
+/// an independent part at any heading (ticket 30, full rule, `(x, -y)` frame) and for a key switch
+/// and its companion (switch rule, `(-x, y)` frame), under an axis map and a rotated one.
+#[test]
+fn anchored_geometry_lands_on_the_mapped_world_point_at_every_heading_and_map() {
+    let shipped = &projects()["corne"];
+    let (mut engine, mut document) = seed(shipped, "left");
+    document = outline_edit(
+        &mut engine,
+        &document,
+        json!({"kind": "board", "boardId": "left"}),
+        json!({"copy": {"version_id": "fixed", "name": "Fixed"}}),
+        3,
+    );
+    let companion = document["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap().to_owned())
+        .find(|id| id.starts_with("matrix/left-keys/r0c0/"))
+        .expect("the key has a companion");
+    let anchors = [
+        ("left/U1", true),
+        ("left/RST", true),
+        ("matrix/left-keys/r0c0", false),
+        (companion.as_str(), false),
+    ];
+    for map in [
+        json!({"at": {"x": 300.0, "y": 0.0}, "rotation": 0.0}),
+        json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
+    ] {
+        for heading in [0.0, 90.0, 180.0, 270.0, 37.0] {
+            let mut source = document.clone();
+            for part in source["parts"].as_array_mut().unwrap() {
+                if part["id"] == "left/U1" || part["id"] == "left/RST" {
+                    part["pose"]["rotation"] = json!(heading);
+                }
+            }
+            let features = source["boardOutlines"][0]["versions"][0]["geometry"]["features"]
+                .as_array_mut()
+                .unwrap();
+            for (index, (anchor, _)) in anchors.iter().enumerate() {
+                features.push(json!({"kind": "rect", "id": format!("cut-{index}"),
+                    "anchorPartId": anchor, "center": {"x": 2.0, "y": 3.5},
+                    "size": {"x": 4.0, "y": 5.0}, "radius": 0.0, "rotation": 20.0,
+                    "operation": "subtract"}));
+            }
+            let (mut engine, seed_doc) = open(&source);
+            let out = create(
+                &mut engine,
+                &seed_doc,
+                "pair-right",
+                "left",
+                new_board("right", "right"),
+                map.clone(),
+            )
+            .unwrap();
+            let out = &out["document"];
+            let state = out["boardOutlines"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|s| s["boardId"] == "right")
+                .unwrap();
+            let features = &state["versions"][0]["geometry"]["features"];
+            for (index, (anchor, independent)) in anchors.iter().enumerate() {
+                let rect = features
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|f| f["id"] == format!("right/cut-{index}"))
+                    .unwrap();
+                let mirror_id = rect["anchorPartId"].as_str().unwrap();
+                let at = json!({"x": 2.0, "y": 3.5});
+                assert_point(
+                    world_of(out, mirror_id, &rect["center"]),
+                    reflected_point(&map, world_of(out, anchor, &at)),
+                    &format!("{anchor} heading {heading} map {}", map["rotation"]),
+                );
+                if *independent {
+                    // The full rule, read independently: `rotation + 180 - heading`.
+                    let expected = map["rotation"].as_f64().unwrap() + 180.0 - heading;
+                    assert!(
+                        angles_match(
+                            part(out, mirror_id)["pose"]["rotation"].as_f64().unwrap(),
+                            expected
+                        ),
+                        "{anchor} heading {heading}: {}",
+                        part(out, mirror_id)["pose"]["rotation"]
+                    );
+                }
+            }
+        }
+    }
+}

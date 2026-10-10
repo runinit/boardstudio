@@ -1,6 +1,6 @@
 # 30: Independent parts take the full 360-degree heading rule
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [29](29-mirror-switch-and-companion-headings.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-the-heading-rule-in-practice-2026-10-10)
@@ -33,9 +33,10 @@ not the ADR, so the shipped data is the thing to question, not only the code.
 
 ## Outcome
 
-Implemented by Haiku 5.5 (claim commit `1c8e0d882`, implementation in the next commit). Both commits
-carry `Co-Authored-By: Claude Haiku 5.5`. The brief asked for a Sonnet 5.5 trailer; I used Haiku because
-Haiku wrote this change, so the verifier should change the trailer if the project wants a different one.
+Implemented by Haiku 5.5 (claim commit `1c8e0d882`, implementation `ff41858f9`). Both commits carry
+`Co-Authored-By: Claude Haiku 5.5` and were left as they are. Verified by Sonnet 5.5; see
+[Verification](#verification), which corrects two claims below (the on-grid finding is not a gap, and
+the `forward_angle` doc is now fixed).
 
 ### What changed
 
@@ -129,18 +130,16 @@ No recipe or shipped file was edited.
 
 ### Unverified and follow-ups
 
-- **The heading-uncertain finding misses on-grid handed parts.** It only fires off the 90-degree grid. The
-  rule changes 180 degrees on on-grid handed parts with no finding: `sofle/led_sk6812mini-e` `D31` to `D37`,
-  `J2` and `RSW1`. This is a real gap; it needs a decision on which parts count as handed (follow-up).
+- **The heading-uncertain finding does not fire on-grid.** Not a gap: see Verification (ADR-0010 makes the
+  rule certain on the 90-degree grid).
 - **Shipped data disagrees with the rule** in the list above; tickets 20 and 25 decide. Nothing shipped changed.
 - Stabilisers: none in the shipped splits (ticket 29). If one is a matrix member it keeps the switch rule through
   `layout::reflected`, which I did not test.
 - Single-colour LED: no fixture; unchanged.
 - No pipeline-level TRRS test. The unit test checks the four headings exactly, and
   `assert_reflects_every_part` checks every independent part produced by `create` against the rule.
-- `pair::forward_angle` (`core/src/mechanical/pair.rs:45`) says a vector projected by `forward_vector` carries
-  this angle. That holds only modulo 180. I did not change the pair doc (scope). Its one other caller,
-  `features.rs:1301`, was not reviewed.
+- `pair::forward_angle` doc said a projected vector carries this angle; that holds only modulo 180. Fixed in
+  the verification pass. The other caller, `features.rs:1301`, already compares directions modulo 180.
 - `inverse_angle` is not used for part headings. The new rule is an involution (applying it twice is the
   identity), so an inverse-mapped mirror edit can reuse `mirror_pose` when that path lands.
 - The GitNexus index is stale; impact and detect-changes are provisional (above).
@@ -148,4 +147,63 @@ No recipe or shipped file was edited.
 
 ## Verification
 
-Core tests, `repo lint test typecheck`, wasm boundary parity if the transcript changes.
+Sonnet 5.5, 2026-10-10, `tce-matrix` worktree on top of `ff41858f9`. Reviewer pass, not a second
+implementation. Acceptance holds: the four-heading and off-axis LED tests pass and die under mutation, the
+shipped differences are listed and spot-checked, and the switch behaviour from 29 is unchanged. Resolved.
+
+### Claims reproduced
+
+- **The rule.** Derived independently: the pair map's linear part is `R(r_map) * diag(-1, 1)`. A direction
+  at `a` goes to `180 - a` under `diag(-1, 1)` and then to `r_map + 180 - a`. So the mirrored heading is
+  `r_map + 180 - r` (`180 - r` on an axis map, `207 - r` at a 27 degree map), which equals
+  `forward_angle(map, r) + 180`. The implementation matches, normalised to `[0, 360)`.
+- **Exact headings.** Under the axis map the existing tests assert 180 to 0, 0 to 180, 90 to 90, 270 to 270
+  and the 135 LED to 45 exactly. Only 135 to 72 was asserted exactly under the rotated map. Added
+  `the_four_edge_headings_and_an_off_axis_led_are_exact_under_a_rotated_map` (27 degree map: 180 to 27,
+  0 to 207, 90 to 117, 270 to 297, 135 to 72).
+- **Mutations of the heading rule** (lib `mirrored_half::`, each restored, `cmp` against a backup): dropping the
+  `+ 180` (5 of 7 failed), `rem_euclid(180.0)` (5 failed), the literal `-r` (5 failed). All die.
+- **The `(x, -y)` anchor frame.** Algebra: a part-frame point `p` is at `W + R(r) p`; the map sends it to
+  `M W + R(r_map) diag(-1, 1) R(r) p = M W + R(r_map - r) diag(-1, 1) p`. The mirror part at heading
+  `r_map + 180 - r` has `R(r_m) = -R(r_map - r)`, so the local point is `-diag(-1, 1) p = (x, -y)`. For a switch
+  at `r_map - r` it is `(-x, y)`. Both correct, including for back-side parts (the side flip commutes with
+  `diag`). Two tests were added, since the one existing check used a single heading (0) and a single map:
+  - lib `anchored_points_land_on_the_mapped_world_point_at_every_heading`: headings 0, 90, 180, 270 and 37
+    under an axis and a 27 degree map, the world point of the mirrored anchor equals the map applied to the
+    source anchor within 1e-9, for the independent frame and the switch frame.
+  - integration `anchored_geometry_lands_on_the_mapped_world_point_at_every_heading_and_map`: the same grid
+    through `create` on the Corne, with subtract rects anchored to `left/U1`, `left/RST` (headings set per
+    case), the key `matrix/left-keys/r0c0` and its companion; checks the world centre and, for independent
+    parts, the heading `r_map + 180 - r`. Keys and companions keep the old transform and hold.
+  - Mutations: `anchored_local` always the old transform: the lib test fails. `full_rule_part` always `false`
+    fails the integration test on `left/U1`; always `true` fails it on the key. All restored.
+- **Shipped differences, spot-checked against the fixtures** (a scratch test, removed): Corne `U1`, `RST`, `TRRS`
+  are at 0 on the left and 0 in the shipped right half; the rule gives 180 (3 of 3, axis map). Sofle RGB:
+  `J2` (TRRS) and `RSW1` are at -90 left and 90 shipped, rule 270; `U1`, `SW25`, `J3`, `TH1` to `TH7` are at 0
+  and shipped 0, rule 180; `D31`, `D33` are at 180 and shipped 180, rule 0; `D32`, `D34` to `D37` at 0 and
+  shipped 0, rule 180. The count (12 non-LED parts plus 7 LEDs) is 19. The Outcome list is accurate.
+
+### Findings
+
+- **The on-grid finding is correct as it is.** ADR-0010's amendment makes the uncertain case "a non-symmetric
+  footprint at a heading that is not a multiple of 90 degrees"; on the grid the rule is certain, so a part
+  turned by 180 degrees raises no finding. The Outcome's "real gap" is not one, and the finding scope is not
+  widened. What it does mean: every independent part at heading 0 is turned half a turn, including the MCU,
+  encoder, display and mounting holes. That is the rule as written (the shipped halves keep these at 0), so
+  whether heading 0 means "facing outward" in a footprint's own frame is a data question for tickets 20 and 25.
+- **Stabilisers** are matrix members (ticket 29), so they keep the switch rule through `layout::reflected`
+  and do not take the full rule; the Outcome's "not tested" stands, and the integration test covers a matrix
+  companion rather than a stabiliser.
+- **Doc fix.** `pair::forward_angle` no longer says a projected vector carries the angle; it says the vector
+  lies on that line and its heading is the angle plus 180 (comment only).
+- **Diode side** on the mirrored half is still ticket 29's open user decision; unchanged.
+
+### Commands (sequential, foreground)
+
+- lib `mirrored_half::` 7 passed (about 7 s); integration `anchored_geometry_lands...` passed, 58.6 s.
+  Mutation runs: lib about 7 s each (4); integration 2 x 49 s.
+- `python3 scripts/check.py lint` passed, 9.6 s. `test` passed, 90.8 s. `typecheck` passed, 9.5 s.
+  `repo` ran last, see the commit. Wasm `boundary_parity::` not run: no fixture, bless or transcript change.
+  `build`, `browser`, `deny`, `release` not run.
+- GitNexus: the index is stale. `impact mirror_pose` returned "not found" (UNKNOWN, checked by text search:
+  one non-test caller); `impact forward_angle` LOW (comment-only edit). `detect-changes` is provisional.

@@ -41,7 +41,8 @@ pub fn inverse(mapping: Pose2, point: Vec2) -> Vec2 {
 
 /// Planar orientation from the first member to the second: `rotation - angle`.
 /// The fixed reflection flips the sign of the source orientation, so a vector
-/// projected by [`forward_vector`] carries this angle in the mirrored frame.
+/// projected by [`forward_vector`] lies on the line at this angle: the angle is only
+/// fixed modulo 180 degrees, and the vector's own heading is this angle plus 180.
 pub fn forward_angle(mapping: Pose2, angle: f64) -> f64 {
     mapping.rotation - angle
 }
