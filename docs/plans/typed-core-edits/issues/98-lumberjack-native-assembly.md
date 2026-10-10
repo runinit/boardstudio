@@ -1,0 +1,30 @@
+# 98: Lumberjack: native key assembly profile
+
+Status: ready-for-agent
+Type: build
+Blocked by: [22](22-mirrored-half-integrated-verification.md), [44](44-native-recipe-assembly-profiles.md), [79](79-unibody-hardware-inputs.md), [97](97-plaid-native-mechanics.md)
+Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
+
+## Source evidence
+
+[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `lumberjack`: `https://github.com/peej/lumberjack-keyboard`, `lumberjack.kicad_pcb` at `53bfb50b64dd8c938bdb6a964360709c7e6573e0`; SHA-256 `1c5899fe299206a07949b6c90efc1d50bc7ae0c732b8508a8dad931f5bdaff8c`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-lumberjack` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+
+Current profile: 60 MX switches and 60 diodes in two 5×6 clusters on one board; 19.05 × 19.05 mm base pitch, MX. The left/right key clusters share one main board: do not create a mirrored board pair. No stabilisers are recorded.
+
+## One-hour slice
+
+Give this board its own named BoardStudio assembly profile using ticket 44’s native matrix path. Preserve measured key poses, widths, cluster relationships and source references; store its explicit pitch override and 1.0 mm keycap edge gap separately. A global preference must not respace a measured example. Keep one unibody board and independent mechanical instance. Multiple key clusters do not imply a mirror pair. Preserve legitimate wiring and wide-key/member relationships.
+
+## File ownership
+
+One scheduled board implementer owns only this board’s branch/profile in `core/examples/demo_projects/{recipes,physical,mechanical}.rs` and its focused assertions in `core/tests/included_keyboards.rs` (or one board-specific test file). Shared helpers require [44](44-native-recipe-assembly-profiles.md) first. Generated goldens/assets are handed to the designated golden owner; see the phase 2 execution contract in ticket 25. No other board, archive, Core mirror algorithm, catalogue/footprint generator or UI edits belong here.
+
+## Acceptance and regression
+
+- [ ] This board references its own profile; Core materialises exactly 60 switches and the approved companions from matrix membership, with no hand-created duplicate key parts.
+- [ ] A public-boundary regression fails first because this board still uses generic preset/profile data; then passes with source-reference pose correspondence within 1e-9 mm and full switch-heading comparison. Assert profile identity and duplicate diode offsets separately from the generated golden.
+- [ ] Editing one native matrix value, Undo/Redo and save/reopen preserve the profile, measured exceptions and unrelated parts.
+
+## Verification and remaining facts
+
+Implementer: `repo lint test typecheck`; add `build` when the designated owner regenerates demo outputs. Fresh Sol verifier reproduces the regression and disables this board’s profile selection once to prove it fails. Ticket 23 owns the final mounted-browser/Standards/Spec/full-batch gate. [79](79-unibody-hardware-inputs.md) must confirm switch/diode/LED hardware; this ticket does not certify physical fit. Split new generator or shared-algorithm work into a follow-up rather than widening this slice.
