@@ -80,3 +80,10 @@ out with a recorded reason), without running fewer tests.
   `rust-lld`.
 - **Reusing one `chromedriver` (`CHROMEDRIVER_REMOTE`):** a second or two per launch. Reopen only
   as a new effort if launch overhead still dominates after the in-scope tickets.
+
+## Browser step follow-up (2026-10-10)
+
+User asked for a deep dive on the browser checks. The read-only study is summarised in
+[11](issues/11-browser-measure.md); next [12](issues/12-browser-quick-wins.md) and
+[13](issues/13-browser-structural.md). Sleep replacement is
+[typed-core-edits 34](../typed-core-edits/issues/34-test-speed-browser.md).
