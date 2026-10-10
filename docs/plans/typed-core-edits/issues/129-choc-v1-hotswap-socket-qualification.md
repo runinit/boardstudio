@@ -1,9 +1,9 @@
 # 129 — Choc v1 socket documented geometry and configuration
 
-Status: claimed
+Status: implemented (awaiting verification)
 Type: qualification
 Parent: [118 hardware contract](118-sofle-adaptation-hardware-contract.md)
-Prerequisite: independent plan review passed; root implementation lease not yet granted.
+Prerequisite: independent plan review passed; fresh independent implementation verification pending.
 
 ## Scope
 
@@ -62,4 +62,8 @@ Scheduled checks after root grants a foreground window: scoped rustfmt, `CARGO_B
 
 ## Outcome
 
-Planning only. Official evidence was captured and inspected. Independent Sol 6.1 xhigh PLAN REVIEW passed after inspecting the actual PDF/pixels, hash/revision, narrow producer blocks and stored pose; its mapping and configuration clarifications are recorded above. No tracked implementation, tests, builds, production mutations or commits have run for 129. Exact implementation lease, checks, graph/commit gate and fresh implementation verification remain pending. Source capture/read and plan-review commands were explicitly released. Ticket 118 remains open.
+Implemented as a test-only qualification slice in `footprints/tests/choc_socket_qualification.rs`; generator, registry, defaults, models and recipes remain unchanged. The test covers the datasheet's nominal hole pair and dimensioned LEFT land on both faces at 0°, 90° and 120°, configured terminal nets and effective copper/mask layers, the selected model binding/transforms, and the explicit V1-only/hotswap configuration. Placement vectors are fixed drawing-derived expectations; the stored Sofle pose is a fixture, not a board-origin conversion. The right/inner land, configured net identities, model transforms and producer-emitted hole angles are configuration regressions only; no manufacturer pad-number/polarity, mirror-footprint, absolute-origin, contact, plate or full-switch-fit claim is made. Layout tolerances and the undimensioned right land remain unknown.
+
+The selected output contains five NPTHs. The test asserts that count and selects the final two according to the current emitted fragment order (center NPTH, two V1 stabilizers, common upper socket hole, face-specific lower socket hole); this is a producer-order-dependent selector, not manufacturer numbering. The captured producer emits upper angle `r` and lower angle `195° + r` on both faces. A fresh verifier must judge this selector's fragility and the planned drill mutation independently.
+
+Early focused runs exposed a moved `Side` value, an overbroad five-hole selection, missing angle components in the emitted three-number `(at ...)` fields, and the exact NPTH layer set (`*.Cu` and `*.Mask`). These were corrected without changing the fixed geometry expectations or broadening their tolerances. The first `repo lint` run then found `clippy::let_and_return` in the new test; returning the render expression directly fixed it. Final focused test passed (2 tests), `python3 scripts/check.py repo lint` passed (repo and lint), and `cargo test --locked -p boardstudio-footprints` passed (all crate tests). Producer files and ticket 118 were not changed; ticket 118 remains open. Fresh independent implementation verification, root-owned GitNexus change detection and commit remain pending.
