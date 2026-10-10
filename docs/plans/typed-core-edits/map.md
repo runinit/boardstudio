@@ -65,6 +65,12 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- **Batch A boundary check** (tickets 18, 29, 30, 27, 26, 28; all Core and catalogue, the page compiles the shared
+  model), 2026-10-10 at `92adcd611` in the nested `tce-matrix` worktree, sandbox lifted, one sequential foreground
+  `python3 scripts/check.py` (default steps, not `release`), started 04:41:09, finished 04:50:28: all passed.
+  Step times: repo 0.1 s, tooling 7.9 s, lint 9.7 s, build 206.8 s, test 90.4 s, browser 243.9 s, total 558.8 s.
+  Browser: 70 presentation tests executed, 0 failed. No failure to report. Ticket 19 is the next ready ticket
+  (it still needs the diode-side decision from 29); 24 is also ready.
 - 28 embedded circuits mirror in `CreateMirroredHalf`: the circuit id takes the board rule, members, private nets and
   copied definitions move under `embedded/<mirror id>/`, an `EmbeddedCircuit` record and `embedded-circuit`
   correspondences are written, members take the independent-part pose, and a member reference a host part already
@@ -150,8 +156,7 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- Native mirrored halves: 17, 18, 26, 27, 28, 29 and 30 are resolved. Ready: 24. 19 is unblocked by 26 (its other blockers are resolved),
-  and needs the diode-side decision from 29; 20 to 23 follow 19.
+- Native mirrored halves: 17, 18, 26, 27, 28, 29 and 30 are resolved. Ready: 19 (next; needs the diode-side decision from 29) and 24; 20 to 23 follow 19.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
   (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
   which is blocked only by matrix 11.
