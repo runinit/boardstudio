@@ -772,10 +772,9 @@ fn every_shipped_pair_links_its_closure_mounts_from_the_left_half() {
 /// outline, because the shipped halves are true reflections.
 #[test]
 fn closure_proposals_on_a_paired_half_are_made_once_from_the_construction_source() {
-    for name in MEASURED_SPLITS
-        .into_iter()
-        .chain(["sofle-rgb", "sofle-choc"])
-    {
+    // One measured split and one Sofle. The synthetic closure tests in mechanical_integration
+    // cover the rule for every other split (audit 5.2).
+    for name in ["corne", "sofle-rgb"] {
         let mut project = projects()[name].clone();
         let pair_index = 0;
         project["hardware"]["pairs"][pair_index]["features"]
