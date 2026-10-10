@@ -90,3 +90,15 @@ question about handed modules:
   The finding asks a person to confirm it. Core does not refuse and does not guess silently.
 - **The pair's angle function must use the full 360 degrees.** The earlier comparison of
   headings modulo 180 is not enough for this rule.
+
+## Amendment: key switches and their companions (2026-10-10)
+
+- **Key switches mirror on X only.** A switch is not given the 180-degree turn of the
+  general rule: its body keeps its orientation and takes the mirrored tilt (a key rotated
+  by `r` becomes `-r`, which is what the shipped right halves already do). Turning it
+  would put its LED position on the wrong side.
+- **Companions are chosen separately.** The diode and the LED that belong to a switch are
+  mirrored in position and may be rotated, per variant. In particular an RGB LED variant
+  may be turned so its pads match the switch's LED position. When Core is unsure which
+  heading is right, it adds a finding and does not guess silently.
+- **Everything else** follows the general rule above (`180 - r`, full 360 degrees).
