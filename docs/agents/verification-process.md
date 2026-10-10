@@ -14,8 +14,8 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 - **Verify and integrate** (Sol 6.1, xhigh, fast, from 2026-10-10; before that Sonnet 5.5 at high effort): do not trust the
   implementer's report. Reproduce its claims, mutation-check the main assertions (disable one site at a time,
   confirm a test fails, restore), review the code, fix **small** defects with tests, then set `resolved` with
-  who-verified-what evidence. Time box: about 30 to 45 minutes of work. The verifier is always a different app or
-  model than the implementer.
+  who-verified-what evidence. Time box: about 30 to 45 minutes of work. The verifier is a fresh session with a different
+  model from the implementer (Luna implements, Sol verifies); using a different app alone does not meet this requirement.
 - **Planner / orchestrator** (Sol 6.1, medium, fast, from 2026-10-10; planning research Sol 6.1 max fast, Astra medium as a last resort; before that Claude): writes tickets, ADRs and prompts, decides the order, hands
   tickets to implementers and verifiers, merges lanes, runs the batch check and refreshes GitNexus. It does not
   verify, and it does not implement unless a task is tiny and documentation-only.
@@ -26,7 +26,7 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 - **Scope is fixed when the agent starts.** New decisions or requests go into tickets, not
   into messages to a running agent. This is what made one verification run over an hour.
 - Small tickets (docs, one file, no behaviour) may be implemented and verified in a single
-  Sonnet pass.
+  Sol pass. This exception does not cover code, hooks or configuration that changes execution.
 - Planning and decision work is read-only; the user answers decisions. All role models are in [agent-workflow.md](agent-workflow.md).
 - Say which model did what in the Outcome. Never claim a result you did not observe.
 
@@ -40,6 +40,7 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
 | Change | Steps |
 | --- | --- |
 | Docs, tickets, ADRs only | `repo` |
+| Python scripts or check tooling | `repo`, `tooling`, plus a changed script's tests if not yet in the tooling list |
 | Rust in Core or other native crates, no web or wasm-visible change | `repo`, `lint`, `test` |
 | Core or shared types the page also compiles | add `typecheck`; add the explicit wasm `boundary_parity::` run when the transcript changes |
 | Mounted web behaviour (web crates, Dioxus components, storage) | add `browser` |
@@ -75,10 +76,13 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
   `docs/plans/check-speed/issues/10-nested-worktrees.md`). Its `cad/.cache`,
   `cad/wasm/pkg` and `cad/wasm/target` must be real directories, not symlinks into another
   checkout: `build` refuses a symlink because the CAD container cannot resolve it.
-- The sandbox must be lifted (`dangerouslyDisableSandbox`) for `wasm-pack`, Chrome and
-  podman (the CAD container), and for nothing else.
-- Stage explicit paths; never `git stash` or `git add -A`; no push, merge or PR without the
-  user; end commits with the required `Co-Authored-By` trailer.
+- `wasm-pack`, Chrome and podman need a runtime that permits their processes and filesystem access. In Claude the per-command
+  option is `dangerouslyDisableSandbox`. In Codex follow the active session's permission policy: with `danger-full-access` and
+  approval policy `never`, run normally and omit `sandbox_permissions`. In a restricted session, report a denied check and use
+  the permitted escalation mechanism if available. A blocked run remains unverified.
+- Stage explicit paths; never `git stash` or `git add -A`. Lane agents do not merge; the orchestrator merges verified lanes
+  into the integration branch. Pushes, PRs and merges to `dev` need the user's authorization. End commits with the trailer
+  naming the agent that actually made them.
 
 ## Hygiene
 

@@ -39,7 +39,7 @@ TOOLING_TESTS = (
     "cad/scripts/test-cadrum-build.py", "scripts/test-build-web.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-catalogue-tools.py",
-    "scripts/test-import-kicad-parts.py",
+    "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-refresh.py", "scripts/test-gitnexus-stop-hook.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
