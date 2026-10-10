@@ -91,6 +91,8 @@ mod outline_versions;
 mod outlines;
 #[path = "splay_reconciliation.rs"]
 mod splay_reconciliation;
+#[path = "support/mod.rs"]
+mod support;
 #[path = "thqwgd001_library.rs"]
 mod thqwgd001_library;
 

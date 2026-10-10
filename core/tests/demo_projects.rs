@@ -105,7 +105,7 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
         std::process::id()
     ));
     assert!(!output.exists(), "Use a fresh acceptance directory");
-    demo_projects::prepare(output.to_str()).unwrap();
+    demo_projects::prepare(output.to_str(), Some(crate::support::shipped::projects())).unwrap();
     let result = std::panic::catch_unwind(|| {
         let baseline: Value =
             serde_json::from_str(include_str!("fixtures/demo-projects-baseline.json")).unwrap();

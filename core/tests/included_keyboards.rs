@@ -7,7 +7,7 @@
 //! pinned separately by `demo_projects.rs`; here they only prove the pair map. Each
 //! pair's closure holes are checked against what Core projects, and every half is
 //! exported to KiCad with those holes present.
-use crate::demo_projects::demo_projects;
+use crate::demo_projects::demo_projects::{MEASURED_SPLITS, SOFLE_VARIANTS};
 
 use boardstudio_core::CoreEngine;
 use boardstudio_core::artifact::kicad;
@@ -16,42 +16,10 @@ use boardstudio_core::mechanical::inputs::effective_document;
 use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
 use boardstudio_core::model::{ExportTarget, PrepareExportRequest, ProjectDoc};
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, sync::OnceLock};
+use std::collections::BTreeMap;
 
-const MEASURED_SPLITS: [&str; 7] = [
-    "corne", "lily58", "klor", "sweep", "chocofi", "totem", "cantor",
-];
-const SOFLE: [&str; 3] = ["v2", "rgb", "choc"];
-
-/// Every split project and the reused-PCB demonstration, built once.
-pub(crate) fn projects() -> &'static BTreeMap<String, Value> {
-    static PROJECTS: OnceLock<BTreeMap<String, Value>> = OnceLock::new();
-    PROJECTS.get_or_init(|| {
-        let mut engine = CoreEngine::new();
-        let layouts: Value = serde_json::from_slice(
-            &std::fs::read(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("../content/layouts/keyboard-layouts.json"),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let mut built = BTreeMap::new();
-        for id in MEASURED_SPLITS {
-            let project = demo_projects::measured_project(&mut engine, id, &layouts[id]).unwrap();
-            built.insert(id.to_owned(), project);
-        }
-        for variant in SOFLE {
-            let project = demo_projects::sofle_project(&mut engine, variant).unwrap();
-            built.insert(format!("sofle-{variant}"), project);
-        }
-        built.insert(
-            "reused-pcb".to_owned(),
-            demo_projects::reused_pcb_project(&mut engine).unwrap(),
-        );
-        built
-    })
-}
+/// Every split project and the reused-PCB demonstration, built once per test binary.
+pub(crate) use crate::support::shipped::projects;
 
 fn request(engine: &mut CoreEngine, input: Value) -> Value {
     let reply: Value = serde_json::from_str(&engine.request(&input.to_string())).unwrap();
@@ -366,7 +334,7 @@ fn every_shipped_pair_links_its_controller_bay_and_trrs_jack() {
             }
         }
     }
-    for variant in SOFLE {
+    for variant in SOFLE_VARIANTS {
         let pair = pair(&projects()[&format!("sofle-{variant}")]);
         for feature in ["opening-1", "opening-2"] {
             for half in ["left", "right"] {

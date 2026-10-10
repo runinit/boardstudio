@@ -311,7 +311,30 @@ pub fn reused_pcb_project(engine: &mut CoreEngine) -> Result<Value> {
     )
 }
 
-pub fn prepare(destination: Option<&str>) -> Result<()> {
+/// The measured split keyboards, from `keyboard-layouts.json`.
+pub const MEASURED_SPLITS: [&str; 7] = [
+    "corne", "lily58", "klor", "sweep", "chocofi", "totem", "cantor",
+];
+/// The Sofle variants (`sofle-v2`, `sofle-rgb`, `sofle-choc`).
+pub const SOFLE_VARIANTS: [&str; 3] = ["v2", "rgb", "choc"];
+
+/// The ten shipped split keyboards as mechanical mirror pairs, keyed `corne` ... `sofle-v2`,
+/// `sofle-rgb` and `sofle-choc`. Native tests share one build of these through `support`.
+pub fn split_projects(engine: &mut CoreEngine) -> Result<BTreeMap<String, Value>> {
+    let layouts = read("content/layouts/keyboard-layouts.json")?;
+    let mut built = BTreeMap::new();
+    for id in MEASURED_SPLITS {
+        built.insert(id.to_owned(), measured_project(engine, id, &layouts[id])?);
+    }
+    for variant in SOFLE_VARIANTS {
+        built.insert(format!("sofle-{variant}"), sofle_project(engine, variant)?);
+    }
+    Ok(built)
+}
+
+/// Writes the fixtures. `shipped` holds the split documents from `split_projects` when the
+/// caller already has them (a native test shares one build); `None` builds them here.
+pub fn prepare(destination: Option<&str>, shipped: Option<&BTreeMap<String, Value>>) -> Result<()> {
     let output = destination
         .map(PathBuf::from)
         .unwrap_or_else(|| root().join("web/assets/fixtures"));
@@ -331,6 +354,14 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
     let result = (|| -> Result<()> {
         let mut fixtures = Vec::new();
         let mut engine = CoreEngine::new();
+        let built: BTreeMap<String, Value>;
+        let shipped = match shipped {
+            Some(shipped) => shipped,
+            None => {
+                built = split_projects(&mut engine)?;
+                &built
+            }
+        };
         let bytes = fs::read(root().join("content/archives/reviung41-original.boardstudio"))?;
         let (reply, buffers) = archive_request(
             json!({"kind":"unpack-project"}),
@@ -347,21 +378,21 @@ pub fn prepare(destination: Option<&str>) -> Result<()> {
         fs::write(staging.join("reviung41.boardstudio"), &bytes)?;
         let doc: Value = serde_json::from_str(s(&reply["projectJson"]))?;
         fixtures.push(json!({"name":"REVIUNG41","source":"content/archives/reviung41-original.boardstudio","source_sha256":digest(&bytes),"document_id":doc["id"],"revision":doc["revision"],"assets":assets}));
-        for variant in ["v2", "rgb", "choc"] {
-            let doc = sofle_project(&mut engine, variant)?;
-            fixtures.push(pack(
-                doc,
-                &staging,
-                &if variant == "v2" {
-                    "sofle".into()
-                } else {
-                    format!("sofle-{variant}")
-                },
-            )?);
+        for variant in SOFLE_VARIANTS {
+            let key = format!("sofle-{variant}");
+            let name = if variant == "v2" {
+                "sofle".into()
+            } else {
+                key.clone()
+            };
+            fixtures.push(pack(shipped[&key].clone(), &staging, &name)?);
         }
         let layouts = read("content/layouts/keyboard-layouts.json")?;
         for (id, layout) in layouts.as_object().unwrap() {
-            let doc = measured_project(&mut engine, id, layout)?;
+            let doc = match shipped.get(id) {
+                Some(doc) => doc.clone(),
+                None => measured_project(&mut engine, id, layout)?,
+            };
             fixtures.push(pack(doc, &staging, &format!("measured-{id}"))?);
         }
         let doc = review::build(&mut engine)?;

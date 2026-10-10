@@ -2,6 +2,6 @@
 #[path = "demo_projects/mod.rs"]
 mod demo_projects;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    demo_projects::prepare(std::env::args().nth(1).as_deref())?;
+    demo_projects::prepare(std::env::args().nth(1).as_deref(), None)?;
     Ok(())
 }
