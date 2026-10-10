@@ -28,12 +28,14 @@ use crate::model::{
     MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfLabel, MirroredHalfLabels,
     MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
     OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
-    OutlineSnapshot, OutlineVersion, Part, PartDefinition, PhysicalBoardInstance, Pin, Pose2,
-    ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
+    OutlineSnapshot, OutlineVersion, PartDefinition, PhysicalBoardInstance, Pin, Pose2, ProjectDoc,
+    ProtectedOutlineGap, Scope, Severity, Vec2,
 };
 use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+
+mod derive;
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
@@ -355,10 +357,7 @@ pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
 /// (`rotation == 0`) this is `180 - r`: a part facing left faces right on the mirror. The result is
 /// kept in `[0, 360)`; the rule never reduces the heading modulo 180.
 pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
-    Pose2 {
-        at: pair::forward(mapping, pose.at),
-        rotation: (pair::forward_angle(mapping, pose.rotation) + 180.0).rem_euclid(360.0),
-    }
+    derive::pose(mapping, pose)
 }
 
 /// A point in a part's own frame keeps its place in that frame; only the handedness flips,
@@ -1419,7 +1418,12 @@ fn new_board(
             for assembly in &mut cell.assemblies {
                 let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
                 let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
-                if SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str()) {
+                let stabiliser = SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
+                let fallback = repaired_companions.contains(&companion_id);
+                let needs_source_parts = stabiliser
+                    || (!fallback
+                        && request.companion_mode == MirroredCompanionMode::DuplicatePosition);
+                let (key, companion) = if needs_source_parts {
                     let key = doc
                         .parts
                         .iter()
@@ -1430,47 +1434,24 @@ fn new_board(
                         .iter()
                         .find(|part| part.id == companion_id)
                         .ok_or("A source companion is unavailable")?;
-                    // Assemblies store a heading relative to the mirrored switch. Cancel that
-                    // switch's reflected tilt so the stabiliser keeps its source world heading.
-                    assembly.rotation = Some(
-                        companion.pose.rotation - pair::forward_angle(mapping, key.pose.rotation),
-                    );
-                    continue;
-                }
-                if repaired_companions.contains(&companion_id) {
-                    continue;
-                }
-                match request.companion_mode {
-                    MirroredCompanionMode::LiteralMirror => {}
-                    MirroredCompanionMode::DuplicatePosition => {
-                        let key = doc
-                            .parts
-                            .iter()
-                            .find(|part| part.id == key_id)
-                            .ok_or("A companion's source switch is unavailable")?;
-                        let companion = doc
-                            .parts
-                            .iter()
-                            .find(|part| part.id == companion_id)
-                            .ok_or("A source companion is unavailable")?;
-                        let (sin, cos) = key.pose.rotation.to_radians().sin_cos();
-                        let dx = companion.pose.at.x - key.pose.at.x;
-                        let dy = companion.pose.at.y - key.pose.at.y;
-                        assembly.offset = Vec2 {
-                            x: dx * cos + dy * sin,
-                            y: -dx * sin + dy * cos,
-                        };
-                        assembly.rotation = Some(companion.pose.rotation - key.pose.rotation);
-                    }
-                    MirroredCompanionMode::LiteralMirrorWithTweak => {
-                        if let Some(tweak) = request.companion_tweak {
-                            assembly.offset.x += tweak.x;
-                            assembly.offset.y += tweak.y;
-                            assembly.rotation =
-                                Some(assembly.rotation.unwrap_or(0.0) + tweak.rotation);
-                        }
-                    }
-                }
+                    (Some(key), Some(companion))
+                } else {
+                    (None, None)
+                };
+                let (offset, rotation) =
+                    derive::companion_assembly(derive::CompanionAssemblyInput {
+                        offset: assembly.offset,
+                        rotation: assembly.rotation,
+                        key,
+                        companion,
+                        mapping,
+                        mode: request.companion_mode,
+                        tweak: request.companion_tweak,
+                        stabiliser,
+                        fallback,
+                    })?;
+                assembly.offset = offset;
+                assembly.rotation = rotation;
             }
         }
         crate::matrix::set_matrix(doc, &reflected)?;
@@ -1560,22 +1541,17 @@ fn new_board(
                 "The mirrored reference {mirrored_reference:?} is already in use."
             ));
         };
-        doc.parts.push(Part {
-            keycap: part.keycap,
-            outline: part.outline.clone(),
-            id: part_map[*id].clone(),
-            definition_id: circuits
-                .definitions
-                .get(&part.definition_id)
-                .cloned()
-                .unwrap_or_else(|| part.definition_id.clone()),
-            reference,
-            pose: mirror_pose(mapping, part.pose),
-            side: part.side.clone(),
-            locked: part.locked,
-            properties: part.properties.clone(),
-            generator_parameters: part.generator_parameters.clone(),
-        });
+        let definition_id = circuits
+            .definitions
+            .get(&part.definition_id)
+            .unwrap_or(&part.definition_id);
+        doc.parts.push(derive::part(
+            &part,
+            &part_map[*id],
+            definition_id,
+            &reference,
+            mapping,
+        ));
     }
 
     // Layouts: independent copies of the source's layouts on the new board.

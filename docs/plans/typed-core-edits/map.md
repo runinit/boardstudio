@@ -85,6 +85,10 @@ and for any bulk action a recorded decision permits.
   [114](issues/114-mirrored-edit-compatibility-constraints.md) remains `needs-info`; it cannot silently pass through
   unsupported rotated/mixed constraints. Core children stay serial; the user approved isolated A/F streams with
   exact file/API leases. Every command/check remains globally sequential; activation and timing stay exclusive.
+- [105](issues/105-mirrored-half-derivation-kernel.md) is resolved and integrated: private value-only part and companion
+  derivation accepts existing identities and per-item settings; creation retains allocation and insertion. Fresh verification
+  `09e07a7a` confirmed full acceptance, independently caught four companion/mode/tweak/stabiliser/fallback mutations and
+  passed restored repo/lint/test/typecheck. Parent 19 remains open; next Core slice is 106, without production activation.
 - **Integration batch check**, 2026-10-10 at `12a6784d`: one sequential foreground
   `BOARDSTUDIO_CHECK_JOBS=1 CARGO_BUILD_JOBS=12 python3 scripts/check.py` passed all default steps.
   Repo 0.1 s, tooling 23.4 s, lint 17.9 s, build 327.1 s, test 94.7 s, browser 350.1 s; total 813.3 s.
@@ -209,13 +213,15 @@ and for any bulk action a recorded decision permits.
 ## Ready for implementation
 
 Parallel scheduling decision: [parallel streams](parallel-streams-review.md). The user approved B+A+F with audited
-leases and sequential commands. B remains serial; A/F audits start now, then code after105 verification and readiness gates.
+leases and sequential commands. B remains serial; A/F have isolated active slices after exact audits and the original 105
+verification window ended. Full parent acceptance is not waived by partial slices.
 
-- Native mirrored halves: 17, 18, 26–32 and 39 are resolved and integrated. Next: 105 in the 19 child chain,
+- Native mirrored halves: 17, 18, 26–32, 39 and 105 are resolved and integrated. Next: 106 in the 19 child chain,
   with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
 - Board planning 42–104 is reviewed. Sofle BOM selection and missing-footprint research may proceed without shell/check
   overlap. IDs 118–127 are reserved for bounded Sofle hardware/component follow-ups. Implementations wait for their
-  native-model prerequisites, qualified component plans and root's exclusive command window. Final 23 consumes completed
+  qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
+  native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
   board work and sign-off; the user has delegated hardware selection.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.

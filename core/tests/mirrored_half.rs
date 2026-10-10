@@ -506,6 +506,61 @@ fn a_vertical_axis_map_reflects_every_part_by_the_pair_rule() {
     }
 }
 
+#[test]
+fn creation_derives_independent_part_poses_for_axis_and_rotated_maps() {
+    let shipped = &projects()["corne"];
+    for (pair_id, map) in [
+        (
+            "pair-axis",
+            json!({"at": {"x": 300.0, "y": 0.0}, "rotation": 0.0}),
+        ),
+        (
+            "pair-rotated",
+            json!({"at": {"x": 310.0, "y": 42.0}, "rotation": 27.0}),
+        ),
+    ] {
+        let (mut engine, seed) = seed(shipped, "left");
+        let source = part(&seed, "left/U1");
+        let reply = create(
+            &mut engine,
+            &seed,
+            pair_id,
+            "left",
+            new_board("mirror", "mirror"),
+            map.clone(),
+        )
+        .unwrap();
+        let mirrored = part(&reply["document"], "mirror/U1");
+        let expected = reflected_point(
+            &map,
+            (
+                source["pose"]["at"]["x"].as_f64().unwrap(),
+                source["pose"]["at"]["y"].as_f64().unwrap(),
+            ),
+        );
+        assert_point(
+            (
+                mirrored["pose"]["at"]["x"].as_f64().unwrap(),
+                mirrored["pose"]["at"]["y"].as_f64().unwrap(),
+            ),
+            expected,
+            pair_id,
+        );
+        let source_heading = source["pose"]["rotation"].as_f64().unwrap();
+        let expected_heading =
+            (map["rotation"].as_f64().unwrap() + 180.0 - source_heading).rem_euclid(360.0);
+        assert!(angles_match(
+            mirrored["pose"]["rotation"].as_f64().unwrap(),
+            expected_heading
+        ));
+        assert_eq!(mirrored["side"], source["side"]);
+        assert_eq!(
+            mirrored["generatorParameters"],
+            source["generatorParameters"]
+        );
+    }
+}
+
 fn closure_positions(configuration: &Value) -> Vec<(f64, f64)> {
     let mut positions: Vec<(f64, f64)> = configuration["closureMounts"]
         .as_array()
