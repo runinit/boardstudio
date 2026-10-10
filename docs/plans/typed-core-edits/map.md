@@ -228,6 +228,12 @@ verification window ended. Full parent acceptance is not waived by partial slice
   Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
   focused, repo/lint and all 77 footprint tests. Default 2.6 mm pads, physical fit/model alignment and whole-board
   qualification remain unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) stays open.
+- [129](issues/129-choc-v1-hotswap-socket-qualification.md) is resolved for the selected Choc v1 socket
+  configuration and integrated at `8e8f6bfab`. Independent verification of corrected commit `0c9a1178`
+  killed the dimensioned lower-hole drill mutation, restored exact production bytes and passed repo/lint
+  and all 79 footprint tests. The upper-hole diameter remains configuration-only; right-land dimensions,
+  physical fit/model datum and whole-board qualification remain open. The earlier unsupported both-hole
+  manufacturer attribution at `2cff220e` failed review and was explicitly corrected. Ticket 118 stays open.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11

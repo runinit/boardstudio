@@ -64,7 +64,7 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root, recording the phased A support lease; F129 focused validation follows.
+Current command owner: root, integrating verified F129 and recording progress; A's focused retirement check follows.
 The full default check at `4fd8f7f3` passed in 535.5 s, including 70 presentation tests and 15 CAD browser checks.
 A has identified both publisher composition and mutually overwriting failure/gate fixtures. Publisher composition
 is corrected and frozen. A bounded compound held-failure fixture scaffold and runtime adapter regression are now
@@ -72,11 +72,12 @@ leased for test-first work in `web/crates/runtime/src/in_process_support.rs` and
 inside `web/crates/runtime/src/runtime.rs`, plus existing keycaps tests and128tracking. Existing failure/gate semantics
 and visibility remain unchanged; no GateDriver/shared enum/native-stub edits. The intended compiled behavioral RED is confirmed.
 Root now permits the reviewed private failure state, capture before await and focused lifecycle regressions. Existing gate/failure facade impacts are CRITICAL.
-B's matrix/part projection and rotated map tests pass. Sol max is planning the complete document kernel; further
-materialization/cleanup/fixture/exclusivity reads need explicit windows. Full106 remains open.
-F129 was independently planned, synced at `1eaad0c8`, claimed at `cf97b035` and completed mandatory instruction reads.
-Active NON-SHELL write lease: new `footprints/tests/choc_socket_qualification.rs` and ticket129 tracking ONLY.
-Producer, registry, models, defaults, recipes and existing119 tests remain read-only. No temporary mutation lease.
+B's valid two-board materialized fixture passed both validators. Its compiling document-kernel no-op then failed
+the intended stale linked-neighbor assertion. An independent fixed geometry oracle is required before implementation
+GREEN; local-preservation sensitivity and full106 acceptance remain open. Shared helpers remain read-only.
+F129 corrected bounded acceptance passed independent verification at `0c9a1178`, recorded at `b3c8fd48`
+and integrated at `8e8f6bfab`. The lower-hole drill mutant failed the intended dimension assertion and exact
+production bytes were restored. All F write and temporary mutation leases are released; 118 remains open.
 Root owns129 allocation;128 belongs to A and reserved118–127 retain their assignments. Every command requires a window.
 
 ### B: Core ticket 106
@@ -97,6 +98,12 @@ implementation passed the same focused test in 5.786 s after correcting test imp
 does not close the ticket. Source additions/removals, ownership/membership, layouts/materialized parts,
 local/omitted inputs, per-item settings, changed IDs/idempotence and rotated maps remain required.
 
+The later valid two-board/two-matrix fixture baseline passed after one missing-import setup repair.
+`changed_source_matrix_projects_linked_neighbor_after_entry_snapshot` then compiled and failed first on
+stale mirror pose `(19, 0) @ 0`, demonstrating missing projection rather than fixture failure. This no-op RED
+does not prove local preservation. Source is frozen pending an independently calculated numeric oracle and
+the next bounded implementation grant. Raw fixture and baseline/RED logs are in the ticket106 planning cache.
+
 ### A: Browser ticket 128
 
 Write lease: `web/crates/keycaps/src/keycaps_settings.rs` only inside `queued_settings_tests`, its local
@@ -107,6 +114,12 @@ focused in_process_adapter_tests inside `web/crates/runtime/src/runtime.rs`. Fir
 fixture scaffold and one behavioral RED test; that RED is confirmed and reviewed private failure-state implementation is now granted.
 Preserve existing failure/gate behavior and visibility. No GateDriver enum/native stub or production Core edits.
 Existing facade impacts are CRITICAL; stale, lower-bound and UNKNOWN adapter answers remain explicit.
+
+Compound fixture runtime gates now pass: direct adapter request ownership (1/1), adapter module (9/9),
+and separate restart/failure regression (1/1). An executor failure restarts and closes the old adapter,
+so a canceled later gate cannot establish no leakage; the corrected ownership test uses separate direct
+request futures/gates on one adapter and discloses reused transport identity. Runtime mapping coverage remains.
+The retirement test is now wired to the compound held-failure fixture and frozen, awaiting its focused run.
 
 `mounted_legend` impact was LOW with four test callers; test-entrypoint UNKNOWN results were source-confirmed,
 not treated as proof of complete independence. Use existing `boardstudio_web_ui_shared::test_wait` dependency.
@@ -159,7 +172,11 @@ waits for the actual analyzer exit, and restores registration only after leases 
 
 ## Integration and graph snapshot
 
-Integration is `4fd8f7f3`, including verified105 (`09e07a7a`) and bounded119 (`c5d2626c`, verification `4b97b59a`). The105 precommit graph captured six files/36symbols and ten creation flows at HIGH risk. The119 merge graph
+Integration is `8e8f6bfab`, adding verified bounded129 (`0c9a1178`, verification `b3c8fd48`) to
+verified105 (`09e07a7a`) and bounded119 (`c5d2626c`, verification `4b97b59a`). The new integration batch
+check is pending; the last passing full batch remains `4fd8f7f3`. Root captured the merged source index
+successfully in 32 s before this metadata commit (`/tmp/boardstudio-129-integration-index.log`);
+wrapper exit 1 records the two uncommitted tracker files, not analyzer failure. The105 precommit graph captured six files/36symbols and ten creation flows at HIGH risk. The119 merge graph
 captured five files/54symbols at LOW risk. Both deltas were complete. Final root refresh at `da3ef6e7` reported
 `boardstudio-tce-matrix: current`; this later documentation record will advance metadata without changing source. Full default check passed source batch `4fd8f7f3` in 535.5 s: repo 0.1, tooling 12.5, lint 9.9,
 build 149.8, test 76.2 and browser 287.0 s. All 70 presentation tests and 15 CAD browser checks passed.
