@@ -5,10 +5,15 @@ Root owns this registry. Read the central copy at
 before planning a dispatch, changing files, requesting checks or handing work to a verifier. A lane's branch copy
 may lag. Confirm current worktree status and index freshness in the granted command window; a snapshot is not a lease.
 
+[Parallel-streams review](parallel-streams-review.md) proposes narrower exclusivity and separate edit/command leases.
+It is not an active grant: 19's existing exclusivity and all current holds remain until the user's decision and exact audits.
+
 ## Coordinators
 
 The user requires a persistent chat for every lane. Each coordinator owns its lane's planning, bounded tickets,
-Luna 6 high implementation and fresh Sol 6.1 xhigh verification sessions. Planning research uses Sol 6.1 max.
+Luna implementation and fresh Sol 6.1 xhigh verification sessions. Use the Luna-first effort table in
+[agent-workflow.md](../../agents/agent-workflow.md#models-and-who-does-what-the-same-in-codex-and-claude)
+for new sessions; active sessions keep their settings and scope.
 The coordinator does not implement or verify work it delegates. Root owns integration, maps, shared file leases,
 command scheduling, batch checks and every GitNexus refresh. Reuse the listed chats rather than starting duplicate owners.
 

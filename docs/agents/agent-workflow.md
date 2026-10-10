@@ -8,19 +8,26 @@ app's private memory. Read this page, then
 
 ## Models and who does what (the same in Codex and Claude)
 
-Set by the user on 2026-10-10. The roles are fixed; use these models for them in whichever app is running.
+Set by the user on 2026-10-10, with a later Luna-first effort policy to reduce token usage. Keep role independence;
+choose the lowest sufficient effort for each new bounded task and escalate when evidence warrants it.
 
 | Role | What it does | Model / effort |
 | --- | --- | --- |
 | Orchestrator | tickets, ADRs, prompts, ordering, lane setup, merging, batch check, GitNexus refresh, answers questions | **Sol 6.1, medium, fast** |
-| Planning research (read-only) | design options, plans, audits of code | **Sol 6.1, max, fast**; **Astra, medium** only as a last resort |
-| Implementer | one ticket in one lane worktree, test first | **Luna 6, high, fast** |
+| Clerical support | inventories, extraction, status summaries, mechanical documentation | **Luna 6, low, fast** |
+| Bounded planning research (read-only) | focused source research, straightforward plans | **Luna 6, medium, fast**; **high** for harder bounded investigation |
+| Complex planning research (read-only) | material cross-domain, API or hardware/electrical risk | **Sol 6.1, max, fast**; **Astra, medium** only as a last resort |
+| Implementer | one ticket in one lane worktree, test first | **Luna 6, medium, fast** for routine low-risk changes; **high** for substantive implementation |
 | Verifier / reviewer | reproduces, mutation-checks, fixes small defects, sets `resolved` | **Sol 6.1, xhigh, fast** |
 | Browser or CAD runs | needs Chrome, `wasm-pack`, podman | the same sessions, sandbox lifted |
 
 Implementer and verifier must be different sessions with different models (Luna implements, Sol verifies). Commit trailers name
 the agent that made the commit (for example `Co-Authored-By: Codex <noreply@openai.com>` or the Claude trailer for work done in
 Claude Code). Until 2026-10-10 Claude Haiku, Sonnet and Opus filled these roles; tickets resolved before then say so.
+
+Active sessions keep their settings and fixed scope. Avoid delegation overhead for tiny tasks; pass fresh agents only
+the necessary task, paths, references and evidence. Reuse sufficient findings. Luna preparation does not replace the
+fresh Sol acceptance verifier/reviewer. Ticket-specific higher-effort gates remain binding until explicitly revised.
 
 ## Codex dispatch
 
@@ -35,8 +42,8 @@ The role table is the authority; app defaults are not role selection. Codex mode
 orchestrator; an existing session keeps its selected settings when a config file changes.
 
 Use Codex's `collaboration.spawn_agent` for work delegated within the current chat. For an implementer, set
-`fork_turns: "none"`, `model: "gpt-6-luna"`, `reasoning_effort: "high"`; for a fresh verifier, use
-`fork_turns: "none"`, `model: "gpt-6.1-sol"`, `reasoning_effort: "xhigh"`. Planning research uses Sol with `max`.
+`fork_turns: "none"`, `model: "gpt-6-luna"`, with `reasoning_effort` selected from the role table; for a fresh verifier, use
+`fork_turns: "none"`, `model: "gpt-6.1-sol"`, `reasoning_effort: "xhigh"`. Select planning research by the same table.
 A full-history fork inherits the parent's model and effort, so it cannot select the different role model.
 The spawn tool has no service-tier option; check the session's tier instead of claiming the tool selected fast mode.
 

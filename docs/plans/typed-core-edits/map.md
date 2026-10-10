@@ -90,7 +90,7 @@ and for any bulk action a recorded decision permits.
   All 70 presentation tests and 15 CAD browser checks passed. Log: `/tmp/boardstudio-tce-batch-12a6784d.log`.
   Batch includes the verified 37 slice, lane B 31/32/39, lane F planning and workflow tooling integration.
 
-- 24 test audit, phase 1 (proposal only, waiting for the user): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
+- 24 test audit, phase 1 (proposal delivered; the user subsequently approved its recommendations): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
   the time sits in two debug fixture builds and fixed wasm sleeps rather than in the number of tests, so the audit
   proposes a short deletion/merge list plus speed-only changes: [Audit](audit/test-audit.md),
   [Outcome](issues/24-test-audit.md#outcome-phase-1-audit-and-proposal-only-nothing-deleted-edited-or-merged).
@@ -206,6 +206,9 @@ and for any bulk action a recorded decision permits.
   [10](issues/10-integrated-verification.md#outcome).
 
 ## Ready for implementation
+
+Parallel scheduling review: [proposed parallel streams](parallel-streams-review.md). It proposes B+A+F implementation
+with audited leases and sequential commands; the original 19-alone rule remains active until the user's decision.
 
 - Native mirrored halves: 17, 18, 26–32 and 39 are resolved and integrated. Next: 105 in the 19 child chain,
   with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
