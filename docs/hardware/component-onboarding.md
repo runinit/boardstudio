@@ -44,6 +44,51 @@ this guide does not establish that every current entry already complies.
    evidence. Physical QA can be deferred explicitly; tests and human app review
    must remain separately identified.
 
+## Generator parameters
+
+A footprint generator declares each parameter once, where the generator is written
+(`footprints/src/generators`). The declaration is the contract: a saved value must have
+the declared kind, and Core checks every saved value against it
+([ADR-0009](../adr/0009-generator-parameters-checked-in-core.md),
+[ADR-0003](../adr/0003-rust-footprint-generators-in-core.md)).
+
+- **Declare the kind explicitly.** Use `number`, `boolean`, `string` (text), `net` (a
+  net name; empty means no net) or `array` (a JSON list, such as a model offset). No kind
+  is inferred from a default. There is no integer or enum kind yet; declare a count as a
+  number.
+- **Millimetres, as numbers.** A length, drill, diameter or offset is a JSON number in
+  millimetres. Text such as `"2.2"` is not a number: Core refuses it on an edit, and a saved
+  file that holds it opens with a warning.
+- **No numeric strings.** A text parameter must not have a numeric-looking default or end in a
+  dimension word (`size`, `drill`, `width`, `diameter`, `offset` and so on). The
+  [parameter lint](../../footprints/tests/parameter_lint.rs) reports both.
+- **`side` on every generator.** Each generator declares `side` as text with default `F`.
+  Core writes `B` for a half that a mechanical mirror flips
+  ([ADR-0008](../adr/0008-linked-halves-stay-linked.md)).
+- **Names are snake_case.** Net and pin-label names keep the pad's own name (`GND`, `P21`,
+  `P21_label`) because saved documents hold them. The lint lists each such name, with its
+  reason, in `NOT_SNAKE_CASE`; a new name of that kind is a reviewed change to that list.
+  The lint also pins the list lengths, so an entry cannot be added quietly.
+- **A change of kind is a migration.** Changing what a saved value must be (for example,
+  number text saved as text) needs a versioned migration step, as
+  [ADR-0004](../adr/0004-document-format-version-and-id-rename.md) requires. Version 4 is the
+  example: it converts saved numeric text to numbers. An unversioned rewrite on each load is not
+  allowed.
+- **Core's check.** Open and ReplaceDocument refuse a wrong type, and warn on a name the
+  generator does not declare and on text where a number or a list is declared. An edit refuses
+  every value it writes that is wrong ([ADR-0009](../adr/0009-generator-parameters-checked-in-core.md)).
+
+Legacy vocabulary is kept, not renamed, because saved documents and golden schemas hold these
+names; renaming and new kinds are out of scope for the generator-parameters work:
+
+| Generator (or owner) | Legacy names |
+| --- | --- |
+| Non-plated mounting hole (`ceoloide/mounting_hole_npth`) and closure mounts | `hole_size`, `hole_drill` |
+| Plated mounting hole (`ceoloide/mounting_hole_plated`) | `drill`, `outline` |
+| Mounting hole (`infused-kim/mounting_hole`) and trackpoint mount | `drill` |
+| Diode, LED and MCU generators | `via_size`, `via_drill` |
+| Case mount fields (not generator parameters) | `hole_diameter`, `boss_diameter` |
+
 ## PCB layer rules
 
 | Geometry | Presentation and controls |

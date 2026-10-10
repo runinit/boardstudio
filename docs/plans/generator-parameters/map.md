@@ -40,7 +40,7 @@ and enum kinds (option C) is out of scope.
 3. [03](issues/03-migrate-saved-generator-strings.md) (resolved)
 4. [04](issues/04-validate-generator-parameters-in-core.md) (resolved; decided by
    [ADR-0009](../../adr/0009-generator-parameters-checked-in-core.md))
-5. [05](issues/05-parameter-lint-and-conventions.md) (next; 04 is resolved)
+5. [05](issues/05-parameter-lint-and-conventions.md) (implemented, awaiting verification; 04 is resolved)
 6. [06](issues/06-paired-half-closure-proposals.md) (decided by
    [ADR-0008](../../adr/0008-linked-halves-stay-linked.md), awaiting implementation; does not
    block 04 and 05)

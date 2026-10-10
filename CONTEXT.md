@@ -79,7 +79,10 @@ generator parameters; it is not tied to any external tool's format or name.
 
 **Generator parameters**:
 The values saved for one footprint generator on a part definition or a placed
-part. Values not saved fall back to the generator's defaults.
+part. Values not saved fall back to the generator's defaults. Each value is typed by
+the generator's declaration: a length is a number, not text. Core refuses an edit that
+writes a value of the wrong type or a name the generator does not declare, and reports
+such saved values when a project opens rather than refusing the project.
 
 **Generated support placement**:
 A support position produced by the generator and not subsequently positioned or
