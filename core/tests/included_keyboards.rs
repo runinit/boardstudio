@@ -233,17 +233,110 @@ fn every_split_keyboard_opens_as_an_explicit_mirror_pair_that_reflects_its_keys(
     }
 }
 
+/// Every generated part of the first half has its reflection on the second half through the
+/// pair map: `right = (offset - left.x, left.y)`. The controller bay, reset switch and TRRS
+/// jack are generated parts, so this is what makes their openings linkable (ADR-0008).
 #[test]
-fn deliberate_asymmetry_is_named_per_keyboard() {
+fn every_second_half_part_is_the_reflection_of_the_first_halfs_part() {
+    for (name, project) in projects() {
+        if name == "reused-pcb" {
+            continue;
+        }
+        let offset = mapping_x(pair(project));
+        let parts = |half: &str| -> Vec<(String, f64, f64)> {
+            project["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|p| p["id"].as_str().unwrap().starts_with(&format!("{half}/")))
+                .map(|p| {
+                    (
+                        p["id"].as_str().unwrap().to_owned(),
+                        p["pose"]["at"]["x"].as_f64().unwrap(),
+                        p["pose"]["at"]["y"].as_f64().unwrap(),
+                    )
+                })
+                .collect()
+        };
+        let (left, right) = (parts("left"), parts("right"));
+        assert!(!left.is_empty(), "{name}");
+        assert_eq!(left.len(), right.len(), "{name}: same generated parts per half");
+        for (id, x, y) in &left {
+            let mirrored = id.replacen("left/", "right/", 1);
+            let (_, rx, ry) = right
+                .iter()
+                .find(|(right_id, _, _)| *right_id == mirrored)
+                .unwrap_or_else(|| panic!("{name}: {mirrored} is missing"));
+            assert!(
+                (offset - x - rx).abs() < 1e-9 && (y - ry).abs() < 1e-9,
+                "{name}: {mirrored} at ({rx}, {ry}) is not the reflection of {id} at ({x}, {y})"
+            );
+        }
+    }
+}
+
+/// The effective board outline of each half, mapped through the pair map, is the other half's
+/// outline: the second half is a true reflection of the first, not a shifted copy.
+#[test]
+fn the_split_halves_outlines_are_mirror_images_through_the_pair_map() {
+    for (name, project) in projects() {
+        if name == "reused-pcb" {
+            continue;
+        }
+        let offset = mapping_x(pair(project));
+        let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
+        let outline = |half: &str| {
+            effective_document(
+                &typed,
+                &MechanicalTarget::Instance {
+                    instance_id: half.into(),
+                },
+            )
+            .unwrap()
+            .1
+        };
+        let (left, right) = (outline("left"), outline("right"));
+        assert_eq!(left.len(), right.len(), "{name}: contour count");
+        let near = |a: (f64, f64), b: &[(f64, f64)]| {
+            b.iter()
+                .any(|p| (p.0 - a.0).abs() < 1e-6 && (p.1 - a.1).abs() < 1e-6)
+        };
+        for contour in &left {
+            let mapped: Vec<(f64, f64)> = contour
+                .points
+                .iter()
+                .map(|p| (offset - p.x, p.y))
+                .collect();
+            let other: Vec<(f64, f64)> = right
+                .iter()
+                .find(|candidate| {
+                    candidate.points.len() == mapped.len()
+                        && mapped.iter().all(|p| {
+                            near(*p, &candidate.points.iter().map(|q| (q.x, q.y)).collect::<Vec<_>>())
+                        })
+                })
+                .unwrap_or_else(|| panic!("{name}: no right contour matches the mapped left one"))
+                .points
+                .iter()
+                .map(|q| (q.x, q.y))
+                .collect();
+            for p in &other {
+                assert!(near(*p, &mapped), "{name}: right point {p:?} has no mirror");
+            }
+        }
+    }
+}
+
+/// Each shipped pair links its controller bay and TRRS jack: one opening, authored once, shown
+/// reflected on the other half (ADR-0008). Sofle already linked both.
+#[test]
+fn every_shipped_pair_links_its_controller_bay_and_trrs_jack() {
     for id in MEASURED_SPLITS {
         let pair = pair(&projects()[id]);
         for feature in ["opening-1", "opening-2"] {
-            assert_eq!(member_state(pair, feature, "left"), "linked", "{id}");
-            assert_eq!(
-                member_state(pair, feature, "right"),
-                "local",
-                "{id}: the generated bay is not the left bay's reflection"
-            );
+            for half in ["left", "right"] {
+                assert_eq!(member_state(pair, feature, half), "linked", "{id} {half}");
+            }
         }
     }
     for variant in SOFLE {
@@ -612,15 +705,15 @@ fn every_split_half_exports_to_kicad_with_its_own_closure_holes() {
             );
         }
         assert_eq!(holes, counts, "{name}: closure holes per half");
-        // Each half keeps the mounts Core proposed from its own outline. None is linked
-        // to the pair, so every hole comes from a mount the half stores itself.
+        // The pair's closure mounts are linked (ADR-0008): each one projects a hole on each
+        // half, and no half stores a private closure mount of its own.
         let linked = pair(project)["features"]
             .as_array()
             .unwrap()
             .iter()
             .filter(|feature| feature["kind"] == "closure-mount")
             .count();
-        assert_eq!(linked, 0, "{name}: no closure mount is linked");
+        assert_eq!(linked * 2, holes.iter().sum::<usize>(), "{name}: holes per linked mount");
         let local: usize = project["hardware"]["instances"]
             .as_array()
             .unwrap()
@@ -631,57 +724,122 @@ fn every_split_half_exports_to_kicad_with_its_own_closure_holes() {
                     .map_or(0, Vec::len)
             })
             .sum();
-        assert_eq!(
-            holes.iter().sum::<usize>(),
-            local,
-            "{name}: holes = stored mounts"
-        );
+        assert_eq!(local, 0, "{name}: no half stores a private closure mount");
     }
 }
 
-/// Known Core gap, generator-parameters ticket 06: closure mounts proposed for a paired
-/// half join the pair as linked features, and the pair map places them where the other
-/// half has no board. The shipped recipes initialize each half's closures before linking
-/// to avoid it. This reproduces the order they avoid, from each measured split with its
-/// right half's closure mounts removed, and records Core's behavior as it is: the first
-/// edit on that half proposes four mounts, links them to the pair, and the left half's
-/// export is refused. If Core changes this, the test fails; update ticket 06.
+/// Closure mounts of every shipped pair are linked to the pair, authored by the left half, which
+/// is the construction source (ADR-0008). Sofle v2 uses the internal gasket mount and has none.
 #[test]
-fn closures_proposed_on_a_paired_half_link_to_the_pair_and_block_the_other_halfs_export() {
-    // Sofle's halves are exact reflections, so its linked proposals stay inside; only the
-    // measured splits, whose controller sits at each PCB's right edge, are refused.
-    for name in MEASURED_SPLITS {
-        let mut project = projects()[name].clone();
-        let right = project["hardware"]["instances"]
-            .as_array_mut()
-            .unwrap()
-            .iter_mut()
-            .find(|instance| instance["id"] == "right")
-            .unwrap();
-        right["mechanical"]
-            .as_object_mut()
-            .unwrap()
-            .remove("closureMounts");
-        let (mut engine, document) = reopen(&project);
-        let document = change(&mut engine, &document, "right", json!("add-opening"));
-        let linked = pair(&document)["features"]
+fn every_shipped_pair_links_its_closure_mounts_from_the_left_half() {
+    for (name, counts) in CLOSURE_HOLES {
+        let project = &projects()[name];
+        let closures: Vec<&Value> = pair(project)["features"]
             .as_array()
             .unwrap()
             .iter()
             .filter(|feature| feature["kind"] == "closure-mount")
-            .collect::<Vec<_>>();
-        assert_eq!(
-            linked.len(),
-            4,
-            "{name}: the right half's proposals join the pair"
-        );
-        assert!(linked.iter().all(|feature| feature["author"] == "right"));
-        assert_linked_closures_land_on_their_mirror(name, &document);
-        export_board(&document, "right").expect("the right half exports");
-        let refusal = export_board(&document, "left")
-            .expect_err(&format!("{name}: the left export is refused"));
-        assert!(refusal.contains(OUTSIDE_OUTLINE), "{name}: {refusal}");
+            .collect();
+        let expected = if name == "sofle-v2" { 0 } else { 4 };
+        assert_eq!(closures.len(), expected, "{name}");
+        for feature in closures {
+            assert_eq!(feature["author"], "left", "{name}");
+            for half in ["left", "right"] {
+                assert_eq!(member_state(pair(project), feature["id"].as_str().unwrap(), half), "linked", "{name} {half}");
+            }
+        }
+        assert_eq!(counts.iter().sum::<usize>(), expected * 2, "{name}");
     }
+}
+
+/// Closure proposals on a paired half are made once, from the pair's construction source, and
+/// linked to the pair (ADR-0008; generator-parameters ticket 06). The pair here has never had
+/// closure mounts: both halves' lists and the pair's closure features are removed, then one
+/// settings edit on the right half proposes them. The proposals come from the left half's
+/// outline and link to the pair, both halves export, and no closure mount falls outside either
+/// outline, because the shipped halves are true reflections.
+#[test]
+fn closure_proposals_on_a_paired_half_are_made_once_from_the_construction_source() {
+    for name in MEASURED_SPLITS.into_iter().chain(["sofle-rgb", "sofle-choc"]) {
+        let mut project = projects()[name].clone();
+        let pair_index = 0;
+        project["hardware"]["pairs"][pair_index]["features"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|feature| feature["kind"] != "closure-mount");
+        for instance in project["hardware"]["instances"].as_array_mut().unwrap() {
+            instance["mechanical"]
+                .as_object_mut()
+                .unwrap()
+                .remove("closureMounts");
+        }
+        let (mut engine, document) = reopen(&project);
+        let document = change(
+            &mut engine,
+            &document,
+            "right",
+            json!({"set-dimension":{"field":"plate-thickness","value":1.6}}),
+        );
+        let closures: Vec<&Value> = pair(&document)["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|feature| feature["kind"] == "closure-mount")
+            .collect();
+        assert_eq!(closures.len(), 4, "{name}: the pair proposes four closure mounts");
+        assert!(
+            closures.iter().all(|feature| feature["author"] == "left"),
+            "{name}: proposed once, from the construction source"
+        );
+        for half in ["left", "right"] {
+            assert_eq!(closure_parts(&document, half).len(), 4, "{name} {half}");
+            export_board(&document, half)
+                .unwrap_or_else(|message| panic!("{name} {half}: {message}"));
+            assert!(
+                pair_finding_texts(&document, half)
+                    .iter()
+                    .all(|text| !text.contains(OUTSIDE_OUTLINE)),
+                "{name} {half}: no closure mount is outside its outline"
+            );
+        }
+        assert_linked_closures_land_on_their_mirror(name, &document);
+    }
+}
+
+/// A linked closure mount that maps outside the other half's outline is still refused, and the
+/// refusal says the feature is linked and which half authored it. The map is moved 12 mm in
+/// this test, so the authored mounts land beyond the right outline; the left half, which
+/// authored them, still exports.
+#[test]
+fn a_linked_closure_mount_outside_the_other_half_is_refused_and_names_its_author() {
+    let mut project = projects()["corne"].clone();
+    project["hardware"]["pairs"][0]["mapping"]["at"]["x"] = json!(
+        project["hardware"]["pairs"][0]["mapping"]["at"]["x"].as_f64().unwrap() + 12.0
+    );
+    let (_, document) = reopen(&project);
+    export_board(&document, "left").expect("the author half exports");
+    let refusal = export_board(&document, "right").expect_err("the right export is refused");
+    assert!(refusal.contains(OUTSIDE_OUTLINE), "{refusal}");
+    assert!(refusal.contains("linked closure mount"), "{refusal}");
+    assert!(refusal.contains("authored by \"left\""), "{refusal}");
+}
+
+/// The pair findings Core reports for one half, as their message text.
+fn pair_finding_texts(document: &Value, half: &str) -> Vec<String> {
+    let typed: ProjectDoc = serde_json::from_value(document.clone()).unwrap();
+    let inputs = effective_inputs(
+        &typed,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: half.into(),
+        },
+    )
+    .unwrap();
+    inputs
+        .findings
+        .into_iter()
+        .map(|finding| finding.message)
+        .collect()
 }
 
 /// Every linked closure mount projects one hole per half: the author's point on its own

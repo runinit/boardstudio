@@ -827,6 +827,83 @@ fn accepted_contours_drive_absent_closure_mount_initialization() {
     );
 }
 
+/// A legacy half with no stored configuration of its own.
+fn unconfigured_legacy(id: &str) -> PhysicalBoardInstance {
+    PhysicalBoardInstance {
+        id: id.into(),
+        name: id.into(),
+        board_id: "board".into(),
+        half: id.into(),
+        role: "controller".into(),
+        flipped: false,
+        controller_part_id: None,
+        mechanical: None,
+        construction_ownership: MechanicalConstructionOwnership::Legacy,
+        mechanical_identity_reservation: None,
+    }
+}
+
+fn stored_closure_mounts(document: &ProjectDoc, instance_id: &str) -> Option<Vec<Mount>> {
+    document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .find(|instance| instance.id == instance_id)
+        .unwrap()
+        .mechanical
+        .as_ref()
+        .and_then(|configuration| configuration.closure_mounts.clone())
+}
+
+/// Enabling a legacy second half is not a no-op for closures: it resolves from the shared
+/// source, so it already has a configuration, but its closure list is absent. Enable
+/// initializes that list from its own outline (generator-parameters ticket 06, finding B).
+#[test]
+fn enabling_a_legacy_second_half_initializes_its_closure_mounts() {
+    use boardstudio_core::mechanical::edit::apply;
+    use boardstudio_core::mechanical::effective_inputs;
+
+    let mut document = ProjectDoc::empty("doc", "Fixture");
+    document.boards.push(board("board"));
+    document.hardware = Some(HardwareConfiguration {
+        topology: HardwareTopology::Unibody,
+        transport: HardwareTransport::None,
+        instances: vec![unconfigured_legacy("a"), unconfigured_legacy("b")],
+        boards: vec![],
+        shared_construction: None,
+        pairs: vec![],
+    });
+    let accepted = vec![BoardContours {
+        board_id: "board".into(),
+        contours: vec![small_rect()],
+    }];
+    let enable = |id: &str| MechanicalEdit {
+        target: instance_target(id),
+        change: MechanicalChange::Enable,
+        mounting_hole: Some(Box::new(template())),
+    };
+    apply(&mut document, &accepted, &enable("a")).unwrap();
+    let first = stored_closure_mounts(&document, "a").expect("the first half proposes mounts");
+    assert!(!first.is_empty());
+
+    apply(&mut document, &accepted, &enable("b")).unwrap();
+    let second = effective_inputs(&document, &accepted, &instance_target("b"))
+        .unwrap()
+        .configuration
+        .closure_mounts;
+    assert_eq!(
+        second.map(|mounts| mounts.len()),
+        Some(first.len()),
+        "the second half initialized its own closure mounts"
+    );
+    assert!(
+        stored_closure_mounts(&document, "b").is_some(),
+        "the second half stores its closure list"
+    );
+}
+
 fn small_rect() -> Contour {
     Contour {
         hole: false,
