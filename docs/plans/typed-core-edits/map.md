@@ -72,8 +72,9 @@ and for any bulk action a recorded decision permits.
 - 25 phase 1 shipped-board audit and recorded hardware direction are merged from lane F. Phase 2 planning has
   an independently reviewed packet, tickets 42–104 (`a7857b49`): Sofle v2, RGB and Choc first, then the seven
   measured splits and remaining boards. Parent 25 stays open until the board work is verified. Preserve measured
-  layouts; use BoardStudio adaptations with the user's target hardware and existing case generation for plate,
-  gasket and tolerances. Screws and spacers may be added. Hardware selection remains a human gate.
+  layouts; use BoardStudio adaptations and existing case generation for plate, gasket and tolerances.
+  Screws and spacers may be added. The user subsequently delegated best-fit hardware selection and finding/adding
+  missing footprints (2026-10-10); the boards team owns evidence-based BOM selection and component qualification.
 - 37's delivered library/layout/page slice has independent verification at `fb2fe7bb7`, including a reproduced
   and fixed weak library-delete predicate, six bounded mutation failures, unchanged test lists and two sequential
   full browser passes (251.3 s and 248.3 s). The entire ticket remains `implemented (awaiting verification)`:
@@ -82,14 +83,19 @@ and for any bulk action a recorded decision permits.
   [105](issues/105-mirrored-half-derivation-kernel.md), ends with atomic activation in
   [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
   [114](issues/114-mirrored-edit-compatibility-constraints.md) remains `needs-info`; it cannot silently pass through
-  unsupported rotated/mixed constraints. Run this reconciliation chain alone for code and checks.
+  unsupported rotated/mixed constraints. Core children stay serial; the user approved isolated A/F streams with
+  exact file/API leases. Every command/check remains globally sequential; activation and timing stay exclusive.
+- [105](issues/105-mirrored-half-derivation-kernel.md) is resolved and integrated: private value-only part and companion
+  derivation accepts existing identities and per-item settings; creation retains allocation and insertion. Fresh verification
+  `09e07a7a` confirmed full acceptance, independently caught four companion/mode/tweak/stabiliser/fallback mutations and
+  passed restored repo/lint/test/typecheck. Parent 19 remains open; next Core slice is 106, without production activation.
 - **Integration batch check**, 2026-10-10 at `12a6784d`: one sequential foreground
   `BOARDSTUDIO_CHECK_JOBS=1 CARGO_BUILD_JOBS=12 python3 scripts/check.py` passed all default steps.
   Repo 0.1 s, tooling 23.4 s, lint 17.9 s, build 327.1 s, test 94.7 s, browser 350.1 s; total 813.3 s.
   All 70 presentation tests and 15 CAD browser checks passed. Log: `/tmp/boardstudio-tce-batch-12a6784d.log`.
   Batch includes the verified 37 slice, lane B 31/32/39, lane F planning and workflow tooling integration.
 
-- 24 test audit, phase 1 (proposal only, waiting for the user): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
+- 24 test audit, phase 1 (proposal delivered; the user subsequently approved its recommendations): about 2,150 tests, `test` 74.5 s and `browser` 159.1 s;
   the time sits in two debug fixture builds and fixed wasm sleeps rather than in the number of tests, so the audit
   proposes a short deletion/merge list plus speed-only changes: [Audit](audit/test-audit.md),
   [Outcome](issues/24-test-audit.md#outcome-phase-1-audit-and-proposal-only-nothing-deleted-edited-or-merged).
@@ -206,10 +212,22 @@ and for any bulk action a recorded decision permits.
 
 ## Ready for implementation
 
-- Native mirrored halves: 17, 18, 26–32 and 39 are resolved and integrated. Next: 105 in the 19 child chain,
+Parallel scheduling decision: [parallel streams](parallel-streams-review.md). The user approved B+A+F with audited
+leases and sequential commands. B remains serial; A/F have isolated active slices after exact audits and the original 105
+verification window ended. Full parent acceptance is not waived by partial slices.
+
+- Native mirrored halves: 17, 18, 26–32, 39 and 105 are resolved and integrated. Next: 106 in the 19 child chain,
   with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
-- Board planning 42–104 is reviewed. Sofle hardware research may proceed without builds; implementations wait for
-  native-model prerequisites and the user's hardware selection. Final 23 consumes completed board work and sign-off.
+- Board planning 42–104 is reviewed. Sofle BOM selection and missing-footprint research may proceed without shell/check
+  overlap. IDs 118–127 are reserved for bounded Sofle hardware/component follow-ups. Implementations wait for their
+  qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
+  native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
+  board work and sign-off; the user has delegated hardware selection.
+- [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
+  configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
+  Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
+  focused, repo/lint and all 77 footprint tests. Default 2.6 mm pads, physical fit/model alignment and whole-board
+  qualification remain unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) stays open.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11

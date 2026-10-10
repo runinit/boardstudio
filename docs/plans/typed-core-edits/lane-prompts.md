@@ -7,14 +7,16 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 ## Common rules (every lane prompt starts with these)
 
 > Read `AGENTS.md`, `docs/agents/agent-workflow.md`, `docs/agents/verification-process.md` and
-> `docs/plans/typed-core-edits/parallel-lanes.md`. Work only in your lane worktree on your lane branch. Use its absolute
-> path as `exec_command`'s `workdir` on every shell call; report the path, branch and status before editing.
+> `docs/plans/typed-core-edits/parallel-lanes.md`. Work only in your lane worktree on your lane branch.
+> Read the central integration `lane-registry.md` before dispatch/edit/check/verification handoff; compare file/symbol leases
+> and escalate overlaps or unexpected dirty state to root before contested edits. Obtain root's global command window.
+> Use its absolute path as `exec_command`'s `workdir` on every shell call; report the path, branch and status before editing.
 > Implementers claim a ticket by setting `Status: claimed` and committing; verifiers keep its awaiting-verification status
 > until acceptance holds. Implement test-first; run only the check steps the process table names, one command at a time in
 > the foreground. Follow `verification-process.md` for the active app's sandbox policy. Stage explicit paths; no
 > `git stash`, no `git add -A`, no push, no merge. Maps (`docs/plans/*/map.md`), `CONTEXT.md` and `docs/adr/*` belong to
-> the orchestrator; propose text in your ticket Outcome. Edit generated goldens (`core/tests/fixtures/boundary/transcript.json`,
-> `core/tests/fixtures/demo-projects-baseline.json`) only when your ticket names them AND their ownership is assigned to you.
+> the orchestrator; propose text in your ticket Outcome. Generated goldens (`core/tests/fixtures/boundary/transcript.json`,
+> `core/tests/fixtures/demo-projects-baseline.json`) are root-owned; propose required regeneration in your Outcome.
 > Run GitNexus impact before edits and
 > detect-changes before commits, bound to your checkout. Do not refresh GitNexus or register for its Stop hook; confirm
 > stale, empty or UNKNOWN caller answers with `rg` and report the limitation. Never run `scripts/check.py release`.
@@ -31,7 +33,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > `core/src/mechanical/halves.rs`, `core/src/model.rs` (pair and `halves` types). Check steps: `repo`, `lint`,
 > native `test`, `typecheck`, and the explicit wasm run `wasm-pack test --headless --chrome web/crates/host
 > --locked --features page --lib -- boundary_parity::` only if the transcript changes (it is a generated golden:
-> re-bless with `BOUNDARY_BLESS=1` only for your own additive operation transcript entries and say so).
+> root owns any required `BOUNDARY_BLESS=1` regeneration; report the required entries in your Outcome).
 
 ### B2: ticket 32, optional labels
 
@@ -40,6 +42,9 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > `web/crates/catalogue` passing; shrink its pinned difference list only for the relabelling rows when labels are passed.
 
 ### B3: ticket 19, reconcile on every edit (run alone in the lane, after B1 and B2 are resolved)
+
+Current dispatch uses the reviewed child chain 105–117 in parent 19, beginning with 105 after 39; root releases one
+child at a time. The original parent acceptance remains binding; the parent prompt below is reference, not a single-session scope.
 
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/19-reconcile-mirrored-halves.md`, including its
 > "Contracts from other tickets". It edits the CRITICAL-impact apply path: run GitNexus impact and report its callers and

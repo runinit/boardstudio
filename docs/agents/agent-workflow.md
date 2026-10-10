@@ -8,13 +8,16 @@ app's private memory. Read this page, then
 
 ## Models and who does what (the same in Codex and Claude)
 
-Set by the user on 2026-10-10. The roles are fixed; use these models for them in whichever app is running.
+Set by the user on 2026-10-10, with a later Luna-first effort policy to reduce token usage. Keep role independence;
+choose the lowest sufficient effort for each new bounded task and escalate when evidence warrants it.
 
 | Role | What it does | Model / effort |
 | --- | --- | --- |
 | Orchestrator | tickets, ADRs, prompts, ordering, lane setup, merging, batch check, GitNexus refresh, answers questions | **Sol 6.1, medium, fast** |
-| Planning research (read-only) | design options, plans, audits of code | **Sol 6.1, max, fast**; **Astra, medium** only as a last resort |
-| Implementer | one ticket in one lane worktree, test first | **Luna 6, high, fast** |
+| Clerical support | inventories, extraction, status summaries, mechanical documentation | **Luna 6, low, fast** |
+| Bounded planning research (read-only) | focused source research, straightforward plans | **Luna 6, medium, fast**; **high** for harder bounded investigation |
+| Complex planning research (read-only) | material cross-domain, API or hardware/electrical risk | **Sol 6.1, max, fast**; **Astra, medium** only as a last resort |
+| Implementer | one ticket in one lane worktree, test first | **Luna 6, medium, fast** for routine low-risk changes; **high** for substantive implementation |
 | Verifier / reviewer | reproduces, mutation-checks, fixes small defects, sets `resolved` | **Sol 6.1, xhigh, fast** |
 | Browser or CAD runs | needs Chrome, `wasm-pack`, podman | the same sessions, sandbox lifted |
 
@@ -22,15 +25,25 @@ Implementer and verifier must be different sessions with different models (Luna 
 the agent that made the commit (for example `Co-Authored-By: Codex <noreply@openai.com>` or the Claude trailer for work done in
 Claude Code). Until 2026-10-10 Claude Haiku, Sonnet and Opus filled these roles; tickets resolved before then say so.
 
+Active sessions keep their settings and fixed scope. Avoid delegation overhead for tiny tasks; pass fresh agents only
+the necessary task, paths, references and evidence. Reuse sufficient findings. Luna preparation does not replace the
+fresh Sol acceptance verifier/reviewer. Ticket-specific higher-effort gates remain binding until explicitly revised.
+
 ## Codex dispatch
+
+Every BoardStudio lane has a persistent coordinator chat, as requested by the user on 2026-10-10. The lane coordinator
+owns its planning, implementation dispatch and fresh independent review; root owns shared scheduling, leases, merges and
+index refreshes. Before dispatch, editing, requesting checks or verification handoff, read the central
+[lane registry](../plans/typed-core-edits/lane-registry.md) at its documented absolute integration path. Follow its
+conflict/escalation procedure; blocked coordinators hold implementation while retaining their lane's planning context.
 
 The role table is the authority; app defaults are not role selection. Codex model IDs are `gpt-6.1-sol`, `gpt-6-luna` and
 `gpt-6-astra`. Fast mode uses `service_tier = "priority"`. Select the effort in the table for each session, including the
 orchestrator; an existing session keeps its selected settings when a config file changes.
 
 Use Codex's `collaboration.spawn_agent` for work delegated within the current chat. For an implementer, set
-`fork_turns: "none"`, `model: "gpt-6-luna"`, `reasoning_effort: "high"`; for a fresh verifier, use
-`fork_turns: "none"`, `model: "gpt-6.1-sol"`, `reasoning_effort: "xhigh"`. Planning research uses Sol with `max`.
+`fork_turns: "none"`, `model: "gpt-6-luna"`, with `reasoning_effort` selected from the role table; for a fresh verifier, use
+`fork_turns: "none"`, `model: "gpt-6.1-sol"`, `reasoning_effort: "xhigh"`. Select planning research by the same table.
 A full-history fork inherits the parent's model and effort, so it cannot select the different role model.
 The spawn tool has no service-tier option; check the session's tier instead of claiming the tool selected fast mode.
 
@@ -78,8 +91,9 @@ asks for them.
 ## The orchestrator's loop
 
 1. Read `docs/plans/typed-core-edits/map.md` and the ticket headers (`Status:`, `Blocked by:`); pick the ready tickets per lane.
-2. Set up a lane when needed (commands in `parallel-lanes.md`: own worktree, branch, `target` directory on disk, real copies of
-   `cad/.cache` and `cad/wasm/pkg`). Keep at most two lanes running heavy checks; run timing work alone.
+2. Reuse/create the lane's persistent coordinator chat and set up its worktree when needed (commands in `parallel-lanes.md`:
+   own branch, `target` directory on disk, real copies of `cad/.cache` and `cad/wasm/pkg`). Record owners and leases in
+   the central registry. Run one foreground command globally at a time; timing work needs the machine alone.
 3. Hand each ticket to an implementer with the common rules plus the lane prompt; when it reports, hand it to the verifier with
    the verifier prompt.
 4. Merge a verified lane into `typed-core-edits/mechanical` with `git merge --no-ff`; if a lane branch is behind, merge the
