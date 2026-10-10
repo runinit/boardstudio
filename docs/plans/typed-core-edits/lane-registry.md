@@ -64,7 +64,8 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root, integrating verified F129 and recording progress; A's focused retirement check follows.
+Current command owner: A, comparing the exact keycaps list and running three sequential clean modules;
+B's focused preservation test follows. Root's integration batch has exited successfully.
 The full default check at `4fd8f7f3` passed in 535.5 s, including 70 presentation tests and 15 CAD browser checks.
 A has identified both publisher composition and mutually overwriting failure/gate fixtures. Publisher composition
 is corrected and frozen. A bounded compound held-failure fixture scaffold and runtime adapter regression are now
@@ -79,6 +80,9 @@ F129 corrected bounded acceptance passed independent verification at `0c9a1178`,
 and integrated at `8e8f6bfab`. The lower-hole drill mutant failed the intended dimension assertion and exact
 production bytes were restored. All F write and temporary mutation leases are released; 118 remains open.
 Root owns129 allocation;128 belongs to A and reserved118–127 retain their assignments. Every command requires a window.
+Root reserves 130 for a read-only audit of the existing Panasonic EVQ-PUC02K SMT side-reset candidate.
+Proposed ticket: `issues/130-reset-switch-smd-side-qualification.md`; no ticket/test write or producer mutation
+lease is active. Catalogue identity and official drawing evidence must be audited before acceptance/implementation.
 
 ### B: Core ticket 106
 
@@ -119,7 +123,8 @@ Compound fixture runtime gates now pass: direct adapter request ownership (1/1),
 and separate restart/failure regression (1/1). An executor failure restarts and closes the old adapter,
 so a canceled later gate cannot establish no leakage; the corrected ownership test uses separate direct
 request futures/gates on one adapter and discloses reused transport identity. Runtime mapping coverage remains.
-The retirement test is now wired to the compound held-failure fixture and frozen, awaiting its focused run.
+The retirement test is now wired to the compound held-failure fixture. Its focused run passed 1/1
+(29 filtered, 0.08 s test time); source is frozen for exact-list/module acceptance and later mutations/verification.
 
 `mounted_legend` impact was LOW with four test callers; test-entrypoint UNKNOWN results were source-confirmed,
 not treated as proof of complete independence. Use existing `boardstudio_web_ui_shared::test_wait` dependency.
@@ -172,9 +177,11 @@ waits for the actual analyzer exit, and restores registration only after leases 
 
 ## Integration and graph snapshot
 
-Integration is `8e8f6bfab`, adding verified bounded129 (`0c9a1178`, verification `b3c8fd48`) to
+Integration source merge is `8e8f6bfab`, adding verified bounded129 (`0c9a1178`, verification `b3c8fd48`) to
 verified105 (`09e07a7a`) and bounded119 (`c5d2626c`, verification `4b97b59a`). The new integration batch
-check is pending; the last passing full batch remains `4fd8f7f3`. Root captured the merged source index
+check passed at tracker commit `44cb6ab3` in 356.9 s: repo 0.1, tooling 3.0, lint 3.1, build 47.1,
+test 54.9 and browser 248.7 s. All 70 presentation tests passed; durable full output is
+`/tmp/boardstudio-tce-batch-44cb6ab3.log`. Root captured the merged source index
 successfully in 32 s before this metadata commit (`/tmp/boardstudio-129-integration-index.log`);
 wrapper exit 1 records the two uncommitted tracker files, not analyzer failure. The105 precommit graph captured six files/36symbols and ten creation flows at HIGH risk. The119 merge graph
 captured five files/54symbols at LOW risk. Both deltas were complete. Final root refresh at `da3ef6e7` reported
