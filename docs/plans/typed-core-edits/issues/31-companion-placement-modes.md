@@ -1,6 +1,6 @@
 # 31: Companion placement modes for mirrored switches
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [29](29-mirror-switch-and-companion-headings.md), [30](30-independent-parts-use-the-full-heading-rule.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-companion-modes-pads-labels-2026-10-10)
