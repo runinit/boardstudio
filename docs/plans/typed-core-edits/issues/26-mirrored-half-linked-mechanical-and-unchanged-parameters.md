@@ -44,5 +44,7 @@ and copies every parameter unchanged (commit after `af4c329fd`). Remaining here:
 - The equivalence test in `web/crates/catalogue`: on one accepted document, compare
   `propose_with_mirror_pair` + `into_submission(Some(&mounting_hole_template()))` against
   `CreateMirroredHalf` `ReuseBoard` (instances, pair, features, generated `case-closure/*` parts).
-- Move physical setup onto the Core operation so there is one path (topology, transport and
-  relabelling stay in the adapter, ticket 21).
+- Report every difference the comparison exposes (expected: the `halves` record, topology/transport
+  and relabelling, a derived versus supplied map). Do NOT move physical setup onto the Core operation
+  here: that is part of the web adapter, ticket [21](21-mirrored-half-web-adapter.md). Scope of 26 is the
+  equivalence test and its findings only.

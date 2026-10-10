@@ -17,6 +17,10 @@ Let a user create and manage a mirrored half in the app through the typed operat
   one-shot actions. No history entry from hover or focus.
 - Mounted tests for create, an edit from either half, a local exception and Undo.
 
+- Move physical setup (`propose_with_mirror_pair` and `into_submission`) onto `CreateMirroredHalf`
+  so there is one path; topology, transport and relabelling of the primary stay in the adapter.
+  Use the differences recorded by ticket [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md).
+
 ## Acceptance
 
 - [ ] No `ReplaceDocument` in the create path; typed ids from Core's changed-id report.
