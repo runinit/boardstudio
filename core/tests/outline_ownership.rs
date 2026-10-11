@@ -7,7 +7,7 @@
 use boardstudio_core::{CoreEngine, model::*};
 
 fn fixture() -> ProjectDoc {
-    serde_json::from_str(include_str!("fixtures/reviung41-outline-original.json")).unwrap()
+    serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap()
 }
 
 fn scene(reply: CoreReply) -> SceneDelta {
@@ -120,13 +120,17 @@ fn a_legacy_project_reopens_with_its_generated_outline_versions_selection_and_id
         opened.revision,
         serde_json::json!({"kind": "select-outline", "boardId": "main", "versionId": null}),
     );
-    assert!(generated.board_readiness[0].outline);
+    assert!(
+        generated.board_readiness[0].outline,
+        "Generated should be valid after clearing the legacy fixed selection: {:?}",
+        generated.findings
+    );
     let moved = edit(
         &mut engine,
         generated.revision,
         serde_json::json!({
             "kind": "move-parts",
-            "positions": [{ "id": "main/U1", "at": { "x": 310.0, "y": -15.0 } }]
+            "positions": [{ "id": "main/U1", "at": { "x": 24.0, "y": 35.0 } }]
         }),
     );
     assert_ne!(
@@ -303,7 +307,7 @@ fn origin_provenance_does_not_make_an_edited_copy_follow_its_source_version_or_c
         generated.revision,
         serde_json::json!({
             "kind": "move-parts",
-            "positions": [{ "id": "main/U1", "at": { "x": 310.0, "y": -15.0 } }]
+            "positions": [{ "id": "main/U1", "at": { "x": 24.0, "y": 35.0 } }]
         }),
     );
     assert_ne!(
@@ -344,11 +348,11 @@ fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may
             anchor_part_id: Some("main/U1".into()),
             id: "refined-cutout".into(),
             points: vec![
-                Vec2 { x: 58.0, y: -32.0 },
-                Vec2 { x: 62.0, y: -32.0 },
-                Vec2 { x: 60.0, y: -28.0 },
+                Vec2 { x: -2.0, y: -2.0 },
+                Vec2 { x: 2.0, y: -2.0 },
+                Vec2 { x: 0.0, y: 2.0 },
             ],
-            operation: Operation::Subtract,
+            operation: Operation::Add,
         });
     input.board_outlines[0].active_version_id = Some("refined".into());
     let mut engine = CoreEngine::new();
@@ -358,7 +362,8 @@ fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may
     }));
     assert!(
         refinement.board_readiness[0].outline,
-        "a linked refinement's component attachment must not block its outline"
+        "a linked refinement's component attachment must not block its outline: {:?}",
+        refinement.findings
     );
     // The same attachment on a fixed copy stays an error.
     let (mut fixed, _saved) = linked_source();
@@ -369,11 +374,11 @@ fn a_linked_refinement_may_keep_live_component_attachments_that_a_fixed_copy_may
             anchor_part_id: Some("main/U1".into()),
             id: "fixed-attachment".into(),
             points: vec![
-                Vec2 { x: 58.0, y: -32.0 },
-                Vec2 { x: 62.0, y: -32.0 },
-                Vec2 { x: 60.0, y: -28.0 },
+                Vec2 { x: -2.0, y: -2.0 },
+                Vec2 { x: 2.0, y: -2.0 },
+                Vec2 { x: 0.0, y: 2.0 },
             ],
-            operation: Operation::Subtract,
+            operation: Operation::Add,
         });
     fixed.board_outlines[0].active_version_id = Some("edited".into());
     let blocked = scene(CoreEngine::new().handle(CoreRequest::Open {
@@ -500,7 +505,7 @@ fn a_new_version_identity_cannot_collide_with_another_persisted_outline_namespac
             "feature": {
                 "kind": "polygon", "id": "saved-shape",
                 "points": [
-                    { "x": 58.0, "y": -32.0 }, { "x": 62.0, "y": -32.0 }, { "x": 60.0, "y": -28.0 }
+                    { "x": 0.5, "y": 0.5 }, { "x": 2.5, "y": 0.5 }, { "x": 1.5, "y": 2.5 }
                 ],
                 "operation": "subtract"
             }

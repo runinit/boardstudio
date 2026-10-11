@@ -5,11 +5,11 @@ use std::collections::BTreeSet;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
 
-fn reviung_document() -> ProjectDoc {
+fn synthetic_outline_document() -> ProjectDoc {
     serde_json::from_str(include_str!(
-        "../../../../core/tests/fixtures/reviung41-outline-original.json"
+        "../../../../core/tests/fixtures/synthetic-outline.json"
     ))
-    .expect("checked-in Reviung 41 project fixture should deserialize")
+    .expect("synthetic outline fixture should deserialize")
 }
 
 fn bridge_scene(board_id: &str, matrix_id: &str, bridge_id: &str) -> BoardOutlineScene {
@@ -30,12 +30,12 @@ fn bridge_scene(board_id: &str, matrix_id: &str, bridge_id: &str) -> BoardOutlin
 
 #[test]
 fn stored_row_grouping_and_empty_model_projection_remain_defined() {
-    let document = reviung_document();
+    let document = synthetic_outline_document();
     let mut expanded = super::default_disclosures(&document, "main");
     expanded.extend([
         "half-group:main:Left half".to_owned(),
         "half-group:main:Right half".to_owned(),
-        "half:main-right-keys-layout".to_owned(),
+        "half:matrix-layout".to_owned(),
     ]);
     let row_grouped = build_tree(
         &document,
@@ -49,14 +49,11 @@ fn stored_row_grouping_and_empty_model_projection_remain_defined() {
 
     let empty = ReadModel::default();
     let matrix = TreeContext::Matrix {
-        matrix_id: "main-right-keys".into(),
+        matrix_id: "matrix".into(),
     };
     assert_eq!(super::resolve_selection(&empty, &matrix), None);
     assert_eq!(super::context_for_part(&empty, "missing-part"), None);
-    assert_eq!(
-        super::context_for_cell(&empty, "main-right-keys", 0, 0),
-        None
-    );
+    assert_eq!(super::context_for_cell(&empty, "matrix", 0, 0), None);
     assert_eq!(super::context_label(&empty, &matrix), None);
 }
 
@@ -111,14 +108,14 @@ fn deleted_cells_are_absent_from_tree_but_disabled_slots_remain() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_context() {
     let ordinary_key = TreeContext::Key {
-        matrix_id: "left-keys".into(),
+        matrix_id: "synthetic-matrix".into(),
         row: 0,
         column: 0,
     };
     assert_eq!(
-        super::component_context_for_explicit_part("left-keys-SW1", &ordinary_key),
+        super::component_context_for_explicit_part("synthetic-switch-1", &ordinary_key),
         Some(TreeContext::Component {
-            part_id: Some("left-keys-SW1".into()),
+            part_id: Some("synthetic-switch-1".into()),
             matrix_id: None,
             row: None,
             column: None,
@@ -129,7 +126,7 @@ fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_c
     assert_eq!(
         ordinary_key,
         TreeContext::Key {
-            matrix_id: "left-keys".into(),
+            matrix_id: "synthetic-matrix".into(),
             row: 0,
             column: 0,
         },
@@ -137,7 +134,7 @@ fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_c
     );
     assert_eq!(
         super::component_context_for_explicit_part(
-            "left-keys-SW1",
+            "synthetic-switch-1",
             &TreeContext::Board {
                 board_id: "left".into(),
             },
@@ -149,14 +146,14 @@ fn explicit_finding_part_route_uses_component_context_without_changing_key_hit_c
 
 #[test]
 fn bridge_has_same_board_selection_at_outline_and_owning_matrix_occurrences() {
-    let document = reviung_document();
-    let matrix_id = "main-right-keys";
+    let document = synthetic_outline_document();
+    let matrix_id = "matrix";
     let layout = document
         .layouts
         .iter()
         .find(|layout| layout.matrix_id == matrix_id)
-        .expect("fixture has a right-keys layout");
-    let bridge_id = "bridge-right-keys";
+        .expect("synthetic fixture has a matrix layout");
+    let bridge_id = "bridge-synthetic-matrix";
     let mut expanded = BTreeSet::from([
         "board:main".to_owned(),
         format!("half:{}", layout.id),

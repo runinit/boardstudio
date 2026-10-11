@@ -717,48 +717,6 @@ fn automatic_count_keeps_saved_support_slots_when_outline_target_is_smaller() {
 }
 
 #[test]
-fn automatic_layout_centers_long_runs_and_covers_sofle_ledges() {
-    let fixture = include_str!("fixtures/internal-gasket-v1/sofle-outline.json");
-    let reply: Value = serde_json::from_str(&CoreEngine::new().request(fixture)).unwrap();
-    let result = &reply["assembly"];
-    assert_eq!(
-        result["generationBlocked"], false,
-        "{}",
-        result["diagnostics"]
-    );
-    let supports = result["gasketSupports"].as_array().unwrap();
-    let left: Vec<_> = supports
-        .iter()
-        .filter(|s| s["at"]["x"].as_f64().unwrap() < -3.)
-        .collect();
-    assert_eq!(
-        left.len(),
-        1,
-        "one long pad should replace fragmented left-edge pads: {left:?}"
-    );
-    assert!(left[0]["length"].as_f64().unwrap() >= 60., "{left:?}");
-    assert!(
-        (left[0]["at"]["y"].as_f64().unwrap() + 49.5).abs() < 2.,
-        "left pad must be centered: {left:?}"
-    );
-    for (min_x, max_x, min_y, max_y) in [
-        (36., 52., 0., 2.),
-        (99., 117., -2., 0.),
-        (36., 59., -102., -100.),
-        (94., 110., -109., -101.),
-    ] {
-        assert!(
-            supports.iter().any(|s| {
-                let x = s["at"]["x"].as_f64().unwrap();
-                let y = s["at"]["y"].as_f64().unwrap();
-                x > min_x && x < max_x && y > min_y && y < max_y
-            }),
-            "missing support on ledge {min_x}..{max_x}, {min_y}..{max_y}: {supports:?}"
-        );
-    }
-}
-
-#[test]
 fn automatic_long_edge_pairs_are_centered_and_symmetric() {
     let mut doc = internal_document();
     doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
@@ -854,20 +812,6 @@ fn automatic_closures_scale_with_case_perimeter() {
             }
         }
     }
-    let input: Value = serde_json::from_str(include_str!(
-        "fixtures/internal-gasket-v1/sofle-outline.json"
-    ))
-    .unwrap();
-    let reply: Value =
-        serde_json::from_str(&CoreEngine::new().request(&input.to_string())).unwrap();
-    assert_eq!(reply["assembly"]["generationBlocked"], false, "{reply}");
-    assert_eq!(
-        reply["assembly"]["suggestedMounts"]
-            .as_array()
-            .unwrap()
-            .len(),
-        6
-    );
 }
 
 #[test]

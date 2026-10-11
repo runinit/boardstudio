@@ -5,15 +5,13 @@
 //! generator does not declare, and text where a number or a list is declared (the version 4
 //! migration keeps both). An edit refuses all of these, but only for the values it writes, so a
 //! legacy warning does not block an unrelated edit.
-use crate::included_keyboards;
-use boardstudio_core::archive;
 use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
 use boardstudio_core::mechanical::MechanicalTarget;
 use boardstudio_core::mechanical::inputs::effective_document;
 use boardstudio_core::model::{
-    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Finding, Matrix, Part,
-    PartDefinition, Position, ProjectDoc, Severity,
+    Contour, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, ExportTarget, Finding,
+    Matrix, Part, PartDefinition, Position, PrepareExportRequest, ProjectDoc, Severity, Vec2,
 };
 use boardstudio_core::{CoreEngine, migrate};
 use boardstudio_footprints::bundled;
@@ -331,32 +329,6 @@ fn replace_document_warns_on_an_undeclared_name_instead_of_refusing() {
     assert_eq!(found[0].severity, Severity::Warning);
 }
 
-#[test]
-fn the_shipped_reviung41_archive_opens_without_a_generator_finding() {
-    let bytes = include_bytes!("../../content/archives/reviung41-original.boardstudio").to_vec();
-    let (reply, _buffers) = archive::request(r#"{"kind":"unpack-project"}"#, &[bytes]);
-    let reply: Value = serde_json::from_str(&reply).unwrap();
-    assert_eq!(reply["kind"], "unpacked", "{reply}");
-    let project: Value = serde_json::from_str(reply["projectJson"].as_str().unwrap()).unwrap();
-    let mut engine = CoreEngine::new();
-    let opened: Value = serde_json::from_str(
-        &engine.request(&json!({ "id": "open", "kind": "open", "document": project }).to_string()),
-    )
-    .unwrap();
-    assert_eq!(opened["kind"], "scene", "{opened}");
-    assert!(
-        opened["scene"]["findings"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|finding| !finding["id"]
-                .as_str()
-                .unwrap()
-                .starts_with("generator-parameter:")),
-        "{opened}"
-    );
-}
-
 const CHOC: &str = "ceoloide/switch_choc_v1_v2";
 const CHOC_DEFINITION: &str = "generator:ceoloide/switch_choc_v1_v2";
 const ENCODER: &str = "ceoloide/rotary_encoder_ec11_ec12";
@@ -631,153 +603,196 @@ fn assert_accepted(problems: &[generators::GeneratorParameterProblem], context: 
     );
 }
 
-/// Every value a Core writer puts into a generator parameter passes the check (ADR-0009).
-///
-/// The writers, in each included split keyboard and the reused PCB, for each half: the closure
-/// holes are numbers on their definitions (ticket 01), electrical wiring and KiCad planning write
-/// terminal net names, and a flipped half's effective read writes `side` as `F` or `B`
-/// (`mechanical/inputs.rs`). The saved document, the effective read, the captured planning
-/// document and every job of the export plan are judged, so a value the check refuses fails here.
+/// Saved, flipped-effective and captured board documents all validate the writer parameters.
 #[test]
-fn every_value_a_core_writer_produces_passes_the_parameter_check() {
-    for (name, project) in included_keyboards::projects() {
-        let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
-        assert_eq!(
-            generators::parameter_problems(&typed),
-            Vec::new(),
-            "{name}: the saved document"
-        );
-        let instances = project["hardware"]["instances"].as_array().unwrap();
-        assert!(!instances.is_empty(), "{name} has no physical instance");
-        for instance in instances {
-            let half = instance["id"].as_str().unwrap();
-            let target = MechanicalTarget::Instance {
-                instance_id: half.into(),
-            };
-            let (effective, _) = effective_document(&typed, &target).unwrap();
-            assert_accepted(
-                &generators::parameter_problems(&effective),
-                &format!("{name} {half}: the effective read"),
-            );
-            // An instance that shares another instance's board (the reused PCB's flipped side)
-            // has no export of its own; its effective read above is its check.
-            if instance["boardId"] != instance["id"] {
-                continue;
-            }
-            let plan = kicad::prepare_export(included_keyboards::export_request(project, half))
-                .unwrap_or_else(|error| panic!("{name} {half}: {}", error.message));
-            assert_accepted(
-                &generators::parameter_problems(&plan.captured_document),
-                &format!("{name} {half}: the captured document"),
-            );
-            for job in &plan.jobs {
-                assert_eq!(
-                    generators::definition_error(&job.definition),
-                    Ok(()),
-                    "{name} {half}: definition of {}",
-                    job.part.id
-                );
-                let source = &job.definition.generator.as_ref().unwrap().source;
-                let parameters = job.part.generator_parameters.clone().unwrap_or_default();
-                assert_accepted(
-                    &bundled()
-                        .check_parameters(source, &parameters)
-                        .unwrap()
-                        .into_iter()
-                        .map(|problem| generators::GeneratorParameterProblem {
-                            owner: generators::ParameterOwner::Part(job.part.id.clone()),
-                            generator: source.clone(),
-                            problem,
-                        })
-                        .collect::<Vec<_>>(),
-                    &format!("{name} {half}: part {}", job.part.id),
-                );
-            }
-        }
+fn saved_flipped_and_board_export_documents_validate_generator_jobs() {
+    let mut doc = document(vec![
+        part("synthetic-mcu", MCU_DEFINITION, json!({})),
+        part("synthetic-hole", HOLE_DEFINITION, json!({"hole_size": 2.2})),
+    ]);
+    doc.boards.push(
+        serde_json::from_value(json!({
+            "id":"synthetic-board", "name":"Synthetic board", "outlineIds":[],
+            "partIds":["synthetic-mcu","synthetic-hole"], "netIds":[], "thickness":1.6,
+            "traces":[], "vias":[]
+        }))
+        .expect("synthetic export board"),
+    );
+    doc.mechanical = Some(
+        serde_json::from_value(json!({
+            "boardId":"synthetic-board", "method":"printed", "mount":"rigid",
+            "plateThickness":1.5, "plateFoamThickness":0, "pcbThickness":1.6,
+            "bottomFoamThickness":0, "batteryHeight":0, "bottomThickness":2,
+            "plateToPcb":3.5, "wallThickness":2, "clearance":0.2,
+            "profiles":[], "mounts":[], "closureMounts":[
+                {"id":"synthetic-closure-hole","at":{"x":8,"y":6},"kind":"hole","holeDiameter":2.2}
+            ]
+        }))
+        .expect("synthetic mechanical inputs"),
+    );
+    doc.hardware = Some(serde_json::from_value(json!({
+        "topology":"split", "transport":"wired",
+        "instances":[{"id":"flipped","name":"Flipped synthetic board","boardId":"synthetic-board",
+          "half":"right","role":"peripheral","flipped":true,"controllerPartId":"synthetic-mcu",
+          "mechanical":doc.mechanical}],
+        "boards":[{"boardId":"synthetic-board","controllerPartId":"synthetic-mcu","mode":"matrix",
+          "assignments":{"row/0":"P3"}}]
+    })).expect("synthetic flipped and electrical inputs"));
+    assert_accepted(
+        &generators::parameter_problems(&doc),
+        "saved synthetic board",
+    );
+
+    let (flipped, _) = effective_document(
+        &doc,
+        &MechanicalTarget::Instance {
+            instance_id: "flipped".into(),
+        },
+    )
+    .expect("flipped synthetic effective document");
+    assert_accepted(
+        &generators::parameter_problems(&flipped),
+        "flipped effective document",
+    );
+    assert!(flipped.parts.iter().any(|part| part.id == "synthetic-mcu"));
+
+    let request = PrepareExportRequest {
+        snapshot_token: "synthetic-board-generator-check".into(),
+        expected_revision: doc.revision,
+        document: doc,
+        target: ExportTarget::Board {
+            board_id: "synthetic-board".into(),
+        },
+        contours: vec![Contour {
+            points: vec![
+                Vec2 { x: -20.0, y: -20.0 },
+                Vec2 { x: 20.0, y: -20.0 },
+                Vec2 { x: 20.0, y: 20.0 },
+                Vec2 { x: -20.0, y: 20.0 },
+            ],
+            hole: false,
+        }],
+        model_paths: Default::default(),
+    };
+    let plan = kicad::prepare_export(request).expect("synthetic board export plan");
+    assert_accepted(
+        &generators::parameter_problems(&plan.captured_document),
+        "captured board document",
+    );
+    assert_eq!(plan.jobs.len(), 2);
+    for job in &plan.jobs {
+        assert_eq!(generators::definition_error(&job.definition), Ok(()));
+        let source = &job.definition.generator.as_ref().unwrap().source;
+        let parameters = job.part.generator_parameters.clone().unwrap_or_default();
+        let problems = bundled()
+            .check_parameters(source, &parameters)
+            .unwrap()
+            .into_iter()
+            .map(|problem| generators::GeneratorParameterProblem {
+                owner: generators::ParameterOwner::Part(job.part.id.clone()),
+                generator: source.clone(),
+                problem,
+            })
+            .collect::<Vec<_>>();
+        assert_accepted(&problems, &format!("board job {}", job.job_id));
     }
 }
 
-/// Applying a board's wiring writes each terminal's net name into the part's parameters
-/// (`electrical::materialize`). Run on every board of the bundled projects that names a
-/// controller, the saved document it returns must still pass the check, and the terminal nets
-/// must actually have been written (so the test cannot pass by writing nothing).
+/// Applying a one-cell synthetic matrix's wiring writes its declared column terminal net.
 #[test]
-fn applying_a_boards_wiring_writes_only_values_the_parameter_check_accepts() {
-    let (mut applied, mut written) = (0, 0);
-    for (name, project) in included_keyboards::projects() {
-        let typed: ProjectDoc = serde_json::from_value(project.clone()).unwrap();
-        let boards = typed.hardware.as_ref().map_or(&[][..], |h| &h.boards[..]);
-        for board in boards {
-            let Some(controller_id) = board.controller_part_id.clone() else {
-                continue;
-            };
-            let controller = typed
-                .parts
-                .iter()
-                .find(|part| part.id == controller_id)
-                .unwrap_or_else(|| panic!("{name}: controller part {controller_id}"));
-            let source = typed
-                .definitions
-                .iter()
-                .find(|definition| definition.id == controller.definition_id)
-                .and_then(|definition| definition.generator.as_ref())
-                .map(|generator| generator.source.clone());
-            let mut engine = CoreEngine::new();
-            let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
-                id: "open".into(),
-                document: typed.clone(),
-            }) else {
-                panic!("{name}: the project does not open");
-            };
-            let plan = boardstudio_core::electrical::resolve(
-                boardstudio_core::electrical::ElectricalPlanRequest {
-                    document: (*document).clone(),
-                    instance_id: None,
-                    mode: board.mode,
-                    locks: Default::default(),
-                    controller_profile: source,
-                    board_id: Some(board.board_id.clone()),
-                    controller_part_id: Some(controller_id.clone()),
-                },
-            );
-            let reply = engine.handle(CoreRequest::ApplyElectrical {
-                id: "apply".into(),
-                base_revision: document.revision,
-                plan,
-                draft: true,
-            });
-            let CoreReply::Scene { document, .. } = reply else {
-                panic!("{name} {}: applying the wiring: {reply:?}", board.board_id);
-            };
-            assert_accepted(
-                &generators::parameter_problems(&document),
-                &format!("{name} {}: after applying the wiring", board.board_id),
-            );
-            written += document
-                .parts
-                .iter()
-                .filter(|part| {
-                    let terminals = document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == part.definition_id)
-                        .map(|definition| &definition.terminals);
-                    terminals.is_some_and(|terminals| {
-                        terminals.keys().any(|terminal| {
-                            part.generator_parameters
-                                .as_ref()
-                                .and_then(|parameters| parameters.get(terminal))
-                                .is_some_and(Value::is_string)
-                        })
-                    })
-                })
-                .count();
-            applied += 1;
-        }
-    }
-    assert!(applied > 0, "no bundled board names a controller");
-    assert!(
-        written > 0,
-        "applying the wiring wrote no terminal net name"
+fn applying_synthetic_matrix_wiring_writes_the_declared_column_terminal_net() {
+    let mut doc = ProjectDoc::empty("synthetic-wiring", "Synthetic wiring");
+    doc.format_version = migrate::CURRENT_VERSION;
+    doc.definitions.push(catalogue_definition(MCU));
+    let mut switch: PartDefinition = serde_json::from_value(json!({
+        "id": "synthetic/switch", "name": "Synthetic switch", "kind": "switch",
+        "terminals": { "from": ["1"], "to": ["2"] },
+        "matrixTerminals": { "row": "from", "column": "to" },
+        "courtyard": [],
+        "pads": [{"id":"1","number":"1","at":{"x":0,"y":0},"size":{"x":1,"y":1},"shape":"circle"},
+                 {"id":"2","number":"2","at":{"x":1,"y":0},"size":{"x":1,"y":1},"shape":"circle"}]
+    }))
+    .expect("synthetic switch definition");
+    switch.generator = catalogue_definition("ceoloide/switch_mx").generator;
+    doc.definitions.push(switch);
+    doc.parts
+        .push(part("matrix/m/r0c0", "synthetic/switch", json!({})));
+    doc.parts
+        .push(part("synthetic-mcu", MCU_DEFINITION, json!({})));
+    doc.matrices.push(
+        serde_json::from_value(json!({
+            "id":"m", "rows":1, "columns":1, "pitch":{"x":19,"y":19},
+            "origin":{"x":0,"y":0}, "definitionId":"synthetic/switch",
+            "partIds":["matrix/m/r0c0"], "boardId":"synthetic-board",
+            "cells":[{"row":0,"column":0,"enabled":true,"definitionId":"synthetic/switch"}]
+        }))
+        .expect("synthetic matrix"),
     );
+    doc.boards.push(
+        serde_json::from_value(json!({
+            "id":"synthetic-board", "name":"Synthetic board", "outlineIds":[],
+            "partIds":["matrix/m/r0c0","synthetic-mcu"], "netIds":[], "thickness":1.6,
+            "traces":[], "vias":[]
+        }))
+        .expect("synthetic board"),
+    );
+
+    let mut engine = CoreEngine::new();
+    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }) else {
+        panic!("synthetic project opens");
+    };
+    let plan = boardstudio_core::electrical::resolve(
+        boardstudio_core::electrical::ElectricalPlanRequest {
+            document: (*document).clone(),
+            instance_id: None,
+            mode: boardstudio_core::electrical::ElectricalMode::Matrix,
+            locks: Default::default(),
+            controller_profile: Some("ceoloide/mcu_nice_nano".into()),
+            board_id: Some("synthetic-board".into()),
+            controller_part_id: Some("synthetic-mcu".into()),
+        },
+    );
+    let reply = engine.handle(CoreRequest::ApplyElectrical {
+        id: "apply".into(),
+        base_revision: document.revision,
+        plan,
+        draft: true,
+    });
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("apply synthetic wiring: {reply:?}");
+    };
+    assert_accepted(&generators::parameter_problems(&document), "applied wiring");
+    let switch = document
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/m/r0c0")
+        .expect("the authored matrix switch remains placed");
+    let parameters = switch
+        .generator_parameters
+        .as_ref()
+        .expect("declared terminal values");
+    let (terminal, pad) = ("to", "2");
+    let net = document
+        .nets
+        .iter()
+        .find(|net| {
+            net.pins
+                .iter()
+                .any(|pin| pin.part_id == switch.id && pin.pad_id == pad)
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "{terminal} terminal pad {pad} has an assigned net; nets={:?}, parameters={:?}",
+                document.nets, parameters
+            )
+        });
+    assert_eq!(
+        parameters.get(terminal),
+        Some(&json!(net.name)),
+        "the declared {terminal} terminal stores its mapped net name"
+    );
+    assert!(!net.name.is_empty());
 }

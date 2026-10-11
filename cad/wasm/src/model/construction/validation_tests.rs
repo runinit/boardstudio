@@ -7,7 +7,7 @@
 
 use super::super::step_oracle::{self as oracle, Report};
 use super::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 use std::{fs, path::PathBuf, process::Command};
@@ -855,10 +855,12 @@ fn integrated_lid_and_component_opening_have_exact_exported_subtraction() {
         "side-access subtraction",
     );
     check_baseline(&cut_report, &baseline(id)["cut"], "cut frame");
-    assert!(!import_checks(cut.step.clone(), id)
-        .mesh
-        .positions
-        .is_empty());
+    assert!(
+        !import_checks(cut.step.clone(), id)
+            .mesh
+            .positions
+            .is_empty()
+    );
 
     let mut invalid = body.clone();
     invalid["openings"] = json!([{"points":square(0.0,2.0),"z":0,"height":-1}]);
@@ -912,7 +914,6 @@ fn core_internal_gasket_fixtures_export_connected_positive_regions() {
         "split",
         "mixed-cuts",
         "automatic-count",
-        "sofle-outline",
     ] {
         let id = format!("internal-gasket-{name}");
         let want = expect(&id);
@@ -1476,11 +1477,12 @@ fn assert_kernel_meets_the_gate<K: CadKernel>(kernel: &K) {
     let mesh = kernel.mesh(&model).expect("kernel meshes the plate");
     assert!(!mesh.positions.is_empty() && mesh.positions.len() % 9 == 0);
     assert_eq!(mesh.positions.len(), mesh.normals.len());
-    assert!(mesh
-        .positions
-        .iter()
-        .chain(&mesh.normals)
-        .all(|value| value.is_finite()));
+    assert!(
+        mesh.positions
+            .iter()
+            .chain(&mesh.normals)
+            .all(|value| value.is_finite())
+    );
 
     let imported = kernel
         .import_step(&step)
@@ -1500,11 +1502,13 @@ fn assert_kernel_meets_the_gate<K: CadKernel>(kernel: &K) {
             &format!("import max {axis}"),
         );
     }
-    assert!(!kernel
-        .mesh(&imported.model)
-        .expect("imported mesh")
-        .positions
-        .is_empty());
+    assert!(
+        !kernel
+            .mesh(&imported.model)
+            .expect("imported mesh")
+            .positions
+            .is_empty()
+    );
 
     // Two bodies in one STEP compound: counts and volume come from the oracle, not the kernel.
     let plate = |index: usize, z: f64| {

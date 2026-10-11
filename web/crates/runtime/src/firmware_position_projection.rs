@@ -220,12 +220,61 @@ mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
+    use serde_json::json;
 
     fn document() -> ProjectDoc {
-        serde_json::from_str(include_str!(
-            "../../../../core/tests/fixtures/reviung41-outline-original.json"
+        let mut document: ProjectDoc = serde_json::from_str(include_str!(
+            "../../../../core/tests/fixtures/synthetic-outline.json"
         ))
-        .expect("checked-in Reviung fixture is a valid saved project")
+        .expect("synthetic outline fixture is a valid saved project");
+        let switch = document
+            .definitions
+            .iter_mut()
+            .find(|definition| definition.id == "synthetic/switch")
+            .unwrap();
+        switch.terminals = BTreeMap::from([
+            ("row".into(), vec!["1".into()]),
+            ("column".into(), vec!["2".into()]),
+        ]);
+        switch.matrix_terminals = Some(boardstudio_core::model::MatrixTerminals {
+            row: "row".into(),
+            column: "column".into(),
+        });
+        let controller = boardstudio_core::generators::catalogue()
+            .expect("bundled generator catalogue")
+            .into_iter()
+            .find(|definition| {
+                definition
+                    .generator
+                    .as_ref()
+                    .is_some_and(|generator| generator.source == "ceoloide/mcu_nice_nano")
+            })
+            .expect("synthetic firmware controller definition");
+        let controller_id = controller.id.clone();
+        document.definitions.push(controller);
+        document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "main/U1")
+            .unwrap()
+            .definition_id = controller_id;
+        document.matrices[0].board_id = Some("main".into());
+        document.hardware = Some(
+            serde_json::from_value(json!({
+                "topology": "unibody",
+                "transport": "none",
+                "instances": [{
+                    "id": "main", "name": "Synthetic", "boardId": "main",
+                    "half": "unibody", "role": "standalone", "flipped": false,
+                    "controllerPartId": "main/U1"
+                }],
+                "boards": [{
+                    "boardId": "main", "controllerPartId": "main/U1", "mode": "matrix"
+                }]
+            }))
+            .expect("synthetic firmware hardware configuration"),
+        );
+        document
     }
 
     fn identity(document: &ProjectDoc) -> FirmwarePlanIdentity {
@@ -419,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn current_real_plan_preserves_matrix_order_labels_and_selected_board_bindings() {
+    fn current_plan_preserves_matrix_order_labels_and_selected_board_bindings() {
         let mut document = document();
         document
             .hardware
@@ -430,7 +479,7 @@ mod tests {
             .find(|board| board.board_id == "main")
             .unwrap()
             .key_bindings
-            .insert("matrix/main-right-keys/r0c0".into(), "&kp Q".into());
+            .insert("matrix/matrix/r0c0".into(), "&kp Q".into());
         let identity = identity(&document);
         let plan = resolve(&document);
         assert!(!plan.assignments.is_empty());
@@ -448,8 +497,8 @@ mod tests {
         assert_eq!(projection.state, FirmwarePositionState::Current);
         assert_eq!(projection.keys.len(), plan.assignments.len());
         assert_eq!(projection.keys[0].id, plan.assignments[0].key_id);
-        assert_eq!(projection.keys[0].label, "main-right-keys-SW1");
-        assert_eq!(projection.bindings["matrix/main-right-keys/r0c0"], "&kp Q");
+        assert_eq!(projection.keys[0].label, "M1");
+        assert_eq!(projection.bindings["matrix/matrix/r0c0"], "&kp Q");
         for peripheral in &plan.peripherals {
             let supported_role = matches!(peripheral.kind.as_str(), "encoder" | "press")
                 && peripheral

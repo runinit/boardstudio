@@ -1,7 +1,7 @@
 use boardstudio_core::{CoreEngine, model::*};
 
 fn fixture() -> ProjectDoc {
-    serde_json::from_str(include_str!("fixtures/reviung41-outline-original.json")).unwrap()
+    serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap()
 }
 
 fn scene(reply: CoreReply) -> SceneDelta {
@@ -53,7 +53,7 @@ fn fixed_copy_preserves_shape_when_components_move_and_generated_stays_available
         &mut engine,
         copied.revision,
         serde_json::json!({
-            "kind": "move-parts", "positions": [{ "id": "main/U1", "at": { "x": 310.0, "y": -15.0 } }]
+            "kind": "move-parts", "positions": [{ "id": "main/U1", "at": { "x": 24.0, "y": 35.0 } }]
         }),
     );
     assert_eq!(copied.board_contours, moved.board_contours);
@@ -65,9 +65,32 @@ fn fixed_copy_preserves_shape_when_components_move_and_generated_stays_available
         !moved.finding_markers.is_empty(),
         "The missing material must be located on the workbench"
     );
+    // Persist a genuinely invalid inactive fixed copy: its feature follows U1, which a
+    // fixed snapshot is forbidden to do. The attachment is entirely inside the board,
+    // so it isolates the ownership finding from generated geometry and fabrication fit.
+    let mut with_invalid_inactive_copy = serde_json::to_value(document(&mut engine)).unwrap();
+    with_invalid_inactive_copy["boardOutlines"][0]["versions"][0]["geometry"]["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "kind": "polygon",
+            "id": "inactive-live-attachment",
+            "anchorPartId": "main/U1",
+            "points": [
+                { "x": -1.0, "y": -1.0 },
+                { "x": 1.0, "y": -1.0 },
+                { "x": 0.0, "y": 1.0 }
+            ],
+            "operation": "add"
+        }));
+    let mut engine = CoreEngine::new();
+    let active_fixed = scene(engine.handle(CoreRequest::Open {
+        id: "invalid-inactive-copy".into(),
+        document: serde_json::from_value(with_invalid_inactive_copy).unwrap(),
+    }));
     let generated = edit(
         &mut engine,
-        moved.revision,
+        active_fixed.revision,
         serde_json::json!({
             "kind": "select-outline", "boardId": "main", "versionId": null
         }),
@@ -75,7 +98,8 @@ fn fixed_copy_preserves_shape_when_components_move_and_generated_stays_available
     assert_ne!(copied.board_contours, generated.board_contours);
     assert!(
         generated.board_readiness[0].outline,
-        "Invalid inactive copies cannot block Generated"
+        "Invalid inactive copies cannot block Generated: {:?}",
+        generated.findings
     );
     let saved = serde_json::to_value(document(&mut engine)).unwrap();
     assert_eq!(
@@ -249,7 +273,7 @@ fn first_drawn_feature_and_its_fixed_copy_undo_together() {
         opened.revision,
         serde_json::json!({
             "kind": "copy-outline", "boardId": "main", "versionId": "cutout", "name": "With opening",
-            "feature": { "id": "hole", "kind": "rect", "center": {"x":128.615,"y":-73.33}, "size": {"x":5,"y":5}, "radius":0, "operation":"subtract" }
+            "feature": { "id": "hole", "kind": "rect", "center": {"x":0,"y":0}, "size": {"x":5,"y":5}, "radius":0, "operation":"subtract" }
         }),
     );
     assert!(
@@ -268,7 +292,7 @@ fn copying_keeps_an_authored_rounded_cutout_as_a_world_cad_primitive() {
     let mut doc = fixture();
     doc.outline.push(OutlineFeature::Rect {
         id: "rounded-opening".into(),
-        anchor_part_id: Some("matrix/main-thumbs/r0c2/stabilizer".into()),
+        anchor_part_id: Some("main/U1".into()),
         rotation: Some(12.0),
         center: Vec2 { x: 0.0, y: 0.0 },
         size: Vec2 { x: 5.0, y: 5.0 },

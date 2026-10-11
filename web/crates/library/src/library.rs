@@ -332,126 +332,6 @@ fn KeyboardCard(
 }
 
 #[component]
-fn DemoKeyboardPreview(preview: Option<Preview>, fallback: String) -> Element {
-    match preview {
-        Some(preview) if preview.keys.is_empty() => rsx! {
-            div { class: "m1-keyboard-preview is-empty",
-                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
-                }
-                span { "No keys placed" }
-            }
-        },
-        Some(preview) => rsx! {
-            div { class: "m1-keyboard-preview",
-                svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
-                    for key in &preview.keys {
-                        rect {
-                            key: "{key.id}",
-                            transform: "translate({key.x} {key.y}) rotate({key.angle})",
-                            x: "{-key.width / 2.0}",
-                            y: "{-key.height / 2.0}",
-                            width: "{key.width}",
-                            height: "{key.height}",
-                            rx: "2",
-                        }
-                    }
-                }
-            }
-        },
-        None => rsx! {
-            div { class: "m1-keyboard-preview is-empty",
-                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
-                }
-                span { "{fallback}" }
-            }
-        },
-    }
-}
-
-#[component]
-fn DemoKeyboardCard(name: &'static str, fixture: &'static str) -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let fixture_document = use_resource({
-        let runtime = runtime.clone();
-        move || {
-            let runtime = runtime.clone();
-            async move { runtime.fixture_document(fixture).await.map(Arc::new) }
-        }
-    });
-    let loaded = fixture_document.read();
-    let document = loaded.as_ref().and_then(|result| result.as_ref().ok());
-    let preview_result = document.map(|document| preview(document));
-    let detail = match (document, preview_result.as_ref()) {
-        (Some(document), Some(Ok(preview))) => format!(
-            "{} keys · {}",
-            preview.keys.len(),
-            if document.boards.len() > 1 {
-                format!("{} boards", document.boards.len())
-            } else {
-                "Single board".into()
-            }
-        ),
-        (Some(_), Some(Err(()))) => "Preview unavailable".into(),
-        _ => "Start an editable copy".into(),
-    };
-    let graphic = preview_result.and_then(Result::ok);
-    let fallback = if loaded.is_none() {
-        "Loading preview…"
-    } else {
-        "Preview unavailable"
-    };
-    let runtime = runtime.clone();
-    rsx! {
-        article { class: "m1-keyboard-card m1-demo-keyboard-card",
-            button {
-                class: "m1-keyboard-tile",
-                r#type: "button",
-                aria_label: "Start {name}",
-                onclick: move |_| {
-                    super::close_project_menu();
-                    runtime.open_fixture(fixture);
-                },
-                DemoKeyboardPreview { preview: graphic, fallback }
-                span { class: "m1-keyboard-title", "{name}" }
-                span { class: "m1-keyboard-detail", "{detail}" }
-            }
-        }
-    }
-}
-
-#[component]
-fn DemoKeyboardCards(project_menu: bool) -> Element {
-    rsx! {
-        section { class: if project_menu { "m1-project-menu-demo-actions m1-demo-keyboards" } else { "m1-demo-keyboards" }, aria_label: "Demo keyboards",
-            header { class: "m1-demo-keyboards-heading",
-                h3 { "Demo keyboards" }
-                span { "Start an editable copy" }
-            }
-            div { class: "m1-keyboard-grid",
-                DemoKeyboardCard { key: "sofle", name: "Sofle", fixture: "sofle" }
-                DemoKeyboardCard { key: "corne", name: "Corne", fixture: "measured-corne" }
-                DemoKeyboardCard { key: "lily58", name: "Lily58", fixture: "measured-lily58" }
-                DemoKeyboardCard { key: "sweep", name: "Ferris Sweep", fixture: "measured-sweep" }
-                DemoKeyboardCard { key: "chocofi", name: "Chocofi", fixture: "measured-chocofi" }
-                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "measured-reviung41" }
-                DemoKeyboardCard { key: "totem", name: "TOTEM", fixture: "measured-totem" }
-                DemoKeyboardCard { key: "klor", name: "KLOR", fixture: "measured-klor" }
-                DemoKeyboardCard { key: "cantor", name: "Cantor", fixture: "measured-cantor" }
-                DemoKeyboardCard { key: "gh60", name: "GH60 · ANSI", fixture: "measured-gh60" }
-                DemoKeyboardCard { key: "discipline", name: "Discipline · ANSI", fixture: "measured-discipline" }
-                DemoKeyboardCard { key: "mysterium", name: "Mysterium · ANSI", fixture: "measured-mysterium" }
-                DemoKeyboardCard { key: "voyager97", name: "Voyager97 · 103-key layout", fixture: "measured-voyager97" }
-                DemoKeyboardCard { key: "voyager104", name: "Voyager104 · ANSI", fixture: "measured-voyager104" }
-                DemoKeyboardCard { key: "plaid", name: "Plaid", fixture: "measured-plaid" }
-                DemoKeyboardCard { key: "lumberjack", name: "Lumberjack", fixture: "measured-lumberjack" }
-            }
-        }
-    }
-}
-
-#[component]
 pub fn Library(
     project_menu: bool,
     #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
@@ -815,12 +695,9 @@ pub fn Library(
                 if no_search_matches {
                     p { class: "m1-keyboard-empty", "No keyboards match your search." }
                 }
-                if project_menu {
-                    DemoKeyboardCards { project_menu: true }
-                } else {
-                    div { class: "m1-library-actions",
+                div { class: if project_menu { "m1-project-menu-actions" } else { "m1-library-actions" },
                         button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_landing(), "New project" }
-                        if let Some(project_id) = current_project_id.clone() {
+                        if !project_menu && let Some(project_id) = current_project_id.clone() {
                             button { r#type: "button", onclick: move |_| {
                                 guide_request_counter += 1;
                                 guide_request.set(Some(SetupGuideRequest {
@@ -840,8 +717,6 @@ pub fn Library(
                                 input.set_value("");
                             }}
                         }
-                    }
-                    DemoKeyboardCards { project_menu: false }
                 }
             }
             if project_menu {
@@ -1033,7 +908,7 @@ mod mounted_tests {
     }
 
     fn saved_card_count(root: &web_sys::Element) -> u32 {
-        root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+        root.query_selector_all(".m1-keyboard-card")
             .unwrap()
             .length()
     }
@@ -1052,7 +927,7 @@ mod mounted_tests {
 
     /// The title of the only saved keyboard card, when the filtered listing shows one.
     fn saved_card_title(root: &web_sys::Element) -> Option<String> {
-        root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+        root.query_selector(".m1-keyboard-card .m1-keyboard-title")
             .unwrap()
             .and_then(|title| title.text_content())
     }
@@ -1123,9 +998,7 @@ mod mounted_tests {
         wait_for_project_cards(&root, 2).await;
 
         let damaged_card = root
-            .query_selector(
-                ".m1-keyboard-card:not(.m1-demo-keyboard-card) button[aria-label='Open Damaged preview keyboard']",
-            )
+            .query_selector(".m1-keyboard-card button[aria-label='Open Damaged preview keyboard']")
             .unwrap()
             .expect("damaged preview remains an accessible Open action");
         assert!(damaged_card.get_attribute("disabled").is_none());
@@ -1142,11 +1015,9 @@ mod mounted_tests {
                 .contains("Open to check this keyboard")
         );
         assert!(
-            root.query_selector(
-                ".m1-keyboard-card:not(.m1-demo-keyboard-card) button[aria-label='Open Healthy keyboard']",
-            )
-            .unwrap()
-            .is_some(),
+            root.query_selector(".m1-keyboard-card button[aria-label='Open Healthy keyboard']",)
+                .unwrap()
+                .is_some(),
             "one damaged preview does not hide a healthy saved card"
         );
 
@@ -1207,7 +1078,7 @@ mod mounted_tests {
             "failed listing exposes retry"
         );
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1,
@@ -1957,14 +1828,14 @@ mod mounted_tests {
         })
         .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1,
             "trimmed case-insensitive search includes the current keyboard"
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1978,13 +1849,13 @@ mod mounted_tests {
         })
         .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1998,13 +1869,13 @@ mod mounted_tests {
         })
         .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -2023,12 +1894,6 @@ mod mounted_tests {
                 .unwrap()
                 .contains("No keyboards match your search.")
         );
-        assert!(
-            root.query_selector(".m1-project-menu-demo-actions button")
-                .unwrap()
-                .is_some(),
-            "demo actions stay outside the saved-keyboard filter"
-        );
         let clear_search = root
             .query_selector(".m1-keyboard-search button")
             .unwrap()
@@ -2042,7 +1907,7 @@ mod mounted_tests {
         .await;
         assert_eq!(search.value(), "");
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             4
