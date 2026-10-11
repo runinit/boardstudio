@@ -11,6 +11,18 @@ Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflec
 Build the forward reconciliation kernel for matrices, keys, layouts and parts, using
 stable source/mirror associations. Test it directly; do not wire it into production edits.
 
+## Current approved execution authority (2026-10-11)
+
+The user explicitly approved this removal-only internal wrapper in `core/src/matrix/deletion.rs`:
+
+```rust
+pub(crate) fn remove_parts_by_id(doc: &mut ProjectDoc, removed_ids: &BTreeSet<String>) -> Vec<String>
+```
+
+It converts the removed IDs to removal-only changes and calls the existing private `remap_parts`; `PartChanges` and `remap_parts` remain PRIVATE. Replace the duplicate transition cleanup in the staged reconciliation path, preserving the Local parent when its Omitted companion alone is removed. Current unit lease: `core/src/mirrored_half/reconcile.rs` and this narrow `core/src/matrix/deletion.rs` wrapper only; no other visibility, public API or schema change is authorized in this unit. The earlier HUMAN visibility HOLD is lifted.
+
+B owns the standing mirror chain under parent19 and the central workflow: complete the coherent unit with Luna, STOP at the completed handoff, obtain one fresh Sol 6.1 medium acceptance review, then continue dependency-ready approved children without another per-helper/test/child root START. Closely coupled private slices may share that coherent review; record each ticket’s satisfied acceptance. Preserve all known counterexamples and nondefault/preservation proof obligations; do not claim full106/19 acceptance from the bounded 44/44 suite. This private backend wrapper alone enables no user-facing operation; production behavior still requires the approved activation chain.
+
 ## Setup
 
 Claimed by Luna 6 high in `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`
@@ -68,34 +80,11 @@ retention separately; each assertion must fail. Engine Undo/Open/preview are def
 
 ## Execution and verification gates
 
-This is a child of [19](19-reconcile-mirrored-halves.md); resolving it does not resolve 19.
-Core children execute serially with exclusive Core file/API leases. The user approved
-independent A/F streams on 2026-10-10; follow the central lane registry and parallel-streams
-decision for audited disjoint edits. Every shell/check command remains globally sequential;
-activation and timing require exclusive windows. The prerequisite batch and delivered 37
-verification slice are complete; root must refresh the bound index and grant this slice.
-Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`;
-report path/branch/status and inspect overlaps before editing. Every shell call has that
-absolute `workdir`; commands run one at a time in the foreground.
+This child does not resolve parent19. Follow [19](19-reconcile-mirrored-halves.md), the current central [lane registry](../lane-registry.md) and `docs/agents/agent-workflow.md` standing authority. B coordinates required planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation; no repeated root START for approved private helpers, tests or fixed-scope children. Keep each ticket’s acceptance explicit, all meaningful regressions/counterexamples intact, and production activation at111. Already approved feature API/schema contracts are authorized as specified; genuinely new/unsettled choices or visibility changes still escalate.
 
-Read `docs/agents/agent-workflow.md`, `verification-process.md`, `gitnexus-index.md` and
-parent 19. Luna 6 high implements test-first and records `implemented (awaiting verification)`;
-a fresh Sol 6.1 xhigh independently verifies/mutation-checks, then alone may set `resolved`.
-Run bound GitNexus impact before every symbol edit; list callers, processes and risk.
-`apply`/`layout::resolve` are known CRITICAL paths: warn before editing. UNKNOWN, stale or
-missing answers need source confirmation and honest limitation reporting, not an all-clear.
-Use `boardstudio-lane-mirror-core`; root alone refreshes. Run complete `detect_changes` before
-any commit; truncated/partial evidence is not clean.
+Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`; inspect overlaps and source/index binding before edits. Run bound impact and complete nonpartial/nontruncated change analysis; warn on HIGH/CRITICAL and source-confirm unresolved UNKNOWN/stale answers. Root alone refreshes `boardstudio-lane-mirror-core`, integrates and owns goldens/shared tracking.
 
-Request every test/build/browser/performance command slot from root before running it.
-Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when its
-behavior/transcript changes; targeted red/green and verifier mutations also need slots.
-No full check per slice, no `release`, no background checks; Cargo uses 12 jobs.
-Maps, ADRs, CONTEXT.md, scripts/check.py and generated goldens remain root-owned.
-No merges/push/PR, stash/reset/discard or broad staging; explicit paths only.
-Commit only after root permits it, with the actual-author trailer. Outcome records exact
-commands/results/timings, mutation failures/restoration and every unrun or blocked gate.
-
+Request one bounded foreground sequence from root, then run its commands sequentially without per-command approval; release explicitly. Approved disjoint non-shell source work may overlap another lane’s ordinary checks. Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when behavior/transcript changes. Reuse sufficient source-bound evidence; target concrete gaps and important claimed guarantees. No full check per slice, `release` or background checks; Cargo uses12 jobs. Preserve explicit staging, actual-author trailers and all Git safety rules. Report completed acceptance, exact evidence, unrun/blocked gates and the explicit release; root owns integration commits.
 
 ## Guarded prototype outcome (2026-10-10)
 

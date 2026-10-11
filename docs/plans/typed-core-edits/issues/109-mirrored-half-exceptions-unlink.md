@@ -29,6 +29,7 @@ behavior stay unchanged. Source at `2478fb151`: `MirroredException` has no sourc
   components, module connectors, joined host nets and unrelated correspondences keep their states.
   Store one owner exception, not implicit neighboring local exceptions. Preserve explicit child
   exceptions when the owner rejoins; removing an owner follows existing domain deletion closures.
+- User-confirmed selective exceptions apply to individual screens/encoders and other independent parts, and to diode/LED companions under their ownership rules. Normal linked edits propagate; explicit MakeLocal keeps the selected visible part independently editable, Omit remains durably absent without resurrection, and Rejoin derives from the current source. Keep the rest of the pair linked and clean only targeted owned references. Users need not Unlink the whole pair for one-off changes/removals. Companion placement-mode controls in40 remain companion-only and do not restrict general part exceptions.
 - Make local preserves current visible geometry; later source edits do not overwrite it.
   Omit removes only owned mirror geometry and stays omitted on later reconciliation.
   Rejoin clears only the selected exception, restores source derivation and retains item mode/tweak.
@@ -66,8 +67,12 @@ Confirm route freshness and bound impact on the coordinator/callable path before
 
 ## Required nonempty-closure regression
 
-Use the existing Corne seed/create fixture in `core/tests/mirrored_half.rs`: a new-board
-native pair has four linked closure holes per board. Do not substitute an empty-hole pair.
+Port these semantic obligations to independently specified minimal synthetic nonempty-closure fixtures. The historical Corne seed, geometry and pinned counts below are route evidence, not expected-value oracles; preserve nonempty materialization, exact membership/identity and refusal/preservation guarantees without copying demo data.
+
+Use an independently authored minimal synthetic native pair in `core/tests/mirrored_half.rs`
+with explicit nonempty linked closure holes on both boards. Specify the fixture’s own exact
+identities and expected memberships; do not copy Corne geometry or its pinned hole counts.
+Do not substitute an empty-hole pair.
 Direct coordinator tests belong here; production JSON/Undo/Open cases are prepared in
 115–117 and independently checked after 111 activation.
 
@@ -97,6 +102,7 @@ Any other schema/storage/migration path requires root assignment first.
 ## Test-first and acceptance
 
 - [ ] Local/Omit/Rejoin and schema validation tests fail for the expected missing behavior first.
+- [ ] Selective independent-part and owned-companion changes/removals preserve the rest of the linked pair, visible Local independence, durable omission and targeted reference cleanup.
 - [ ] Local geometry and omission survive serde round-trip plus direct reconciliation; Rejoin
       reflects current source with retained modes/tweaks, unrelated and child exceptions intact.
 - [ ] Matrix/circuit owner exceptions affect only owned projections; joined nets, connectors
@@ -110,30 +116,8 @@ child-exception retention and mechanical materialization separately. Save/Open i
 
 ## Execution and verification gates
 
-This is a child of [19](19-reconcile-mirrored-halves.md); resolving it does not resolve 19.
-Core children execute serially with exclusive Core file/API leases. The user approved
-independent A/F streams on 2026-10-10; follow the central lane registry and parallel-streams
-decision for audited disjoint edits. Every shell/check command remains globally sequential;
-activation and timing require exclusive windows. The prerequisite batch and delivered 37
-verification slice are complete; root must refresh the bound index and grant this slice.
-Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`;
-report path/branch/status and inspect overlaps before editing. Every shell call has that
-absolute `workdir`; commands run one at a time in the foreground.
+This child does not resolve parent19. Follow [19](19-reconcile-mirrored-halves.md), the current central [lane registry](../lane-registry.md) and `docs/agents/agent-workflow.md` standing authority. B coordinates required planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation; no repeated root START for approved private helpers, tests or fixed-scope children. Keep each ticket’s acceptance explicit, all meaningful regressions/counterexamples intact, and production activation at111. Already approved feature API/schema contracts are authorized as specified; genuinely new/unsettled choices or visibility changes still escalate.
 
-Read `docs/agents/agent-workflow.md`, `verification-process.md`, `gitnexus-index.md` and
-parent 19. Luna 6 high implements test-first and records `implemented (awaiting verification)`;
-a fresh Sol 6.1 xhigh independently verifies/mutation-checks, then alone may set `resolved`.
-Run bound GitNexus impact before every symbol edit; list callers, processes and risk.
-`apply`/`layout::resolve` are known CRITICAL paths: warn before editing. UNKNOWN, stale or
-missing answers need source confirmation and honest limitation reporting, not an all-clear.
-Use `boardstudio-lane-mirror-core`; root alone refreshes. Run complete `detect_changes` before
-any commit; truncated/partial evidence is not clean.
+Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`; inspect overlaps and source/index binding before edits. Run bound impact and complete nonpartial/nontruncated change analysis; warn on HIGH/CRITICAL and source-confirm unresolved UNKNOWN/stale answers. Root alone refreshes `boardstudio-lane-mirror-core`, integrates and owns goldens/shared tracking.
 
-Request every test/build/browser/performance command slot from root before running it.
-Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when its
-behavior/transcript changes; targeted red/green and verifier mutations also need slots.
-No full check per slice, no `release`, no background checks; Cargo uses 12 jobs.
-Maps, ADRs, CONTEXT.md, scripts/check.py and generated goldens remain root-owned.
-No merges/push/PR, stash/reset/discard or broad staging; explicit paths only.
-Commit only after root permits it, with the actual-author trailer. Outcome records exact
-commands/results/timings, mutation failures/restoration and every unrun or blocked gate.
+Request one bounded foreground sequence from root, then run its commands sequentially without per-command approval; release explicitly. Approved disjoint non-shell source work may overlap another lane’s ordinary checks. Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when behavior/transcript changes. Reuse sufficient source-bound evidence; target concrete gaps and important claimed guarantees. No full check per slice, `release` or background checks; Cargo uses12 jobs. Preserve explicit staging, actual-author trailers and all Git safety rules. Report completed acceptance, exact evidence, unrun/blocked gates and the explicit release; root owns integration commits.

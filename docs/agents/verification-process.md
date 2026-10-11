@@ -63,11 +63,9 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
 
 ## One run at a time
 
-- Run steps **sequentially, in the foreground**, and report only when they have finished.
-  Do not start a second run while one is going; they fight over the build directory and
-  lock, and the results are meaningless. Two overlapping `build`s fail in `wasm-pack` with
-  `Installing wasm-bindgen ... invalid type: sequence, expected a string` because both write the
-  same `--out-dir`; the error disappears when the runs are sequential (ticket 10).
+- The user-approved scheduling policy in [agent-workflow.md](agent-workflow.md#standing-lane-authority-and-continuity) supersedes older global-every-shell/read restrictions. Read-only shell commands/searches/diffs/graph queries and approved disjoint source work in separate worktrees run freely; keep one writer per worktree and protect shared writable outputs.
+- Builds/compilation, test execution, browser, timing and index refresh share ONE **GLOBAL HEAVY** slot with explicit owner/release. Never overlap resource-heavy runs; timing needs the machine alone. Execute commands sequentially within each lane. Overlapping builds can corrupt shared wasm-pack output (ticket10); separate worktrees do not waive the HEAVY slot or output ownership.
+- Grant one complete bounded debugging + affected-check cycle. Carry approved RED → fix → GREEN within that same HEAVY window, without per-command/single-probe handoffs. Fresh independent review follows completed writer STOP; it reuses sufficient checks and needs a HEAVY slot only for necessary heavy verification. Complete/restore an existing probe before switching writers.
 - Do not arm background monitors for a command you can simply wait for.
 - Never mutate sources in one checkout and test in another when both share a `target`
   directory: restoring a file by copy can leave an artifact the other checkout accepts.
