@@ -1,6 +1,6 @@
 # 108: Forward reconciliation of outlines, versions and assemblies
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [107](107-reconcile-mirrored-hosted-electrical-items.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -75,3 +75,9 @@ Ticket141's symmetric mounted observation is now available at `/home/chris/.cach
 141 geometry qualification subsequently rejects exact creation-baseline contour reflection (5.09/5.9444 maximum bidirectional distances at0.002 tolerance), so inherited protection association alone must not certify the same reflected recess. Evidence: `mirrored-outline-gaps/141-geometry-qualification.md` SHA163e39a6711e4e7daa86c5d4a8283636caea45ec625f3c8fb38c2a6ae49dcac7 under the baseline cache. E is tracing fixture/profile/frame/generator causality read-only; no Core fix is assigned from this observation alone.
 
 E completed141's bounded source trace: symmetric fixture/profile/pose/control mappings appear consistent, yet captured unprotected outlines also diverge (max6.3813). Exact next diagnostic under B108Core ownership is the postCreate/pre-edit world courtyard rings plus automatic bridge endpoints on both halves, before cleanup; compare input rings first. Trace pointer: `/home/chris/.cache/boardstudio-baselines/mirrored-outline-gaps/141-causal-trace.md` SHAe2a677b8dd88a3edece697d5941cafa90fa3dbadc113c36437a400b7c0e05bf5. This is bounded causal observation, not permission for a speculative generator rewrite or107scope expansion.
+
+141 user clarification supersedes any claim that the separate-outline observation reproduces their issue: the report involves ONE outline around BOTH halves. E is preparing that actual case. Preserve the separate-outline creation-contour evidence as related diagnosis only; it does not settle single-outline gap semantics or authorize a coupling/generator fix.
+
+## Current bounded execution
+
+107resolved/integrated; B clean synced6041b95b before SAME Luna high writer prepared108. Lease: NEW `core/src/mirrored_half/reconcile/outlines.rs` and `outlines/tests.rs`, narrow private module declaration/wiring in reconcile.rs only; no extraction/reformat of accepted106/107 or shared-helper writes. Five source-only cases cover rotated anchored geometry/settings/protection/version/provenance/fullrepeat, closure exclusion, Local/Omitted isolation with linked-neighbor update, mapped worldRect, and source-version removal preserving unrelated target choice/pair bytes. Inert private candidate seam awaits a meaningful compiled behavioral RED; fixture-validation failure is not that evidence. Three original mutation guarantees remain. Draft/source binding: `/home/chris/.cache/boardstudio-baselines/ticket108-outlines/implementation/`. Root107/139 integration cohort passed; RED/fix/GREEN/affected-check cycle follows short root capture windows. No108runtime or fix acceptance yet.
