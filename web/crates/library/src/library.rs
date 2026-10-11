@@ -430,9 +430,7 @@ fn DemoKeyboardCards(project_menu: bool) -> Element {
                 span { "Start an editable copy" }
             }
             div { class: "m1-keyboard-grid",
-                DemoKeyboardCard { key: "sofle", name: "Sofle v2", fixture: "sofle" }
-                DemoKeyboardCard { key: "sofle-rgb", name: "Sofle RGB", fixture: "sofle-rgb" }
-                DemoKeyboardCard { key: "sofle-choc", name: "Sofle Choc", fixture: "sofle-choc" }
+                DemoKeyboardCard { key: "sofle", name: "Sofle", fixture: "sofle" }
                 DemoKeyboardCard { key: "corne", name: "Corne", fixture: "measured-corne" }
                 DemoKeyboardCard { key: "lily58", name: "Lily58", fixture: "measured-lily58" }
                 DemoKeyboardCard { key: "sweep", name: "Ferris Sweep", fixture: "measured-sweep" }
