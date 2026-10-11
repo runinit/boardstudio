@@ -5,11 +5,28 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+#[derive(Clone)]
 struct PartProjection {
     source_id: String,
     mirror_id: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)] // Ticket 106 prepares this private transition slice before activation.
+enum IndependentPartTransition {
+    Add {
+        source_id: String,
+        mirror_id: String,
+        mirror_definition_id: String,
+        mirror_reference: String,
+    },
+    Remove {
+        source_id: String,
+        mirror_id: String,
+    },
+}
+
+#[derive(Clone)]
 struct Projection {
     source_board_id: String,
     mirror_board_id: String,
@@ -17,6 +34,8 @@ struct Projection {
     mirror_matrix_id: String,
     mapping: Pose2,
     parts: Vec<PartProjection>,
+    independent_part_transitions: Vec<IndependentPartTransition>,
+    applied_independent_additions: std::cell::RefCell<BTreeSet<(String, String, String, String)>>,
     locally_protected_mirror_parts: std::collections::BTreeSet<String>,
     final_owners: std::collections::BTreeMap<String, String>,
 }
@@ -909,8 +928,60 @@ fn reconcile(
 
     let source_matrix_members: BTreeSet<_> = source_matrix.part_ids.iter().cloned().collect();
     let mirror_matrix_members: BTreeSet<_> = mirror_matrix.part_ids.iter().cloned().collect();
+    let planned_independent_additions: BTreeMap<_, _> = projection
+        .independent_part_transitions
+        .iter()
+        .filter_map(|transition| match transition {
+            IndependentPartTransition::Add {
+                source_id,
+                mirror_id,
+                mirror_definition_id,
+                mirror_reference,
+            } => Some((
+                source_id.as_str(),
+                (
+                    mirror_id.as_str(),
+                    mirror_definition_id.as_str(),
+                    mirror_reference.as_str(),
+                ),
+            )),
+            IndependentPartTransition::Remove { .. } => None,
+        })
+        .collect();
+    let planned_independent_removals: BTreeMap<_, _> = projection
+        .independent_part_transitions
+        .iter()
+        .filter_map(|transition| match transition {
+            IndependentPartTransition::Remove {
+                source_id,
+                mirror_id,
+            } => Some((source_id.as_str(), mirror_id.as_str())),
+            IndependentPartTransition::Add { .. } => None,
+        })
+        .collect();
+    if planned_independent_additions.len()
+        != projection
+            .independent_part_transitions
+            .iter()
+            .filter(|transition| matches!(transition, IndependentPartTransition::Add { .. }))
+            .count()
+    {
+        return Err(
+            "Independent Part addition evidence contains duplicate source identities".into(),
+        );
+    }
+    if planned_independent_removals.len()
+        != projection
+            .independent_part_transitions
+            .iter()
+            .filter(|transition| matches!(transition, IndependentPartTransition::Remove { .. }))
+            .count()
+    {
+        return Err(
+            "Independent Part removal evidence contains duplicate source identities".into(),
+        );
+    }
     let mut independent_part_targets = BTreeMap::new();
-    let mut changed_independent_parts = BTreeSet::new();
     for correspondence in halves
         .correspondences
         .iter()
@@ -921,6 +992,23 @@ fn reconcile(
         if source_is_matrix_member || mirror_is_matrix_member {
             if source_is_matrix_member != mirror_is_matrix_member {
                 return Err("A part correspondence crosses the matrix membership boundary".into());
+            }
+            continue;
+        }
+
+        if planned_independent_additions.contains_key(correspondence.source_id.as_str()) {
+            return Err(format!(
+                "The independent Part addition {:?} already has pair correspondence",
+                correspondence.source_id
+            ));
+        }
+        if let Some(mirror_id) = planned_independent_removals.get(correspondence.source_id.as_str())
+        {
+            if *mirror_id != correspondence.mirror_id {
+                return Err(format!(
+                    "The independent Part removal for {:?} names a conflicting mirror identity",
+                    correspondence.source_id
+                ));
             }
             continue;
         }
@@ -984,10 +1072,238 @@ fn reconcile(
             correspondence.source_id.clone(),
             correspondence.mirror_id.clone(),
         );
-        changed_independent_parts.insert(correspondence.mirror_id.clone());
     }
 
-    let mut reconciled_layout_ids = BTreeSet::new();
+    let mut planned_target_ids = BTreeSet::new();
+    let mut planned_target_references = BTreeSet::new();
+    for transition in &projection.independent_part_transitions {
+        let IndependentPartTransition::Add {
+            mirror_id,
+            mirror_reference,
+            ..
+        } = transition
+        else {
+            continue;
+        };
+        if !planned_target_ids.insert(mirror_id) {
+            return Err(format!(
+                "Independent Part additions select the same target identity {mirror_id:?}"
+            ));
+        }
+        if !planned_target_references.insert(mirror_reference) {
+            return Err(format!(
+                "Independent Part additions select the same target reference {mirror_reference:?}"
+            ));
+        }
+    }
+
+    for transition in &projection.independent_part_transitions {
+        let IndependentPartTransition::Add {
+            source_id,
+            mirror_id,
+            mirror_definition_id,
+            mirror_reference,
+        } = transition
+        else {
+            continue;
+        };
+        if source_matrix_members.contains(source_id) || mirror_matrix_members.contains(mirror_id) {
+            return Err("An independent Part addition aliases matrix membership".into());
+        }
+        if halves.correspondences.iter().any(|correspondence| {
+            correspondence.kind == MirroredItemKind::Part
+                && (correspondence.source_id == *source_id
+                    || correspondence.mirror_id == *mirror_id)
+        }) {
+            return Err(format!(
+                "The independent Part addition {source_id:?} has conflicting pair provenance"
+            ));
+        }
+        if owner_for(document, source_id)? != halves.source_board_id {
+            return Err(format!(
+                "The independent Part addition {source_id:?} has stale source ownership"
+            ));
+        }
+        let mut sources = document.parts.iter().filter(|part| part.id == *source_id);
+        let source = sources
+            .next()
+            .ok_or_else(|| format!("The independent source Part {source_id:?} is unavailable"))?;
+        if sources.next().is_some() {
+            return Err(format!(
+                "The independent source Part {source_id:?} is ambiguous"
+            ));
+        }
+        let mut definitions = document
+            .definitions
+            .iter()
+            .filter(|definition| definition.id == *mirror_definition_id);
+        if definitions.next().is_none() || definitions.next().is_some() {
+            return Err(format!(
+                "The independent target definition {mirror_definition_id:?} is unavailable or ambiguous"
+            ));
+        }
+        if mirror_id.is_empty() || mirror_reference.is_empty() {
+            return Err(format!(
+                "The independent target identity {mirror_id:?} and reference must be nonempty"
+            ));
+        }
+        let mut existing_targets = document.parts.iter().filter(|part| part.id == *mirror_id);
+        let existing_target = existing_targets.next();
+        if existing_targets.next().is_some()
+            || document
+                .parts
+                .iter()
+                .any(|part| part.reference == *mirror_reference && part.id != *mirror_id)
+        {
+            return Err(format!(
+                "The independent target identity {mirror_id:?} or reference {mirror_reference:?} is ambiguous or already in use"
+            ));
+        }
+        if existing_target.is_some_and(|part| {
+            part.definition_id != *mirror_definition_id || part.reference != *mirror_reference
+        }) {
+            return Err(format!(
+                "The existing independent target {mirror_id:?} does not match its selected definition and reference"
+            ));
+        }
+        let has_prior_add_provenance =
+            projection
+                .applied_independent_additions
+                .borrow()
+                .contains(&(
+                    source_id.clone(),
+                    mirror_id.clone(),
+                    mirror_definition_id.clone(),
+                    mirror_reference.clone(),
+                ));
+        if existing_target.is_some() && !has_prior_add_provenance {
+            return Err(format!(
+                "The independent target {mirror_id:?} has no prior private Add provenance"
+            ));
+        }
+        if existing_target.is_some_and(|_| {
+            owner_for(document, mirror_id).ok() != Some(halves.mirror_board_id.as_str())
+        }) || (existing_target.is_none()
+            && document
+                .boards
+                .iter()
+                .any(|board| board.part_ids.contains(mirror_id)))
+        {
+            return Err(format!(
+                "The independent target {mirror_id:?} has conflicting mirror-board registration"
+            ));
+        }
+        let correspondence = MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Part,
+            source_id: source_id.clone(),
+            mirror_id: mirror_id.clone(),
+        };
+        let target_seed = existing_target.cloned().unwrap_or_else(|| Part {
+            id: mirror_id.clone(),
+            definition_id: mirror_definition_id.clone(),
+            reference: mirror_reference.clone(),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: source.side.clone(),
+            keycap: None,
+            outline: None,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        let projected = project_part(source, &target_seed, &correspondence, pair.mapping)?;
+        if let Some(staged_target) = staged.parts.iter_mut().find(|part| part.id == *mirror_id) {
+            *staged_target = projected;
+        } else {
+            staged.parts.push(projected);
+            staged
+                .boards
+                .iter_mut()
+                .find(|board| board.id == halves.mirror_board_id)
+                .ok_or_else(|| "The independent target board is unavailable".to_owned())?
+                .part_ids
+                .push(mirror_id.clone());
+        }
+        independent_part_targets.insert(source_id.clone(), mirror_id.clone());
+    }
+
+    let mut removed_independent_targets = BTreeSet::new();
+    for transition in &projection.independent_part_transitions {
+        let IndependentPartTransition::Remove {
+            source_id,
+            mirror_id,
+        } = transition
+        else {
+            continue;
+        };
+        if source_matrix_members.contains(source_id) || mirror_matrix_members.contains(mirror_id) {
+            return Err("An independent Part removal aliases matrix membership".into());
+        }
+        if document.parts.iter().any(|part| part.id == *source_id)
+            || document
+                .boards
+                .iter()
+                .any(|board| board.part_ids.contains(source_id))
+        {
+            return Err(format!(
+                "The removed independent source Part {source_id:?} remains materialized"
+            ));
+        }
+        if halves.correspondences.iter().any(|correspondence| {
+            correspondence.kind == MirroredItemKind::Part
+                && (correspondence.source_id == *source_id
+                    || correspondence.mirror_id == *mirror_id)
+                && (correspondence.source_id != *source_id
+                    || correspondence.mirror_id != *mirror_id)
+        }) {
+            return Err(format!(
+                "The independent Part removal {source_id:?} has conflicting pair provenance"
+            ));
+        }
+        let target_count = document
+            .parts
+            .iter()
+            .filter(|part| part.id == *mirror_id)
+            .count();
+        if !removed_independent_targets.insert(mirror_id.clone()) {
+            return Err(format!(
+                "The independent target Part {mirror_id:?} is unavailable, aliased, or not mirror-owned"
+            ));
+        }
+        match target_count {
+            0 => {
+                if document
+                    .boards
+                    .iter()
+                    .any(|board| board.part_ids.contains(mirror_id))
+                    || document
+                        .layouts
+                        .iter()
+                        .any(|layout| layout.part_ids.contains(mirror_id))
+                {
+                    return Err(format!(
+                        "The removed independent target Part {mirror_id:?} retains an owner or layout membership"
+                    ));
+                }
+                continue;
+            }
+            1 if owner_for(document, mirror_id)? == halves.mirror_board_id => {}
+            _ => {
+                return Err(format!(
+                    "The independent target Part {mirror_id:?} is unavailable, aliased, or not mirror-owned"
+                ));
+            }
+        }
+        crate::matrix::deletion::remove_parts_by_id(
+            &mut staged,
+            &BTreeSet::from([mirror_id.clone()]),
+        );
+    }
+
     for correspondence in halves
         .correspondences
         .iter()
@@ -1055,11 +1371,6 @@ fn reconcile(
                     "The source layout part {source_id:?} has no independent part correspondence"
                 )
             })?;
-            if !mirror_members.contains(mirror_id) {
-                return Err(format!(
-                    "The mirror layout is missing fixed part membership {mirror_id:?}"
-                ));
-            }
             if !projected_member_ids.insert(mirror_id.clone()) {
                 return Err("A paired layout maps multiple source parts to one mirror part".into());
             }
@@ -1069,7 +1380,10 @@ fn reconcile(
             mirror
                 .part_ids
                 .iter()
-                .filter(|id| !projected_member_ids.contains(*id))
+                .filter(|id| {
+                    !projected_member_ids.contains(*id)
+                        && !removed_independent_targets.contains(*id)
+                })
                 .cloned(),
         );
         let staged_mirror = staged
@@ -1082,10 +1396,7 @@ fn reconcile(
                     correspondence.mirror_id
                 )
             })?;
-        if staged_mirror.part_ids != projected_members {
-            staged_mirror.part_ids = projected_members;
-            reconciled_layout_ids.insert(correspondence.mirror_id.clone());
-        }
+        staged_mirror.part_ids = projected_members;
     }
 
     let final_matrix = matrix_by_id(&staged, &projection.mirror_matrix_id)?.clone();
@@ -1100,39 +1411,23 @@ fn reconcile(
     crate::mechanical::features::validate(&staged)?;
     crate::mechanical::halves::validate_document(&staged)?;
 
-    let mut candidates: std::collections::BTreeSet<String> =
-        mirror_matrix.part_ids.iter().cloned().collect();
-    candidates.extend(final_matrix.part_ids.iter().cloned());
-    candidates.extend(changed_independent_parts);
-    candidates.insert(mirror_matrix.id.clone());
-    let mut changed_ids = std::collections::BTreeSet::new();
-    if snapshot(mirror_matrix)? != snapshot(&final_matrix)? {
-        changed_ids.insert(mirror_matrix.id.clone());
-    }
-    for id in candidates {
-        if id == mirror_matrix.id {
-            continue;
-        }
-        let before = document.parts.iter().find(|part| part.id == id);
-        let after = staged.parts.iter().find(|part| part.id == id);
-        let before = before.map(snapshot).transpose()?;
-        let after = after.map(snapshot).transpose()?;
-        if before != after {
-            changed_ids.insert(id);
-        }
-    }
-    for id in reconciled_layout_ids {
-        let before = document.layouts.iter().find(|layout| layout.id == id);
-        let after = staged.layouts.iter().find(|layout| layout.id == id);
-        let before = before.map(snapshot).transpose()?;
-        let after = after.map(snapshot).transpose()?;
-        if before != after {
-            changed_ids.insert(id);
-        }
-    }
+    let (changed_ids, _) = changed_document_fields(document, &staged)?;
 
     *document = staged;
-    Ok(changed_ids.into_iter().collect())
+    {
+        let mut applied_additions = projection.applied_independent_additions.borrow_mut();
+        applied_additions.extend(planned_independent_additions.iter().map(
+            |(source_id, (mirror_id, definition_id, reference))| {
+                (
+                    (*source_id).to_owned(),
+                    (*mirror_id).to_owned(),
+                    (*definition_id).to_owned(),
+                    (*reference).to_owned(),
+                )
+            },
+        ));
+    }
+    Ok(changed_ids)
 }
 
 /// Project one source matrix into its already assigned mirror identity.
@@ -1259,6 +1554,8 @@ struct MembershipTransitionInput<'a> {
 #[allow(dead_code)] // Ticket 106 keeps canonical, validated input facts together before planning.
 struct ValidatedTransitionContext<'a> {
     input: MembershipTransitionInput<'a>,
+    removes_paired_matrices: bool,
+    already_removed: bool,
     before_source_members: BTreeSet<String>,
     before_mirror_members: BTreeSet<String>,
     post_source_members: BTreeSet<String>,
@@ -1551,14 +1848,15 @@ fn prepare_membership_transition(
         Ok(())
     }
 
-    fn validate_matrix_association(context: &MembershipContext) -> Result<(), String> {
+    fn validate_matrix_association(
+        context: &MembershipContext,
+        expected_present: bool,
+    ) -> Result<(), String> {
         let mut associations = context
             .associations
             .iter()
             .filter(|association| association.kind == MirroredItemKind::Matrix);
-        let association = associations
-            .next()
-            .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
+        let association = associations.next();
         if associations.next().is_some() {
             return Err("The transition matrix association is ambiguous".into());
         }
@@ -1567,11 +1865,29 @@ fn prepare_membership_transition(
             .correspondences
             .iter()
             .filter(|record| record.kind == MirroredItemKind::Matrix);
-        let correspondence = correspondences
-            .next()
+        let correspondence = correspondences.next();
+        if correspondences.next().is_some() {
+            return Err("The transition matrix association is ambiguous".into());
+        }
+        if !expected_present {
+            let correspondence = correspondence.ok_or_else(|| {
+                "The persisted pair matrix correspondence is unavailable".to_owned()
+            })?;
+            if association.is_some()
+                || correspondence.source_id != context.source_matrix_id
+                || correspondence.mirror_id != context.mirror_matrix_id
+            {
+                return Err(
+                    "The retired matrix context disagrees with persisted provenance".into(),
+                );
+            }
+            return Ok(());
+        }
+        let association = association
+            .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
+        let correspondence = correspondence
             .ok_or_else(|| "The pair matrix correspondence is unavailable".to_owned())?;
-        if correspondences.next().is_some()
-            || association.source_id != context.source_matrix_id
+        if association.source_id != context.source_matrix_id
             || association.mirror_id != context.mirror_matrix_id
             || association.state != TransitionState::Linked
             || association.explicit_state
@@ -1697,25 +2013,38 @@ fn prepare_membership_transition(
         expected_mirror_members: &BTreeSet<String>,
     ) -> Result<MembershipTransitionOutput, String> {
         let input = validated.input;
-        validate_matrix_association(input.context)?;
-        validate_matrix_association(&next_context)?;
+        validate_matrix_association(input.context, !validated.already_removed)?;
+        validate_matrix_association(&next_context, !validated.removes_paired_matrices)?;
         validate_association_settings(input.context)?;
         validate_association_settings(&next_context)?;
-        let source = matrix_by_id(&draft, &input.context.source_matrix_id)?;
-        crate::matrix::valid_matrix(source, &draft)?;
-        if source_members(&draft, &input.context.source_matrix_id)? != validated.post_source_members
-        {
-            return Err(
-                "The emitted source matrix disagrees with its validated operation map".into(),
-            );
-        }
-        let mirror = matrix_by_id(&draft, &input.context.mirror_matrix_id)?;
-        crate::matrix::valid_matrix(mirror, &draft)?;
-        let actual_mirror_members: BTreeSet<_> = mirror.part_ids.iter().cloned().collect();
-        if actual_mirror_members.len() != mirror.part_ids.len()
-            || actual_mirror_members != *expected_mirror_members
-        {
-            return Err("The emitted mirror membership disagrees with its validated plan".into());
+        if validated.removes_paired_matrices {
+            if draft.matrices.iter().any(|matrix| {
+                matrix.id == input.context.source_matrix_id
+                    || matrix.id == input.context.mirror_matrix_id
+            }) || !expected_mirror_members.is_empty()
+            {
+                return Err("The emitted whole-matrix removal is incomplete".into());
+            }
+        } else {
+            let source = matrix_by_id(&draft, &input.context.source_matrix_id)?;
+            crate::matrix::valid_matrix(source, &draft)?;
+            if source_members(&draft, &input.context.source_matrix_id)?
+                != validated.post_source_members
+            {
+                return Err(
+                    "The emitted source matrix disagrees with its validated operation map".into(),
+                );
+            }
+            let mirror = matrix_by_id(&draft, &input.context.mirror_matrix_id)?;
+            crate::matrix::valid_matrix(mirror, &draft)?;
+            let actual_mirror_members: BTreeSet<_> = mirror.part_ids.iter().cloned().collect();
+            if actual_mirror_members.len() != mirror.part_ids.len()
+                || actual_mirror_members != *expected_mirror_members
+            {
+                return Err(
+                    "The emitted mirror membership disagrees with its validated plan".into(),
+                );
+            }
         }
         if next_context.owners != *input.final_owners || context_delta.owners != *input.final_owners
         {
@@ -1916,7 +2245,50 @@ fn prepare_membership_transition(
         input: MembershipTransitionInput<'a>,
     ) -> Result<ValidatedTransitionContext<'a>, String> {
         let context = input.context;
-        validate_matrix_association(context)?;
+        let matrices_already_removed = input.valid_before.matrices.iter().all(|matrix| {
+            matrix.id != context.source_matrix_id && matrix.id != context.mirror_matrix_id
+        });
+        if matrices_already_removed {
+            validate_matrix_association(context, false)?;
+            validate_association_settings(context)?;
+            if input.valid_before != input.post_source
+                || !input.source_identity_map.is_empty()
+                || !input.mirror_identity_map.is_empty()
+                || !input.planned_additions.is_empty()
+                || !input.explicit_removal_closure.is_empty()
+                || input.final_owners != &context.owners
+            {
+                return Err(
+                    "A retired matrix transition must be an unchanged, empty operation".into(),
+                );
+            }
+            let (before_pair, before_mapping) = pair_right(input.valid_before, &context.pair_id)?;
+            let (post_pair, post_mapping) = pair_right(input.post_source, &context.pair_id)?;
+            if before_pair != &context.pair_right
+                || post_pair != &context.pair_right
+                || before_mapping != context.mapping
+                || post_mapping != context.mapping
+            {
+                return Err(
+                    "The retired matrix pair provenance changed outside its private context".into(),
+                );
+            }
+            validate_context_owners(input.valid_before, context)?;
+            validate_net_pad_ids(input.valid_before)?;
+            validate_constraints(input.valid_before)?;
+            validate_no_native_legacy_overlap(input.valid_before, context)?;
+            return Ok(ValidatedTransitionContext {
+                input,
+                removes_paired_matrices: true,
+                already_removed: true,
+                before_source_members: BTreeSet::new(),
+                before_mirror_members: BTreeSet::new(),
+                post_source_members: BTreeSet::new(),
+                mapped_source_ids: BTreeSet::new(),
+                mapped_mirror_ids: BTreeSet::new(),
+            });
+        }
+        validate_matrix_association(context, true)?;
         validate_association_settings(context)?;
         let (before_pair, before_mapping) = pair_right(input.valid_before, &context.pair_id)?;
         let (post_pair, post_mapping) = pair_right(input.post_source, &context.pair_id)?;
@@ -1946,10 +2318,16 @@ fn prepare_membership_transition(
 
         let before_source = matrix_by_id(input.valid_before, &context.source_matrix_id)?;
         let before_mirror = matrix_by_id(input.valid_before, &context.mirror_matrix_id)?;
-        let post_source = matrix_by_id(input.post_source, &context.source_matrix_id)?;
+        let post_source = input
+            .post_source
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.source_matrix_id);
         let post_mirror = matrix_by_id(input.post_source, &context.mirror_matrix_id)?;
         if before_source.board_id.as_deref() != Some(context.source_board_id.as_str())
-            || post_source.board_id.as_deref() != Some(context.source_board_id.as_str())
+            || post_source.is_some_and(|matrix| {
+                matrix.board_id.as_deref() != Some(context.source_board_id.as_str())
+            })
             || before_mirror.board_id.as_deref() != Some(context.mirror_board_id.as_str())
             || post_mirror.board_id.as_deref() != Some(context.mirror_board_id.as_str())
         {
@@ -1964,8 +2342,12 @@ fn prepare_membership_transition(
         }
         let before_source_members = source_members(input.valid_before, &context.source_matrix_id)?;
         let before_mirror_members = source_members(input.valid_before, &context.mirror_matrix_id)?;
-        let post_source_members = source_members(input.post_source, &context.source_matrix_id)?;
-        crate::matrix::valid_matrix(post_source, input.post_source)?;
+        let post_source_members = if let Some(post_source) = post_source {
+            crate::matrix::valid_matrix(post_source, input.post_source)?;
+            source_members(input.post_source, &context.source_matrix_id)?
+        } else {
+            BTreeSet::new()
+        };
         crate::matrix::valid_matrix(post_mirror, input.post_source)?;
         let before_transition_members: BTreeSet<_> = before_source_members
             .union(&before_mirror_members)
@@ -1978,6 +2360,41 @@ fn prepare_membership_transition(
             .collect();
         validate_transition_part_geometry(input.valid_before, &before_transition_members)?;
         validate_transition_part_geometry(input.post_source, &post_transition_members)?;
+        if post_source.is_none() {
+            let source_members_retired = before_source_members.iter().all(|id| {
+                input.source_identity_map.get(id) == Some(&None)
+                    && input.explicit_removal_closure.contains(id)
+                    && input.final_owners.get(id) == Some(&FinalOwner::Absent)
+            });
+            let mirror_members_resolved =
+                before_mirror_members
+                    .iter()
+                    .all(|id| match input.mirror_identity_map.get(id) {
+                        Some(None) => {
+                            input.explicit_removal_closure.contains(id)
+                                && input.final_owners.get(id) == Some(&FinalOwner::Absent)
+                        }
+                        Some(Some(target_id)) => context.associations.iter().any(|association| {
+                            association.kind == MirroredItemKind::Part
+                                && association.state == TransitionState::Local
+                                && association.mirror_id == *id
+                                && association.mirror_id == *target_id
+                                && input.source_identity_map.get(&association.source_id)
+                                    == Some(&None)
+                                && input.final_owners.get(target_id)
+                                    == Some(&FinalOwner::Board(context.mirror_board_id.clone()))
+                        }),
+                        None => false,
+                    });
+            if input.source_identity_map.values().any(Option::is_some)
+                || !source_members_retired
+                || !mirror_members_resolved
+            {
+                return Err(
+                    "Whole-matrix removal lacks complete source, mirror, and owner evidence".into(),
+                );
+            }
+        }
         for association in context
             .associations
             .iter()
@@ -2538,6 +2955,8 @@ fn prepare_membership_transition(
         }
         Ok(ValidatedTransitionContext {
             input,
+            removes_paired_matrices: post_source.is_none(),
+            already_removed: false,
             before_source_members,
             before_mirror_members,
             post_source_members,
@@ -2550,6 +2969,110 @@ fn prepare_membership_transition(
     let input = validated.input;
     let context = input.context;
     let mapped_mirror_ids = &validated.mapped_mirror_ids;
+
+    if validated.removes_paired_matrices {
+        let mut draft = input.post_source.clone();
+        let mirror_removal = if validated.already_removed {
+            Vec::new()
+        } else {
+            let retained_local_parts: BTreeSet<_> = input
+                .mirror_identity_map
+                .iter()
+                .filter_map(|(old, new)| new.as_ref().map(|_| old.clone()))
+                .collect();
+            if !retained_local_parts.is_empty() {
+                let mirror = draft
+                    .matrices
+                    .iter_mut()
+                    .find(|matrix| matrix.id == context.mirror_matrix_id)
+                    .ok_or_else(|| {
+                        "The target matrix disappeared before Local detachment".to_owned()
+                    })?;
+                mirror
+                    .part_ids
+                    .retain(|id| !retained_local_parts.contains(id));
+            }
+            crate::apply(
+                &mut draft,
+                &[],
+                &crate::model::EditOperation::RemoveMatrix {
+                    id: context.mirror_matrix_id.clone(),
+                },
+            )?
+        };
+        let removed_sources: BTreeSet<_> = context
+            .associations
+            .iter()
+            .filter(|association| {
+                let retained_local = association.state == TransitionState::Local
+                    && input
+                        .mirror_identity_map
+                        .get(&association.mirror_id)
+                        .is_some_and(Option::is_some);
+                !retained_local
+                    && (association.kind == MirroredItemKind::Matrix
+                        || validated
+                            .before_source_members
+                            .contains(&association.source_id)
+                        || validated
+                            .before_mirror_members
+                            .contains(&association.mirror_id))
+            })
+            .map(|association| association.source_id.clone())
+            .collect();
+        let removed_mirrors: BTreeSet<_> = context
+            .associations
+            .iter()
+            .filter(|association| {
+                let retained_local = association.state == TransitionState::Local
+                    && input
+                        .mirror_identity_map
+                        .get(&association.mirror_id)
+                        .is_some_and(Option::is_some);
+                !retained_local
+                    && (association.kind == MirroredItemKind::Matrix
+                        || validated
+                            .before_source_members
+                            .contains(&association.source_id)
+                        || validated
+                            .before_mirror_members
+                            .contains(&association.mirror_id))
+            })
+            .map(|association| association.mirror_id.clone())
+            .collect();
+        let mut next_context = context.clone();
+        let retired: Vec<_> = next_context
+            .associations
+            .iter()
+            .filter(|association| {
+                removed_sources.contains(&association.source_id)
+                    && removed_mirrors.contains(&association.mirror_id)
+            })
+            .cloned()
+            .collect();
+        next_context.associations.retain(|association| {
+            !removed_sources.contains(&association.source_id)
+                || !removed_mirrors.contains(&association.mirror_id)
+        });
+        next_context.owners = input.final_owners.clone();
+        let context_delta = MembershipContextDelta {
+            retired,
+            owners: input.final_owners.clone(),
+            ..MembershipContextDelta::default()
+        };
+        let expected_mirror_members = BTreeSet::new();
+        let output = emit_validated_transition(
+            &validated,
+            draft,
+            next_context,
+            context_delta,
+            &expected_mirror_members,
+        )?;
+        if !validated.already_removed && mirror_removal.is_empty() {
+            return Err("The paired mirror matrix removal produced no document changes".into());
+        }
+        return Ok(output);
+    }
 
     let is_identity = input.valid_before == input.post_source
         && input
@@ -3379,9 +3902,10 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::{
-        BaselineKind, FinalOwner, MembershipContext, MembershipTransitionInput, PartProjection,
-        PlannedAddition, Projection, TransitionAssociation, TransitionState,
-        changed_document_fields, prepare_membership_transition, reconcile,
+        BaselineKind, FinalOwner, IndependentPartTransition, MembershipContext,
+        MembershipTransitionInput, PartProjection, PlannedAddition, Projection,
+        TransitionAssociation, TransitionState, changed_document_fields,
+        prepare_membership_transition, reconcile,
     };
     use crate::mirrored_half::{
         MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence, MechanicalTarget,
@@ -3842,6 +4366,8 @@ mod tests {
             mirror_matrix_id: "mirror-matrix".into(),
             mapping,
             parts,
+            independent_part_transitions: vec![],
+            applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
             locally_protected_mirror_parts: protected,
             final_owners,
         };
@@ -5551,6 +6077,8 @@ mod tests {
                 source_id: linked_source_id.into(),
                 mirror_id: linked_mirror_id.into(),
             }],
+            independent_part_transitions: vec![],
+            applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
             locally_protected_mirror_parts: BTreeSet::from([protected_local_id.into()]),
             final_owners: final_owners.clone(),
         };
@@ -5765,6 +6293,8 @@ mod tests {
             mirror_matrix_id: projection.mirror_matrix_id.clone(),
             mapping: projection.mapping,
             parts: vec![],
+            independent_part_transitions: vec![],
+            applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
             locally_protected_mirror_parts: projection.locally_protected_mirror_parts.clone(),
             final_owners: projection.final_owners.clone(),
         };
@@ -5788,6 +6318,8 @@ mod tests {
                     mirror_id: part.mirror_id.clone(),
                 })
                 .collect(),
+            independent_part_transitions: vec![],
+            applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
             locally_protected_mirror_parts: projection.locally_protected_mirror_parts.clone(),
             final_owners: projection.final_owners.clone(),
         };
@@ -5797,7 +6329,7 @@ mod tests {
 
     #[test]
     fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts() {
-        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let (mut document, mut projection) = fixed_geometry_fixture().unwrap();
         let mut source = document
             .parts
             .iter()
@@ -5861,6 +6393,11 @@ mod tests {
         unrelated_part.id = "unrelated-part".into();
         unrelated_part.reference = "LOCAL1".into();
         document.parts.push(unrelated_part);
+        let mut added_source = source.clone();
+        added_source.id = "independent-source-added".into();
+        added_source.reference = "J2".into();
+        added_source.pose.at = Vec2 { x: -8.0, y: 6.0 };
+        document.parts.push(added_source.clone());
         document
             .boards
             .iter_mut()
@@ -5868,6 +6405,13 @@ mod tests {
             .unwrap()
             .part_ids
             .push(source.id.clone());
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .push(added_source.id.clone());
         document
             .boards
             .iter_mut()
@@ -5919,6 +6463,12 @@ mod tests {
             part_ids: vec!["geometry-probe".into(), "independent-mirror".into()],
             mirror_link: None,
         };
+        projection.independent_part_transitions = vec![IndependentPartTransition::Add {
+            source_id: "independent-source-added".into(),
+            mirror_id: "independent-mirror-added".into(),
+            mirror_definition_id: "mirror-switch".into(),
+            mirror_reference: "J99".into(),
+        }];
         crate::matrix::set_matrix(
             &mut document,
             &fixture_matrix("unrelated-matrix", "mirror-board"),
@@ -5933,10 +6483,33 @@ mod tests {
             mirror_link: None,
         };
         document.layouts = vec![
-            source_layout,
+            source_layout.clone(),
             mirror_layout.clone(),
             unrelated_layout.clone(),
         ];
+
+        assert!(
+            document
+                .parts
+                .iter()
+                .all(|part| part.id != "independent-mirror-added")
+        );
+        assert!(document.parts.iter().all(|part| part.reference != "J99"));
+
+        crate::apply(
+            &mut document,
+            &[],
+            &crate::model::EditOperation::SetLayout {
+                layout: Layout {
+                    part_ids: vec![
+                        "independent-source-added".into(),
+                        "independent-source".into(),
+                    ],
+                    ..source_layout
+                },
+            },
+        )
+        .expect("the ordinary source SetLayout operation records its membership change");
 
         crate::mechanical::halves::validate_document(&document).unwrap();
         let source_before = document
@@ -5959,7 +6532,206 @@ mod tests {
             .collect();
         let original = document.clone();
 
+        let valid_addition_evidence = projection.independent_part_transitions.clone();
+        let mut invalid_addition_outcomes = Vec::new();
+
+        let mut unrelated_projection = projection.clone();
+        unrelated_projection.independent_part_transitions[0] = IndependentPartTransition::Add {
+            source_id: "independent-source-added".into(),
+            mirror_id: "unrelated-part".into(),
+            mirror_definition_id: unrelated_part_before.definition_id.clone(),
+            mirror_reference: unrelated_part_before.reference.clone(),
+        };
+        let mut unrelated_target = original.clone();
+        let unrelated_target_before = unrelated_target.clone();
+        let unrelated_result = reconcile(
+            &mut unrelated_target,
+            "pair-source-mirror",
+            &unrelated_projection,
+        );
+        invalid_addition_outcomes.push((
+            "first add cannot adopt an unrelated mirror-owned target",
+            unrelated_result.is_err(),
+            unrelated_target == unrelated_target_before,
+        ));
+
+        let mut two_sources = original.clone();
+        let mut second_source = added_source.clone();
+        second_source.id = "independent-source-outside-layout".into();
+        second_source.reference = "Q77".into();
+        second_source.pose = Pose2 {
+            at: Vec2 { x: 31.0, y: -17.0 },
+            rotation: 71.0,
+        };
+        second_source.properties = Some(BTreeMap::from([(
+            "sibling".into(),
+            serde_json::json!("distinct payload"),
+        )]));
+        assert_ne!(second_source.pose, added_source.pose);
+        assert_ne!(second_source.properties, added_source.properties);
+        two_sources.parts.push(second_source.clone());
+        two_sources
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .push(second_source.id.clone());
+        crate::mechanical::halves::validate_document(&two_sources)
+            .expect("the sibling source outside the paired Layout is valid");
+        assert!(
+            two_sources.layouts[0]
+                .part_ids
+                .iter()
+                .all(|id| id != &second_source.id)
+        );
+        assert!(two_sources.parts.iter().all(|part| {
+            part.id == "independent-source-outside-layout" || part.reference != "Q91"
+        }));
+        assert!(two_sources.parts.iter().all(|part| {
+            part.id == "independent-source-outside-layout" || part.reference != "Q92"
+        }));
+        assert!(two_sources.parts.iter().all(|part| {
+            !matches!(
+                part.id.as_str(),
+                "planned-independent-target"
+                    | "planned-independent-target-a"
+                    | "planned-independent-target-b"
+            )
+        }));
+
+        let mut aliased_id_projection = projection.clone();
+        aliased_id_projection.independent_part_transitions = vec![
+            IndependentPartTransition::Add {
+                source_id: "independent-source-added".into(),
+                mirror_id: "planned-independent-target".into(),
+                mirror_definition_id: "mirror-switch".into(),
+                mirror_reference: "Q91".into(),
+            },
+            IndependentPartTransition::Add {
+                source_id: second_source.id.clone(),
+                mirror_id: "planned-independent-target".into(),
+                mirror_definition_id: "mirror-switch".into(),
+                mirror_reference: "Q91".into(),
+            },
+        ];
+        let mut aliased_target_id = two_sources.clone();
+        let aliased_target_id_before = aliased_target_id.clone();
+        let aliased_id_result = reconcile(
+            &mut aliased_target_id,
+            "pair-source-mirror",
+            &aliased_id_projection,
+        );
+        invalid_addition_outcomes.push((
+            "sibling additions cannot select the same fresh target ID and reference",
+            aliased_id_result.is_err(),
+            aliased_target_id == aliased_target_id_before,
+        ));
+
+        let mut aliased_reference_projection = projection.clone();
+        aliased_reference_projection.independent_part_transitions = vec![
+            IndependentPartTransition::Add {
+                source_id: "independent-source-added".into(),
+                mirror_id: "planned-independent-target-a".into(),
+                mirror_definition_id: "mirror-switch".into(),
+                mirror_reference: "Q92".into(),
+            },
+            IndependentPartTransition::Add {
+                source_id: second_source.id,
+                mirror_id: "planned-independent-target-b".into(),
+                mirror_definition_id: "mirror-switch".into(),
+                mirror_reference: "Q92".into(),
+            },
+        ];
+        let mut aliased_target_reference = two_sources.clone();
+        let aliased_target_reference_before = aliased_target_reference.clone();
+        let aliased_reference_result = reconcile(
+            &mut aliased_target_reference,
+            "pair-source-mirror",
+            &aliased_reference_projection,
+        );
+        invalid_addition_outcomes.push((
+            "sibling additions cannot select distinct targets with one fresh reference",
+            aliased_reference_result.is_err(),
+            aliased_target_reference == aliased_target_reference_before,
+        ));
+        assert!(
+            invalid_addition_outcomes
+                .iter()
+                .all(|(_, refused, unchanged)| *refused && *unchanged),
+            "invalid independent Add evidence must refuse atomically: {invalid_addition_outcomes:?}"
+        );
+
+        projection.independent_part_transitions = valid_addition_evidence.clone();
+        projection.independent_part_transitions[0] = IndependentPartTransition::Add {
+            source_id: "independent-source-added".into(),
+            mirror_id: "independent-mirror-added".into(),
+            mirror_definition_id: "missing-mirror-definition".into(),
+            mirror_reference: "J99".into(),
+        };
+        let mut unavailable_definition = original.clone();
+        let refused = reconcile(
+            &mut unavailable_definition,
+            "pair-source-mirror",
+            &projection,
+        )
+        .unwrap_err();
+        assert!(refused.contains("target definition"));
+        assert_eq!(unavailable_definition, original);
+
+        projection.independent_part_transitions[0] = IndependentPartTransition::Add {
+            source_id: "independent-source-added".into(),
+            mirror_id: "independent-mirror-added".into(),
+            mirror_definition_id: "mirror-switch".into(),
+            mirror_reference: "LOCAL1".into(),
+        };
+        let mut conflicting_reference = original.clone();
+        let refused = reconcile(
+            &mut conflicting_reference,
+            "pair-source-mirror",
+            &projection,
+        )
+        .unwrap_err();
+        assert!(refused.contains("reference") || refused.contains("already in use"));
+        assert_eq!(conflicting_reference, original);
+
+        projection.independent_part_transitions = valid_addition_evidence.clone();
+        let mut stale_source_owner = original.clone();
+        stale_source_owner
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .retain(|id| id != "independent-source-added");
+        stale_source_owner
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push("independent-source-added".into());
+        let stale_source_owner_before = stale_source_owner.clone();
+        let refused =
+            reconcile(&mut stale_source_owner, "pair-source-mirror", &projection).unwrap_err();
+        assert!(refused.contains("stale source ownership"));
+        assert_eq!(stale_source_owner, stale_source_owner_before);
+
         let changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        assert_eq!(
+            changed,
+            vec![
+                "independent-mirror",
+                "independent-mirror-added",
+                "matrix/mirror-matrix/r0c1",
+                "matrix/mirror-matrix/r0c2",
+                "matrix/mirror-matrix/r1c0",
+                "matrix/mirror-matrix/r1c2",
+                "mirror-board",
+                "mirror-layout",
+                "mirror-matrix",
+            ]
+        );
         let mirrored = document
             .parts
             .iter()
@@ -5982,6 +6754,37 @@ mod tests {
             }
         );
         assert!(changed.contains(&"independent-mirror".to_owned()));
+        assert!(changed.contains(&"independent-mirror-added".to_owned()));
+        let added_mirror = document
+            .parts
+            .iter()
+            .find(|part| part.id == "independent-mirror-added")
+            .expect("the explicit independent addition creates its selected target ID");
+        assert_eq!(added_mirror.definition_id, "mirror-switch");
+        assert_eq!(added_mirror.reference, "J99");
+        assert_eq!(added_mirror.keycap, added_source.keycap);
+        assert_eq!(added_mirror.outline, added_source.outline);
+        assert_eq!(added_mirror.side, added_source.side);
+        assert_eq!(added_mirror.locked, added_source.locked);
+        assert_eq!(added_mirror.properties, added_source.properties);
+        assert_eq!(
+            added_mirror.generator_parameters,
+            added_source.generator_parameters
+        );
+        assert_eq!(
+            added_mirror.pose,
+            Pose2 {
+                at: Vec2 { x: 94.0, y: -22.0 },
+                rotation: 245.0,
+            }
+        );
+        assert!(
+            document
+                .boards
+                .iter()
+                .any(|board| board.id == "mirror-board"
+                    && board.part_ids.contains(&"independent-mirror-added".into()))
+        );
         assert_eq!(
             document
                 .parts
@@ -5997,7 +6800,11 @@ mod tests {
         assert_eq!(document.layouts[1].mirror_link, mirror_layout.mirror_link);
         assert_eq!(
             document.layouts[1].part_ids,
-            vec!["independent-mirror", "geometry-probe"]
+            vec![
+                "independent-mirror-added",
+                "independent-mirror",
+                "geometry-probe"
+            ]
         );
         assert!(changed.contains(&"mirror-layout".to_owned()));
         assert_eq!(document.layouts[2], unrelated_layout);
@@ -6026,9 +6833,193 @@ mod tests {
         .unwrap();
         assert_eq!(repeated_from_same_input, document);
         let first_output = document.clone();
+        let applied_additions_before_repeat =
+            projection.applied_independent_additions.borrow().clone();
         let second_changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
         assert!(second_changed.is_empty());
         assert_eq!(document, first_output);
+        assert_eq!(
+            *projection.applied_independent_additions.borrow(),
+            applied_additions_before_repeat,
+            "updated private Add provenance converges with the repeated output"
+        );
+
+        let mut removal_source = document.clone();
+        removal_source.nets.push(crate::model::Net {
+            id: "independent-removal-net".into(),
+            name: "Independent removal control".into(),
+            pins: vec![
+                crate::model::Pin {
+                    part_id: "independent-mirror-added".into(),
+                    pad_id: "pad-two".into(),
+                },
+                crate::model::Pin {
+                    part_id: "geometry-probe".into(),
+                    pad_id: "pad-two".into(),
+                },
+            ],
+        });
+        removal_source
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .net_ids
+            .push("independent-removal-net".into());
+        removal_source
+            .constraints
+            .push(crate::model::Constraint::Offset {
+                id: "independent-removal-offset".into(),
+                source_part_id: "independent-mirror-added".into(),
+                target_part_id: "geometry-probe".into(),
+                offset: Vec2 { x: 4.0, y: -2.0 },
+                rotation: 5.0,
+            });
+        let mut expected_retained_keys = removal_source
+            .outline
+            .iter()
+            .find_map(|feature| match feature {
+                OutlineFeature::PartEnvelope { id, part_ids, .. }
+                    if id == "retained-keys-envelope" =>
+                {
+                    Some(part_ids.clone())
+                }
+                _ => None,
+            })
+            .expect("the baseline carries a registered retained-key envelope");
+        expected_retained_keys.push("independent-mirror-added".into());
+        if let Some(OutlineFeature::PartEnvelope { part_ids, .. }) =
+            removal_source.outline.iter_mut().find(|feature| {
+                matches!(feature, OutlineFeature::PartEnvelope { id, .. }
+                if id == "retained-keys-envelope")
+            })
+        {
+            part_ids.push("independent-mirror-added".into());
+        }
+        crate::apply(
+            &mut removal_source,
+            &[],
+            &crate::model::EditOperation::RemoveParts {
+                ids: vec!["independent-source-added".into()],
+            },
+        )
+        .unwrap();
+        assert!(
+            removal_source
+                .parts
+                .iter()
+                .all(|part| part.id != "independent-source-added")
+        );
+        assert!(removal_source.outline.iter().any(|feature| {
+            matches!(feature, OutlineFeature::PartEnvelope { id, part_ids, .. }
+                if id == "retained-keys-envelope"
+                    && part_ids.contains(&"independent-mirror-added".into()))
+        }));
+        projection.independent_part_transitions = vec![IndependentPartTransition::Remove {
+            source_id: "independent-source-added".into(),
+            mirror_id: "independent-mirror-added".into(),
+        }];
+        let persisted_pair_before = removal_source.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .correspondences
+            .clone();
+        let mut refused_removal = removal_source.clone();
+        refused_removal.layouts[1]
+            .part_ids
+            .push("independent-mirror".into());
+        let refusal_before = refused_removal.clone();
+        let refusal =
+            reconcile(&mut refused_removal, "pair-source-mirror", &projection).unwrap_err();
+        assert!(refusal.contains("paired layout contains duplicate part membership"));
+        assert_eq!(refused_removal, refusal_before);
+
+        projection.independent_part_transitions = vec![IndependentPartTransition::Remove {
+            source_id: "independent-source-added".into(),
+            mirror_id: "independent-mirror".into(),
+        }];
+        let mut conflicting_removal_identity = removal_source.clone();
+        let conflicting_removal_before = conflicting_removal_identity.clone();
+        let refusal = reconcile(
+            &mut conflicting_removal_identity,
+            "pair-source-mirror",
+            &projection,
+        )
+        .unwrap_err();
+        assert!(refusal.contains("conflicting pair provenance"));
+        assert_eq!(conflicting_removal_identity, conflicting_removal_before);
+        projection.independent_part_transitions = vec![IndependentPartTransition::Remove {
+            source_id: "independent-source-added".into(),
+            mirror_id: "independent-mirror-added".into(),
+        }];
+
+        let removed = reconcile(&mut removal_source, "pair-source-mirror", &projection).unwrap();
+        assert!(
+            removal_source
+                .parts
+                .iter()
+                .all(|part| part.id != "independent-mirror-added")
+        );
+        assert!(
+            removal_source
+                .boards
+                .iter()
+                .all(|board| !board.part_ids.contains(&"independent-mirror-added".into()))
+        );
+        assert!(
+            removal_source.layouts[1]
+                .part_ids
+                .iter()
+                .all(|id| id != "independent-mirror-added")
+        );
+        assert_eq!(
+            removal_source
+                .nets
+                .iter()
+                .find(|net| net.id == "independent-removal-net")
+                .unwrap()
+                .pins,
+            vec![crate::model::Pin {
+                part_id: "geometry-probe".into(),
+                pad_id: "pad-two".into(),
+            }]
+        );
+        assert!(
+            removal_source
+                .constraints
+                .iter()
+                .all(|constraint| constraint.id() != "independent-removal-offset")
+        );
+        expected_retained_keys.retain(|id| id != "independent-mirror-added");
+        assert!(removal_source.outline.iter().any(|feature| {
+            matches!(feature, OutlineFeature::PartEnvelope { id, part_ids, .. }
+                if id == "retained-keys-envelope" && part_ids == &expected_retained_keys)
+        }));
+        assert_eq!(
+            removed,
+            vec![
+                "independent-mirror-added",
+                "independent-removal-net",
+                "independent-removal-offset",
+                "mirror-board",
+                "mirror-layout",
+                "retained-keys-envelope",
+            ]
+        );
+        assert_eq!(
+            removal_source.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .correspondences,
+            persisted_pair_before
+        );
+        let first_removal_output = removal_source.clone();
+        let repeated_removal =
+            reconcile(&mut removal_source, "pair-source-mirror", &projection).unwrap();
+        assert!(repeated_removal.is_empty());
+        assert_eq!(removal_source, first_removal_output);
     }
 
     #[test]
@@ -6414,6 +7405,584 @@ mod tests {
         assert!(output.changed_field_paths.is_empty());
         assert_eq!(output.context, context);
         assert_eq!(output.final_owners, final_owners);
+    }
+
+    #[test]
+    fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation() {
+        let (mut before, _, mut context, _, _, _) =
+            membership_compaction_fixture().expect("the paired matrix fixture is valid");
+        crate::matrix::set_matrix(
+            &mut before,
+            &fixture_matrix("unrelated-matrix", "mirror-board"),
+        )
+        .expect("the unrelated matrix is materialized through Core");
+        let unrelated_matrix = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "unrelated-matrix")
+            .unwrap()
+            .clone();
+        let unrelated_member = unrelated_matrix.part_ids[0].clone();
+        for id in &unrelated_matrix.part_ids {
+            context
+                .owners
+                .insert(id.clone(), FinalOwner::Board("mirror-board".into()));
+        }
+        let source_member = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.source_matrix_id)
+            .unwrap()
+            .part_ids[0]
+            .clone();
+        let mirror_member = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.mirror_matrix_id)
+            .unwrap()
+            .part_ids[0]
+            .clone();
+        let source_layout = Layout {
+            id: "source-layout".into(),
+            name: "Source matrix layout".into(),
+            board_id: context.source_board_id.clone(),
+            matrix_id: context.source_matrix_id.clone(),
+            part_ids: vec![source_member],
+            mirror_link: None,
+        };
+        let mirror_layout = Layout {
+            id: "mirror-layout".into(),
+            name: "Target matrix layout".into(),
+            board_id: context.mirror_board_id.clone(),
+            matrix_id: context.mirror_matrix_id.clone(),
+            part_ids: vec![mirror_member],
+            mirror_link: None,
+        };
+        let unrelated_layout = Layout {
+            id: "unrelated-layout".into(),
+            name: "Unrelated nonempty layout".into(),
+            board_id: context.mirror_board_id.clone(),
+            matrix_id: unrelated_matrix.id.clone(),
+            part_ids: vec![unrelated_member.clone()],
+            mirror_link: None,
+        };
+        before.layouts = vec![source_layout, mirror_layout, unrelated_layout.clone()];
+        let unrelated_envelope = OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: Default::default(),
+            id: "unrelated-layout-envelope".into(),
+            part_ids: vec![unrelated_member.clone()],
+            margin: 1.5,
+            operation: crate::model::Operation::Add,
+        };
+        before.outline.push(unrelated_envelope.clone());
+        before
+            .boards
+            .iter_mut()
+            .find(|board| board.id == context.mirror_board_id)
+            .unwrap()
+            .outline_ids
+            .push("unrelated-layout-envelope".into());
+        let source_net_id = format!("matrix/{}/net/empty", context.source_matrix_id);
+        let mirror_net_id = format!("matrix/{}/net/empty", context.mirror_matrix_id);
+        for (board_id, net_id) in [
+            (context.source_board_id.as_str(), source_net_id.as_str()),
+            (context.mirror_board_id.as_str(), mirror_net_id.as_str()),
+        ] {
+            before
+                .boards
+                .iter_mut()
+                .find(|board| board.id == board_id)
+                .unwrap()
+                .net_ids
+                .push(net_id.into());
+            before.nets.push(Net {
+                id: net_id.into(),
+                name: "unused matrix net".into(),
+                pins: vec![],
+            });
+        }
+        crate::mechanical::halves::validate_document(&before)
+            .expect("the pre-edit pair is a valid materialized project");
+
+        let mut post_source = before.clone();
+        let source_changed = crate::apply(
+            &mut post_source,
+            &[],
+            &EditOperation::RemoveMatrix {
+                id: context.source_matrix_id.clone(),
+            },
+        )
+        .expect("the ordinary source RemoveMatrix operation succeeds");
+        assert!(source_changed.contains(&context.source_matrix_id));
+        assert!(
+            !post_source
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == context.source_matrix_id)
+        );
+
+        let source_members: BTreeSet<_> = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.source_matrix_id)
+            .expect("the source matrix exists in the pre-edit baseline")
+            .part_ids
+            .iter()
+            .cloned()
+            .collect();
+        let mirror_members: BTreeSet<_> = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.mirror_matrix_id)
+            .expect("the mirror matrix exists in the pre-edit baseline")
+            .part_ids
+            .iter()
+            .cloned()
+            .collect();
+        let source_identity_map: BTreeMap<_, _> = source_members
+            .iter()
+            .cloned()
+            .map(|id| (id, None))
+            .collect();
+        let mirror_identity_map: BTreeMap<_, _> = mirror_members
+            .iter()
+            .cloned()
+            .map(|id| (id, None))
+            .collect();
+        let mut final_owners = context.owners.clone();
+        for id in source_members.iter().chain(&mirror_members) {
+            final_owners.insert(id.clone(), FinalOwner::Absent);
+        }
+        let explicit_removal_closure: BTreeSet<_> = source_members
+            .iter()
+            .chain(&mirror_members)
+            .cloned()
+            .collect();
+
+        let incomplete_closure: BTreeSet<_> =
+            explicit_removal_closure.iter().skip(1).cloned().collect();
+        assert!(
+            prepare_membership_transition(MembershipTransitionInput {
+                valid_before: &before,
+                post_source: &post_source,
+                context: &context,
+                baseline_kind: BaselineKind::MaterializedCurrentSchema,
+                source_identity_map: &source_identity_map,
+                mirror_identity_map: &mirror_identity_map,
+                planned_additions: &[],
+                final_owners: &final_owners,
+                explicit_removal_closure: &incomplete_closure,
+            })
+            .is_err()
+        );
+        assert!(
+            !post_source
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == context.source_matrix_id)
+        );
+
+        let output = prepare_membership_transition(MembershipTransitionInput {
+            valid_before: &before,
+            post_source: &post_source,
+            context: &context,
+            baseline_kind: BaselineKind::MaterializedCurrentSchema,
+            source_identity_map: &source_identity_map,
+            mirror_identity_map: &mirror_identity_map,
+            planned_additions: &[],
+            final_owners: &final_owners,
+            explicit_removal_closure: &explicit_removal_closure,
+        })
+        .expect("removing the source matrix projects its paired mirror removal");
+
+        assert!(
+            !output
+                .draft
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == context.source_matrix_id)
+        );
+        assert!(
+            !output
+                .draft
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == context.mirror_matrix_id)
+        );
+        assert!(
+            output
+                .draft
+                .parts
+                .iter()
+                .all(|part| !mirror_members.contains(&part.id))
+        );
+        assert_eq!(
+            output
+                .draft
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == unrelated_matrix.id),
+            Some(&unrelated_matrix)
+        );
+        assert_eq!(
+            output
+                .draft
+                .layouts
+                .iter()
+                .find(|layout| layout.id == unrelated_layout.id),
+            Some(&unrelated_layout)
+        );
+        assert!(
+            !output
+                .draft
+                .layouts
+                .iter()
+                .any(|layout| layout.id == "mirror-layout")
+        );
+        assert!(!output.draft.nets.iter().any(|net| net.id == mirror_net_id));
+        let retained_net = output
+            .draft
+            .nets
+            .iter()
+            .find(|net| net.id == "retained-second-key-net")
+            .expect("the nonempty unrelated net survives target cleanup");
+        assert_eq!(
+            retained_net.pins,
+            vec![Pin {
+                part_id: "geometry-probe".into(),
+                pad_id: "pad-two".into(),
+            }]
+        );
+        assert!(
+            !output
+                .draft
+                .constraints
+                .iter()
+                .any(|constraint| { constraint.id() == "retained-second-key-offset" })
+        );
+        let mut expected_retained_envelope = post_source
+            .outline
+            .iter()
+            .find(|feature| {
+                matches!(feature, OutlineFeature::PartEnvelope { id, .. }
+                    if id == "retained-keys-envelope")
+            })
+            .expect("the source operation leaves the mirror envelope in its preimage")
+            .clone();
+        if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut expected_retained_envelope {
+            part_ids.retain(|id| !mirror_members.contains(id));
+        }
+        assert!(output.draft.outline.contains(&expected_retained_envelope));
+        assert!(output.draft.outline.contains(&unrelated_envelope));
+        assert!(
+            output
+                .draft
+                .boards
+                .iter()
+                .any(|board| board.part_ids.contains(&unrelated_member))
+        );
+        assert!(
+            output
+                .changed_document_ids
+                .contains(&context.mirror_matrix_id)
+        );
+        assert!(
+            output
+                .changed_document_ids
+                .contains(&"mirror-layout".to_owned())
+        );
+        assert!(output.changed_document_ids.contains(&mirror_net_id));
+        for id in &mirror_members {
+            assert!(output.changed_document_ids.contains(id));
+        }
+        let expected_target_delta: BTreeSet<_> = mirror_members
+            .iter()
+            .cloned()
+            .chain([
+                context.mirror_matrix_id.clone(),
+                "mirror-layout".into(),
+                mirror_net_id.clone(),
+                context.mirror_board_id.clone(),
+                "retained-keys-envelope".into(),
+                "retained-second-key-net".into(),
+                "retained-second-key-offset".into(),
+            ])
+            .collect();
+        assert_eq!(
+            output.changed_document_ids,
+            expected_target_delta.into_iter().collect::<Vec<_>>()
+        );
+        assert!(
+            source_members
+                .iter()
+                .all(|id| !output.changed_document_ids.contains(id))
+        );
+        assert!(output.context.associations.iter().all(|association| {
+            association.source_id != context.source_matrix_id
+                && association.mirror_id != context.mirror_matrix_id
+                && !source_members.contains(&association.source_id)
+                && !mirror_members.contains(&association.mirror_id)
+        }));
+        assert_eq!(output.final_owners, final_owners);
+        assert_eq!(
+            output.context.pair_right.correspondences, context.pair_right.correspondences,
+            "the private retirement leaves persisted pair provenance byte-for-byte intact"
+        );
+        let repeated = prepare_membership_transition(MembershipTransitionInput {
+            valid_before: &output.draft,
+            post_source: &output.draft,
+            context: &output.context,
+            baseline_kind: BaselineKind::MaterializedCurrentSchema,
+            source_identity_map: &BTreeMap::new(),
+            mirror_identity_map: &BTreeMap::new(),
+            planned_additions: &[],
+            final_owners: &output.final_owners,
+            explicit_removal_closure: &BTreeSet::new(),
+        })
+        .expect("the retired matrix transition converges in its updated context");
+        assert_eq!(repeated.draft, output.draft);
+        assert!(repeated.changed_document_ids.is_empty());
+        assert_eq!(repeated.context, output.context);
+    }
+
+    #[test]
+    fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts() {
+        let (before, _, mut context, _, _, _) =
+            membership_compaction_fixture().expect("the paired matrix fixture is valid");
+        let source_members: BTreeSet<_> = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.source_matrix_id)
+            .unwrap()
+            .part_ids
+            .iter()
+            .cloned()
+            .collect();
+        let mirror_members: BTreeSet<_> = before
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == context.mirror_matrix_id)
+            .unwrap()
+            .part_ids
+            .iter()
+            .cloned()
+            .collect();
+        let local_association = context
+            .associations
+            .iter_mut()
+            .find(|association| {
+                association.kind == MirroredItemKind::Part
+                    && association.source_id == "matrix/source-matrix/r0c3"
+            })
+            .expect("the selected key has a paired Part association");
+        local_association.state = TransitionState::Local;
+        local_association.explicit_state = true;
+        let local_source_id = local_association.source_id.clone();
+        let local_mirror_id = local_association.mirror_id.clone();
+        let local_child_source_id = format!("{local_source_id}/diode");
+        let local_child_mirror_id = format!("{local_mirror_id}/diode");
+        let local_child = context
+            .associations
+            .iter_mut()
+            .find(|association| association.source_id == local_child_source_id)
+            .expect("the Local key has a materialized companion association");
+        local_child.state = TransitionState::Local;
+        local_child.explicit_state = false;
+        let retained_parts =
+            BTreeSet::from([local_mirror_id.clone(), local_child_mirror_id.clone()]);
+
+        let mut before = before;
+        before.nets.push(Net {
+            id: "retained-local-net".into(),
+            name: "retained Local PadID net".into(),
+            pins: vec![Pin {
+                part_id: local_child_mirror_id.clone(),
+                pad_id: "pad-two".into(),
+            }],
+        });
+        before
+            .boards
+            .iter_mut()
+            .find(|board| board.id == context.mirror_board_id)
+            .unwrap()
+            .net_ids
+            .push("retained-local-net".into());
+        before.constraints.push(Constraint::Offset {
+            id: "retained-local-constraint".into(),
+            source_part_id: local_mirror_id.clone(),
+            target_part_id: local_child_mirror_id.clone(),
+            offset: Vec2 { x: 1.25, y: -2.5 },
+            rotation: 7.0,
+        });
+        before.outline.push(OutlineFeature::PartEnvelope {
+            connections: vec![],
+            settings: crate::model::OutlineSettings::default(),
+            id: "retained-local-outline".into(),
+            part_ids: vec![local_mirror_id.clone(), local_child_mirror_id.clone()],
+            margin: 1.75,
+            operation: crate::model::Operation::Add,
+        });
+        crate::mechanical::halves::validate_document(&before)
+            .expect("the retained Local dependency controls are valid before removal");
+
+        let mut post_source = before.clone();
+        crate::apply(
+            &mut post_source,
+            &[],
+            &EditOperation::RemoveMatrix {
+                id: context.source_matrix_id.clone(),
+            },
+        )
+        .expect("the source operation removes its matrix through Core");
+        let source_identity_map: BTreeMap<_, _> = source_members
+            .iter()
+            .cloned()
+            .map(|id| (id, None))
+            .collect();
+        let mirror_identity_map: BTreeMap<_, _> = mirror_members
+            .iter()
+            .cloned()
+            .map(|id| {
+                let mapped = retained_parts.contains(&id).then(|| id.clone());
+                (id, mapped)
+            })
+            .collect();
+        let mut final_owners = context.owners.clone();
+        for id in &source_members {
+            final_owners.insert(id.clone(), FinalOwner::Absent);
+        }
+        for id in &mirror_members {
+            final_owners.insert(
+                id.clone(),
+                if retained_parts.contains(id) {
+                    FinalOwner::Board(context.mirror_board_id.clone())
+                } else {
+                    FinalOwner::Absent
+                },
+            );
+        }
+        let explicit_removal_closure: BTreeSet<_> = source_members
+            .iter()
+            .chain(
+                mirror_members
+                    .iter()
+                    .filter(|id| !retained_parts.contains(*id)),
+            )
+            .cloned()
+            .collect();
+        let output = prepare_membership_transition(MembershipTransitionInput {
+            valid_before: &before,
+            post_source: &post_source,
+            context: &context,
+            baseline_kind: BaselineKind::MaterializedCurrentSchema,
+            source_identity_map: &source_identity_map,
+            mirror_identity_map: &mirror_identity_map,
+            planned_additions: &[],
+            final_owners: &final_owners,
+            explicit_removal_closure: &explicit_removal_closure,
+        })
+        .expect("a Local mirror identity survives paired matrix retirement");
+
+        assert!(
+            !output
+                .draft
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == context.source_matrix_id
+                    || matrix.id == context.mirror_matrix_id)
+        );
+        assert!(
+            !output
+                .draft
+                .parts
+                .iter()
+                .any(|part| part.id == local_source_id)
+        );
+        assert_eq!(
+            output
+                .draft
+                .parts
+                .iter()
+                .find(|part| part.id == local_mirror_id),
+            before.parts.iter().find(|part| part.id == local_mirror_id)
+        );
+        assert_eq!(
+            output
+                .draft
+                .parts
+                .iter()
+                .find(|part| part.id == local_child_mirror_id),
+            before
+                .parts
+                .iter()
+                .find(|part| part.id == local_child_mirror_id)
+        );
+        assert!(
+            output
+                .draft
+                .boards
+                .iter()
+                .find(|board| board.id == context.mirror_board_id)
+                .unwrap()
+                .part_ids
+                .contains(&local_mirror_id)
+        );
+        assert!(
+            output
+                .draft
+                .boards
+                .iter()
+                .find(|board| board.id == context.mirror_board_id)
+                .unwrap()
+                .part_ids
+                .contains(&local_child_mirror_id)
+        );
+        assert!(output.draft.nets.iter().any(|net| {
+            net.id == "retained-local-net"
+                && net
+                    .pins
+                    .iter()
+                    .any(|pin| pin.part_id == local_child_mirror_id && pin.pad_id == "pad-two")
+        }));
+        assert!(output.draft.constraints.iter().any(|constraint| {
+            constraint.id() == "retained-local-constraint"
+                && constraint.source() == local_mirror_id
+                && constraint.target() == local_child_mirror_id
+        }));
+        assert!(output.draft.outline.iter().any(|feature| {
+            feature.id() == "retained-local-outline"
+                && matches!(feature, OutlineFeature::PartEnvelope { part_ids, .. } if part_ids.contains(&local_mirror_id) && part_ids.contains(&local_child_mirror_id))
+        }));
+        assert!(output.context.associations.iter().any(|association| {
+            association.source_id == local_source_id
+                && association.mirror_id == local_mirror_id
+                && association.state == TransitionState::Local
+        }));
+        assert_eq!(output.final_owners, final_owners);
+        assert!(
+            output
+                .changed_document_ids
+                .contains(&context.mirror_matrix_id)
+        );
+        assert!(!output.changed_document_ids.contains(&local_mirror_id));
+        assert!(!output.changed_document_ids.contains(&local_child_mirror_id));
+
+        let repeated = prepare_membership_transition(MembershipTransitionInput {
+            valid_before: &output.draft,
+            post_source: &output.draft,
+            context: &output.context,
+            baseline_kind: BaselineKind::MaterializedCurrentSchema,
+            source_identity_map: &BTreeMap::new(),
+            mirror_identity_map: &BTreeMap::new(),
+            planned_additions: &[],
+            final_owners: &output.final_owners,
+            explicit_removal_closure: &BTreeSet::new(),
+        })
+        .expect("retained Local ownership converges after matrix retirement");
+        assert_eq!(repeated.draft, output.draft);
+        assert!(repeated.changed_document_ids.is_empty());
+        assert_eq!(repeated.context, output.context);
     }
 
     #[test]
