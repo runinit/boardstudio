@@ -20,6 +20,429 @@ struct Projection {
     final_owners: std::collections::BTreeMap<String, String>,
 }
 
+struct RetainedCell {
+    id: String,
+    cell: crate::model::MatrixCell,
+}
+
+struct FixedMembershipView {
+    incoming_matrix: Matrix,
+    retained_cells: Vec<RetainedCell>,
+}
+
+fn build_fixed_membership_view(
+    document: &ProjectDoc,
+    halves: &crate::model::MirroredHalves,
+    source: &Matrix,
+    mirror: &Matrix,
+    projected: &Matrix,
+    projection: &Projection,
+) -> Result<FixedMembershipView, String> {
+    type Slot = (u32, u32);
+    type SlotIds = std::collections::BTreeMap<Slot, String>;
+
+    fn point_is_finite(point: Vec2) -> bool {
+        point.x.is_finite() && point.y.is_finite()
+    }
+
+    fn owner_for<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a str, String> {
+        let mut owners = document
+            .boards
+            .iter()
+            .filter(|board| board.part_ids.iter().any(|part_id| part_id == id));
+        let board = owners
+            .next()
+            .ok_or_else(|| format!("The mirrored part {id:?} has no board owner"))?;
+        if owners.next().is_some() {
+            return Err(format!(
+                "The mirrored part {id:?} has ambiguous board ownership"
+            ));
+        }
+        Ok(&board.id)
+    }
+
+    fn canonical_slots(matrix: &Matrix) -> Result<SlotIds, String> {
+        if matrix.rows == 0 || matrix.columns == 0 {
+            return Err("The reconciliation matrix has empty dimensions".into());
+        }
+        let count = matrix
+            .rows
+            .checked_mul(matrix.columns)
+            .ok_or_else(|| "The reconciliation matrix dimensions overflow".to_owned())?;
+        if matrix.cells.len() != count as usize {
+            return Err("The reconciliation matrix does not have fixed active membership".into());
+        }
+        let mut slots = SlotIds::new();
+        for cell in &matrix.cells {
+            if !cell.enabled
+                || cell.deleted
+                || cell.row >= matrix.rows
+                || cell.column >= matrix.columns
+            {
+                return Err(
+                    "The reconciliation matrix does not have fixed active membership".into(),
+                );
+            }
+            let id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+            if slots.insert((cell.row, cell.column), id).is_some() {
+                return Err("The reconciliation matrix contains aliased cells".into());
+            }
+        }
+        if slots.len() != count as usize {
+            return Err("The reconciliation matrix has incomplete active membership".into());
+        }
+        let expected: std::collections::BTreeSet<_> = slots.values().cloned().collect();
+        let actual: std::collections::BTreeSet<_> = matrix.part_ids.iter().cloned().collect();
+        if actual.len() != matrix.part_ids.len() || actual != expected {
+            return Err("The reconciliation matrix membership is not canonical".into());
+        }
+        Ok(slots)
+    }
+
+    if source.id == mirror.id
+        || source.rows != mirror.rows
+        || source.columns != mirror.columns
+        || source.rows != projected.rows
+        || source.columns != projected.columns
+    {
+        return Err("The source and mirror matrices do not have matching fixed dimensions".into());
+    }
+    let source_slots = canonical_slots(source)?;
+    let mirror_slots = canonical_slots(mirror)?;
+    let projected_slots = canonical_slots(projected)?;
+    if source_slots.keys().ne(mirror_slots.keys()) || source_slots.keys().ne(projected_slots.keys())
+    {
+        return Err("The source and mirror matrices do not have matching active slots".into());
+    }
+
+    let mut linked_slots = std::collections::BTreeMap::<Slot, String>::new();
+    let mut linked_source_ids = std::collections::BTreeSet::new();
+    let mut linked_mirror_ids = std::collections::BTreeSet::new();
+    for part in &projection.parts {
+        let source_slot = source_slots
+            .iter()
+            .find_map(|(slot, id)| (id == &part.source_id).then_some(*slot));
+        let mirror_slot = mirror_slots
+            .iter()
+            .find_map(|(slot, id)| (id == &part.mirror_id).then_some(*slot));
+        let Some(slot) = source_slot.filter(|slot| Some(*slot) == mirror_slot) else {
+            return Err("The linked matrix associations are missing or inconsistent".into());
+        };
+        if !linked_source_ids.insert(part.source_id.clone())
+            || !linked_mirror_ids.insert(part.mirror_id.clone())
+            || linked_slots.insert(slot, part.mirror_id.clone()).is_some()
+        {
+            return Err("The linked matrix associations contain aliases".into());
+        }
+    }
+
+    let mut retained_slots = std::collections::BTreeMap::<Slot, String>::new();
+    for id in &projection.locally_protected_mirror_parts {
+        let Some((slot, _)) = mirror_slots.iter().find(|(_, member)| *member == id) else {
+            return Err(format!(
+                "Locally protected mirror part {id:?} is not a matrix member"
+            ));
+        };
+        if retained_slots.insert(*slot, id.clone()).is_some() {
+            return Err("The retained matrix associations contain aliases".into());
+        }
+    }
+    let partition_slots: std::collections::BTreeSet<_> = linked_slots
+        .keys()
+        .chain(retained_slots.keys())
+        .copied()
+        .collect();
+    if linked_slots
+        .keys()
+        .any(|slot| retained_slots.contains_key(slot))
+        || partition_slots != source_slots.keys().copied().collect()
+        || projection.parts.len() != linked_slots.len()
+        || projection.locally_protected_mirror_parts.len() != retained_slots.len()
+        || linked_mirror_ids
+            .iter()
+            .any(|id| projection.locally_protected_mirror_parts.contains(id))
+    {
+        return Err(
+            "Linked and retained matrix memberships must form a disjoint complete partition".into(),
+        );
+    }
+
+    let affected_ids: std::collections::BTreeSet<_> = source_slots
+        .values()
+        .chain(mirror_slots.values())
+        .cloned()
+        .collect();
+    let owner_ids: std::collections::BTreeSet<_> =
+        projection.final_owners.keys().cloned().collect();
+    if owner_ids != affected_ids || projection.final_owners.len() != affected_ids.len() {
+        return Err("The final owner input is incomplete for matrix membership".into());
+    }
+    for (slot, source_id) in &source_slots {
+        let mirror_id = &mirror_slots[slot];
+        let source_owner = owner_for(document, source_id)?;
+        let mirror_owner = owner_for(document, mirror_id)?;
+        if source_owner != halves.source_board_id
+            || mirror_owner != halves.mirror_board_id
+            || projection.final_owners.get(source_id).map(String::as_str) != Some(source_owner)
+            || projection.final_owners.get(mirror_id).map(String::as_str) != Some(mirror_owner)
+        {
+            return Err("A matrix part has an incomplete or stale owner input".into());
+        }
+        for id in [source_id, mirror_id] {
+            let mut matches = document.parts.iter().filter(|part| part.id == *id);
+            let part = matches
+                .next()
+                .ok_or_else(|| format!("The mirrored part {id:?} is unavailable"))?;
+            if matches.next().is_some() {
+                return Err(format!("The mirrored part {id:?} is ambiguous"));
+            }
+            if !point_is_finite(part.pose.at) || !part.pose.rotation.is_finite() {
+                return Err(format!("The mirrored part {id:?} has non-finite geometry"));
+            }
+        }
+        let mut associations = halves.correspondences.iter().filter(|association| {
+            association.kind == MirroredItemKind::Part
+                && (association.source_id == *source_id
+                    || association.mirror_id == *mirror_id
+                    || association.source_id == *mirror_id
+                    || association.mirror_id == *source_id)
+        });
+        let association = associations
+            .next()
+            .ok_or_else(|| "A canonical matrix part association is missing".to_owned())?;
+        if associations.next().is_some()
+            || association.source_id != *source_id
+            || association.mirror_id != *mirror_id
+        {
+            return Err("A canonical matrix part association is aliased or inconsistent".into());
+        }
+        if linked_slots.get(slot).is_some_and(|id| id == mirror_id)
+            == retained_slots.get(slot).is_some_and(|id| id == mirror_id)
+        {
+            return Err("A canonical matrix slot must be linked or retained exactly once".into());
+        }
+    }
+
+    if source.cells.iter().chain(&mirror.cells).any(|cell| {
+        cell.definition_id.is_some()
+            || cell.variant.is_some()
+            || !cell.assemblies.is_empty()
+            || cell.assemblies_local.is_some()
+    }) {
+        return Err("The reconciliation matrix uses an unsupported cell representation".into());
+    }
+    let finite_matrix = |matrix: &Matrix| {
+        point_is_finite(matrix.origin)
+            && point_is_finite(matrix.pitch)
+            && matrix.rotation.is_none_or(f64::is_finite)
+            && matrix
+                .row_offsets
+                .iter()
+                .chain(&matrix.column_offsets)
+                .chain(matrix.column_origins.iter().flatten())
+                .all(|point| point_is_finite(*point))
+            && matrix
+                .column_staggers
+                .iter()
+                .chain(&matrix.column_splays)
+                .all(|angle| angle.is_finite())
+            && matrix.cells.iter().all(|cell| {
+                cell.offset.is_none_or(point_is_finite) && cell.rotation.is_none_or(f64::is_finite)
+            })
+    };
+    if !finite_matrix(source) || !finite_matrix(mirror) || !finite_matrix(projected) {
+        return Err("The reconciliation matrix geometry contains non-finite values".into());
+    }
+
+    let mirror_axis = projected.mirror.unwrap_or(crate::model::Mirror::None);
+    let matrix_rotation = projected.rotation.unwrap_or(0.0);
+    for cell in &projected.cells {
+        let row = cell.row as usize;
+        let column = cell.column as usize;
+        let row_offset = projected.row_offsets.get(row).copied().unwrap_or_default();
+        let column_offset = projected
+            .column_offsets
+            .get(column)
+            .copied()
+            .unwrap_or_default();
+        let cell_offset = cell.offset.unwrap_or_default();
+        let stagger = projected
+            .column_staggers
+            .iter()
+            .take(column + 1)
+            .sum::<f64>();
+        let mut local = Vec2 {
+            x: column as f64 * projected.pitch.x + row_offset.x + column_offset.x + cell_offset.x,
+            y: row as f64 * projected.pitch.y
+                + row_offset.y
+                + column_offset.y
+                + cell_offset.y
+                + stagger,
+        };
+        if !point_is_finite(local) {
+            return Err("The projected matrix produced non-finite cell geometry".into());
+        }
+        let mut splay_sum = 0.0;
+        for index in (0..=column).rev() {
+            let angle = projected.column_splays.get(index).copied().unwrap_or(0.0);
+            splay_sum += angle;
+            let pivot = projected
+                .column_origins
+                .get(index)
+                .copied()
+                .flatten()
+                .unwrap_or(Vec2 {
+                    x: index as f64 * projected.pitch.x,
+                    y: projected.column_staggers.iter().take(index + 1).sum(),
+                });
+            if !point_is_finite(pivot) || !splay_sum.is_finite() {
+                return Err("The projected matrix produced non-finite splay geometry".into());
+            }
+            let (sin, cos) = angle.to_radians().sin_cos();
+            let dx = local.x - pivot.x;
+            let dy = local.y - pivot.y;
+            local = Vec2 {
+                x: pivot.x + dx * cos - dy * sin,
+                y: pivot.y + dx * sin + dy * cos,
+            };
+            if !point_is_finite(local) {
+                return Err("The projected matrix produced non-finite splay geometry".into());
+            }
+        }
+        match mirror_axis {
+            crate::model::Mirror::X => local.x = -local.x,
+            crate::model::Mirror::Y => local.y = -local.y,
+            crate::model::Mirror::None => {}
+        }
+        let (sin, cos) = matrix_rotation.to_radians().sin_cos();
+        let world = Vec2 {
+            x: projected.origin.x + local.x * cos - local.y * sin,
+            y: projected.origin.y + local.x * sin + local.y * cos,
+        };
+        let signed_splay = if matches!(
+            mirror_axis,
+            crate::model::Mirror::X | crate::model::Mirror::Y
+        ) {
+            -splay_sum
+        } else {
+            splay_sum
+        };
+        let rotation = matrix_rotation + signed_splay + cell.rotation.unwrap_or(0.0);
+        if !point_is_finite(world) || !rotation.is_finite() {
+            return Err("The projected matrix produced non-finite part geometry".into());
+        }
+    }
+
+    let (global_sin, global_cos) = (-matrix_rotation.to_radians()).sin_cos();
+    let mut retained_cells = Vec::with_capacity(retained_slots.len());
+    for ((row, column), id) in retained_slots {
+        let retained = document
+            .parts
+            .iter()
+            .find(|part| part.id == id)
+            .ok_or_else(|| format!("The mirrored part {id:?} is unavailable"))?;
+        let mut local = Vec2 {
+            x: global_cos * (retained.pose.at.x - projected.origin.x)
+                - global_sin * (retained.pose.at.y - projected.origin.y),
+            y: global_sin * (retained.pose.at.x - projected.origin.x)
+                + global_cos * (retained.pose.at.y - projected.origin.y),
+        };
+        match mirror_axis {
+            crate::model::Mirror::X => local.x = -local.x,
+            crate::model::Mirror::Y => local.y = -local.y,
+            crate::model::Mirror::None => {}
+        }
+        for index in 0..=column as usize {
+            let angle = -projected
+                .column_splays
+                .get(index)
+                .copied()
+                .unwrap_or(0.0)
+                .to_radians();
+            let pivot = projected
+                .column_origins
+                .get(index)
+                .copied()
+                .flatten()
+                .unwrap_or(Vec2 {
+                    x: index as f64 * projected.pitch.x,
+                    y: projected.column_staggers.iter().take(index + 1).sum(),
+                });
+            let (sin, cos) = angle.sin_cos();
+            let dx = local.x - pivot.x;
+            let dy = local.y - pivot.y;
+            local = Vec2 {
+                x: pivot.x + dx * cos - dy * sin,
+                y: pivot.y + dx * sin + dy * cos,
+            };
+            if !point_is_finite(local) {
+                return Err("The retained cell inverse produced non-finite geometry".into());
+            }
+        }
+        let row_offset = projected
+            .row_offsets
+            .get(row as usize)
+            .copied()
+            .unwrap_or_default();
+        let column_offset = projected
+            .column_offsets
+            .get(column as usize)
+            .copied()
+            .unwrap_or_default();
+        let stagger = projected
+            .column_staggers
+            .iter()
+            .take(column as usize + 1)
+            .sum::<f64>();
+        let cell_offset = Vec2 {
+            x: local.x - column as f64 * projected.pitch.x - row_offset.x - column_offset.x,
+            y: local.y - row as f64 * projected.pitch.y - row_offset.y - column_offset.y - stagger,
+        };
+        let splay_sum = projected
+            .column_splays
+            .iter()
+            .take(column as usize + 1)
+            .sum::<f64>();
+        let signed_splay = if matches!(
+            mirror_axis,
+            crate::model::Mirror::X | crate::model::Mirror::Y
+        ) {
+            -splay_sum
+        } else {
+            splay_sum
+        };
+        let cell_rotation = retained.pose.rotation - matrix_rotation - signed_splay;
+        if !point_is_finite(cell_offset) || !cell_rotation.is_finite() {
+            return Err("The retained cell inverse produced non-finite geometry".into());
+        }
+        let mut cell = projected
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column)
+            .ok_or_else(|| "The retained matrix cell is unavailable".to_owned())?
+            .clone();
+        cell.offset = Some(cell_offset);
+        cell.rotation = Some(cell_rotation);
+        retained_cells.push(RetainedCell { id, cell });
+    }
+    retained_cells.sort_by_key(|retained| (retained.cell.row, retained.cell.column));
+
+    let mut incoming_matrix = projected.clone();
+    for retained in &retained_cells {
+        let cell = incoming_matrix
+            .cells
+            .iter_mut()
+            .find(|cell| cell.row == retained.cell.row && cell.column == retained.cell.column)
+            .ok_or_else(|| "The retained matrix cell is unavailable".to_owned())?;
+        cell.enabled = false;
+        incoming_matrix.part_ids.retain(|id| id != &retained.id);
+    }
+    Ok(FixedMembershipView {
+        incoming_matrix,
+        retained_cells,
+    })
+}
+
 #[allow(dead_code)] // Ticket 111 activates this private seam after the reconciliation slices are verified.
 fn reconcile(
     document: &mut ProjectDoc,
@@ -35,17 +458,6 @@ fn reconcile(
             return Err(format!("The mirrored matrix {id:?} is ambiguous"));
         }
         Ok(matrix)
-    }
-
-    fn part_by_id<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a Part, String> {
-        let mut matches = document.parts.iter().filter(|part| part.id == id);
-        let part = matches
-            .next()
-            .ok_or_else(|| format!("The mirrored part {id:?} is unavailable"))?;
-        if matches.next().is_some() {
-            return Err(format!("The mirrored part {id:?} is ambiguous"));
-        }
-        Ok(part)
     }
 
     fn owner_for<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a str, String> {
@@ -93,7 +505,9 @@ fn reconcile(
     let mut matrix_correspondences = halves.correspondences.iter().filter(|correspondence| {
         correspondence.kind == MirroredItemKind::Matrix
             && (correspondence.source_id == projection.source_matrix_id
-                || correspondence.mirror_id == projection.mirror_matrix_id)
+                || correspondence.mirror_id == projection.mirror_matrix_id
+                || correspondence.source_id == projection.mirror_matrix_id
+                || correspondence.mirror_id == projection.source_matrix_id)
     });
     let matrix_correspondence = matrix_correspondences
         .next()
@@ -115,125 +529,13 @@ fn reconcile(
         );
     }
 
-    for id in &source_matrix.part_ids {
-        part_by_id(document, id)?;
-        if owner_for(document, id)? != halves.source_board_id {
-            return Err(format!(
-                "Source matrix part {id:?} has an unexpected board owner"
-            ));
-        }
-    }
-    for id in &mirror_matrix.part_ids {
-        part_by_id(document, id)?;
-        if owner_for(document, id)? != halves.mirror_board_id {
-            return Err(format!(
-                "Mirror matrix part {id:?} has an unexpected board owner"
-            ));
-        }
-    }
-
-    for part in &projection.parts {
-        let mut correspondences = halves.correspondences.iter().filter(|correspondence| {
-            correspondence.kind == MirroredItemKind::Part
-                && correspondence.source_id == part.source_id
-                && correspondence.mirror_id == part.mirror_id
-        });
-        if correspondences.next().is_none() || correspondences.next().is_some() {
-            return Err(format!(
-                "The part correspondence {:?} → {:?} is missing or ambiguous",
-                part.source_id, part.mirror_id
-            ));
-        }
-        if !source_matrix.part_ids.contains(&part.source_id)
-            || !mirror_matrix.part_ids.contains(&part.mirror_id)
-        {
-            return Err("A projected part does not belong to the selected matrices".into());
-        }
-        part_by_id(document, &part.source_id)?;
-        part_by_id(document, &part.mirror_id)?;
-        if owner_for(document, &part.source_id)? != halves.source_board_id
-            || owner_for(document, &part.mirror_id)? != halves.mirror_board_id
-        {
-            return Err("A projected part has an unexpected board owner".into());
-        }
-    }
-    for id in &projection.locally_protected_mirror_parts {
-        if !mirror_matrix.part_ids.contains(id) {
-            return Err(format!(
-                "Locally protected mirror part {id:?} is not a matrix member"
-            ));
-        }
-        part_by_id(document, id)?;
-        if owner_for(document, id)? != halves.mirror_board_id {
-            return Err(format!(
-                "Locally protected mirror part {id:?} has an unexpected owner"
-            ));
-        }
-        if projection.parts.iter().any(|part| part.mirror_id == *id) {
-            return Err(format!(
-                "Mirror part {id:?} is both linked and locally protected"
-            ));
-        }
-    }
-    for (id, expected_owner) in &projection.final_owners {
-        if owner_for(document, id)? != expected_owner {
-            return Err(format!("The final owner input for part {id:?} is stale"));
-        }
-    }
-
-    // This forward slice supports the reviewed unsplayed 1x2 matrix with one linked
-    // member and one locally retained X-mirrored member. Reject other shapes before
-    // calling the materializer so its cleanup cannot partially affect the document.
-    let linked_source_id = format!("matrix/{}/r0c1", source_matrix.id);
-    let linked_mirror_id = format!("matrix/{}/r0c1", mirror_matrix.id);
-    let retained_mirror_id = format!("matrix/{}/r0c0", mirror_matrix.id);
-    if projection.parts.len() != 1
-        || projection.parts[0].source_id != linked_source_id
-        || projection.parts[0].mirror_id != linked_mirror_id
-        || projection.locally_protected_mirror_parts.len() != 1
-        || !projection
-            .locally_protected_mirror_parts
-            .contains(&retained_mirror_id)
+    crate::matrix::valid_matrix(source_matrix, document)?;
+    crate::matrix::valid_matrix(mirror_matrix, document)?;
+    if !projection.mapping.at.x.is_finite()
+        || !projection.mapping.at.y.is_finite()
+        || !projection.mapping.rotation.is_finite()
     {
-        return Err("The reconciliation input has an unsupported matrix membership shape".into());
-    }
-    let simple_matrix = |matrix: &Matrix| {
-        let coordinates: std::collections::BTreeSet<_> = matrix
-            .cells
-            .iter()
-            .map(|cell| (cell.row, cell.column))
-            .collect();
-        let expected_part_ids = std::collections::BTreeSet::from([
-            format!("matrix/{}/r0c0", matrix.id),
-            format!("matrix/{}/r0c1", matrix.id),
-        ]);
-        matrix.rows == 1
-            && matrix.columns == 2
-            && matrix.cells.len() == 2
-            && coordinates == std::collections::BTreeSet::from([(0, 0), (0, 1)])
-            && matrix.part_ids.len() == 2
-            && matrix
-                .part_ids
-                .iter()
-                .cloned()
-                .collect::<std::collections::BTreeSet<_>>()
-                == expected_part_ids
-            && matrix.row_offsets.is_empty()
-            && matrix.column_offsets.is_empty()
-            && matrix.column_staggers.is_empty()
-            && matrix.column_splays.is_empty()
-            && matrix.column_origins.is_empty()
-            && matrix.cells.iter().all(|cell| {
-                cell.enabled
-                    && !cell.deleted
-                    && cell.definition_id.is_none()
-                    && cell.variant.is_none()
-                    && cell.assemblies.is_empty()
-                    && cell.assemblies_local.is_none()
-            })
-    };
-    if !simple_matrix(source_matrix) || !simple_matrix(mirror_matrix) {
-        return Err("The reconciliation input has an unsupported matrix layout".into());
+        return Err("The reconciliation mapping contains non-finite geometry".into());
     }
 
     let projected_matrix = project_matrix(
@@ -242,51 +544,28 @@ fn reconcile(
         matrix_correspondence,
         pair.mapping,
     )?;
-    let mirror_axis = format!("{:?}", projected_matrix.mirror).to_ascii_lowercase();
-    if projected_matrix.mirror.is_none() || !mirror_axis.contains('x') {
-        return Err("The reconciliation input does not use the supported X mirror axis".into());
-    }
-    let retained = part_by_id(document, &retained_mirror_id)?;
-    let matrix_rotation = projected_matrix.rotation.unwrap_or(0.0);
-    let radians = matrix_rotation.to_radians();
-    let dx = retained.pose.at.x - projected_matrix.origin.x;
-    let dy = retained.pose.at.y - projected_matrix.origin.y;
-    // Invert origin + R(rotation) * MirrorX * cell_position for cell r0c0.
-    let retained_offset = Vec2 {
-        x: -(radians.cos() * dx + radians.sin() * dy),
-        y: -radians.sin() * dx + radians.cos() * dy,
-    };
-    let mut retained_cell = projected_matrix
-        .cells
-        .iter()
-        .find(|cell| cell.row == 0 && cell.column == 0)
-        .ok_or_else(|| "The retained matrix cell is unavailable".to_owned())?
-        .clone();
-    retained_cell.offset = Some(retained_offset);
-    retained_cell.rotation = Some(retained.pose.rotation - matrix_rotation);
+    crate::matrix::valid_matrix(&projected_matrix, document)?;
+    let view = build_fixed_membership_view(
+        document,
+        halves,
+        source_matrix,
+        mirror_matrix,
+        &projected_matrix,
+        projection,
+    )?;
 
-    // Materialize the linked neighbor while excluding the retained ID from the
-    // materializer's old generated-part ownership view. Its Part and references stay
-    // in the staged document; the final matrix cell is installed after normalization.
-    let mut incoming_matrix = projected_matrix.clone();
-    let incoming_retained_cell = incoming_matrix
-        .cells
-        .iter_mut()
-        .find(|cell| cell.row == 0 && cell.column == 0)
-        .ok_or_else(|| "The retained matrix cell is unavailable".to_owned())?;
-    incoming_retained_cell.enabled = false;
-    incoming_matrix
-        .part_ids
-        .retain(|id| id != &retained_mirror_id);
+    // Keep both retained parts out of the incoming pass and the previous ownership
+    // view, so the destructive setter cannot remove their parts or references.
+    let incoming_matrix = view.incoming_matrix;
     let mut staged = document.clone();
     let staged_old_matrix = staged
         .matrices
         .iter_mut()
         .find(|matrix| matrix.id == mirror_matrix.id)
         .ok_or_else(|| "The mirrored matrix disappeared from the staged document".to_owned())?;
-    staged_old_matrix
-        .part_ids
-        .retain(|id| id != &retained_mirror_id);
+    for retained in &view.retained_cells {
+        staged_old_matrix.part_ids.retain(|id| id != &retained.id);
+    }
     crate::matrix::set_matrix(&mut staged, &incoming_matrix)?;
 
     {
@@ -295,12 +574,14 @@ fn reconcile(
             .iter_mut()
             .find(|matrix| matrix.id == mirror_matrix.id)
             .ok_or_else(|| "The normalized mirrored matrix is unavailable".to_owned())?;
-        let normalized_retained_cell = normalized_mirror_matrix
-            .cells
-            .iter_mut()
-            .find(|cell| cell.row == 0 && cell.column == 0)
-            .ok_or_else(|| "The normalized retained matrix cell is unavailable".to_owned())?;
-        *normalized_retained_cell = retained_cell;
+        for retained in &view.retained_cells {
+            let normalized_cell = normalized_mirror_matrix
+                .cells
+                .iter_mut()
+                .find(|cell| cell.row == retained.cell.row && cell.column == retained.cell.column)
+                .ok_or_else(|| "The normalized retained matrix cell is unavailable".to_owned())?;
+            *normalized_cell = retained.cell.clone();
+        }
         let mut ordered_cells: Vec<_> = normalized_mirror_matrix.cells.iter().collect();
         ordered_cells.sort_by_key(|cell| (cell.row, cell.column));
         normalized_mirror_matrix.part_ids = ordered_cells
@@ -609,6 +890,654 @@ mod tests {
         .map_err(|error| error.to_string())?;
         document.hardware.as_mut().unwrap().pairs[0].halves = Some(halves);
         Ok(document)
+    }
+
+    fn fixed_geometry_matrix(id: &str, board_id: &str, source_geometry: bool) -> Matrix {
+        let mut matrix = Matrix {
+            id: id.into(),
+            name: None,
+            rows: 2,
+            columns: 3,
+            pitch: Vec2 { x: 10.0, y: 20.0 },
+            origin: if source_geometry {
+                Vec2 { x: 3.0, y: -2.0 }
+            } else {
+                Vec2::default()
+            },
+            definition_id: "switch".into(),
+            part_ids: vec![],
+            board_id: Some(board_id.into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_offsets: vec![],
+            column_offsets: vec![],
+            column_staggers: vec![],
+            column_splays: vec![],
+            column_origins: vec![],
+            cells: (0..2)
+                .flat_map(|row| {
+                    (0..3).map(move |column| MatrixCell {
+                        deleted: false,
+                        row,
+                        column,
+                        enabled: true,
+                        definition_id: None,
+                        variant: None,
+                        offset: None,
+                        rotation: None,
+                        assemblies: vec![],
+                        assemblies_local: None,
+                    })
+                })
+                .collect(),
+        };
+        if source_geometry {
+            matrix.row_offsets = vec![Vec2::default(), Vec2 { x: 1.0, y: 2.0 }];
+            matrix.column_offsets = vec![
+                Vec2::default(),
+                Vec2 { x: 3.0, y: 4.0 },
+                Vec2 { x: -2.0, y: 1.0 },
+            ];
+            matrix.column_staggers = vec![1.0, 2.0, -1.0];
+            matrix.column_splays = vec![90.0, -90.0, 90.0];
+            matrix.column_origins = vec![
+                Some(Vec2 { x: 2.0, y: 3.0 }),
+                None,
+                Some(Vec2 { x: 17.0, y: -4.0 }),
+            ];
+            let final_cell = matrix
+                .cells
+                .iter_mut()
+                .find(|cell| cell.row == 0 && cell.column == 2)
+                .unwrap();
+            final_cell.offset = Some(Vec2 { x: 2.0, y: -3.0 });
+            final_cell.rotation = Some(90.0);
+        }
+        matrix
+    }
+
+    fn fixed_geometry_fixture() -> Result<(ProjectDoc, Projection), String> {
+        let mut document = fixture_document()?;
+        let mapping = Pose2 {
+            at: Vec2 { x: 100.0, y: -30.0 },
+            rotation: 90.0,
+        };
+        document.hardware.as_mut().unwrap().pairs[0].mapping = mapping;
+        crate::matrix::set_matrix(
+            &mut document,
+            &fixed_geometry_matrix("source-matrix", "source-board", true),
+        )?;
+        crate::matrix::set_matrix(
+            &mut document,
+            &fixed_geometry_matrix("mirror-matrix", "mirror-board", false),
+        )?;
+
+        let halves = document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.correspondences = vec![MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Matrix,
+            source_id: "source-matrix".into(),
+            mirror_id: "mirror-matrix".into(),
+        }];
+        for row in 0..2 {
+            for column in 0..3 {
+                halves.correspondences.push(MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Part,
+                    source_id: format!("matrix/source-matrix/r{row}c{column}"),
+                    mirror_id: format!("matrix/mirror-matrix/r{row}c{column}"),
+                });
+            }
+        }
+
+        let definition = document
+            .definitions
+            .iter_mut()
+            .find(|definition| definition.id == "switch")
+            .unwrap();
+        definition.pads = vec![
+            crate::model::Pad {
+                id: "pad-one".into(),
+                number: "1".into(),
+                at: Vec2::default(),
+                size: Vec2 { x: 1.0, y: 1.0 },
+                shape: crate::model::PadShape::Circle,
+                drill: None,
+                plated: None,
+                side: None,
+                rotation: None,
+                net_id: None,
+            },
+            crate::model::Pad {
+                id: "pad-two".into(),
+                number: "2".into(),
+                at: Vec2 { x: 1.0, y: 0.0 },
+                size: Vec2 { x: 1.0, y: 1.0 },
+                shape: crate::model::PadShape::Circle,
+                drill: None,
+                plated: None,
+                side: None,
+                rotation: None,
+                net_id: None,
+            },
+        ];
+        let mut probe = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c2")
+            .unwrap()
+            .clone();
+        probe.id = "geometry-probe".into();
+        probe.reference = "PROBE".into();
+        probe.pose = Pose2 {
+            at: Vec2 { x: 4.0, y: 2.0 },
+            rotation: 0.0,
+        };
+        document.parts.push(probe);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push("geometry-probe".into());
+        document.nets.push(crate::model::Net {
+            id: "retained-second-key-net".into(),
+            name: "RETAINED SECOND KEY".into(),
+            pins: vec![
+                crate::model::Pin {
+                    part_id: "matrix/mirror-matrix/r1c1".into(),
+                    pad_id: "pad-one".into(),
+                },
+                crate::model::Pin {
+                    part_id: "geometry-probe".into(),
+                    pad_id: "pad-two".into(),
+                },
+            ],
+        });
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .net_ids
+            .push("retained-second-key-net".into());
+        document.constraints.push(crate::model::Constraint::Offset {
+            id: "retained-second-key-offset".into(),
+            source_part_id: "geometry-probe".into(),
+            target_part_id: "matrix/mirror-matrix/r1c1".into(),
+            offset: Vec2 { x: 6.0, y: 18.0 },
+            rotation: 0.0,
+        });
+        document
+            .outline
+            .push(crate::model::OutlineFeature::PartEnvelope {
+                connections: vec![],
+                settings: Default::default(),
+                id: "retained-keys-envelope".into(),
+                part_ids: vec![
+                    "matrix/mirror-matrix/r0c0".into(),
+                    "matrix/mirror-matrix/r0c1".into(),
+                    "matrix/mirror-matrix/r0c2".into(),
+                    "matrix/mirror-matrix/r1c0".into(),
+                    "matrix/mirror-matrix/r1c1".into(),
+                    "matrix/mirror-matrix/r1c2".into(),
+                    "geometry-probe".into(),
+                ],
+                margin: 2.0,
+                operation: crate::model::Operation::Add,
+            });
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .outline_ids
+            .push("retained-keys-envelope".into());
+
+        let linked_slots = [(0, 1), (0, 2), (1, 0), (1, 2)];
+        let parts = linked_slots
+            .into_iter()
+            .map(|(row, column)| PartProjection {
+                source_id: format!("matrix/source-matrix/r{row}c{column}"),
+                mirror_id: format!("matrix/mirror-matrix/r{row}c{column}"),
+            })
+            .collect();
+        let protected = BTreeSet::from([
+            "matrix/mirror-matrix/r0c0".to_owned(),
+            "matrix/mirror-matrix/r1c1".to_owned(),
+        ]);
+        let mut final_owners = BTreeMap::new();
+        for id in document
+            .matrices
+            .iter()
+            .filter(|matrix| matrix.id == "source-matrix" || matrix.id == "mirror-matrix")
+            .flat_map(|matrix| matrix.part_ids.iter())
+        {
+            let owner = document
+                .boards
+                .iter()
+                .find(|board| board.part_ids.contains(id))
+                .unwrap();
+            final_owners.insert(id.clone(), owner.id.clone());
+        }
+        let projection = Projection {
+            source_board_id: "source-board".into(),
+            mirror_board_id: "mirror-board".into(),
+            source_matrix_id: "source-matrix".into(),
+            mirror_matrix_id: "mirror-matrix".into(),
+            mapping,
+            parts,
+            locally_protected_mirror_parts: protected,
+            final_owners,
+        };
+        Ok((document, projection))
+    }
+
+    #[test]
+    fn fixed_membership_geometry_reconciles_multiple_retained_keys() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let source = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap();
+        let mirror = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap();
+        crate::matrix::valid_matrix(source, &document).unwrap();
+        crate::matrix::valid_matrix(mirror, &document).unwrap();
+        crate::mechanical::features::validate(&document).unwrap();
+        crate::mechanical::halves::validate_document(&document).unwrap();
+        assert_eq!(source.part_ids.len(), 6);
+        assert_eq!(mirror.part_ids.len(), 6);
+        assert_eq!(projection.parts.len(), 4);
+        assert_eq!(projection.locally_protected_mirror_parts.len(), 2);
+        assert_eq!(projection.final_owners.len(), 12);
+        assert_eq!(
+            document.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .correspondences
+                .iter()
+                .filter(|association| association.kind == MirroredItemKind::Part)
+                .count(),
+            6
+        );
+        for (id, expected) in [
+            ("matrix/source-matrix/r0c0", (7.0, -1.0, 90.0)),
+            ("matrix/source-matrix/r0c1", (8.0, 13.0, 0.0)),
+            ("matrix/source-matrix/r0c2", (8.0, 5.0, 180.0)),
+            ("matrix/source-matrix/r1c0", (-15.0, 0.0, 90.0)),
+            ("matrix/source-matrix/r1c1", (9.0, 35.0, 0.0)),
+            ("matrix/source-matrix/r1c2", (-17.0, 4.0, 90.0)),
+        ] {
+            let part = document.parts.iter().find(|part| part.id == id).unwrap();
+            assert!((part.pose.at.x - expected.0).abs() < 1e-9, "{id} x");
+            assert!((part.pose.at.y - expected.1).abs() < 1e-9, "{id} y");
+            assert!(
+                (part.pose.rotation - expected.2).abs() < 1e-9,
+                "{id} rotation"
+            );
+        }
+
+        let entry = document.clone();
+        let entry_source_matrix = source.clone();
+        let entry_source_parts: Vec<_> = entry_source_matrix
+            .part_ids
+            .iter()
+            .map(|id| {
+                serde_json::to_value(entry.parts.iter().find(|part| part.id == *id).unwrap())
+                    .unwrap()
+            })
+            .collect();
+        let entry_mirror_matrix = entry
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap();
+        let affected_part_ids: Vec<_> = entry_source_matrix
+            .part_ids
+            .iter()
+            .chain(&entry_mirror_matrix.part_ids)
+            .cloned()
+            .collect();
+        let non_pose = |part: &Part| {
+            let mut value = serde_json::to_value(part).unwrap();
+            value.as_object_mut().unwrap().remove("pose");
+            value
+        };
+        let entry_non_pose: Vec<_> = affected_part_ids
+            .iter()
+            .map(|id| non_pose(entry.parts.iter().find(|part| part.id == *id).unwrap()))
+            .collect();
+        let retained_ids = ["matrix/mirror-matrix/r0c0", "matrix/mirror-matrix/r1c1"];
+        let retained_parts: Vec<_> = retained_ids
+            .iter()
+            .map(|id| {
+                serde_json::to_value(entry.parts.iter().find(|part| part.id == *id).unwrap())
+                    .unwrap()
+            })
+            .collect();
+        let unchanged_references = serde_json::json!({
+            "boards": entry.boards,
+            "nets": entry.nets,
+            "constraints": entry.constraints,
+            "boardOutlines": entry.board_outlines,
+            "outline": entry.outline,
+        });
+
+        let changed_ids = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        assert_eq!(
+            changed_ids,
+            vec![
+                "matrix/mirror-matrix/r0c1",
+                "matrix/mirror-matrix/r0c2",
+                "matrix/mirror-matrix/r1c0",
+                "matrix/mirror-matrix/r1c2",
+                "mirror-matrix",
+            ]
+        );
+        let source_after = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap();
+        assert_eq!(source_after, &entry_source_matrix);
+        let source_parts_after: Vec<_> = entry_source_matrix
+            .part_ids
+            .iter()
+            .map(|id| {
+                serde_json::to_value(document.parts.iter().find(|part| part.id == *id).unwrap())
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(source_parts_after, entry_source_parts);
+        let non_pose_after: Vec<_> = affected_part_ids
+            .iter()
+            .map(|id| non_pose(document.parts.iter().find(|part| part.id == *id).unwrap()))
+            .collect();
+        assert_eq!(non_pose_after, entry_non_pose);
+
+        let expected_final = [
+            ("matrix/mirror-matrix/r0c0", (0.0, 0.0, 0.0)),
+            ("matrix/mirror-matrix/r0c1", (87.0, -38.0, 90.0)),
+            ("matrix/mirror-matrix/r0c2", (95.0, -38.0, -90.0)),
+            ("matrix/mirror-matrix/r1c0", (100.0, -15.0, 0.0)),
+            ("matrix/mirror-matrix/r1c1", (10.0, 20.0, 0.0)),
+            ("matrix/mirror-matrix/r1c2", (96.0, -13.0, 0.0)),
+        ];
+        for (id, expected) in expected_final {
+            let part = document.parts.iter().find(|part| part.id == id).unwrap();
+            assert!((part.pose.at.x - expected.0).abs() < 1e-9, "{id} x");
+            assert!((part.pose.at.y - expected.1).abs() < 1e-9, "{id} y");
+            assert!(
+                (part.pose.rotation - expected.2).abs() < 1e-9,
+                "{id} rotation"
+            );
+        }
+        for (id, expected) in retained_ids.iter().zip(&retained_parts) {
+            let retained = document.parts.iter().find(|part| part.id == *id).unwrap();
+            assert_eq!(serde_json::to_value(retained).unwrap(), *expected);
+        }
+
+        let final_matrix = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap();
+        assert_eq!(final_matrix.origin, Vec2 { x: 102.0, y: -33.0 });
+        assert_eq!(final_matrix.rotation, Some(90.0));
+        assert_eq!(final_matrix.mirror, Some(Mirror::X));
+        assert_eq!(
+            final_matrix.part_ids,
+            vec![
+                "matrix/mirror-matrix/r0c0",
+                "matrix/mirror-matrix/r0c1",
+                "matrix/mirror-matrix/r0c2",
+                "matrix/mirror-matrix/r1c0",
+                "matrix/mirror-matrix/r1c1",
+                "matrix/mirror-matrix/r1c2",
+            ]
+        );
+        for (row, column, expected_offset, expected_rotation) in [
+            (0, 0, Vec2 { x: 101.0, y: 37.0 }, 0.0),
+            (1, 1, Vec2 { x: -59.0, y: 55.0 }, -90.0),
+        ] {
+            let cell = final_matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+                .unwrap();
+            let offset = cell.offset.unwrap();
+            assert!((offset.x - expected_offset.x).abs() < 1e-9);
+            assert!((offset.y - expected_offset.y).abs() < 1e-9);
+            assert!((cell.rotation.unwrap() - expected_rotation).abs() < 1e-9);
+        }
+        assert!(
+            final_matrix
+                .cells
+                .iter()
+                .all(|cell| cell.enabled && !cell.deleted)
+        );
+
+        let mut disposable = document.clone();
+        crate::matrix::set_matrix(&mut disposable, final_matrix).unwrap();
+        let rematerialized = disposable
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap();
+        assert_eq!(rematerialized, final_matrix);
+        for (id, expected) in expected_final {
+            let part = disposable.parts.iter().find(|part| part.id == id).unwrap();
+            assert!(
+                (part.pose.at.x - expected.0).abs() < 1e-9,
+                "{id} rematerialized x"
+            );
+            assert!(
+                (part.pose.at.y - expected.1).abs() < 1e-9,
+                "{id} rematerialized y"
+            );
+            assert!(
+                (part.pose.rotation - expected.2).abs() < 1e-9,
+                "{id} rematerialized rotation"
+            );
+        }
+        assert_eq!(
+            serde_json::json!({
+                "boards": document.boards,
+                "nets": document.nets,
+                "constraints": document.constraints,
+                "boardOutlines": document.board_outlines,
+                "outline": document.outline,
+            }),
+            unchanged_references
+        );
+        for (id, expected_owner) in &projection.final_owners {
+            let owner = document
+                .boards
+                .iter()
+                .find(|board| board.part_ids.iter().any(|part_id| part_id == id))
+                .unwrap();
+            assert_eq!(&owner.id, expected_owner, "owner for {id}");
+        }
+        assert!(
+            document
+                .boards
+                .iter()
+                .find(|board| board.id == "source-board")
+                .unwrap()
+                .net_ids
+                .is_empty()
+        );
+        assert!(
+            document
+                .boards
+                .iter()
+                .find(|board| board.id == "source-board")
+                .unwrap()
+                .outline_ids
+                .is_empty()
+        );
+        let mirror_board = document
+            .boards
+            .iter()
+            .find(|board| board.id == "mirror-board")
+            .unwrap();
+        assert_eq!(mirror_board.net_ids, vec!["retained-second-key-net"]);
+        assert_eq!(mirror_board.outline_ids, vec!["retained-keys-envelope"]);
+        assert!(mirror_board.part_ids.contains(&"geometry-probe".to_owned()));
+
+        let before_repeat = document.clone();
+        assert!(
+            reconcile(&mut document, "pair-source-mirror", &projection)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(document, before_repeat);
+    }
+
+    #[test]
+    fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
+        fn assert_rejected(
+            mut document: ProjectDoc,
+            projection: &Projection,
+            expected_reason: &str,
+        ) {
+            let before = serde_json::to_value(&document).unwrap();
+            let error = reconcile(&mut document, "pair-source-mirror", projection).unwrap_err();
+            assert!(
+                error.contains(expected_reason),
+                "expected {expected_reason:?}, got {error:?}"
+            );
+            assert_eq!(serde_json::to_value(&document).unwrap(), before);
+        }
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .push(MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Matrix,
+                source_id: "mirror-matrix".into(),
+                mirror_id: "source-matrix".into(),
+            });
+        assert_rejected(document, &projection, "matrix correspondence is ambiguous");
+
+        let (document, mut projection) = fixed_geometry_fixture().unwrap();
+        projection.parts.push(PartProjection {
+            source_id: "matrix/source-matrix/r0c1".into(),
+            mirror_id: "matrix/mirror-matrix/r0c1".into(),
+        });
+        assert_rejected(
+            document,
+            &projection,
+            "linked matrix associations contain aliases",
+        );
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document
+            .parts
+            .retain(|part| part.id != "matrix/source-matrix/r0c0");
+        assert_rejected(document, &projection, "unavailable");
+
+        let (document, mut projection) = fixed_geometry_fixture().unwrap();
+        projection.final_owners.remove("matrix/mirror-matrix/r1c1");
+        assert_rejected(document, &projection, "final owner input is incomplete");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let part_id = "matrix/source-matrix/r0c1";
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .retain(|id| id != part_id);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push(part_id.into());
+        assert_rejected(document, &projection, "owner input");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .cells[1]
+            .enabled = false;
+        assert_rejected(document, &projection, "fixed active membership");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .part_ids
+            .push("matrix/source-matrix/r0c0".into());
+        assert_rejected(document, &projection, "membership is not canonical");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .column_splays[1] = f64::NAN;
+        assert_rejected(document, &projection, "finite");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .column_splays = vec![f64::MAX, f64::MAX, 0.0];
+        assert_rejected(document, &projection, "non-finite splay geometry");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .cells[0]
+            .variant = Some("unsupported-variant".into());
+        assert_rejected(document, &projection, "unsupported cell representation");
+
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .retain(|association| association.source_id != "matrix/source-matrix/r1c1");
+        assert_rejected(
+            document,
+            &projection,
+            "canonical matrix part association is missing",
+        );
     }
 
     #[test]
