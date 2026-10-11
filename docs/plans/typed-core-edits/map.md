@@ -63,6 +63,8 @@ and for any bulk action a recorded decision permits.
 
 ## Progress
 
+Current app allocation: [137](issues/137-export-blocker-explanation.md) is claimed by E, START pending root claim commit/grant; reproduce and fix the missing PCB blocker explanation without changing readiness guards. Counts:129 materialized typed-core tickets,35 pending and55 wontfix (not delivered). User deferred all Sofle/board work and test-speed work; recurring polling is PAUSED. Shared mirror/link remains required, with106 HUMAN visibility HOLD unchanged.
+
 <!-- one line per resolved build ticket -->
 
 - [133](issues/133-ec11e15244g1-encoder-qualification.md) resolved: front-only EC11 nominal-pattern/terminal-role qualification, fresh 3/3 focused and 90 crate tests (3 ignored), two restored producer probes; source `4a40faff`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parent 118 remains open.
