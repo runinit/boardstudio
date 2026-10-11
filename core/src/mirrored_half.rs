@@ -36,6 +36,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod derive;
+mod reconcile;
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
