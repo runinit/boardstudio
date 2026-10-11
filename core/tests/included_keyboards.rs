@@ -422,6 +422,250 @@ fn a_linked_opening_follows_either_half_through_the_pair_map() {
 }
 
 #[test]
+fn sofle_v2_ec11_explicit_configuration_persists_and_exports() {
+    use boardstudio_footprints::sexpr;
+
+    let v2 = &projects()["sofle-v2"];
+    let encoder = v2["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|definition| definition["generator"]["source"] == "ceoloide/rotary_encoder_ec11_ec12")
+        .unwrap();
+    let parameters = json!({
+        "side": "F",
+        "reversible": false,
+        "include_plated_mounting_holes": false,
+        "signal_hole_width": 1.0,
+        "signal_hole_height": 1.0,
+        "encoder_pads_position": 7.5,
+        "include_momentary_switch_pads": true,
+        "mounting_holes_position": 6.25,
+        "mounting_holes_height": 2.6,
+        "mounting_holes_width": 1.5,
+    });
+    assert_eq!(encoder["generator"]["parameters"], parameters);
+    assert_eq!(
+        encoder["generator"]["source"],
+        "ceoloide/rotary_encoder_ec11_ec12"
+    );
+    assert_eq!(encoder["generator"]["version"], "bundled-1");
+    let encoder_id = encoder["id"].as_str().unwrap();
+    assert_eq!(encoder_id, "sofle/rotary_encoder_ec11_ec12");
+    let instances: Vec<_> = v2["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| part["reference"].as_str().unwrap().ends_with("-SW25"))
+        .collect();
+    assert_eq!(instances.len(), 2);
+    for part in &instances {
+        assert_eq!(part["definitionId"], encoder_id);
+        assert_eq!(part["side"], "front");
+        assert_eq!(part["pose"]["rotation"], 0.0);
+    }
+    for (half, x) in [("left", 125.53), ("right", 191.47)] {
+        let part = instances
+            .iter()
+            .find(|part| part["id"] == format!("{half}/SW25"))
+            .unwrap();
+        assert_eq!(part["reference"], format!("{half}-SW25"));
+        assert!((part["pose"]["at"]["x"].as_f64().unwrap() - x).abs() < 1e-9);
+        assert!((part["pose"]["at"]["y"].as_f64().unwrap() + 70.948).abs() < 1e-9);
+        let prefix = half.to_uppercase();
+        assert_eq!(
+            part["generatorParameters"],
+            json!({
+                "A": format!("{prefix}_SW25_ENCODER-A"), "B": "POWER_GND",
+                "C": format!("{prefix}_SW25_ENCODER-B"),
+                "S1": format!("{prefix}_SW25_ENCODER-PUSH"), "S2": "POWER_GND"
+            })
+        );
+    }
+    let instance_snapshot = instances
+        .iter()
+        .map(|part| ((*part)["id"].as_str().unwrap().to_owned(), (*part).clone()))
+        .collect::<BTreeMap<_, _>>();
+
+    // A saved portable document reopened through Core retains the generator map and all
+    // measured key geometry. The source recipe currently uses one-unit keys (no keycap
+    // override); leave the existing normalization behavior untouched.
+    let measured_keys = |project: &Value| {
+        project["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| part["id"].as_str().unwrap().starts_with("matrix/"))
+            .map(|part| {
+                (
+                    part["id"].clone(),
+                    part["pose"].clone(),
+                    part["properties"]["sourceReference"].clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let original_keys = measured_keys(v2);
+    assert!(!original_keys.is_empty());
+    assert!(
+        v2["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| part["id"].as_str().unwrap().starts_with("matrix/"))
+            .all(|part| part.get("keycap").is_none())
+    );
+    let unrelated_parts = v2["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| !part["id"].as_str().unwrap().starts_with("matrix/"))
+        .cloned()
+        .collect::<Vec<_>>();
+    let (packed_reply, archive) = boardstudio_core::archive::request(
+        &json!({"kind":"pack-project", "projectJson":v2.to_string(), "assets":[]}).to_string(),
+        &[],
+    );
+    let packed_reply: Value = serde_json::from_str(&packed_reply).unwrap();
+    assert_eq!(packed_reply["kind"], "packed", "{packed_reply}");
+    let (unpacked_reply, assets) =
+        boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &archive);
+    let unpacked_reply: Value = serde_json::from_str(&unpacked_reply).unwrap();
+    assert_eq!(unpacked_reply["kind"], "unpacked", "{unpacked_reply}");
+    assert!(assets.is_empty());
+    let saved: Value =
+        serde_json::from_str(unpacked_reply["projectJson"].as_str().unwrap()).unwrap();
+    assert_eq!(saved, *v2);
+    let (_, reopened) = reopen(&saved);
+    let reopened_encoder = reopened["definitions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|definition| definition["id"] == encoder_id)
+        .unwrap();
+    assert_eq!(reopened_encoder["generator"]["parameters"], parameters);
+    assert_eq!(
+        reopened_encoder["generator"]["source"],
+        encoder["generator"]["source"]
+    );
+    assert_eq!(
+        reopened_encoder["generator"]["version"],
+        encoder["generator"]["version"]
+    );
+    assert_eq!(reopened_encoder["id"], encoder["id"]);
+    assert_eq!(reopened["hardware"], v2["hardware"]);
+    assert_eq!(reopened["parameters"], v2["parameters"]);
+    assert_eq!(reopened["nets"], v2["nets"]);
+    assert_eq!(measured_keys(&reopened), original_keys);
+    let reopened_instances = reopened["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| instance_snapshot.contains_key(part["id"].as_str().unwrap()))
+        .map(|part| (part["id"].as_str().unwrap().to_owned(), part.clone()))
+        .collect::<BTreeMap<_, _>>();
+    assert_eq!(reopened_instances, instance_snapshot);
+    let reopened_unrelated_parts = reopened["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| !part["id"].as_str().unwrap().starts_with("matrix/"))
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(reopened_unrelated_parts, unrelated_parts);
+    for variant in ["sofle-rgb", "sofle-choc"] {
+        let other = &projects()[variant];
+        let other_encoder = other["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|definition| {
+                definition["generator"]["source"] == "ceoloide/rotary_encoder_ec11_ec12"
+            })
+            .unwrap();
+        assert_eq!(
+            other_encoder["generator"]["parameters"],
+            json!({}),
+            "{variant}"
+        );
+    }
+
+    // The public board export consumes each real recipe half and preserves the encoder
+    // reference, including the unnetted mounting lugs, in the emitted KiCad footprint.
+    for half in ["left", "right"] {
+        let pcb = export_board(&reopened, half).unwrap();
+        let reference = format!("(property \"Reference\" \"{half}-SW25\"");
+        let reference_at = pcb.find(&reference).expect("exported encoder reference");
+        let footprint_start = pcb[..reference_at]
+            .rfind("(footprint ")
+            .expect("encoder footprint start");
+        let footprint_end = pcb[reference_at..]
+            .find("\n  (footprint ")
+            .map_or(pcb.len(), |offset| reference_at + offset);
+        let footprint = &pcb[footprint_start..footprint_end];
+        assert!(footprint.contains("ceoloide:rotary_encoder_ec11_ec12"));
+        assert_eq!(footprint.matches("(pad ").count(), 7);
+        assert_eq!(footprint.matches("(drill 1)").count(), 5);
+        assert_eq!(footprint.matches("(drill oval 2.6 1.5)").count(), 2);
+        for terminal in ["A", "B", "C", "S1", "S2"] {
+            assert!(
+                footprint.contains(&format!("(pad \"{terminal}\"")),
+                "{terminal}"
+            );
+        }
+        assert_eq!(footprint.matches("(pad \"\" np_thru_hole").count(), 2);
+        assert_eq!(footprint.matches("(net ").count(), 5);
+        let forms = sexpr::parse_forms(footprint).unwrap();
+        let root = forms[0].as_list().unwrap();
+        assert_eq!(
+            sexpr::child(root, "layer").unwrap()[1].value().unwrap(),
+            "F.Cu"
+        );
+        let pads: Vec<_> = sexpr::children(root, "pad").collect();
+        let prefix = half.to_uppercase();
+        for (pad, (terminal, x, y, net)) in pads.iter().zip([
+            ("A", "2.5", "7.5", format!("{prefix}_SW25_ENCODER-A")),
+            ("B", "0", "7.5", "POWER_GND".into()),
+            ("C", "-2.5", "7.5", format!("{prefix}_SW25_ENCODER-B")),
+            ("S1", "-2.5", "-7", format!("{prefix}_SW25_ENCODER-PUSH")),
+            ("S2", "2.5", "-7", "POWER_GND".into()),
+        ]) {
+            assert_eq!(pad[1].value().unwrap(), terminal);
+            assert_eq!(pad[2].value().unwrap(), "thru_hole");
+            let at = sexpr::child(pad, "at").unwrap();
+            assert_eq!(
+                (
+                    at[1].value().unwrap(),
+                    at[2].value().unwrap(),
+                    at[3].value().unwrap()
+                ),
+                (x, y, "0")
+            );
+            assert_eq!(sexpr::child(pad, "net").unwrap()[2].value().unwrap(), net);
+            assert_eq!(sexpr::child(pad, "drill").unwrap()[1].value().unwrap(), "1");
+        }
+        for (pad, x) in pads.iter().skip(5).zip(["-6.25", "6.25"]) {
+            let at = sexpr::child(pad, "at").unwrap();
+            assert_eq!(
+                (
+                    at[1].value().unwrap(),
+                    at[2].value().unwrap(),
+                    at[3].value().unwrap()
+                ),
+                (x, "0", "-90")
+            );
+            assert_eq!(pad[1].value().unwrap(), "");
+            assert_eq!(pad[2].value().unwrap(), "np_thru_hole");
+            assert!(sexpr::child(pad, "net").is_none());
+        }
+        assert!(
+            !footprint.contains("ENCODER_"),
+            "recipe nets must not be test sentinels"
+        );
+    }
+}
+
+#[test]
 fn a_local_exception_stays_local_while_the_rest_of_the_pair_stays_linked() {
     let corne = &projects()["corne"];
     let (mut engine, linked) = reopen(corne);
