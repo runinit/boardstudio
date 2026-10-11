@@ -223,6 +223,38 @@ verification window ended. Full parent acceptance is not waived by partial slice
   qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
   native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
   board work and sign-off; the user has delegated hardware selection.
+- [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
+  configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
+  Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
+  focused, repo/lint and all 77 footprint tests. Default 2.6 mm pads, physical fit/model alignment and whole-board
+  qualification remain unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) stays open.
+- [129](issues/129-choc-v1-hotswap-socket-qualification.md) is resolved for the selected Choc v1 socket
+  configuration and integrated at `8e8f6bfab`. Independent verification of corrected commit `0c9a1178`
+  killed the dimensioned lower-hole drill mutation, restored exact production bytes and passed repo/lint
+  and all 79 footprint tests. The upper-hole diameter remains configuration-only; right-land dimensions,
+  physical fit/model datum and whole-board qualification remain open. The earlier unsupported both-hole
+  manufacturer attribution at `2cff220e` failed review and was explicitly corrected. Ticket 118 stays open.
+- [130](issues/130-reset-switch-smd-side-qualification.md) is resolved for the bounded Panasonic side-reset
+  generator configuration and integrated at `bf464be5e`. Fresh independent verification reviewed manufacturer
+  drawing pixels and parser/model bindings, killed the lower-only 0.75-to-0.95 mm drill mutation, restored exact
+  producer bytes and passed focused, repo/lint and all 81 footprint tests. Upper-hole diameter remains
+  configuration-only; actuator datum, physical fit, model alignment, case access and ticket 118 remain open.
+  The shared post-merge integration batch at `1ad6b95c8` passed in 401.0 s, including all 70 presentation tests.
+- [128](issues/128-keycaps-queued-settings-waits.md) is resolved for its bounded keycaps queued-settings slice,
+  independently verified and integrated at `1ad6b95c8`. Nine restored mutation variants and the original
+  downstream assertion provide the recorded sensitivity evidence. The vacuous-wait variant observed `None`,
+  not a completed wrong-depth edit; no completion claim follows from it. The full default batch passed.
+- [132](issues/132-reconcile-fixed-membership-matrix-geometry.md) is an independently reviewed bounded child
+  of 106 for fixed active membership, multi-key geometry and retained-key preservation. Its independent 2x3
+  numeric oracle passed planning review; claim is prepared and implementation awaits the root command-window handoff. Parent 106/19 remain open and unactivated.
+- [131](issues/131-diode-sod123-opt-in-qualification.md) baseline preparation passed independent verification
+  and is checkpointed on lane F at `4607c266`. The frozen 43-case current Rust baseline records 40 render/export
+  successes and 3 render errors. Luna 6 high producer implementation passed fresh Sol 6.1 xhigh verification,
+  including strict schema, 43 absent/false compatibility cases and separate width/polarity producer mutations
+  with exact restore and green checks. Generated fixture is unchanged; root integration/full batch remains.
+  HIGH registry / CRITICAL schema consumer warnings are retained. 131 and physical 118 stay open.
+- The next nine-test browser inspector proposal is deferred: 1.08 s of scheduled waits is not a measured gain,
+  and negative-case causal proof remains unresolved. Shared helper impacts are HIGH; no implementation lease.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
