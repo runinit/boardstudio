@@ -25,6 +25,26 @@ use common::{generator_fixtures, json_eq};
 use serde_json::{Value, json};
 
 const DIODE_SOD123_BASELINE_SOURCE: &str = "ceoloide/diode_tht_sod123";
+const DIODE_SOD123_QUALIFICATION_FLAG: &str = "use_vishay_1n4148w_land_pattern";
+const DIODE_SOD123_SCHEMA_NAMES: [&str; 17] = [
+    "side",
+    "designator",
+    "reversible",
+    "include_traces_vias",
+    "trace_distance",
+    "trace_width",
+    "via_size",
+    "via_drill",
+    "include_tht",
+    "include_thru_hole_smd_pads",
+    "diode_3dmodel_filename",
+    "diode_3dmodel_xyz_offset",
+    "diode_3dmodel_xyz_rotation",
+    "diode_3dmodel_xyz_scale",
+    "from",
+    "to",
+    DIODE_SOD123_QUALIFICATION_FLAG,
+];
 const DIODE_SOD123_CASE_IDS: [&str; 43] = [
     "default",
     "placed-default",
@@ -575,6 +595,167 @@ fn diode_sod123_baseline_matches_frozen_expected_bytes() {
     );
 }
 
+#[test]
+#[ignore = "manual explicit-false compatibility comparison; requires the frozen legacy baseline"]
+fn diode_sod123_explicit_false_matches_frozen_outputs() {
+    let expected_path = required_absolute_path("BOARDSTUDIO_DIODE_BASELINE_EXPECTED");
+    let expected_bytes = fs::read(&expected_path)
+        .unwrap_or_else(|error| panic!("frozen expected baseline must already exist: {error}"));
+    let expected_records: Vec<Value> = expected_bytes
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_slice(line).expect("frozen baseline record"))
+        .collect();
+    let fixture = generator_fixtures()
+        .into_iter()
+        .find(|fixture| fixture["source"] == DIODE_SOD123_BASELINE_SOURCE)
+        .expect("diode SOD-123 generator fixture");
+    let cases = fixture["cases"].as_array().expect("diode fixture cases");
+    assert_eq!(cases.len(), DIODE_SOD123_CASE_IDS.len());
+    assert_eq!(expected_records.len(), DIODE_SOD123_CASE_IDS.len());
+
+    let registry = bundled();
+    let run = Run {
+        registry,
+        source: DIODE_SOD123_BASELINE_SOURCE,
+        fixture: &fixture,
+        failures: Vec::new(),
+    };
+    for (index, (case, expected)) in cases.iter().zip(&expected_records).enumerate() {
+        let id = case["id"].as_str().expect("case id");
+        assert_eq!(
+            id, DIODE_SOD123_CASE_IDS[index],
+            "diode fixture order changed"
+        );
+        let raw_input = case.get("input").expect("case input");
+        assert!(
+            !contains_qualification_flag(raw_input),
+            "frozen inputs must leave the qualification flag absent: {id}"
+        );
+
+        let input_before = input_of(&fixture, case);
+        assert_eq!(
+            serde_json::to_value(&input_before.generator).unwrap(),
+            expected["effective_generator_ref"],
+            "adapted generator metadata changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&input_before.part).unwrap(),
+            expected["effective_part_ref"],
+            "adapted part metadata changed for {id}"
+        );
+        let old_parameters = input_before.generator.parameters.clone();
+        let old_part = input_before.part.clone();
+        let old_definition_id = input_before.definition_id.clone();
+        let old_nets = input_before.nets.clone();
+
+        let mut input = input_before;
+        assert!(
+            input
+                .generator
+                .parameters
+                .insert(
+                    DIODE_SOD123_QUALIFICATION_FLAG.to_owned(),
+                    Value::Bool(false)
+                )
+                .is_none()
+        );
+        assert_eq!(input.generator.parameters.len(), old_parameters.len() + 1);
+        for (name, value) in &old_parameters {
+            assert_eq!(input.generator.parameters.get(name), Some(value));
+        }
+        assert_eq!(input.part, old_part);
+        assert_eq!(input.definition_id, old_definition_id);
+        assert_eq!(input.nets, old_nets);
+
+        let allocator_seed = input.nets.as_ref().map(|(reserved_nets, next_net_index)| {
+            json!({
+                "reserved_nets": reserved_nets,
+                "next_net_index": next_net_index,
+            })
+        });
+        assert_eq!(
+            serde_json::to_value(&allocator_seed).unwrap(),
+            expected["allocator_seed"],
+            "allocator seed changed for {id}"
+        );
+
+        let (rendered, nets) = render_forms(&run, &input);
+        let export_path_map = case["output"]["export"]["ok"]["modelPaths"]
+            .as_object()
+            .map(|_| {
+                serde_json::from_value(case["output"]["export"]["ok"]["modelPaths"].clone())
+                    .expect("fixture export path map")
+            })
+            .unwrap_or_default();
+        let (render_forms, render_error, exported_footprints, exported_objects, export_error) =
+            match rendered {
+                Ok(forms) => {
+                    let rendered_strings: Vec<String> = forms.iter().map(serialize).collect();
+                    match export_forms(forms, &export_path_map) {
+                        Ok(exported) => (
+                            Some(rendered_strings),
+                            None,
+                            Some(exported.footprints),
+                            Some(exported.objects),
+                            None,
+                        ),
+                        Err(error) => (
+                            Some(rendered_strings),
+                            None,
+                            None,
+                            None,
+                            Some(structured_baseline_error(&error)),
+                        ),
+                    }
+                }
+                Err(error) => (
+                    None,
+                    Some(structured_baseline_error(&error)),
+                    None,
+                    None,
+                    None,
+                ),
+            };
+
+        assert_eq!(
+            serde_json::to_value(&nets).unwrap(),
+            expected["nets_after_allocator_snapshot"],
+            "net snapshot changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&render_forms).unwrap(),
+            expected["render_forms"],
+            "rendered forms changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&render_error).unwrap(),
+            expected["render_error"],
+            "render error changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&export_path_map).unwrap(),
+            expected["export_path_map"],
+            "export path map changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&exported_footprints).unwrap(),
+            expected["exported_footprints"],
+            "exported footprints changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&exported_objects).unwrap(),
+            expected["exported_objects"],
+            "exported objects changed for {id}"
+        );
+        assert_eq!(
+            serde_json::to_value(&export_error).unwrap(),
+            expected["export_error"],
+            "export error changed for {id}"
+        );
+    }
+}
+
 fn check_case(run: &mut Run, case: &Value) {
     let id = case["id"].as_str().unwrap().to_owned();
     let output = &case["output"];
@@ -756,6 +937,27 @@ fn check_case(run: &mut Run, case: &Value) {
 fn check_schema(run: &mut Run) {
     let actual = run.registry.parameters(run.source).unwrap();
     let expected = run.fixture["parameters"].as_object().unwrap();
+    let diode_schema = run.source == DIODE_SOD123_BASELINE_SOURCE;
+    if diode_schema {
+        if actual.len() != DIODE_SOD123_SCHEMA_NAMES.len() {
+            run.fail(
+                "schema",
+                "length",
+                format!("{} vs {}", actual.len(), DIODE_SOD123_SCHEMA_NAMES.len()),
+            );
+        }
+        let names: Vec<&str> = actual
+            .iter()
+            .map(|parameter| parameter.name.as_str())
+            .collect();
+        if names != DIODE_SOD123_SCHEMA_NAMES {
+            run.fail(
+                "schema",
+                "names",
+                format!("{names:?} vs {DIODE_SOD123_SCHEMA_NAMES:?}"),
+            );
+        }
+    }
     let side_deviates = matches!(
         run.source,
         "ceoloide/diode_tht_sod123"
@@ -766,21 +968,37 @@ fn check_schema(run: &mut Run) {
             | "ceoloide/utility_keepout_zone"
             | "infused-kim/trackpoint_mount"
     );
-    let order: Vec<&str> = actual
-        .iter()
-        .map(|p| p.name.as_str())
-        .filter(|n| *n != "side")
-        .collect();
-    let wanted: Vec<&str> = expected
-        .keys()
-        .map(String::as_str)
-        .filter(|n| *n != "side")
-        .collect();
-    if order != wanted {
-        run.fail("schema", "order", format!("{order:?} vs {wanted:?}"));
+    if !diode_schema {
+        let order: Vec<&str> = actual
+            .iter()
+            .map(|p| p.name.as_str())
+            .filter(|n| *n != "side")
+            .collect();
+        let wanted: Vec<&str> = expected
+            .keys()
+            .map(String::as_str)
+            .filter(|n| *n != "side")
+            .collect();
+        if order != wanted {
+            run.fail("schema", "order", format!("{order:?} vs {wanted:?}"));
+        }
     }
     for parameter in &actual {
         let mut value = serde_json::to_value(parameter).unwrap();
+        if parameter.name == DIODE_SOD123_QUALIFICATION_FLAG {
+            if diode_schema
+                && value
+                    == json!({"name": DIODE_SOD123_QUALIFICATION_FLAG, "type": "boolean", "value": false})
+            {
+                continue;
+            }
+            run.fail(
+                "schema",
+                &parameter.name,
+                format!("unexpected declaration {value}"),
+            );
+            continue;
+        }
         value.as_object_mut().unwrap().remove("name");
         let Some(recorded) = expected.get(&parameter.name) else {
             if parameter.name != "side" {
