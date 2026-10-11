@@ -1,6 +1,9 @@
 # Ticket 130: Qualify the EVQ-PUC02K side-reset footprint
 
-Status: ready-for-agent
+Status: claimed
+
+Claimed by: Codex lane F, new Luna 6 medium implementation session `/root/reset_socket_130_implementer`.
+Claim scope: only new `footprints/tests/reset_switch_smd_side_qualification.rs` and this ticket. The session is brief-only until root persists this claim and grants the exact constructor/impact read window; no code or checks are authorized by this record. Final verification requires a fresh Sol 6.1 xhigh session distinct from the implementer and planner.
 Type: qualification
 Parent: 118
 
