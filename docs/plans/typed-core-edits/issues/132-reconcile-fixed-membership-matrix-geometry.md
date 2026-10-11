@@ -1,11 +1,11 @@
 # 132: Reconcile fixed-membership matrix geometry and retained keys
 
-Status: claimed
+Status: resolved
 Type: build
 Lane: B
 Blocked by: 105
 Parent: [106](106-reconcile-mirrored-matrices-layouts-parts.md)
-Execution gate: root commits this claim before START; the implementation lease begins only after root explicitly releases the foreground window to B.
+Execution gate: complete bounded acceptance independently verified and integrated; cohort batch passed. Source write and mutation leases are released.
 
 Generalize the private unactivated reconciliation prototype for matching fixed active cells and multiple retained keys. This bounded child does not complete 106 or activate reconciliation. Baseline: `lane/mirror-core` at `0ea2411de21b58e177e5cd06bf1f1b1c76ab8f46`.
 
@@ -115,3 +115,19 @@ Heading capture integrity:
 - Neither capture alone proves graph freshness or caller completeness.
 
 Packet status: external planning evidence only. No child allocation, implementation, tracked edit, test run, index action, or additional investigation was performed while preserving this packet. No Fast/priority request or configuration change was made.
+
+## Independent bounded verification
+
+Verified source commit: `bdd56fd6`. Fresh all/staged graph analysis covered 21 symbols in one file and eight reported test-rooted flows with HIGH risk; full responses are retained beside the independent assessment. No partial/truncated response was reported; analyzer flow-discovery limits remain, so absent flows are not evidence of unused code.
+
+Luna 6 high implemented the fixed-membership extension; a different fresh Sol 6.1 xhigh session `/root/verify132_fresh` independently verified the complete bounded scope. Final source SHA-256 `15cb447aac39128111e2c9a7b872cc3899f2a33b69e17dbed11adab418236e86`. All five original focused test bodies remain unchanged; focused 7/7 and final repo/lint/test/typecheck passed (83.6 s).
+
+The separate inverse-order mutant compiled and failed the retained-offset assertion. Omitting the second retained key from previous ownership filtering compiled and failed with its missing-board-owner error. Each mutation restored exact bytes, touched the source and passed 7/7. A small verifier fix added reversed matrix-association endpoint guards and a compiling RED/GREEN regression to ensure rejection precedes materialization; final affected checks passed afterward.
+
+Complete independent verdict, binding, raw graph, source diffs and logs: `/home/chris/.cache/boardstudio-baselines/ticket132/independent-fresh/independent-assessment.md`. The verifier reused the valid-fixture historical RED; it did not claim to rerun that baseline. The second-key mutation failed the owner guard before later dependency-snapshot assertions. No shared helper, visibility, API, schema, activation or generated-output change was made. Root integration/batch gates remain; parent 106 and 19 stay open.
+
+## Outcome
+
+Resolved from fresh independent verifier `/root/verify132_fresh` (Sol 6.1 xhigh) full bounded PASS, recorded by root after integration. Implementation: Luna 6 high; verified source commit `bdd56fd6`, integration merge `b01c106a4`. Root ran the one sequential F131+B132 cohort batch at that merge: repo 0.1 s, tooling 12.8 s, lint 13.0 s, build 145.0 s, native test 80.5 s, browser 287.6 s; total 539.1 s. All default steps passed; all 70 presentation tests passed. Log: `/tmp/boardstudio-tce-cohort-131-132.log`. No release check ran.
+
+This resolves only fixed-membership geometry and retained-key reconciliation. Full 106 and parent 19 remain open; assemblies/topology/add-remove/deletion/independent objects/activation are excluded. No push or merge to dev occurred.

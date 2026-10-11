@@ -93,6 +93,12 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
   A stale index or capped result is not a clean check; say so. Agents never re-index: the
   orchestrating session does, once, at batch boundaries ([gitnexus-index.md](gitnexus-index.md)).
 
+For the normal precommit delta, stage explicit paths, then use one complete `scope:all` result bound to the final source and
+staged delta. An identical optional `scope:staged` response adds no gate. Reuse an earlier complete result only after verifying
+that final paths, bytes and delta are unchanged after staging; do not infer equivalence from a clean-looking status. Record the
+worktree, HEAD, paths and source hashes with the evidence. `impact` remains mandatory before symbol edits. HIGH/CRITICAL warnings
+must be reported, UNKNOWN requires source confirmation, and partial or truncated analysis remains unresolved.
+
 ## Honest reporting
 
 State in the Outcome what ran, what it printed, what did not run and why, and what the
