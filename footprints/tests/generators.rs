@@ -8,6 +8,9 @@
 mod common;
 
 use std::collections::BTreeMap;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::export::export_forms;
@@ -20,6 +23,53 @@ use boardstudio_footprints::types::{GeneratorRef, PartRef, ReservedNet, Side};
 use boardstudio_footprints::{GeneratorError, bundled};
 use common::{generator_fixtures, json_eq};
 use serde_json::{Value, json};
+
+const DIODE_SOD123_BASELINE_SOURCE: &str = "ceoloide/diode_tht_sod123";
+const DIODE_SOD123_CASE_IDS: [&str; 43] = [
+    "default",
+    "placed-default",
+    "flip:reversible",
+    "flip:include_traces_vias",
+    "flip:include_tht",
+    "flip:include_thru_hole_smd_pads",
+    "pose:front-F-0",
+    "pose:back-B-0",
+    "pose:front-F-90",
+    "pose:back-B-90",
+    "pose:front-F-37",
+    "pose:back-B-37",
+    "pose:front-B-0",
+    "pose:back-F-0",
+    "pose:front-unset-37",
+    "pose:back-unset-37",
+    "nets:assigned",
+    "nets:reserved",
+    "nets:empty",
+    "merge:part-overrides-definition",
+    "coerce:numeric-strings",
+    "extra:smd-pads-reversible",
+    "extra:hotswap-conflict-error",
+    "demo-definition:sofle-v2:assembly-preset-mx-hotswap-south-left-keys-0/definition/diode",
+    "demo-part:sofle-v2:matrix/left-keys/r0c0/diode",
+    "demo-part:sofle-rgb:matrix/left-keys/r0c0/diode",
+    "demo-part:sofle-choc:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-corne:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-lily58:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-sweep:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-chocofi:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-reviung41:matrix/main-right-keys/r0c0/diode",
+    "demo-part:measured-totem:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-klor:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-cantor:matrix/left-keys/r0c0/diode",
+    "demo-part:measured-gh60:matrix/main-keys/r0c0/diode",
+    "demo-part:measured-discipline:matrix/main-keys/r0c0/diode",
+    "demo-part:measured-mysterium:matrix/main-function/r0c0/diode",
+    "demo-part:measured-voyager97:matrix/main-function/r0c0/diode",
+    "demo-part:measured-voyager104:matrix/main-function/r0c0/diode",
+    "demo-part:measured-plaid:matrix/main-keys/r0c0/diode",
+    "demo-part:measured-lumberjack:matrix/main-left-keys/r0c0/diode",
+    "demo-part:reviung41:matrix/main-right-keys/r0c0/diode",
+];
 
 /// Corrected quirks: generator text that changes on purpose.
 fn corrected_text(source: &str, text: &str) -> String {
@@ -245,6 +295,284 @@ fn render_forms(
             None,
         ),
     }
+}
+
+#[derive(serde::Serialize)]
+struct BaselineAllocatorSeed {
+    reserved_nets: Vec<ReservedNet>,
+    next_net_index: u32,
+}
+
+#[derive(serde::Serialize)]
+struct StructuredBaselineError {
+    variant: &'static str,
+    fields: Value,
+    message: String,
+}
+
+#[derive(serde::Serialize)]
+struct DiodeSod123BaselineRecord {
+    order: usize,
+    id: String,
+    source: String,
+    qualification_flag_state: &'static str,
+    raw_input: Value,
+    effective_generator_ref: Value,
+    effective_part_ref: Option<Value>,
+    allocator_seed: Option<BaselineAllocatorSeed>,
+    render_forms: Option<Vec<String>>,
+    nets_after_allocator_snapshot: Option<Vec<ReservedNet>>,
+    render_error: Option<StructuredBaselineError>,
+    export_path_map: BTreeMap<String, String>,
+    exported_footprints: Option<Vec<String>>,
+    exported_objects: Option<Vec<String>>,
+    export_error: Option<StructuredBaselineError>,
+}
+
+fn structured_baseline_error(error: &GeneratorError) -> StructuredBaselineError {
+    let (variant, fields) = match error {
+        GeneratorError::UnknownGenerator { source } => {
+            ("UnknownGenerator", json!({"source": source}))
+        }
+        GeneratorError::UnsupportedVersion { version } => {
+            ("UnsupportedVersion", json!({"version": version}))
+        }
+        GeneratorError::MissingGenerator => ("MissingGenerator", json!({})),
+        GeneratorError::InvalidParameter {
+            generator,
+            parameter,
+            expected,
+        } => (
+            "InvalidParameter",
+            json!({"generator": generator, "parameter": parameter, "expected": expected}),
+        ),
+        GeneratorError::Rejected {
+            generator,
+            parameter,
+            message,
+        } => (
+            "Rejected",
+            json!({"generator": generator, "parameter": parameter, "message": message}),
+        ),
+        GeneratorError::Parse(message) => ("Parse", json!({"0": message})),
+        GeneratorError::Geometry(message) => ("Geometry", json!({"0": message})),
+        GeneratorError::Model(message) => ("Model", json!({"0": message})),
+        GeneratorError::Export(message) => ("Export", json!({"0": message})),
+        GeneratorError::Net(message) => ("Net", json!({"0": message})),
+        GeneratorError::Internal(message) => ("Internal", json!({"0": message})),
+    };
+    StructuredBaselineError {
+        variant,
+        fields,
+        message: error.message(),
+    }
+}
+
+fn contains_qualification_flag(value: &Value) -> bool {
+    match value {
+        Value::Object(fields) => {
+            fields.contains_key("use_vishay_1n4148w_land_pattern")
+                || fields.values().any(contains_qualification_flag)
+        }
+        Value::Array(items) => items.iter().any(contains_qualification_flag),
+        _ => false,
+    }
+}
+
+fn diode_sod123_baseline_records(fixture: &Value) -> Vec<u8> {
+    assert_eq!(fixture["source"], DIODE_SOD123_BASELINE_SOURCE);
+    let cases = fixture["cases"].as_array().expect("diode fixture cases");
+    assert_eq!(cases.len(), DIODE_SOD123_CASE_IDS.len());
+    let registry = bundled();
+    let source = DIODE_SOD123_BASELINE_SOURCE;
+    let run = Run {
+        registry,
+        source,
+        fixture,
+        failures: Vec::new(),
+    };
+    let mut records = Vec::with_capacity(cases.len() * 4096);
+    for (index, case) in cases.iter().enumerate() {
+        let id = case["id"].as_str().expect("diode case id");
+        assert_eq!(
+            id, DIODE_SOD123_CASE_IDS[index],
+            "diode fixture order changed"
+        );
+        let input_value = case.get("input").expect("diode case input");
+        assert!(
+            !contains_qualification_flag(input_value),
+            "phase-one baseline inputs must leave the opt-in flag absent: {id}"
+        );
+        let input = input_of(fixture, case);
+        let allocator_seed =
+            input
+                .nets
+                .as_ref()
+                .map(|(reserved_nets, next_net_index)| BaselineAllocatorSeed {
+                    reserved_nets: reserved_nets.clone(),
+                    next_net_index: *next_net_index,
+                });
+        let (rendered, nets) = render_forms(&run, &input);
+        let export_path_map = case["output"]["export"]["ok"]["modelPaths"]
+            .as_object()
+            .map(|_| {
+                serde_json::from_value(case["output"]["export"]["ok"]["modelPaths"].clone())
+                    .expect("fixture export path map")
+            })
+            .unwrap_or_default();
+        let (render_forms, render_error, exported_footprints, exported_objects, export_error) =
+            match rendered {
+                Ok(forms) => {
+                    let rendered_strings = forms.iter().map(serialize).collect();
+                    match export_forms(forms, &export_path_map) {
+                        Ok(exported) => (
+                            Some(rendered_strings),
+                            None,
+                            Some(exported.footprints),
+                            Some(exported.objects),
+                            None,
+                        ),
+                        Err(error) => (
+                            Some(rendered_strings),
+                            None,
+                            None,
+                            None,
+                            Some(structured_baseline_error(&error)),
+                        ),
+                    }
+                }
+                Err(error) => (
+                    None,
+                    Some(structured_baseline_error(&error)),
+                    None,
+                    None,
+                    None,
+                ),
+            };
+        let record = DiodeSod123BaselineRecord {
+            order: index + 1,
+            id: id.to_owned(),
+            source: source.to_owned(),
+            qualification_flag_state: "absent",
+            raw_input: input_value.clone(),
+            effective_generator_ref: serde_json::to_value(&input.generator)
+                .expect("serialize adapted generator ref"),
+            effective_part_ref: input
+                .part
+                .as_ref()
+                .map(|part| serde_json::to_value(part).expect("serialize adapted part ref")),
+            allocator_seed,
+            render_forms,
+            nets_after_allocator_snapshot: nets,
+            render_error,
+            export_path_map,
+            exported_footprints,
+            exported_objects,
+            export_error,
+        };
+        serde_json::to_writer(&mut records, &record).expect("serialize baseline record");
+        records.push(b'\n');
+    }
+    records
+}
+
+fn required_absolute_path(variable: &str) -> PathBuf {
+    let value = std::env::var(variable)
+        .unwrap_or_else(|error| panic!("{variable} must be set to an absolute path: {error}"));
+    let path = PathBuf::from(value);
+    assert!(path.is_absolute(), "{variable} must be an absolute path");
+    path
+}
+
+struct TemporaryBaselinePath(PathBuf);
+
+impl Drop for TemporaryBaselinePath {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+fn write_new_file_atomically(path: &Path, bytes: &[u8]) {
+    assert!(path.is_absolute(), "baseline output path must be absolute");
+    let parent = path.parent().expect("baseline output parent");
+    fs::create_dir_all(parent).expect("create baseline output directory");
+    let filename = path.file_name().expect("baseline output filename");
+
+    let mut temporary = None;
+    for suffix in 0..100 {
+        let candidate = parent.join(format!(
+            ".{}.capture-{}-{suffix}",
+            filename.to_string_lossy(),
+            std::process::id()
+        ));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                let cleanup = TemporaryBaselinePath(candidate.clone());
+                file.write_all(bytes)
+                    .expect("write baseline temporary file");
+                file.sync_all().expect("sync baseline temporary file");
+                temporary = Some((candidate, cleanup));
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => panic!("create baseline temporary file: {error}"),
+        }
+    }
+    let (temporary, cleanup) = temporary.expect("allocate unique baseline temporary file");
+    fs::hard_link(&temporary, path)
+        .unwrap_or_else(|error| panic!("exclusive atomic baseline creation failed: {error}"));
+    drop(cleanup);
+    OpenOptions::new()
+        .read(true)
+        .open(parent)
+        .and_then(|directory| directory.sync_all())
+        .expect("sync baseline output directory");
+}
+
+fn first_byte_difference(actual: &[u8], expected: &[u8]) -> usize {
+    actual
+        .iter()
+        .zip(expected)
+        .position(|(left, right)| left != right)
+        .unwrap_or(actual.len().min(expected.len()))
+}
+
+#[test]
+#[ignore = "manual pre-change baseline capture; run only in an authorized capture window"]
+fn diode_sod123_baseline_capture() {
+    let output = required_absolute_path("BOARDSTUDIO_DIODE_BASELINE_OUTPUT");
+    let fixture = generator_fixtures()
+        .into_iter()
+        .find(|fixture| fixture["source"] == DIODE_SOD123_BASELINE_SOURCE)
+        .expect("diode SOD-123 generator fixture");
+    let bytes = diode_sod123_baseline_records(&fixture);
+    write_new_file_atomically(&output, &bytes);
+}
+
+#[test]
+#[ignore = "manual frozen-byte comparison; run only in an authorized comparison window"]
+fn diode_sod123_baseline_matches_frozen_expected_bytes() {
+    let expected = required_absolute_path("BOARDSTUDIO_DIODE_BASELINE_EXPECTED");
+    let fixture = generator_fixtures()
+        .into_iter()
+        .find(|fixture| fixture["source"] == DIODE_SOD123_BASELINE_SOURCE)
+        .expect("diode SOD-123 generator fixture");
+    let expected_bytes = fs::read(&expected)
+        .unwrap_or_else(|error| panic!("frozen expected baseline must already exist: {error}"));
+    let actual_bytes = diode_sod123_baseline_records(&fixture);
+    assert_eq!(
+        first_byte_difference(&actual_bytes, &expected_bytes),
+        actual_bytes.len().min(expected_bytes.len()),
+        "baseline bytes differ at the first unequal byte or length"
+    );
+    assert_eq!(
+        actual_bytes, expected_bytes,
+        "the frozen legacy baseline must match byte-for-byte"
+    );
 }
 
 fn check_case(run: &mut Run, case: &Value) {
