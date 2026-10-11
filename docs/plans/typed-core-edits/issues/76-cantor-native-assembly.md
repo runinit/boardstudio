@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `cantor`: `https://github.com/diepala/cantor`, `Cantor_Classic/keyboard_pcb.kicad_pcb` at `13f8bc03bb8a894c7c2871ae64845d5ef927c328`; SHA-256 `c20140c589c1ef393db769f83cfb69a4c94c137528d758de38a88a4fe17b6373`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-cantor` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `cantor`: `https://github.com/diepala/cantor`, `Cantor_Classic/keyboard_pcb.kicad_pcb` at `13f8bc03bb8a894c7c2871ae64845d5ef927c328`; SHA-256 `c20140c589c1ef393db769f83cfb69a4c94c137528d758de38a88a4fe17b6373`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-cantor` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 42 Choc switches and 42 diodes, 21 per half (3×6 + 3 thumbs); 18 × 17 mm base pitch, Choc v1 (current recipe; confirm selected hardware). No authored TH holes are recorded. Identify the target controller/transport from the selected board configuration; a recipe TRRS is not source evidence that the target uses it.
 

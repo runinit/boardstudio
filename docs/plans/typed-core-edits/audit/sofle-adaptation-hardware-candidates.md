@@ -46,7 +46,7 @@ Pinned upstream hardware is comparison evidence. It does not require reproducing
 
 ## Source pins and variant evidence
 
-[sofle-layouts.json](../../../../content/layouts/sofle-layouts.json) pins Josef Adamcik's SofleKeyboard revision `fb294f7c58d0f91c379a9ef339159d4d056643e9`. The research downloaded the three pinned PCBs and confirmed their SHA-256 values against that metadata:
+sofle-layouts.json (`content/layouts/sofle-layouts.json`, retired) pins Josef Adamcik's SofleKeyboard revision `fb294f7c58d0f91c379a9ef339159d4d056643e9`. The research downloaded the three pinned PCBs and confirmed their SHA-256 values against that metadata:
 
 | Variant | PCB path within the pinned repository | SHA-256 |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ Source footprint names identify geometry, not exact purchasable hardware. Common
 
 ## Source versus catalogue qualification
 
-The current [recipes](../../../../core/examples/demo_projects/recipes.rs) select nice!nano, EC11/12, SSD1306, PJ320A and PTS636-style reset candidates. U1/encoder use zero offsets; OLED uses `(+3.81,−16.7)`, TRRS `(+4,0)` and reset `(+1,0)`. Those are candidate substitutions and placements. Do not automatically retain nice!nano, remove offsets because origins differ, or copy upstream angles onto different library geometry.
+The current recipes (`core/examples/demo_projects/recipes.rs`, retired) select nice!nano, EC11/12, SSD1306, PJ320A and PTS636-style reset candidates. U1/encoder use zero offsets; OLED uses `(+3.81,−16.7)`, TRRS `(+4,0)` and reset `(+1,0)`. Those are candidate substitutions and placements. Do not automatically retain nice!nano, remove offsets because origins differ, or copy upstream angles onto different library geometry.
 
 | Component or datum | Observed difference | Required qualification after BOM input |
 | --- | --- | --- |
@@ -97,7 +97,7 @@ Use the tool's existing workflow and numerical settings for proposed case geomet
 | General dimensions | Defaults: wall 2 mm, clearance 0.3 mm. | [Mechanical edit defaults](../../../../core/src/mechanical/edit.rs), research line 2170. |
 | Gasket initialization | Public `SetMount(Gasket)` initializes travel to 0.1 mm. Internal gasket defaults: foam 2 mm, compression 0.15, minimum wall 2 mm, numeric tolerance 0.05 mm. Do not substitute the lower-level fallback travel 0.3 mm for the public initialization value. | [Mount initialization](../../../../core/src/mechanical/edit.rs), research line 2774; [gasket defaults](../../../../core/src/mechanical.rs), research line 132. |
 | Mounts and hardware | Clearance-tested proposals/adoption, fixed closure positions and editable screw/insert geometry. Added screws/spacers are allowed but not selected here. | [Mount controls](../../../../web/crates/case/src/mechanical_settings.rs), research line 2435. |
-| Component/access space | Component clearance polygons/volumes and access openings. Current controller 20×36 mm and TRRS 14×12 mm bays are historical rectangles, not measured installed hardware envelopes. Derive replacements through the tool from component stacks, cable/connector and knob/service bounds. | [Historical bays](../../../../core/examples/demo_projects/mechanical.rs), research line 185. |
+| Component/access space | Component clearance polygons/volumes and access openings. Current controller 20×36 mm and TRRS 14×12 mm bays are historical rectangles, not measured installed hardware envelopes. Derive replacements through the tool from component stacks, cable/connector and knob/service bounds. | Historical bays (`core/examples/demo_projects/mechanical.rs`, retired), research line 185. |
 
 The inspected [public edit vocabulary](../../../../core/src/mechanical/change.rs) exposes clearance/opening allowance and **text** hardware/critical-fit tolerance annotations. Research found no public numeric setter for `internal_gasket.tolerance`, gasket compression or travel. Retaining supported generator defaults is possible; different requested numeric settings require a scoped capability follow-up. Text annotations do not change solver geometry. The [internal gasket solver](../../../../core/src/mechanical/gasket/internal.rs), research line 1235, warns that foam compression/material tolerances are unverified.
 

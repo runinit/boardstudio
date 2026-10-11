@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `totem`: `https://github.com/GEIGEIGEIST/TOTEM`, `PCB/totem_0-3/totem_0_3.kicad_pcb` at `410e566dd47466c0b69279f0d4b3646998c663d4`; SHA-256 `24d24a6ebd93a1008745b08eee5886e577f228f358219a5f313152f3a4e1d0be`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-totem` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `totem`: `https://github.com/GEIGEIGEIST/TOTEM`, `PCB/totem_0-3/totem_0_3.kicad_pcb` at `410e566dd47466c0b69279f0d4b3646998c663d4`; SHA-256 `24d24a6ebd93a1008745b08eee5886e577f228f358219a5f313152f3a4e1d0be`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-totem` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 38 Choc switches and 38 diodes, 19 per half (15 main + 1 outer + 3 thumbs); 18 × 17 mm base pitch, Choc v1 (current recipe; confirm selected hardware). No authored TH holes are recorded; four current closure holes per half are generated proposals. Use the native TOTEM assembly rather than an imported-layout label.
 

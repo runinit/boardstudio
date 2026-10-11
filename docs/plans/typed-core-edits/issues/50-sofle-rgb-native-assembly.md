@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Sofle measured inputs](../../../../content/layouts/sofle-layouts.json), `layouts.rgb`: `Sofle_RGB/PCB/SofleKeyboard.kicad_pcb` at `fb294f7c58d0f91c379a9ef339159d4d056643e9`; SHA-256 `2162c58ea07f378e4352421c9d2bed31b774a08539114df97515d9f06c058739`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `sofle-rgb` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Sofle measured inputs (`content/layouts/sofle-layouts.json`, retired), `layouts.rgb`: `Sofle_RGB/PCB/SofleKeyboard.kicad_pcb` at `fb294f7c58d0f91c379a9ef339159d4d056643e9`; SHA-256 `2162c58ea07f378e4352421c9d2bed31b774a08539114df97515d9f06c058739`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `sofle-rgb` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: MX hotswap switches, 58 diodes and 58 matrix SK6812 LEDs; 19.05 × 19.05 mm base pitch, MX. Keep the 14 measured D31–D37 LEDs separate from the 58 matrix LED companions. Matrix LEDs currently use reverse_mount:true; D31–D37 use false. TH1–TH7 remain source holes on each half.
 

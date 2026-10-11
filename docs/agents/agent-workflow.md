@@ -96,9 +96,10 @@ User-approved2026-10-11; active while multiple workstreams/builds are in use. Ea
 export CARGO_BUILD_JOBS=4
 export RUST_TEST_THREADS=4
 export BOARDSTUDIO_CHECK_JOBS=1
+export BINARYEN_CORES=4
 ```
 
-This caps Cargo compilation at four jobs and each native Rust test executable at four test threads. Serial suite launches prevent the check runner from multiplying those pools. These are worker limits, not hard CPU affinity or a four-core aggregate guarantee. Other runners use their supported worker limit of at most four; keep one active browser instance per lane. A private UI watcher inherits the caps on its next safe restart. Preserve running command evidence; changing the cap alone does not require a rerun.
+This caps Cargo compilation at four jobs, each native Rust test executable at four test threads, and Binaryen WASM optimization at four workers ([upstream environment-variable documentation](https://github.com/WebAssembly/binaryen/wiki/Debugging)). Serial suite launches prevent the check runner from multiplying those pools. These are worker limits, not hard CPU affinity or a four-core aggregate guarantee. Containerized commands must receive the caps explicitly; host environment variables alone do not establish container limits. Other runners use their supported worker limit of at most four; keep one active browser instance per lane. A private UI watcher inherits the caps on its next safe restart. Preserve running command evidence; changing the cap alone does not require a rerun.
 
 Root records the active mode in the lane registry and includes it in dispatch briefs. Existing GLOBAL HEAVY ownership, isolated outputs and L7 private-development exception still apply; caps do not authorize additional concurrent heavy lanes. Integration checks use the same caps while laptop mode is active. The checked-in12-job default is available outside this mode; do not edit shared/global configuration to switch modes.
 

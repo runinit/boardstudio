@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-
 
 ## Sources and sequence
 
-[Measured input pins](../../../../content/layouts/keyboard-layouts.json) identify GH60, Discipline, Mysterium, Voyager97 (103-key variant), Voyager104, Plaid, Lumberjack and measured REVIUNG41. They are rebuilt in that order after the seven splits. Their adapted fixtures have native matrix keys/diodes plus generated nice!nano/reset placements, but no authored mounting holes, mechanical configuration or case body. This absence does not approve a PCB-only result: the user requires native outline/mounting generation for unibodies too.
+Measured input pins (`content/layouts/keyboard-layouts.json`, retired) identify GH60, Discipline, Mysterium, Voyager97 (103-key variant), Voyager104, Plaid, Lumberjack and measured REVIUNG41. They are rebuilt in that order after the seven splits. Their adapted fixtures have native matrix keys/diodes plus generated nice!nano/reset placements, but no authored mounting holes, mechanical configuration or case body. This absence does not approve a PCB-only result: the user requires native outline/mounting generation for unibodies too.
 
 ## Agent research: one evidence/proposal row per board
 

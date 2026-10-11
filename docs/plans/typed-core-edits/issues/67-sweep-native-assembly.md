@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `sweep`: `https://github.com/davidphilipbarr/Sweep`, `Sweep v2.2/sweepv2.kicad_pcb` at `8ba72a256d627567660ecc0b6f51bb18fa8badb5`; SHA-256 `efb6f443e0062d38ddb2a0fcf4d05a032eb11ac84d0fb6adff2244dc1b580bb3`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-sweep` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `sweep`: `https://github.com/davidphilipbarr/Sweep`, `Sweep v2.2/sweepv2.kicad_pcb` at `8ba72a256d627567660ecc0b6f51bb18fa8badb5`; SHA-256 `efb6f443e0062d38ddb2a0fcf4d05a032eb11ac84d0fb6adff2244dc1b580bb3`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-sweep` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 34 Choc switches and 34 diodes, 17 switches per half (3×5 + 2 thumbs); 18 × 17 mm base pitch, Choc v1 (current recipe; confirm selected hardware). The adapted fixture has generated MCU/reset/TRRS and no source TH holes. Keep the measured Choc spacing rather than applying the MX/default pitch.
 

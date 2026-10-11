@@ -2073,6 +2073,29 @@ mod mechanical_edit_engine_tests {
     fn pure_settings_edits_preserve_the_outline_recovery_snapshot() {
         let mut source: ProjectDoc =
             serde_json::from_str(include_str!("../tests/fixtures/synthetic-outline.json")).unwrap();
+        // Use only two authored square courtyards with a 4 mm gap. This creates
+        // an independent automatic bridge pocket for the recovery contract.
+        source
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "main/SW2")
+            .expect("the second synthetic switch exists")
+            .pose
+            .at = Vec2 { x: 24.0, y: 0.0 };
+        let protected_parts = vec!["main/SW1".to_string(), "main/SW2".to_string()];
+        let OutlineFeature::PartEnvelope {
+            part_ids,
+            margin,
+            settings,
+            ..
+        } = &mut source.outline[0]
+        else {
+            unreachable!("the synthetic outline is a part envelope")
+        };
+        *part_ids = protected_parts.clone();
+        *margin = 1.0;
+        settings.bridge_width = 10.0;
+        source.boards[0].part_ids = protected_parts;
         // Protect a generated gap so opening the project writes a recovery snapshot.
         let mut probe = CoreEngine::new();
         let probe_scene = open(&mut probe, source.clone());

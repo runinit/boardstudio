@@ -1,6 +1,6 @@
 # 107: Forward reconciliation of hosted and electrical items
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [106](106-reconcile-mirrored-matrices-layouts-parts.md)
 Parent: [19](19-reconcile-mirrored-halves.md)

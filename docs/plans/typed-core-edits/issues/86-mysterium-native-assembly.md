@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `mysterium`: `https://github.com/coseyfannitutti/mysterium`, `mysterium-pcb.kicad_pcb` at `5e5ab18d8d9608759e5f50ad9e62fc7329271551`; SHA-256 `dee1f0f51fdf5ebf93690aee18d2e1bd6d435ad0588a80b0d23e7e0a75e031a1`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-mysterium` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `mysterium`: `https://github.com/coseyfannitutti/mysterium`, `mysterium-pcb.kicad_pcb` at `5e5ab18d8d9608759e5f50ad9e62fc7329271551`; SHA-256 `dee1f0f51fdf5ebf93690aee18d2e1bd6d435ad0588a80b0d23e7e0a75e031a1`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-mysterium` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 87 MX switches and 87 diodes across function, keys, navigation and arrows; 19.05 × 19.05 mm base pitch, MX. There is no numpad matrix. The current fixture contains four 2u and one 6.25u stabilisers; preserve the separate cluster origins and wide-key geometry.
 
