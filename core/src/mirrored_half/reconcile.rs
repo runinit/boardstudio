@@ -906,6 +906,188 @@ fn reconcile(
             })
             .collect();
     }
+
+    let source_matrix_members: BTreeSet<_> = source_matrix.part_ids.iter().cloned().collect();
+    let mirror_matrix_members: BTreeSet<_> = mirror_matrix.part_ids.iter().cloned().collect();
+    let mut independent_part_targets = BTreeMap::new();
+    let mut changed_independent_parts = BTreeSet::new();
+    for correspondence in halves
+        .correspondences
+        .iter()
+        .filter(|correspondence| correspondence.kind == MirroredItemKind::Part)
+    {
+        let source_is_matrix_member = source_matrix_members.contains(&correspondence.source_id);
+        let mirror_is_matrix_member = mirror_matrix_members.contains(&correspondence.mirror_id);
+        if source_is_matrix_member || mirror_is_matrix_member {
+            if source_is_matrix_member != mirror_is_matrix_member {
+                return Err("A part correspondence crosses the matrix membership boundary".into());
+            }
+            continue;
+        }
+
+        if owner_for(document, &correspondence.source_id)? != halves.source_board_id
+            || owner_for(document, &correspondence.mirror_id)? != halves.mirror_board_id
+        {
+            return Err("An independent part correspondence has stale board ownership".into());
+        }
+        let mut sources = document
+            .parts
+            .iter()
+            .filter(|part| part.id == correspondence.source_id);
+        let source = sources.next().ok_or_else(|| {
+            format!(
+                "The source part {:?} is unavailable",
+                correspondence.source_id
+            )
+        })?;
+        if sources.next().is_some() {
+            return Err(format!(
+                "The source part {:?} is ambiguous",
+                correspondence.source_id
+            ));
+        }
+        let mut mirrors = document
+            .parts
+            .iter()
+            .filter(|part| part.id == correspondence.mirror_id);
+        let mirror = mirrors.next().ok_or_else(|| {
+            format!(
+                "The mirror part {:?} is unavailable",
+                correspondence.mirror_id
+            )
+        })?;
+        if mirrors.next().is_some() {
+            return Err(format!(
+                "The mirror part {:?} is ambiguous",
+                correspondence.mirror_id
+            ));
+        }
+        let projected = project_part(source, mirror, correspondence, pair.mapping)?;
+        let mut staged_mirrors = staged
+            .parts
+            .iter_mut()
+            .filter(|part| part.id == correspondence.mirror_id);
+        let staged_mirror = staged_mirrors.next().ok_or_else(|| {
+            format!(
+                "The staged mirror part {:?} is unavailable",
+                correspondence.mirror_id
+            )
+        })?;
+        if staged_mirrors.next().is_some() {
+            return Err(format!(
+                "The staged mirror part {:?} is ambiguous",
+                correspondence.mirror_id
+            ));
+        }
+        *staged_mirror = projected;
+        independent_part_targets.insert(
+            correspondence.source_id.clone(),
+            correspondence.mirror_id.clone(),
+        );
+        changed_independent_parts.insert(correspondence.mirror_id.clone());
+    }
+
+    let mut reconciled_layout_ids = BTreeSet::new();
+    for correspondence in halves
+        .correspondences
+        .iter()
+        .filter(|correspondence| correspondence.kind == MirroredItemKind::Layout)
+    {
+        let mut sources = document
+            .layouts
+            .iter()
+            .filter(|layout| layout.id == correspondence.source_id);
+        let source = sources.next().ok_or_else(|| {
+            format!(
+                "The source layout {:?} is unavailable",
+                correspondence.source_id
+            )
+        })?;
+        if sources.next().is_some() {
+            return Err(format!(
+                "The source layout {:?} is ambiguous",
+                correspondence.source_id
+            ));
+        }
+        let mut mirrors = document
+            .layouts
+            .iter()
+            .filter(|layout| layout.id == correspondence.mirror_id);
+        let mirror = mirrors.next().ok_or_else(|| {
+            format!(
+                "The mirror layout {:?} is unavailable",
+                correspondence.mirror_id
+            )
+        })?;
+        if mirrors.next().is_some() {
+            return Err(format!(
+                "The mirror layout {:?} is ambiguous",
+                correspondence.mirror_id
+            ));
+        }
+        let source_is_current = source.matrix_id == source_matrix.id;
+        let mirror_is_current = mirror.matrix_id == mirror_matrix.id;
+        if source_is_current != mirror_is_current {
+            return Err(
+                "The paired layouts do not follow the reconciled matrix correspondence".into(),
+            );
+        }
+        if !source_is_current {
+            continue;
+        }
+        if source.board_id != halves.source_board_id || mirror.board_id != halves.mirror_board_id {
+            return Err("A paired layout has stale board or matrix ownership".into());
+        }
+
+        let source_members: BTreeSet<_> = source.part_ids.iter().cloned().collect();
+        let mirror_members: BTreeSet<_> = mirror.part_ids.iter().cloned().collect();
+        if source_members.len() != source.part_ids.len()
+            || mirror_members.len() != mirror.part_ids.len()
+        {
+            return Err("A paired layout contains duplicate part membership".into());
+        }
+        let mut projected_members =
+            Vec::with_capacity(source.part_ids.len() + mirror.part_ids.len());
+        let mut projected_member_ids = BTreeSet::new();
+        for source_id in &source.part_ids {
+            let mirror_id = independent_part_targets.get(source_id).ok_or_else(|| {
+                format!(
+                    "The source layout part {source_id:?} has no independent part correspondence"
+                )
+            })?;
+            if !mirror_members.contains(mirror_id) {
+                return Err(format!(
+                    "The mirror layout is missing fixed part membership {mirror_id:?}"
+                ));
+            }
+            if !projected_member_ids.insert(mirror_id.clone()) {
+                return Err("A paired layout maps multiple source parts to one mirror part".into());
+            }
+            projected_members.push(mirror_id.clone());
+        }
+        projected_members.extend(
+            mirror
+                .part_ids
+                .iter()
+                .filter(|id| !projected_member_ids.contains(*id))
+                .cloned(),
+        );
+        let staged_mirror = staged
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == correspondence.mirror_id)
+            .ok_or_else(|| {
+                format!(
+                    "The staged mirror layout {:?} is unavailable",
+                    correspondence.mirror_id
+                )
+            })?;
+        if staged_mirror.part_ids != projected_members {
+            staged_mirror.part_ids = projected_members;
+            reconciled_layout_ids.insert(correspondence.mirror_id.clone());
+        }
+    }
+
     let final_matrix = matrix_by_id(&staged, &projection.mirror_matrix_id)?.clone();
     crate::matrix::valid_matrix(&final_matrix, &staged)?;
     for id in &final_matrix.part_ids {
@@ -921,6 +1103,7 @@ fn reconcile(
     let mut candidates: std::collections::BTreeSet<String> =
         mirror_matrix.part_ids.iter().cloned().collect();
     candidates.extend(final_matrix.part_ids.iter().cloned());
+    candidates.extend(changed_independent_parts);
     candidates.insert(mirror_matrix.id.clone());
     let mut changed_ids = std::collections::BTreeSet::new();
     if snapshot(mirror_matrix)? != snapshot(&final_matrix)? {
@@ -932,6 +1115,15 @@ fn reconcile(
         }
         let before = document.parts.iter().find(|part| part.id == id);
         let after = staged.parts.iter().find(|part| part.id == id);
+        let before = before.map(snapshot).transpose()?;
+        let after = after.map(snapshot).transpose()?;
+        if before != after {
+            changed_ids.insert(id);
+        }
+    }
+    for id in reconciled_layout_ids {
+        let before = document.layouts.iter().find(|layout| layout.id == id);
+        let after = staged.layouts.iter().find(|layout| layout.id == id);
         let before = before.map(snapshot).transpose()?;
         let after = after.map(snapshot).transpose()?;
         if before != after {
@@ -5601,6 +5793,359 @@ mod tests {
         };
         assert!(reconcile(&mut document, "pair-source-mirror", &mismatched_pair).is_err());
         assert_eq!(serde_json::to_value(&document).unwrap(), before_rejected);
+    }
+
+    #[test]
+    fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let mut source = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c1")
+            .unwrap()
+            .clone();
+        source.id = "independent-source".into();
+        source.reference = "J1".into();
+        source.pose = Pose2 {
+            at: Vec2 { x: 10.0, y: 15.0 },
+            rotation: 25.0,
+        };
+        source.keycap = Some(Vec2 { x: 22.0, y: 18.0 });
+        source.outline = Some(PartOutline {
+            excluded: true,
+            margin: Some(3.5),
+            allow_body_overhang: true,
+        });
+        source.side = Side::Back;
+        source.locked = Some(false);
+        source.properties = Some(BTreeMap::from([
+            (
+                "custom".into(),
+                serde_json::json!({"board":"source","revision":7}),
+            ),
+            ("userFlag".into(), serde_json::json!(true)),
+        ]));
+        source.generator_parameters = Some(BTreeMap::from([
+            ("variant".into(), serde_json::json!("non-default")),
+            ("width".into(), serde_json::json!(2.25)),
+        ]));
+        let mut target = source.clone();
+        target.id = "independent-mirror".into();
+        target.definition_id = "mirror-switch".into();
+        target.reference = "J9".into();
+        target.pose = Pose2 {
+            at: Vec2::default(),
+            rotation: 0.0,
+        };
+        target.keycap = None;
+        target.outline = None;
+        target.side = Side::Front;
+        target.locked = Some(true);
+        target.properties = Some(BTreeMap::from([(
+            "local".into(),
+            serde_json::json!("target"),
+        )]));
+        target.generator_parameters =
+            Some(BTreeMap::from([("local".into(), serde_json::json!(9))]));
+        let mut target_definition = document.definitions[0].clone();
+        target_definition.id = "mirror-switch".into();
+        target_definition.name = "Mirror switch".into();
+        document.definitions.push(target_definition);
+        document.parts.extend([source.clone(), target]);
+        let mut unrelated_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "geometry-probe")
+            .unwrap()
+            .clone();
+        unrelated_part.id = "unrelated-part".into();
+        unrelated_part.reference = "LOCAL1".into();
+        document.parts.push(unrelated_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .push(source.id.clone());
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push("independent-mirror".into());
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push("unrelated-part".into());
+
+        let halves = document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.correspondences.extend([
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Part,
+                source_id: "independent-source".into(),
+                mirror_id: "independent-mirror".into(),
+            },
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Layout,
+                source_id: "source-layout".into(),
+                mirror_id: "mirror-layout".into(),
+            },
+        ]);
+        let source_layout = Layout {
+            id: "source-layout".into(),
+            name: "Source layout".into(),
+            board_id: "source-board".into(),
+            matrix_id: "source-matrix".into(),
+            part_ids: vec!["independent-source".into()],
+            mirror_link: None,
+        };
+        let mirror_layout = Layout {
+            id: "mirror-layout".into(),
+            name: "My target layout".into(),
+            board_id: "mirror-board".into(),
+            matrix_id: "mirror-matrix".into(),
+            part_ids: vec!["geometry-probe".into(), "independent-mirror".into()],
+            mirror_link: None,
+        };
+        crate::matrix::set_matrix(
+            &mut document,
+            &fixture_matrix("unrelated-matrix", "mirror-board"),
+        )
+        .unwrap();
+        let unrelated_layout = Layout {
+            id: "unrelated-layout".into(),
+            name: "Unrelated local layout".into(),
+            board_id: "mirror-board".into(),
+            matrix_id: "unrelated-matrix".into(),
+            part_ids: vec!["unrelated-part".into()],
+            mirror_link: None,
+        };
+        document.layouts = vec![
+            source_layout,
+            mirror_layout.clone(),
+            unrelated_layout.clone(),
+        ];
+
+        crate::mechanical::halves::validate_document(&document).unwrap();
+        let source_before = document
+            .parts
+            .iter()
+            .find(|part| part.id == "independent-source")
+            .unwrap()
+            .clone();
+        let unrelated_part_before = document
+            .parts
+            .iter()
+            .find(|part| part.id == "unrelated-part")
+            .unwrap()
+            .clone();
+        let unrelated_owner_ids_before: Vec<_> = document
+            .boards
+            .iter()
+            .filter(|board| board.part_ids.contains(&"unrelated-part".to_owned()))
+            .map(|board| board.id.clone())
+            .collect();
+        let original = document.clone();
+
+        let changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        let mirrored = document
+            .parts
+            .iter()
+            .find(|part| part.id == "independent-mirror")
+            .unwrap();
+        assert_eq!(mirrored.id, "independent-mirror");
+        assert_eq!(mirrored.definition_id, "mirror-switch");
+        assert_eq!(mirrored.reference, "J9");
+        assert_eq!(mirrored.keycap, source.keycap);
+        assert_eq!(mirrored.outline, source.outline);
+        assert_eq!(mirrored.side, source.side);
+        assert_eq!(mirrored.locked, source.locked);
+        assert_eq!(mirrored.properties, source.properties);
+        assert_eq!(mirrored.generator_parameters, source.generator_parameters);
+        assert_eq!(
+            mirrored.pose,
+            Pose2 {
+                at: Vec2 { x: 85.0, y: -40.0 },
+                rotation: 245.0,
+            }
+        );
+        assert!(changed.contains(&"independent-mirror".to_owned()));
+        assert_eq!(
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == "independent-source")
+                .unwrap(),
+            &source_before
+        );
+        assert_eq!(document.layouts[1].id, mirror_layout.id);
+        assert_eq!(document.layouts[1].name, mirror_layout.name);
+        assert_eq!(document.layouts[1].board_id, mirror_layout.board_id);
+        assert_eq!(document.layouts[1].matrix_id, mirror_layout.matrix_id);
+        assert_eq!(document.layouts[1].mirror_link, mirror_layout.mirror_link);
+        assert_eq!(
+            document.layouts[1].part_ids,
+            vec!["independent-mirror", "geometry-probe"]
+        );
+        assert!(changed.contains(&"mirror-layout".to_owned()));
+        assert_eq!(document.layouts[2], unrelated_layout);
+        assert_eq!(
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == "unrelated-part")
+                .unwrap(),
+            &unrelated_part_before
+        );
+        let unrelated_owner_ids_after: Vec<_> = document
+            .boards
+            .iter()
+            .filter(|board| board.part_ids.contains(&"unrelated-part".to_owned()))
+            .map(|board| board.id.clone())
+            .collect();
+        assert_eq!(unrelated_owner_ids_after, unrelated_owner_ids_before);
+
+        let mut repeated_from_same_input = original.clone();
+        reconcile(
+            &mut repeated_from_same_input,
+            "pair-source-mirror",
+            &projection,
+        )
+        .unwrap();
+        assert_eq!(repeated_from_same_input, document);
+        let first_output = document.clone();
+        let second_changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        assert!(second_changed.is_empty());
+        assert_eq!(document, first_output);
+    }
+
+    #[test]
+    fn legacy_layout_link_syncs_components_without_changing_an_unrelated_layout() {
+        let mut document = fixture_document().unwrap();
+        for id in [
+            "legacy-source-matrix",
+            "legacy-target-matrix",
+            "unrelated-matrix",
+        ] {
+            crate::matrix::set_matrix(&mut document, &fixture_matrix(id, "source-board")).unwrap();
+        }
+        let mut source = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c0")
+            .unwrap()
+            .clone();
+        source.id = "legacy-source-part".into();
+        source.reference = "J3".into();
+        source.pose = Pose2 {
+            at: Vec2 { x: 12.0, y: -4.0 },
+            rotation: 30.0,
+        };
+        let mut unrelated = source.clone();
+        unrelated.id = "legacy-unrelated-part".into();
+        unrelated.reference = "R7".into();
+        unrelated.pose = Pose2 {
+            at: Vec2 { x: -9.0, y: 21.0 },
+            rotation: 72.0,
+        };
+        document.parts.extend([source.clone(), unrelated.clone()]);
+        let source_board = document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap();
+        source_board
+            .part_ids
+            .extend([source.id.clone(), unrelated.id.clone()]);
+        document.layouts = vec![
+            Layout {
+                id: "legacy-source-layout".into(),
+                name: "Legacy source".into(),
+                board_id: "source-board".into(),
+                matrix_id: "legacy-source-matrix".into(),
+                part_ids: vec![source.id.clone()],
+                mirror_link: None,
+            },
+            Layout {
+                id: "legacy-target-layout".into(),
+                name: "Legacy mirror".into(),
+                board_id: "source-board".into(),
+                matrix_id: "legacy-target-matrix".into(),
+                part_ids: vec![],
+                mirror_link: Some(LayoutMirrorLink {
+                    source_id: "legacy-source-layout".into(),
+                    axis_x: 50.0,
+                }),
+            },
+            Layout {
+                id: "unrelated-layout".into(),
+                name: "Unrelated local".into(),
+                board_id: "source-board".into(),
+                matrix_id: "unrelated-matrix".into(),
+                part_ids: vec![unrelated.id.clone()],
+                mirror_link: None,
+            },
+        ];
+
+        crate::matrix::layout::validate(&document).unwrap();
+        let unrelated_layout_before = document.layouts[2].clone();
+        let unrelated_part_before = unrelated.clone();
+        let unrelated_owner_ids_before: Vec<_> = document
+            .boards
+            .iter()
+            .filter(|board| board.part_ids.contains(&unrelated.id))
+            .map(|board| board.id.clone())
+            .collect();
+        crate::matrix::layout::sync_components(&mut document).unwrap();
+        crate::matrix::layout::validate(&document).unwrap();
+
+        let target_id = "legacy-target-layout::mirror::legacy-source-part";
+        let mirrored = document
+            .parts
+            .iter()
+            .find(|part| part.id == target_id)
+            .expect("the linked independent component is materialized");
+        assert_eq!(mirrored.reference, "J3_M");
+        assert_eq!(
+            mirrored.pose,
+            Pose2 {
+                at: Vec2 { x: 88.0, y: -4.0 },
+                rotation: 150.0,
+            }
+        );
+        assert_eq!(
+            mirrored.properties.as_ref().unwrap()["boardstudio.mirroredComponentSource"],
+            serde_json::json!("legacy-source-part")
+        );
+        assert_eq!(document.layouts[1].part_ids, vec![target_id.to_owned()]);
+        assert_eq!(document.layouts[2], unrelated_layout_before);
+        assert_eq!(
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == "legacy-unrelated-part")
+                .unwrap(),
+            &unrelated_part_before
+        );
+        let unrelated_owner_ids_after: Vec<_> = document
+            .boards
+            .iter()
+            .filter(|board| board.part_ids.contains(&unrelated.id))
+            .map(|board| board.id.clone())
+            .collect();
+        assert_eq!(unrelated_owner_ids_after, unrelated_owner_ids_before);
     }
 
     use super::{project_matrix, project_part};
