@@ -1,13 +1,13 @@
 # 131: Add an opt-in Vishay 1N4148W land pattern
 
-Status: claimed
+Status: implemented (awaiting verification)
 Type: hardware
 Lane: F
 Execution gate: root producer dispatch issued; sequential foreground command window required. Root records the claim before further implementation.
 
 The reviewed plan uses the existing generator and assets, preserves all legacy defaults and output, and explicitly extends its parameter schema. The independently verified 43-case pre-change baseline is frozen, and its helper is checkpointed on lane F at `4607c266`. Baseline preparation and producer/qualification work use separate session assignments. No schema test may be weakened to accommodate the addition.
 
-Planner: `/root/sofle_adaptation_research`, Sol 6.1 max. Independent plan reviewer: `/root/diode_plan_independent_review`, Sol 6.1 max, final amended plan PASS including actual registry input-contract confirmation. Producer implementer: `/root/diode_131_producer_implementer`, Luna 6 high, fresh session. A distinct fresh Sol 6.1 xhigh verifier follows the stopped writer. Full implementation and qualification remain open.
+Planner: `/root/sofle_adaptation_research`, Sol 6.1 max. Independent plan reviewer: `/root/diode_plan_independent_review`, Sol 6.1 max, final amended plan PASS including actual registry input-contract confirmation. Producer implementer: `/root/diode_131_producer_implementer`, Luna 6 high, fresh session. A distinct fresh Sol 6.1 xhigh verifier follows the stopped writer. Bounded producer implementation and independent qualification passed; integration and full browser batch remain open.
 
 Source packet: `/home/chris/.cache/boardstudio-baselines/ticket131/plan-packet.md`, SHA-256 `ebf03905161a0dc98ee101b9ce8bbd9546fcdc2dc948a5032e984124453449e9`. This ticket preserves the complete technical plan below; cache references are evidence, not a substitute for acceptance.
 
@@ -277,3 +277,11 @@ Older builds' treatment of a saved new opt-in is not qualified; current render i
 
 No additional hardware selection, catalogue search or source acquisition belongs to this unit. The selected manufacturer, left-height/origin choices and exact limited qualification boundary are explicit.
 
+
+## Bounded implementation and independent verification checkpoint
+
+Luna 6 high implemented the opt-in producer, qualification tests, strict 17-field schema contract and explicit-false comparison. A distinct fresh Sol 6.1 xhigh verifier independently reviewed official PDF pages and tightened small qualification assertions, then passed 51 focused tests (3 ignored), both 43-case absent/false comparisons, four Core selectors and repo/lint/typecheck. Separate producer mutations for width 0.85 to 0.95 and A/K net swapping compiled and failed the intended assertions; each restored the exact producer bytes and passed qualification and both compatibility checks. The generated golden, frozen baseline/provenance and original absent comparator remain unchanged.
+
+Complete independent evidence: `/home/chris/.cache/boardstudio-baselines/ticket131/producer-verification/verification.json`, SHA-256 `2c21a5399158561639d8b5789581113dadee9e8b31ac34771e2d82ae39d20fb7`. Producer SHA-256 `134975444c53722e2ebd761d8077bcb6437e257d856bff4d2fb4b1a91283a3c6`; qualification SHA-256 `fa203f8ea8bbc2bcf6250349360b7db2acc9ad06cdeec9f37d97ca150e9847fd`.
+
+This is bounded independent PASS. Producer commit: `d246d4d9`; baseline-helper commit: `4607c266`. Root integration and full browser batch remain; the ticket stays open. No physical solderability, exact STEP alignment, installed fit, electrical/current, firmware or case qualification is claimed. Ticket 118 remains open. HIGH Registry and CRITICAL Core-schema warnings are retained; no shared API/ingress change was made.
