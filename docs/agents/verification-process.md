@@ -11,11 +11,12 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
 - **Implement** (Luna 6 at the lowest sufficient effort; medium for routine changes, high when warranted by evidence; before that Haiku 5.5): test first, make the change,
   run only the steps the change needs (below), write the Outcome honestly, set
   `Status: implemented (awaiting verification)`. Never `resolved`. Time box: about an hour.
-- **Verify and integrate** (Sol 6.1, xhigh, from 2026-10-10; before that Sonnet 5.5 at high effort): do not trust the
-  implementer's report. Reproduce its claims, mutation-check the main assertions (disable one site at a time,
-  confirm a test fails, restore), review the code, fix **small** defects with tests, then set `resolved` with
-  who-verified-what evidence. Time box: about 30 to 45 minutes of work. The verifier is a fresh session with a different
-  model from the implementer (Luna implements, Sol verifies); using a different app alone does not meet this requirement.
+- **Review** (Sol 6.1, medium by default, user revision 2026-10-11): one fresh independent session after the completed
+  Luna implementation handoff. Review the final diff and source-bound raw check evidence; reuse exact writer checks when
+  sufficient. Rerun targeted verification only for a concrete risk or evidence gap. Use xhigh only when actual complexity or
+  escalation justifies it. Mutation-check only important claimed guarantees that need that proof; it is not an automatic
+  per-ticket task. Fix **small** clearly correct defects with tests, then set `resolved` with who-reviewed-what evidence.
+  Reviewer and implementer use different sessions/models; using a different app alone does not meet this requirement.
 - **Planner / orchestrator** (Sol 6.1, medium, from 2026-10-10; planning research Luna 6 medium/high for bounded work; Sol 6.1 max only for material cross-domain risk, Astra medium only as a last resort; before that Claude): writes tickets, ADRs and prompts, decides the order, hands
   tickets to implementers and verifiers, merges lanes, runs the batch check and refreshes GitNexus. It does not
   verify, and it does not implement unless a task is tiny and documentation-only.
@@ -25,8 +26,11 @@ and every agent. Tracker conventions: [issue-tracker.md](issue-tracker.md). Chec
   holds, otherwise it stays `implemented (awaiting verification)` with the exact blockers.
 - **Scope is fixed when the agent starts.** New decisions or requests go into tickets, not
   into messages to a running agent. This is what made one verification run over an hour.
-- Small tickets (docs, one file, no behaviour) may be implemented and verified in a single
-  Sol pass. This exception does not cover code, hooks or configuration that changes execution.
+- Low-risk docs, mechanical copy and tracking may skip a separate verifier: author checks plus root review suffice, and root
+  may resolve with that evidence. Behavioural/code fixes use the one fresh Sol medium review above; execution-changing hooks
+  or configuration are not mechanical copy. Preserve meaningful regression RED/GREEN and actual WASM compilation for presentation.
+- Existing ticket acceptance, counterexamples and unresolved gates remain recorded. Reassess counted gates in a bounded root
+  decision; this default does not silently close106 or remove its counterexamples.
 - Planning and decision work is read-only; the user answers decisions. All role models are in [agent-workflow.md](agent-workflow.md).
 - Say which model did what in the Outcome. Never claim a result you did not observe.
 
@@ -52,9 +56,9 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
   run (about 35 seconds) cover Core changes the page compiles.
 - `python3 scripts/check.py quick` runs only the checks covering your changed files; use
   it while iterating.
-- The **full cycle** (`repo lint typecheck build browser test`) runs **once per batch**
-  of tickets, and once more in the integration or verification ticket that closes an
-  effort, not once per ticket. A batch is the tickets that land together.
+- The **full cycle** (`repo lint typecheck build browser test`) runs **once per integration batch** of tickets that land together.
+  Verifier and root reuse sufficient source-bound checks rather than repeating full suites. Effort closure alone does not require
+  another full run; rerun only after changed inputs, a new risk or an evidence gap. Preserve the full-check requirement before a PR.
 - `release` is never run by an agent.
 
 ## One run at a time

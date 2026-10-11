@@ -8,8 +8,8 @@ app's private memory. Read this page, then
 
 ## Models and who does what (the same in Codex and Claude)
 
-Set by the user on 2026-10-10, with a later Luna-first effort policy to reduce token usage. Keep role independence;
-choose the lowest sufficient effort for each new bounded task and escalate when evidence warrants it.
+Set by the user on 2026-10-10 and revised on 2026-10-11 to reduce duplicate verification. Choose the lowest sufficient effort;
+use one fresh independent review for code/behaviour changes, with escalation only when evidence warrants it.
 
 | Role | What it does | Model / effort |
 | --- | --- | --- |
@@ -18,16 +18,18 @@ choose the lowest sufficient effort for each new bounded task and escalate when 
 | Bounded planning research (read-only) | focused source research, straightforward plans | **Luna 6, medium**; **high** for harder bounded investigation |
 | Complex planning research (read-only) | material cross-domain, API or hardware/electrical risk | **Sol 6.1, max**; **Astra, medium** only as a last resort |
 | Implementer | one ticket in one lane worktree, test first | **Luna 6, medium** for routine low-risk changes; **high** for substantive implementation |
-| Verifier / reviewer | reproduces, mutation-checks, fixes small defects, sets `resolved` | **Sol 6.1, xhigh** |
+| Verifier / reviewer | one fresh independent review after the completed implementation; reuses sufficient checks, targets evidence gaps | **Sol 6.1, medium**; **xhigh** only for justified complexity/escalation |
 | Browser or CAD runs | needs Chrome, `wasm-pack`, podman | the same sessions, sandbox lifted |
 
-Implementer and verifier must be different sessions with different models (Luna implements, Sol verifies). Commit trailers name
+For code/behaviour review, implementer and reviewer are different sessions/models (Luna implements, Sol reviews). Low-risk docs,
+mechanical copy and tracking may use author checks plus root review without a separate verifier; see verification-process.md. Commit trailers name
 the agent that made the commit (for example `Co-Authored-By: Codex <noreply@openai.com>` or the Claude trailer for work done in
 Claude Code). Until 2026-10-10 Claude Haiku, Sonnet and Opus filled these roles; tickets resolved before then say so.
 
 Active sessions keep their settings and fixed scope. Avoid delegation overhead for tiny tasks; pass fresh agents only
 the necessary task, paths, references and evidence. Reuse sufficient findings. Luna preparation does not replace the
-fresh Sol acceptance verifier/reviewer. Ticket-specific higher-effort gates remain binding until explicitly revised.
+one fresh Sol acceptance review for code/behaviour changes. Reuse source-bound writer evidence; preserve recorded acceptance
+requirements and counterexamples. Reassess ticket-specific counted gates explicitly rather than silently dropping them.
 
 ## Codex dispatch
 
@@ -43,7 +45,7 @@ orchestrator; an existing session keeps its selected settings when a config file
 
 Use Codex's `collaboration.spawn_agent` for work delegated within the current chat. For an implementer, set
 `fork_turns: "none"`, `model: "gpt-6-luna"`, with `reasoning_effort` selected from the role table; for a fresh verifier, use
-`fork_turns: "none"`, `model: "gpt-6.1-sol"`, `reasoning_effort: "xhigh"`. Select planning research by the same table.
+`fork_turns: "none"`, `model: "gpt-6.1-sol"`, `reasoning_effort: "medium"`; justify xhigh from actual complexity or escalation. Select planning research by the same table.
 A full-history fork inherits the parent's model and effort, so it cannot select the different role model.
 Select the lowest sufficient effort; do not infer or claim a runtime service tier from model selection.
 
@@ -51,15 +53,16 @@ Subagents share the initial working directory and filesystem. They do not get an
 Every brief must give the **absolute** lane worktree, branch, ticket, allowed files, checks and exclusions; require an explicit
 `exec_command` `workdir` on every shell call. Before editing, the agent reports `pwd`, `git rev-parse --show-toplevel`,
 `git branch --show-current` and `git status --short` from that worktree. Only one implementer or verifier writes a lane at a time.
-The orchestrator waits for the implementer to finish before starting its verifier, and stays responsible for the file-owner table
+The orchestrator starts the one required code/behaviour review only after the completed writer handoff, and stays responsible for the file-owner table
 in `docs/plans/typed-core-edits/parallel-lanes.md`. Model selection is evidenced by dispatch/runtime settings, not an agent's
 self-description.
 
 ### Handoffs and command windows
 
-Grant a complete bounded cycle: exact paths, acceptance evidence, mutations and checks; when a ticket claim is required, commit
-it before `START`. The implementer hands off only after stopping at the completed handoff, with the action taken and pointers to evidence. For affected browser tests or configuration, compile the actual target; intermediate RED/fix iterations remain one writer unit. Fresh independent acceptance begins only after the completed handoff. Then grant the
-fresh Sol verifier its own command window and fixed scope. Name each foreground command owner, and record transitions and
+Grant a complete bounded cycle: exact paths, acceptance evidence, relevant checks and any justified mutations; when a ticket claim is required, commit
+it before `START`. The implementer hands off only after stopping at the completed handoff, with the action taken and pointers to evidence. For affected browser tests or configuration, compile the actual target; intermediate RED/fix iterations remain one writer unit. Fresh independent code/behaviour review begins only after the completed handoff. Grant the
+fresh Sol medium reviewer its own command window and fixed scope, reusing sufficient writer checks. Rerun targeted checks only
+for a concrete risk or evidence gap; mutations prove important guarantees when needed, not every ticket automatically. Name each foreground command owner, and record transitions and
 release; escalate any scope change before doing it. Keep one current state snapshot. At meaningful transitions or exceptions,
 send the next action and evidence pointers instead of repeating the narrative. Poll foreground work every 30–60 seconds without
 per-poll commentary or background watchdogs. Choose the lowest sufficient effort from the role table; use the existing Luna
@@ -90,7 +93,8 @@ asks for them.
 1. Never `git stash`; stage explicit paths only; never `git add -A` or `git add .`; no push, merge to `dev` or PR without the
    user. Use a temporary commit to set work aside.
 2. Cargo uses 12 jobs (`.cargo/config.toml`); never pass `CARGO_BUILD_JOBS=2`. Never run `python3 scripts/check.py release`.
-3. Ticket process: implementer sets `implemented (awaiting verification)`; the verifier resolves. Run only the check steps the
+3. Ticket process: implementer sets `implemented (awaiting verification)`; the required reviewer resolves, or root reviews/resolves
+   low-risk docs, mechanical copy and tracking after author checks. Run only the check steps the
    change needs; the full `check.py` runs once per batch. Sequential, foreground, one run at a time. A scope given to an agent is
    fixed when it starts; new asks become tickets.
 4. GitNexus is never refreshed by lane agents; the orchestrator refreshes at batch boundaries and addresses the index by
@@ -104,8 +108,8 @@ asks for them.
 2. Reuse/create the lane's persistent coordinator chat and set up its worktree when needed (commands in `parallel-lanes.md`:
    own branch, `target` directory on disk, real copies of `cad/.cache` and `cad/wasm/pkg`). Record owners and leases in
    the central registry. Run one foreground command globally at a time; timing work needs the machine alone.
-3. Hand each ticket to an implementer with the common rules plus the lane prompt; when it reports, hand it to the verifier with
-   the verifier prompt.
+3. Hand each ticket to an implementer with the common rules plus the lane prompt; after its completed handoff, use one fresh
+   Sol medium review for code/behaviour, or author checks/root review for low-risk docs, mechanical copy and tracking.
 4. Merge a verified lane into `typed-core-edits/mechanical` with `git merge --no-ff`; if a lane branch is behind, merge the
    integration branch into the lane first. Regenerate goldens, never hand-merge them.
 5. After a batch: run the full `python3 scripts/check.py` once on the integration branch, write the `map.md` progress lines, refresh
@@ -133,6 +137,6 @@ Open Codex (Sol 6.1, medium) with `/home/chris/01_Projects/ts-boardstudio2/.work
 > `docs/agents/agent-workflow.md` (roles, models, rules, the state snapshot at its end), `docs/agents/verification-process.md`,
 > `docs/agents/gitnexus-index.md`, `docs/plans/typed-core-edits/parallel-lanes.md` and `lane-prompts.md`, then
 > `docs/plans/typed-core-edits/map.md`. You plan and orchestrate: you write tickets, hand them to implementers (Luna 6 at the lowest sufficient effort)
-> and verifiers (Sol 6.1, xhigh) as separate sessions, merge verified lanes with `git merge --no-ff`, run the batch check, and
+> and one fresh reviewer (Sol 6.1, medium by default) after each completed code/behaviour unit; low-risk docs/copy/tracking use author checks and root review. Merge verified lanes with `git merge --no-ff`, run the batch check, and
 > refresh GitNexus with `python3 scripts/gitnexus-refresh.py`. You do not verify tickets you hand out and you do not merge to `dev`
 > or push. Start with "First steps for the orchestrator", report the ready work and continue within the user's authorized scope.
