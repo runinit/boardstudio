@@ -3,7 +3,7 @@
 Status: claimed
 
 Claimed by: Codex lane F, new Luna 6 medium implementation session `/root/reset_socket_130_implementer`.
-Claim scope: only new `footprints/tests/reset_switch_smd_side_qualification.rs` and this ticket. The session is brief-only until root persists this claim and grants the exact constructor/impact read window; no code or checks are authorized by this record. Final verification requires a fresh Sol 6.1 xhigh session distinct from the implementer and planner.
+Claim scope: only new `footprints/tests/reset_switch_smd_side_qualification.rs` and this ticket. The exact constructor and impact context is cached at `/home/chris/.cache/boardstudio-baselines/ticket130/constructor-context-c2c04f3.md`. Final verification requires a fresh Sol 6.1 xhigh session distinct from the implementer and planner.
 Type: qualification
 Parent: 118
 
@@ -153,6 +153,10 @@ jobs; do not serialize a 12-job check by overriding it. Root retains the
 index refresh and graph-change analysis ownership.
 
 ## Outcome
+
+The new qualification test renders the public bundled generator on front and back at synthetic nonzero poses and checks numbered pad layers/nets, manufacturer-labelled land-pattern dimensions, boss-hole semantics and dimensional leaders, the independently fixed pose-vector oracle, and default/overridden model bindings. It keeps the upper-hole diameter as producer configuration only and records the missing manufacturer dimension and physical-fit limits above. Producer, registry, model assets, defaults, recipes, Core, goldens and existing tests were not changed.
+
+No test, lint, formatting, or browser check was run in the implementation window. The fresh verifier must run the focused qualification, `python3 scripts/check.py repo lint`, and the full footprint crate test in root-granted sequential command windows. The lower-hole producer mutation remains unperformed and requires its separate root mutation lease; no red/green or verification claim is made here. No source or product model fit has been claimed.
 
 Planning-only draft based on the read-only source audit and independent Sol
 6.1 max plan review. No qualification tests have been authored or run, no
