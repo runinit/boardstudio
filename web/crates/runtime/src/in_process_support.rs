@@ -30,6 +30,7 @@ pub struct InProcessCore {
     engine: RefCell<boardstudio_core::CoreEngine>,
     closed: Cell<bool>,
     behavior: GateDriver,
+    fail_after_hold: RefCell<Option<String>>,
     gate: RefCell<Option<AsyncGate>>,
     request_filter: Cell<Option<fn(&CoreRequest) -> bool>>,
     scripted_reply: Cell<Option<fn(&CoreRequest) -> Option<CoreReply>>>,
@@ -44,6 +45,7 @@ impl InProcessCore {
             engine: RefCell::new(engine),
             closed: Cell::new(false),
             behavior: GateDriver::default(),
+            fail_after_hold: RefCell::new(None),
             gate: RefCell::new(None),
             request_filter: Cell::new(None),
             scripted_reply: Cell::new(None),
@@ -54,6 +56,7 @@ impl InProcessCore {
     }
 
     pub fn fail_next_reply(&self, reason: impl Into<String>) {
+        self.fail_after_hold.borrow_mut().take();
         self.request_filter.set(None);
         self.behavior.fail_next_core(reason);
     }
@@ -63,12 +66,23 @@ impl InProcessCore {
     }
 
     pub fn gate_next_reply(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        self.fail_after_hold.borrow_mut().take();
         self.request_filter.set(None);
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
         self.behavior.hold_next_core();
         *self.gate.borrow_mut() = Some((entered, release_rx));
         (entered_rx, release)
+    }
+
+    /// Hold the next Core reply and fail that same request after release.
+    pub fn gate_next_reply_then_fail(
+        &self,
+        reason: impl Into<String>,
+    ) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let gate = self.gate_next_reply();
+        *self.fail_after_hold.borrow_mut() = Some(reason.into());
+        gate
     }
 
     /// Filter a one-shot behavior so unrelated Session requests still reach Core.
@@ -143,8 +157,15 @@ impl CoreExecutor for InProcessCore {
                         let Some((entered, release)) = self.gate.borrow_mut().take() else {
                             return Err(HostError("Core gate was not configured".into()));
                         };
+                        let fail_after_hold = self.fail_after_hold.borrow_mut().take();
                         let _ = entered.send(());
                         let _ = release.await;
+                        if self.closed.get() {
+                            return Err(HostError("core worker is closed".into()));
+                        }
+                        if let Some(reason) = fail_after_hold {
+                            return Err(HostError(reason));
+                        }
                     }
                 }
             }
@@ -261,6 +282,7 @@ impl CoreExecutor for InProcessCore {
     fn close(&self) {
         self.closed.set(true);
         self.take_behavior();
+        self.fail_after_hold.borrow_mut().take();
         self.archive_behavior.take_save();
         self.gate.borrow_mut().take();
         self.archive_gate.borrow_mut().take();

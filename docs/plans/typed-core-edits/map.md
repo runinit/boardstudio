@@ -228,6 +228,28 @@ verification window ended. Full parent acceptance is not waived by partial slice
   Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
   focused, repo/lint and all 77 footprint tests. Default 2.6 mm pads, physical fit/model alignment and whole-board
   qualification remain unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) stays open.
+- [129](issues/129-choc-v1-hotswap-socket-qualification.md) is resolved for the selected Choc v1 socket
+  configuration and integrated at `8e8f6bfab`. Independent verification of corrected commit `0c9a1178`
+  killed the dimensioned lower-hole drill mutation, restored exact production bytes and passed repo/lint
+  and all 79 footprint tests. The upper-hole diameter remains configuration-only; right-land dimensions,
+  physical fit/model datum and whole-board qualification remain open. The earlier unsupported both-hole
+  manufacturer attribution at `2cff220e` failed review and was explicitly corrected. Ticket 118 stays open.
+- [130](issues/130-reset-switch-smd-side-qualification.md) is resolved for the bounded Panasonic side-reset
+  generator configuration and integrated at `bf464be5e`. Fresh independent verification reviewed manufacturer
+  drawing pixels and parser/model bindings, killed the lower-only 0.75-to-0.95 mm drill mutation, restored exact
+  producer bytes and passed focused, repo/lint and all 81 footprint tests. Upper-hole diameter remains
+  configuration-only; actuator datum, physical fit, model alignment, case access and ticket 118 remain open.
+  The shared post-merge integration batch at `1ad6b95c8` passed in 401.0 s, including all 70 presentation tests.
+- [128](issues/128-keycaps-queued-settings-waits.md) is resolved for its bounded keycaps queued-settings slice,
+  independently verified and integrated at `1ad6b95c8`. Nine restored mutation variants and the original
+  downstream assertion provide the recorded sensitivity evidence. The vacuous-wait variant observed `None`,
+  not a completed wrong-depth edit; no completion claim follows from it. The full default batch passed.
+- [131](issues/131-diode-sod123-opt-in-qualification.md) has an independently reviewed opt-in Vishay diode
+  plan, with existing registry input behavior confirmed. Baseline-only preparation precedes producer changes;
+  legacy defaults and all 43 historical render cases must remain unchanged. HIGH registry / CRITICAL schema
+  consumer impacts remain in scope. Implementation and qualification are pending; ticket 118 stays open.
+- The next nine-test browser inspector proposal is deferred: 1.08 s of scheduled waits is not a measured gain,
+  and negative-case causal proof remains unresolved. Shared helper impacts are HIGH; no implementation lease.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
