@@ -27,7 +27,7 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
-| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | 119, 129 and 130 passed bounded independent verification and are integrated. 130 merge `bf464be5e` includes verification record `2d4b03c9`; shared batch at `1ad6b95c8` passed 401.0 s. Baseline helper independently verified and checkpointed `4607c266`; frozen 43-case baseline records 40 successes/3 current Rust errors. 131 producer passed fresh independent qualification/compatibility checks and two meaningful restored mutations; producer `d246d4d9` integrated `42df5e642`; full cohort batch at `b01c106a4` passed539.1s. Ticket131 resolved; encoder manufacturer evidence complete and source comparison pending. Physical hardware gates and118 remain open. |
+| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | 119, 129 and 130 passed bounded independent verification and are integrated. 130 merge `bf464be5e` includes verification record `2d4b03c9`; shared batch at `1ad6b95c8` passed 401.0 s. Baseline helper independently verified and checkpointed `4607c266`; frozen 43-case baseline records 40 successes/3 current Rust errors. 131 producer passed fresh independent qualification/compatibility checks and two meaningful restored mutations; producer `d246d4d9` integrated `42df5e642`; full cohort batch at `b01c106a4` passed539.1s. Ticket131 resolved; encoder comparison supports the claimed test-only numeric/role qualification child133 of118. Child133 source work waits for root's claim commit, complete-cycle grant and delivery-queue completion. Ticket118's physical/system gates remain open. |
 
 F's earlier `.worktrees/lane-boards-review` branch is committed and integrated; it is frozen, not another active writer.
 Other existing worktrees and old ticket chats are not active lane leases. Preserve them and confirm ownership before reuse.
@@ -64,7 +64,7 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root for the completed F131+B132 cohort tracker/index boundary. Batch passed at `b01c106a4`; B/F writers and verifiers are stopped and all source/mutation windows released. No lane implementation lease is active. Next pending work is a bounded encoder source audit and planning the next fixed-membership assembly slice.
+Current command owner: root for the child133 claim commit and cross-effort delivery queue. The bounded documentation window is complete and released. No source implementation lease is active; child133's proposed one-file lease remains held until root commits the claim, explicitly grants the complete cycle and completes the queue.
 
 Completed F131 edit lease (released): `footprints/src/generators/ceoloide/diode_tht_sod123.rs` PARAMS/body only; new `footprints/tests/diode_sod123_qualification.rs`; `footprints/tests/generators.rs` strict schema extension/private explicit-false comparator, preserving baseline helpers; narrow `docs/investigations/footprint-generators-rust.md` deviation. No shared API/Registry/Core changes or generated outputs. Existing absent whole-record comparison stays unchanged; explicit false accounts for only the added input flag and compares output/export/net/error payloads exactly. Root owns ticket/map edits. Completed B132 write lease (released): only `core/src/mirrored_half/reconcile.rs` private fixed-membership geometry/view builder and focused tests. Shared matrix/reflection helpers, visibility, schema, activation, topology/add/remove/deletion and generated outputs are excluded.
 
@@ -182,6 +182,13 @@ F's separate authorized planning-doc lease covers the hardware-candidates report
 unstaged/untracked work must be preserved, reviewed and persisted separately before integration needs those links.
 Electrical/firmware/stack and native recipe prerequisites remain open; selected adaptations preserve measured layouts
 and use existing case generation for plate, gasket and tolerances.
+
+Child133's proposed source lease is limited to the new `footprints/tests/encoder_ec11e15244g1_qualification.rs`. It uses the
+documented numeric pattern and terminal-role crosswalk for front-only 0/90/120-degree placements; no producer, PARAMS,
+registration, Core, recipe, asset or existing-test edit is authorized. The ticket is claimed, but source `START` waits for
+root's claim commit, explicit complete-cycle grant and finished delivery queue. Luna medium implements; a fresh Sol 6.1 xhigh
+verifies. No temporary producer mutation is granted. Numeric qualification cannot establish tab profile/plating, physical
+back-side fit, STEP fit or the broader hardware gates in118.
 
 Maps, this registry, CONTEXT, ADRs and generated goldens remain root-owned. `scripts/check.py` remains C-owned
 only with an active explicit lease. C/D/E are preparing; none has an implementation or command lease.

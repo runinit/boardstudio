@@ -229,6 +229,8 @@ verification window ended. Full parent acceptance is not waived by partial slice
   qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
   native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
   board work and sign-off; the user has delegated hardware selection.
+- [133](issues/133-ec11e15244g1-encoder-qualification.md) is claimed as a test-only numeric pattern and terminal-role
+  qualification child of 118. Its isolated qualification does not block on 118 and does not close 118's open engineering gates.
 - [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
   configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
   Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
