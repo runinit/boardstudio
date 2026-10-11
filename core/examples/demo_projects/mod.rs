@@ -388,30 +388,33 @@ pub fn prepare(destination: Option<&str>, shipped: Option<&BTreeMap<String, Valu
                 &built
             }
         };
-        let bytes = fs::read(root().join("content/archives/reviung41-original.boardstudio"))?;
-        let (reply, buffers) = archive_request(
-            json!({"kind":"unpack-project"}),
-            std::slice::from_ref(&bytes),
-        )?;
-        let mut assets = Vec::new();
-        for asset in a(&reply["assets"]) {
-            let b = &buffers[asset["bufferIndex"].as_u64().unwrap() as usize];
-            let hash = s(&asset["sha256"]);
-            fs::write(staging.join(hash), b)?;
-            assets.push(json!({"sha256":hash,"bytes":b.len()}));
-        }
-        fs::write(staging.join("reviung41.json"), s(&reply["projectJson"]))?;
-        fs::write(staging.join("reviung41.boardstudio"), &bytes)?;
-        let doc: Value = serde_json::from_str(s(&reply["projectJson"]))?;
-        fixtures.push(json!({"name":"REVIUNG41","source":"content/archives/reviung41-original.boardstudio","source_sha256":digest(&bytes),"document_id":doc["id"],"revision":doc["revision"],"assets":assets}));
-        for variant in SOFLE_VARIANTS {
-            let key = format!("sofle-{variant}");
-            let name = if variant == "v2" {
-                "sofle".into()
-            } else {
-                key.clone()
-            };
-            fixtures.push(pack(shipped[&key].clone(), &staging, &name)?);
+        for (name, source, output_name) in [
+            (
+                "REVIUNG41",
+                "content/archives/reviung41-original.boardstudio",
+                "reviung41",
+            ),
+            ("Sofle", "content/archives/sofle.boardstudio", "sofle"),
+        ] {
+            let bytes = fs::read(root().join(source))?;
+            let (reply, buffers) = archive_request(
+                json!({"kind":"unpack-project"}),
+                std::slice::from_ref(&bytes),
+            )?;
+            let mut assets = Vec::new();
+            for asset in a(&reply["assets"]) {
+                let buffer = &buffers[asset["bufferIndex"].as_u64().unwrap() as usize];
+                let hash = s(&asset["sha256"]);
+                fs::write(staging.join(hash), buffer)?;
+                assets.push(json!({"sha256":hash,"bytes":buffer.len()}));
+            }
+            fs::write(
+                staging.join(format!("{output_name}.json")),
+                s(&reply["projectJson"]),
+            )?;
+            fs::write(staging.join(format!("{output_name}.boardstudio")), &bytes)?;
+            let doc: Value = serde_json::from_str(s(&reply["projectJson"]))?;
+            fixtures.push(json!({"name":name,"source":source,"source_sha256":digest(&bytes),"document_id":doc["id"],"revision":doc["revision"],"assets":assets}));
         }
         let layouts = read("content/layouts/keyboard-layouts.json")?;
         let layouts = layouts.as_object().unwrap();
@@ -451,6 +454,8 @@ pub fn prepare(destination: Option<&str>, shipped: Option<&BTreeMap<String, Valu
             "core/examples/demo_projects/review.rs",
             "content/layouts/keyboard-layouts.json",
             "content/layouts/sofle-layouts.json",
+            "content/archives/reviung41-original.boardstudio",
+            "content/archives/sofle.boardstudio",
             "content/layouts/module-review.json",
             "catalogue/modules/imported-modules.json",
             "catalogue/parts/imported-parts.json",

@@ -5,6 +5,10 @@ Type: task
 Blocked by: [19](19-reconcile-mirrored-halves.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
 
+## Current contract (2026-10-11)
+
+This remains optional shared recipe work after the required mirrored-half/link capability in 19/22. It may improve common examples, but it is not a prerequisite for the ordinary saved projects in ticket 25. Do not create per-board recipe branches, builders, behavior suites, or helper extraction. Preserve this ticket's existing Outcome and history below.
+
 ## Request
 
 Delete the hand-written mirror arithmetic in `core/examples/demo_projects/recipes.rs`

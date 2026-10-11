@@ -9,18 +9,17 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > Read `AGENTS.md`, `docs/agents/agent-workflow.md`, `docs/agents/verification-process.md` and
 > `docs/plans/typed-core-edits/parallel-lanes.md`. Work only in your lane worktree on your lane branch.
 > Read the central integration `lane-registry.md` before dispatch/edit/check/verification handoff; compare file/symbol leases
-> and escalate overlaps or unexpected dirty state to root before contested edits. Obtain root's global command window.
+> and escalate actual ownership conflicts before contested edits. Read-only shell commands/searches/diffs/graph queries and approved disjoint source work run freely in separate worktrees. Builds/compilation, test execution, browser, timing and index refresh require the explicit GLOBAL HEAVY slot; protect shared writable outputs and one writer per worktree.
 > Use its absolute path as `exec_command`'s `workdir` on every shell call; report the path, branch and status before editing.
-> Implementers claim a ticket by setting `Status: claimed` and committing; verifiers keep its awaiting-verification status
-> until acceptance holds. Implement test-first; run only the check steps the process table names, one command at a time in
-> the foreground. Follow `verification-process.md` for the active app's sandbox policy. Stage explicit paths; no
+> Follow the initial claim rule and standing-authority exception in agent-workflow.md; approved B chain continuation does not wait for another root START/clerical claim checkpoint per private helper, test or fixed-scope child. Reviewers keep awaiting-verification status until acceptance holds. Implement test-first; run only the affected checks, with sequential command execution within each lane. Obtain one complete bounded debugging + affected-check HEAVY cycle, carry approved RED → fix → GREEN without per-command/single-probe handoffs, and release it explicitly. Timing requires the machine alone; resource-heavy runs never overlap. Follow `verification-process.md` for the active app's sandbox policy. Stage explicit paths; no
 > `git stash`, no `git add -A`, no push, no merge. Maps (`docs/plans/*/map.md`), `CONTEXT.md` and `docs/adr/*` belong to
 > the orchestrator; propose text in your ticket Outcome. Generated goldens (`core/tests/fixtures/boundary/transcript.json`,
 > `core/tests/fixtures/demo-projects-baseline.json`) are root-owned; propose required regeneration in your Outcome.
-> Run GitNexus impact before edits and
+> For affected browser tests or configuration, compile the actual target; intermediate RED/fix work stays in the same writer unit, and the writer stops at a completed evidence-backed handoff. Run GitNexus impact before edits and
 > detect-changes before commits, bound to your checkout. Do not refresh GitNexus or register for its Stop hook; confirm
 > stale, empty or UNKNOWN caller answers with `rg` and report the limitation. Never run `scripts/check.py release`.
-> Follow the role time boxes in `verification-process.md`. Implementers finish with
+> Use the evidence-reuse review policy in `verification-process.md`: one fresh Sol6.1 medium review for code/behaviour;
+> author checks plus root review may cover low-risk docs, mechanical copy and tracking. Implementers finish with
 > `Status: implemented (awaiting verification)` and an honest `## Outcome`: commands with
 > timings, what you did not run, decisions, deviations. Report exactly what you observed.
 
@@ -43,8 +42,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 
 ### B3: ticket 19, reconcile on every edit (run alone in the lane, after B1 and B2 are resolved)
 
-Current dispatch uses the reviewed child chain 105–117 in parent 19, beginning with 105 after 39; root releases one
-child at a time. The original parent acceptance remains binding; the parent prompt below is reference, not a single-session scope.
+B owns standing planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation through105–117. Group tightly coupled private slices when each acceptance and ownership stays explicit; do not require a review/session or root START per ticket number/private helper/test. Preserve full19 acceptance/counterexamples and111 activation gates. The user-approved removal-only wrapper in106 lifts its prior visibility HOLD, with remap_parts/PartChanges remaining private; no blanket visibility waiver. Current grants survive compaction; handoff is notification, not an implicit unfinished-work review or STOP. Root still schedules complete GLOBAL HEAVY cycles and owns refresh/integration/goldens; read-only commands and disjoint source work run freely alongside ordinary checks under the user-approved lighter policy, superseding older all-command restrictions. Escalate only actual new decisions/representability, ownership conflicts, unapproved API/schema/config/visibility or destructive changes, or concrete failed-acceptance scope.
 
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/19-reconcile-mirrored-halves.md`, including its
 > "Contracts from other tickets". It edits the CRITICAL-impact apply path: run GitNexus impact and report its callers and
@@ -69,28 +67,18 @@ child at a time. The original parent acceptance remains binding; the parent prom
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/38-merge-duplicate-browser-tests.md`. Re-read both
 > bodies first; merge only exact duplicates; list what each merge preserves. Check steps as A1.
 
-## Lane F: shipped boards review research (worktree `.worktrees/lane-boards-review`, branch `lane/boards-review`; no builds)
+## Lane F: demo retirement138
 
-> Common rules above. Ticket: `docs/plans/typed-core-edits/issues/25-shipped-boards-review.md`. This is PHASE 1,
-> read-only research: produce `docs/plans/typed-core-edits/audit/shipped-boards-review.md` with, for each of the 20
-> shipped projects (Sofle v2, RGB and Choc FIRST, then the seven measured splits, then the unibody boards, the
-> REVIEUNG41 archive and the VIK review): the part list and footprints, library source, side and `reversible` settings,
-> positions against the measured source JSON under `content/layouts`, mounting holes and keep-outs, the generated
-> bay/reset/TRRS placeholders, the recorded fit findings (tickets generator-parameters 02 and 06, typed-core-edits 04
-> Outcome), and the rule differences from ADR-0010 (headings: independent parts take `180 - r`; switches `-r`; the
-> companion modes of ticket 31). Rank findings by severity (blocks a build, wrong physically, cosmetic) with file or
-> fixture references. Ask the user for hardware decisions; do not guess. Do NOT change recipes, fixtures, footprints
-> or code. No builds are needed; do not run `cargo`. Run `python3 scripts/check.py repo` before committing the doc.
-> Finish with the ticket `Status: ready-for-human` (the user reviews the ranked list before fixes start) and a short
-> Outcome linking the review.
+> F’s existing coordinator owns ticket138 under its exact manifest and a complete GLOBAL HEAVY debugging/affected-check cycle. Read-only commands and disjoint source work need no global lease; finish/restore a running probe before any writer switch, then fresh review after completed writer STOP. Remove shipped/demo board-specific code/tests; retain shared assertions only through independently specified minimal synthetic fixtures/contracts, never copied demo geometry. Prospective test-only retirement borrowers may port fixtures through an exact handoff amendment with file ownership recorded; no production algorithm bug fixes belong in138. Root owns generated-golden/output removals, refresh and integration. Preserve E137’s synthetic Export regression, shared components, user projects and required mirror/link coverage. Board authoring/reintroduction is deferred.
 
-## Verifier prompts (Sol 6.1, xhigh, fast; implementers use Luna 6, high, fast)
+## Reviewer prompts (Sol 6.1, medium by default; implementers use Luna 6 at the lowest sufficient effort)
 
 Open Codex with the lane worktree as its working folder, paste the common rules, then the prompt below with the ticket named.
 Commit trailers: `Co-Authored-By: Codex <noreply@openai.com>`.
 
-> Common rules above, plus: you are a REVIEWER, time box about 45 minutes. Do not trust the Outcome; reproduce its
-> claims; mutation-check the main assertions (disable one site at a time, confirm a test fails, restore, touch the
-> sources); fix only small clearly correct defects (about a screen plus a test); anything bigger becomes a follow-up in the
-> ticket's `## Verification` section. Set the ticket `resolved` only if its own acceptance holds, with who-verified-what
-> evidence, and report findings, commits, commands with timings and unverified items.
+> Common rules above, plus: you are the ONE fresh independent REVIEWER after the completed Luna handoff. Use Sol6.1 medium;
+> justify xhigh only from actual complexity or escalation. Review the final diff and raw source-bound writer evidence. Reuse
+> sufficient checks; rerun targeted verification only for a concrete risk/evidence gap, not another full suite by default.
+> Mutations are for important claimed guarantees needing proof; preserve existing counted gates until explicitly reassessed.
+> Restore/touch/hash sources after any mutation. Fix only small clearly correct defects (about a screen plus a test); report
+> larger blockers in `## Verification`. Resolve only when acceptance holds, recording checks reused/run and unverified items.

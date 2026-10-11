@@ -2,27 +2,27 @@
 
 Status: ready-for-human
 Type: task
-Blocked by: [49](49-sofle-v2-native-mechanics.md), [52](52-sofle-rgb-native-mechanics.md), [55](55-sofle-choc-native-mechanics.md)
+Blocked by: none
 Parent: [25](25-shipped-boards-review.md) · Coordination: [23](23-redo-keyboard-04-on-native-halves.md)
 
 ## Purpose and ownership
 
-The user explicitly requires Sofle v2, RGB and Choc fixed/independently verified first, then user sign-off before remaining boards. One reviewer/planner owns this ticket's evidence and sign-off record; the user supplies approval. No recipe/code/golden work belongs to this gate. Do not resolve parent 25 or keyboard 04 here.
+The user requires one reviewable Sofle project with v2, RGB, and Choc available as Inspector assembly choices, followed by a human sign-off before remaining boards proceed. This ticket owns that single artifact review and its assembly-swap evidence. It is a child of the board review, but it does not wait for all of ticket 25 to finish and has no dependency on the retired per-variant tickets 49, 52, or 55. Shared mirror/link behavior remains separately required under 19/22; this review does not duplicate it.
 
 ## Review packet
 
-Collect the current source/commit pins, native assembly/peripheral/mechanical Outcomes from tickets 47–55 and hardware answers in 46. Reuse sufficient current verification evidence; request a missing targeted pass rather than repeat the full batch:
+Capture one ordinary saved Sofle project authored through the existing Core/Archive/Artifact JSON request examples and common user operations. Record the saved artifact identity and the existing Inspector assembly choices. Demonstrate a reviewable swap between v2, RGB, and Choc choices and verify the resulting saved project through normal reopen/roundtrip operations.
 
-- Per variant: measured-key/native-profile correspondence, one authored half and native mirror, approved companion modes, independent-part headings, side/parameters, source TH1–TH7 versus generated mounts, real component/pin/datum evidence and explicit exceptions.
-- Actual PCB, plate and case output, selected mount/profile and updated numerical closure/component/switch/stabiliser/access clearances on both halves. Keep physical fit and electrical qualification separate from successful generation.
-- Before this sign-off, the coordinator dispatches a fresh Sol 6.1 xhigh verifier for a targeted Sofle mounted pass covering all three rebuilt variants: live edit from both halves, local/omitted exception where deliberately supported, Undo/Redo, and portable save/reopen. Record the exact commits, commands, results and artifacts in this ticket. Schedule its browser/export work through the global slot; missing evidence keeps 56 open. This pass is owned here and does not wait for final ticket 23. Ticket 23 reuses current Sofle evidence and retains the final cross-board mounted-browser, Standards/Spec and full-check obligations.
-- Remaining findings with severity, exact owner/ticket and user-visible limitation. An unsupported hardware claim or failed agreed clearance keeps the gate open.
+Retain only genuine evidence gates: source and library identity, terminal mapping, geometry, electrical qualification, both-side physical fit, mounting and clearance evidence, and explicit limitations. Reuse sufficient current evidence and request a focused missing check rather than repeat a full batch. Successful serialization/export does not establish physical fit or electrical qualification.
+
+The user reviews this concrete Sofle artifact and assembly-swap evidence and records approval to proceed with remaining boards, including any bounded accepted limitation. An unresolved evidence gap or declined sign-off keeps this gate open. No recipe, code, or golden work belongs here.
 
 ## Acceptance and verification
 
-- [ ] Fresh Sol verifiers have resolved 47–55 against their own acceptance, including meaningful mutation checks; relevant generated goldens were produced by the assigned owner.
-- [ ] The targeted pre-sign-off Sofle mounted pass above has completed independently and its evidence is recorded here; final ticket 23 is not a prerequisite.
-- [ ] User reviews the concrete three-variant packet and explicitly signs off proceeding with the remaining boards. Record date, reviewed commits/outputs and any bounded accepted limitation. Agent judgement and elapsed time cannot stand in for this approval.
-- [ ] Later-board dispatch remains blocked on this ticket. Any new requirement becomes its own ticket before dispatch; it does not widen a running Sofle implementer.
+- [ ] One ordinary saved Sofle project presents v2, RGB, and Choc as Inspector assembly choices.
+- [ ] Assembly-swap evidence and normal save/reopen behavior are recorded with artifact identity and current source pins.
+- [ ] Remaining electrical and physical qualification gaps are explicit; no fit claim follows from saved data or export success.
+- [ ] The user reviews the artifact and evidence and explicitly signs off proceeding with remaining boards. Record date, reviewed artifact/outputs, and any bounded accepted limitation.
+- [ ] Tickets 57 and 79 remain gated on this sign-off. Ticket 23 reuses this evidence and retains cross-board review and integration obligations.
 
-Docs `repo`; any missing browser/export check is scheduled sequentially with the orchestrator's global slot. Full check remains one batch operation under 23/integration. If a substantive defect remains, keep this gate open and file a bounded fix rather than begin Corne.
+Docs-only repo for this ticket's record; schedule any needed browser/export run sequentially through the foreground owner. A substantive defect remains open and is routed to the smallest shared fix, not a board-specific workaround.
