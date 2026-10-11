@@ -123,6 +123,8 @@ stale mirror pose `(19, 0) @ 0`, demonstrating missing projection rather than fi
 does not prove local preservation. Source is frozen pending an independently calculated numeric oracle and
 the next bounded implementation grant. Raw fixture and baseline/RED logs are in the ticket106 planning cache.
 
+The independent fixed-membership assembly planning gate passed. Child [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) is claimed with an exact-file lease on core/src/mirrored_half/reconcile.rs only. Source START awaits root claim commit and explicit complete Luna-to-fresh-Sol verification grant. It is a bounded child of open106/19 and does not wait for either parent to resolve.
+
 ### A: Browser ticket 128
 
 Write lease: `web/crates/keycaps/src/keycaps_settings.rs` only inside `queued_settings_tests`, its local
@@ -185,9 +187,7 @@ and use existing case generation for plate, gasket and tolerances.
 
 Child133's proposed source lease is limited to the new `footprints/tests/encoder_ec11e15244g1_qualification.rs`. It uses the
 documented numeric pattern and terminal-role crosswalk for front-only 0/90/120-degree placements; no producer, PARAMS,
-registration, Core, recipe, asset or existing-test edit is authorized. The ticket is claimed, but source `START` waits for
-root's claim commit, explicit complete-cycle grant and finished delivery queue. Luna medium implements; a fresh Sol 6.1 xhigh
-verifies. No temporary producer mutation is granted. Numeric qualification cannot establish tab profile/plating, physical
+registration, Core, recipe, asset or existing-test edit is authorized. The complete implementation-to-fresh-verification cycle was granted and the Luna medium writer START began, per root update. This tracker update records F as foreground owner; no independent acceptance verdict or fresh process poll is recorded. No temporary producer mutation is granted. Numeric qualification cannot establish tab profile/plating, physical
 back-side fit, STEP fit or the broader hardware gates in118.
 
 Maps, this registry, CONTEXT, ADRs and generated goldens remain root-owned. `scripts/check.py` remains C-owned
