@@ -5,6 +5,8 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+mod outlines;
+
 #[derive(Clone)]
 struct PartProjection {
     source_id: String,
@@ -75,6 +77,9 @@ struct Projection {
     #[allow(dead_code)]
     // Ticket 107 retains validated owner context for physically absent Omitted children.
     hosted_omission_baselines: std::cell::RefCell<BTreeMap<(String, String, String), ProjectDoc>>,
+    #[allow(dead_code)]
+    // Ticket 108 authenticates outline removals against their valid pre-source pair.
+    outline_removal_baselines: std::cell::RefCell<BTreeMap<(String, String, String), ProjectDoc>>,
     locally_protected_mirror_parts: std::collections::BTreeSet<String>,
     final_owners: std::collections::BTreeMap<String, String>,
 }
@@ -2718,6 +2723,8 @@ fn reconcile(
             ));
         }
     }
+    outlines::reconcile(&mut staged, pair_id, projection)?;
+
     let mut validated_draft = staged.clone();
     let pair = validated_draft
         .hardware
@@ -2790,6 +2797,7 @@ fn reconcile(
             || (exception.kind == MirroredItemKind::Net
                 && hosted_omission_closure.nets.contains(&exception.mirror_id)))
     });
+    outlines::prepare_validation(&mut validated_draft, pair_id, projection)?;
     crate::mechanical::features::validate(&validated_draft)?;
     crate::mechanical::halves::validate_document(&validated_draft)
         .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
@@ -5311,6 +5319,10 @@ fn deduplicate_outline_members(document: &mut ProjectDoc) {
 
 #[cfg(test)]
 mod tests {
+    mod outlines_tests {
+        include!("reconcile/outlines/tests.rs");
+    }
+
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::{
@@ -8037,6 +8049,7 @@ mod tests {
             applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
             hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
+            outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             locally_protected_mirror_parts: protected,
             final_owners,
         };
@@ -9753,6 +9766,7 @@ mod tests {
             applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
             hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
+            outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             locally_protected_mirror_parts: BTreeSet::from([protected_local_id.into()]),
             final_owners: final_owners.clone(),
         };
@@ -9974,6 +9988,7 @@ mod tests {
             applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
             hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
+            outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             locally_protected_mirror_parts: projection.locally_protected_mirror_parts.clone(),
             final_owners: projection.final_owners.clone(),
         };
@@ -10004,6 +10019,7 @@ mod tests {
             applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
             hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
+            outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
             locally_protected_mirror_parts: projection.locally_protected_mirror_parts.clone(),
             final_owners: projection.final_owners.clone(),
         };
