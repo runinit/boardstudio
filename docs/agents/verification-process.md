@@ -45,15 +45,13 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
 | --- | --- |
 | Docs, tickets, ADRs only | `repo` |
 | Python scripts or check tooling | `repo`, `tooling`, plus a changed script's tests if not yet in the tooling list |
-| Rust in Core or other native crates, no web or wasm-visible change | `repo`, `lint`, `test` |
+| Rust in Core or other native crates, no web or wasm-visible change | `repo`, affected lint and focused/affected crate tests; full workspace `test` at integration |
 | Core or shared types the page also compiles | add `typecheck`; add the explicit wasm `boundary_parity::` run when the transcript changes |
-| Mounted web behaviour (web crates, Dioxus components, storage) | add `browser` |
+| Mounted web behaviour (web crates, Dioxus components, storage) | add actual WASM compilation and affected mounted/browser tests; full `browser` at integration |
 | Generated demo projects or fixtures change | add `build` |
 | Dependencies change | add `deny` |
 
-- The full `browser` step (about 200 seconds) runs for web changes, and otherwise **once per
-  batch**, not per Core ticket. `typecheck` (about 15 seconds) plus the wasm boundary parity
-  run (about 35 seconds) cover Core changes the page compiles.
+- Lane development uses focused regressions and affected targets rather than the full workspace/native/browser suites. For web changes retain actual WASM compilation and affected mounted tests; for Core boundary changes retain affected parity coverage. Broaden a lane run only for a concrete cross-cutting risk or evidence gap, with the reason recorded.
 - `python3 scripts/check.py quick` runs only the checks covering your changed files; use
   it while iterating.
 - The **full cycle** (`repo lint typecheck build browser test`) runs **once per integration batch** of tickets that land together.
@@ -61,13 +59,13 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
   another full run; rerun only after changed inputs, a new risk or an evidence gap. Preserve the full-check requirement before a PR.
 - `release` is never run by an agent.
 
+Apply [laptop multi-stream resource mode](agent-workflow.md#laptop-multi-stream-resource-mode) during concurrent workstreams: four Cargo jobs, four native test threads and one check-suite launch at a time. Full integration checks keep those caps. Reviewers reuse adequate exact-source writer results; a resource-cap change alone does not invalidate them.
+
 ## One run at a time
 
-- Run steps **sequentially, in the foreground**, and report only when they have finished.
-  Do not start a second run while one is going; they fight over the build directory and
-  lock, and the results are meaningless. Two overlapping `build`s fail in `wasm-pack` with
-  `Installing wasm-bindgen ... invalid type: sequence, expected a string` because both write the
-  same `--out-dir`; the error disappears when the runs are sequential (ticket 10).
+- The user-approved scheduling policy in [agent-workflow.md](agent-workflow.md#standing-lane-authority-and-continuity) supersedes older global-every-shell/read restrictions. Read-only shell commands/searches/diffs/graph queries and approved disjoint source work in separate worktrees run freely; keep one writer per worktree and protect shared writable outputs.
+- Builds/compilation, test execution, browser, timing and index refresh share ONE **GLOBAL HEAVY** slot with explicit owner/release. Never overlap resource-heavy runs; timing needs the machine alone. Execute commands sequentially within each lane. Overlapping builds can corrupt shared wasm-pack output (ticket10); separate worktrees do not waive the HEAVY slot or output ownership.
+- Grant one complete bounded debugging + affected-check cycle. Carry approved RED → fix → GREEN within that same HEAVY window, without per-command/single-probe handoffs. Fresh independent review follows completed writer STOP; it reuses sufficient checks and needs a HEAVY slot only for necessary heavy verification. Complete/restore an existing probe before switching writers.
 - Do not arm background monitors for a command you can simply wait for.
 - Never mutate sources in one checkout and test in another when both share a `target`
   directory: restoring a file by copy can leave an artifact the other checkout accepts.

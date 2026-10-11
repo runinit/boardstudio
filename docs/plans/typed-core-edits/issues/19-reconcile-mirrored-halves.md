@@ -18,6 +18,7 @@ made on the mirror.
 - `SetHalfException {pairId, kind, mirrorId, state: local|omitted|linked}` for Make local,
   Omit and Rejoin; `UnlinkHalves {pairId}` leaves the mirror as plain independent data.
   Removing a source item removes its mirror.
+- User-confirmed selective exceptions apply to individual screens/encoders and other independent parts, and to diode/LED companions under their ownership rules. Normal linked edits propagate; explicit MakeLocal keeps the selected visible part independently editable, Omit remains durably absent without resurrection, and Rejoin derives from the current source. Keep the rest of the pair linked and clean only targeted owned references. Users need not Unlink the whole pair for one-off changes/removals. Companion placement-mode controls in40 remain companion-only and do not restrict general part exceptions.
 - Keep `LayoutMirrorLink` for same-board pairs; refuse both links on one matrix; stop using
   `boardstudio.mirroredComponentSource` for new pairs.
 - A hand-edited mirror in an archive is re-derived with a warning.
@@ -27,6 +28,7 @@ made on the mirror.
 - [ ] A matrix, key, part, module, outline-version or net edit from either half moves both,
       in one Undo step.
 - [ ] A local or omitted item survives edits and reopen; Rejoin reflects the source again.
+- [ ] One-off screen/encoder/independent-part and diode/LED-companion changes/removals leave the rest of the pair linked; Local stays visible/independent, Omit stays absent and reference cleanup is targeted.
 - [ ] Performance guard: `core/tests/matrix_performance.rs` still passes; record the added cost.
 
 ## Verification
@@ -60,17 +62,9 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
 
 ## Execution split and readiness gate
 
-Status remains `ready-for-agent`, but this parent is blocked until **all 105–117 are
-independently resolved** and root explicitly grants a fresh verifier the final parent
-acceptance review. Root coordinates that gate; it does not verify its dispatched work.
-The original acceptance above is unchanged. The Core children form one sequential execution
-batch with exclusive Core file/API leases, with a Luna 6 high implementer followed by a fresh Sol 6.1 xhigh
-verifier per slice. Root owns scheduling, integration, the full batch check and graph refresh.
-No partial reconciliation is activated in production before 111 joins the verified slices.
-The user approved independent A/F streams on 2026-10-10: audited disjoint browser-test/component edits may overlap
-Core preparation under the [central registry](../lane-registry.md) and [parallel-streams decision](../parallel-streams-review.md).
-All shell/check commands remain globally sequential; activation and timing require exclusive windows.
-Active 105's original scope and verification remain unchanged; new code streams start after its verification.
+Status remains `ready-for-agent`; parent closure requires all105–117 to meet their recorded acceptance and required independent review, followed by full parent acceptance after111 activation. One coherent unit may satisfy multiple tightly coupled dependency-ready private slices; record acceptance for each instead of creating a session/review for every ticket number. Luna implements; ONE fresh Sol 6.1 medium reviews each completed coherent unit. The original full acceptance, counterexamples and final activation gates remain binding.
+
+The user grants B standing authority for planning, implementation, fresh acceptance and dependency-ready continuation within the approved mirror chain. This supersedes older per-command/per-child root START rules, clerical claim checkpoints and stale wrapper HUMAN holds. The exact narrow internal wrapper approval is in [106](106-reconcile-mirrored-matrices-layouts-parts.md#current-approved-execution-authority-2026-10-11); other unapproved visibility changes still escalate. Current approvals survive compaction; a handoff to root is notification, not an implicit unfinished-work review/STOP. Root schedules bounded GLOBAL foreground sequences and owns source-bound refresh, integration, batch checks and goldens. Disjoint non-shell source/planning work may overlap ordinary checks. No partial reconciliation is activated before111. Actual product/representability choices and cross-lane conflicts still escalate; already specified ticket/ADR feature operations/schema are authorized, not a blanket hold.
 
 - [105](105-mirrored-half-derivation-kernel.md): private derivation kernel, creation unchanged.
 - [106](106-reconcile-mirrored-matrices-layouts-parts.md): matrices/layouts/parts and membership.
@@ -91,8 +85,7 @@ Active 105's original scope and verification remain unchanged; new code streams 
 
 The prerequisite lanes and delivered 37 verification slice were integrated and checked at `12a6784d`;
 remaining 37 acceptance is separate A work. Root refreshes `boardstudio-lane-mirror-core` and grants exact ownership.
-Every child needs its own root-granted execution/check slots; completion is not permission
-to dispatch the next writer automatically. Generated transcripts and demo goldens stay root-owned.
+B continues dependency-ready fixed-scope children under standing authority, grouping coherent private preparation where appropriate. Request the next GLOBAL foreground sequence when needed; do not request a new root START for each child/helper/test. Generated outputs/goldens remain root-owned.
 
 ## Durable association and owned exceptions
 

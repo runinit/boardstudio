@@ -9,11 +9,9 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > Read `AGENTS.md`, `docs/agents/agent-workflow.md`, `docs/agents/verification-process.md` and
 > `docs/plans/typed-core-edits/parallel-lanes.md`. Work only in your lane worktree on your lane branch.
 > Read the central integration `lane-registry.md` before dispatch/edit/check/verification handoff; compare file/symbol leases
-> and escalate overlaps or unexpected dirty state to root before contested edits. Obtain root's global command window.
+> and escalate actual ownership conflicts before contested edits. Read-only shell commands/searches/diffs/graph queries and approved disjoint source work run freely in separate worktrees. Builds/compilation, test execution, browser, timing and index refresh require the explicit GLOBAL HEAVY slot; protect shared writable outputs and one writer per worktree.
 > Use its absolute path as `exec_command`'s `workdir` on every shell call; report the path, branch and status before editing.
-> Implementers claim a ticket by setting `Status: claimed` and committing; verifiers keep its awaiting-verification status
-> until acceptance holds. Implement test-first; run only the check steps the process table names, one command at a time in
-> the foreground. Follow `verification-process.md` for the active app's sandbox policy. Stage explicit paths; no
+> Follow the initial claim rule and standing-authority exception in agent-workflow.md; approved B chain continuation does not wait for another root START/clerical claim checkpoint per private helper, test or fixed-scope child. Reviewers keep awaiting-verification status until acceptance holds. Implement test-first; run only the affected checks, with sequential command execution within each lane. Obtain one complete bounded debugging + affected-check HEAVY cycle, carry approved RED → fix → GREEN without per-command/single-probe handoffs, and release it explicitly. Timing requires the machine alone; resource-heavy runs never overlap. Follow `verification-process.md` for the active app's sandbox policy. Stage explicit paths; no
 > `git stash`, no `git add -A`, no push, no merge. Maps (`docs/plans/*/map.md`), `CONTEXT.md` and `docs/adr/*` belong to
 > the orchestrator; propose text in your ticket Outcome. Generated goldens (`core/tests/fixtures/boundary/transcript.json`,
 > `core/tests/fixtures/demo-projects-baseline.json`) are root-owned; propose required regeneration in your Outcome.
@@ -44,8 +42,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 
 ### B3: ticket 19, reconcile on every edit (run alone in the lane, after B1 and B2 are resolved)
 
-Current dispatch uses the reviewed child chain 105–117 in parent 19, beginning with 105 after 39; root releases one
-child at a time. The original parent acceptance remains binding; the parent prompt below is reference, not a single-session scope.
+B owns standing planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation through105–117. Group tightly coupled private slices when each acceptance and ownership stays explicit; do not require a review/session or root START per ticket number/private helper/test. Preserve full19 acceptance/counterexamples and111 activation gates. The user-approved removal-only wrapper in106 lifts its prior visibility HOLD, with remap_parts/PartChanges remaining private; no blanket visibility waiver. Current grants survive compaction; handoff is notification, not an implicit unfinished-work review or STOP. Root still schedules complete GLOBAL HEAVY cycles and owns refresh/integration/goldens; read-only commands and disjoint source work run freely alongside ordinary checks under the user-approved lighter policy, superseding older all-command restrictions. Escalate only actual new decisions/representability, ownership conflicts, unapproved API/schema/config/visibility or destructive changes, or concrete failed-acceptance scope.
 
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/19-reconcile-mirrored-halves.md`, including its
 > "Contracts from other tickets". It edits the CRITICAL-impact apply path: run GitNexus impact and report its callers and
@@ -70,9 +67,9 @@ child at a time. The original parent acceptance remains binding; the parent prom
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/38-merge-duplicate-browser-tests.md`. Re-read both
 > bodies first; merge only exact duplicates; list what each merge preserves. Check steps as A1.
 
-## Lane F: shipped board artifacts
+## Lane F: demo retirement138
 
-> Common rules above. Ticket 25 is the canonical board-project contract. F is the existing sole Sofle coordinator. The exact reserved fixture lease is web/assets/fixtures/sofle.boardstudio and its existing web/assets/fixtures/sofle.json companion. Product START remains held until root commits the reviewed claim and explicitly grants it. After grant, prepare the single Sofle artifact with its existing Inspector assembly choices and hand off the artifact plus assembly-swap evidence to ticket 56. Follow ticket 25 for component evidence, shared mirror/link separation, fit limits, and all remaining board sequencing.
+> F’s existing coordinator owns ticket138 under its exact manifest and a complete GLOBAL HEAVY debugging/affected-check cycle. Read-only commands and disjoint source work need no global lease; finish/restore a running probe before any writer switch, then fresh review after completed writer STOP. Remove shipped/demo board-specific code/tests; retain shared assertions only through independently specified minimal synthetic fixtures/contracts, never copied demo geometry. Prospective test-only retirement borrowers may port fixtures through an exact handoff amendment with file ownership recorded; no production algorithm bug fixes belong in138. Root owns generated-golden/output removals, refresh and integration. Preserve E137’s synthetic Export regression, shared components, user projects and required mirror/link coverage. Board authoring/reintroduction is deferred.
 
 ## Reviewer prompts (Sol 6.1, medium by default; implementers use Luna 6 at the lowest sufficient effort)
 
