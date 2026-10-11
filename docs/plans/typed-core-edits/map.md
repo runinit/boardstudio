@@ -65,6 +65,9 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- [133](issues/133-ec11e15244g1-encoder-qualification.md) resolved: front-only EC11 nominal-pattern/terminal-role qualification, fresh 3/3 focused and 90 crate tests (3 ignored), two restored producer probes; source `4a40faff`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parent 118 remains open.
+- [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) resolved: fixed existing assemblies and retained dependencies, fresh 9/9, three restored kernel probes plus non-pose/linked-key guard corrections; source `bcdef94c`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parents 106/19 remain open and unactivated.
+
 - [131](issues/131-diode-sod123-opt-in-qualification.md) and [132](issues/132-reconcile-fixed-membership-matrix-geometry.md)
   are independently verified and integrated at `b01c106a4`: opt-in Vishay diode land-pattern qualification and
   fixed-membership multi-key mirrored geometry/preservation. Both have meaningful restored producer/kernel
@@ -229,9 +232,7 @@ verification window ended. Full parent acceptance is not waived by partial slice
   qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
   native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
   board work and sign-off; the user has delegated hardware selection.
-- [133](issues/133-ec11e15244g1-encoder-qualification.md) is claimed as a test-only numeric pattern and terminal-role
-  qualification child of 118. Its isolated qualification does not block on 118 and does not close 118's open engineering gates.
-- [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) is claimed by B after its independent fixed-membership planning gate passed. Source START awaits root claim commit and explicit complete-cycle grant; parents106/19 remain open and do not block this isolated child.
+- [133](issues/133-ec11e15244g1-encoder-qualification.md) and [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) are resolved and integrated after the full cohort PASS. B's next coherent 106 membership/ownership contract-readiness step is queued, not writer-ready; parent 118's engineering gates remain open.
 - [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
   configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
   Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed

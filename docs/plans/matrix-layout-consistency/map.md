@@ -85,13 +85,17 @@ Saved projects keep their geometry.
   [Outcome](issues/10-relations-canvas-highlight.md#outcome).
 - 11 integrated checks, save/reopen test and a real product gesture pass (with gaps):
   [Outcome](issues/11-integrated-verification.md#outcome).
+- 12 corrects two Inspector labels to match the constraint domain and Properties navigation:
+  [ticket](issues/12-inspector-copy.md).
 
 ## Still open
 
 - Ticket 07 exports `convert_offset_available` from Core so the UI and Core share the
   rule. That is one more public function than ADR-0007 names; confirm it in 07's
   review.
-- Inspector wording and visuals go to a later `impeccable` pass, outside this effort.
+- Remaining Inspector visual polish belongs to a later `impeccable` pass. Ticket 12 is limited to
+  two copy corrections; isolated live-browser observation was unavailable and no rendered CSS
+  defect was established.
 
 ## Limitations of this plan
 

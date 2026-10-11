@@ -1,10 +1,10 @@
 # 134: Reconcile fixed-membership matrix assemblies
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [105](105-mirrored-half-derivation-kernel.md), [132](132-reconcile-fixed-membership-matrix-geometry.md)
 
-Parent: [106](106-reconcile-mirrored-matrices-layouts-parts.md), within [19](19-reconcile-mirrored-halves.md). This isolated child does not wait for 106 or 19 to resolve. B owns the claim. Source START remains held until root commits the claim and explicitly grants the complete Luna implementation to fresh, different Sol 6.1 xhigh verifier cycle.
+Parent: [106](106-reconcile-mirrored-matrices-layouts-parts.md), within [19](19-reconcile-mirrored-halves.md). This isolated child does not wait for 106 or 19 to resolve. B completed the root-granted Luna implementation and fresh, different Sol 6.1 xhigh verification cycle. Bounded acceptance and the full integration cohort passed; source and mutation leases are released.
 
 ## Scope
 
@@ -36,4 +36,12 @@ Fresh independent verification must make meaningful temporary mutations to mode/
 
 - Root-approved planning packet: /home/chris/.cache/boardstudio-baselines/ticket106-planning/fixed-membership-assembly-readiness-20261011.md, SHA256 63d5126fcb854a27321defecd3dbeeee0c385c1c55c87d303e6feea1154f6f68.
 - Independent scope/oracle review: /home/chris/.cache/boardstudio-baselines/ticket106-planning/independent-assembly-scope-oracle-review-20261011.md, SHA256 d3e881c695572063b2ea9420fc6ef5eab3d328e2f642f18d4f2def1dab4bdc53.
-- B planning gate: PASS. Source lease is held pending root claim commit and explicit full-cycle grant.
+- B planning gate: PASS. Implementation, fresh independent verification and the full integration cohort are complete; source and mutation leases are released.
+
+## Outcome (2026-10-11)
+
+Fresh independent Sol6.1 xhigh PASS for bounded existing fixed-membership matrix assemblies. Sole source core/src/mirrored_half/reconcile.rs, final SHA256 253a6db355e731e1c11801763cd1c1916023237e012e04ff3db754bf05376fb5. All seven prior test bodies are preserved. Verifier strengthened vacuous non-pose proof with distinct valid nondefault sentinels and added the small pre-setter refusal for unsupported authored/constrained linked keys, keeping retained constraints valid.
+
+The accepted fixture proves per-item mode/tweak/fallback, stabiliser heading,28 owners, both retained nonempty dependency closures, literal poses, exact11 changed IDs, final materialization and whole-document repeat equality. Final focused9/9 PASS; repo/lint/test/typecheck PASS91.7s; diff check PASS. Three compiling intended failures cover fallback mode, stabiliser heading and second-retained-child ownership. The last rejects at the staged-owner guard before dependency assertions. Each exact restore/touch/hash was followed by9/9 GREEN. Probes ran on strengthened pre-key-guard7c5f9b95... source; unchanged producer sites and positive fixture were bound to final253a6db3... with final focused/affected GREEN. No mutant remains. Parent106/19 stay OPEN; private reconciliation is unactivated.
+
+Authority: /home/chris/.cache/boardstudio-baselines/ticket134/independent-fresh/independent-assessment.md. Root source commit `bcdef94c`, merged with `--no-ff`. One full default cohort check passed at integration `6eeef607adc186b162e38ff22ac54521de42d809` in 510.0 s (repo 0.1, tooling 7.5, lint 10.1, build 142.4, test 70.3, browser 279.5); all 70 presentation tests passed. Log: `/tmp/boardstudio-cohort-133-134.log`.
