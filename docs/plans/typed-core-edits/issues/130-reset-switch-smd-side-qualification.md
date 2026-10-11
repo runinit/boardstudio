@@ -1,6 +1,6 @@
 # Ticket 130: Qualify the EVQ-PUC02K side-reset footprint
 
-Status: claimed
+Status: implemented (awaiting verification)
 
 Claimed by: Codex lane F, new Luna 6 medium implementation session `/root/reset_socket_130_implementer`.
 Claim scope: only new `footprints/tests/reset_switch_smd_side_qualification.rs` and this ticket. The exact constructor and impact context is cached at `/home/chris/.cache/boardstudio-baselines/ticket130/constructor-context-c2c04f3.md`. Final verification requires a fresh Sol 6.1 xhigh session distinct from the implementer and planner.
@@ -154,10 +154,10 @@ index refresh and graph-change analysis ownership.
 
 ## Outcome
 
-The new qualification test renders the public bundled generator on front and back at synthetic nonzero poses and checks numbered pad layers/nets, manufacturer-labelled land-pattern dimensions, boss-hole semantics and dimensional leaders, the independently fixed pose-vector oracle, and default/overridden model bindings. It keeps the upper-hole diameter as producer configuration only and records the missing manufacturer dimension and physical-fit limits above. Producer, registry, model assets, defaults, recipes, Core, goldens and existing tests were not changed.
+Authored `footprints/tests/reset_switch_smd_side_qualification.rs`. It renders the public bundled generator on front and back at synthetic nonzero poses and checks numbered pad layers/nets, manufacturer-labelled land-pattern dimensions, boss-hole semantics and dimensional leaders, the independently fixed pose-vector oracle, and default/overridden model bindings. It keeps the upper-hole diameter as producer configuration only and records the missing manufacturer dimension and physical-fit limits above. Producer, registry, model assets, defaults, recipes, Core, goldens and existing tests were not changed.
 
-No test, lint, formatting, or browser check was run in the implementation window. The fresh verifier must run the focused qualification, `python3 scripts/check.py repo lint`, and the full footprint crate test in root-granted sequential command windows. The lower-hole producer mutation remains unperformed and requires its separate root mutation lease; no red/green or verification claim is made here. No source or product model fit has been claimed.
+Implementer-owned checks passed: scoped `rustfmt`; focused qualification, 2/2 tests (test time 0.00 s); `python3 scripts/check.py repo lint` (3.4 s total: repo 0.2 s, lint 3.3 s, with existing vendored cgmath warnings); and `cargo test --locked -p boardstudio-footprints` (81/81 tests, 6 s). Durable logs are `/home/chris/.cache/boardstudio-baselines/ticket130/focused-test-retry2.log`, `/home/chris/.cache/boardstudio-baselines/ticket130/repo-lint.log`, and `/home/chris/.cache/boardstudio-baselines/ticket130/footprints-crate-test.log`.
 
-Planning-only draft based on the read-only source audit and independent Sol
-6.1 max plan review. No qualification tests have been authored or run, no
-producer bytes changed, and no source or product model fit has been claimed.
+The initial `/usr/bin/time` harness was unavailable, so the implementer used Bash `SECONDS`. The first compile exposed two missing helper lifetimes, which were fixed. Retry 1 then exposed nested model-offset parser wiring (`xyz(...)`); that was fixed before the passing retry 2. The parser correction needs fresh independent inspection.
+
+Independent manufacturer-source/PDF and parser review, plus the lower-hole `0.75` to `0.95` mm producer mutation, were not performed. The mutation still needs its separate root lease. No independent verification or resolved claim is made. No source or product model fit has been claimed. Hardware gates and ticket 118 remain open.
