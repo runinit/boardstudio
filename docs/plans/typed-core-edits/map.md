@@ -246,7 +246,9 @@ verification window ended. Full parent acceptance is not waived by partial slice
   not a completed wrong-depth edit; no completion claim follows from it. The full default batch passed.
 - [132](issues/132-reconcile-fixed-membership-matrix-geometry.md) is an independently reviewed bounded child
   of 106 for fixed active membership, multi-key geometry and retained-key preservation. Its independent 2x3
-  numeric oracle passed planning review; claim is prepared and implementation awaits the root command-window handoff. Parent 106/19 remain open and unactivated.
+  numeric oracle passed planning review. Fresh independent bounded verification passed focused 7/7, both
+  intended kernel mutations with exact restores, and final repo/lint/test/typecheck (83.6 s). Root integration
+  and cohort batch are pending; parent 106/19 remain open and unactivated.
 - [131](issues/131-diode-sod123-opt-in-qualification.md) baseline preparation passed independent verification
   and is checkpointed on lane F at `4607c266`. The frozen 43-case current Rust baseline records 40 render/export
   successes and 3 render errors. Luna 6 high producer implementation passed fresh Sol 6.1 xhigh verification,
