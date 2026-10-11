@@ -9,11 +9,11 @@ As-of snapshot: checkout `/home/chris/01_Projects/ts-boardstudio2/.worktrees/tce
 | [Check speed](check-speed/map.md) | 13 | 3 | 11 `ready-for-agent` (blocked by resolved typed-core 33); 12 `ready-for-agent` after 11 and 34; 13 `needs-info` after 12. |
 | [Edit settlement](edit-settlement/map.md) | 20 | 0 | Complete; ticket 20 is resolved. |
 | [Generator parameters](generator-parameters/map.md) | 6 | 0 | Complete. Keyboard refresh 04 belongs to typed-core, not this effort. |
-| [Matrix layout consistency](matrix-layout-consistency/map.md) | 11 | 0 | Tickets resolved. Inspector wording and visual polish is separately user-authorized planned UI work below, not a matrix ticket. |
+| [Matrix layout consistency](matrix-layout-consistency/map.md) | 12 | 1 | Ticket [12](matrix-layout-consistency/issues/12-inspector-copy.md) is claimed for two Inspector copy corrections; remaining visual polish stays separate. |
 | [Module deepening](module-deepening/map.md) | 19 | 0 | Complete; no open status-bearing tickets. |
 | [Typed Core edits](typed-core-edits/map.md) | 126 | 89 | Open tickets span several serial/blocked streams; see ranked actions and full linked inventory. The unnumbered `04-handoff.md` note has no Status header and is excluded. |
 
-There are 195 status-bearing tickets and 92 pending:89 typed-core and3 check-speed. IDs120–127 are reserved without materialized ticket files. Completed119 and128–134 are excluded from pending counts.
+There are 196 status-bearing tickets and 93 pending:89 typed-core,3 check-speed and1 matrix-layout. IDs120–127 are reserved without materialized ticket files. Completed119 and128–134 are excluded from pending counts.
 
 ## Ranked next actions
 
@@ -41,7 +41,7 @@ Retained evidence: `/home/chris/.cache/boardstudio-audit/ticket37-followup-20261
 
 ### 6. E: audit the separately authorized Inspector wording/visual work
 
-**Readiness:** planned and user-authorized, but not allocated as a ticket and with no exact files or acceptance scope established. E is ready for a bounded live source/browser readiness window using `impeccable` and `DESIGN.md`, but root still holds that window. Exact implementation scope remains unallocated; no source writer is granted. This stream is separate from resolved matrix toolbar tickets [05](matrix-layout-consistency/issues/05-toolbar-stagger-and-quick-offset.md) and [06](matrix-layout-consistency/issues/06-toolbar-offset-tool.md), resolved edit-settlement [20](edit-settlement/issues/20-preview-only-direct-edit-event.md), and A's wait cleanup in 37.
+**Recorded tracker status:** matrix [12](matrix-layout-consistency/issues/12-inspector-copy.md) is claimed for two copy corrections in the Inspector and mounted copy assertions. The source/test lease and implementation command window remain root-controlled; ticket 37's wait conversions, helpers and fixtures stay deferred. This does not complete visual polish: isolated live-browser observation was unavailable and no rendered CSS defect was established. The work remains separate from resolved matrix toolbar tickets [05](matrix-layout-consistency/issues/05-toolbar-stagger-and-quick-offset.md) and [06](matrix-layout-consistency/issues/06-toolbar-offset-tool.md), resolved edit-settlement [20](edit-settlement/issues/20-preview-only-direct-edit-event.md), and A's wait cleanup in 37.
 
 ### 7. F and the remaining native board pipeline
 
