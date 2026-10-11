@@ -17,8 +17,6 @@ mod contracts;
 mod core_engine;
 #[path = "current_schema.rs"]
 mod current_schema;
-#[path = "demo_projects.rs"]
-mod demo_projects;
 #[path = "electrical_wiring.rs"]
 mod electrical_wiring;
 #[path = "encoder_inputs.rs"]
@@ -35,8 +33,6 @@ mod gasket_features;
 mod generator_export;
 #[path = "generator_parameters.rs"]
 mod generator_parameters;
-#[path = "included_keyboards.rs"]
-mod included_keyboards;
 #[path = "keycaps.rs"]
 mod keycaps;
 #[path = "keymap_edits.rs"]

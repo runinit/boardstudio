@@ -55,8 +55,6 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
         (["wasm-pack", "build", "renderer", "--target", "web", "--out-dir", "pkg",
           "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"], ROOT),
         ([sys.executable, "cad/scripts/build-cadrum-wasm.py"], ROOT),
-        (["cargo", "run", "--manifest-path", "core/Cargo.toml", "--locked", "--release",
-          "--example", "prepare_demo_projects", "--", "web/assets/fixtures"], ROOT),
         ([sys.executable, "scripts/stage-ergogen-models.py", "--source-root",
           "ergogen/library/vendor", "--destination", "web/assets/ergogen-models",
           "--manifest", "web/target/providers/ergogen-models.json"], ROOT),

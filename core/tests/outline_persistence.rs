@@ -10,10 +10,7 @@ use boardstudio_core::model::{
     SceneDelta,
 };
 use boardstudio_core::{CoreEngine, archive, migrate};
-
-/// A version 1 archive: its project JSON is migrated at the archive boundary and its
-/// four bundled model assets must travel with any archive this test writes.
-const ARCHIVE: &[u8] = include_bytes!("../../content/archives/reviung41-original.boardstudio");
+use sha2::{Digest, Sha256};
 
 fn scene(reply: CoreReply) -> SceneDelta {
     match reply {
@@ -56,11 +53,30 @@ fn unpack_project(bytes: &[u8]) -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>
     }
 }
 
-/// A stored document carrying both explicit linked ownership and an edited copy, built
-/// from the real archive's migrated project so the asset references stay valid.
+/// A stored document carrying linked ownership and an edited copy, built from the small
+/// authored outline fixture and a synthetic archive asset.
 fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
-    let (project_json, assets, buffers) = unpack_project(ARCHIVE);
-    let document: ProjectDoc = serde_json::from_str(&project_json).unwrap();
+    let mut document: ProjectDoc =
+        serde_json::from_str(include_str!("fixtures/synthetic-outline.json"))
+            .expect("synthetic outline fixture");
+    let asset_bytes = b"synthetic persistence asset".to_vec();
+    let hash = Sha256::digest(&asset_bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let mut document_value = serde_json::to_value(&document).unwrap();
+    document_value["assets"] = serde_json::json!([{
+        "id": "synthetic/persistence-asset",
+        "name": "persistence.bin",
+        "mediaType": "application/octet-stream",
+        "sha256": hash
+    }]);
+    document = serde_json::from_value(document_value).unwrap();
+    let assets = vec![ArchiveAssetBuffer {
+        sha256: hash,
+        buffer_index: 0,
+    }];
+    let buffers = vec![asset_bytes];
     let mut engine = CoreEngine::new();
     let opened = scene(engine.handle(CoreRequest::Open {
         id: "open".into(),
@@ -228,16 +244,10 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
 
     // A version created in the current format keeps no migration debt either.
     let mut engine = CoreEngine::new();
-    let opened =
-        scene(
-            engine.handle(CoreRequest::Open {
-                id: "open".into(),
-                document: serde_json::from_str(include_str!(
-                    "fixtures/reviung41-outline-original.json"
-                ))
-                .unwrap(),
-            }),
-        );
+    let opened = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap(),
+    }));
     let created = edit(
         &mut engine,
         opened.revision,

@@ -1,3 +1,3 @@
 //! Helpers shared by the native integration test modules.
 
-pub(crate) mod shipped;
+pub(crate) mod synthetic_half;

@@ -5723,44 +5723,6 @@ impl Runtime {
             }
         }
     }
-    pub async fn fixture_document(&self, name: &'static str) -> Result<ProjectDoc, String> {
-        let bytes = fetch_bytes(&format!("assets/fixtures/{name}.json")).await?;
-        serde_json::from_slice(&bytes)
-            .map_err(|error| format!("Could not read the {name} demo preview: {error}"))
-    }
-    pub fn open_fixture(self: &Rc<Self>, name: &str) {
-        let name = name.to_owned();
-        let sequence = match self.begin_open() {
-            Ok(sequence) => sequence,
-            Err(error) => {
-                self.report(error);
-                return;
-            }
-        };
-        let copy_id = match browser_uuid() {
-            Ok(copy_id) => copy_id,
-            Err(error) => {
-                if self.open_sequence.get() == sequence {
-                    self.report(error);
-                }
-                return;
-            }
-        };
-        let this = self.clone();
-        spawn_local(async move {
-            match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
-                Ok(bytes) => {
-                    if let Err(error) = this.import_archive_at(bytes, sequence, Some(copy_id)).await
-                        && this.open_sequence.get() == sequence
-                    {
-                        this.report(error);
-                    }
-                }
-                Err(error) if this.open_sequence.get() == sequence => this.report(error),
-                Err(_) => {}
-            }
-        });
-    }
     fn begin_open(&self) -> Result<u64, String> {
         if self.project_deletion_pending.get() {
             return Err("A saved keyboard deletion is in progress.".into());

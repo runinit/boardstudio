@@ -2,7 +2,7 @@ use boardstudio_core::{CoreEngine, model::*};
 #[test]
 fn fitted_corner_warning_has_local_geometry_through_public_scene() {
     let mut doc: ProjectDoc =
-        serde_json::from_str(include_str!("fixtures/reviung41-outline-original.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
     for feature in &mut doc.outline {
         if let OutlineFeature::PartEnvelope { settings, .. } = feature {
             settings.corners = CornerStyle::Fillet;

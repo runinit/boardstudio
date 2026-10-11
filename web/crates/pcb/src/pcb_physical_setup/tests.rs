@@ -136,9 +136,9 @@ fn host() -> Element {
 
 fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::ProjectDoc {
     let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
-        "../../../../../core/tests/fixtures/reviung41-outline-original.json"
+        "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
-    .expect("checked-in Reviung fixture is a valid saved project");
+    .expect("synthetic outline fixture is a valid saved project");
     document.id = id.into();
     document.revision = revision;
     document
