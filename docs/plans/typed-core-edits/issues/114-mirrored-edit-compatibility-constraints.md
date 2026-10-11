@@ -1,6 +1,6 @@
 # 114: Classify compatibility and constraint translation
 
-Status: needs-info
+Status: ready-for-agent
 Type: build
 Blocked by: [113](113-inverse-map-reviewed-outline-edits.md), [139](139-generalized-mirrored-constraint-model.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -24,7 +24,7 @@ handling. Report exact unrepresentable cases and affected parent acceptance rath
 
 Bounded Luna high planning packet: `/home/chris/.cache/boardstudio-baselines/ticket114-planning/decision-packet.md`, stable lane sources at86821996751c8e1c80c1f5102c7c77c58f22c0e5. Root reviewed the packet; this is planning evidence, not implementation or independent behavior acceptance. Same-pair linked/linked Offset is representable with vector reflection, negated relative rotation and durable constraint ID; Mirror is representable only when its transformed axis remains horizontal/vertical. RemoveConstraint delegates by exact ID; local/local remains local. The current two-axis/global constraint model does not generally represent slanted axes or mixed linked/local endpoint relations. Canonical operation must feed apply and both downstream resolve_edit calls.
 
-The user chose support through a separately scoped model extension; [139](139-generalized-mirrored-constraint-model.md) owns the approved extension design/implementation. Status remains needs-info until its representation and endpoint semantics are reviewed; do not silently narrow parent19 or claim unsupported cases complete. This decision does not block current106 correction,138 retirement or already approved independent work. Reuse110’s ownership ledger; no second inventory/audit is required.
+The user chose support through a separately scoped model extension; [139](139-generalized-mirrored-constraint-model.md) owns the approved extension design/implementation. Root accepted the representation and endpoint semantics in139 and ADR0010;114 is ready-for-agent subject to its113/139 implementation dependencies. Do not silently narrow parent19 or claim unsupported cases complete. This decision does not block current106 correction,138 retirement or already approved independent work. Reuse110’s ownership ledger; no second inventory/audit is required.
 
 ## Remaining inventory families
 

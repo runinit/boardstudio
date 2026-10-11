@@ -1,6 +1,6 @@
 # Delivery queue
 
-As-of snapshot:2026-10-11, integration typed-core-edits/mechanical at9d6439eeb90ba937b2cf73279fa18262c3bc515d. Independent Part/fixed Layout106 unit source52ee10b2 is accepted and integrated: ONEfreshSolMEDIUM PASS, two compiled intendedRED probes, exact-restored47GREEN, writer affected99.6s reused with disclosed intermediate-output truncation. Root source/index binding and complete4/4-symbol one-file HIGH delta plus unchanged staged diff are recorded in106Outcome. B next coherent unit completes remaining106topology/removal;139 accepted design remains queued. F138 has67outline/534Core tests GREEN and owns remainingCAD/typecheck/browser HEAVYcycle. Full106/19/111 and combined integration batch remain open. PollingPAUSED.
+As-of snapshot:2026-10-11, integration typed-core-edits/mechanical at53970a404. Independent Part/fixed Layout106 source52ee10b2 is accepted and integrated. L1 owns the combined remaining106 transition/add-remove cycle; transition9/9 and initial Part/Layout Add/Remove pass, with true removal-repeat regression now under correction before final checks and fresh acceptance. L2 retirement138 has a completed fresh review FAIL on five generic coverage gaps; same-writer four-input corrections are source-ready and await HEAVY, then the same reviewer follows up. L7 UI parent140 is started independently with direct-user discovery; later merge. Full106/19/111 and combined integration batch remain open. PollingPAUSED.
 
 ## Effort inventory
 
@@ -11,11 +11,13 @@ As-of snapshot:2026-10-11, integration typed-core-edits/mechanical at9d6439eeb90
 | [Generator parameters](generator-parameters/map.md) | 6 | 0 | Complete. Keyboard refresh 04 belongs to typed-core, not this effort. |
 | [Matrix layout consistency](matrix-layout-consistency/map.md) | 12 | 0 | Complete; ticket 12 resolved after independent review and the E12+F135 integration cohort. Remaining visual observation is separate, unallocated work. |
 | [Module deepening](module-deepening/map.md) | 19 | 0 | Complete; no open status-bearing tickets. |
-| [Typed Core edits](typed-core-edits/map.md) | 131 | 36 | Open tickets span several serial/blocked streams; see ranked actions and full linked inventory. The unnumbered `04-handoff.md` note has no Status header and is excluded. |
+| [Typed Core edits](typed-core-edits/map.md) | 132 | 37 | Open tickets span several serial/blocked streams; see ranked actions and full linked inventory. The unnumbered `04-handoff.md` note has no Status header and is excluded. |
 
-There are 201 status-bearing tickets: 39 pending (36 typed-core and 3 check-speed), plus 55 typed-core tickets marked wontfix. IDs120–127 are reserved without materialized ticket files. Completed119 and128–137 are excluded from pending counts.
+There are 202 status-bearing tickets: 40 pending (37 typed-core and 3 check-speed), plus 55 typed-core tickets marked wontfix. IDs120–127 are reserved without materialized ticket files. Completed119 and128–137 are excluded from pending counts.
 
 ## Current app priorities
+
+Independent UI stream: [140](typed-core-edits/issues/140-ui-design-impeccable.md), [execution plan](ui-design/plan.md), runs in its own `codex/ui-impeccable` worktree and coordinator chat. Impeccable discovery and bounded implementation cover compact visual foundations, Solar icons, shell/Inspector clarity, contextual Layout controls, Case visuals/controls, responsive behavior, accessibility and motion. The lane asks the user directly and keeps accepted changes on its branch for later integration. User-approved private persistent build/serve, frontend rebuilds and visual inspection run independently; supported Dioxus/Tailwind migration is included. Shared acceptance/index/integration checks retain root scheduling. Core/mirror semantics and demo retirement remain separately owned; UI completion is not a new blocker for them.
 
 User-approved constraint extension: [139](typed-core-edits/issues/139-generalized-mirrored-constraint-model.md) supports slanted mirror axes and linked/Local endpoint relations through separately scoped model changes. B prepares a source-grounded design while106/138 continue;114 consumes accepted extension, no silent parent19 scope reduction.
 
@@ -60,8 +62,9 @@ Historical contract, superseded for current execution by demo retirement: ticket
 
 ## All pending typed-core ticket links
 
-The counts above include every status-bearing open issue. The inventory below groups the exact 36 pending links by stream; links open the ticket headers/body for current status and dependencies.
+The counts above include every status-bearing open issue. The inventory below groups the exact 37 pending links by stream; links open the ticket headers/body for current status and dependencies.
 
+- Independent UI design (1): [140](typed-core-edits/issues/140-ui-design-impeccable.md), claimed; independent lane, direct user discovery, later integration.
 - App cleanup (1): [138](typed-core-edits/issues/138-retire-shipped-demos.md), claimed/START granted, implementation/affected checks active under F.
 - Mirror/Core and activation (21): [4](typed-core-edits/issues/04-refresh-included-keyboards.md), [19](typed-core-edits/issues/19-reconcile-mirrored-halves.md), [20](typed-core-edits/issues/20-recipes-build-one-half.md), [21](typed-core-edits/issues/21-mirrored-half-web-adapter.md), [22](typed-core-edits/issues/22-mirrored-half-integrated-verification.md), [23](typed-core-edits/issues/23-redo-keyboard-04-on-native-halves.md), [40](typed-core-edits/issues/40-set-companion-placement-operation.md), [41](typed-core-edits/issues/41-inspector-companion-mode.md), [106](typed-core-edits/issues/106-reconcile-mirrored-matrices-layouts-parts.md), [107](typed-core-edits/issues/107-reconcile-mirrored-hosted-electrical-items.md), [108](typed-core-edits/issues/108-reconcile-mirrored-outlines-assemblies.md), [109](typed-core-edits/issues/109-mirrored-half-exceptions-unlink.md), [110](typed-core-edits/issues/110-inverse-map-mirrored-half-edits.md), [111](typed-core-edits/issues/111-integrate-mirrored-half-reconciliation.md), [112](typed-core-edits/issues/112-inverse-map-hosted-electrical-edits.md), [113](typed-core-edits/issues/113-inverse-map-reviewed-outline-edits.md), [114](typed-core-edits/issues/114-mirrored-edit-compatibility-constraints.md), [115](typed-core-edits/issues/115-prepare-mirrored-edit-transaction.md), [116](typed-core-edits/issues/116-prepare-mirrored-open-repair.md), [117](typed-core-edits/issues/117-prepare-mirrored-preview-history-performance.md), [139](typed-core-edits/issues/139-generalized-mirrored-constraint-model.md).
 - Test and maintenance (4): [24](typed-core-edits/issues/24-test-audit.md), [35](typed-core-edits/issues/35-test-maintenance-cuts.md), [37](typed-core-edits/issues/37-sleeps-layout-library-ui-page.md), [38](typed-core-edits/issues/38-merge-duplicate-browser-tests.md).
