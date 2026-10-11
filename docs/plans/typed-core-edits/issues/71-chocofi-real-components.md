@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `chocofi`: `https://github.com/pashutk/chocofi`, `pcb/chocofi.kicad_pcb` at `273676d11b06785fb5a1a94860a39fc36c38baba`; SHA-256 `1e8f65fc5cc3df280c716f6b1d3e730757d445d84b1a809a7a87aea7d593a9fc`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-chocofi` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `chocofi`: `https://github.com/pashutk/chocofi`, `pcb/chocofi.kicad_pcb` at `273676d11b06785fb5a1a94860a39fc36c38baba`; SHA-256 `1e8f65fc5cc3df280c716f6b1d3e730757d445d84b1a809a7a87aea7d593a9fc`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-chocofi` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. No authored TH holes are recorded. The audit’s legacy “Measured MX profile” label does not change the actual Choc generator and 18 × 17 mm matrix.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. No authored TH holes are recorded. The audit’s legacy “Measured MX profile” label does not change the actual Choc generator and 18 × 17 mm matrix.
 
 ## Hardware gate
 

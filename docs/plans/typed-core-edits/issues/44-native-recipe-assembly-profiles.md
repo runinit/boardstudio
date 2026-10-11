@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[physical::append](../../../../core/examples/demo_projects/physical.rs) currently constructs raw matrix cells and separate switch/diode/LED/stabiliser Parts with generic `preset/...` identities. Core's public `EditOperation::SetMatrix` derives live membership/parts; [prepare_matrix](../../../../web/crates/catalogue/src/matrix_setup_operation.rs) is an example of preparing a typed matrix and definitions while leaving materialisation to Core. Native recipes must not import the WASM web crate.
+physical::append (`core/examples/demo_projects/physical.rs`, retired) currently constructs raw matrix cells and separate switch/diode/LED/stabiliser Parts with generic `preset/...` identities. Core's public `EditOperation::SetMatrix` derives live membership/parts; [prepare_matrix](../../../../web/crates/catalogue/src/matrix_setup_operation.rs) is an example of preparing a typed matrix and definitions while leaving materialisation to Core. Native recipes must not import the WASM web crate.
 
 ## One-hour slice and ownership
 

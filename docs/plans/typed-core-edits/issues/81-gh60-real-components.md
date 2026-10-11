@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `gh60`: `https://github.com/komar007/gh60`, `keyboard.kicad_pcb` at `e7948cf44dbd3d43eb70296023a6fe3f471b44ba`; SHA-256 `a99aafb9f1ca77c5cac67037d161fa849b9b200de5dec9f63964520af3ff3daf`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-gh60` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `gh60`: `https://github.com/komar007/gh60`, `keyboard.kicad_pcb` at `e7948cf44dbd3d43eb70296023a6fe3f471b44ba`; SHA-256 `a99aafb9f1ca77c5cac67037d161fa849b9b200de5dec9f63964520af3ff3daf`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-gh60` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. One 6.25u and four 2u stabilisers are in the current fixture. Retain key widths and select the approved stabiliser variant/mounting datums.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. One 6.25u and four 2u stabilisers are in the current fixture. Retain key widths and select the approved stabiliser variant/mounting datums.
 
 ## Hardware gate
 

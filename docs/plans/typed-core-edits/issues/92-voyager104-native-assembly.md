@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `voyager104`: `https://github.com/ai03-2725/Voyager104`, `Voyager104.kicad_pcb` at `0d2180bbcf49532f56c3e6bc3b5fcd9d44128fb1`; SHA-256 `2e3560c90f4df074ffef28bce7bc6b34946cfbdd1985dd2d611d4070e4e18a06`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-voyager104` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `voyager104`: `https://github.com/ai03-2725/Voyager104`, `Voyager104.kicad_pcb` at `0d2180bbcf49532f56c3e6bc3b5fcd9d44128fb1`; SHA-256 `2e3560c90f4df074ffef28bce7bc6b34946cfbdd1985dd2d611d4070e4e18a06`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-voyager104` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 104 ANSI MX switches and 104 diodes across function/navigation/arrows/numpad/keys clusters; 19.05 × 19.05 mm base pitch, MX. The current fixture contains seven 2u and one 6.25u stabilisers. Preserve all ANSI widths and source references.
 

@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `cantor`: `https://github.com/diepala/cantor`, `Cantor_Classic/keyboard_pcb.kicad_pcb` at `13f8bc03bb8a894c7c2871ae64845d5ef927c328`; SHA-256 `c20140c589c1ef393db769f83cfb69a4c94c137528d758de38a88a4fe17b6373`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-cantor` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `cantor`: `https://github.com/diepala/cantor`, `Cantor_Classic/keyboard_pcb.kicad_pcb` at `13f8bc03bb8a894c7c2871ae64845d5ef927c328`; SHA-256 `c20140c589c1ef393db769f83cfb69a4c94c137528d758de38a88a4fe17b6373`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-cantor` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. No authored TH holes are recorded. Identify the target controller/transport from the selected board configuration; a recipe TRRS is not source evidence that the target uses it.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. No authored TH holes are recorded. Identify the target controller/transport from the selected board configuration; a recipe TRRS is not source evidence that the target uses it.
 
 ## Hardware gate
 

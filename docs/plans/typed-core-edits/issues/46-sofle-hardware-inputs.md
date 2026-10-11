@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-
 
 ## Source evidence and settled direction
 
-[sofle-layouts.json](../../../../content/layouts/sofle-layouts.json) pins Josef Adamcik's SofleKeyboard at `fb294f7c58d0f91c379a9ef339159d4d056643e9`, separate source paths/hashes for v2/RGB/Choc, measured switches, outline points and TH1–TH7. [recipes.rs](../../../../core/examples/demo_projects/recipes.rs) chooses library peripherals and datum offsets. The user has selected native board-specific assemblies, real parts, native mounting/outline generation and duplicate-position shipped diodes. This packet does not reopen those choices.
+sofle-layouts.json (`content/layouts/sofle-layouts.json`, retired) pins Josef Adamcik's SofleKeyboard at `fb294f7c58d0f91c379a9ef339159d4d056643e9`, separate source paths/hashes for v2/RGB/Choc, measured switches, outline points and TH1–TH7. recipes.rs (`core/examples/demo_projects/recipes.rs`, retired) chooses library peripherals and datum offsets. The user has selected native board-specific assemblies, real parts, native mounting/outline generation and duplicate-position shipped diodes. This packet does not reopen those choices.
 
 ## Agent research: source facts and library qualification
 

@@ -169,6 +169,35 @@ workspace = true
                 build.build_wasm()
         run.assert_called_once()
 
+    def test_binaryen_cores_is_forwarded_for_both_runtimes_only_when_set(self):
+        self.wasm_sources()
+        for runtime in ("podman", "docker"):
+            with self.subTest(runtime=runtime, binaryen_cores="4"):
+                environment = {"CADRUM_CONTAINER_RUNTIME": runtime, "CADRUM_IMAGE_READY": "1",
+                               "CARGO_BUILD_JOBS": "2", "BINARYEN_CORES": "4"}
+                with patch.dict(build.os.environ, environment, clear=True), \
+                        patch.object(build, "prepare", return_value=self.root / "occt"), \
+                        patch.object(build, "run") as run:
+                    build.build_wasm()
+                command = next(call.args[0] for call in run.call_args_list if call.args[0][1] == "run")
+                cargo_jobs_index = command.index("CARGO_BUILD_JOBS=2")
+                self.assertIn("BINARYEN_CORES=4", command)
+                binaryen_index = command.index("BINARYEN_CORES=4")
+                self.assertEqual(command[cargo_jobs_index - 1:binaryen_index + 1],
+                                 ["--env", "CARGO_BUILD_JOBS=2", "--env", "BINARYEN_CORES=4"])
+                self.assertLess(binaryen_index, command.index(build.IMAGE))
+
+            with self.subTest(runtime=runtime, binaryen_cores="unset"):
+                environment = {"CADRUM_CONTAINER_RUNTIME": runtime, "CADRUM_IMAGE_READY": "1",
+                               "CARGO_BUILD_JOBS": "2"}
+                with patch.dict(build.os.environ, environment, clear=True), \
+                        patch.object(build, "prepare", return_value=self.root / "occt"), \
+                        patch.object(build, "run") as run:
+                    build.build_wasm()
+                command = next(call.args[0] for call in run.call_args_list if call.args[0][1] == "run")
+                self.assertFalse(any(argument.startswith("BINARYEN_CORES=") for argument in command))
+                self.assertIn("CARGO_BUILD_JOBS=2", command)
+
     def test_published_image_is_pulled_by_containerfile_digest_with_local_fallback(self):
         self.wasm_sources()
         environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": ""}

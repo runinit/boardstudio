@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-
 
 ## Settled direction and sources
 
-After Sofle sign-off, rebuild Corne, Lily58, KLOR, Ferris Sweep, Chocofi, TOTEM and Cantor in that order. [keyboard-layouts.json](../../../../content/layouts/keyboard-layouts.json) pins every repository/revision/path/hash and key pose. Board projects use existing ordinary saved-project operations. Shared mirrored-half/link behavior remains separately required under 19/22. Adapted recipes do not prove source peripheral identity.
+After Sofle sign-off, rebuild Corne, Lily58, KLOR, Ferris Sweep, Chocofi, TOTEM and Cantor in that order. keyboard-layouts.json (`content/layouts/keyboard-layouts.json`, retired) pins every repository/revision/path/hash and key pose. Board projects use existing ordinary saved-project operations. Shared mirrored-half/link behavior remains separately required under 19/22. Adapted recipes do not prove source peripheral identity.
 
 ## Agent research: one evidence/proposal row per board
 

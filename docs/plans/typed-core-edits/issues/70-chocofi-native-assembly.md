@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `chocofi`: `https://github.com/pashutk/chocofi`, `pcb/chocofi.kicad_pcb` at `273676d11b06785fb5a1a94860a39fc36c38baba`; SHA-256 `1e8f65fc5cc3df280c716f6b1d3e730757d445d84b1a809a7a87aea7d593a9fc`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-chocofi` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `chocofi`: `https://github.com/pashutk/chocofi`, `pcb/chocofi.kicad_pcb` at `273676d11b06785fb5a1a94860a39fc36c38baba`; SHA-256 `1e8f65fc5cc3df280c716f6b1d3e730757d445d84b1a809a7a87aea7d593a9fc`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-chocofi` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 36 Choc switches and 36 diodes, 18 switches per half (3×5 + 3 thumbs); 18 × 17 mm base pitch, Choc v1 (current recipe; confirm selected hardware). No authored TH holes are recorded. The audit’s legacy “Measured MX profile” label does not change the actual Choc generator and 18 × 17 mm matrix.
 

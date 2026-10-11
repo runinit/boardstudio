@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Sofle measured inputs](../../../../content/layouts/sofle-layouts.json), `layouts.choc`: `Sofle_Choc/PCB/SofleKeyboard.kicad_pcb` at `fb294f7c58d0f91c379a9ef339159d4d056643e9`; SHA-256 `f1714d5d75b3c6d103e865020a45cb0941ddcd59ac5dbd47a35eb5224bce7189`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `sofle-choc` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Sofle measured inputs (`content/layouts/sofle-layouts.json`, retired), `layouts.choc`: `Sofle_Choc/PCB/SofleKeyboard.kicad_pcb` at `fb294f7c58d0f91c379a9ef339159d4d056643e9`; SHA-256 `f1714d5d75b3c6d103e865020a45cb0941ddcd59ac5dbd47a35eb5224bce7189`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `sofle-choc` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. This Choc variant retains the measured Sofle 19.05 mm grid; it is not one of the 18 × 17 mm measured Choc splits. Preserve TH1–TH7 per half as source holes.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. This Choc variant retains the measured Sofle 19.05 mm grid; it is not one of the 18 × 17 mm measured Choc splits. Preserve TH1–TH7 per half as source holes.
 
 ## Hardware gate
 
