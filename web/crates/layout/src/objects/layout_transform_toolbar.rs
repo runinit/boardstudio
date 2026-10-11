@@ -1832,6 +1832,158 @@ fn angle_handle_point(
 }
 
 #[component]
+pub fn LayoutContextActionToolbar(
+    mount: LayoutTransformMenuMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    selection_kind: LayoutSelectionKind,
+) -> Element {
+    let property_action = mount.pointer_tools_visible
+        && mount.properties_available
+        && (matches!(
+            selection_kind,
+            LayoutSelectionKind::Matrix
+                | LayoutSelectionKind::Column
+                | LayoutSelectionKind::Key
+                | LayoutSelectionKind::Part
+        ) || (selection_kind == LayoutSelectionKind::Row && mount.row_available));
+    let selection_label = match selection_kind {
+        LayoutSelectionKind::Matrix => "Matrix",
+        LayoutSelectionKind::Row => "Row",
+        LayoutSelectionKind::Column => "Column",
+        LayoutSelectionKind::Key => "Key",
+        LayoutSelectionKind::Part => "Part",
+    };
+    let tools = match selection_kind {
+        LayoutSelectionKind::Matrix | LayoutSelectionKind::Key | LayoutSelectionKind::Part => vec![
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger column; selection changes to Column",
+                mount.column_available,
+            ),
+            (
+                LayoutTransformTool::Offset,
+                "Offset column",
+                "Activate Offset column; selection changes to Column",
+                mount.column_available,
+            ),
+        ],
+        LayoutSelectionKind::Row => vec![
+            (
+                LayoutTransformTool::Offset,
+                "Offset row",
+                "Activate Offset for the selected row",
+                mount.row_available,
+            ),
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger column; selection changes to Column",
+                mount.column_available,
+            ),
+        ],
+        LayoutSelectionKind::Column => vec![
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger for the selected column",
+                mount.column_available,
+            ),
+            (
+                LayoutTransformTool::Offset,
+                "Offset column",
+                "Activate Offset for the selected column",
+                mount.column_available,
+            ),
+        ],
+    };
+    let visible_tools = if mount.pointer_tools_visible && mount.pointer_tools_available {
+        tools
+            .into_iter()
+            .filter(|(_, _, _, available)| *available)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    if !property_action && visible_tools.is_empty() {
+        return rsx! {};
+    }
+    let on_show_properties = mount.on_show_properties;
+    let on_selection_kind = mount.on_selection_kind;
+    let position_menu = open_menu;
+    let property_label = if selection_kind == LayoutSelectionKind::Row {
+        "Row offsets"
+    } else {
+        "Position"
+    };
+    let property_accessible_label = if selection_kind == LayoutSelectionKind::Row {
+        "Open Row offsets properties for Row".to_owned()
+    } else {
+        format!("Open Position and rotation properties for {selection_label}")
+    };
+
+    rsx! {
+        div {
+            class: "layout-context-actions flex items-center gap-1 px-2",
+            role: "group",
+            aria_label: "Actions for {selection_label}",
+            if property_action {
+                button {
+                    r#type: "button",
+                    class: "layout-context-action px-2 py-1 text-xs font-medium",
+                    aria_label: "{property_accessible_label}",
+                    title: "{property_accessible_label}",
+                    onclick: move |_| {
+                        on_show_properties.call(());
+                        if selection_kind == LayoutSelectionKind::Row {
+                            on_selection_kind.call(LayoutSelectionKind::Row);
+                        }
+                        close_layout_command_menu(position_menu, LayoutCommandMenu::Transform);
+                    },
+                    "{property_label}"
+                }
+            }
+            for (tool, label, accessible_label, _) in visible_tools {
+                LayoutContextToolButton {
+                    mount: mount.clone(),
+                    open_menu,
+                    tool,
+                    label: label.to_owned(),
+                    accessible_label: accessible_label.to_owned(),
+                    pressed: mount.active_tool == Some(tool),
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn LayoutContextToolButton(
+    mount: LayoutTransformMenuMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    tool: LayoutTransformTool,
+    label: String,
+    accessible_label: String,
+    pressed: bool,
+) -> Element {
+    let on_transform_tool = mount.on_transform_tool;
+    rsx! {
+        button {
+            r#type: "button",
+            class: "layout-context-action px-2 py-1 text-xs font-medium",
+            aria_label: "{accessible_label}",
+            title: "{accessible_label}",
+            aria_pressed: pressed,
+            onclick: move |_| {
+                on_transform_tool.call(tool);
+                close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+            },
+            "{label}"
+        }
+    }
+}
+
+#[component]
 pub fn LayoutTransformToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
@@ -1979,6 +2131,134 @@ mod shortcut_tests {
             }
             output { id: "shortcut-probe-state", "{properties_tab()}:{selection_changes()}" }
         }
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct ContextHostProps {
+        selection_kind: LayoutSelectionKind,
+        pointer_tools_visible: bool,
+    }
+
+    #[component]
+    fn context_test_host(props: ContextHostProps) -> Element {
+        let mut active_tool = use_signal(|| None::<LayoutTransformTool>);
+        let mut selection_kind = use_signal(|| props.selection_kind);
+        let open_menu = use_signal(|| None::<LayoutCommandMenu>);
+        let on_transform_tool = EventHandler::new(move |tool| {
+            let context = match selection_kind() {
+                LayoutSelectionKind::Row => TreeContext::Row {
+                    matrix_id: "matrix-1".to_owned(),
+                    row: 0,
+                },
+                _ => TreeContext::Column {
+                    matrix_id: "matrix-1".to_owned(),
+                    column: 0,
+                },
+            };
+            let activation = activate_transform_tool(active_tool(), tool, &context);
+            active_tool.set(activation.active);
+            if let Some(next_kind) = activation.selection_kind {
+                selection_kind.set(next_kind);
+            }
+        });
+        let mount = LayoutTransformMenuMount {
+            properties_available: true,
+            column_available: true,
+            row_available: true,
+            pointer_tools_visible: props.pointer_tools_visible,
+            pointer_tools_available: true,
+            active_tool: active_tool(),
+            on_selection_kind: EventHandler::new(move |kind| selection_kind.set(kind)),
+            on_show_properties: EventHandler::new(|()| {}),
+            on_transform_tool,
+        };
+        let selection_label = match selection_kind() {
+            LayoutSelectionKind::Matrix => "Matrix",
+            LayoutSelectionKind::Row => "Row",
+            LayoutSelectionKind::Column => "Column",
+            LayoutSelectionKind::Key => "Key",
+            LayoutSelectionKind::Part => "Part",
+        };
+        let active_label = match active_tool() {
+            Some(LayoutTransformTool::Stagger) => "Stagger",
+            Some(LayoutTransformTool::Offset) => "Offset",
+            Some(LayoutTransformTool::Splay) => "Splay",
+            Some(LayoutTransformTool::Origin) => "Origin",
+            None => "None",
+        };
+
+        rsx! {
+            LayoutContextActionToolbar { mount, open_menu, selection_kind: selection_kind() }
+            output { id: "context-action-state", "{selection_label}:{active_label}" }
+        }
+    }
+
+    async fn mount_context_actions(
+        selection_kind: LayoutSelectionKind,
+        pointer_tools_visible: bool,
+    ) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(
+                context_test_host,
+                ContextHostProps {
+                    selection_kind,
+                    pointer_tools_visible,
+                },
+            ),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root
+    }
+
+    #[wasm_bindgen_test]
+    async fn contextual_tools_show_for_layout_selection_and_follow_existing_activation_scope() {
+        let root = mount_context_actions(LayoutSelectionKind::Row, true).await;
+        let buttons = root.query_selector_all(".layout-context-action").unwrap();
+        let labels = (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .map(|button| button.text_content().unwrap_or_default())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["Row offsets", "Offset row", "Stagger column"]);
+        root.query_selector(
+            "button[aria-label='Activate Stagger column; selection changes to Column']",
+        )
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector("#context-action-state")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Column:Stagger")
+        );
+        assert_eq!(
+            root.query_selector("button[aria-label='Activate Stagger for the selected column']")
+                .unwrap()
+                .unwrap()
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
+        root.remove();
+
+        let pcb = mount_context_actions(LayoutSelectionKind::Matrix, false).await;
+        assert!(
+            pcb.query_selector(".layout-context-actions")
+                .unwrap()
+                .is_none(),
+            "PCB must not inherit Layout-only contextual quick actions"
+        );
+        pcb.remove();
     }
 
     #[wasm_bindgen_test]

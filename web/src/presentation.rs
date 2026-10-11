@@ -556,6 +556,7 @@ pub fn App() -> Element {
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
+        link { rel: "stylesheet", href: "assets/tailwind.css" }
         main { class: "m1-workbench",
             onkeydown: {
                 let runtime = runtime.clone();

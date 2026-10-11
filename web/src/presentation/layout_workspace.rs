@@ -347,55 +347,57 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-        div { class: "m1-canvas-toolbar",
-            if input.assembly_3d {
-                div { class: "m1-canvas-context",
-                    strong { "Layout" }
-                    span { "PCB assembly" }
+        div { class: "m1-layout-toolbar-region",
+            div { class: "m1-canvas-toolbar",
+                if input.assembly_3d {
+                    div { class: "m1-canvas-context",
+                        strong { "Layout" }
+                        span { "PCB assembly" }
+                    }
+                } else {
+                    objects::LayoutCommandPill {
+                        command_label: input.command_label,
+                        menu_owner_key: input.menu_owner_key,
+                        open_menu: input.open_menu,
+                        transform: input.transform,
+                        align: input.align,
+                        selection_kind: input.selection_kind,
+                        snap_settings: input.snap_settings,
+                        on_selection_kind: input.on_selection_kind,
+                        on_snap_intent: input.on_snap_intent,
+                        has_selection_context: input.has_selection_context,
+                        show_relationships: input.show_relationships,
+                        on_show_relationships: input.on_show_relationships,
+                    }
                 }
-            } else {
-                objects::LayoutCommandPill {
-                    command_label: input.command_label,
-                    menu_owner_key: input.menu_owner_key,
-                    open_menu: input.open_menu,
-                    transform: input.transform,
-                    align: input.align,
-                    selection_kind: input.selection_kind,
-                    snap_settings: input.snap_settings,
-                    on_selection_kind: input.on_selection_kind,
-                    on_snap_intent: input.on_snap_intent,
-                    has_selection_context: input.has_selection_context,
-                    show_relationships: input.show_relationships,
-                    on_show_relationships: input.on_show_relationships,
+                if let Some(reason) = input.save_failure.as_ref() {
+                    p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
+                    button { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
+                }
+                if input.recovery_required {
+                    button { onclick: move |_| input.on_recover_saved.call(()), "Reopen last saved version (discard pending changes)" }
                 }
             }
-            if let Some(reason) = input.save_failure.as_ref() {
-                p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
-                button { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
-            }
-            if input.recovery_required {
-                button { onclick: move |_| input.on_recover_saved.call(()), "Reopen last saved version (discard pending changes)" }
-            }
-        }
-        div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",
-            button {
-                r#type: "button",
-                aria_pressed: "{!input.assembly_3d}",
-                onclick: move |_| input.on_view_mode.call(false),
-                "2D"
-            }
-            button {
-                r#type: "button",
-                aria_pressed: "{input.assembly_3d}",
-                onclick: move |_| input.on_view_mode.call(true),
-                "3D assembly"
-            }
-            if !input.assembly_3d {
+            div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",
                 button {
                     r#type: "button",
-                    aria_pressed: "{input.footprints_pressed}",
-                    onclick: move |_| input.on_toggle_footprints.call(()),
-                    "Footprints"
+                    aria_pressed: "{!input.assembly_3d}",
+                    onclick: move |_| input.on_view_mode.call(false),
+                    "2D"
+                }
+                button {
+                    r#type: "button",
+                    aria_pressed: "{input.assembly_3d}",
+                    onclick: move |_| input.on_view_mode.call(true),
+                    "3D assembly"
+                }
+                if !input.assembly_3d {
+                    button {
+                        r#type: "button",
+                        aria_pressed: "{input.footprints_pressed}",
+                        onclick: move |_| input.on_toggle_footprints.call(()),
+                        "Footprints"
+                    }
                 }
             }
         }

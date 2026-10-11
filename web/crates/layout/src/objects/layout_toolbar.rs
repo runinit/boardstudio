@@ -540,6 +540,8 @@ pub fn LayoutCommandPill(
     has_selection_context: bool,
     on_show_relationships: EventHandler<()>,
 ) -> Element {
+    let pointer_tools_visible = transform.pointer_tools_visible;
+    let geometry_snap_enabled = snap_settings.geometry_snap;
     let outside_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,
@@ -601,15 +603,20 @@ pub fn LayoutCommandPill(
     });
 
     rsx! {
-        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill", role: "toolbar", aria_label: "{command_label}",
+        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill layout-command-pill--contextual", role: "toolbar", aria_label: "{command_label}",
             LayoutSelectMenu {
                 open_menu,
                 selection_kind,
                 on_selection_kind,
             }
+            super::layout_transform_toolbar::LayoutContextActionToolbar {
+                open_menu,
+                mount: transform.clone(),
+                selection_kind,
+            }
             super::layout_transform_toolbar::LayoutTransformToolbar {
                 open_menu,
-                mount: transform,
+                mount: transform.clone(),
             }
             super::layout_align::LayoutAlignToolbar {
                 mount: align,
@@ -622,6 +629,17 @@ pub fn LayoutCommandPill(
                 open_menu,
                 settings: snap_settings,
                 on_snap_intent,
+                show_layout_state: pointer_tools_visible,
+            }
+            if pointer_tools_visible {
+                button {
+                    r#type: "button",
+                    class: "layout-geometry-snap-toggle px-2 py-1 text-xs font-medium",
+                    aria_label: "Geometry snap",
+                    aria_pressed: geometry_snap_enabled,
+                    onclick: move |_| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!geometry_snap_enabled)),
+                    span { if geometry_snap_enabled { "Geometry on" } else { "Geometry off" } }
+                }
             }
         }
     }
@@ -704,6 +722,7 @@ fn LayoutSnapMenu(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     settings: LayoutSnapSettings,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
+    show_layout_state: bool,
 ) -> Element {
     let is_open = open_menu() == Some(LayoutCommandMenu::Snap);
     rsx! {
@@ -730,6 +749,9 @@ fn LayoutSnapMenu(
                     path { d: "M4 3v7a6 6 0 0 0 12 0V3h-4v7a2 2 0 0 1-4 0V3ZM4 7h4M12 7h4" }
                 }
                 span { "Snap" }
+                if show_layout_state {
+                    span { class: "text-xs text-muted", "{snap_label(settings.snap_fraction)}" }
+                }
             }
             div { id: "m1-layout-snap-menu", class: "m1-layout-snap-popover",
                 LayoutCommandMenuHeader {

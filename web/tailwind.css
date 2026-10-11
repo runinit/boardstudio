@@ -1,0 +1,147 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@source "./src/**/*.rs";
+@source "./crates/**/*.rs";
+
+@theme inline {
+  --color-paper: var(--wb-paper);
+  --color-canvas: var(--wb-canvas);
+  --color-panel: var(--wb-panel);
+  --color-raised: var(--wb-raised);
+  --color-surface-soft: var(--wb-surface-soft);
+  --color-surface-strong: var(--wb-surface-strong);
+  --color-ink: var(--wb-ink);
+  --color-muted: var(--wb-muted);
+  --color-subtle: var(--wb-subtle);
+  --color-rule: var(--wb-rule);
+  --color-rule-strong: var(--wb-rule-strong);
+  --color-accent: var(--wb-accent);
+  --color-accent-dark: var(--wb-accent-dark);
+  --color-accent-secondary: var(--wb-accent-secondary);
+  --color-selection-ink: var(--wb-selection-ink);
+  --color-selection-surface: var(--wb-selection-surface);
+  --color-status-success: var(--wb-status-success);
+  --color-status-success-surface: var(--wb-status-success-surface);
+  --color-status-warning: var(--wb-status-warning);
+  --color-status-warning-surface: var(--wb-status-warning-surface);
+  --color-status-error: var(--wb-status-error);
+  --color-status-error-surface: var(--wb-status-error-surface);
+  --font-sans: var(--wb-body);
+  --font-display: var(--wb-display);
+  --font-mono: var(--wb-mono);
+  --text-workbench-title: var(--wb-type-title);
+  --text-workbench-body: var(--wb-type-body);
+  --text-workbench-label: var(--wb-type-label);
+  --duration-feedback: var(--wb-motion-feedback);
+  --duration-reveal: var(--wb-motion-reveal);
+  --duration-panel: var(--wb-motion-panel);
+  --ease-workbench-out: var(--wb-ease-out);
+}
+
+.layout-command-pill--contextual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.layout-command-pill--contextual > .m1-layout-snap-menu {
+  order: 0;
+}
+
+.layout-command-pill--contextual > .m1-layout-select-menu {
+  order: 1;
+}
+
+.layout-command-pill--contextual > .m1-layout-transform-menu {
+  order: 2;
+}
+
+.layout-command-pill--contextual > .m1-layout-align-menu {
+  order: 3;
+}
+
+.layout-command-pill--contextual > .layout-geometry-snap-toggle {
+  order: 4;
+}
+
+.layout-context-actions {
+  display: flex;
+  flex: 1 0 100%;
+  order: 5;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px 2px;
+  border-block-start: 1px solid var(--wb-rule);
+}
+
+.layout-context-actions .layout-context-action,
+.layout-geometry-snap-toggle {
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid var(--wb-rule-strong);
+  border-radius: 5px;
+  color: var(--wb-ink);
+  background: var(--wb-panel);
+  font: var(--wb-type-label) var(--wb-body);
+  line-height: 1.2;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.layout-geometry-snap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.layout-context-actions .layout-context-action[aria-pressed="true"],
+.layout-geometry-snap-toggle[aria-pressed="true"] {
+  border-color: var(--wb-accent);
+  color: var(--wb-selection-ink);
+  background: var(--wb-selection-surface);
+}
+
+.layout-context-actions .layout-context-action:hover:not(:disabled),
+.layout-geometry-snap-toggle:hover:not(:disabled) {
+  border-color: var(--wb-accent);
+}
+
+.m1-layout-toolbar-region {
+  position: absolute;
+  inset: 12px 12px auto;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.m1-layout-toolbar-region > * {
+  pointer-events: auto;
+}
+
+.m1-layout-toolbar-region > div.m1-canvas-toolbar {
+  position: static;
+  inset: auto;
+  width: fit-content;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.m1-layout-toolbar-region > .m1-layout-view-group {
+  position: static;
+  inset: auto;
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+@media (max-width: 1100px) {
+  .m1-layout-toolbar-region .layout-context-action,
+  .m1-layout-toolbar-region .layout-geometry-snap-toggle {
+    min-height: 44px;
+  }
+}
