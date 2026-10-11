@@ -44,7 +44,10 @@ and the rule that keeps it current without a pile of agents re-indexing at once.
    (for example `node .gitnexus/run.cjs impact SYMBOL --repo boardstudio-tce-matrix`). The bare
    `boardstudio` may be another checkout.
 5. **Check before trusting.** `python3 scripts/gitnexus-refresh.py --status` prints "current" or
-   why not. A result from a stale index is a hint, not a clean check.
+   why not. A result from a stale index is a hint, not a clean check. Report three facts separately:
+   analyzer success, metadata freshness warnings, and whether the exact source under review is present in indexed coverage.
+   A dirty warning alone does not prove source is missing; matching HEAD alone does not prove source coverage. Bind evidence to
+   the worktree, indexed HEAD, changed paths and source hashes, and refresh when those inputs change under the existing triggers.
 
 A refresh of this repository takes about one minute (55 s measured on 2026-10-10, 22k nodes), so
 it is cheap enough to do at every batch boundary.
