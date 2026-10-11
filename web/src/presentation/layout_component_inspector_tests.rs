@@ -1274,6 +1274,74 @@ async fn mounted_component_relations_tab_survives_unrelated_acceptance() {
     root.remove();
 }
 
+#[wasm_bindgen_test]
+async fn mounted_component_inspector_uses_constraint_and_navigation_copy() {
+    let (probe, root) = mounted_probe("layout-component-inspector-copy-test-root").await;
+    settle_component_inspector().await;
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let constraint_type = document
+        .query_selector(&format!(
+            "#{} .m1-layout-component-constraint select",
+            probe.root_id
+        ))
+        .unwrap()
+        .expect("the constraint selector mounts")
+        .dyn_into::<web_sys::HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(
+        constraint_type.get_attribute("aria-label").as_deref(),
+        Some("Constraint type")
+    );
+    assert!(
+        document
+            .query_selector(&format!(
+                "#{} .m1-layout-component-constraint label",
+                probe.root_id
+            ))
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .unwrap_or_default()
+            .contains("Constraint type"),
+        "the visible constraint label is: {}",
+        root.text_content().unwrap_or_default()
+    );
+
+    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
+    settle_component_inspector().await;
+    let navigation = document
+        .query_selector(&format!(
+            "#{} .m1-layout-component-inspector button:not([role='tab'])",
+            probe.root_id
+        ))
+        .unwrap()
+        .expect("the Relations navigation button mounts");
+    assert_eq!(
+        navigation.text_content().unwrap_or_default(),
+        "Go to Properties"
+    );
+    navigation
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    settle_component_inspector().await;
+    assert_eq!(
+        document
+            .query_selector(&format!(
+                "#{} button[role='tab']:nth-child(1)",
+                probe.root_id
+            ))
+            .unwrap()
+            .unwrap()
+            .get_attribute("aria-selected")
+            .as_deref(),
+        Some("true"),
+        "the navigation button opens Properties"
+    );
+    root.remove();
+}
+
 #[component]
 fn matrix_context_tab_reset_host() -> Element {
     let (matrix_context, key_context) = use_hook(|| {
