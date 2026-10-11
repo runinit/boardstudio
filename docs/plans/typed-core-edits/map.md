@@ -244,6 +244,12 @@ verification window ended. Full parent acceptance is not waived by partial slice
   independently verified and integrated at `1ad6b95c8`. Nine restored mutation variants and the original
   downstream assertion provide the recorded sensitivity evidence. The vacuous-wait variant observed `None`,
   not a completed wrong-depth edit; no completion claim follows from it. The full default batch passed.
+- [131](issues/131-diode-sod123-opt-in-qualification.md) has an independently reviewed opt-in Vishay diode
+  plan, with existing registry input behavior confirmed. Baseline-only preparation precedes producer changes;
+  legacy defaults and all 43 historical render cases must remain unchanged. HIGH registry / CRITICAL schema
+  consumer impacts remain in scope. Implementation and qualification are pending; ticket 118 stays open.
+- The next nine-test browser inspector proposal is deferred: 1.08 s of scheduled waits is not a measured gain,
+  and negative-case causal proof remains unresolved. Shared helper impacts are HIGH; no implementation lease.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11

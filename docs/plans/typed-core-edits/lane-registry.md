@@ -23,7 +23,7 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
 | A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`; own target/CAD cache | Bounded 128 passed fresh independent verification and nine restored mutation variants; committed `3faf4088`, integrated `1ad6b95c8`. Full integration batch passed 401.0 s. Parent 37 remains partial; 38 blocked. No new implementation lease. |
-| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 verified and integrated. 106 claimed at `5bcf4d38`; compiling no-op tracer produced behavioral red. First matrix projection passed focused green. Independent Standards review found no issues; Spec review confirms six incomplete requirement groups. Part RED/GREEN and rotated-matrix test passed; full coordinating kernel remains open. |
+| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105 integrated. 106 remains claimed/incomplete. Guarded prototype hash `480257d6` passed independent rework review and focused execution; nonempty retained-dependency and whole-document repeat proof findings are closed. Final repo/lint/test/typecheck passed 102.0 s. Root graph/partial-progress commit pending; generalization, assemblies, ownership transitions and deletion remain open. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
 | E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. |
@@ -80,6 +80,13 @@ F129 corrected bounded acceptance passed independent verification at `0c9a1178`,
 and integrated at `8e8f6bfab`. The lower-hole drill mutant failed the intended dimension assertion and exact
 production bytes were restored. All F write and temporary mutation leases are released; 118 remains open.
 Root owns129 allocation;128 belongs to A and reserved118–127 retain their assignments. Every command requires a window.
+Root materialized [131](issues/131-diode-sod123-opt-in-qualification.md) for the opt-in Vishay 1N4148W land-pattern configuration and qualification plan in lane F.
+No implementation lease yet. Preserve legacy defaults/output, explicitly extend the strict schema contract,
+and retain HIGH registry / CRITICAL Core-schema impact warnings. IDs 120–127 remain reserved separately.
+First assignment is baseline-only preparation; producer/qualification work follows in a separate session.
+The next A inspector conversion is deferred: the nine-test proposal has only 1.08 s of scheduled waits,
+no measured gain, and unresolved negative-case causal proof. Shared helpers have HIGH impacts; keep them unchanged.
+Ticket 37 remains partial and 38 remains blocked; deferred work is not completed acceptance.
 Root reserves 130 for a read-only audit of the existing Panasonic EVQ-PUC02K SMT side-reset candidate.
 Proposed ticket: `issues/130-reset-switch-smd-side-qualification.md`; no ticket/test write or producer mutation
 lease is active. Catalogue identity and official drawing evidence must be audited before acceptance/implementation.
