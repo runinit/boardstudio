@@ -65,6 +65,12 @@ and for any bulk action a recorded decision permits.
 
 <!-- one line per resolved build ticket -->
 
+- [131](issues/131-diode-sod123-opt-in-qualification.md) and [132](issues/132-reconcile-fixed-membership-matrix-geometry.md)
+  are independently verified and integrated at `b01c106a4`: opt-in Vishay diode land-pattern qualification and
+  fixed-membership multi-key mirrored geometry/preservation. Both have meaningful restored producer/kernel
+  mutation evidence. One full sequential cohort batch passed all default steps in 539.1 s, including 70 presentation
+  tests. Parent 106/19 remain open and unactivated; physical/system hardware ticket 118 remains open.
+
 - 31 companion placement modes, 32 mirrored-half labels and
   [39](issues/39-stabilisers-and-companion-fallback.md) stabiliser/companion fallback rules are independently
   verified and merged from lane B. Ticket 39 verification is `4227567ae`; its eight mutations failed meaningfully.
@@ -223,6 +229,9 @@ verification window ended. Full parent acceptance is not waived by partial slice
   qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
   native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
   board work and sign-off; the user has delegated hardware selection.
+- [133](issues/133-ec11e15244g1-encoder-qualification.md) is claimed as a test-only numeric pattern and terminal-role
+  qualification child of 118. Its isolated qualification does not block on 118 and does not close 118's open engineering gates.
+- [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) is claimed by B after its independent fixed-membership planning gate passed. Source START awaits root claim commit and explicit complete-cycle grant; parents106/19 remain open and do not block this isolated child.
 - [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
   configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
   Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
@@ -247,14 +256,13 @@ verification window ended. Full parent acceptance is not waived by partial slice
 - [132](issues/132-reconcile-fixed-membership-matrix-geometry.md) is an independently reviewed bounded child
   of 106 for fixed active membership, multi-key geometry and retained-key preservation. Its independent 2x3
   numeric oracle passed planning review. Fresh independent bounded verification passed focused 7/7, both
-  intended kernel mutations with exact restores, and final repo/lint/test/typecheck (83.6 s). Root integration
-  and cohort batch are pending; parent 106/19 remain open and unactivated.
+  intended kernel mutations with exact restores, and final repo/lint/test/typecheck (83.6 s). Integrated `b01c106a4`; full cohort batch passed 539.1 s. Ticket 132 is resolved; parent 106/19 remain open and unactivated.
 - [131](issues/131-diode-sod123-opt-in-qualification.md) baseline preparation passed independent verification
   and is checkpointed on lane F at `4607c266`. The frozen 43-case current Rust baseline records 40 render/export
   successes and 3 render errors. Luna 6 high producer implementation passed fresh Sol 6.1 xhigh verification,
   including strict schema, 43 absent/false compatibility cases and separate width/polarity producer mutations
-  with exact restore and green checks. Generated fixture is unchanged; root integration/full batch remains.
-  HIGH registry / CRITICAL schema consumer warnings are retained. 131 and physical 118 stay open.
+  with exact restore and green checks. Generated fixture is unchanged; integrated `42df5e642` and full cohort batch passed at `b01c106a4`.
+  HIGH registry / CRITICAL schema consumer warnings are retained. Ticket 131 is resolved; physical 118 stays open.
 - The next nine-test browser inspector proposal is deferred: 1.08 s of scheduled waits is not a measured gain,
   and negative-case causal proof remains unresolved. Shared helper impacts are HIGH; no implementation lease.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,

@@ -55,6 +55,16 @@ The orchestrator waits for the implementer to finish before starting its verifie
 in `docs/plans/typed-core-edits/parallel-lanes.md`. Model selection is evidenced by dispatch/runtime settings, not an agent's
 self-description.
 
+### Handoffs and command windows
+
+Grant a complete bounded cycle: exact paths, acceptance evidence, mutations and checks; when a ticket claim is required, commit
+it before `START`. The implementer hands off only after stopping, with the action taken and pointers to evidence. Then grant the
+fresh Sol verifier its own command window and fixed scope. Name each foreground command owner, and record transitions and
+release; escalate any scope change before doing it. Keep one current state snapshot. At meaningful transitions or exceptions,
+send the next action and evidence pointers instead of repeating the narrative. Poll foreground work every 30–60 seconds without
+per-poll commentary or background watchdogs. Choose the lowest sufficient effort from the role table; use the existing Luna
+low clerical role when needed, and preserve fresh Luna/Sol role independence.
+
 If native subagents are unavailable, run a separate Codex session with the lane as its working directory and the same explicit
 model and effort. The installed CLI accepts `codex exec -C <absolute-lane> -m <model-id> -c model_reasoning_effort=<effort>
 -c service_tier=\"priority\" -`, with the complete brief on stdin. Do not create sidebar chats for delegation unless the user
@@ -64,7 +74,7 @@ asks for them.
 
 - **Spawning agents.** Claude used background subagents. Codex uses the dispatch procedure above. The briefs are in
   `lane-prompts.md`; pass the complete brief because a fresh lane agent has no task history.
-- **Memory.** Cross-session memory is `memsearch`, shared by both apps (use the `memsearch:memory-recall` skill for "why did we do X"). It is a recall aid, not a rulebook: the rules below and the docs are what bind, and where memory disagrees with the docs, the docs win.
+- **Memory.** Cross-session memory is `memsearch`, shared by both apps (use the `memsearch:memory-recall` skill for a specific prior decision, rationale or failure that current context does not answer). Search once for 3–5 hits, deduplicate, and expand one relevant section. Return dated facts with source pointers; do not load journals or maintained summaries wholesale. Current human instructions, repository authorities and verified state govern over recall.
 - **Hooks.** Codex uses `~/.codex/hooks.json`; Claude uses its settings file. Register only the orchestrator session for
   automatic index refresh as described in [gitnexus-index.md](gitnexus-index.md). Explicit batch-boundary refreshes remain
   required; a hook may skip while checks run. Keep the existing memsearch and design hooks.
