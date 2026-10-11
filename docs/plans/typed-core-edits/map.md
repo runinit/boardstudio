@@ -61,16 +61,13 @@ and for any bulk action a recorded decision permits.
 - After mechanical 02 and matrix integrated verification, [04](issues/04-refresh-included-keyboards.md)
   redoes all included keyboards using the settled model (user follow-up, 2026-10-08).
 
-## Current claimed work
-
-- [135](issues/135-sofle-v2-encoder-configuration.md): persist ticket 133's explicit EC11 configuration in the Sofle v2 recipe; this bounded child does not close parent 118.
-
 ## Progress
 
 <!-- one line per resolved build ticket -->
 
 - [133](issues/133-ec11e15244g1-encoder-qualification.md) resolved: front-only EC11 nominal-pattern/terminal-role qualification, fresh 3/3 focused and 90 crate tests (3 ignored), two restored producer probes; source `4a40faff`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parent 118 remains open.
 - [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) resolved: fixed existing assemblies and retained dependencies, fresh 9/9, three restored kernel probes plus non-pose/linked-key guard corrections; source `bcdef94c`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parents 106/19 remain open and unactivated.
+- [135](issues/135-sofle-v2-encoder-configuration.md) resolved: persisted the ticket 133-qualified explicit EC11 configuration for Sofle v2 SW25. Source `4689c99b`, integrated `78eb5069`; independent archive/export/preservation verification passed with a restored override mutation. The E12+F135 cohort passed all default checks in 372.4 s. Parent118 remains open.
 
 - [131](issues/131-diode-sod123-opt-in-qualification.md) and [132](issues/132-reconcile-fixed-membership-matrix-geometry.md)
   are independently verified and integrated at `b01c106a4`: opt-in Vishay diode land-pattern qualification and

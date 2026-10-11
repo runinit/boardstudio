@@ -1,6 +1,6 @@
 # 12: Inspector copy matches the constraint domain and navigation action
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 04, 09
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -29,4 +29,6 @@ Readiness proposal: `/home/chris/.cache/boardstudio-baselines/inspector-readines
 
 ## Outcome
 
-Record changed files, checks, mounted assertions, independent verification, and remaining visual limitations.
+The two requested copy changes and mounted assertions are integrated in source commit `58486522` at `885dfc21`. Fresh independent review passed on accepted source `6aabef…` and final test SHA `4602899d…`, reproducing two intended literal mutations as RED and the restored assertions as GREEN. Evidence: `/home/chris/.cache/boardstudio-baselines/inspector-copy12/verification-result.json` and `source-review.md`.
+
+The E12+F135 integration cohort passed at `78eb50695708686fbb65ea962aae7c67825e5871` in 372.4 s: repo 0.1, tooling 3.0, lint 6.1, build 55.5, test 60.0 and browser 247.7. Log: `/tmp/boardstudio-cohort-inspector12-sofle135.log`. Source and shared-test leases are released. The copy ticket does not complete visual polish: no live visual observation occurred and no rendered CSS defect was established; ticket 37's wait work remains deferred.
