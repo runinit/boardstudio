@@ -61,6 +61,10 @@ and for any bulk action a recorded decision permits.
 - After mechanical 02 and matrix integrated verification, [04](issues/04-refresh-included-keyboards.md)
   redoes all included keyboards using the settled model (user follow-up, 2026-10-08).
 
+## Current claimed work
+
+- [135](issues/135-sofle-v2-encoder-configuration.md): persist ticket 133's explicit EC11 configuration in the Sofle v2 recipe; this bounded child does not close parent 118.
+
 ## Progress
 
 <!-- one line per resolved build ticket -->
