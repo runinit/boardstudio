@@ -278,6 +278,14 @@ fn changed_ids(changes: &PartChanges) -> Vec<String> {
         .collect()
 }
 
+/// Remove exactly the supplied part identities and remap their project dependencies.
+pub(crate) fn remove_parts_by_id(
+    doc: &mut ProjectDoc,
+    removed_ids: &BTreeSet<String>,
+) -> Vec<String> {
+    let changes: PartChanges = removed_ids.iter().cloned().map(|id| (id, None)).collect();
+    remap_parts(doc, &changes)
+}
 pub(crate) fn remove_cells(
     doc: &mut ProjectDoc,
     matrix_id: &str,
