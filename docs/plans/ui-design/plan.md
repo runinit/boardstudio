@@ -11,6 +11,8 @@ Coordinator: `01a12c41-1a51-7101-a555-188f1c85edce`; worktree `/home/chris/.code
 
 ## Delivery sequence
 
+Initial user priority is fast Layout editing: fewer clicks for common toolbar actions, discoverable Snap, and relevant item/row/column actions. Case follows. Apply foundations and shell improvements as needed for these coherent batches; they do not create another prerequisite chain.
+
 1. **Observe and shape.** Run Impeccable context once per session; use critique/audit against real representative screens and task states. Reuse existing source critique packets where useful, but inspect rendered truth. Ask only consequential unresolved design questions in the lane chat. Establish a compact brief and agreed visual direction within current product constraints.
 2. **Foundations and iconography.** Establish consistent spacing/density, type hierarchy, semantic color roles, focus/selection/disabled states and compact controls. Select a coherent Solar style and reusable accessible icon wrapper. Verify upstream provenance/license, local asset strategy and attribution; avoid importing unused sets or unrelated dependencies.
 3. **Shell and Inspector.** Clarify navigation, project identity/save feedback, sections, descriptions and selection context. Reduce wasted space while keeping controls understandable and reachable; preserve accepted Inspector wording and Export blocker behavior. Handle narrow layouts without silently losing actions.
@@ -19,6 +21,17 @@ Coordinator: `01a12c41-1a51-7101-a555-188f1c85edce`; worktree `/home/chris/.code
 6. **Responsive, accessible and motion finish.** Check desktop and narrow viewports, keyboard/focus, overflow, touch targets, contrast, loading/errors and empty states. Use purposeful transitions with reduced-motion support. Avoid animations that delay editing or obscure geometry.
 
 Each batch has exact paths, small acceptance criteria and an evidence packet. Use relevant Impeccable playbooks on demand (clarify, distill/layout/typeset, colorize, adapt/harden, animate, polish); do not run every command as a ritual. Read craft-floor immediately before UI edits. Follow the skill's bounded batched visual passes and stop open-ended polishing. Combine its fresh finish review with repository behavior acceptance when the same reviewer receives the complete evidence and rubric.
+
+## Reused interface crosswalk
+
+The [source-grounded commitment crosswalk](../delivery-queue.md#required-interface-commitments) records required scope, owners and proof limits. Reuse these interfaces; this adds no serial gate or public solver/helper visibility.
+
+| UI concern | Existing interface and scope boundary |
+| --- | --- |
+| Selection and contextual actions | TreeContext/ScopedTreeContext, admitted canvas selection and ToolbarInput already carry item/row/column and transform context. Reuse existing IDs, selection modes and admission checks. |
+| Layout transforms and assembly choice | MatrixTransformField/build_operation and existing matrix field/preset resolvers supply transforms, deletion and assembly operations. Preserve precise geometry, membership and Undo; do not implement mirror policy in the browser. |
+| Mirror and selective exceptions | L1/B owns the private canonical operation through apply, both resolvers and reconcile, and 109 lifecycle/111 activation. L3/E ticket 21 consumes accepted MakeLocal/Omit/Rejoin/Unlink operations for independent parts and companions; L7 coordinates visual overlap only. 139's accepted model and narrow driving lookup serve 114; format 6 production activation remains 111. |
+| Case editing and generation | Existing ApplyMechanicalEdit/CaseBodyEdit, scoped generation requests and geometry-readiness states support the UI. Preserve token/revision ownership, previous-versus-current geometry and cancellation semantics. |
 
 ## Ownership and independence
 
