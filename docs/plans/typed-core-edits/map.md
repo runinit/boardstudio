@@ -61,16 +61,13 @@ and for any bulk action a recorded decision permits.
 - After mechanical 02 and matrix integrated verification, [04](issues/04-refresh-included-keyboards.md)
   redoes all included keyboards using the settled model (user follow-up, 2026-10-08).
 
-## Current claimed work
-
-- [135](issues/135-sofle-v2-encoder-configuration.md): persist ticket 133's explicit EC11 configuration in the Sofle v2 recipe; this bounded child does not close parent 118.
-
 ## Progress
 
 <!-- one line per resolved build ticket -->
 
 - [133](issues/133-ec11e15244g1-encoder-qualification.md) resolved: front-only EC11 nominal-pattern/terminal-role qualification, fresh 3/3 focused and 90 crate tests (3 ignored), two restored producer probes; source `4a40faff`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parent 118 remains open.
 - [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) resolved: fixed existing assemblies and retained dependencies, fresh 9/9, three restored kernel probes plus non-pose/linked-key guard corrections; source `bcdef94c`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parents 106/19 remain open and unactivated.
+- [135](issues/135-sofle-v2-encoder-configuration.md) resolved: persisted the ticket 133-qualified explicit EC11 configuration for Sofle v2 SW25. Source `4689c99b`, integrated `78eb5069`; independent archive/export/preservation verification passed with a restored override mutation. The E12+F135 cohort passed all default checks in 372.4 s. Parent118 remains open.
 
 - [131](issues/131-diode-sod123-opt-in-qualification.md) and [132](issues/132-reconcile-fixed-membership-matrix-geometry.md)
   are independently verified and integrated at `b01c106a4`: opt-in Vishay diode land-pattern qualification and
@@ -229,13 +226,8 @@ Parallel scheduling decision: [parallel streams](parallel-streams-review.md). Th
 leases and sequential commands. B remains serial; A/F have isolated active slices after exact audits and the original 105
 verification window ended. Full parent acceptance is not waived by partial slices.
 
-- Native mirrored halves: 17, 18, 26–32, 39 and 105 are resolved and integrated. Next: 106 in the 19 child chain,
-  with one implementer followed by a fresh verifier. 40 follows 19; 20, 21, 41 and 22 follow their ticket dependencies.
-- Board planning 42–104 is reviewed. Sofle BOM selection and missing-footprint research may proceed without shell/check
-  overlap. IDs 118–127 are reserved for bounded Sofle hardware/component follow-ups. Implementations wait for their
-  qualified component plans and root's exclusive command window; isolated qualification 119 is independent of 19/20, while
-  native Sofle recipes retain 20+44 prerequisites. Final 23 consumes completed
-  board work and sign-off; the user has delegated hardware selection.
+- Native mirrored halves: 17, 18, 26–32, 39, 105, 132 and 134 are resolved and integrated. 106 remains open; its writer is paused at preflight with source at87d4 preserved and no writer/command lease. Resume only under root's fresh complete-cycle grant. Parents106/19 remain open; 40, 20, 21 and22 retain their separate dependencies.
+- Board artifact work is governed by [25](issues/25-shipped-boards-review.md): one ordinary saved project per board through existing request examples and common operations. Sofle v2/RGB/Choc are Inspector assembly choices in one project; [56](issues/56-sofle-sign-off.md) gates its review and assembly-swap evidence before remaining boards. Shared mirror/link 19/22 remains required separately, but board creation does not wait on 19/22/44. Tickets 44, 47–55, 58–78 and 80–103 are wontfix with supersession answers; their evidence remains historical. [46](issues/46-sofle-hardware-inputs.md) reflects delegated BOM selection with evidence gaps only; [57](issues/57-measured-split-hardware-inputs.md) and [79](issues/79-unibody-hardware-inputs.md) preserve genuine human hardware/material/process/tolerance gates.
 - [133](issues/133-ec11e15244g1-encoder-qualification.md) and [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) are resolved and integrated after the full cohort PASS. B's next coherent 106 membership/ownership contract-readiness step is queued, not writer-ready; parent 118's engineering gates remain open.
 - [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
   configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.

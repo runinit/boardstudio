@@ -1,8 +1,8 @@
-# 25: Full review of the 20 shipped boards, Sofle first
+# 25: Review and rebuild the shipped board projects, Sofle first
 
-Status: ready-for-agent
+Status: claimed
 Type: task
-Blocked by: [22](22-mirrored-half-integrated-verification.md)
+Blocked by: none
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 
 ## Request
@@ -13,47 +13,38 @@ tweaks outside of these changes". **Sofle is the focus** and goes first.
 
 ## What to do
 
-Per board (20 shipped: 15 measured, 3 Sofle, REVIUNG41 archive, VIK review), starting with
-Sofle v2, RGB and Choc:
+Create one ordinary saved project for each distinct active board in the current board inventory using existing Core/Archive/Artifact JSON request examples and common user operations. Do not infer a new project count from the historical 20-entry inventory: the three Sofle variants are assembly choices in one project, the REVIUNG41 archive is preserved under104, and VIK remains deferred. Existing functions are expected to be sufficient; do not add per-board builders, branches, behavior suites, or extracted helpers.
 
-- **Footprints:** each part's footprint, library source, pad and drill parameters, model
-  assets, courtyard, side and `reversible` settings against the real part; import leftovers
-  and placeholders (generated bay, reset, TRRS) that should be real components.
-- **Positioning:** switch pitch and rotation against the measured source, controller,
-  connector, diode, LED and encoder placement, mounting holes and their keep-outs, and the
-  tight fits already recorded (closure holes vs controller bay on Lily58, KLOR, Sweep, Chocofi,
-  Sofle RGB/Choc; switch-cutout gaps on Cantor, TOTEM, Sofle RGB; Sofle v2 gasket has no
-  closure mounts).
-- **Structure:** one measured half plus the native mirror; recorded exceptions only; outlines
-  and gap repair (the KLOR 6.4 mm non-equivariant pocket); matrices and wiring.
-- **Output:** PCB, plate and case results and fit findings; record unresolved hardware
-  qualification as findings, since rebuilding does not establish physical fit.
+Represent Sofle v2, RGB, and Choc as shared Inspector assembly choices in one Sofle project. The shared mirror/link capability remains required separately under tickets 19/22; board creation itself does not wait for 19, 22, or recipe ticket 44.
 
-Method: a planning pass producing a per-board checklist and severity list (read-only
-research with the real fixtures), an AI review against the recorded outcomes and ADR rules,
-then user review of the ranked list. No board fixes start before the user review; afterwards,
-fixes proceed board by board with the implement/verify process. Each board's fixes are their
-own ticket under this one.
+For each board, resolve components using an existing-library equivalent first. If no suitable library part exists, adapt a reusable upstream Ergogen-style or GitHub footprint through the normal component onboarding path, including source/license, geometry, terminal, and verification evidence. Keep missing evidence explicit.
+
+When a layout result is unexpected, capture a minimal reproduction through normal operations and determine whether the saved input is wrong or shared behavior is wrong. A shared behavior defect needs a failing shared regression and the smallest shared fix with affected checks. Do not add a board-specific offset workaround.
+
+Preserve genuine electrical and physical evidence gaps and the Sofle human sign-off gate. Successful serialization or generation does not establish physical fit or electrical qualification.
+
+Claimed by the existing F coordinator for the ordinary Sofle artifact. Reserved fixture lease: web/assets/fixtures/sofle.boardstudio and its existing web/assets/fixtures/sofle.json companion. Product START waits for root to commit this reviewed claim and explicitly grant it. Remaining-board work stays held until ticket56 sign-off.
 
 ## Acceptance
 
-- [x] A written review for every shipped board with findings ranked by severity.
-- [x] AI review completed against tickets 02, 06 and 30 and ADR-0010; corrected current linked-fit values and recorded scope limits.
-- [x] User reviews the ranked list and supplies the rebuild direction before any board fix starts.
-- [x] Rebuild direction recorded: configurable standard key spacing, native board-specific key assemblies, real component matches, native outlines/mount generation, regenerated closure clearances, and VIK deferred.
-- [x] Phase 2 per-board fix tickets drafted with source evidence, ownership, hardware gates and regression/verification plans.
-- [ ] Sofle variants fixed and verified first; user sign-off before the rest.
-- [x] Decisions needing hardware knowledge are asked of the user, not guessed.
-
-Keyboard [04](04-refresh-included-keyboards.md) is redone on the native model in [23](23-redo-keyboard-04-on-native-halves.md); this review feeds it and may supersede part of it.
+- [ ] The current active board inventory is reconciled to one ordinary saved project per distinct active board, authored through existing request examples and common operations; the historical 20-entry inventory is not a 20-project obligation.
+- [ ] The three Sofle variants are reviewable as Inspector assembly choices in one saved project; ticket 56 records the Sofle artifact and assembly-swap evidence and human sign-off before remaining-board work proceeds.
+- [ ] Shared mirrored-half/link behavior is implemented and verified separately under 19/22; it is not recreated inside board-specific project setup.
+- [ ] Existing-library matches are used where suitable. Any adapted upstream footprint has source/license, geometry, terminal mapping, and normal onboarding/verification evidence.
+- [ ] Unexpected layouts have a minimal normal-operation reproduction and are classified as input data or shared behavior; shared fixes have a failing shared regression and affected checks, with no board-specific offset hacks.
+- [ ] Actual electrical and physical qualification gaps remain explicit; no fit claim follows from a saved project or successful export.
 
 ## Outcome
 
-Phase 1 research, AI review and human direction: [shipped boards review](../audit/shipped-boards-review.md). The audit now records the user's rebuild rules: repository-default key assembly spacing with a global configurable option; duplicate-position diodes for the current shipped data followed by BoardStudio-native, board-specific assemblies; real component footprints; native outline conversion and mounting-system/clearance generation for splits and unibodies; safe-only footprint flipping and a separate reversible-variant option; and VIK deferred. No recipes, fixtures, footprints or code were changed; no build/export or hardware fit check was run. Exact component matches, Choc cutout geometry, hardware tolerances and actual physical fit remain to be checked in the implementation tickets. The report also records the parts of the footprint/output review that were not performed. This lane stops before implementation; per-board tickets should begin with Sofle after the mirrored-half dependencies are ready.
+Phase 1 research, AI review and human direction: [shipped boards review](../audit/shipped-boards-review.md). The audit now records the user's rebuild rules: repository-default key assembly spacing with a global configurable option; duplicate-position diodes for the current shipped data followed by BoardStudio-native, board-specific assemblies; real component footprints; native outline conversion and mounting-system/clearance generation for splits and unibodies; safe-only footprint flipping and a separate reversible-variant option; and VIK deferred. No recipes, fixtures, footprints or code were changed; no build/export or hardware fit check was run. Exact component matches, Choc cutout geometry, hardware tolerances and actual physical fit remain to be checked in the implementation tickets. The report also records the parts of the footprint/output review that were not performed. This lane stops before implementation; the former per-board ticket proposal is superseded by the canonical saved-project contract above; shared mirror/link work remains a separate required stream.
 
 ### Verification (Sonnet 5.5 reviewer, 2026-10-10, `lane-boards-review`)
 
 Read-only: no build, cargo, export or hardware check. Reproduced from `core/tests/fixtures/demo-projects-baseline.json`, the layout JSON, the REVIUNG41 archive and the tickets: all 20 part counts; the closure-to-bay and closure-to-switch values (KLOR 1.42 mm overlap, Cantor 0.031, TOTEM 0.048, Sofle Choc 0.109, and the rest, for both halves); the diode offset; the ticket 30 headings; the Sofle peripheral provenance; the 15 measured and three Sofle switch layouts (distance and rotation test). Wrong in the draft and corrected in the document: Sofle RGB 0.009 mm and the Sofle −3.30 mm bay overlap (both superseded by ticket 06, the baseline gives 1.066 mm and 0.10 mm on both halves); Sweep, Chocofi, TOTEM and Cantor are Choc boards at 18 x 17 mm pitch, not MX at 19.05 mm; key counts for Sweep, Chocofi and Cantor; the Lily58 and Sweep sources; stabiliser counts for Discipline, Mysterium and REVIUNG41; the ticket 30 heading difference applies to all seven measured splits. Decisions 1 (diodes) and 4 (pads) were already answered in ADR-0010 and ticket 31; reworded to the physical question that remains. A "Proposed tickets per board" list (Sofle first) is in the document. Not checked: pads, drills, courtyards, model assets, wiring and pin assignments, exported PCB, plate and case output, any real-hardware fit. Coverage gaps and the full claim table are in the document's Verification section. Status stays `ready-for-human`.
+
+## Historical planning record
+
+The following Phase 2 ticket list and prior Outcomes are retained as historical evidence. The current implementation contract and acceptance above supersede the former per-board ticket hierarchy; those tickets are marked wontfix and are not active work.
 
 ## Phase 2 ticket plan (Codex, Sol 6.1 max, 2026-10-10)
 

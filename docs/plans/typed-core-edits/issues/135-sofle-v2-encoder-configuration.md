@@ -1,6 +1,6 @@
 # 135: Persist the qualified EC11 configuration in the Sofle v2 recipe
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: 133
 Parent: [118](118-sofle-adaptation-hardware-contract.md)
@@ -59,4 +59,6 @@ This ticket encodes and persists the already qualified nominal fixture; it does 
 
 ## Outcome
 
-Record exact changed hunks, RED/GREEN evidence, focused checks, independent verification, generated-output handoff and remaining parent 118 limits.
+Implemented in source commit `4689c99b`, integrated at `78eb5069`. Fresh independent verification passed: recipe source `3d620d10…`, included-keyboards test `e5b768de…`; public archive/export and preservation assertions passed, and reverting one explicit override reproduced the intended compile-time RED before exact restoration and GREEN. The verifier's affected checks passed in 63.3 s; report: `/home/chris/.cache/boardstudio-baselines/ticket135/verification/verification-report.md`.
+
+The E12+F135 integration cohort passed at `78eb50695708686fbb65ea962aae7c67825e5871` in 372.4 s: repo 0.1, tooling 3.0, lint 6.1, build 55.5, test 60.0 and browser 247.7. Log: `/tmp/boardstudio-cohort-inspector12-sofle135.log`. The exact two-file implementation lease is released. Parent 118 remains open for electrical, firmware and physical-fit gates; this ticket does not establish system hardware acceptance.

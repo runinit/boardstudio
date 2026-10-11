@@ -23,11 +23,11 @@ Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 | Lane | Coordinator chat / ID | Worktree and branch | Current work / gates |
 | --- | --- | --- | --- |
 | A browser tests | Coordinate browser test lane A / `01a1276a-18ec-76d0-83ed-82d289372b07` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-web-sleeps`, `codex/lane-web-sleeps`; own target/CAD cache | Bounded 128 passed fresh independent verification and nine restored mutation variants; committed `3faf4088`, integrated `1ad6b95c8`. Full integration batch passed 401.0 s. Parent 37 remains partial; 38 blocked. No new implementation lease. |
-| B mirror Core | Coordinate mirrored-half reconciliation / `01a12740-01ce-7f21-ba6b-39982e260d5c` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, `lane/mirror-core` | 105/132 integrated. Consolidated independent review of 106 found 12 kernel and 2 fixture-proof gaps; source `99a9b5f…` is frozen dirty at `868219967`, with writes/commands HOLD. Next packet: `/home/chris/.cache/boardstudio-baselines/ticket106-transition/106-consolidated-repair-brief-pending-start.md`. Parents106/19 remain open and dormant. |
+| B mirror Core | Coordinate mirrored-half reconciliation / 01a12740-01ce-7f21-ba6b-39982e260d5c | /home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core, lane/mirror-core | 105/132 integrated. 106 writer is paused at preflight; source at 87d4 is preserved. Root-provided repair brief /home/chris/.cache/boardstudio-baselines/ticket106-transition/106-consolidated-repair-brief-pending-start.md SHA256 ca8dae27134589f7aa358d937d0ac3d084549a24ec47631499c1de2bf4d1f4c4 aligns derived canonical facts with the existing matrix/remap/atomic pipeline; no speculative blanket gate or parallel engine. No product START without root grant. Parent106/19 remain open. |
 | C check speed | Coordinate check speed lane C / `01a1276a-2f0a-7d01-b42e-9a16249e8fbc` | Not assigned | HOLD. 11 needs the machine alone; 12 follows A38; 13 is a human decision. |
 | D test cleanup | Coordinate test cleanup lane D / `01a1276a-40fa-77d0-935d-c68fefdb47ca` | Not assigned | HOLD. 35 after mirror/recipe integration; 24 closes after cleanup. Root alone regenerates goldens. |
-| E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | Not assigned | HOLD. 21, 41, 22 follow their B dependencies. Companion placement excludes independent parts. Matrix [12](../matrix-layout-consistency/issues/12-inspector-copy.md) is `implemented (awaiting verification)` after source `58486522` merged at `885dfc21`; accepted source `6aabef…`, final test `4602899d…`, verification `/home/chris/.cache/boardstudio-baselines/inspector-copy12/verification-result.json`. Root batch check remains pending; do not resolve ticket 12. A37 waits/helpers/fixtures remain deferred. |
-| F boards | Coordinate BoardStudio board adaptations / `01a1273f-b992-7133-b8ed-1eae6bbc90da` | `/home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2`, `codex/sofle-adaptations` | Ticket [135](issues/135-sofle-v2-encoder-configuration.md) is claimed under parent118, follows completed133 and is independent of106/19 for this bounded configuration/persistence/export unit. Exact lease: `recipes::sofle` encoder parameter-selection expression in `core/examples/demo_projects/recipes.rs` plus focused regression in `core/tests/included_keyboards.rs`. Root retains command ownership; F implementation START is not granted. Parent118 engineering gates remain open. |
+| E web adapters | Coordinate mirrored half web lane E / `01a1276a-5631-7b73-a8d3-9d864b586f5f` | `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-inspector-copy`, `codex/inspector-copy` | Matrix [12](../matrix-layout-consistency/issues/12-inspector-copy.md) passed fresh independent review and the E12+F135 cohort at `78eb5069`; source `58486522`, accepted source `6aabef…`, final test `4602899d…`, verification `/home/chris/.cache/boardstudio-baselines/inspector-copy12/verification-result.json` and `source-review.md`. Worktree clean; source/test lease released. A37 waits/helpers/fixtures remain deferred. |
+| F boards | Sole Sofle coordinator / 01a1273f-b992-7133-b8ed-1eae6bbc90da | /home/chris/.codex/worktrees/sofle-adaptations/ts-boardstudio2, codex/sofle-adaptations | 133/134/E12/135 are resolved. F is doing non-shell ordinary-artifact preparation only; no product START until root commits the claim and grants it. Source-bound readiness: /home/chris/.cache/boardstudio-baselines/sofle-next-unit/ordinary-project-data-handoff.md and ordinary-project-data-inputs.json. Claimed/reserved lease: web/assets/fixtures/sofle.boardstudio and web/assets/fixtures/sofle.json. Product START waits for root to commit the reviewed claim and explicitly grant it. User accepts nice!nano or SuperMini; retain supported nice!nano v2. Parent118 electrical/physical evidence gaps remain open. |
 
 F's earlier `.worktrees/lane-boards-review` branch is committed and integrated; it is frozen, not another active writer.
 Other existing worktrees and old ticket chats are not active lane leases. Preserve them and confirm ownership before reuse.
@@ -64,9 +64,9 @@ Root grants a bounded sequence and waits for explicit COMMAND WINDOW RELEASED be
 No release is inferred from inactivity. Approved non-shell edits/research may overlap ordinary checks only in
 separate checkouts with disjoint inputs; timing measurements require the machine alone.
 
-Current command owner: root for E integration, F135 claim and index boundary. F135 is claimed but implementation START is not granted. B's consolidated106 review found 12 kernel and 2 fixture-proof gaps; source is frozen dirty at `868219967`, and commands/writes remain HOLD pending the cached repair packet. E matrix12 awaits the integration cohort check; C quiet-machine timing remains held.
+Current command owner: root/chief for foreground commands and integration. F may prepare the ordinary Sofle artifact through its current non-shell grant only; product START remains held pending root commit and explicit grant.
 
-Other-lane source-only UI critique preparation is complete in cache; no browser, launcher or detector was started and it adds no delivery gate.
+UI source-only critique preparation has five objective packets complete; no browser observation has occurred, and there is no visual-polish completion claim or added delivery gate.
 
 Completed F131 edit lease (released): `footprints/src/generators/ceoloide/diode_tht_sod123.rs` PARAMS/body only; new `footprints/tests/diode_sod123_qualification.rs`; `footprints/tests/generators.rs` strict schema extension/private explicit-false comparator, preserving baseline helpers; narrow `docs/investigations/footprint-generators-rust.md` deviation. No shared API/Registry/Core changes or generated outputs. Existing absent whole-record comparison stays unchanged; explicit false accounts for only the added input flag and compares output/export/net/error payloads exactly. Root owns ticket/map edits. Completed B132 write lease (released): only `core/src/mirrored_half/reconcile.rs` private fixed-membership geometry/view builder and focused tests. Shared matrix/reflection helpers, visibility, schema, activation, topology/add/remove/deletion and generated outputs are excluded.
 
@@ -103,29 +103,7 @@ lease is active. Catalogue identity and official drawing evidence must be audite
 
 ### B: Core ticket 106
 
-Initial write lease:
-
-- `core/src/mirrored_half.rs`: private reconcile module/glue only.
-- `core/src/mirrored_half/reconcile.rs`: unactivated forward kernel and direct unit tests.
-- `docs/plans/typed-core-edits/issues/106-reconcile-mirrored-matrices-layouts-parts.md`.
-
-Existing derive.rs, mechanical/halves.rs, matrix.rs, matrix/layout.rs and creation tests remain read-only.
-Before a necessary helper edit, B reports exact symbol/change, necessity, callers/processes/risk for an additional
-root lease. No existing visibility widening, model/schema/lib dispatch, hosted/electrical/outline kernel,
-lifecycle/activation, 40, 107 or generated-output work belongs to this slice.
-
-The first no-op test compiled, preserved identity/board and failed stale rows 1 versus 2. Its matrix-projection
-implementation passed the same focused test in 5.786 s after correcting test imports. Remaining full 106 acceptance needs coherent test-first batches; the first tracer
-does not close the ticket. Source additions/removals, ownership/membership, layouts/materialized parts,
-local/omitted inputs, per-item settings, changed IDs/idempotence and rotated maps remain required.
-
-The later valid two-board/two-matrix fixture baseline passed after one missing-import setup repair.
-`changed_source_matrix_projects_linked_neighbor_after_entry_snapshot` then compiled and failed first on
-stale mirror pose `(19, 0) @ 0`, demonstrating missing projection rather than fixture failure. This no-op RED
-does not prove local preservation. Source is frozen pending an independently calculated numeric oracle and
-the next bounded implementation grant. Raw fixture and baseline/RED logs are in the ticket106 planning cache.
-
-Child [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) is independently verified, integrated and resolved after the full cohort PASS. Its exact-file source/mutation lease on `core/src/mirrored_half/reconcile.rs` is released. Parent106/19 remain open. Next is the coherent106 membership/ownership unit: expansion/shrink identities, retained/omitted cleanup and final owners, coordinating109's input contract. Pre-edit contract/readiness evidence remains required; no writer lease or new child is allocated. Independent layouts/parts and legacy exclusivity remain separate106 acceptance gaps. Every asserted preserved non-pose field must use valid nondefault sentinels.
+B's current repair unit is paused at preflight; source at 87d4 is preserved and no writer or command lease is active. Root-provided repair brief: /home/chris/.cache/boardstudio-baselines/ticket106-transition/106-consolidated-repair-brief-pending-start.md (SHA256 ca8dae27134589f7aa358d937d0ac3d084549a24ec47631499c1de2bf4d1f4c4). It aligns derived canonical facts with the existing matrix/remap/atomic pipeline; no speculative blanket gate or parallel engine. Parent106/19 remain open. No product START before root's explicit complete-cycle grant.
 
 ### A: Browser ticket 128
 

@@ -17,7 +17,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > `git stash`, no `git add -A`, no push, no merge. Maps (`docs/plans/*/map.md`), `CONTEXT.md` and `docs/adr/*` belong to
 > the orchestrator; propose text in your ticket Outcome. Generated goldens (`core/tests/fixtures/boundary/transcript.json`,
 > `core/tests/fixtures/demo-projects-baseline.json`) are root-owned; propose required regeneration in your Outcome.
-> Run GitNexus impact before edits and
+> For affected browser tests or configuration, compile the actual target; intermediate RED/fix work stays in the same writer unit, and the writer stops at a completed evidence-backed handoff. Run GitNexus impact before edits and
 > detect-changes before commits, bound to your checkout. Do not refresh GitNexus or register for its Stop hook; confirm
 > stale, empty or UNKNOWN caller answers with `rg` and report the limitation. Never run `scripts/check.py release`.
 > Follow the role time boxes in `verification-process.md`. Implementers finish with
@@ -69,22 +69,11 @@ child at a time. The original parent acceptance remains binding; the parent prom
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/38-merge-duplicate-browser-tests.md`. Re-read both
 > bodies first; merge only exact duplicates; list what each merge preserves. Check steps as A1.
 
-## Lane F: shipped boards review research (worktree `.worktrees/lane-boards-review`, branch `lane/boards-review`; no builds)
+## Lane F: shipped board artifacts
 
-> Common rules above. Ticket: `docs/plans/typed-core-edits/issues/25-shipped-boards-review.md`. This is PHASE 1,
-> read-only research: produce `docs/plans/typed-core-edits/audit/shipped-boards-review.md` with, for each of the 20
-> shipped projects (Sofle v2, RGB and Choc FIRST, then the seven measured splits, then the unibody boards, the
-> REVIEUNG41 archive and the VIK review): the part list and footprints, library source, side and `reversible` settings,
-> positions against the measured source JSON under `content/layouts`, mounting holes and keep-outs, the generated
-> bay/reset/TRRS placeholders, the recorded fit findings (tickets generator-parameters 02 and 06, typed-core-edits 04
-> Outcome), and the rule differences from ADR-0010 (headings: independent parts take `180 - r`; switches `-r`; the
-> companion modes of ticket 31). Rank findings by severity (blocks a build, wrong physically, cosmetic) with file or
-> fixture references. Ask the user for hardware decisions; do not guess. Do NOT change recipes, fixtures, footprints
-> or code. No builds are needed; do not run `cargo`. Run `python3 scripts/check.py repo` before committing the doc.
-> Finish with the ticket `Status: ready-for-human` (the user reviews the ranked list before fixes start) and a short
-> Outcome linking the review.
+> Common rules above. Ticket 25 is the canonical board-project contract. F is the existing sole Sofle coordinator. The exact reserved fixture lease is web/assets/fixtures/sofle.boardstudio and its existing web/assets/fixtures/sofle.json companion. Product START remains held until root commits the reviewed claim and explicitly grants it. After grant, prepare the single Sofle artifact with its existing Inspector assembly choices and hand off the artifact plus assembly-swap evidence to ticket 56. Follow ticket 25 for component evidence, shared mirror/link separation, fit limits, and all remaining board sequencing.
 
-## Verifier prompts (Sol 6.1, xhigh, fast; implementers use Luna 6, high, fast)
+## Verifier prompts (Sol 6.1, xhigh; implementers use Luna 6 at the lowest sufficient effort)
 
 Open Codex with the lane worktree as its working folder, paste the common rules, then the prompt below with the ticket named.
 Commit trailers: `Co-Authored-By: Codex <noreply@openai.com>`.
