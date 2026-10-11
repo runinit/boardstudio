@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-
 
 ## Settled direction and sources
 
-After Sofle sign-off, rebuild Corne, Lily58, KLOR, Ferris Sweep, Chocofi, TOTEM and Cantor in that order. [keyboard-layouts.json](../../../../content/layouts/keyboard-layouts.json) pins every repository/revision/path/hash and key pose. Ticket 20 owns native half construction, right-authored Lily58/KLOR and KLOR outline reflection. The adapted recipes' generated U1/RST/TRRS and fixed bay coordinates are not source peripheral evidence.
+After Sofle sign-off, rebuild Corne, Lily58, KLOR, Ferris Sweep, Chocofi, TOTEM and Cantor in that order. [keyboard-layouts.json](../../../../content/layouts/keyboard-layouts.json) pins every repository/revision/path/hash and key pose. Board projects use existing ordinary saved-project operations. Shared mirrored-half/link behavior remains separately required under 19/22. Adapted recipes do not prove source peripheral identity.
 
 ## Agent research: one evidence/proposal row per board
 
@@ -25,7 +25,7 @@ Agents own source identities, pin/datum/side facts and library/artwork/pad/drill
 
 The planner owns source research and proposals in this packet; the user owns design approvals. Use [component onboarding](../../../hardware/component-onboarding.md) and preserve ADR-0010: duplicate-position shipped diodes, per-item overrides when evidenced, switches -r, independent headings 180-r, no mirror side/parameter mutation or Core pad check.
 
-- [ ] All seven rows are complete or their components/mechanics tickets remain `needs-info`; no unknown becomes a fabrication claim.
-- [ ] Questions are per-board and source-backed. If answers arrive separately, split this packet before claiming it so one answer cannot falsely unblock all seven.
+- [ ] Source-backed board facts and genuine user choices are recorded; unresolved hardware or fit evidence remains explicit and blocks the affected saved-project decision.
+- [ ] Keep any human decisions per board; do not treat research evidence as approval or assume one board's selection applies to all.
 
-Record agent research completion and human design approval separately. Docs-only `repo` after updates. Tickets 58–78 own the small implementation slices and ticket 23 retains cross-board integration/reviews/full check. No remaining-board implementation starts before 56 resolves.
+Record research completion separately from human approval. Tickets 58–78 are retired; ticket 25 governs saved-project delivery. No remaining-board work starts before 56 sign-off. Preserve source-backed hardware/material/process/tolerance and minimum-clearance choices as explicit human gates.

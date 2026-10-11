@@ -178,6 +178,19 @@ pub(super) fn sofle(variant: &str) -> Result<(Value, f64)> {
                 &format!("sofle/{source}"),
                 if source == "mcu_nice_nano" {
                     json!({"include_extra_pins":true})
+                } else if source == "rotary_encoder_ec11_ec12" && variant == "v2" {
+                    json!({
+                        "side":"F",
+                        "reversible":false,
+                        "include_plated_mounting_holes":false,
+                        "signal_hole_width":1.0,
+                        "signal_hole_height":1.0,
+                        "encoder_pads_position":7.5,
+                        "include_momentary_switch_pads":true,
+                        "mounting_holes_position":6.25,
+                        "mounting_holes_height":2.6,
+                        "mounting_holes_width":1.5
+                    })
                 } else {
                     json!({})
                 },

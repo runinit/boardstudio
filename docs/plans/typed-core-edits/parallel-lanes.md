@@ -22,7 +22,7 @@ Persistent coordinator chats, live worktree/file leases, command windows and cro
 - **Implementer and verifier are different sessions with different models** (Luna 6 implements, Sol 6.1 verifies; models and
   efforts are in [agent-workflow.md](../../agents/agent-workflow.md)). An independent model reviewing the work is the point of
   the verify step.
-- **Human:** answers decision tickets and approves anything that leaves the machine.
+- **Human:** answers decision tickets and approves anything that leaves the machine. For changed browser tests or configuration, the writer compiles the actual target; intermediate RED/fix work remains in the same writer unit, and fresh acceptance starts at completed handoff.
 
 ## Lanes
 
@@ -33,7 +33,7 @@ Persistent coordinator chats, live worktree/file leases, command windows and cro
 | C check speed | [11](../check-speed/issues/11-browser-measure.md) (alone, quiet machine), then [12](../check-speed/issues/12-browser-quick-wins.md) | `scripts/check.py`, `scripts/run-wasm-tests.py`, `.github/workflows` | `browser` many times | 11 measures timings, so nothing else may run. 12 waits for lane A to finish 38. |
 | D audit and cleanup | [35](issues/35-test-maintenance-cuts.md) | version literals in tests; goldens (`transcript.json`, the demo baseline) | full `check.py` | Golden edits last, after B merges, then re-bless. |
 | E web adapter | [21](issues/21-mirrored-half-web-adapter.md), 41, then [22](issues/22-mirrored-half-integrated-verification.md) | `web/crates/catalogue`, `web/crates/layout`, physical setup | `typecheck browser` | waits for B's native-model dependencies; follow ticket headers. |
-| F boards/components | [25](issues/25-shipped-boards-review.md), selected Sofle component follow-ups 118–127; [23](issues/23-redo-keyboard-04-on-native-halves.md) later | exact component assets/tests after audit; shared registration/recipes have one owner | affected checks in root windows | BOM selection delegated; existing catalogue first. Isolated qualification/onboarding may overlap B after reviewed BOM/path leases; native recipes retain 20+44 dependencies. VIK deferred. |
+| F boards/components | ticket [25](issues/25-shipped-boards-review.md) saved-project work, then [56](issues/56-sofle-sign-off.md), [57](issues/57-measured-split-hardware-inputs.md), [79](issues/79-unibody-hardware-inputs.md), and [23](issues/23-redo-keyboard-04-on-native-halves.md) | ordinary saved artifacts through existing operations; no per-board builder/test/helper; shared mirror/link remains under19/22 | affected checks in root windows | BOM selection delegated; existing-library match first, reusable upstream footprint via normal onboarding. Board creation does not wait on19/22/44. VIK review stays deferred. |
 
 Approved scheduling: B Core work remains serial; A's isolated remaining37 tests and F's qualified component work may
 receive disjoint edit leases after the original 105 verifier releases its window and exact audits. A Core-only acceptance

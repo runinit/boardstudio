@@ -17,7 +17,66 @@
 #[allow(clippy::module_inception)] // The module is the shared example source, included by path.
 pub(crate) mod demo_projects; // Shared with `included_keyboards`, which cannot include the files twice.
 use serde_json::Value;
-use std::fs;
+use sha2::{Digest, Sha256};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
+
+static PREPARE_LOCK: Mutex<()> = Mutex::new(());
+
+fn directory_manifest(root: &Path) -> BTreeMap<String, Vec<u8>> {
+    fn visit(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec<u8>>) {
+        for entry in fs::read_dir(directory).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                visit(root, &path, files);
+            } else {
+                let relative = path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned();
+                files.insert(relative, fs::read(path).unwrap());
+            }
+        }
+    }
+
+    let mut files = BTreeMap::new();
+    visit(root, root, &mut files);
+    files
+}
+
+struct MutatedArchive {
+    original: PathBuf,
+    backup: PathBuf,
+}
+
+impl MutatedArchive {
+    fn new(original: PathBuf) -> Self {
+        let backup = original.with_extension(format!("boardstudio-missing-{}", std::process::id()));
+        fs::rename(&original, &backup).unwrap();
+        Self { original, backup }
+    }
+
+    fn corrupt(original: PathBuf) -> Self {
+        let mutation = Self::new(original);
+        fs::write(&mutation.original, b"invalid project archive").unwrap();
+        mutation
+    }
+}
+
+impl Drop for MutatedArchive {
+    fn drop(&mut self) {
+        if self.original.exists() {
+            fs::remove_file(&self.original).unwrap();
+        }
+        fs::rename(&self.backup, &self.original).unwrap();
+    }
+}
 fn equivalent(actual: &Value, expected: &Value, path: &str) {
     match expected {
         Value::Number(number) => {
@@ -100,6 +159,7 @@ fn version_4_form_migrates_unchanged(name: &str, current: &Value) {
 
 #[test]
 fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
+    let _guard = PREPARE_LOCK.lock().unwrap();
     let output = std::env::temp_dir().join(format!(
         "boardstudio-demo-acceptance-{}",
         std::process::id()
@@ -112,6 +172,9 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
         let fixtures = baseline["fixtures"].as_object().unwrap();
         assert_eq!(fixtures.len(), 20);
         for (name, row) in fixtures {
+            if ["sofle", "sofle-rgb", "sofle-choc"].contains(&name.as_str()) {
+                continue;
+            }
             let mut doc: Value =
                 serde_json::from_slice(&fs::read(output.join(format!("{name}.json"))).unwrap())
                     .unwrap();
@@ -173,7 +236,7 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
         }
         let provenance: Value =
             serde_json::from_slice(&fs::read(output.join("provenance.json")).unwrap()).unwrap();
-        assert_eq!(provenance["fixtures"].as_array().unwrap().len(), 20);
+        assert_eq!(provenance["fixtures"].as_array().unwrap().len(), 18);
         assert!(
             provenance["source_hashes"]
                 .get("content/layouts/module-review.json")
@@ -184,4 +247,167 @@ fn native_recipes_preserve_all_examples_and_embedded_model_bytes() {
     if let Err(error) = result {
         std::panic::resume_unwind(error);
     }
+}
+
+#[test]
+fn prepare_publishes_named_source_archives_with_assets_and_provenance() {
+    let _guard = PREPARE_LOCK.lock().unwrap();
+    let output = std::env::temp_dir().join(format!(
+        "boardstudio-source-archive-publication-{}",
+        std::process::id()
+    ));
+    assert!(!output.exists(), "Use a fresh publication directory");
+
+    demo_projects::prepare(output.to_str(), Some(crate::support::shipped::projects())).unwrap();
+
+    let first_manifest = directory_manifest(&output);
+    demo_projects::prepare(output.to_str(), Some(crate::support::shipped::projects())).unwrap();
+    assert_eq!(
+        first_manifest,
+        directory_manifest(&output),
+        "repeated preparation"
+    );
+    for variant in ["sofle-rgb", "sofle-choc"] {
+        assert!(!output.join(format!("{variant}.json")).exists());
+        assert!(!output.join(format!("{variant}.boardstudio")).exists());
+    }
+
+    let project_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let provenance: Value =
+        serde_json::from_slice(&fs::read(output.join("provenance.json")).unwrap()).unwrap();
+    assert_eq!(provenance["schema"], 1);
+    let fixtures = provenance["fixtures"].as_array().unwrap();
+
+    for (name, source, output_name) in [
+        (
+            "REVIUNG41",
+            "content/archives/reviung41-original.boardstudio",
+            "reviung41",
+        ),
+        ("Sofle", "content/archives/sofle.boardstudio", "sofle"),
+    ] {
+        let source_bytes = fs::read(project_root.join(source)).unwrap();
+        let source_hash = Sha256::digest(&source_bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let row = fixtures
+            .iter()
+            .find(|row| row["name"] == name)
+            .unwrap_or_else(|| panic!("{name} source archive is absent from provenance"));
+        assert_eq!(row["source"], source, "{name}");
+        assert_eq!(row["source_sha256"], source_hash, "{name}");
+        assert_eq!(
+            fs::read(output.join(format!("{output_name}.boardstudio")).as_path()).unwrap(),
+            source_bytes,
+            "{name} archive bytes"
+        );
+
+        let (reply, buffers) = boardstudio_core::archive::request(
+            r#"{"kind":"unpack-project"}"#,
+            std::slice::from_ref(&source_bytes),
+        );
+        let reply: Value = serde_json::from_str(&reply).unwrap();
+        assert_eq!(reply["kind"], "unpacked", "{name}: {reply}");
+        let project_json = reply["projectJson"].as_str().unwrap();
+        let project: Value = serde_json::from_str(project_json).unwrap();
+        assert!(
+            !project["boards"].as_array().unwrap().is_empty(),
+            "{name} project"
+        );
+        let mut engine = boardstudio_core::CoreEngine::new();
+        let opened: Value = serde_json::from_str(&engine.request(
+            &serde_json::json!({"id":"source-open","kind":"open","document":project}).to_string(),
+        ))
+        .unwrap();
+        assert_eq!(opened["kind"], "scene", "{name}: {opened}");
+
+        assert_eq!(
+            fs::read(output.join(format!("{output_name}.json"))).unwrap(),
+            project_json.as_bytes(),
+            "{name} project JSON"
+        );
+        let reply_assets = reply["assets"].as_array().unwrap();
+        let published_assets = row["assets"].as_array().unwrap();
+        assert!(!reply_assets.is_empty(), "{name} has asset controls");
+        assert_eq!(published_assets.len(), reply_assets.len(), "{name} assets");
+        for asset in reply_assets {
+            let hash = asset["sha256"].as_str().unwrap();
+            let bytes = &buffers[asset["bufferIndex"].as_u64().unwrap() as usize];
+            assert!(
+                published_assets
+                    .iter()
+                    .any(|published| published["sha256"] == hash
+                        && published["bytes"] == bytes.len()),
+                "{name} provenance records asset {hash}"
+            );
+            assert_eq!(
+                fs::read(output.join(hash)).unwrap(),
+                *bytes,
+                "{name} asset {hash}"
+            );
+        }
+
+        let entries = reply_assets
+            .iter()
+            .map(|asset| {
+                serde_json::json!({
+                    "path": format!("assets/{}", asset["sha256"].as_str().unwrap()),
+                    "bufferIndex": asset["bufferIndex"],
+                })
+            })
+            .collect::<Vec<_>>();
+        let request = serde_json::json!({
+            "kind": "pack-project",
+            "projectJson": project_json,
+            "archiveJson": "{\"embedUsedModels\":true}",
+            "assets": entries,
+        });
+        let (packed_reply, packed_buffers) =
+            boardstudio_core::archive::request(&request.to_string(), &buffers);
+        let packed_reply: Value = serde_json::from_str(&packed_reply).unwrap();
+        assert_eq!(
+            packed_reply["kind"], "packed",
+            "{name} export: {packed_reply}"
+        );
+        let (exported_reply, _) =
+            boardstudio_core::archive::request(r#"{"kind":"unpack-project"}"#, &packed_buffers);
+        let exported_reply: Value = serde_json::from_str(&exported_reply).unwrap();
+        assert_eq!(
+            exported_reply["kind"], "unpacked",
+            "{name} export: {exported_reply}"
+        );
+        assert_eq!(
+            exported_reply["projectJson"], project_json,
+            "{name} export project"
+        );
+    }
+
+    let source = project_root.join("content/archives/sofle.boardstudio");
+    let missing = MutatedArchive::new(source.clone());
+    assert!(
+        demo_projects::prepare(output.to_str(), Some(crate::support::shipped::projects())).is_err(),
+        "missing source must fail"
+    );
+    drop(missing);
+    assert_eq!(
+        first_manifest,
+        directory_manifest(&output),
+        "missing-source replacement"
+    );
+
+    let corrupt = MutatedArchive::corrupt(source);
+    assert!(
+        demo_projects::prepare(output.to_str(), Some(crate::support::shipped::projects())).is_err(),
+        "invalid source must fail"
+    );
+    drop(corrupt);
+    assert_eq!(
+        first_manifest,
+        directory_manifest(&output),
+        "invalid-source replacement"
+    );
+    fs::remove_dir_all(&output).unwrap();
 }
