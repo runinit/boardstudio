@@ -1,9 +1,9 @@
 # 131: Add an opt-in Vishay 1N4148W land pattern
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: hardware
 Lane: F
-Execution gate: root producer dispatch issued; sequential foreground command window required. Root records the claim before further implementation.
+Execution gate: bounded producer qualification independently verified and integrated; cohort batch passed. All source and mutation leases are released.
 
 The reviewed plan uses the existing generator and assets, preserves all legacy defaults and output, and explicitly extends its parameter schema. The independently verified 43-case pre-change baseline is frozen, and its helper is checkpointed on lane F at `4607c266`. Baseline preparation and producer/qualification work use separate session assignments. No schema test may be weakened to accommodate the addition.
 
@@ -285,3 +285,9 @@ Luna 6 high implemented the opt-in producer, qualification tests, strict 17-fiel
 Complete independent evidence: `/home/chris/.cache/boardstudio-baselines/ticket131/producer-verification/verification.json`, SHA-256 `2c21a5399158561639d8b5789581113dadee9e8b31ac34771e2d82ae39d20fb7`. Producer SHA-256 `134975444c53722e2ebd761d8077bcb6437e257d856bff4d2fb4b1a91283a3c6`; qualification SHA-256 `fa203f8ea8bbc2bcf6250349360b7db2acc9ad06cdeec9f37d97ca150e9847fd`.
 
 This is bounded independent PASS. Producer commit: `d246d4d9`; baseline-helper commit: `4607c266`. Root integration and full browser batch remain; the ticket stays open. No physical solderability, exact STEP alignment, installed fit, electrical/current, firmware or case qualification is claimed. Ticket 118 remains open. HIGH Registry and CRITICAL Core-schema warnings are retained; no shared API/ingress change was made.
+
+## Outcome
+
+Resolved from fresh independent producer verifier `/root/diode_131_producer_verifier` (Sol 6.1 xhigh) bounded PASS, recorded by root after integration. Implementation: Luna 6 high. Baseline-helper commit `4607c266`; producer commit `d246d4d9`; F integration merge `42df5e642`. One root cohort batch including B132 passed at `b01c106a4`: all default repo/tooling/lint/build/test/browser steps, 539.1 s total, all 70 presentation tests passing. Log: `/tmp/boardstudio-tce-cohort-131-132.log`. Earlier independent qualification, schema, both frozen 43-case compatibility checks and separate width/polarity mutation proof remain the detailed acceptance evidence above.
+
+Ticket 118 remains open for physical solderability, exact STEP alignment/installed fit, current/electrical behavior, firmware and case/system qualification. This resolution is limited to the opt-in generator land-pattern configuration and software qualification; no hardware-fit claim is made. Generated golden, frozen baseline and provenance remain unchanged.
