@@ -4,6 +4,9 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+mod endpoints;
+mod relation;
+
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
 }

@@ -22,6 +22,17 @@ Initial user priority is fast Layout editing: fewer clicks for common toolbar ac
 
 Each batch has exact paths, small acceptance criteria and an evidence packet. Use relevant Impeccable playbooks on demand (clarify, distill/layout/typeset, colorize, adapt/harden, animate, polish); do not run every command as a ritual. Read craft-floor immediately before UI edits. Follow the skill's bounded batched visual passes and stop open-ended polishing. Combine its fresh finish review with repository behavior acceptance when the same reviewer receives the complete evidence and rubric.
 
+### Approved Tailwind follow-on order
+
+The user approved implementation of the lane's primary-source research on2026-10-11. Evidence: `/home/chris/.codex/worktrees/2182/ts-boardstudio2/docs/plans/ui-design/tailwind-opportunities-research.md`. First complete the existing frozen Tailwind/contextual Layout unit's formal affected acceptance with its retained reviewer; follow-on work must not silently widen that unit.
+
+1. Consistent pressed, disabled and keyboard-focus states for existing Layout snapping and contextual tools.
+2. Container-query toolbar adaptation to actual canvas space as panels open, keeping common actions and snapping available.
+3. Reusable Dioxus controls backed by existing theme tokens: buttons, toggles, segmented controls and numeric fields, Layout first and then Case.
+4. Restrained interaction feedback with reduced-motion and forced-colors support.
+
+The coordinator owns bounded child scopes and exact paths under parent140, with Luna implementation and one fresh Sol medium review per coherent behavior unit. Reuse the existing token aliases, pinned Tailwind4.1.5/Dioxus0.7.10 evidence, no-Preflight setup and complete literal Rust classes. Deliberately migrate conflicting unlayered CSS. Styling does not supply menu/focus/action behavior: preserve existing selection, shortcuts, precise operations and Undo. Direct consequential design questions stay in the UI chat; routine implementation choices do not return to root.
+
 ## Reused interface crosswalk
 
 The [source-grounded commitment crosswalk](../delivery-queue.md#required-interface-commitments) records required scope, owners and proof limits. Reuse these interfaces; this adds no serial gate or public solver/helper visibility.
@@ -37,7 +48,7 @@ The [source-grounded commitment crosswalk](../delivery-queue.md#required-interfa
 
 Standing UI lease: `web/assets/` styling and narrowly selected Solar assets; presentation modules under `web/src/presentation/`; visual components/controls in the `web/crates/` UI crates; UI-local tests and lane-local design briefs. The coordinator records exact changed paths per batch before its writer starts. Shared business logic, runtime/transport, Core/model/solver/schema, CAD kernel, footprint generators, root goldens, scripts/check.py, maps/ADRs/CONTEXT are excluded. Lane-local DESIGN.md/Impeccable design artifacts may evolve after direct user design approval; main checkout's dirty documentation must remain untouched.
 
-F138 is deleting demos and porting shared tests. Do not edit F-owned retirement test hunks, bring back demo dependencies or borrow their geometry as an oracle. Use independently authored synthetic user projects. E21/41 owns future mirrored web adapters/companion controls: reserve its actual API wiring for that lane; coordinate shared visual component overlap through root. Preserve accepted Export137 synthetic regression. Read the central lane registry before starting a batch and escalate actual ownership conflicts, not routine private UI decisions.
+F138 demo retirement is accepted and integrated. Do not undo its retained synthetic test contracts, bring back demo dependencies or borrow demo geometry as an oracle. Use independently authored synthetic user projects. E21/41 owns future mirrored web adapters/companion controls: reserve its actual API wiring for that lane; coordinate shared visual component overlap through root. Preserve accepted Export137 synthetic regression. Read the central lane registry before starting a batch and escalate actual ownership conflicts, not routine private UI decisions.
 
 Read-only commands and disjoint source work can proceed concurrently. One writer per worktree. Builds/tests/browser/timing/index refresh require the single explicit GLOBAL HEAVY grant; request whole bounded check cycles. Use this worktree's real target/cache/pkg directories; do not share mutable build outputs with other lanes. Root alone bootstraps/refreshes its unique GitNexus index. Before bootstrap, use the explicitly named integration index as provisional graph evidence with source confirmation, never a false clean gate.
 

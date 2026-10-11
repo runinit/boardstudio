@@ -69,7 +69,7 @@ Approved extension: [139](issues/139-generalized-mirrored-constraint-model.md) s
 
 User-reported mirrored outline gap controls: [141](issues/141-mirrored-outline-gap-controls.md), L3/E diagnosis and minimal synthetic reproduction; coordinate any confirmed reconciliation defect with B108. Two toggles are reported, but duplicate rendering, propagation and generated geometry are not yet distinguished by runtime evidence.
 
-Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md), L5 in isolated `lane-resource-caps`; forward the optional Binaryen worker setting into CAD containers, preserving existing defaults and Cargo caps. Actual integration optimizer resource use exposed the missing boundary.
+Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) resolved. Optional Binaryen setting now forwards into CAD containers; defaults and Cargo caps are preserved. Source55caa3f2/integration2335fa65f2, fresh Sol medium PASS, focused1/class17 and root repo/tooling4.0s PASS.107 now owns the next complete implementation check cycle.
 
 Integration checkpoint:138resolved. Its cfg(test) nonempty-gap correction6bad928a was accepted by SAMEreviewer and integratede3eeb1be5; exact sourcee776d169 and complete2/2symbol MEDIUM graph. Original repo/tooling/lint/build plus resumed test/typecheck/browser424.2s and final affected Core Clippy all PASS;72main-app presentation tests/0failures. Rebuilt subpath output excludes51retired asset identities. Full binding: `demo-retirement-plan/root-final-capture/integration-cohort-result.json` in the baseline cache.106resolved;107 and isolated139source work proceed. No full19 or UI completion claim.
 
