@@ -45,21 +45,21 @@ minutes. If a ticket needs several unrelated behaviours, split it before startin
 | --- | --- |
 | Docs, tickets, ADRs only | `repo` |
 | Python scripts or check tooling | `repo`, `tooling`, plus a changed script's tests if not yet in the tooling list |
-| Rust in Core or other native crates, no web or wasm-visible change | `repo`, `lint`, `test` |
+| Rust in Core or other native crates, no web or wasm-visible change | `repo`, affected lint and focused/affected crate tests; full workspace `test` at integration |
 | Core or shared types the page also compiles | add `typecheck`; add the explicit wasm `boundary_parity::` run when the transcript changes |
-| Mounted web behaviour (web crates, Dioxus components, storage) | add `browser` |
+| Mounted web behaviour (web crates, Dioxus components, storage) | add actual WASM compilation and affected mounted/browser tests; full `browser` at integration |
 | Generated demo projects or fixtures change | add `build` |
 | Dependencies change | add `deny` |
 
-- The full `browser` step (about 200 seconds) runs for web changes, and otherwise **once per
-  batch**, not per Core ticket. `typecheck` (about 15 seconds) plus the wasm boundary parity
-  run (about 35 seconds) cover Core changes the page compiles.
+- Lane development uses focused regressions and affected targets rather than the full workspace/native/browser suites. For web changes retain actual WASM compilation and affected mounted tests; for Core boundary changes retain affected parity coverage. Broaden a lane run only for a concrete cross-cutting risk or evidence gap, with the reason recorded.
 - `python3 scripts/check.py quick` runs only the checks covering your changed files; use
   it while iterating.
 - The **full cycle** (`repo lint typecheck build browser test`) runs **once per integration batch** of tickets that land together.
   Verifier and root reuse sufficient source-bound checks rather than repeating full suites. Effort closure alone does not require
   another full run; rerun only after changed inputs, a new risk or an evidence gap. Preserve the full-check requirement before a PR.
 - `release` is never run by an agent.
+
+Apply [laptop multi-stream resource mode](agent-workflow.md#laptop-multi-stream-resource-mode) during concurrent workstreams: four Cargo jobs, four native test threads and one check-suite launch at a time. Full integration checks keep those caps. Reviewers reuse adequate exact-source writer results; a resource-cap change alone does not invalidate them.
 
 ## One run at a time
 

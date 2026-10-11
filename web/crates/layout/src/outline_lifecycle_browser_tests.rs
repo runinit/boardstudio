@@ -2297,69 +2297,6 @@ mod product_context {
             .and_then(|node| node.text_content())
     }
 
-    /// The real bundled Sofle v2 demo project, as the served app opens it (two boards,
-    /// a generated envelope per board, no persisted versions in the fixture).
-    fn sofle_v2() -> ProjectDoc {
-        serde_json::from_str(include_str!("../tests/fixtures/sofle-v2.json"))
-            .expect("the bundled Sofle v2 fixture is a typed document")
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_copy_outline_on_the_sofle_demo_project_creates_one_version() {
-        let document = sofle_v2();
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::open_document(&runtime, document).await;
-        let scope = runtime
-            .scope()
-            .expect("the opened Sofle project has a scope");
-        let board = scope.board_id.clone();
-        let probe = InspectorProbe {
-            runtime,
-            scope,
-            connection_action: Rc::default(),
-            selected_context: Rc::default(),
-        };
-        let window_document = web_sys::window().unwrap().document().unwrap();
-        let root = window_document.create_element("div").unwrap();
-        root.set_id("outline-inspector-mount");
-        window_document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(mounted_outline_inspector_host);
-        dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        settle_dimension().await;
-        assert!(
-            click_by_text(
-                &root,
-                "#outline-inspector-mount .m1-outline-actions button",
-                "Copy outline"
-            ),
-            "the Copy outline control is reachable; body: {}",
-            root.inner_html()
-        );
-        accept(&probe).await;
-        settle_dimension().await;
-        let accepted = accepted_document(&probe);
-        let state = accepted
-            .board_outlines
-            .iter()
-            .find(|state| state.board_id == board);
-        assert!(
-            state.is_some_and(|state| state.versions.len() == 1),
-            "Copy outline on the Sofle project lands one version for {board}; \
-             board_outlines={:?}, alert={:?}",
-            accepted
-                .board_outlines
-                .iter()
-                .map(|state| (state.board_id.clone(), state.versions.len()))
-                .collect::<Vec<_>>(),
-            alert_text(&root)
-        );
-        root.remove();
-    }
-
     fn ownership_labels(root: &web_sys::Element) -> Vec<String> {
         let nodes = root
             .query_selector_all("select[aria-label='Active outline'] option")

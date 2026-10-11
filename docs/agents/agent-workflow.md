@@ -82,9 +82,27 @@ User-approved lighter scheduling (2026-10-11) supersedes every older global-ever
 
 Only builds/compilation, test execution, browser runs, timing and index refresh use the single GLOBAL HEAVY slot. Root schedules its explicit owner and release; resource-heavy runs never overlap, and timing requires the machine alone. Root retains source-bound index refresh, integration/batch checks and generated goldens.
 
+**L7 private UI development exception (user approval2026-10-11):** the UI redesign lane may keep its own dev server/watchers running and perform frontend rebuilds and visual browser inspection independently, using its own target, provider outputs, assets and port. It may bootstrap private providers once, then rebuild only frontend inputs for UI-only changes; refresh providers when their inputs change. The lane records its live processes/port/output ownership and uses the supported Dioxus/Tailwind pipeline after source-grounded research. This exception overrides the GLOBAL HEAVY requirement only for that private development loop. Shared output writes, full/affected acceptance suites, CAD validation, integration builds and GitNexus refresh remain scheduled. Timing requires an explicit pause of active UI compilation/browser activity. Private dev-server readiness is not acceptance evidence by itself.
+
 Grant a complete bounded debugging + affected-check cycle. The coordinator carries approved RED → fix → GREEN in the same HEAVY window without per-command or single-probe handoffs; escalate actual scope/conflict decisions, not ordinary debugging iterations. Fresh independent review begins after the completed writer STOP; read-only review needs no HEAVY slot, and any necessary heavy verification obtains one explicit window. Finish/restore an already-running probe before switching writers.
 
 Escalate actual product decisions or representability limits, cross-lane ownership/conflicts, genuinely unapproved API visibility/schema/configuration changes, destructive user-data actions, or a concrete failed-acceptance scope. Already approved ticket/ADR feature operations and schema contracts are authorized as specified, including MakeLocal/Omit/Rejoin/Unlink and companion placement; they do not need repeated human approval. Routine private implementation/test choices are not new gates. The narrow wrapper approval is recorded in ticket106; it is not blanket permission to widen other visibility.
+
+### Laptop multi-stream resource mode
+
+User-approved2026-10-11; active while multiple workstreams/builds are in use. Each lane sets these variables in its command environment, including inherited dev-server/watcher processes:
+
+```sh
+export CARGO_BUILD_JOBS=4
+export RUST_TEST_THREADS=4
+export BOARDSTUDIO_CHECK_JOBS=1
+```
+
+This caps Cargo compilation at four jobs and each native Rust test executable at four test threads. Serial suite launches prevent the check runner from multiplying those pools. These are worker limits, not hard CPU affinity or a four-core aggregate guarantee. Other runners use their supported worker limit of at most four; keep one active browser instance per lane. A private UI watcher inherits the caps on its next safe restart. Preserve running command evidence; changing the cap alone does not require a rerun.
+
+Root records the active mode in the lane registry and includes it in dispatch briefs. Existing GLOBAL HEAVY ownership, isolated outputs and L7 private-development exception still apply; caps do not authorize additional concurrent heavy lanes. Integration checks use the same caps while laptop mode is active. The checked-in12-job default is available outside this mode; do not edit shared/global configuration to switch modes.
+
+During development run meaningful focused regressions and affected crate/target checks, including actual WASM compilation and affected mounted UI coverage when relevant. Full workspace/native/browser suites run once when integrating a coherent batch into the main app integration branch. A concrete cross-cutting risk or evidence gap may justify broader lane checks; record why. Reuse adequate source-bound writer evidence during independent review. See [verification-process.md](verification-process.md) for acceptance and integration requirements.
 
 ## Differences between the apps
 
@@ -105,7 +123,7 @@ Escalate actual product decisions or representability limits, cross-lane ownersh
 
 1. Never `git stash`; stage explicit paths only; never `git add -A` or `git add .`; no push, merge to `dev` or PR without the
    user. Use a temporary commit to set work aside.
-2. Cargo uses 12 jobs (`.cargo/config.toml`); never pass `CARGO_BUILD_JOBS=2`. Never run `python3 scripts/check.py release`.
+2. Use the laptop multi-stream resource mode below while multiple lanes are active; it overrides the checked-in Cargo default of12 jobs. Never run `python3 scripts/check.py release`.
 3. Ticket process: implementer sets `implemented (awaiting verification)`; the required reviewer resolves, or root reviews/resolves
    low-risk docs, mechanical copy and tracking after author checks. Run only the check steps the
    change needs; the full `check.py` runs once per batch. Heavy runs use one GLOBAL HEAVY slot; commands remain sequential within each lane. A scope given to an agent is

@@ -1,0 +1,232 @@
+{
+  "format": "boardstudio/v2",
+  "formatVersion": 5,
+  "id": "synthetic-outline-contract",
+  "name": "Synthetic outline contract",
+  "revision": 0,
+  "parameters": {},
+  "definitions": [
+    {
+      "id": "synthetic/switch",
+      "name": "Synthetic switch",
+      "kind": "switch",
+      "courtyard": [
+        {
+          "x": -9,
+          "y": -9
+        },
+        {
+          "x": 9,
+          "y": -9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": -9,
+          "y": 9
+        }
+      ],
+      "pads": []
+    },
+    {
+      "id": "synthetic/controller",
+      "name": "Synthetic controller",
+      "kind": "controller",
+      "courtyard": [
+        {
+          "x": -6,
+          "y": -5
+        },
+        {
+          "x": 6,
+          "y": -5
+        },
+        {
+          "x": 6,
+          "y": 5
+        },
+        {
+          "x": -6,
+          "y": 5
+        }
+      ],
+      "pads": []
+    }
+  ],
+  "parts": [
+    {
+      "id": "main/SW1",
+      "definitionId": "synthetic/switch",
+      "reference": "SW1",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "side": "front"
+    },
+    {
+      "id": "main/SW2",
+      "definitionId": "synthetic/switch",
+      "reference": "SW2",
+      "pose": {
+        "at": {
+          "x": 36,
+          "y": 10
+        },
+        "rotation": 0
+      },
+      "side": "front"
+    },
+    {
+      "id": "main/U1",
+      "definitionId": "synthetic/controller",
+      "reference": "U1",
+      "pose": {
+        "at": {
+          "x": 18,
+          "y": 32
+        },
+        "rotation": 0
+      },
+      "side": "front"
+    },
+    {
+      "id": "main/RST",
+      "definitionId": "synthetic/switch",
+      "reference": "RST",
+      "pose": {
+        "at": {
+          "x": -22,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "side": "front"
+    },
+    {
+      "id": "matrix/matrix/r0c0",
+      "definitionId": "synthetic/switch",
+      "reference": "M1",
+      "pose": {
+        "at": {
+          "x": 0,
+          "y": 0
+        },
+        "rotation": 0
+      },
+      "side": "front"
+    },
+    {
+      "id": "matrix/matrix/r0c1",
+      "definitionId": "synthetic/switch",
+      "reference": "M2",
+      "pose": {
+        "at": {
+          "x": 19,
+          "y": 0
+        },
+        "rotation": 27
+      },
+      "side": "front"
+    }
+  ],
+  "matrices": [
+    {
+      "id": "matrix",
+      "rows": 1,
+      "columns": 2,
+      "pitch": {
+        "x": 19,
+        "y": 19
+      },
+      "origin": {
+        "x": 0,
+        "y": 0
+      },
+      "definitionId": "synthetic/switch",
+      "boardId": "main",
+      "partIds": [
+        "matrix/matrix/r0c0",
+        "matrix/matrix/r0c1"
+      ],
+      "cells": [
+        {
+          "row": 0,
+          "column": 0,
+          "enabled": true,
+          "definitionId": "synthetic/switch",
+          "assembliesLocal": true,
+          "assemblies": []
+        },
+        {
+          "row": 0,
+          "column": 1,
+          "enabled": true,
+          "definitionId": "synthetic/switch",
+          "assembliesLocal": true,
+          "assemblies": []
+        }
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "id": "matrix-layout",
+      "name": "Synthetic keys",
+      "boardId": "main",
+      "matrixId": "matrix",
+      "partIds": []
+    }
+  ],
+  "nets": [],
+  "outline": [
+    {
+      "kind": "part-envelope",
+      "settings": {
+        "corners": "fillet",
+        "size": 2,
+        "bridgeWidth": 10
+      },
+      "id": "board-envelope",
+      "partIds": [
+        "main/SW1",
+        "main/SW2",
+        "main/U1",
+        "main/RST",
+        "matrix/matrix/r0c0",
+        "matrix/matrix/r0c1"
+      ],
+      "margin": 4,
+      "operation": "add"
+    }
+  ],
+  "boards": [
+    {
+      "id": "main",
+      "name": "Synthetic board",
+      "outlineIds": [
+        "board-envelope"
+      ],
+      "partIds": [
+        "main/SW1",
+        "main/SW2",
+        "main/U1",
+        "main/RST",
+        "matrix/matrix/r0c0",
+        "matrix/matrix/r0c1"
+      ],
+      "netIds": [],
+      "thickness": 1.6
+    }
+  ],
+  "caseBodies": [],
+  "materials": [],
+  "assets": [],
+  "scripts": [],
+  "constraints": []
+}

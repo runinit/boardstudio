@@ -2071,10 +2071,8 @@ mod mechanical_edit_engine_tests {
     /// outline-version recovery snapshot is the observable.
     #[test]
     fn pure_settings_edits_preserve_the_outline_recovery_snapshot() {
-        let mut source: ProjectDoc = serde_json::from_str(include_str!(
-            "../tests/fixtures/reviung41-outline-original.json"
-        ))
-        .unwrap();
+        let mut source: ProjectDoc =
+            serde_json::from_str(include_str!("../tests/fixtures/synthetic-outline.json")).unwrap();
         // Protect a generated gap so opening the project writes a recovery snapshot.
         let mut probe = CoreEngine::new();
         let probe_scene = open(&mut probe, source.clone());

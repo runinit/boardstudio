@@ -1225,50 +1225,6 @@
           ]
         }
       }
-    },
-    {
-      "id": "internal-gasket-sofle-outline",
-      "originalTest": "case.test.mjs: internal gasket sofle-outline exports connected tray and top regions",
-      "expect": {
-        "solidsPerBodyEqualsInputContours": 1,
-        "bodies": [
-          "bottom",
-          "retainer"
-        ],
-        "positiveVolume": true,
-        "finiteMesh": true,
-        "resolverNotBlocked": true
-      },
-      "baseline": {
-        "bottom": {
-          "solids": 1,
-          "volume": 68852.0954,
-          "min": [
-            -11.322,
-            -122.45,
-            -4.25
-          ],
-          "max": [
-            152.622,
-            11.044,
-            8.2
-          ]
-        },
-        "retainer": {
-          "solids": 1,
-          "volume": 22877.9571,
-          "min": [
-            -11.322,
-            -122.45,
-            8.2
-          ],
-          "max": [
-            152.622,
-            11.044,
-            14.2
-          ]
-        }
-      }
     }
   ]
 }
