@@ -108,10 +108,25 @@
   border-color: var(--wb-accent);
 }
 
+.layout-context-actions .layout-context-action:disabled,
+.layout-geometry-snap-toggle:disabled {
+  border-color: var(--wb-rule);
+  color: var(--wb-muted);
+  background: var(--wb-surface-soft);
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.m1-layout-toolbar-region .m1-layout-command-pill :is(button, input, select):disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 .m1-layout-toolbar-region {
   position: absolute;
   inset: 12px 12px auto;
   z-index: 12;
+  container: layout-toolbar / inline-size;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
@@ -142,6 +157,63 @@
 @media (max-width: 1100px) {
   .m1-layout-toolbar-region .layout-context-action,
   .m1-layout-toolbar-region .layout-geometry-snap-toggle {
+    min-height: 44px;
+  }
+}
+
+@container layout-toolbar (max-width: 680px) {
+  .m1-layout-toolbar-region > div.m1-canvas-toolbar {
+    box-sizing: border-box;
+    position: relative;
+    z-index: 13;
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .m1-layout-toolbar-region .m1-layout-command-pill {
+    box-sizing: border-box;
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .m1-layout-toolbar-region .m1-layout-command-pill > details {
+    position: static;
+  }
+
+  .m1-layout-toolbar-region .m1-layout-command-pill summary {
+    min-height: 44px;
+    padding-inline: 8px;
+  }
+
+  .m1-layout-toolbar-region .m1-layout-command-pill .m1-layout-command-menu[open] > div {
+    left: 0;
+    right: auto;
+    width: min(320px, calc(100cqi - 24px));
+    max-width: calc(100cqi - 24px);
+  }
+
+  .m1-layout-toolbar-region .layout-context-actions {
+    box-sizing: border-box;
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .m1-layout-toolbar-region .layout-context-actions .layout-context-action,
+  .m1-layout-toolbar-region .layout-geometry-snap-toggle,
+  .m1-layout-toolbar-region .m1-layout-view-group button {
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  .m1-layout-toolbar-region .m1-layout-command-pill summary,
+  .m1-layout-toolbar-region .layout-context-actions .layout-context-action,
+  .m1-layout-toolbar-region .layout-geometry-snap-toggle,
+  .m1-layout-toolbar-region .m1-layout-view-group button {
     min-height: 44px;
   }
 }
