@@ -234,6 +234,12 @@ verification window ended. Full parent acceptance is not waived by partial slice
   and all 79 footprint tests. The upper-hole diameter remains configuration-only; right-land dimensions,
   physical fit/model datum and whole-board qualification remain open. The earlier unsupported both-hole
   manufacturer attribution at `2cff220e` failed review and was explicitly corrected. Ticket 118 stays open.
+- [130](issues/130-reset-switch-smd-side-qualification.md) is resolved for the bounded Panasonic side-reset
+  generator configuration and integrated at `bf464be5e`. Fresh independent verification reviewed manufacturer
+  drawing pixels and parser/model bindings, killed the lower-only 0.75-to-0.95 mm drill mutation, restored exact
+  producer bytes and passed focused, repo/lint and all 81 footprint tests. Upper-hole diameter remains
+  configuration-only; actuator datum, physical fit, model alignment, case access and ticket 118 remain open.
+  The post-merge integration batch is pending.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
