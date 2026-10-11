@@ -239,7 +239,11 @@ verification window ended. Full parent acceptance is not waived by partial slice
   drawing pixels and parser/model bindings, killed the lower-only 0.75-to-0.95 mm drill mutation, restored exact
   producer bytes and passed focused, repo/lint and all 81 footprint tests. Upper-hole diameter remains
   configuration-only; actuator datum, physical fit, model alignment, case access and ticket 118 remain open.
-  The post-merge integration batch is pending.
+  The shared post-merge integration batch at `1ad6b95c8` passed in 401.0 s, including all 70 presentation tests.
+- [128](issues/128-keycaps-queued-settings-waits.md) is resolved for its bounded keycaps queued-settings slice,
+  independently verified and integrated at `1ad6b95c8`. Nine restored mutation variants and the original
+  downstream assertion provide the recorded sensitivity evidence. The vacuous-wait variant observed `None`,
+  not a completed wrong-depth edit; no completion claim follows from it. The full default batch passed.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
