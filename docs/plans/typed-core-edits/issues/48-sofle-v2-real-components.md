@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Sofle measured inputs](../../../../content/layouts/sofle-layouts.json), `layouts.v2`: `Sofle_v2/PCB/SofleKeyboard.kicad_pcb` at `fb294f7c58d0f91c379a9ef339159d4d056643e9`; SHA-256 `e34c4981c039bd5c0ab8613c7454422cae117f0dc320b99cb37fd26592d36cce`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `sofle` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Sofle measured inputs (`content/layouts/sofle-layouts.json`, retired), `layouts.v2`: `Sofle_v2/PCB/SofleKeyboard.kicad_pcb` at `fb294f7c58d0f91c379a9ef339159d4d056643e9`; SHA-256 `e34c4981c039bd5c0ab8613c7454422cae117f0dc320b99cb37fd26592d36cce`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `sofle` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. TH1–TH7 are seven source mounting holes per half, not closure mounts. The current v2 fixture uses a gasket and has no closure mounts; this does not choose the rebuilt mounting system.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. TH1–TH7 are seven source mounting holes per half, not closure mounts. The current v2 fixture uses a gasket and has no closure mounts; this does not choose the rebuilt mounting system.
 
 ## Hardware gate
 

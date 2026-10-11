@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `lily58`: `https://github.com/kata0510/Lily58`, `Pro/PCB/Lily58_Pro.kicad_pcb` at `58c649797c185b7b32b9928d4546665153cfacfd`; SHA-256 `078339300973d987cb5f50bae0221c713f09d7d404fbf40783abe05a3a659615`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-lily58` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `lily58`: `https://github.com/kata0510/Lily58`, `Pro/PCB/Lily58_Pro.kicad_pcb` at `58c649797c185b7b32b9928d4546665153cfacfd`; SHA-256 `078339300973d987cb5f50bae0221c713f09d7d404fbf40783abe05a3a659615`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-lily58` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 58 MX switches and 58 diodes, 29 switches per half (4×6 + 5 thumbs); 19.05 × 19.05 mm base pitch, MX. The measured source is right-authored. Preserve ticket 20’s construction source and source-numbering correspondence; do not reverse columns again. No source TH holes are recorded.
 

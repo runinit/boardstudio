@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `plaid`: `https://github.com/hsgw/plaid`, `pcb/plaid.kicad_pcb` at `758419c3b764cdfe03876532f1e13fd3e8c5c03c`; SHA-256 `c415ebbfe72e11cf2b98006f8911b2fa911be5d48474437bc653fa98c636695b`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-plaid` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `plaid`: `https://github.com/hsgw/plaid`, `pcb/plaid.kicad_pcb` at `758419c3b764cdfe03876532f1e13fd3e8c5c03c`; SHA-256 `c415ebbfe72e11cf2b98006f8911b2fa911be5d48474437bc653fa98c636695b`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-plaid` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. No stabilisers are in the current fixture. Controller/reset are adaptation placeholders, not a reproduction of the upstream through-hole circuit.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. No stabilisers are in the current fixture. Controller/reset are adaptation placeholders, not a reproduction of the upstream through-hole circuit.
 
 ## Hardware gate
 

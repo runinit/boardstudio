@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `corne`: `https://github.com/foostan/crkbd`, `corne-cherry/pcb/corne-cherry.kicad_pcb` at `1f56ad19bf50435666d2d86269726450e3b08eff`; SHA-256 `25a860dc9c79b08fe19173a2956b163ace871eafeb2d87243318b57d540e1bc7`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-corne` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `corne`: `https://github.com/foostan/crkbd`, `corne-cherry/pcb/corne-cherry.kicad_pcb` at `1f56ad19bf50435666d2d86269726450e3b08eff`; SHA-256 `25a860dc9c79b08fe19173a2956b163ace871eafeb2d87243318b57d540e1bc7`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-corne` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Historical linked switch gap 0.664 mm and bay clearance 44.99 mm; recompute both after rebuilding. No authored TH holes are present in the adapted fixture; its four closure holes per half are generated proposals.
 

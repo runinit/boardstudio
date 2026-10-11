@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `totem`: `https://github.com/GEIGEIGEIST/TOTEM`, `PCB/totem_0-3/totem_0_3.kicad_pcb` at `410e566dd47466c0b69279f0d4b3646998c663d4`; SHA-256 `24d24a6ebd93a1008745b08eee5886e577f228f358219a5f313152f3a4e1d0be`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-totem` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `totem`: `https://github.com/GEIGEIGEIST/TOTEM`, `PCB/totem_0-3/totem_0_3.kicad_pcb` at `410e566dd47466c0b69279f0d4b3646998c663d4`; SHA-256 `24d24a6ebd93a1008745b08eee5886e577f228f358219a5f313152f3a4e1d0be`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-totem` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. No authored TH holes are recorded; four current closure holes per half are generated proposals. Use the native TOTEM assembly rather than an imported-layout label.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. No authored TH holes are recorded; four current closure holes per half are generated proposals. Use the native TOTEM assembly rather than an imported-layout label.
 
 ## Hardware gate
 

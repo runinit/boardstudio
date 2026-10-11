@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `discipline`: `https://github.com/coseyfannitutti/discipline`, `discipline-pcb.kicad_pcb` at `f3b887110dab14ada007cea96483e4f3e65ca78c`; SHA-256 `1fb4e0691fd960440c3bbffb53d03528750075b75b8363f7f0ea90fafb045910`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-discipline` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `discipline`: `https://github.com/coseyfannitutti/discipline`, `discipline-pcb.kicad_pcb` at `f3b887110dab14ada007cea96483e4f3e65ca78c`; SHA-256 `1fb4e0691fd960440c3bbffb53d03528750075b75b8363f7f0ea90fafb045910`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-discipline` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 The current fixture has no mechanical configuration, case body or mounting-hole parts. Generate the selected system and component clearances; no historical fit pass exists. The current stabiliser count is three 2u and one 6.25u, not four 2u. Preserve measured ANSI widths and key references.
 

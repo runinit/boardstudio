@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `reviung41`: `https://github.com/gtips/reviung`, `reviung41/pcb/ver1.3/reviung41.kicad_pcb` at `110154f56a292466c993ccd726df4a8772b5e0cf`; SHA-256 `838430da6e53ea10e27541b74c827c47b50e15ded791ca02d24f1a0329f7b111`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-reviung41` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `reviung41`: `https://github.com/gtips/reviung`, `reviung41/pcb/ver1.3/reviung41.kicad_pcb` at `110154f56a292466c993ccd726df4a8772b5e0cf`; SHA-256 `838430da6e53ea10e27541b74c827c47b50e15ded791ca02d24f1a0329f7b111`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-reviung41` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. One 2u stabiliser is present. This measured recipe is the editable rebuild target; the original .boardstudio archive remains a historical reference with its own legacy gasket configuration.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. One 2u stabiliser is present. This measured recipe is the editable rebuild target; the original .boardstudio archive remains a historical reference with its own legacy gasket configuration.
 
 ## Hardware gate
 

@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `klor`: `https://github.com/GEIGEIGEIST/KLOR`, `PCB/klor1_3/klor1_3.kicad_pcb` at `e2f9c2cde5200189e57c4f89eeff90686cc359fe`; SHA-256 `4955cae6514bbd91c52e26a32a3b8930c4e71bbc3d18698a8dbcf5bf94d9996a`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-klor` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `klor`: `https://github.com/GEIGEIGEIST/KLOR`, `PCB/klor1_3/klor1_3.kicad_pcb` at `e2f9c2cde5200189e57c4f89eeff90686cc359fe`; SHA-256 `4955cae6514bbd91c52e26a32a3b8930c4e71bbc3d18698a8dbcf5bf94d9996a`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-klor` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 42 MX switches and 42 diodes, including rotated columns/thumbs; 19.05 × 19.05 mm base pitch, MX. The measured source is right-authored. Ticket 20 owns removal of the 6.5 mm outline allowance and the 6.38 mm pocket-repair asymmetry; this ticket must consume that result, not add another mirror or tolerance.
 

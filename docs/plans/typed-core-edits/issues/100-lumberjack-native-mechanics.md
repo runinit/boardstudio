@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `lumberjack`: `https://github.com/peej/lumberjack-keyboard`, `lumberjack.kicad_pcb` at `53bfb50b64dd8c938bdb6a964360709c7e6573e0`; SHA-256 `1c5899fe299206a07949b6c90efc1d50bc7ae0c732b8508a8dad931f5bdaff8c`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-lumberjack` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `lumberjack`: `https://github.com/peej/lumberjack-keyboard`, `lumberjack.kicad_pcb` at `53bfb50b64dd8c938bdb6a964360709c7e6573e0`; SHA-256 `1c5899fe299206a07949b6c90efc1d50bc7ae0c732b8508a8dad931f5bdaff8c`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-lumberjack` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 No mechanical configuration, case body or mounting-hole parts exist in the current fixture. Generate one native outline/system that respects both clusters and the chosen component service space. The left/right key clusters share one main board: do not create a mirrored board pair. No stabilisers are recorded.
 

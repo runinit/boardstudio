@@ -79,7 +79,7 @@ matrices, outlines, keycaps, and keymaps.
 
 - [The v2 overview](README.md) records capabilities, limitations, commands, and
   package boundaries.
-- [The starter keyboard](core/examples/demo_projects/review.rs) provides a working layout example.
+- The starter keyboard (`core/examples/demo_projects/review.rs`, retired) provides a working layout example.
 - [The bundled library](ergogen/library/) contains real generator sources,
   model assets, and vendor provenance. Preserve their attribution and terms.
 - [Core tests](core/tests/), [KiCad integration tests](core/tests/kicad_integration.rs),

@@ -1,6 +1,6 @@
 # 106: Forward reconciliation of matrices, layouts and parts
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [105](105-mirrored-half-derivation-kernel.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -67,13 +67,13 @@ single entry in `core/tests/integration.rs`; root assigns any additional path fi
 
 ## Test-first and acceptance
 
-- [ ] Direct-kernel tests fail for the expected absent reconciliation behavior first.
-- [ ] Source move/rotation, cell placement/splay/resize, part parameters, additions and
+- [x] Direct-kernel tests fail for the expected absent reconciliation behavior first.
+- [x] Source move/rotation, cell placement/splay/resize, part parameters, additions and
       removals produce the expected linked mirror under axis and rotated maps.
-- [ ] Switch/companion pose, tweak, stabiliser and fallback contracts remain intact.
-- [ ] A second reconciliation is a no-op; IDs and unrelated local values remain stable.
-- [ ] Removing a matrix or switch follows existing ownership; independent layout parts survive.
-- [ ] Local/omitted test inputs are excluded without changing neighboring states.
+- [x] Switch/companion pose, tweak, stabiliser and fallback contracts remain intact.
+- [x] A second reconciliation is a no-op; IDs and unrelated local values remain stable.
+- [x] Removing a matrix or switch follows existing ownership; independent layout parts survive.
+- [x] Local/omitted test inputs are excluded without changing neighboring states.
 
 Independent verifier: disable forward mapping, one addition/removal cleanup site and mode/tweak
 retention separately; each assertion must fail. Engine Undo/Open/preview are deferred to 111.
@@ -117,3 +117,19 @@ Source commit `52ee10b2` is integrated with no-ff merge `9d6439eeb90ba937b2cf732
 Independent baseline passed; two compiled mutations failed for the intended literal mapping and target-local membership guarantees; exact restore returned all47 focused tests to GREEN. Final source SHA256 `ed7e400b61af0b49162b46d8f3e15be17dd0c413b75713cb31fc0116448f3a02`. Writer affected repo/lint/test/typecheck PASS99.6s is reused from recovered actual tool observations; intermediate affected stdout was truncated and full raw logs/nested exit metadata are not claimed. Final independent raw logs and exact exit/hash records are in `independent-medium/probe-results.json`. Root analyzer succeeded37s; dirty wrapper warning is separate from exact indexed source coverage. Complete4/4-symbol, one-file, HIGH/eight-process delta is saved in `root-capture/graph-delta.json`. Staged diff SHA256 `a5549e3ef601c71be68c67bb5e97fd2057fcce23e5068da17187b99bba2da2be` exactly matches the reviewed delta, so complete graph analysis was reused unchanged.
 
 Next B unit completes remaining document-wide Layout/source additions-removals and whole-matrix closure together under standing authority, with one writer and fresh independent acceptance. Ticket139 isolated math preparation stays queued behind this blocker. Full106/19 and production activation remain open; one integration batch check is pending with138.
+
+## Combined forward-kernel acceptance checkpoint (2026-10-11)
+
+All six behavioral acceptance rows are satisfied by the SAME fresh Sol6.1 medium reviewer using final source SHA256 `817040b9bc785a7e741559960f4ddea180e053c44054fc8cd752568c94206afb` and preserved prior accepted controls. Source committed `16b3234d`, integrated no-ff at `6c2fd1a52578f6217381df16114c1e2285ec58db`. The two Add-collision findings are closed after three compiled intended REDs and same-writer corrections; final focused/Core352passed3ignored/WASM/Clippy/fmt checks PASS under laptop4build/4test/1suite. Older153.0s full affected evidence is bound to5bccsource and is not claimed current.
+
+Review `/home/chris/.cache/boardstudio-baselines/ticket106-combined-forward/independent-medium/independent-assessment.md`, SHA256 `db15cb743975f55f68b151e8cf53a3afd4861c004094f7b2681fd3930f98e04f`; exact row/probe crosswalk `106-resolution-crosswalk.md` in that directory. Root capture `/home/chris/.cache/boardstudio-baselines/ticket106-combined-forward/root-final-capture/` binds exact final source/index/diff and complete22/22 changed symbols,onefile,CRITICAL48flows; staged delta was identical before commit. Index process coverage limits remain disclosed.
+
+One original explicit verification gate remains: a compiled mode/tweak-retention-disabled production probe has no located prior artifact. Forward-mapping and cleanup mutation guarantees reuse accepted source-bound prior probes; passing literal mode/tweak controls are behavioral proof, not relabeled mutation proof. Root authorized ONE existing-test producer mutation followed by exact restoration/touch and focused GREEN, executed by the SAME reviewer after the L7 heavy slot release. Prepared-only scope: `mode-retention-probe-plan.md` in the review directory. No new review session or full suite is required. Status remains awaiting verification for this exact gate and final integration batch.
+
+Durable109 lifecycle,107 hosted/electrical,108 outlines,111 activation/Undo/Open/preview and full19 acceptance are separate children and do not keep106 behavior scope open. No parent19 completion is claimed.
+
+## Final independent resolution (2026-10-11)
+
+The SAME Sol6.1 medium reviewer recommends YES: all six behavioral rows and all three original mutation guarantees are satisfied. The one outstanding producer mutation was actually executed: coherent relocated mode/tweak loss compiled in5.92s and failed at the intended raw-mode literal (`None` versus `Some(LiteralMirrorWithTweak)`, exit101). Exact accepted817040source was restored in finally, touched and confirmed clean; the same test compiled in5.63s and passed1/1exit0 with tweak and complete document/context repeat assertions active. No lasting mutation or test/validator edit remains.
+
+Authority: `/home/chris/.cache/boardstudio-baselines/ticket106-combined-forward/independent-medium/mode-retention-final-binding.json` binds raw RED/restored-GREEN streams and clean lane HEAD8fe3c99e08b6a82699d1cb50d4f73b0b79696fb3. Updated `106-resolution-crosswalk.md` SHA256 `f74ed5fe531a31437e72108f7347405dd2fda342dbb562d42e9bcc48e1b8c494` explicitly accepts all rows and retained probes. Root records this independent resolution; it did not implement or rerun the delegated verification. The combined B106/F138 integration batch is running separately, log `/tmp/boardstudio-b106-f138-integration.log`; its result is not yet claimed.107 proceeds under standing lane authority; full19/111 and browser acceptance remain open.

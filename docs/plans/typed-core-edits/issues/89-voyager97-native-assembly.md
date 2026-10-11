@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `voyager97`: `https://github.com/ai03-2725/Voyager97`, `Voyager97.kicad_pcb` at `aeac27a54ba86cc2a9e4d39020b22787abfee641`; SHA-256 `f251f9108bf8ddfec790c8cea96a7e35d3fd2599873968f8dbd5b7c9ef0d323a`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-voyager97` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `voyager97`: `https://github.com/ai03-2725/Voyager97`, `Voyager97.kicad_pcb` at `aeac27a54ba86cc2a9e4d39020b22787abfee641`; SHA-256 `f251f9108bf8ddfec790c8cea96a7e35d3fd2599873968f8dbd5b7c9ef0d323a`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-voyager97` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
 Current profile: 103 MX switches and 103 diodes across function/navigation/arrows/numpad/keys clusters; 19.05 × 19.05 mm base pitch, MX. The pinned layout is explicitly the 103-key Voyager97 variant. It contains six 2u and one 6.25u stabilisers; do not infer a 97-key count from the project name.
 

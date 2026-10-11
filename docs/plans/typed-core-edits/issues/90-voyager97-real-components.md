@@ -7,9 +7,9 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-[Measured inputs](../../../../content/layouts/keyboard-layouts.json), `voyager97`: `https://github.com/ai03-2725/Voyager97`, `Voyager97.kicad_pcb` at `aeac27a54ba86cc2a9e4d39020b22787abfee641`; SHA-256 `f251f9108bf8ddfec790c8cea96a7e35d3fd2599873968f8dbd5b7c9ef0d323a`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-voyager97` baseline; re-inventory after ticket 20, because its IDs intentionally change.
+Measured inputs (`content/layouts/keyboard-layouts.json`, retired), `voyager97`: `https://github.com/ai03-2725/Voyager97`, `Voyager97.kicad_pcb` at `aeac27a54ba86cc2a9e4d39020b22787abfee641`; SHA-256 `f251f9108bf8ddfec790c8cea96a7e35d3fd2599873968f8dbd5b7c9ef0d323a`. [Phase 1 audit](../audit/shipped-boards-review.md) records the `measured-voyager97` baseline; re-inventory after ticket 20, because its IDs intentionally change.
 
-The current peripheral definitions come from [recipes.rs](../../../../core/examples/demo_projects/recipes.rs), not a qualified BOM. The pinned layout is explicitly the 103-key Voyager97 variant. It contains six 2u and one 6.25u stabilisers; do not infer a 97-key count from the project name.
+The current peripheral definitions come from recipes.rs (`core/examples/demo_projects/recipes.rs`, retired), not a qualified BOM. The pinned layout is explicitly the 103-key Voyager97 variant. It contains six 2u and one 6.25u stabilisers; do not infer a 97-key count from the project name.
 
 ## Hardware gate
 
