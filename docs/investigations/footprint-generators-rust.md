@@ -209,6 +209,7 @@ and corrected output.
 | `ceoloide/utility_point_debugger`, `infused-kim/point_debugger` | Crosshair label | The text `undefined` (a point name that never existed) | An empty label |
 | `ceoloide/utility_router` | Position syntax errors | V8's JSON parser text | A typed rejection naming the route; entries of `routes` must be text |
 | `ceoloide/utility_filled_zone`, `ceoloide/utility_keepout_zone` | `points` entries must be `[x, y]` number pairs | Any value printed as text | Typed error naming the parameter |
+| `ceoloide/diode_tht_sod123` | Additive opt-in `use_vishay_1n4148w_land_pattern` boolean, default `false`; when enabled, selects the SOD-123 land pattern only for a nonreversible F/B SMD configuration | No selectable pattern; the existing default rendering remains unchanged | Explicit opt-in lands use the manufacturer-dimensioned 0.85 mm widths, 2.50 mm inner gap and right-land height; the left-land height of 0.85 mm and centered origin are BoardStudio choices |
 | unknown generator source | Normalization returns the definition unchanged | Silent pass-through | Typed `UnknownGenerator` error (definitions without a `generator` still pass through) |
 | `ceoloide/utility_ergogen_logo` | Renamed `ceoloide/utility_logo`, with footprint and display names | `ceoloide:utility_ergogen_logo` | `ceoloide:utility_logo`; saved source IDs migrated |
 

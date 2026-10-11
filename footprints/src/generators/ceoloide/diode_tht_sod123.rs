@@ -13,7 +13,7 @@ use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
 use crate::types::PartKind;
 
-static PARAMS: [ParamSpec; 16] = [
+static PARAMS: [ParamSpec; 17] = [
     ParamSpec::SIDE,
     ParamSpec::string("designator", "D"),
     ParamSpec::boolean("reversible", false),
@@ -33,6 +33,7 @@ static PARAMS: [ParamSpec; 16] = [
     ParamSpec::array("diode_3dmodel_xyz_scale", "[1,1,1]"),
     ParamSpec::net("from"),
     ParamSpec::net("to"),
+    ParamSpec::boolean("use_vishay_1n4148w_land_pattern", false),
 ];
 
 pub static SPEC: GeneratorSpec = GeneratorSpec {
@@ -50,6 +51,21 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
+    let use_vishay_land_pattern = p.flag("use_vishay_1n4148w_land_pattern");
+    if use_vishay_land_pattern
+        && (!(p.side() == "F" || p.side() == "B")
+            || p.flag("reversible")
+            || p.flag("include_tht")
+            || p.flag("include_thru_hole_smd_pads")
+            || p.flag("include_traces_vias"))
+    {
+        return Err(GeneratorError::rejected(
+            SPEC.source,
+            Some("use_vishay_1n4148w_land_pattern"),
+            "diode_tht_sod123: use_vishay_1n4148w_land_pattern requires side F or B, reversible: false, include_tht: false, include_thru_hole_smd_pads: false, and include_traces_vias: false",
+        ));
+    }
+
     if p.flag("include_thru_hole_smd_pads") && !p.flag("reversible") {
         return Err(GeneratorError::rejected(
             SPEC.source,
@@ -284,13 +300,37 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     if side == "F" || reversible {
         out += &front_silk;
         if !hole_pads {
-            out += &front_smd_pads;
+            if use_vishay_land_pattern {
+                out += &format!(
+                    r####"
+      (pad "1" smd rect (at -1.675 0 {e0}) (size 0.85 0.85) (layers "F.Cu" "F.Paste" "F.Mask") {e1})
+      (pad "2" smd rect (at 1.675 0 {e0}) (size 0.85 0.85) (layers "F.Cu" "F.Paste" "F.Mask") {e2})
+        "####,
+                    e0 = n(p.rotation()),
+                    e1 = p.net("to"),
+                    e2 = p.net("from"),
+                );
+            } else {
+                out += &front_smd_pads;
+            }
         }
     }
     if side == "B" || reversible {
         out += &back_silk;
         if !hole_pads {
-            out += &back_smd_pads;
+            if use_vishay_land_pattern {
+                out += &format!(
+                    r####"
+      (pad "1" smd rect (at -1.675 0 {e0}) (size 0.85 0.85) (layers "B.Cu" "B.Paste" "B.Mask") {e1})
+      (pad "2" smd rect (at 1.675 0 {e0}) (size 0.85 0.85) (layers "B.Cu" "B.Paste" "B.Mask") {e2})
+        "####,
+                    e0 = n(p.rotation()),
+                    e1 = p.net("to"),
+                    e2 = p.net("from"),
+                );
+            } else {
+                out += &back_smd_pads;
+            }
         }
     }
     if p.flag("include_tht") {
