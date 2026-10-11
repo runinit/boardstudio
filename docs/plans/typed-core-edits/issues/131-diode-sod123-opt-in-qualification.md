@@ -1,13 +1,13 @@
 # 131: Add an opt-in Vishay 1N4148W land pattern
 
-Status: ready-for-agent
+Status: claimed
 Type: hardware
 Lane: F
-Execution gate: root dispatch and foreground command window required; no implementation lease issued.
+Execution gate: root producer dispatch issued; sequential foreground command window required. Root records the claim before further implementation.
 
-The reviewed plan uses the existing generator and assets, preserves all legacy defaults and output, and explicitly extends its parameter schema. The first implementation work must capture the 43-case pre-change baseline before editing the producer. The orchestrator will bound that baseline preparation and the producer/qualification work into separate session assignments. No schema test may be weakened to accommodate the addition.
+The reviewed plan uses the existing generator and assets, preserves all legacy defaults and output, and explicitly extends its parameter schema. The independently verified 43-case pre-change baseline is frozen, and its helper is checkpointed on lane F at `4607c266`. Baseline preparation and producer/qualification work use separate session assignments. No schema test may be weakened to accommodate the addition.
 
-Planner: `/root/sofle_adaptation_research`, Sol 6.1 max. Independent plan reviewer: `/root/diode_plan_independent_review`, Sol 6.1 max, final amended plan PASS including actual registry input-contract confirmation. Implementation and fresh independent Sol 6.1 xhigh verification remain pending.
+Planner: `/root/sofle_adaptation_research`, Sol 6.1 max. Independent plan reviewer: `/root/diode_plan_independent_review`, Sol 6.1 max, final amended plan PASS including actual registry input-contract confirmation. Producer implementer: `/root/diode_131_producer_implementer`, Luna 6 high, fresh session. A distinct fresh Sol 6.1 xhigh verifier follows the stopped writer. Full implementation and qualification remain open.
 
 Source packet: `/home/chris/.cache/boardstudio-baselines/ticket131/plan-packet.md`, SHA-256 `ebf03905161a0dc98ee101b9ce8bbd9546fcdc2dc948a5032e984124453449e9`. This ticket preserves the complete technical plan below; cache references are evidence, not a substitute for acceptance.
 
