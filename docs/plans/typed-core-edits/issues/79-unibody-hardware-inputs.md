@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Type: research
-Blocked by: [78](78-cantor-native-mechanics.md), [56](56-sofle-sign-off.md)
+Blocked by: [56](56-sofle-sign-off.md)
 Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-boards-review.md#12-gh60)
 
 ## Sources and sequence
@@ -25,7 +25,7 @@ Agents research source/controller/component identities, library pin/datum/side/a
 
 The planner owns source research and proposals; the user owns design approvals; use [component onboarding](../../../hardware/component-onboarding.md). Preserve the original REVIUNG41 archive as a historical reference; the measured recipe is the editable rebuild target. Its archived legacy gasket settings are not a mount decision for the measured example. VIK remains outside this sequence.
 
-- [ ] Each board's component/profile/mount/clearance row is complete or its tickets remain `needs-info`. Split this packet before claim if partial answers need to unblock boards individually.
-- [ ] Tickets 80–103 receive exact source and designer inputs; unknown physical/electrical fit stays explicit.
+- [ ] Each board's source-backed component/mount/clearance evidence and genuine human choices are recorded; unknown physical/electrical fit stays explicit.
+- [ ] Do not infer acceptance or physical fit from a saved project or successful export.
 
-Record agent research completion and human design approval separately. Docs-only `repo` after updates. Ticket 23 owns cross-board mounted-browser/review/full-check evidence, and 104 owns original-archive preservation evidence.
+Record research completion separately from human approval. Tickets 80–103 are retired; ticket 25 governs ordinary saved-project delivery. Ticket 23 retains cross-board review/integration, and 104 retains original-archive preservation evidence. Preserve genuine source-backed hardware, mounting, material/process, tolerance and clearance decisions as human gates; no physical/electrical qualification is implied by saved project output.

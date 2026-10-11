@@ -1,6 +1,6 @@
 # 46: Pin the hardware inputs for Sofle v2, RGB and Choc
 
-Status: ready-for-human
+Status: ready-for-agent
 Type: research
 Blocked by: none
 Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-boards-review.md#1-sofle-v2)
@@ -11,7 +11,7 @@ Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-
 
 ## Agent research: source facts and library qualification
 
-The user has selected **BoardStudio adaptations**, not reproduction of the upstream hardware. Keep every measured key position, tilt and width fixed for each Sofle variant. The user will specify the target installed hardware/BOM; that input is pending and agents must not choose it. Screws/spacers may be added. Gasket, plate and tolerance must use BoardStudio’s existing case-generation tool. Assemblies, components and mounts/cases may adapt within those directions; do not ask the user to reselect them.
+The user has selected **BoardStudio adaptations**, not reproduction of the upstream hardware. Keep every measured key position, tilt and width fixed for each Sofle variant. The user delegated best-fit BOM selection. The supported nice!nano v2 remains accepted, and SuperMini is also accepted; do not introduce a new platform. Screws/spacers may be added. Gasket, plate and tolerance must use BoardStudio’s existing case-generation tool. Assemblies, components and mounts/cases may adapt within those directions; do not ask the user to reselect them.
 
 A read-only planning researcher owns the following facts for a separate row per variant. Cite pinned primary sources and exact library definitions; record unknowns and missing onboarding rather than asking the user to research them.
 
@@ -24,22 +24,16 @@ A read-only planning researcher owns the following facts for a separate row per 
 | Library and mirror suitability | Inventory candidate library IDs and inspect pins, artwork, pads, drills, models, sides and reversibility. Separate qualified evidence from unverified claims. Core uses 180-r for independent parts, -r for switches and adds no pad-symmetry finding; physical suitability needs evidence. Missing exact entries require separately scoped onboarding. |
 | Mount proposals | Inventory the existing native case generator’s gasket, plate, tolerance, mount and clearance capabilities and propose supported options. Use its workflow and parameters rather than importing upstream manufacturing specifications or inventing independent geometry. TH1–TH7 are source holes, distinct from generated closures; current v2 gasket/empty closure list and RGB/Choc closure proposals are historical evidence, not selections. Provide numerical candidate envelopes/clearances with sources and limitations. |
 
-## Human design gates: approve concrete adaptation proposals
+## Current hardware-selection contract (2026-10-11)
 
-After research, present a short per-variant proposal with recommendation, alternatives and unresolved evidence. The user approves only choices source inspection cannot decide:
-
-- The user supplies exact target installed hardware/BOM. Agents then qualify matching library entries and compatible assemblies, identifying any deliberate source deviation or reversible substitution that needs approval. No automatic BOM choice or nice!nano selection from the current placeholder.
-- Any still-open mounting choice and installed fastener/spacer dimensions, with screws/spacers allowed. Present supported case-generator options and the genuine remaining material/process choices; derive gasket and plate geometry through that tool.
-- Any genuinely unresolved case-generator tolerance setting or minimum closure/component/switch/service margin, including an explicitly accepted limitation. Inventory existing defaults and supported settings first; use the case generator for tolerance rather than demanding unrelated upstream fabrication specifications.
-
-Research can proceed while these gates are open. Hardware-dependent board implementation remains blocked until the relevant proposal is approved and its required evidence exists. Successful generation does not establish physical fit or electrical qualification.
+The user delegated best-fit Sofle BOM selection. The supported nice!nano v2 remains an accepted choice; SuperMini is also accepted. Do not make hardware selection a user gate or add a platform. Record actual source, library, terminal, geometry, electrical, and physical-fit evidence gaps as evidence work; use an existing-library equivalent first and normal onboarding for an adapted reusable footprint. Keep measured Sofle layout data fixed and preserve genuine electrical/physical qualification limits.
 
 ## Ownership and exit
 
-The planning researcher records sourced facts and proposals here only after output ownership is assigned; the user records approval of design choices. Keep research completion and design approval as separate records (or link an existing qualified library entry). Read [component onboarding](../../../hardware/component-onboarding.md); a missing exact library entry needs a small separately numbered onboarding ticket, owned before the board component slice is dispatched. Do not assume a nice!nano is interchangeable with an unidentified source controller.
+The planning researcher records sourced facts, BOM selection, and qualification gaps here after output ownership is assigned. User approval is not a BOM gate. Keep research completion and design approval as separate records (or link an existing qualified library entry). Read [component onboarding](../../../hardware/component-onboarding.md); a missing exact library entry needs a small separately numbered onboarding ticket, owned before the board component slice is dispatched. Do not assume a nice!nano is interchangeable with an unidentified source controller.
 
 - [ ] Agent source/library research is complete per variant, with exact evidence, proposed adaptations and unresolved qualification gaps.
-- [ ] The user approves the required installed-hardware/mount/process/numerical design choices per variant, or unresolved rows keep the affected tickets `needs-info`.
+- [ ] Record selected supported BOM and sourced qualification gaps per variant; unresolved physical/electrical evidence remains explicit.
 - [ ] Mount/profile/clearance choices are numerical, sourced and per variant; no physical fit is claimed from export success.
 
-Docs-only `repo` when answers land. This packet unblocks 47–55 only when the required variant's answers are complete; use separate decision follow-ups if one variant would otherwise stall the others. The Sofle user sign-off in ticket 56 still gates every later board.
+Docs-only `repo` when answers land. The prior 47–55 implementation tickets are retired. Ticket 56 retains the separate human review and sign-off gate before other boards.

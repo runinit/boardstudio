@@ -1,6 +1,6 @@
 # 44: Build recipe key profiles through the native matrix boundary
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: [20](20-recipes-build-one-half.md), [31](31-companion-placement-modes.md), 39 (integration)
 Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
@@ -24,3 +24,7 @@ Do not redesign Core assembly schemas, move a web helper into Core, widen visibi
 ## Verification
 
 `repo lint test typecheck`; `build` only if output changes, coordinated with the designated golden owner. Fresh Sol verifier reproduces the behavior and one-site mutation. Shared algorithm defects become separate tickets; the planner's missing lane index is not a safe-impact verdict. Board dispatches use the current post-20 interfaces and explicit file ownership.
+
+## Supersession answer (2026-10-11)
+
+The separate per-board implementation ticket is retired. The board requirement is superseded by ticket [25](25-shipped-boards-review.md): author one ordinary saved project for this board through the existing Core/Archive/Artifact JSON request examples and common user operations. Do not add a per-board builder, branch, behavior suite, or extracted helper. Keep the source research, geometry, component evidence, and prior proposals above as historical context only; they do not authorize implementation. Shared mirrored-half/link functionality remains required separately under tickets 19/22, while board creation does not wait for 19, 22, or 44.
