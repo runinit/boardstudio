@@ -20,7 +20,8 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > For affected browser tests or configuration, compile the actual target; intermediate RED/fix work stays in the same writer unit, and the writer stops at a completed evidence-backed handoff. Run GitNexus impact before edits and
 > detect-changes before commits, bound to your checkout. Do not refresh GitNexus or register for its Stop hook; confirm
 > stale, empty or UNKNOWN caller answers with `rg` and report the limitation. Never run `scripts/check.py release`.
-> Follow the role time boxes in `verification-process.md`. Implementers finish with
+> Use the evidence-reuse review policy in `verification-process.md`: one fresh Sol6.1 medium review for code/behaviour;
+> author checks plus root review may cover low-risk docs, mechanical copy and tracking. Implementers finish with
 > `Status: implemented (awaiting verification)` and an honest `## Outcome`: commands with
 > timings, what you did not run, decisions, deviations. Report exactly what you observed.
 
@@ -73,13 +74,14 @@ child at a time. The original parent acceptance remains binding; the parent prom
 
 > Common rules above. Ticket 25 is the canonical board-project contract. F is the existing sole Sofle coordinator. The exact reserved fixture lease is web/assets/fixtures/sofle.boardstudio and its existing web/assets/fixtures/sofle.json companion. Product START remains held until root commits the reviewed claim and explicitly grants it. After grant, prepare the single Sofle artifact with its existing Inspector assembly choices and hand off the artifact plus assembly-swap evidence to ticket 56. Follow ticket 25 for component evidence, shared mirror/link separation, fit limits, and all remaining board sequencing.
 
-## Verifier prompts (Sol 6.1, xhigh; implementers use Luna 6 at the lowest sufficient effort)
+## Reviewer prompts (Sol 6.1, medium by default; implementers use Luna 6 at the lowest sufficient effort)
 
 Open Codex with the lane worktree as its working folder, paste the common rules, then the prompt below with the ticket named.
 Commit trailers: `Co-Authored-By: Codex <noreply@openai.com>`.
 
-> Common rules above, plus: you are a REVIEWER, time box about 45 minutes. Do not trust the Outcome; reproduce its
-> claims; mutation-check the main assertions (disable one site at a time, confirm a test fails, restore, touch the
-> sources); fix only small clearly correct defects (about a screen plus a test); anything bigger becomes a follow-up in the
-> ticket's `## Verification` section. Set the ticket `resolved` only if its own acceptance holds, with who-verified-what
-> evidence, and report findings, commits, commands with timings and unverified items.
+> Common rules above, plus: you are the ONE fresh independent REVIEWER after the completed Luna handoff. Use Sol6.1 medium;
+> justify xhigh only from actual complexity or escalation. Review the final diff and raw source-bound writer evidence. Reuse
+> sufficient checks; rerun targeted verification only for a concrete risk/evidence gap, not another full suite by default.
+> Mutations are for important claimed guarantees needing proof; preserve existing counted gates until explicitly reassessed.
+> Restore/touch/hash sources after any mutation. Fix only small clearly correct defects (about a screen plus a test); report
+> larger blockers in `## Verification`. Resolve only when acceptance holds, recording checks reused/run and unverified items.
