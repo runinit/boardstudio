@@ -1,6 +1,6 @@
 # 107: Forward reconciliation of hosted and electrical items
 
-Status: claimed
+Status: implemented (awaiting verification)
 Type: build
 Blocked by: [106](106-reconcile-mirrored-matrices-layouts-parts.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -55,27 +55,50 @@ unrelated data migration or infer new circuit ownership.
 This is a child of [19](19-reconcile-mirrored-halves.md); resolving it does not resolve 19.
 Core children execute serially with exclusive Core file/API leases. The user approved
 independent A/F streams on 2026-10-10; follow the central lane registry and parallel-streams
-decision for audited disjoint edits. Every shell/check command remains globally sequential;
-activation and timing require exclusive windows. The prerequisite batch and delivered 37
-verification slice are complete; root must refresh the bound index and grant this slice.
-Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`;
+decision for audited disjoint edits. The current central workflow/registry governs read-only concurrency and complete bounded GLOBAL HEAVY windows; activation and timing retain their scheduled isolation. The standing approved mirror chain requires no repeated per-helper START. Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`;
 report path/branch/status and inspect overlaps before editing. Every shell call has that
 absolute `workdir`; commands run one at a time in the foreground.
 
 Read `docs/agents/agent-workflow.md`, `verification-process.md`, `gitnexus-index.md` and
 parent 19. Luna 6 high implements test-first and records `implemented (awaiting verification)`;
-a fresh Sol 6.1 xhigh independently verifies/mutation-checks, then alone may set `resolved`.
+ONE fresh Sol6.1 medium independently accepts the coherent unit, reusing adequate source-bound checks and retaining the three required mutation guarantees, then may set `resolved`. The same reviewer follows corrections.
 Run bound GitNexus impact before every symbol edit; list callers, processes and risk.
 `apply`/`layout::resolve` are known CRITICAL paths: warn before editing. UNKNOWN, stale or
 missing answers need source confirmation and honest limitation reporting, not an all-clear.
 Use `boardstudio-lane-mirror-core`; root alone refreshes. Run complete `detect_changes` before
 any commit; truncated/partial evidence is not clean.
 
-Request every test/build/browser/performance command slot from root before running it.
+Root grants a complete bounded GLOBAL HEAVY cycle for test/build/browser/performance execution; read-only work and approved disjoint source work need no lease.
 Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when its
 behavior/transcript changes; targeted red/green and verifier mutations also need slots.
-No full check per slice, no `release`, no background checks; Cargo uses 12 jobs.
+No full check per slice, no `release`, no background checks; active laptop mode uses Cargo4/native test4/check runner1/Binaryen4, including explicit container forwarding where relevant.
 Maps, ADRs, CONTEXT.md, scripts/check.py and generated goldens remain root-owned.
 No merges/push/PR, stash/reset/discard or broad staging; explicit paths only.
 Commit only after root permits it, with the actual-author trailer. Outcome records exact
 commands/results/timings, mutation failures/restoration and every unrun or blocked gate.
+
+## Implementation handoff (2026-10-11)
+
+Luna6 high writer STOPPED with exact `core/src/mirrored_half/reconcile.rs` SHA256 `63c6ff42af3b4b60e0c8b0aaf6a995d4486eaf744808b9367d7fa85384e04368`; this is the only modified source path. Final focused57/57 and Clippy pass on these bytes. The reviewer corrected the formatting binding: its earlier PASS covers6d8cdsource and is not claimed for63c6; the corrected final source needs an actual formatting check. Root synced accepted integration into the lane at `29cb5bb12d2bdb782ef1a395d533c03428686b3e` without changing the dirty107source. Post-sync Core360passed/3ignored/0failed and exact-source WASM check pass. The known old138missing-gap fixture failure is closed by the previously accepted lib.rs correction, not by a107algorithm change. Earlier compile/fixture failures are not counted as behavioral REDs; valid module-pose RED is retained.
+
+Evidence: `/home/chris/.cache/boardstudio-baselines/ticket107-hosted/implementation/acceptance-crosswalk.txt`, source-bound raw RED/debug/Core/WASM/lint logs and `root-presync-binding.json`/`root-postsync-binding.json`. ONE fresh Sol6.1 medium read-only acceptance has started. Original module-mapping, circuit-cleanup and joined-host-net mutation guarantees remain explicit and pending independent disposition/execution. No source acceptance, final graph/commit/integration or full19 completion is claimed. Current central workflow/registry supersedes obsolete per-command/xhigh/12-job text above; laptop4/4/1/Binaryen4 and coherent bounded windows apply.
+
+### Independent review: FAIL, same-writer correction underway
+
+The ONE fresh Sol6.1 medium reviewer completed a bounded source review and stopped. Authority: `/home/chris/.cache/boardstudio-baselines/ticket107-hosted/independent-medium/independent-assessment.md`, SHA256 `383d8e21aeb6d097d4c53f385a569224d8cfd221584dbdbbd4623a9c067b3472`, with `source-evidence-binding.json` and `reviewed.diff` alongside it. Six concrete blockers: durable pair/exception writes instead of private preparation evidence; Add replay cannot converge; source-side module structural references survive projection; existing private circuit-definition changes are ignored; joined-net replacement drops unrelated target host pins; circuit/member/net Local/Omitted states are not honored. Green existing fixtures do not establish these missing cases.
+
+The SAME preserved writer is preparing the review's six minimal independent regressions before behavior corrections; the SAME reviewer will reassess after writer STOP. No new API/schema/visibility,109lifecycle expansion, dropped case or acceptance waiver is authorized. E141 explicitly released its observation window;107 now owns the full bounded correction window. Three original mutation guarantees remain pending for the corrected unit. Status stays awaiting verification; no part of this failed source is integrated.
+
+### Correction evidence qualification
+
+Same-writer corrected regression inputs produced meaningful compiled failures for the review findings. An intermediate focused66/66 GREEN at source `c394713361a18f4e3803a46a408f48fd6d64dba2367ffa3eb7aa9f3d3d0e4e50` is insufficient: removal fixtures manually retired durable source pair rows to bypass validation. The lane explicitly rejected that fixture provenance as acceptance evidence. The same writer is correcting the ordinary source-operation/private-context path without persistent pair edits or a109lifecycle/API expansion. Preserve original raw evidence and same-reviewer follow-up; no source acceptance or integration follows this intermediate GREEN.
+
+### Corrected completed writer handoff
+
+Same writer STOPPED at reconcile.rs SHA256 `f3e56ab602891a44e14f0cbb4092b948f5764a1a03da61a166c58752ac9f3251`, lane HEAD29cb5bb12. Only that source path changed. Exact final-source `correction/test-core-lib02` passed369/3ignored; `check-core02`, `WASM02`, `fmt03`, `clippy-core02` passed. Focused `debug10`66/66 passed on34fb930f before a final let-chain cleanup and is not relabeled as the final hash. Evidence is under the existing `ticket107-hosted/implementation` cache. Authentic ordinary source-operation removal fixtures now preserve full durable hardware bytes; earlier manually retired input GREEN remains invalid. Writer explicitly released HEAVY; SAME independent Sol medium reassessment is active read-only over all six findings and the corrected private-validation boundary. Original three mutation guarantees remain pending explicit disposition/execution. No107source acceptance, graph/commit/integration or full19completion is claimed.
+
+### Same-reviewer corrected-unit FAIL
+
+The SAME Sol medium completed read-only reassessment at finalf3e56ab6 and STOPPED. Updated `independent-medium/independent-assessment.md` SHA256 `a089febeb68ed130e2e1c1a83433300c9313fbe6013f166af5a666d72f6c919b`; initial six-finding report and binding/diff are preserved as `initial-*` siblings. Three residual P1 defects remain within the original findings: R1 applied AddCircuit provenance omits complete member/reference/definition/net maps and can retarget unrelated existing state; R2 removal baseline authenticates record existence without exact pair/board/owned-closure authorization; R3 Omitted child tests keep records physically present, while truly absent Omitted members/nets still fail or retain dangling circuit references. The exact final checks remain valid evidence for their covered cases, not acceptance of these missing contracts.
+
+Return to the SAME writer for the review's bounded independent regressions and private corrections while139 owns heavy execution. No new API/model/visibility or109lifecycle scope is granted. Original three mutation guarantees remain pending until a valid corrected unit clears read-only reassessment; run no mutations against this known-failing unit.
