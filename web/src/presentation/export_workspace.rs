@@ -211,6 +211,7 @@ fn export_rows(
     let pcb_ready =
         selected_readiness.map_or(board_count <= 1 && scene.readiness.pcb, |item| item.pcb);
     let outline_ready = selected_readiness.map_or(scene.readiness.outline, |item| item.outline);
+    let pcb_blocker = (!pcb_ready).then_some("Review the board outline and layout findings.");
     let outline_blocker =
         (!outline_ready).then_some("Review the board outline and layout findings.");
     let wiring_blocker =
@@ -275,6 +276,8 @@ fn export_rows(
             available: true,
             reason: if pcb_ready && wiring_ready {
                 None
+            } else if wiring_ready {
+                pcb_blocker
             } else {
                 wiring_blocker
             },
@@ -285,7 +288,7 @@ fn export_rows(
             detail: "Incomplete wiring with a findings report",
             ready: pcb_ready,
             available: true,
-            reason: (!pcb_ready).then_some("Review the board outline and layout findings."),
+            reason: pcb_blocker,
             on_export: Some(draft_kicad_export),
         },
         ExportRow {
@@ -380,4 +383,138 @@ fn selected_board_name(model: &ReadModel) -> String {
         })
         .map(|board| board.name.clone())
         .unwrap_or_else(|| "this board".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{ProjectDoc, Readiness, SceneDelta};
+    use std::sync::Arc;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct ExportRowProbe {
+        runtime: Rc<Runtime>,
+        model: ReadModel,
+        wiring_ready: bool,
+    }
+
+    #[component]
+    fn export_row_fixture() -> Element {
+        let probe = use_context::<ExportRowProbe>();
+        let rows = export_rows(&probe.runtime, &probe.model, false, probe.wiring_ready);
+        let row = rows
+            .into_iter()
+            .find(|row| row.label == "KiCad board")
+            .expect("accepted model creates the KiCad board row");
+        rsx! { ExportRowView { row, zmk_firmware: None } }
+    }
+
+    fn model_with_pcb_readiness(pcb_ready: bool) -> ReadModel {
+        let session_epoch = SessionEpoch(1);
+        let scene = SceneDelta {
+            module_scenes: vec![],
+            revision: 1,
+            transaction_id: "export-row-test".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: pcb_ready,
+                case_ready: false,
+            },
+        };
+        ReadModel {
+            accepted: Some(AcceptedSnapshot {
+                token: SnapshotToken(1),
+                session_epoch,
+                document: Arc::new(ProjectDoc::empty("export-row-test", "Export row test")),
+                scene: Arc::new(scene),
+            }),
+            active_board_id: String::new(),
+            ..ReadModel::default()
+        }
+    }
+
+    fn mount_export_row(probe: ExportRowProbe) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        if let Some(previous) = document.get_element_by_id("export-workspace-row-test-root") {
+            previous.remove();
+        }
+        let root = document.create_element("div").unwrap();
+        root.set_id("export-workspace-row-test-root");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(export_row_fixture);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        root
+    }
+
+    async fn browser_tick() {
+        gloo_timers::future::TimeoutFuture::new(25).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn kicad_board_row_explains_pcb_blocker_and_preserves_readiness_guards() {
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let cases = [
+            (
+                false,
+                true,
+                Some("Review the board outline and layout findings."),
+                true,
+                "Needs work",
+            ),
+            (
+                true,
+                false,
+                Some("Review the layout and resolve controller wiring in PCB."),
+                true,
+                "Needs work",
+            ),
+            (true, true, None, false, "Export"),
+        ];
+
+        for (pcb_ready, wiring_ready, expected_reason, disabled, label) in cases {
+            let root = mount_export_row(ExportRowProbe {
+                runtime: runtime.clone(),
+                model: model_with_pcb_readiness(pcb_ready),
+                wiring_ready,
+            });
+            browser_tick().await;
+
+            let button = root
+                .query_selector(".m1-export-row-action")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            assert_eq!(button.has_attribute("disabled"), disabled);
+            assert_eq!(button.text_content().as_deref(), Some(label));
+            let reason = root.query_selector(".m1-export-reason").unwrap();
+            assert_eq!(
+                reason
+                    .map(|element| element.text_content())
+                    .flatten()
+                    .as_deref(),
+                expected_reason
+            );
+            root.remove();
+        }
+    }
 }
