@@ -1,6 +1,6 @@
 # 110: Inverse-map matrix and part edits targeting linked mirrors
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [109](109-mirrored-half-exceptions-unlink.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -104,12 +104,46 @@ review and ownership first. `core/src/lib.rs` is read-only until 111.
 
 ## Test-first and acceptance
 
-- [ ] Outcome records coverage of this bounded family and links remaining inventory ownership to 112–114.
-- [ ] Table-driven direct translation tests fail first, then cover every matrix/part variant in this slice
+- [x] Outcome records coverage of this bounded family and links remaining inventory ownership to 112–114.
+- [x] Table-driven direct translation tests fail first, then cover every matrix/part variant in this slice
       in both directions, including rotated/translated maps, local targets and mixed batches.
-- [ ] Transforming a linked mirror request yields the equivalent source request without
+- [x] Transforming a linked mirror request yields the equivalent source request without
       changing unrelated IDs, parameters, bindings or labels.
-- [ ] Deletion, ownership/reference translation and legacy/native conflict cases are covered.
+- [x] Deletion, ownership/reference translation and legacy/native conflict cases are covered.
 
 Independent verifier: mutation-check inverse position, heading and identity conversion and
 one mixed-batch/ownership case. Do not mark resolved with an unimplemented in-scope matrix/part family.
+
+## Outcome (2026-10-12)
+
+Implemented in `core/src/mirrored_half/inverse.rs` (private child module, no call sites; 111
+activates, 115 composes). `canonicalize(document, operation)` returns the source-equivalent
+request, a `translated` flag and, for a mirror-side `AddPart`, the planned source/mirror identity
+pair the forward independent-Add transition needs. `coverage` is the exhaustive ledger (no
+wildcard arm).
+
+Coverage of this slice (all **translated**): `SetMatrix`, `SetMatrixSplay`, `SetMatrixPlacement`,
+`RemoveMatrix`, `SetMatrixCellsEnabled`, `RemoveSelectedMatrixCells`, `RemoveMatrixCells`,
+`RemoveMatrixRow`, `RemoveMatrixColumn`, `MoveParts`, `AddPart`, `RemoveParts`. Requests naming a
+source, an unpaired item or a Local exception are **deliberately unchanged**. Everything else is
+refused by `canonicalize` and owned elsewhere: hosted, electrical, keycap and shared-definition
+families by 112; outline families by 113; keymap, layout, constraints (including
+`ConvertOffsetConstraint`, absent from the inventory above), mechanical, raw configuration,
+native creation and import by 114.
+
+Decisions made inside the slice (revisit if wrong):
+
+- An Omitted mirror target is refused; Local and unpaired targets run as written.
+- A `SetMatrix` payload that changes the mirror matrix's name, definition or board is refused
+  (the forward pass never reflects them), as is one carrying local companions.
+- A matrix reached by a native pair and a legacy layout link is refused from either half.
+- A new matrix on a mirror board has no correspondence and runs as written (no matrix-addition
+  transition exists in the forward kernels).
+- Parts owned by a linked embedded circuit are refused (112 translates circuit edits).
+- Two entries naming one link are one action when they agree to 1e-6 mm, otherwise refused.
+
+Evidence: 37 unit tests in `inverse/tests.rs`, including round trips against production
+`CreateMirroredHalf` output for an axis map, a map translated along the mirror line and a slanted
+map in every companion mode with a stabiliser; 16 of 16 mutations killed
+(`.evidence/ticket110-mutations.log`). Finding: `pair::forward` is not its own inverse when the
+map translates along the mirror line, so `layout::reflected` cannot be reused for the origin.

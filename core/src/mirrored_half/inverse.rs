@@ -32,6 +32,9 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Cell coordinates chosen per matrix id.
+type CellSelection = BTreeMap<String, Vec<(u32, u32)>>;
+
 /// Two requested values of one canonical target agree when they differ by less than this.
 const AGREEMENT_TOLERANCE_MM: f64 = 1e-6;
 
@@ -540,10 +543,7 @@ impl<'a> Links<'a> {
 
     /// Per-matrix cell selections. Entries for both halves of one link are one set of
     /// coordinates on the source matrix, so a grouped selection cannot run the action twice.
-    fn selected_cells(
-        &self,
-        cells: &BTreeMap<String, Vec<(u32, u32)>>,
-    ) -> Result<(BTreeMap<String, Vec<(u32, u32)>>, bool), String> {
+    fn selected_cells(&self, cells: &CellSelection) -> Result<(CellSelection, bool), String> {
         let mut groups: BTreeMap<String, Vec<&Vec<(u32, u32)>>> = BTreeMap::new();
         let mut translated = false;
         for (id, selection) in cells {

@@ -1097,3 +1097,134 @@ fn every_created_mirror_part_moves_its_source_to_where_the_source_is_stored() {
         }
     }
 }
+
+// ---- every in-scope variant, in both directions ----------------------------------------------
+
+/// One row per in-scope variant: the request as the source half would send it (it must run as
+/// written), the same request naming a Local mirror (as written again), and the request naming
+/// the linked mirror with what it must become.
+#[test]
+fn every_in_scope_variant_runs_source_and_local_requests_as_written_and_inverts_mirror_ones() {
+    let cells = |matrix: &str| json!({ matrix: [[0, 1]] });
+    let matrix_payload = |edits: Value| set_matrix(mirror_payload(edits));
+    let rows: Vec<(&str, Value, Value, Value, Value)> = vec![
+        // (variant, source request, local request, mirror request, expected for the mirror)
+        (
+            "set-matrix",
+            set_matrix(
+                json!({"id": "left-keys", "name": "Left keys", "rows": 1, "columns": 2,
+                "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": 0}, "definitionId": "sw",
+                "boardId": "left", "partIds": []}),
+            ),
+            matrix_payload(json!({"origin": {"x": 190, "y": 5}})),
+            matrix_payload(json!({"origin": {"x": 190, "y": 5}})),
+            Value::Null, // checked by the matrix tests; only the id is asserted below
+        ),
+        (
+            "set-matrix-splay",
+            json!({"kind": "set-matrix-splay", "matrixId": "left-keys", "column": 1,
+                "change": {"kind": "origin", "world": {"x": 90, "y": -50}}}),
+            json!({"kind": "set-matrix-splay", "matrixId": "right-keys", "column": 1,
+                "change": {"kind": "origin", "world": {"x": 90, "y": -50}}}),
+            json!({"kind": "set-matrix-splay", "matrixId": "right-keys", "column": 1,
+                "change": {"kind": "origin", "world": {"x": 90, "y": -50}}}),
+            json!({"kind": "set-matrix-splay", "matrixId": "left-keys", "column": 1,
+                "change": {"kind": "origin", "world": {"x": 110, "y": -50}}}),
+        ),
+        (
+            "set-matrix-placement",
+            json!({"kind": "set-matrix-placement", "matrixId": "left-keys",
+                "change": {"kind": "row-offset", "row": 0, "value": {"x": 1, "y": 2}}}),
+            json!({"kind": "set-matrix-placement", "matrixId": "right-keys",
+                "change": {"kind": "row-offset", "row": 0, "value": {"x": 1, "y": 2}}}),
+            json!({"kind": "set-matrix-placement", "matrixId": "right-keys",
+                "change": {"kind": "row-offset", "row": 0, "value": {"x": 1, "y": 2}}}),
+            json!({"kind": "set-matrix-placement", "matrixId": "left-keys",
+                "change": {"kind": "row-offset", "row": 0, "value": {"x": 1, "y": 2}}}),
+        ),
+        (
+            "remove-matrix",
+            json!({"kind": "remove-matrix", "id": "left-keys"}),
+            json!({"kind": "remove-matrix", "id": "right-keys"}),
+            json!({"kind": "remove-matrix", "id": "right-keys"}),
+            json!({"kind": "remove-matrix", "id": "left-keys"}),
+        ),
+        (
+            "set-matrix-cells-enabled",
+            json!({"kind": "set-matrix-cells-enabled", "cells": cells("left-keys"), "enabled": false}),
+            json!({"kind": "set-matrix-cells-enabled", "cells": cells("right-keys"), "enabled": false}),
+            json!({"kind": "set-matrix-cells-enabled", "cells": cells("right-keys"), "enabled": false}),
+            json!({"kind": "set-matrix-cells-enabled", "cells": cells("left-keys"), "enabled": false}),
+        ),
+        (
+            "remove-selected-matrix-cells",
+            json!({"kind": "remove-selected-matrix-cells", "cells": cells("left-keys")}),
+            json!({"kind": "remove-selected-matrix-cells", "cells": cells("right-keys")}),
+            json!({"kind": "remove-selected-matrix-cells", "cells": cells("right-keys")}),
+            json!({"kind": "remove-selected-matrix-cells", "cells": cells("left-keys")}),
+        ),
+        (
+            "remove-matrix-cells",
+            json!({"kind": "remove-matrix-cells", "matrixId": "left-keys", "cells": [[0, 0]]}),
+            json!({"kind": "remove-matrix-cells", "matrixId": "right-keys", "cells": [[0, 0]]}),
+            json!({"kind": "remove-matrix-cells", "matrixId": "right-keys", "cells": [[0, 0]]}),
+            json!({"kind": "remove-matrix-cells", "matrixId": "left-keys", "cells": [[0, 0]]}),
+        ),
+        (
+            "remove-matrix-row",
+            json!({"kind": "remove-matrix-row", "matrixId": "left-keys", "row": 0}),
+            json!({"kind": "remove-matrix-row", "matrixId": "right-keys", "row": 0}),
+            json!({"kind": "remove-matrix-row", "matrixId": "right-keys", "row": 0}),
+            json!({"kind": "remove-matrix-row", "matrixId": "left-keys", "row": 0}),
+        ),
+        (
+            "remove-matrix-column",
+            json!({"kind": "remove-matrix-column", "matrixId": "left-keys", "column": 1}),
+            json!({"kind": "remove-matrix-column", "matrixId": "right-keys", "column": 1}),
+            json!({"kind": "remove-matrix-column", "matrixId": "right-keys", "column": 1}),
+            json!({"kind": "remove-matrix-column", "matrixId": "left-keys", "column": 1}),
+        ),
+    ];
+    let local_matrix = with_matrix_state(fixture(), "local");
+    for (variant, source, local, mirror, expected) in rows {
+        expect_operation(&fixture(), source.clone(), source);
+        expect_operation(&local_matrix, local.clone(), local);
+        if variant == "set-matrix" {
+            let result = canonical(&fixture(), &mirror).unwrap();
+            assert!(result.translated, "{variant}");
+            let value = serde_json::to_value(&result.operation).unwrap();
+            assert_eq!(value["matrix"]["id"], "left-keys", "{variant}");
+        } else {
+            expect_operation(&fixture(), mirror, expected);
+        }
+    }
+
+    // The part variants, with a Local mirror part (`right/HEADER`) as the local target.
+    let part_rows: Vec<(&str, Value, Value, Value, Value)> = vec![
+        (
+            "move-parts",
+            json!({"kind": "move-parts", "positions": [{"id": "left/U1", "at": {"x": 1, "y": 2}}]}),
+            json!({"kind": "move-parts", "positions": [{"id": "right/HEADER", "at": {"x": 1, "y": 2}}]}),
+            json!({"kind": "move-parts", "positions": [{"id": "right/U1", "at": {"x": 1, "y": 2}}]}),
+            json!({"kind": "move-parts", "positions": [{"id": "left/U1", "at": {"x": 199, "y": 2}}]}),
+        ),
+        (
+            "remove-parts",
+            json!({"kind": "remove-parts", "ids": ["left/U1"]}),
+            json!({"kind": "remove-parts", "ids": ["right/HEADER"]}),
+            json!({"kind": "remove-parts", "ids": ["right/U1"]}),
+            json!({"kind": "remove-parts", "ids": ["left/U1"]}),
+        ),
+    ];
+    for (variant, source, local, mirror, expected) in part_rows {
+        expect_operation(&fixture(), source.clone(), source);
+        expect_operation(&fixture(), local.clone(), local);
+        let result = canonical(&fixture(), &mirror).unwrap();
+        assert!(result.translated, "{variant}");
+        assert_close(
+            &serde_json::to_value(&result.operation).unwrap(),
+            &expected,
+            variant,
+        );
+    }
+}
