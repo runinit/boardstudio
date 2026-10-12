@@ -74,6 +74,22 @@ class CollectTests(unittest.TestCase):
                  "test archive::tests::pack_verifies ... Customok { \n")
         self.assertEqual(guard.collect([split]).executed, {"boardstudio_core": {"archive::tests::pack_verifies"}})
 
+    def test_a_result_glued_to_a_stderr_word_without_a_separator_still_counts_as_executed(self):
+        # Observed 2026-10-12: stderr stopped mid-word (`Other`) and libtest's `test ...` followed
+        # with no separator, then the verdict was split too (`, okerror`).
+        glued = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                 "ZipWriter::drop: failed to finalize archive: Io(Custom { kind: Other"
+                 "test archive::tests::stored_and_deflated_crc_corruption_is_rejected ... , okerror\n")
+        self.assertEqual(
+            guard.collect([glued]).executed,
+            {"boardstudio_core": {"archive::tests::stored_and_deflated_crc_corruption_is_rejected"}})
+
+    def test_a_name_mentioned_in_noise_without_a_result_marker_does_not_count(self):
+        noise = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                 "kind: Othertest archive::tests::never_ran\n"
+                 "test archive::tests::never_ran failed to start\n")
+        self.assertEqual(guard.collect([noise]).executed, {})
+
     def test_doc_tests_are_not_baselined(self):
         run = guard.collect([CORE_OUTPUT])
         self.assertNotIn("src/lib.rs - documented (line 12)", run.executed["durable_session"])
