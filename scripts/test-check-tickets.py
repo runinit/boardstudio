@@ -45,6 +45,11 @@ class TicketTests(unittest.TestCase):
             self.ticket(f"{status}.md", status)
         self.assertEqual(self.violations(), {})
 
+    def test_the_triage_roles_are_accepted_statuses(self):
+        for status in ("needs-triage", "needs-info", "ready-for-agent", "ready-for-human", "wontfix"):
+            self.ticket(f"{status}.md", status)
+        self.assertEqual(self.violations(), {})
+
     def test_trailing_whitespace_after_the_status_is_accepted(self):
         self.ticket("a.md", "ready-for-agent  ")
         self.assertEqual(self.violations(), {})

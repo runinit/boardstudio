@@ -19,3 +19,17 @@
 - GitNexus: refresh with `python3 scripts/gitnexus-refresh.py`, or `analyze --index-only`; any other `analyze` rewrites AGENTS.md and CLAUDE.md.
 
 Historical workflow documents are not operating instructions.
+
+## Agent skills
+
+### Issue tracker
+
+Committed Markdown tickets under `docs/plans/<plan>/issues/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles, recorded as a ticket's `Status:`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.

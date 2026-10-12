@@ -16,7 +16,7 @@ from pathlib import Path
 import re
 import sys
 
-STATUSES = ("ready-for-agent", "ready-for-human", "claimed", "resolved", "wontfix")
+STATUSES = ("needs-triage", "needs-info", "ready-for-agent", "ready-for-human", "claimed", "resolved", "wontfix")
 STATUS, LISTED = "status", "listed"  # violation codes, as recorded in the baseline
 TICKETS = Path("docs/plans/typed-core-edits/issues")
 MAP = Path("docs/plans/typed-core-edits/map.md")
