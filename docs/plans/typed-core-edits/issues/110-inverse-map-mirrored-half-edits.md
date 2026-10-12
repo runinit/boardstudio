@@ -1,6 +1,6 @@
 # 110: Inverse-map matrix and part edits targeting linked mirrors
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [109](109-mirrored-half-exceptions-unlink.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -104,12 +104,68 @@ review and ownership first. `core/src/lib.rs` is read-only until 111.
 
 ## Test-first and acceptance
 
-- [ ] Outcome records coverage of this bounded family and links remaining inventory ownership to 112–114.
-- [ ] Table-driven direct translation tests fail first, then cover every matrix/part variant in this slice
+- [x] Outcome records coverage of this bounded family and links remaining inventory ownership to 112–114.
+- [x] Table-driven direct translation tests fail first, then cover every matrix/part variant in this slice
       in both directions, including rotated/translated maps, local targets and mixed batches.
-- [ ] Transforming a linked mirror request yields the equivalent source request without
+- [x] Transforming a linked mirror request yields the equivalent source request without
       changing unrelated IDs, parameters, bindings or labels.
-- [ ] Deletion, ownership/reference translation and legacy/native conflict cases are covered.
+- [x] Deletion, ownership/reference translation and legacy/native conflict cases are covered.
 
 Independent verifier: mutation-check inverse position, heading and identity conversion and
 one mixed-batch/ownership case. Do not mark resolved with an unimplemented in-scope matrix/part family.
+
+## Outcome (2026-10-12, after the review round)
+
+Implemented in `core/src/mirrored_half/inverse.rs` (private child module, no call sites; 111
+activates, 115 composes). `canonicalize(document, operation)` is one exhaustive dispatch over
+every `EditOperation` variant (no wildcard arm: a new variant does not compile without a ledger
+entry). It returns a `Canonical` with the source-equivalent request, its `Coverage`, the planned
+`PartAddition` pairs for mirror-side `AddPart` and the planned `MatrixAddition` pairs for new
+matrices, or a `Refusal` that carries the ledger entry of a family another ticket owns.
+
+Ledger (translated / delegated / deliberately unchanged / unsupported with reason):
+
+- **Translated:** `SetMatrix`, `SetMatrixSplay`, `SetMatrixPlacement`, `RemoveMatrix`,
+  `SetMatrixCellsEnabled`, `RemoveSelectedMatrixCells`, `RemoveMatrixCells`, `RemoveMatrixRow`,
+  `RemoveMatrixColumn`, `MoveParts`, `AddPart`, `RemoveParts`. Requests naming a source, an
+  unpaired item or a Local exception run as written.
+- **Delegated:** `ApplyMechanicalEdit` (the typed lifecycle is already two-way; not inverted twice).
+- **Deliberately unchanged:** `EditKeymap`, `SetKeyBinding` (ADR-excluded; targeted-half semantics).
+- **Unsupported here, owned elsewhere (refused, with owner and reason):** hosted, electrical,
+  keycap and shared-definition families and circuit-member `MoveParts`/`RemoveParts` by 112;
+  outline families by 113; `SetLayout`, `CreateMirroredPair`, `SetConstraint`,
+  `RemoveConstraint`, `ConvertOffsetConstraint` (absent from the inventory above),
+  `SetMechanical`, `SetCase`, `CreateMirroredHalf`, `ReplaceDocument` by 114.
+
+User decisions recorded:
+
+- Two entries naming one link are one action when they agree within 1e-6 mm, otherwise refused.
+- A new matrix on a mirrored board is NOT run as written: it must also be mirrored and linked.
+  110 supplies the seam: the source-equivalent `SetMatrix` (a mirror-board addition is inverted
+  through the pair map; a source-board addition is returned as written) and a planned
+  `MatrixAddition { source_id, mirror_id, source/mirror board, members }` with every key and
+  companion as a source/mirror pair, identities allocated free of existing ones. The forward
+  transition that creates the mirror matrix and mints its correspondences does not exist on dev
+  (105 derives only an existing mirror; 106-108 add members to an existing matrix; 108 assigns
+  minting to the membership slices), so [145](145-mirror-new-matrices-on-a-mirrored-board.md)
+  owes it, blocked by 110 and named in 111 and 115.
+- A `SetMatrix` payload that changes the mirror matrix's name, definition or board, or carries
+  local companions, is refused.
+- An Omitted mirror target is refused (omitted geometry is not recreated implicitly).
+- Parts owned by a linked embedded circuit are refused here; 112 translates circuit edits.
+- A moved linked companion translates, but forward validation refuses authored companion
+  placement on linked slots; that is untested end to end and surfaces in 115.
+
+Evidence, honestly graded. Red first, then green: the part, matrix-structure and `SetMatrix`
+payload slices (including the literal-mode companion cases), the ledger categories and the new
+matrix pairs (the last two slices went red as compile errors before green). Added after the
+code, so evidenced by the mutation run rather than by a red phase: companion-mode `MoveParts`
+(tweak, duplicate position, stabiliser), the round trips against production `CreateMirroredHalf`
+output (axis, translated-along-the-line and slanted maps in every companion mode with a
+stabiliser) and the all-variants table. 42 unit tests in `inverse/tests.rs`; mutations in
+`.evidence/ticket110-mutations.log` (position, heading, identity, mixed batch, ownership, legacy
+overlap, planned matrix pairs). Finding: `pair::forward` is not its own inverse when the map
+translates along the mirror line, so `layout::reflected` cannot be reused for the origin.
+
+Not covered by 110: the forward matrix-addition transition (145), circuit members (112), and
+authored-companion moves end to end (115).

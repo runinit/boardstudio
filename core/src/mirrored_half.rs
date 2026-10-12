@@ -36,6 +36,8 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod derive;
+#[allow(dead_code)] // Ticket 111 activates the inverse translation; 110 prepares it privately.
+mod inverse;
 mod reconcile;
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.

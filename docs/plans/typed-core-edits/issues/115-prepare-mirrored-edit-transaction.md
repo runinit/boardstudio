@@ -58,3 +58,14 @@ constraints in play, and a refusal must leave document, revision and history unt
 resolver to call is `resolve_prepared` in `core/src/constraints.rs`: it is a private fn today and
 needs a `pub(crate)` widening when 115 starts (framed records are supplied privately until 111), and the locked/conflicting-movement refusal fixture (design.md:278) belongs
 here, where movement can be expressed.
+
+## Inherited from 110 and 145
+
+- Feed the `Canonical.operation` to apply and to both downstream `resolve_edit` calls, and use
+  `Canonical.additions` (`PartAddition`) as the independent-Add transition's source/mirror pair.
+- `Canonical.matrix_additions` (`MatrixAddition`) plans a new matrix pair with its members;
+  the transition that creates the mirror matrix and records its correspondences is
+  [145](145-mirror-new-matrices-on-a-mirrored-board.md). Do not mint matrix correspondences here.
+- A moved linked companion translates, then forward validation refuses authored placement on a
+  linked slot; surface that refusal as the existing validation error (not covered end to end by 110).
+- Parts owned by a linked embedded circuit are refused by 110; 112 translates them.

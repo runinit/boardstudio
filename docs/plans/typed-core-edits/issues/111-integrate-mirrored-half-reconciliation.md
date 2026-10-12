@@ -75,3 +75,14 @@ hashed, so a reordered operation or a folded zero is a format change. Today
 and inverse, with negative zeros) and `axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit`
 pin it; the slanted-axis reflection is pinned only to 1e-9 and needs its own literal bit
 patterns before it persists.
+
+## Inherited from 110 and 145
+
+- Consume `inverse::canonicalize` (110) for every translated variant; its `Coverage` ledger says
+  which variants are translated, delegated (`ApplyMechanicalEdit`), deliberately unchanged
+  (bindings) or owned by 112-114. Wire matrix additions only together with
+  [145](145-mirror-new-matrices-on-a-mirrored-board.md): `matrix_additions` is a plan, not a
+  transition.
+- A linked companion `MoveParts` translates geometrically but the forward validation refuses
+  authored companion placement on linked slots; that refusal is untested end to end and
+  surfaces here and in 115.

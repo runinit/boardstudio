@@ -28,7 +28,8 @@ The user chose support through a separately scoped model extension; [139](139-ge
 
 ## Remaining inventory families
 
-`SetConstraint`, `RemoveConstraint`; `SetLayout`, `CreateMirroredPair`;
+`SetConstraint`, `RemoveConstraint`, `ConvertOffsetConstraint` (added after 110's inventory);
+`SetLayout`, `CreateMirroredPair`;
 `ApplyMechanicalEdit`, `SetMechanical`, `SetCase`; `EditKeymap`, `SetKeyBinding`;
 `CreateMirroredHalf`, `ReplaceDocument`. Check every 40-variant entry in 110 has an owner.
 
