@@ -591,3 +591,52 @@ fn a_pin_the_mirror_authored_on_its_own_part_keeps_an_otherwise_private_net() {
         "a net the mirror still uses is not removed by the rule"
     );
 }
+
+/// The projection alone, on a document edited by hand: states `reconcile` itself would refuse.
+fn projected(document: &ProjectDoc) -> ProjectDoc {
+    let mut staged = document.clone();
+    super::settings::project(document, &mut staged, halves(document)).unwrap();
+    staged
+}
+
+#[test]
+fn an_omitted_overlay_removes_the_entry_even_while_the_part_is_still_present() {
+    let mut document = paired();
+    exception(&mut document, "right/J1", MirroredExceptionState::Omitted);
+    let after = projected(&document);
+    assert!(key(&after, "right/J1").is_none());
+    assert!(key(&after, "matrix/right-keys/r0c0").is_some());
+}
+
+#[test]
+fn a_linked_part_that_is_absent_from_the_mirror_has_no_entry() {
+    // The child of an Omitted matrix or circuit stores no overlay of its own.
+    let mut document = paired();
+    document.parts.retain(|part| part.id != "right/J1");
+    let after = projected(&document);
+    assert!(key(&after, "right/J1").is_none());
+}
+
+#[test]
+fn a_circuit_net_is_left_to_the_circuit_projection() {
+    let mut document = paired();
+    document
+        .nets
+        .iter_mut()
+        .find(|net| net.id == "left-col0")
+        .unwrap()
+        .pins
+        .push(pin("left/U1", "P9"));
+    document.embedded_circuits.push(
+        serde_json::from_value(
+            json!({"id": "c", "definitionId": "d", "hostBoardId": "left",
+            "partIds": [], "netIds": ["left-col0"], "ports": {}}),
+        )
+        .unwrap(),
+    );
+    let after = projected(&document);
+    assert_eq!(
+        net_of(&after, "right-col0"),
+        net_of(&document, "right-col0")
+    );
+}
