@@ -58,6 +58,9 @@ fn resolve_with_positions(
         let finite = match constraint {
             Constraint::Offset {
                 offset, rotation, ..
+            }
+            | Constraint::PartOffset {
+                offset, rotation, ..
             } => offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite(),
             Constraint::Mirror { coordinate, .. } => coordinate.is_finite(),
         };
@@ -117,6 +120,15 @@ fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
             },
             rotation: source.rotation + rotation,
         },
+        Constraint::PartOffset {
+            offset, rotation, ..
+        } => {
+            let local = Pose2 {
+                at: *offset,
+                rotation: *rotation,
+            };
+            follow_pose(source, local)
+        }
         Constraint::Mirror {
             axis, coordinate, ..
         } => Pose2 {
@@ -147,6 +159,33 @@ fn follow_pose(source: Pose2, local: Pose2) -> Pose2 {
             y: source.at.y + local.at.x * sin + local.at.y * cos,
         },
         rotation: source.rotation + local.rotation,
+    }
+}
+
+/// Moves a constraint's stored numbers so its target lands `delta` away from where it was
+/// and turns `turn` degrees further. An `offset` stores board-axis numbers, so the drag is
+/// added as it is. A `part-offset` stores source-axis numbers, so the drag is first turned
+/// back into the source's frame. Mirrors reflect rather than offset; callers reject them.
+pub(crate) fn retune_offset(constraint: &mut Constraint, source: Pose2, delta: Vec2, turn: f64) {
+    match constraint {
+        Constraint::Offset {
+            offset, rotation, ..
+        } => {
+            offset.x += delta.x;
+            offset.y += delta.y;
+            *rotation += turn;
+        }
+        Constraint::PartOffset {
+            offset, rotation, ..
+        } => {
+            let (sin, cos) = (-source.rotation).to_radians().sin_cos();
+            offset.x += delta.x * cos - delta.y * sin;
+            offset.y += delta.x * sin + delta.y * cos;
+            *rotation += turn;
+        }
+        Constraint::Mirror { .. } => {
+            unreachable!("mirror constraints are rejected before a retune")
+        }
     }
 }
 

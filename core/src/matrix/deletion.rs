@@ -133,6 +133,11 @@ fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) -> Vec<String> {
                 target_part_id,
                 ..
             }
+            | Constraint::PartOffset {
+                source_part_id,
+                target_part_id,
+                ..
+            }
             | Constraint::Mirror {
                 source_part_id,
                 target_part_id,

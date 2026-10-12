@@ -1237,20 +1237,21 @@ fn apply(
                     .iter_mut()
                     .find(|constraint| constraint.target() == position.id)
                 {
-                    match constraint {
-                        Constraint::Offset { offset, .. } => {
-                            offset.x += delta.x;
-                            offset.y += delta.y;
-                            changed.push(position.id.clone());
-                            continue;
-                        }
-                        Constraint::Mirror { .. } => {
-                            return Err(format!(
-                                "Part {} is controlled by a mirror constraint and cannot be dragged",
-                                position.id
-                            ));
-                        }
+                    if matches!(constraint, Constraint::Mirror { .. }) {
+                        return Err(format!(
+                            "Part {} is controlled by a mirror constraint and cannot be dragged",
+                            position.id
+                        ));
                     }
+                    let source = doc
+                        .parts
+                        .iter()
+                        .find(|part| part.id == constraint.source())
+                        .ok_or("Constraint source is missing")?
+                        .pose;
+                    crate::constraints::retune_offset(constraint, source, delta, 0.0);
+                    changed.push(position.id.clone());
+                    continue;
                 }
                 if let Some(linked) = layout::move_linked_component(doc, &position.id, position.at)?
                 {

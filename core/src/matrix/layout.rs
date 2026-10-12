@@ -736,18 +736,26 @@ fn set_component_pose(
         .iter_mut()
         .find(|constraint| constraint.target() == id)
     {
-        match constraint {
-            Constraint::Offset {
-                offset, rotation, ..
-            } => {
-                offset.x += pose.at.x - current.at.x;
-                offset.y += pose.at.y - current.at.y;
-                *rotation += pose.rotation - current.rotation;
-            }
-            Constraint::Mirror { .. } => Err(format!(
+        if matches!(constraint, Constraint::Mirror { .. }) {
+            return Err(format!(
                 "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
-            ))?,
+            ));
         }
+        let source = doc
+            .parts
+            .iter()
+            .find(|part| part.id == constraint.source())
+            .ok_or("Mirrored component source is missing")?
+            .pose;
+        crate::constraints::retune_offset(
+            constraint,
+            source,
+            Vec2 {
+                x: pose.at.x - current.at.x,
+                y: pose.at.y - current.at.y,
+            },
+            pose.rotation - current.rotation,
+        );
     }
     let part = doc
         .parts

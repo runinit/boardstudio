@@ -85,6 +85,8 @@ mod outline_repairs;
 mod outline_versions;
 #[path = "outlines.rs"]
 mod outlines;
+#[path = "part_offset_constraint.rs"]
+mod part_offset_constraint;
 #[path = "splay_reconciliation.rs"]
 mod splay_reconciliation;
 #[path = "support/mod.rs"]

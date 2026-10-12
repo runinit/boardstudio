@@ -744,6 +744,17 @@ pub enum Constraint {
         offset: Vec2,
         rotation: f64,
     },
+    /// Like `Offset`, but `offset` runs along the source part's own axes, so a target
+    /// held to a turning source keeps its pose in the source's frame. See ADR-0011.
+    PartOffset {
+        id: String,
+        #[serde(rename = "sourcePartId")]
+        source_part_id: String,
+        #[serde(rename = "targetPartId")]
+        target_part_id: String,
+        offset: Vec2,
+        rotation: f64,
+    },
     Mirror {
         id: String,
         #[serde(rename = "sourcePartId")]
@@ -757,21 +768,21 @@ pub enum Constraint {
 impl Constraint {
     pub fn id(&self) -> &str {
         match self {
-            Self::Offset { id, .. } | Self::Mirror { id, .. } => id,
+            Self::Offset { id, .. } | Self::PartOffset { id, .. } | Self::Mirror { id, .. } => id,
         }
     }
     pub fn source(&self) -> &str {
         match self {
-            Self::Offset { source_part_id, .. } | Self::Mirror { source_part_id, .. } => {
-                source_part_id
-            }
+            Self::Offset { source_part_id, .. }
+            | Self::PartOffset { source_part_id, .. }
+            | Self::Mirror { source_part_id, .. } => source_part_id,
         }
     }
     pub fn target(&self) -> &str {
         match self {
-            Self::Offset { target_part_id, .. } | Self::Mirror { target_part_id, .. } => {
-                target_part_id
-            }
+            Self::Offset { target_part_id, .. }
+            | Self::PartOffset { target_part_id, .. }
+            | Self::Mirror { target_part_id, .. } => target_part_id,
         }
     }
 }

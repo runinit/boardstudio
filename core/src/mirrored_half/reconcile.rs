@@ -3530,6 +3530,9 @@ fn prepare_membership_transition_kernel(
             let finite = match constraint {
                 crate::model::Constraint::Offset {
                     offset, rotation, ..
+                }
+                | crate::model::Constraint::PartOffset {
+                    offset, rotation, ..
                 } => offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite(),
                 crate::model::Constraint::Mirror { coordinate, .. } => coordinate.is_finite(),
             };
