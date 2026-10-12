@@ -66,6 +66,55 @@ pub(super) enum CompanionRule {
     Tweaked { u: f64, v: f64, w: f64 },
 }
 
+/// A companion rule written once as a map from the authoritative pose to the visible one, so
+/// `project` and `unproject` cannot drift apart.
+///
+/// Position: with no `turn`, `forward(mapping, p) + shift`; with a `turn`,
+/// `origin + R(turn) (p - pivot)`. Heading: `heading_sign * c + heading_base`, the sign being
+/// +1 or -1.
+struct CompanionMap {
+    turn: Option<f64>,
+    pivot: Vec2,
+    origin: Vec2,
+    shift: Vec2,
+    heading_sign: f64,
+    heading_base: f64,
+}
+
+impl CompanionRule {
+    /// The rule's map for a pair `mapping` and the resolved key pose it is measured against.
+    fn frame(self, mapping: Pose2, key: Pose2) -> CompanionMap {
+        let reflected = |shift: Vec2, heading_sign: f64, heading_base: f64| CompanionMap {
+            turn: None,
+            pivot: Vec2::default(),
+            origin: Vec2::default(),
+            shift,
+            heading_sign,
+            heading_base,
+        };
+        match self {
+            Self::Literal => reflected(Vec2::default(), -1.0, mapping.rotation),
+            Self::Stabiliser => reflected(Vec2::default(), 1.0, 0.0),
+            Self::Tweaked { u, v, w } => reflected(
+                turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation),
+                -1.0,
+                mapping.rotation + w,
+            ),
+            Self::Duplicate => {
+                let turn = mapping.rotation - 2.0 * key.rotation;
+                CompanionMap {
+                    turn: Some(turn),
+                    pivot: key.at,
+                    origin: pair::forward(mapping, key.at),
+                    shift: Vec2::default(),
+                    heading_sign: 1.0,
+                    heading_base: turn,
+                }
+            }
+        }
+    }
+}
+
 /// A live endpoint frame. Linked mappings are supplied by the current pair owner.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum EndpointFrame {
@@ -122,45 +171,32 @@ impl EndpointFrame {
             }
             Self::LinkedCompanion { mapping, key, rule } => {
                 validate_mapping(mapping)?;
-                let key = bound_key(key, rule)?;
-                let reflected = pair::forward(mapping, authoritative.at);
-                match rule {
-                    CompanionRule::Literal => Pose2 {
-                        at: reflected,
-                        rotation: mapping.rotation - authoritative.rotation,
-                    },
-                    CompanionRule::Stabiliser => Pose2 {
-                        at: reflected,
-                        rotation: authoritative.rotation,
-                    },
-                    CompanionRule::Duplicate => {
-                        let turn = mapping.rotation - 2.0 * key.rotation;
+                let map = rule.frame(mapping, bound_key(key, rule)?);
+                let at = match map.turn {
+                    None => {
+                        let reflected = pair::forward(mapping, authoritative.at);
+                        Vec2 {
+                            x: reflected.x + map.shift.x,
+                            y: reflected.y + map.shift.y,
+                        }
+                    }
+                    Some(turn) => {
                         let local = turned(
                             Vec2 {
-                                x: authoritative.at.x - key.at.x,
-                                y: authoritative.at.y - key.at.y,
+                                x: authoritative.at.x - map.pivot.x,
+                                y: authoritative.at.y - map.pivot.y,
                             },
                             turn,
                         );
-                        let origin = pair::forward(mapping, key.at);
-                        Pose2 {
-                            at: Vec2 {
-                                x: origin.x + local.x,
-                                y: origin.y + local.y,
-                            },
-                            rotation: authoritative.rotation + turn,
+                        Vec2 {
+                            x: map.origin.x + local.x,
+                            y: map.origin.y + local.y,
                         }
                     }
-                    CompanionRule::Tweaked { u, v, w } => {
-                        let shift = turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation);
-                        Pose2 {
-                            at: Vec2 {
-                                x: reflected.x + shift.x,
-                                y: reflected.y + shift.y,
-                            },
-                            rotation: mapping.rotation - authoritative.rotation + w,
-                        }
-                    }
+                };
+                Pose2 {
+                    at,
+                    rotation: map.heading_sign * authoritative.rotation + map.heading_base,
                 }
             }
         };
@@ -197,47 +233,31 @@ impl EndpointFrame {
             }
             Self::LinkedCompanion { mapping, key, rule } => {
                 validate_mapping(mapping)?;
-                let key = bound_key(key, rule)?;
-                let (at, rotation) = match rule {
-                    CompanionRule::Literal => (
-                        pair::inverse(mapping, visible.at),
-                        mapping.rotation - visible.rotation,
+                let map = rule.frame(mapping, bound_key(key, rule)?);
+                let at = match map.turn {
+                    None => pair::inverse(
+                        mapping,
+                        Vec2 {
+                            x: visible.at.x - map.shift.x,
+                            y: visible.at.y - map.shift.y,
+                        },
                     ),
-                    CompanionRule::Stabiliser => {
-                        (pair::inverse(mapping, visible.at), visible.rotation)
-                    }
-                    CompanionRule::Duplicate => {
-                        let turn = mapping.rotation - 2.0 * key.rotation;
-                        let origin = pair::forward(mapping, key.at);
+                    Some(turn) => {
                         let local = turned(
                             Vec2 {
-                                x: visible.at.x - origin.x,
-                                y: visible.at.y - origin.y,
+                                x: visible.at.x - map.origin.x,
+                                y: visible.at.y - map.origin.y,
                             },
                             -turn,
                         );
-                        (
-                            Vec2 {
-                                x: key.at.x + local.x,
-                                y: key.at.y + local.y,
-                            },
-                            visible.rotation - turn,
-                        )
-                    }
-                    CompanionRule::Tweaked { u, v, w } => {
-                        let shift = turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation);
-                        (
-                            pair::inverse(
-                                mapping,
-                                Vec2 {
-                                    x: visible.at.x - shift.x,
-                                    y: visible.at.y - shift.y,
-                                },
-                            ),
-                            mapping.rotation + w - visible.rotation,
-                        )
+                        Vec2 {
+                            x: map.pivot.x + local.x,
+                            y: map.pivot.y + local.y,
+                        }
                     }
                 };
+                // The heading sign is +1 or -1, so it is its own inverse.
+                let rotation = (visible.rotation - map.heading_base) * map.heading_sign;
                 Pose2 {
                     at,
                     rotation: nearest_equivalent(rotation, previous_authoritative.rotation),
