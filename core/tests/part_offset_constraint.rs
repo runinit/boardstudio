@@ -541,10 +541,87 @@ fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouch
     }
 }
 
+fn held_by(
+    axes: OffsetAxes,
+    id: &str,
+    source: &str,
+    target: &str,
+    offset: Vec2,
+    rotation: f64,
+) -> Constraint {
+    let (id, source_part_id, target_part_id) =
+        (id.to_owned(), source.to_owned(), target.to_owned());
+    match axes {
+        OffsetAxes::Board => Constraint::Offset {
+            id,
+            source_part_id,
+            target_part_id,
+            offset,
+            rotation,
+        },
+        OffsetAxes::Part => Constraint::PartOffset {
+            id,
+            source_part_id,
+            target_part_id,
+            offset,
+            rotation,
+        },
+    }
+}
+
+/// A board-axes drag lands the stored offset on the board's axes, whatever the key's turn.
+#[test]
+fn dragging_a_board_axes_companion_retunes_its_offset_on_the_board_axes() {
+    let (mut engine, splayed) = splayed(held_by_board_axes);
+    let turn = part(&splayed, KEY).pose.rotation;
+    assert!(
+        (turn - 30.0).abs() < 1e-9,
+        "the key must be turned, found {turn}"
+    );
+    let start = part(&splayed, HELD).pose.at;
+    let target = Vec2 {
+        x: start.x + 3.0,
+        y: start.y,
+    };
+    let (_, after) = edit(
+        &mut engine,
+        &splayed,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: HELD.into(),
+                at: target,
+            }],
+        },
+    );
+    let landed = part(&after, HELD).pose.at;
+    assert!(
+        (landed.x - target.x).abs() < 1e-9 && (landed.y - target.y).abs() < 1e-9,
+        "companion did not land on the drag: {landed:?}"
+    );
+    let Some(Constraint::Offset {
+        offset, rotation, ..
+    }) = after
+        .constraints
+        .iter()
+        .find(|constraint| constraint.target() == HELD)
+    else {
+        panic!("the board-axes constraint was lost");
+    };
+    // The drag is added as it is: (1, -4) + (3, 0). The 30 degree key turn plays no part.
+    assert!(
+        (offset.x - 4.0).abs() < 1e-9 && (offset.y - -4.0).abs() < 1e-9,
+        "offset {offset:?} is not the drag on the board's axes"
+    );
+    assert_eq!(*rotation, 0.0);
+}
+
 /// A mirrored pair of layouts. The left layout owns a free diode, held to a left key that is
-/// turned `left_rotation` degrees by a part-offset constraint. The right layout's mirror of
-/// that diode is derived by Core.
-fn mirrored_pair_with_held_left_component(left_rotation: f64) -> (CoreEngine, ProjectDoc) {
+/// turned `left_rotation` degrees by an offset constraint along `axes`. The right layout's
+/// mirror of that diode is derived by Core.
+fn mirrored_pair_with_held_left_component(
+    left_rotation: f64,
+    axes: OffsetAxes,
+) -> (CoreEngine, ProjectDoc) {
     let mut doc = ProjectDoc::empty("pair", "Pair");
     doc.definitions = serde_json::from_value(serde_json::json!([
         {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
@@ -651,13 +728,14 @@ fn mirrored_pair_with_held_left_component(left_rotation: f64) -> (CoreEngine, Pr
         &mut engine,
         &doc,
         EditOperation::SetConstraint {
-            constraint: Constraint::PartOffset {
-                id: "left-held".into(),
-                source_part_id: "matrix/left-matrix/r0c0".into(),
-                target_part_id: "left-part".into(),
-                offset: Vec2 { x: 1.0, y: -4.0 },
-                rotation: 0.0,
-            },
+            constraint: held_by(
+                axes,
+                "left-held",
+                "matrix/left-matrix/r0c0",
+                "left-part",
+                Vec2 { x: 1.0, y: -4.0 },
+                0.0,
+            ),
         },
     );
     (engine, doc)
@@ -665,7 +743,7 @@ fn mirrored_pair_with_held_left_component(left_rotation: f64) -> (CoreEngine, Pr
 
 #[test]
 fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() {
-    let (mut engine, before) = mirrored_pair_with_held_left_component(30.0);
+    let (mut engine, before) = mirrored_pair_with_held_left_component(30.0, OffsetAxes::Part);
     let left_key = part(&before, "matrix/left-matrix/r0c0").pose;
     assert!(
         (left_key.rotation - 30.0).abs() < 1e-9,
@@ -715,6 +793,99 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
             && (offset.y - (-4.0 - dx * s + dy * c)).abs() < 1e-9,
         "offset {offset:?} is not the mirrored drag in the key's axes"
     );
+}
+
+#[test]
+fn dragging_the_mirrored_half_retunes_a_held_board_offset_on_the_board_axes() {
+    let (mut engine, before) = mirrored_pair_with_held_left_component(30.0, OffsetAxes::Board);
+    let left_key = part(&before, "matrix/left-matrix/r0c0").pose;
+    assert!(
+        (left_key.rotation - 30.0).abs() < 1e-9,
+        "the left key must be turned 30 degrees, found {}",
+        left_key.rotation
+    );
+    let right = "right-layout::mirror::left-part";
+    let start = part(&before, right).pose.at;
+    let requested = Vec2 {
+        x: start.x + 3.0,
+        y: start.y,
+    };
+    let (_, after) = edit(
+        &mut engine,
+        &before,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: right.into(),
+                at: requested,
+            }],
+        },
+    );
+    // Dragging the mirror 3 mm along +X moves the left component 3 mm along -X.
+    let left_start = part(&before, "left-part").pose.at;
+    let landed = part(&after, "left-part").pose.at;
+    assert!(
+        (landed.x - (left_start.x - 3.0)).abs() < 1e-9 && (landed.y - left_start.y).abs() < 1e-9,
+        "left component at {landed:?}, expected {:?}",
+        Vec2 {
+            x: left_start.x - 3.0,
+            y: left_start.y
+        }
+    );
+    let Some(Constraint::Offset { offset, .. }) = after
+        .constraints
+        .iter()
+        .find(|constraint| constraint.target() == "left-part")
+    else {
+        panic!("the held left component lost its offset constraint");
+    };
+    // Board axes: (1, -4) + (-3, 0). The 30 degree key turn plays no part.
+    assert!(
+        (offset.x - -2.0).abs() < 1e-9 && (offset.y - -4.0).abs() < 1e-9,
+        "offset {offset:?} is not the mirrored drag on the board's axes"
+    );
+}
+
+/// Holding the right mirror to its own key with a turn of 10 degrees settles that mirror at
+/// -20 degrees (its key is at -30), so the left component is back-solved to 180 - (-20) = 200
+/// degrees. Its key stands at 30, so its constraint must now store a turn of 170.
+#[test]
+fn a_held_mirror_turns_the_held_left_component_and_retunes_its_stored_turn() {
+    for axes in [OffsetAxes::Board, OffsetAxes::Part] {
+        let (mut engine, before) = mirrored_pair_with_held_left_component(30.0, axes);
+        assert!((part(&before, "matrix/right-matrix/r0c0").pose.rotation - -30.0).abs() < 1e-9);
+        let (_, after) = edit(
+            &mut engine,
+            &before,
+            EditOperation::SetConstraint {
+                constraint: held_by(
+                    OffsetAxes::Board,
+                    "right-held",
+                    "matrix/right-matrix/r0c0",
+                    "right-layout::mirror::left-part",
+                    Vec2 { x: 1.0, y: 4.0 },
+                    10.0,
+                ),
+            },
+        );
+        let right = part(&after, "right-layout::mirror::left-part")
+            .pose
+            .rotation;
+        assert!((right - -20.0).abs() < 1e-9, "{axes:?}: right turn {right}");
+        let left = part(&after, "left-part").pose.rotation;
+        assert!((left - 200.0).abs() < 1e-9, "{axes:?}: left turn {left}");
+        let Some(Constraint::Offset { rotation, .. } | Constraint::PartOffset { rotation, .. }) =
+            after
+                .constraints
+                .iter()
+                .find(|constraint| constraint.target() == "left-part")
+        else {
+            panic!("the held left component lost its constraint");
+        };
+        assert!(
+            (rotation - 170.0).abs() < 1e-9,
+            "{axes:?}: stored turn {rotation}"
+        );
+    }
 }
 
 #[test]
