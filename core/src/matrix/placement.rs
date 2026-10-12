@@ -1,6 +1,7 @@
 //! Named matrix placement parameters. `SetMatrixPlacement` routes here so Core
 //! owns the index and value rules; a gesture and an Inspector field reach the same
 //! matrix for a given value.
+use super::splay::rotate;
 use super::{OVERRIDE, member_id, valid_projection_matrix};
 use crate::model::{
     Matrix, MatrixPlacementChange, Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
@@ -109,7 +110,8 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
 /// Which parts an edit that carries companions reports as changed.
 #[derive(Clone, Copy)]
 pub(crate) enum Reported {
-    /// Every part the edit touched, moved or not.
+    /// Every part the edit touched, moved or not. A splay uses this: the golden
+    /// transcript pins that it reports every matrix member.
     Touched,
     /// Only parts whose projection actually moved.
     Moved,
@@ -146,10 +148,7 @@ pub(crate) fn carrying_authored_companions(
 /// relative to the key. A splay turns the key, so the companion turns around it.
 /// Companions with an explicit constraint keep that constraint instead: the
 /// constraint solver settles them.
-pub(crate) fn carry_authored_companions(
-    doc: &mut ProjectDoc,
-    before: &BTreeMap<String, Part>,
-) -> Vec<String> {
+fn carry_authored_companions(doc: &mut ProjectDoc, before: &BTreeMap<String, Part>) -> Vec<String> {
     let mut carries: Vec<(String, Pose2, Pose2)> = Vec::new();
     for matrix in &doc.matrices {
         for cell in &matrix.cells {
@@ -194,18 +193,20 @@ pub(crate) fn carry_authored_companions(
     for (id, from, to) in carries {
         if let Some(part) = doc.parts.iter_mut().find(|part| part.id == id) {
             let turn = to.rotation - from.rotation;
-            let (dx, dy) = (part.pose.at.x - from.at.x, part.pose.at.y - from.at.y);
-            let (dx, dy) = if turn == 0.0 {
-                (dx, dy)
+            // Turn about the key's old position, then move by the key's delta. With no
+            // turn the companion only adds the delta, so a translation stays bit-identical.
+            let at = if turn == 0.0 {
+                part.pose.at
             } else {
-                let (sin, cos) = turn.to_radians().sin_cos();
-                (dx * cos - dy * sin, dx * sin + dy * cos)
+                rotate(part.pose.at, turn, from.at)
             };
             part.pose.at = Vec2 {
-                x: to.at.x + dx,
-                y: to.at.y + dy,
+                x: at.x + (to.at.x - from.at.x),
+                y: at.y + (to.at.y - from.at.y),
             };
-            part.pose.rotation += turn;
+            if turn != 0.0 {
+                part.pose.rotation += turn;
+            }
             changed.push(id);
         }
     }

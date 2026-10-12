@@ -1479,6 +1479,7 @@ fn apply(
                 .find(|matrix| &matrix.id == matrix_id)
                 .ok_or("Matrix not found")?;
             let matrix = matrix::splay::update(current, *column, change)?;
+            // A splay reports every member it touched, not only those that moved.
             matrix::placement::carrying_authored_companions(
                 doc,
                 matrix::placement::Reported::Touched,

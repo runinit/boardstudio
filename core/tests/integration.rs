@@ -100,5 +100,6 @@ mod matrix_placement;
 
 #[path = "matrix_companions.rs"]
 mod matrix_companions;
+
 #[path = "splay_companions.rs"]
 mod splay_companions;

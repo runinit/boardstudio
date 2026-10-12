@@ -196,3 +196,28 @@ fn a_column_splay_carries_following_and_authored_companions_with_their_keys() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn a_translation_carries_an_authored_companion_by_exactly_the_keys_delta() {
+    let (mut engine, before) = fixture();
+    let key = "matrix/m/r0c1";
+    let authored = "matrix/m/r0c1/authored";
+    let (_, after) = edit(
+        &mut engine,
+        &before,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "m".into(),
+            change: MatrixPlacementChange::ColumnStagger {
+                column: 1,
+                value: 3.7,
+            },
+        },
+    );
+    let (was_key, now_key) = (part(&before, key).pose, part(&after, key).pose);
+    assert_ne!(was_key.at, now_key.at, "the stagger must move the key");
+    let (was, now) = (part(&before, authored).pose, part(&after, authored).pose);
+    // The same additions the carry always did, so saved poses do not shift by an ulp.
+    assert_eq!(now.at.x, was.at.x + (now_key.at.x - was_key.at.x));
+    assert_eq!(now.at.y, was.at.y + (now_key.at.y - was_key.at.y));
+    assert_eq!(now.rotation, was.rotation);
+}
