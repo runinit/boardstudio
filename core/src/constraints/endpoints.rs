@@ -80,9 +80,10 @@ pub(super) enum EndpointFrame {
     },
     /// A mirrored companion. `key` is the source key's resolved authoritative pose, which the
     /// solver supplies once the key's owner is resolved; it is never frozen in the document.
+    /// `None` is a frame not yet bound: a rule that reads the key refuses to run against it.
     LinkedCompanion {
         mapping: Pose2,
-        key: Pose2,
+        key: Option<Pose2>,
         rule: CompanionRule,
     },
 }
@@ -92,9 +93,11 @@ impl EndpointFrame {
     /// frames do not depend on a key and are returned as they are.
     pub(super) fn with_key(self, resolved: Option<Pose2>) -> Self {
         match (self, resolved) {
-            (Self::LinkedCompanion { mapping, rule, .. }, Some(key)) => {
-                Self::LinkedCompanion { mapping, key, rule }
-            }
+            (Self::LinkedCompanion { mapping, rule, .. }, Some(key)) => Self::LinkedCompanion {
+                mapping,
+                key: Some(key),
+                rule,
+            },
             (frame, _) => frame,
         }
     }
@@ -119,7 +122,7 @@ impl EndpointFrame {
             }
             Self::LinkedCompanion { mapping, key, rule } => {
                 validate_mapping(mapping)?;
-                validate_pose(key)?;
+                let key = bound_key(key, rule)?;
                 let reflected = pair::forward(mapping, authoritative.at);
                 match rule {
                     CompanionRule::Literal => Pose2 {
@@ -194,7 +197,7 @@ impl EndpointFrame {
             }
             Self::LinkedCompanion { mapping, key, rule } => {
                 validate_mapping(mapping)?;
-                validate_pose(key)?;
+                let key = bound_key(key, rule)?;
                 let (at, rotation) = match rule {
                     CompanionRule::Literal => (
                         pair::inverse(mapping, visible.at),
@@ -243,6 +246,22 @@ impl EndpointFrame {
         };
         validate_pose(authoritative)?;
         Ok(authoritative)
+    }
+}
+
+/// The key a companion rule reads. The literal and stabiliser rules read none, so an unbound
+/// frame may stand for them; the others refuse rather than compute against an invented origin.
+fn bound_key(key: Option<Pose2>, rule: CompanionRule) -> Result<Pose2, String> {
+    match (key, rule) {
+        (Some(key), _) => {
+            validate_pose(key)?;
+            Ok(key)
+        }
+        (None, CompanionRule::Literal | CompanionRule::Stabiliser) => Ok(Pose2 {
+            at: Vec2::default(),
+            rotation: 0.0,
+        }),
+        (None, _) => Err("A companion endpoint was used before its key was resolved".into()),
     }
 }
 
@@ -347,10 +366,7 @@ fn linked_frame(
             return (
                 EndpointFrame::LinkedCompanion {
                     mapping,
-                    key: Pose2 {
-                        at: Vec2::default(),
-                        rotation: 0.0,
-                    },
+                    key: None,
                     rule,
                 },
                 Some(key_id),
@@ -793,12 +809,47 @@ mod tests {
         for (rule, key_heading, x, y, heading) in cases {
             let frame = EndpointFrame::LinkedCompanion {
                 mapping: pair_map(),
-                key: key_at(key_heading),
+                key: Some(key_at(key_heading)),
                 rule,
             };
             let visible = frame.project(companion).unwrap();
             assert_close(visible, x, y, heading);
             assert_close(frame.unproject(visible, companion).unwrap(), 4.0, 8.0, 30.0);
+        }
+    }
+
+    /// A rule that reads the key must not run against an origin it was never given.
+    #[test]
+    fn a_companion_rule_that_needs_its_key_refuses_to_run_without_one() {
+        let pose = Pose2 {
+            at: Vec2 { x: 4.0, y: 8.0 },
+            rotation: 30.0,
+        };
+        for rule in [
+            CompanionRule::Duplicate,
+            CompanionRule::Tweaked {
+                u: 1.0,
+                v: -2.0,
+                w: 7.0,
+            },
+        ] {
+            let unbound = EndpointFrame::LinkedCompanion {
+                mapping: pair_map(),
+                key: None,
+                rule,
+            };
+            let projected = unbound.project(pose).unwrap_err();
+            assert!(projected.contains("key"), "{projected}");
+            assert!(unbound.unproject(pose, pose).is_err());
+        }
+        // The literal and stabiliser rules do not read the key, so they stand without one.
+        for rule in [CompanionRule::Literal, CompanionRule::Stabiliser] {
+            let unbound = EndpointFrame::LinkedCompanion {
+                mapping: pair_map(),
+                key: None,
+                rule,
+            };
+            assert!(unbound.project(pose).is_ok());
         }
     }
 }
