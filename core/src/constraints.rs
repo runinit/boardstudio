@@ -445,4 +445,25 @@ mod tests {
             assert_eq!(doc.parts[1].pose.rotation, expected);
         }
     }
+
+    /// An accepted document never holds a constraint with a missing endpoint, so the edit API
+    /// cannot reach these guards; a conversion must still refuse and change nothing if one is
+    /// ever handed such a document.
+    #[test]
+    fn convert_offset_refuses_a_missing_endpoint_and_changes_nothing() {
+        for (missing, source, target) in [("source", "ghost", "b"), ("target", "a", "ghost")] {
+            for to in [OffsetAxes::Board, OffsetAxes::Part] {
+                let mut doc = ProjectDoc::empty("p", "P");
+                doc.parts = vec![part("a", 2.0, 3.0), part("b", 12.0, 5.0)];
+                doc.constraints = vec![offset("o", source, target)];
+                let before = doc.clone();
+                let message = convert_offset(&mut doc, "o", to).unwrap_err();
+                assert!(
+                    message.contains(missing) && message.contains("missing"),
+                    "{message}"
+                );
+                assert_eq!(doc, before, "a missing {missing} changed the document");
+            }
+        }
+    }
 }
