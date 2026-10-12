@@ -1,5 +1,5 @@
 ---
-name: Board Studio v2 — The Keyboard Lab
+name: BoardStudio — The Keyboard Lab
 description: A compact visual workbench with neutral panels and distinct geometry colors.
 colors:
   light-accent: '#3858D6'
@@ -232,7 +232,7 @@ components:
     height: 32px
 ---
 
-# Design System: Board Studio v2
+# Design System: BoardStudio
 
 ## Overview
 
@@ -275,9 +275,9 @@ sidecar together when the implementation's palette changes.
 ### Secondary
 
 - **Secondary violet:** `accent-secondary` supplies secondary emphasis.
-- **Auxiliary action color:** the legacy `teal` token is violet in light mode and
-  turquoise in dark mode. Current consumers mix focus, add actions, readiness,
-  and outline completion; it is not a safe universal semantic role.
+- **Legacy `teal` token:** despite its name, `teal` currently equals Action blue
+  in both themes and no stylesheet rule consumes it. Do not give it a new role;
+  use `accent` or a geometry/status token instead.
 
 ### Tertiary
 
@@ -361,7 +361,7 @@ and keep precise values available alongside direct manipulation.
 
 ## Layout
 
-The application owns the viewport height (100dvh). The 44px single-row header
+The application owns the viewport height (100dvh). The 42px single-row header
 and 34px footer frame independently scrolling navigator,
 canvas, and right inspector panels. These shell heights remain fixed across
 desktop widths; the center expands to absorb available width.
@@ -373,7 +373,7 @@ desktop widths; the center expands to absorb available width.
 | 821–980px | Full-width center with navigator drawer and 300px inspector |
 | 820px and below | Full-width workspace with navigator and inspector drawers |
 
-The project header is 44px at all widths. At 820px and below, direct view tabs
+The project header is 42px at all widths; its project menu and Export controls keep 44px hit targets. At 820px and below, direct view tabs
 become a native Workspace selector; the footer has a 44px minimum height and
 grows when it wraps.
 The navigator drawer is capped at 290px
@@ -416,9 +416,8 @@ the contextual object tree.
 
 Recurring spacing uses compact 4px gaps, 8px inline separation, 12px field gaps,
 16px inspector insets, and 20px section endings. These are extracted repeated
-values rather than an enforced global spacing scale. Inspectors use 18px side
-insets at 700px and below. Footprint workspace padding changes from 35px 38px
-27px to 24px 18px 20px at that breakpoint.
+values rather than an enforced global spacing scale. Most compact-panel rules
+switch at 760px; the Export workspace uses 24px 18px 36px padding there.
 
 **The Stationary Controls Rule.** Scope and snap controls remain anchored to the workspace while world geometry pans and zooms.
 
@@ -463,13 +462,17 @@ geometry selection or gasket dragging.
 ## Elevation & Depth
 
 Persistent panels are flat and separated by fine rules and surface tone. Menus,
-component flyouts, and mobile drawers use offset shadows to establish their
-position above the workspace. Floating canvas hints and 3D controls have smaller
+popovers, dialogs, and mobile drawers use offset shadows to establish their
+position above the workspace. Floating canvas controls and hints have smaller
 shadows. Save/live dots use the success foreground and have no halo in the unified shell.
 
-- Project menu: `0 8px 24px rgb(0 0 0 / 20%)`.
-- Component flyout: `0 8px 24px rgb(0 0 0 / 24%)`.
-- Mobile drawer: `0 14px 30px rgb(0 0 0 / 18%)`.
+- Project library and dialogs: `0 12px 40px rgb(0 0 0 / 30%)`.
+- Panel options, Add menu, matrix setup, and toolbar popovers: `0 8px 22px rgb(0 0 0 / 20%)`.
+- Save-status popover: `0 8px 24px rgb(0 0 0 / 20%)`.
+- Command menus and case view settings: `0 8px 24px #0005`.
+- Layers pill: `0 10px 28px rgb(0 0 0 / 22%)`.
+- Mobile drawers: `±8px 0 24px rgb(0 0 0 / 16%)` toward the canvas.
+- Canvas toolbar: `0 4px 16px #18233120`; view groups: `0 3px 10px rgb(0 0 0 / 10%)`.
 - Canvas hint: `0 4px 14px #24373312`.
 
 **The Structural Shadow Rule.** Use tonal surfaces and fine rules for persistent panels; reserve offset shadows for transient overlays and floating controls.
@@ -491,18 +494,19 @@ consistent outline strokes; geometry uses actual editable and compiled shapes.
 
 Primary actions use Action blue with the paired foreground, 4px corners,
 13px horizontal padding, and a 34px minimum height. The Parts placement action
-fills the inspector width and has a 38px minimum height. Hover updates fill and
-border over 160ms. Secondary actions are outlined, transparent, and more compact
-(33px minimum height, 12px horizontal padding).
+fills the inspector width and has a 38px minimum height. Hover changes the border
+to Action blue (or the fill to Action hover) immediately. Secondary actions are
+outlined, transparent, and more compact (32px base minimum height, 12px
+horizontal padding).
 
-Keyboard focus is generally a 2px ring with 2px offset. The global ring uses the
-legacy auxiliary token, while inspector controls use Action blue. Disabled
-buttons are dimmed, commonly to 0.42 opacity; specific controls vary.
+Keyboard focus is a 2px Action blue ring with 2px offset, set globally. Disabled
+buttons dim to 0.5 opacity by default; some inspector actions use 0.55–0.6 or a
+muted surface instead.
 
 ### Fields
 
 Fields combine a label, editable value, and adjacent unit. Numeric fields use a
-1px outline, 4px corners, and a 34px inspector minimum height (42px at 1440px). Ordinary name fields are 32px;
+1px outline, 4px corners, and a 34px inspector minimum height. Ordinary name fields are 32px;
 generator text fields use 7px 8px padding. Focus changes the field border and/or
 adds a visible ring. Error text remains beside the operation that produced it.
 
@@ -609,11 +613,17 @@ loading state.
 
 ### Motion and browser surfaces
 
-Matrix hover changes fill and stroke over 120ms; primary actions transition over
-160ms; mobile drawers move over 200ms with ease-out. Reduced-motion preference
-shortens transitions and animations to 0.01ms. Inspector carets, scrollbars, text
-selection, and focus rings use theme tokens. This is short state feedback, not
-an entrance-animation system.
+Motion tokens are `motion-feedback` (120ms), `motion-reveal` (180ms), and
+`motion-panel` (220ms) with a decelerating `ease-out` curve
+(`cubic-bezier(.16, 1, .3, 1)`). Only transforms use them today: auto-hide panels
+and mobile drawers slide over 220ms, and the command menu reveals over 180ms.
+Hover and selection color changes are immediate. Inspector carets, scrollbars,
+text selection, and focus rings use theme tokens. This is short state feedback,
+not an entrance-animation system.
+
+**Known gap:** the stylesheet has no `prefers-reduced-motion` rule, so panel and
+menu travel is not yet removed under reduced motion. Add one when motion is next
+touched; do not cite reduced-motion support as implemented.
 
 ## Do's and Don'ts
 
@@ -623,11 +633,11 @@ an entrance-animation system.
 - Do retain distinct board, key, pad, and selection treatments.
 - Do keep measurement units adjacent to editable values.
 - Do give each panel its own bounded scrolling region.
-- Do preserve native disclosure controls, keyboard focus, and reduced-motion behavior.
+- Do preserve native disclosure controls and keyboard focus, and add reduced-motion handling to any new movement.
 
 ### Don't
 
-- Don't treat the original app's design document as v2's palette.
+- Don't treat the original (v1) app's design document as BoardStudio's palette.
 - Don't substitute shade or hue names for a control's actual role.
 - Don't spread geometry colors across unrelated panel backgrounds.
 - Don't copy the documented contrast and status-indicator defects into new components.
@@ -645,15 +655,14 @@ names expose their full text on hover. Browser zoom remains available.
 
 ### Workbench motion
 
-Command options reveal from the pill's attached edge over 180ms. Project and
-panel menus use a shorter crop with the same decelerating curve. Disclosure
-chevrons turn with their state; hover and selection colors settle over 120ms.
-Side panes enter over 220ms and exit over 120ms, remaining inert when hidden.
-Menu dismissal and canvas geometry changes remain immediate. No loops,
-page-load choreography, layout-size animation, or animation dependency is used.
+Command options reveal from the pill's attached edge over 180ms. Side panes slide
+over 220ms and become hidden once off-screen. Menu dismissal, hover and selection
+color changes, and canvas geometry changes remain immediate. No loops, page-load
+choreography, layout-size animation, keyframes, or animation dependency is used.
 
-Reduced motion removes pane travel and chevron transitions, substitutes a brief
-80ms opacity change for menu reveals, and retains color feedback.
+Intended reduced-motion behavior (not yet implemented; see Motion and browser
+surfaces): remove pane travel, substitute a brief opacity change for menu
+reveals, and retain color feedback.
 
 ### Workbench controls and review
 

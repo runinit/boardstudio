@@ -1,4 +1,4 @@
-# Board Studio v2
+# BoardStudio
 
 <!-- impeccable:product-schema 1 -->
 
@@ -14,10 +14,10 @@ routine tasks being buried among rarely useful settings.
 
 ## Product Purpose
 
-Board Studio v2 is a visual design workbench for arranging keys and components,
-deriving board and case geometry, and exporting coherent artifacts for downstream
-work. Success means a designer can iterate on a layout, understand its effect on
-the board and case, and carry a consistent design into KiCad and CAD tools.
+BoardStudio is a visual design workbench for arranging keys and components,
+deriving board and case geometry, authoring keymaps, and exporting coherent
+artifacts for downstream work. Success means a designer can iterate on a layout, understand its effect on
+the board and case, and carry a consistent design into KiCad, CAD tools, and firmware builds.
 
 ## Positioning
 
@@ -33,10 +33,12 @@ are parts of one workflow.
 - Projects persist locally and can be saved and reopened as portable project
   files. The app shell and browser storage support offline work after initial
   loading; optional model assets and the CAD kernel load on demand.
-- The workbench connects Design, PCB, Case, Parts, and Export. Parts provides
+- The workbench connects Design, PCB, Case, Parts, and Export, including keymap
+  and firmware handoffs. Parts provides
   compiled footprint previews and attached model previews.
 - Designers continue routing and final electrical checks in KiCad, and review
-  mechanical fit using the exported geometry and downstream tools.
+  mechanical fit using the exported geometry and downstream tools. Firmware
+  handoffs are completed with a full target build and hardware verification.
 
 ## Capabilities and Constraints
 
@@ -46,6 +48,15 @@ are parts of one workflow.
 - Support direct placement and parametric matrices, component libraries,
   constraints, automatic outlines and authored cutouts, net assignments, and
   plate, tray, and lid case geometry.
+- Keycap overlays and mechanical assemblies are part of the design: physical
+  assembly selection (shared reversible PCB or two boards for a split) is
+  separate from the PCB design, and PCB thickness stays authoritative.
+- Keymaps bind each current key and encoder push button. Layout edits define a
+  new hardware/keymap revision; automatic keymap migration is not promised.
+- ZMK firmware handoffs (targeting v0.3.0) contain editable source, pin
+  assignments, and build configuration. Source generation and device-tree syntax
+  checks are not a substitute for a complete firmware build or hardware
+  verification.
 - Keep common placement and layout controls immediately available. Disclose
   useful specialist options in named sections. Standard footprints retain
   sensible geometry defaults; raw footprint editing belongs to custom or
@@ -60,9 +71,9 @@ are parts of one workflow.
 
 ## Brand Commitments
 
-The product name is Board Studio v2. Use the established workflow terminology:
-Design, PCB, Case, Parts, Export, components, key assemblies, matrices, and
-outlines.
+The product name is BoardStudio (one word). Use the established workflow
+terminology: Design, PCB, Case, Parts, Export, components, key assemblies,
+matrices, outlines, keycaps, and keymaps.
 
 ## Evidence on Hand
 
