@@ -446,6 +446,53 @@ mod tests {
         }
     }
 
+    #[test]
+    fn resolve_refuses_a_non_finite_number_of_any_kind_without_mutation() {
+        let kinds = |x: f64, y: f64, turn: f64| {
+            let offset = Vec2 { x, y };
+            [
+                Constraint::Offset {
+                    id: "o".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
+                    offset,
+                    rotation: turn,
+                },
+                Constraint::PartOffset {
+                    id: "o".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
+                    offset,
+                    rotation: turn,
+                },
+                Constraint::Mirror {
+                    id: "o".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
+                    axis: MirrorAxis::Vertical,
+                    coordinate: x + y + turn,
+                },
+            ]
+        };
+        for bad in [f64::NAN, f64::INFINITY] {
+            for (x, y, turn) in [(bad, 0.0, 0.0), (0.0, bad, 0.0), (0.0, 0.0, bad)] {
+                for constraint in kinds(x, y, turn) {
+                    let mut doc = ProjectDoc::empty("p", "P");
+                    doc.parts = vec![part("a", 1.0, 0.0), part("b", 2.0, 0.0)];
+                    doc.constraints = vec![constraint.clone()];
+                    let before = doc.parts.clone();
+                    let message = resolve(&mut doc).unwrap_err();
+                    assert!(
+                        message.contains("non-finite"),
+                        "{constraint:?} gave {message}"
+                    );
+                    // The constraint holds a NaN, so compare the parts it would have moved.
+                    assert_eq!(doc.parts, before);
+                }
+            }
+        }
+    }
+
     /// An accepted document never holds a constraint with a missing endpoint, so the edit API
     /// cannot reach these guards; a conversion must still refuse and change nothing if one is
     /// ever handed such a document.

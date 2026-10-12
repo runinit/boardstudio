@@ -17256,6 +17256,81 @@ mod tests {
         );
     }
 
+    /// The finite check is one `Constraint::is_finite`, so every kind a transition can meet
+    /// must be refused by it with the message that names the constraint.
+    #[test]
+    fn consolidated_fresh_names_a_nonfinite_constraint_of_every_kind() {
+        for kind in ["offset", "part-offset", "mirror"] {
+            for nonfinite in [f64::INFINITY, f64::NAN] {
+                let (mut before, _, context, source_map, owners, _) =
+                    consolidated_fresh_identity_fixture().unwrap();
+                let existing = before
+                    .constraints
+                    .iter_mut()
+                    .find(|c| c.id() == "retained-second-key-offset")
+                    .unwrap();
+                let (id, source_part_id, target_part_id) = (
+                    existing.id().to_owned(),
+                    existing.source().to_owned(),
+                    existing.target().to_owned(),
+                );
+                *existing = match kind {
+                    "offset" => Constraint::Offset {
+                        id,
+                        source_part_id,
+                        target_part_id,
+                        offset: Vec2 {
+                            x: nonfinite,
+                            y: 1.0,
+                        },
+                        rotation: 0.0,
+                    },
+                    "part-offset" => Constraint::PartOffset {
+                        id,
+                        source_part_id,
+                        target_part_id,
+                        offset: Vec2 { x: 1.0, y: 1.0 },
+                        rotation: nonfinite,
+                    },
+                    _ => Constraint::Mirror {
+                        id,
+                        source_part_id,
+                        target_part_id,
+                        axis: MirrorAxis::Vertical,
+                        coordinate: nonfinite,
+                    },
+                };
+                let mirror_map: BTreeMap<_, _> = before
+                    .matrices
+                    .iter()
+                    .find(|m| m.id == "mirror-matrix")
+                    .unwrap()
+                    .part_ids
+                    .iter()
+                    .map(|id| (id.clone(), Some(id.clone())))
+                    .collect();
+                let message = prepare_membership_transition(MembershipTransitionInput {
+                    valid_before: &before,
+                    post_source: &before,
+                    context: &context,
+                    baseline_kind: BaselineKind::MaterializedCurrentSchema,
+                    source_identity_map: &source_map,
+                    mirror_identity_map: &mirror_map,
+                    planned_additions: &[],
+                    final_owners: &owners,
+                    explicit_removal_closure: &BTreeSet::new(),
+                })
+                .map(|_| ())
+                .unwrap_err();
+                assert!(
+                    message.contains("retained-second-key-offset")
+                        && message.contains("non-finite geometry"),
+                    "{kind} {nonfinite}: {message}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn consolidated_fresh_refuses_local_mirror_deletion_on_identity() {
         let (before, _, context, source_map, owners, _) =
