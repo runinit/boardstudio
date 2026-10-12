@@ -2,16 +2,24 @@ use crate::model::{Constraint, MirrorAxis, Pose2, Vec2};
 use serde::{Deserialize, Serialize};
 
 /// A directional relation evaluated between the source and target endpoint views.
-#[cfg_attr(not(test), expect(dead_code))] // Consumed by the later private compiler and schema integration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub(super) enum ConstraintRelation {
     /// `offset` is a vector along the board's axes, added to the source position.
-    Offset { offset: Vec2, rotation: f64 },
+    Offset {
+        offset: Vec2,
+        rotation: f64,
+    },
     /// `offset` runs along the source's own axes: it is turned by the source's heading before
     /// it is added, so the target keeps its pose in the source's frame (ADR-0011).
-    PartOffset { offset: Vec2, rotation: f64 },
-    MirrorLine { at: Vec2, angle: f64 },
+    PartOffset {
+        offset: Vec2,
+        rotation: f64,
+    },
+    MirrorLine {
+        at: Vec2,
+        angle: f64,
+    },
 }
 
 #[cfg_attr(not(test), expect(dead_code))] // Consumed by later private solver integration.

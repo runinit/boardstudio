@@ -1,10 +1,11 @@
 use crate::constraints::relation::ConstraintRelation;
 use crate::mechanical::pair;
-use crate::model::{Pose2, Vec2};
+use crate::model::{
+    MechanicalMirrorPair, MirroredExceptionState, MirroredItemKind, Pose2, ProjectDoc, Vec2,
+};
 use serde::{Deserialize, Serialize};
 
 /// The authored, visible identity of a framed relation endpoint.
-#[cfg_attr(not(test), expect(dead_code))] // Consumed by the later private compiler and schema integration.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub(super) enum ConstraintEndpoint {
@@ -23,7 +24,6 @@ pub(super) enum ConstraintEndpoint {
 }
 
 /// Private wire-shape candidate; the existing global constraint ID stays attached to the record.
-#[cfg_attr(not(test), expect(dead_code))] // The model boundary adopts this record in a later cohort.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub(super) enum FramedConstraint {
@@ -72,9 +72,13 @@ pub(super) enum CompanionRule {
 pub(super) enum EndpointFrame {
     Identity,
     /// An independent mirrored part: the full heading is turned half a turn.
-    LinkedMirror { mapping: Pose2 },
+    LinkedMirror {
+        mapping: Pose2,
+    },
     /// A mirrored matrix key.
-    LinkedKey { mapping: Pose2 },
+    LinkedKey {
+        mapping: Pose2,
+    },
     /// A mirrored companion. `key` is the source key's resolved authoritative pose, which the
     /// solver supplies once the key's owner is resolved; it is never frozen in the document.
     LinkedCompanion {
@@ -84,7 +88,6 @@ pub(super) enum EndpointFrame {
     },
 }
 
-#[cfg_attr(not(test), expect(dead_code))] // Consumed by later private solver integration.
 impl EndpointFrame {
     pub(super) fn project(self, authoritative: Pose2) -> Result<Pose2, String> {
         validate_pose(authoritative)?;
@@ -258,8 +261,130 @@ fn validate_pose(pose: Pose2) -> Result<(), String> {
     }
 }
 
+/// An endpoint bound to the live document: the part the author sees, the part that owns the
+/// geometry, and the frame between them.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ResolvedEndpoint {
+    pub(super) visible_id: String,
+    pub(super) authoritative_id: String,
+    pub(super) frame: EndpointFrame,
+}
+
+fn state_name(state: MirroredExceptionState) -> &'static str {
+    match state {
+        MirroredExceptionState::Local => "local",
+        MirroredExceptionState::Omitted => "omitted",
+    }
+}
+
+/// The map from the pair's construction source to its other member: the stored map when the
+/// source is the first member, its exact inverse when the source is the second.
+fn source_mapping(pair: &MechanicalMirrorPair) -> Result<Pose2, String> {
+    match pair.construction_source.as_deref() {
+        Some(source) if source == pair.members[0] => Ok(pair.mapping),
+        Some(source) if source == pair.members[1] => {
+            Ok(crate::mechanical::features::inverse_pose(pair.mapping))
+        }
+        _ => Err(format!(
+            "Pair {} has no construction source to orient its mirror map",
+            pair.id
+        )),
+    }
+}
+
+/// Binds one authored endpoint to the document as it stands. Nothing is cached: a later
+/// pair map, correspondence or exception change is read again on the next resolution.
+pub(super) fn resolve_endpoint(
+    document: &ProjectDoc,
+    constraint_id: &str,
+    side: &str,
+    endpoint: &ConstraintEndpoint,
+) -> Result<ResolvedEndpoint, String> {
+    let located = |what: String| format!("Constraint {constraint_id} {side}: {what}");
+    let has_part = |id: &str| document.parts.iter().any(|part| part.id == id);
+    let pairs = document
+        .hardware
+        .as_ref()
+        .map(|hardware| hardware.pairs.as_slice())
+        .unwrap_or_default();
+    match endpoint {
+        ConstraintEndpoint::Part { part_id } => {
+            if !has_part(part_id) {
+                return Err(located(format!("references a missing part {part_id}")));
+            }
+            // A part that a live correspondence derives is not authored: it is addressed
+            // through its source so the relation survives the mirror being regenerated.
+            for pair in pairs {
+                let Some(halves) = pair.halves.as_ref() else {
+                    continue;
+                };
+                let derived = halves.correspondences.iter().any(|correspondence| {
+                    correspondence.kind == MirroredItemKind::Part
+                        && correspondence.mirror_id == *part_id
+                        && halves.overlay_of(correspondence).is_none()
+                });
+                if derived {
+                    return Err(located(format!(
+                        "part {part_id} is a linked mirror in pair {}; address it with a linked-mirror endpoint",
+                        pair.id
+                    )));
+                }
+            }
+            Ok(ResolvedEndpoint {
+                visible_id: part_id.clone(),
+                authoritative_id: part_id.clone(),
+                frame: EndpointFrame::Identity,
+            })
+        }
+        ConstraintEndpoint::LinkedMirror {
+            pair_id,
+            source_part_id,
+            mirror_part_id,
+        } => {
+            let pair = pairs
+                .iter()
+                .find(|pair| pair.id == *pair_id)
+                .ok_or_else(|| located(format!("names unknown pair {pair_id}")))?;
+            let halves = pair
+                .halves
+                .as_ref()
+                .ok_or_else(|| located(format!("pair {pair_id} has no mirrored halves")))?;
+            let correspondence = halves
+                .correspondences
+                .iter()
+                .find(|correspondence| {
+                    correspondence.kind == MirroredItemKind::Part
+                        && correspondence.source_id == *source_part_id
+                        && correspondence.mirror_id == *mirror_part_id
+                })
+                .ok_or_else(|| {
+                    located(format!(
+                        "{mirror_part_id} does not match a current part correspondence of {source_part_id} in pair {pair_id}"
+                    ))
+                })?;
+            if let Some(exception) = halves.overlay_of(correspondence) {
+                return Err(located(format!(
+                    "mirror {mirror_part_id} is {} and is not a linked endpoint",
+                    state_name(exception.state)
+                )));
+            }
+            for id in [source_part_id, mirror_part_id] {
+                if !has_part(id) {
+                    return Err(located(format!("references a missing part {id}")));
+                }
+            }
+            Ok(ResolvedEndpoint {
+                visible_id: mirror_part_id.clone(),
+                authoritative_id: source_part_id.clone(),
+                frame: EndpointFrame::LinkedMirror {
+                    mapping: source_mapping(pair)?,
+                },
+            })
+        }
+    }
+}
+
 /// Evaluate source → target in their authored endpoint frames, then return target authority.
-#[cfg_attr(not(test), expect(dead_code))] // The later solver consumes this directional private seam.
 pub(super) fn solve_target(
     source_authority: Pose2,
     source_frame: EndpointFrame,
@@ -574,12 +699,7 @@ mod tests {
             };
             let visible = frame.project(companion).unwrap();
             assert_close(visible, x, y, heading);
-            assert_close(
-                frame.unproject(visible, companion).unwrap(),
-                4.0,
-                8.0,
-                30.0,
-            );
+            assert_close(frame.unproject(visible, companion).unwrap(), 4.0, 8.0, 30.0);
         }
     }
 }
