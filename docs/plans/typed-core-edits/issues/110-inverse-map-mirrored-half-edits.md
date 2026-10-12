@@ -1,6 +1,6 @@
 # 110: Inverse-map matrix and part edits targeting linked mirrors
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [109](109-mirrored-half-exceptions-unlink.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
