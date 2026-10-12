@@ -26,11 +26,13 @@ pub(super) enum ConstraintRelation {
 impl ConstraintRelation {
     /// The relation a stored record states, so every record kind is compiled by one path.
     /// A vertical mirror at `c` is the line through `(c, 0)` heading 90; a horizontal one is
-    /// the line through `(0, c)` heading 0. The heading rules are bit-equal to the stored ones;
-    /// the position is only equal to within rounding, because reflection through a unit normal
-    /// does not reproduce `2c - x` bit for bit and may nudge the coordinate along the axis.
-    /// Saved Mirror records therefore stay on the stored arithmetic: this compiled path must
-    /// not drive them until an exact pin exists.
+    /// the line through `(0, c)` heading 0.
+    ///
+    /// Bit-exact against the stored solver: `apply` takes the stored arithmetic for a line whose
+    /// angle is exactly 90 (position `2c - x`, `y` untouched, heading `180 - r`) or exactly 0
+    /// (`x` untouched, `2c - y`, heading `-r`, keeping a zero heading's sign), which is every
+    /// line this compiles. Any other angle uses the general reflection, which is equal to the
+    /// literal reflection only within rounding, and is never produced from a stored record.
     pub(super) fn from_legacy(constraint: &Constraint) -> Self {
         match constraint {
             Constraint::Offset {
@@ -85,6 +87,21 @@ impl ConstraintRelation {
                     rotation: *rotation,
                 },
             ),
+            // Axis-aligned lines keep the stored solver's arithmetic exactly (see `from_legacy`).
+            Self::MirrorLine { at, angle } if *angle == 90.0 => Pose2 {
+                at: Vec2 {
+                    x: 2.0 * at.x - source.at.x,
+                    y: source.at.y,
+                },
+                rotation: 180.0 - source.rotation,
+            },
+            Self::MirrorLine { at, angle } if *angle == 0.0 => Pose2 {
+                at: Vec2 {
+                    x: source.at.x,
+                    y: 2.0 * at.y - source.at.y,
+                },
+                rotation: -source.rotation,
+            },
             Self::MirrorLine { at, angle } => {
                 let tangent = angle.to_radians();
                 let (sin, cos) = tangent.sin_cos();
@@ -444,31 +461,74 @@ mod tests {
         }
     }
 
-    /// A vertical mirror's compiled position differs from the stored `2c - x` in the last
-    /// bits for ordinary values, and its heading does not. This is the hazard the
-    /// `from_legacy` note names; the day an exact pin exists this test is the one to flip.
+    /// An axis-aligned mirror compiles to the stored arithmetic bit for bit: position
+    /// `2c - x` (or `2c - y`) with the other coordinate untouched, and heading `180 - r`
+    /// (or `-r`, which keeps the sign of a zero heading).
     #[test]
-    fn compiled_mirror_position_is_close_but_not_bit_equal_to_the_stored_rule() {
-        let relation = ConstraintRelation::from_legacy(&Constraint::Mirror {
-            id: "v".into(),
-            source_part_id: "a".into(),
-            target_part_id: "b".into(),
-            axis: MirrorAxis::Vertical,
-            coordinate: 26.377,
-        });
-        let source = Pose2 {
-            at: Vec2 {
-                x: -73.127,
-                y: 69.487,
-            },
-            rotation: 35.0,
+    fn axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit() {
+        let sources = [
+            (-73.127, 69.487, 35.0),
+            (2.0, 5.0, 25.0),
+            (0.0, 0.0, 0.0),
+            (-0.0, -0.0, -0.0),
+            (1e-300, -1e300, 360.0),
+            (13.37, -0.1, 179.999),
+        ];
+        for axis in [MirrorAxis::Vertical, MirrorAxis::Horizontal] {
+            for coordinate in [26.377, -3.5, 0.0, -0.0, 4.25, 1e-308, -1e15] {
+                let stored = Constraint::Mirror {
+                    id: "m".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
+                    axis: axis.clone(),
+                    coordinate,
+                };
+                let relation = ConstraintRelation::from_legacy(&stored);
+                for (x, y, rotation) in sources {
+                    let source = Pose2 {
+                        at: Vec2 { x, y },
+                        rotation,
+                    };
+                    let expected = super::super::constraint_pose(&stored, source);
+                    let actual = relation.apply(source).unwrap();
+                    assert_eq!(
+                        (
+                            actual.at.x.to_bits(),
+                            actual.at.y.to_bits(),
+                            actual.rotation.to_bits()
+                        ),
+                        (
+                            expected.at.x.to_bits(),
+                            expected.at.y.to_bits(),
+                            expected.rotation.to_bits()
+                        ),
+                        "{axis:?} at {coordinate} from {source:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// A slanted axis has no stored counterpart: the general reflection is exact to within
+    /// rounding, here against the line y = x, which swaps the coordinates.
+    #[test]
+    fn a_slanted_mirror_is_equal_to_its_literal_reflection_within_rounding() {
+        let relation = ConstraintRelation::MirrorLine {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            angle: 45.0,
         };
-        let result = relation.apply(source).unwrap();
-        let stored_x = 2.0 * 26.377 - source.at.x;
-        assert!((result.at.x - stored_x).abs() < 1e-12);
-        assert_ne!(result.at.x, stored_x);
-        assert!((result.at.y - source.at.y).abs() < 1e-12);
-        assert_eq!(result.rotation, 180.0 - source.rotation);
+        let result = relation
+            .apply(Pose2 {
+                at: Vec2 {
+                    x: -73.127,
+                    y: 69.487,
+                },
+                rotation: 35.0,
+            })
+            .unwrap();
+        assert!((result.at.x - 69.487).abs() < 1e-12);
+        assert!((result.at.y + 73.127).abs() < 1e-12);
+        assert_eq!(result.rotation, 55.0);
     }
 
     #[test]
