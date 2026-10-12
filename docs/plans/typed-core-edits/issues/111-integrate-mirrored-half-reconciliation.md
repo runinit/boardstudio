@@ -86,3 +86,16 @@ patterns before it persists.
 - A linked companion `MoveParts` translates geometrically but the forward validation refuses
   authored companion placement on linked slots; that refusal is untested end to end and
   surfaces here and in 115.
+
+## Note from 146's review: apply circuit `member_poses`
+
+112's mirror-side circuit refusal is gone (146). A prepared mirror-side `EmbedModuleCircuit` is
+therefore only correct when `Canonical::hosted.circuits[].member_poses` is applied inside the
+**same prepared transaction as the source embed, before forward projection**. Applying the
+canonical embed alone silently mis-places mirror members. `HostedTransition::AddCircuit`
+(`reconcile.rs`) carries ids and references only, so 111 must extend it with the member poses.
+
+Acceptance: a mirror-side embed with members at local `y != 0` and a nonzero heading, on Front and
+Back, driven through the real prepared path and `reconcile`, lands every member as typed; a later
+edit from either half round-trips. Also cover a typed heading that wraps past 0/360 and a
+definition member that is already on the back side (146's unit test does not).
