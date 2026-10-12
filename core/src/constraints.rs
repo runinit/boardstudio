@@ -12,6 +12,7 @@ mod endpoints;
 #[cfg(test)]
 mod framed_tests;
 mod relation;
+mod retune;
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
