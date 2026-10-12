@@ -179,10 +179,11 @@ pub(crate) fn mirror_drag_refusal(part_id: &str) -> String {
 
 /// Moves a constraint's stored numbers so its target lands `delta` away from where it was
 /// and, when `turn` is given, turns that many degrees further. `None` leaves the stored
-/// rotation untouched, bit for bit: adding `0.0` would rewrite a stored `-0.0`. An `offset`
-/// stores board-axis numbers, so the drag is added as it is. A `part-offset` stores
-/// source-axis numbers, so the drag is first turned back into the source's frame, measured
-/// from the source's pose in `parts`.
+/// rotation untouched, bit for bit: adding `0.0` would rewrite a stored `-0.0`. A drag
+/// passes `None`; `dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind`
+/// in `core/tests/part_offset_constraint.rs` pins it. An `offset` stores board-axis numbers,
+/// so the drag is added as it is. A `part-offset` stores source-axis numbers, so the drag is
+/// first turned back into the source's frame, measured from the source's pose in `parts`.
 pub(crate) fn retune_offset(
     parts: &[Part],
     constraint: &mut Constraint,
@@ -193,27 +194,23 @@ pub(crate) fn retune_offset(
         return Ok(Retune::Mirror);
     }
     let source = source_pose(parts, constraint)?;
-    match constraint {
+    let (offset, rotation, step) = match constraint {
         Constraint::Offset {
             offset, rotation, ..
-        } => {
-            offset.x += delta.x;
-            offset.y += delta.y;
-            if let Some(turn) = turn {
-                *rotation += turn;
-            }
-        }
+        } => (offset, rotation, delta),
         Constraint::PartOffset {
             offset, rotation, ..
-        } => {
-            let local = rotate(delta, -source.rotation, Vec2::default());
-            offset.x += local.x;
-            offset.y += local.y;
-            if let Some(turn) = turn {
-                *rotation += turn;
-            }
-        }
+        } => (
+            offset,
+            rotation,
+            rotate(delta, -source.rotation, Vec2::default()),
+        ),
         Constraint::Mirror { .. } => return Ok(Retune::Mirror),
+    };
+    offset.x += step.x;
+    offset.y += step.y;
+    if let Some(turn) = turn {
+        *rotation += turn;
     }
     Ok(Retune::Applied)
 }
