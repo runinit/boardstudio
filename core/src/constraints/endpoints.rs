@@ -343,28 +343,38 @@ fn source_mapping(pair: &MechanicalMirrorPair) -> Result<Pose2, String> {
 
 /// What a linked source part is in the matrix domain decides how its mirror is projected: a
 /// key, a companion on a key (under the item's effective placement rule), or an independent
-/// part. Returns the frame and, for a companion, the key it is measured against.
+/// part. Returns the frame and, for a companion, the key it is measured against. A key or
+/// companion of a disabled or deleted cell, or a companion whose key part is absent, is one
+/// the mirror never produces: it is refused here rather than projected as an independent part.
 fn linked_frame(
     document: &ProjectDoc,
     halves: &MirroredHalves,
     correspondence: &MirroredCorrespondence,
     source_part_id: &str,
     mapping: Pose2,
-) -> (EndpointFrame, Option<String>) {
+) -> Result<(EndpointFrame, Option<String>), String> {
     // The rule choice below mirrors `mirrored_half::derive::companion_assembly`, which is the
     // authority for companion placement: keep the two in step.
     for matrix in &document.matrices {
-        for cell in matrix
-            .cells
-            .iter()
-            .filter(|cell| cell.enabled && !cell.deleted)
-        {
+        for cell in &matrix.cells {
             let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
-            let Some(assembly) = cell.assemblies.iter().find(|assembly| {
+            let assembly = cell.assemblies.iter().find(|assembly| {
                 crate::matrix::companion_id(&key_id, &assembly.id) == source_part_id
-            }) else {
+            });
+            if (key_id == source_part_id || assembly.is_some()) && (!cell.enabled || cell.deleted) {
+                return Err(format!(
+                    "{source_part_id} belongs to a disabled or deleted cell of matrix {} and is not mirrored",
+                    matrix.id
+                ));
+            }
+            let Some(assembly) = assembly else {
                 continue;
             };
+            if !document.parts.iter().any(|part| part.id == key_id) {
+                return Err(format!(
+                    "the key {key_id} of companion {source_part_id} is missing"
+                ));
+            }
             let mode = correspondence
                 .companion_mode
                 .unwrap_or(halves.companion_mode);
@@ -385,14 +395,14 @@ fn linked_frame(
                     _ => CompanionRule::Literal,
                 }
             };
-            return (
+            return Ok((
                 EndpointFrame::LinkedCompanion {
                     mapping,
                     key: None,
                     rule,
                 },
                 Some(key_id),
-            );
+            ));
         }
     }
     // A matrix lists its companions among its members, so keys are what is left.
@@ -401,9 +411,9 @@ fn linked_frame(
         .iter()
         .any(|matrix| matrix.part_ids.iter().any(|id| id == source_part_id))
     {
-        return (EndpointFrame::LinkedKey { mapping }, None);
+        return Ok((EndpointFrame::LinkedKey { mapping }, None));
     }
-    (EndpointFrame::LinkedMirror { mapping }, None)
+    Ok((EndpointFrame::LinkedMirror { mapping }, None))
 }
 
 /// The pair and correspondence that derive `part_id` while linked: a part correspondence names
@@ -510,7 +520,8 @@ pub(super) fn resolve_endpoint(
             }
             let mapping = source_mapping(pair)?;
             let (frame, owner) =
-                linked_frame(document, halves, correspondence, source_part_id, mapping);
+                linked_frame(document, halves, correspondence, source_part_id, mapping)
+                    .map_err(located)?;
             Ok(ResolvedEndpoint {
                 visible_id: mirror_part_id.clone(),
                 authoritative_id: source_part_id.clone(),

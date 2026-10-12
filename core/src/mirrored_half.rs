@@ -361,6 +361,34 @@ pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
     derive::pose(mapping, pose)
 }
 
+/// A test-only window onto `derive::companion_assembly`, the authority for companion placement,
+/// so the constraint endpoint rules can be pinned to it. No production caller.
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)] // Mirrors derive's input record field for field.
+pub(crate) fn companion_placement(
+    offset: crate::model::Vec2,
+    rotation: Option<f64>,
+    key: &crate::model::Part,
+    companion: &crate::model::Part,
+    mapping: Pose2,
+    mode: MirroredCompanionMode,
+    tweak: Option<MirroredCompanionTweak>,
+    stabiliser: bool,
+    fallback: bool,
+) -> Result<(crate::model::Vec2, Option<f64>), &'static str> {
+    derive::companion_assembly(derive::CompanionAssemblyInput {
+        offset,
+        rotation,
+        key: Some(key),
+        companion: Some(companion),
+        mapping,
+        mode,
+        tweak,
+        stabiliser,
+        fallback,
+    })
+}
+
 /// A point in a part's own frame keeps its place in that frame; only the handedness flips,
 /// because the mirror part already carries the reflected position and heading.
 fn mirror_local(point: Vec2) -> Vec2 {
