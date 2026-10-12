@@ -42,9 +42,6 @@ use crate::model::{
 use crate::modules::{ModuleConnection, ModuleDefinition, MountedModule};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// A member placement within this of the circuit's x axis (mm) and heading (degrees) is on it.
-const PLACEMENT_TOLERANCE: f64 = 1e-9;
-
 const SHARED_DEFINITION: &str = "a module definition is shared by both halves: the mirror and the source name the same \
      definition and its geometry is local to the module";
 
@@ -58,7 +55,7 @@ pub(in crate::mirrored_half) struct ModuleAddition {
 
 /// An embedded circuit added on a mirror board, planned with the maps the forward AddCircuit
 /// transition selects. Every map is keyed by the source identity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(in crate::mirrored_half) struct CircuitAddition {
     pub(in crate::mirrored_half) source_id: String,
     pub(in crate::mirrored_half) mirror_id: String,
@@ -70,6 +67,9 @@ pub(in crate::mirrored_half) struct CircuitAddition {
     pub(in crate::mirrored_half) definition_ids: BTreeMap<String, String>,
     /// Source circuit net id (a private net or a joined host net) to its mirror id.
     pub(in crate::mirrored_half) net_ids: BTreeMap<String, String>,
+    /// Source member id to the world pose the source member takes after the source embed, so the
+    /// forward rule lands the mirror member at its typed pose.
+    pub(in crate::mirrored_half) member_poses: BTreeMap<String, Pose2>,
 }
 
 /// The hosted additions one request plans. A host connector placed atomically with a module is a
@@ -812,23 +812,37 @@ fn embed_circuit(
         })
         .collect();
 
-    // The forward rule reflects members as independent parts (ADR-0010: position mirrored,
-    // heading `180 - r`), which equals embedding at the inverse pose only for members on the
-    // circuit's x axis and unturned. A member elsewhere would land mirrored, not as embedded, and
-    // a source circuit that lands it would need a reflected definition. Refuse instead.
-    for member in &circuit.parts {
-        let turn = member.pose.rotation.rem_euclid(360.0);
-        if member.pose.at.y.abs() > PLACEMENT_TOLERANCE
-            || turn.min(360.0 - turn) > PLACEMENT_TOLERANCE
-        {
-            return Err(format!(
-                "The circuit member {:?} sits off the circuit's x axis or is turned inside it, so \
-                 embedding the circuit on the mirror half would not keep its placement once the \
-                 source half is reflected; embed it on the source half",
-                member.id
-            ));
-        }
-    }
+    // The forward rule reflects each member as an independent part, so a member lands as typed
+    // exactly when the source member sits at the inverse image of its typed world pose. Typed
+    // poses are what `modules::embed` gives the members on the mirror board: the back side
+    // negates the member's x and heading (and flips its side, which the source embed repeats).
+    let back = *side == Side::Back;
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
+    let member_poses = circuit
+        .parts
+        .iter()
+        .map(|member| {
+            let x = if back {
+                -member.pose.at.x
+            } else {
+                member.pose.at.x
+            };
+            let typed_at = Vec2 {
+                x: pose.at.x + x * cos - member.pose.at.y * sin,
+                y: pose.at.y + x * sin + member.pose.at.y * cos,
+            };
+            let typed_rotation = pose.rotation
+                + if back {
+                    -member.pose.rotation
+                } else {
+                    member.pose.rotation
+                };
+            (
+                format!("{source_prefix}{}", member.id),
+                source_pose(pair.mapping, typed_at, typed_rotation),
+            )
+        })
+        .collect();
 
     let at = source_pose(pair.mapping, pose.at, pose.rotation);
     canonical.operation = EditOperation::EmbedModuleCircuit {
@@ -846,6 +860,7 @@ fn embed_circuit(
         member_references,
         definition_ids,
         net_ids,
+        member_poses,
     });
     Ok(())
 }
