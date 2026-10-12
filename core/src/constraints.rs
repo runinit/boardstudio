@@ -458,7 +458,11 @@ fn pose(
     if !visiting.insert(id.to_string()) {
         return Err(format!("Constraint cycle includes part {id}"));
     }
-    // An explicit framed relation outranks the implicit companion placement, like a stored one.
+    // An explicit framed relation outranks the implicit companion placement, as a stored one
+    // does: the accepted design's "Compiler, solver and canonical edit flow" step 3
+    // (docs/plans/typed-core-edits/design/139-generalized-mirrored-constraint-model.md) keeps
+    // "explicit constraints ... current precedence over following-assembly placement", and
+    // `companion_mode` in matrix/layout.rs documents the stored rule.
     let framed = matches!(constraints.get(id), Some(Driver::Framed(_)));
     let next = if let Some(assembly) = assemblies.get(id).filter(|_| !framed) {
         // The classification already resolved explicit-constraint precedence, so

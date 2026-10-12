@@ -18,32 +18,42 @@ Record an implementation-ready design with exact code/serialization/adapter/test
 
 ## Acceptance
 
-Re-scoped 2026-10-12: this ticket closes on the private model, solver and projection below;
-the operation-, lifecycle- and activation-bound criteria are handed on (next section).
+Re-scoped 2026-10-12: this ticket closes on bullets 1 and 2, the private model, solver and
+projection. The other criteria are not met here and are handed on (next section), with their
+original text.
 
 - [x] Reviewed source-grounded representation and endpoint/ownership semantics are explicit;114 consumes the accepted result.
 - [x] Independently authored synthetic tests first fail for slanted-axis and mixed linked/Local cases; exact intended geometry and stable identities are asserted.
-- [x] Existing horizontal/vertical Mirror and Offset documents preserve behavior and remain loadable. The stored solver arithmetic is untouched and a framed record is still not a storable kind; the format-6 and migration choices are handed to 111.
+  - Honestly: RED-first is evidenced for the pure-math unit only (the 7/14 failures recorded
+    under "Initial private math handoff"). The solver, binding and key/companion tests of the
+    2026-10-12 work were written with or after the code; each is mutation-checked instead
+    (`.evidence/139-mutations`, 8 of 8 killed, local and gitignored).
 
 ## Handed to 114, 115, 111
 
-Each of these needs a seam that exists only after 139's private model, so they move with it:
+These criteria are open, unticked and unchanged in wording. Each moves where its seam is.
 
-- Editing from either linked half respects the constraint while retaining unaffected linked
-  relationships and deliberate Local behavior. Handed to **114/115**: needs the canonical
-  operation seam of 110, which does not exist yet; 139 supplies the pure retune helper and the
-  `constraint_driving_part` lookup it will call.
-- Exception transitions, omission/reference cleanup, rejoin and unlink remain valid without
-  resurrecting omitted parts or corrupting unrelated relations. Handed to **114/115**: needs
-  109's durable source identity and its lifecycle helpers to rewrite endpoints in the same
-  transaction; the design's transition table is the contract.
-- Canonical operation reaches apply and all required resolution stages; atomic refusal preserves
-  the accepted document/history. Handed to **115** (transaction composition) and **111**
-  (activation): the operation seam and history routing are theirs.
-- Fresh independent acceptance, complete graph delta and native/WASM/affected checks, plus the
-  `Constraint::Framed` arm and format 6 with its migration tests. Handed to **111**: the arm and
-  version land with activation, and the locked/conflicting-movement refusal fixture
-  (design.md:278) lands with the seam that can express movement.
+- [ ] Editing from either linked half respects the constraint while retaining unaffected linked
+  relationships and deliberate Local behavior. Handed to **114/115**: the operation seam
+  (110's canonical operation, composed by 115) is absent. 139 supplies the pure retune helper and
+  the driving-part lookup it will call.
+- [ ] Exception transitions, omission/reference cleanup, rejoin and unlink remain valid without
+  resurrecting omitted parts or corrupting unrelated relations. Handed to **114/115**: 109 is on
+  dev, so what is missing is the persisted `Constraint::Framed` arm to rewrite and the operation
+  seam to rewrite it in one transaction; the design's transition table is the contract.
+- [ ] Existing horizontal/vertical Mirror and Offset documents preserve behavior and remain
+  loadable; serialization/version/migration choices are tested where required. Handed to
+  **111**: the persisted arm and the CURRENT_VERSION change land together there (design,
+  "Format version and migration"), so the migration is untestable before. What 139 did cover:
+  the stored solver arithmetic is untouched, and the private serde types exist and are tested.
+  What remains is listed in 111's "Inherits from 139".
+- [ ] Canonical operation reaches apply and all required resolution stages; atomic refusal
+  preserves the accepted document/history. Handed to **115** (transaction composition) and
+  **111** (activation): the operation seam and history routing are theirs.
+- [ ] Fresh independent acceptance reuses sufficient source-bound checks and targets concrete
+  sensitivity gaps; complete graph delta and required native/WASM/affected checks pass. Handed to
+  **111**, with the locked/conflicting-movement refusal fixture (design, "Independent synthetic
+  geometry oracles") landing where movement can be expressed.
 
 ## Ownership and execution
 
@@ -51,7 +61,7 @@ Planning is read-only in the stable lane-mirror-core model/constraints/layout/me
 
 ## Accepted design checkpoint (2026-10-11)
 
-Root reviewed the completed Sol6.1 MAX read-only design at `/home/chris/.cache/boardstudio-baselines/ticket139-planning/design.md`, SHA256 `ca7cbd334e6b41c9fb9fbce1e87b7544c2c2b904030604b76fa3719785884274`, bound to lane HEAD22f31e218 and23 stable source hashes. Accepted live framed endpoints, arbitrary reflection line, stable constraint IDs/visible getters, shared authoritative driving lookup, canonical operation through apply and both resolvers, and format6 activated only with111. Rejoin source-wins retires only incoming Local-target constraints; Undo restores them, outgoing/unrelated relations survive. No unresolved product question or additional human approval gate remains.
+Root reviewed the completed Sol6.1 MAX read-only design at `/home/chris/.cache/boardstudio-baselines/ticket139-planning/design.md` (copied into the repository as [the design](../design/139-generalized-mirrored-constraint-model.md)), SHA256 `ca7cbd334e6b41c9fb9fbce1e87b7544c2c2b904030604b76fa3719785884274`, bound to lane HEAD22f31e218 and23 stable source hashes. Accepted live framed endpoints, arbitrary reflection line, stable constraint IDs/visible getters, shared authoritative driving lookup, canonical operation through apply and both resolvers, and format6 activated only with111. Rejoin source-wins retires only incoming Local-target constraints; Undo restores them, outgoing/unrelated relations survive. No unresolved product question or additional human approval gate remains.
 
 After the current106 completed writer STOP and ONE fresh SolMEDIUM acceptance, B may prepare one coherent private vocabulary/math/projection unit: `core/src/constraints.rs` module declaration only; new `core/src/constraints/relation.rs` and `endpoints.rs`; `core/src/mirrored_half/derive.rs` only for necessary private math reuse after impact analysis. No model/lib/migration/layout/placement/production or browser edits in that initial lease. Shared solver/lifecycle/adapter paths remain sequenced with actual109/110/114/115/117 prerequisites; support and parent19 are still open. Root alone refreshes/indexes/integrates.
 
@@ -85,9 +95,12 @@ Private, unactivated units on branch `worktree-agent-a1258f0b7ce0babff`, all in 
   shared authorities, alias cycles and non-finite axes refuse atomically. An explicit framed
   relation outranks the implicit companion placement, as a stored one does.
 - **Retune and lookup.** `retune_target` is the pure drag helper (design oracle: visible (12,1)
-  gives authority (1.6,11.2) and offset (9,-3)); `ProjectDoc::constraint_driving_part` finds the
-  one driving record through either half.
+  gives authority (1.6,11.2) and offset (9,-3)); `constraints::driving_constraint` finds the
+  one driving record through either half (crate-visible; 114/115 call it). It counts two stored
+  records on one authority as a conflict, which the production solver still accepts.
+- An unbound companion frame (`key: None`) refuses for the rules that read the key.
 - The compiled Mirror position is close to, not bit-equal to, the stored `2c - x`; saved Mirror
   records stay on the stored arithmetic until an exact pin exists (see `from_legacy`).
 
-What remains is in "Handed to 114, 115, 111" above.
+What remains is in "Handed to 114, 115, 111" above. The accepted design is in the repository at
+`docs/plans/typed-core-edits/design/139-generalized-mirrored-constraint-model.md`.

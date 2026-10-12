@@ -64,7 +64,10 @@ ADR-excluded binding pass-through. Do not claim readiness or resolution from inv
 
 [139](139-generalized-mirrored-constraint-model.md) resolved the private model: framed endpoints,
 slanted `mirror-line` and `part-offset`, key/companion projection, `retune_target` and
-`ProjectDoc::constraint_driving_part` (`core/src/constraints/`). 114 owns what 139 handed on:
+`constraints::driving_constraint` (`core/src/constraints/`; crate-visible, no `ProjectDoc`
+forwarder). A companion frame is unbound (`key: None`) until the solver supplies the key's
+resolved pose, and the key-reading rules refuse while unbound, so a caller of `project` or
+`retune_target` outside the solver must bind it with `with_key` first. 114 owns what 139 handed on:
 translating `SetConstraint`/`RemoveConstraint` and `MoveParts` through these, editing from either
 linked half, and the endpoint rewrites on MakeLocal/Omit/Rejoin/Unlink per design.md's transition
 table (needs 109's durable source identity). The persisted arm and format 6 are 111's.

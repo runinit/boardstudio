@@ -60,6 +60,12 @@ check, transcript blessing, integration and graph refresh.
 `Constraint::Framed` arm or bump the format: the accepted design lands both here, together, so an
 older build refuses a framed document instead of dropping the record. The private serde shapes
 are `FramedConstraint`/`ConstraintEndpoint`/`ConstraintRelation` in `core/src/constraints/`; a
-test there pins that a framed record is not storable today. Format 6 also needs the v5 to v6
-stamp-only migration, the current-version assertions, and the archive/host round-trip tests from
-design.md ("Format version and migration").
+test there pins that a framed record is not storable today. 139 covered: the stored solver
+arithmetic is untouched and the private serde shapes exist. 111 still owns 139's bullet 5, the
+original wording of which is "Existing horizontal/vertical Mirror and Offset documents preserve
+behavior and remain loadable; serialization/version/migration choices are tested where
+required", and so: the v5 to v6 stamp-only migration candidate and its idempotence on current
+text, a framed serde round-trip with both endpoint kinds and `mirror-line` (design, "Independent
+synthetic geometry oracles" and the compatibility tests), the v7-rejection test (the current
+newer-version input 6 becomes 7), the current-version assertions, and the archive/host
+round-trip tests.
