@@ -84,6 +84,13 @@ class CollectTests(unittest.TestCase):
             guard.collect([glued]).executed,
             {"boardstudio_core": {"archive::tests::stored_and_deflated_crc_corruption_is_rejected"}})
 
+    def test_an_ignored_verdict_with_stderr_glued_after_it_is_still_ignored_not_executed(self):
+        glued = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                 "test alpha::tests::needs_kicad ... ignoredZipWriter::drop: failed\n")
+        run = guard.collect([glued])
+        self.assertEqual(run.executed, {})
+        self.assertEqual(run.ignored, {"boardstudio_core": {"alpha::tests::needs_kicad"}})
+
     def test_a_name_mentioned_in_noise_without_a_result_marker_does_not_count(self):
         noise = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
                  "kind: Othertest archive::tests::never_ran\n"
