@@ -418,45 +418,6 @@ mod offset_axes_tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    fn a_conversion_and_its_undo_each_show_the_kind_and_numbers_they_saved() {
-        let held = |axes: OffsetAxes, x: f64, y: f64| {
-            let (id, source_part_id, target_part_id) =
-                ("c".to_owned(), "key".to_owned(), "diode".to_owned());
-            let (offset, rotation) = (Vec2 { x, y }, 0.0);
-            match axes {
-                OffsetAxes::Board => Constraint::Offset {
-                    id,
-                    source_part_id,
-                    target_part_id,
-                    offset,
-                    rotation,
-                },
-                OffsetAxes::Part => Constraint::PartOffset {
-                    id,
-                    source_part_id,
-                    target_part_id,
-                    offset,
-                    rotation,
-                },
-            }
-        };
-        // Board axes (1, -4); converted, the same spot in a turned key's frame; undone, the
-        // first constraint again.
-        let before = held(OffsetAxes::Board, 1.0, -4.0);
-        let converted = held(OffsetAxes::Part, -1.5, -3.5);
-        let shown = |constraint: &Constraint| {
-            let drafts = offset_drafts(Some(constraint), &board(), "diode");
-            (drafts.axes, drafts.offset_x, drafts.offset_y)
-        };
-        assert_eq!(shown(&before), (OffsetAxes::Board, "1".into(), "-4".into()));
-        assert_eq!(
-            shown(&converted),
-            (OffsetAxes::Part, "-1.5".into(), "-3.5".into())
-        );
-        assert_eq!(shown(&before), (OffsetAxes::Board, "1".into(), "-4".into()));
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
     fn an_unconstrained_part_defaults_the_axes_by_its_first_other_part() {
         // The diode's first other part is the key; the key's is the diode. The default is
         // taken for the part now selected, not for the one the form first opened on.

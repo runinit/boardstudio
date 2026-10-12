@@ -2178,6 +2178,182 @@ async fn mounted_driven_component_presents_xy_unavailable_and_suppresses_commit(
     root.remove();
 }
 
+fn offset_form_select(root_id: &str, label: &str) -> web_sys::HtmlSelectElement {
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!("#{root_id} select[aria-label='{label}']"))
+        .unwrap()
+        .unwrap_or_else(|| panic!("the {label} choice mounts"))
+        .dyn_into::<web_sys::HtmlSelectElement>()
+        .unwrap()
+}
+
+/// The Offset X draft, the Offset axes choice and the Source part choice the form shows.
+fn offset_form(root_id: &str) -> (String, String, String) {
+    (
+        position_input(root_id, "Offset X (mm)").value(),
+        offset_form_select(root_id, "Offset axes").value(),
+        offset_form_select(root_id, "Constraint source part").value(),
+    )
+}
+
+fn choose_offset_axes_in_form(root_id: &str, value: &str) {
+    let select = offset_form_select(root_id, "Offset axes");
+    select.set_value(value);
+    let bubbling = web_sys::EventInit::new();
+    bubbling.set_bubbles(true);
+    select
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &bubbling).unwrap())
+        .unwrap();
+}
+
+/// The Properties form takes its source, axes and numbers from `offset_drafts` on every
+/// path: the first render, a change of selection, an accepted change of the saved constraint
+/// (a conversion and its undo) and the reset when Properties is shown again.
+#[wasm_bindgen_test]
+async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the_reset() {
+    const KEY: &str = "matrix/component-matrix/r0c0";
+    let (probe, root) = mounted_probe_configured("layout-offset-form-test-root", |document| {
+        // The key sits between the two standalone parts, so the first part that is not
+        // the selected one is a key for one selection and not for the other.
+        document.boards[0].part_ids =
+            vec!["selected-part".into(), KEY.into(), "source-part".into()];
+        let mut key = document.parts[0].clone();
+        key.id = KEY.into();
+        key.reference = "SW1".into();
+        key.outline = None;
+        key.pose.rotation = 30.0;
+        document.parts.push(key);
+        document.matrices.push(Matrix {
+            id: "component-matrix".into(),
+            name: None,
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.0, y: 19.0 },
+            origin: Vec2::default(),
+            definition_id: "component-definition".into(),
+            part_ids: vec![KEY.into()],
+            board_id: Some("board".into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_offsets: vec![],
+            column_offsets: vec![],
+            column_staggers: vec![],
+            column_splays: vec![0.0],
+            column_origins: vec![],
+            cells: vec![MatrixCell {
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: true,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }],
+        });
+        document.constraints.push(Constraint::PartOffset {
+            id: "held".into(),
+            source_part_id: KEY.into(),
+            target_part_id: "selected-part".into(),
+            offset: Vec2 { x: 1.0, y: -4.0 },
+            rotation: 5.0,
+        });
+    })
+    .await;
+    settle_component_inspector().await;
+    let order: Vec<(String, bool)> = probe
+        .projection
+        .borrow()
+        .as_ref()
+        .expect("the selected part projects")
+        .board_parts
+        .iter()
+        .map(|part| (part.id.clone(), part.matrix_key))
+        .collect();
+    assert_eq!(
+        order[..3],
+        [
+            ("selected-part".to_owned(), false),
+            (KEY.to_owned(), true),
+            ("source-part".to_owned(), false),
+        ],
+        "the fixture's board order and key flags"
+    );
+    let root_id = probe.root_id;
+
+    // First render: the saved part-offset constraint.
+    assert_eq!(
+        offset_form(root_id),
+        ("1".into(), "part".into(), KEY.into()),
+        "first render"
+    );
+
+    // A selection change to a part without a constraint: its first other part is the
+    // selected-part, which is not a key, so the default is board axes and zeros.
+    click_component_inspector(root_id, "#component-inspector-select-source");
+    settle_component_inspector().await;
+    assert_eq!(
+        offset_form(root_id),
+        ("0".into(), "board".into(), "selected-part".into()),
+        "after selecting an unconstrained part"
+    );
+
+    // Back to the constrained part: its saved kind, source and numbers again.
+    click_component_inspector(root_id, "#component-inspector-select-original");
+    settle_component_inspector().await;
+    assert_eq!(
+        offset_form(root_id),
+        ("1".into(), "part".into(), KEY.into()),
+        "after selecting the constrained part again"
+    );
+
+    // A conversion re-expresses the numbers on the board axes at the key's 30 degree turn.
+    choose_offset_axes_in_form(root_id, "board");
+    accept_pending(&probe).await;
+    let (x, axes, source) = offset_form(root_id);
+    assert!(
+        (x.parse::<f64>().unwrap() - 2.866_025_403_784_439).abs() < 1e-6,
+        "converted X draft {x}"
+    );
+    assert_eq!((axes.as_str(), source.as_str()), ("board", KEY));
+
+    // Undoing the conversion restores the saved part-offset constraint and its numbers.
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(
+        offset_form(root_id),
+        ("1".into(), "part".into(), KEY.into()),
+        "after undoing the conversion"
+    );
+
+    // The reset: an unconstrained part's unsaved axes choice goes back to the default when
+    // Properties is shown again.
+    click_component_inspector(root_id, "#component-inspector-select-source");
+    settle_component_inspector().await;
+    choose_offset_axes_in_form(root_id, "part");
+    settle_component_inspector().await;
+    assert_eq!(offset_form(root_id).1, "part", "the unsaved choice shows");
+    click_component_inspector(root_id, "button[role='tab']:nth-child(2)");
+    settle_component_inspector().await;
+    click_component_inspector(root_id, "button[role='tab']:nth-child(1)");
+    settle_component_inspector().await;
+    assert_eq!(
+        offset_form(root_id),
+        ("0".into(), "board".into(), "selected-part".into()),
+        "after the reset"
+    );
+    root.remove();
+}
+
 // ---- Matrix Relations tab (ticket 09): the real Layout Inspector over a real Session ----
 
 mod matrix_relations_panel {
