@@ -1479,9 +1479,15 @@ fn apply(
                 .find(|matrix| &matrix.id == matrix_id)
                 .ok_or("Matrix not found")?;
             let matrix = matrix::splay::update(current, *column, change)?;
-            let mut changed = matrix::set_matrix(doc, &matrix)?;
-            changed.extend(layout::sync(doc, matrix_id)?);
-            Ok(changed)
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Touched,
+                |doc| {
+                    let mut changed = matrix::set_matrix(doc, &matrix)?;
+                    changed.extend(layout::sync(doc, matrix_id)?);
+                    Ok(changed)
+                },
+            )
         }
         EditOperation::SetMatrixPlacement { matrix_id, change } => {
             let current = doc
@@ -1495,24 +1501,16 @@ fn apply(
             if matrix == current {
                 return Ok(Vec::new());
             }
-            let before: BTreeMap<String, Part> = doc
-                .parts
-                .iter()
-                .map(|part| (part.id.clone(), part.clone()))
-                .collect();
-            let mut changed = matrix::set_matrix(doc, &matrix)?;
-            changed.extend(layout::sync(doc, matrix_id)?);
-            changed.extend(matrix::placement::carry_authored_companions(doc, &before));
             // Report only members whose projection actually moved.
-            changed.retain(|id| match before.get(id) {
-                Some(previous) => doc
-                    .parts
-                    .iter()
-                    .find(|part| &part.id == id)
-                    .is_none_or(|part| part != previous),
-                None => true,
-            });
-            Ok(changed)
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| {
+                    let mut changed = matrix::set_matrix(doc, &matrix)?;
+                    changed.extend(layout::sync(doc, matrix_id)?);
+                    Ok(changed)
+                },
+            )
         }
         EditOperation::CreateMirroredPair {
             left,

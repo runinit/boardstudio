@@ -3,7 +3,7 @@
 //! matrix for a given value.
 use super::{OVERRIDE, member_id, valid_projection_matrix};
 use crate::model::{
-    Matrix, MatrixPlacementChange, Part, ProjectDoc, Vec2, convert_offset_available,
+    Matrix, MatrixPlacementChange, Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
 };
 use std::collections::BTreeMap;
 
@@ -106,14 +106,51 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
     Ok(after)
 }
 
-/// Shift authored companions by the world delta of their key, so a placement
-/// change keeps the relative pose the user authored. Companions with an explicit
-/// constraint keep that constraint instead: the constraint solver settles them.
+/// Which parts an edit that carries companions reports as changed.
+#[derive(Clone, Copy)]
+pub(crate) enum Reported {
+    /// Every part the edit touched, moved or not.
+    Touched,
+    /// Only parts whose projection actually moved.
+    Moved,
+}
+
+/// Run a matrix edit and carry authored companions with their keys.
+pub(crate) fn carrying_authored_companions(
+    doc: &mut ProjectDoc,
+    reported: Reported,
+    edit: impl FnOnce(&mut ProjectDoc) -> Result<Vec<String>, String>,
+) -> Result<Vec<String>, String> {
+    let before: BTreeMap<String, Part> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.clone()))
+        .collect();
+    let mut changed = edit(doc)?;
+    changed.extend(carry_authored_companions(doc, &before));
+    if matches!(reported, Reported::Moved) {
+        changed.retain(|id| match before.get(id) {
+            Some(previous) => doc
+                .parts
+                .iter()
+                .find(|part| &part.id == id)
+                .is_none_or(|part| part != previous),
+            None => true,
+        });
+    }
+    Ok(changed)
+}
+
+/// Move authored companions rigidly with their key, so a placement change keeps
+/// the relative pose the user authored: the offset in the key's frame and the turn
+/// relative to the key. A splay turns the key, so the companion turns around it.
+/// Companions with an explicit constraint keep that constraint instead: the
+/// constraint solver settles them.
 pub(crate) fn carry_authored_companions(
     doc: &mut ProjectDoc,
     before: &BTreeMap<String, Part>,
 ) -> Vec<String> {
-    let mut shifts: Vec<(String, Vec2)> = Vec::new();
+    let mut carries: Vec<(String, Pose2, Pose2)> = Vec::new();
     for matrix in &doc.matrices {
         for cell in &matrix.cells {
             if !cell.enabled || cell.deleted {
@@ -126,11 +163,7 @@ pub(crate) fn carry_authored_companions(
             let Some(key) = doc.parts.iter().find(|part| part.id == key_id) else {
                 continue;
             };
-            let delta = Vec2 {
-                x: key.pose.at.x - previous.pose.at.x,
-                y: key.pose.at.y - previous.pose.at.y,
-            };
-            if delta.x == 0.0 && delta.y == 0.0 {
+            if key.pose == previous.pose {
                 continue;
             }
             for assembly in &cell.assemblies {
@@ -152,16 +185,27 @@ pub(crate) fn carry_authored_companions(
                         })
                     });
                 if authored {
-                    shifts.push((id, delta));
+                    carries.push((id, previous.pose, key.pose));
                 }
             }
         }
     }
     let mut changed = Vec::new();
-    for (id, delta) in shifts {
+    for (id, from, to) in carries {
         if let Some(part) = doc.parts.iter_mut().find(|part| part.id == id) {
-            part.pose.at.x += delta.x;
-            part.pose.at.y += delta.y;
+            let turn = to.rotation - from.rotation;
+            let (dx, dy) = (part.pose.at.x - from.at.x, part.pose.at.y - from.at.y);
+            let (dx, dy) = if turn == 0.0 {
+                (dx, dy)
+            } else {
+                let (sin, cos) = turn.to_radians().sin_cos();
+                (dx * cos - dy * sin, dx * sin + dy * cos)
+            };
+            part.pose.at = Vec2 {
+                x: to.at.x + dx,
+                y: to.at.y + dy,
+            };
+            part.pose.rotation += turn;
             changed.push(id);
         }
     }
