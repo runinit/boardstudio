@@ -49,3 +49,12 @@ are read-only. No new EditOperation arms, visibility widening, hardware API fiel
 
 Independent verifier: mutate canonical operation propagation, reconciliation/cleanup order and
 final validation separately. History/Open/preview are deliberately owned by 116/117.
+
+## Inherits from 139
+
+[139](139-generalized-mirrored-constraint-model.md) handed 115 the transaction half of its
+criteria: the canonical operation must reach `apply` and both `resolve_edit` calls with framed
+constraints in play, and a refusal must leave document, revision and history untouched. The
+resolver to call is `resolve_prepared` in `core/src/constraints.rs` (framed records are supplied
+privately until 111), and the locked/conflicting-movement refusal fixture (design.md:278) belongs
+here, where movement can be expressed.

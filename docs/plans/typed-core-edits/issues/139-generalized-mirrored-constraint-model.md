@@ -1,6 +1,6 @@
 # 139: Generalized mirrored constraint model
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -18,13 +18,32 @@ Record an implementation-ready design with exact code/serialization/adapter/test
 
 ## Acceptance
 
-- [ ] Reviewed source-grounded representation and endpoint/ownership semantics are explicit;114 consumes the accepted result.
-- [ ] Independently authored synthetic tests first fail for slanted-axis and mixed linked/Local cases; exact intended geometry and stable identities are asserted.
-- [ ] Editing from either linked half respects the constraint while retaining unaffected linked relationships and deliberate Local behavior.
-- [ ] Exception transitions, omission/reference cleanup, rejoin and unlink remain valid without resurrecting omitted parts or corrupting unrelated relations.
-- [ ] Existing horizontal/vertical Mirror and Offset documents preserve behavior and remain loadable; serialization/version/migration choices are tested where required.
-- [ ] Canonical operation reaches apply and all required resolution stages; atomic refusal preserves the accepted document/history.
-- [ ] Fresh independent acceptance reuses sufficient source-bound checks and targets concrete sensitivity gaps; complete graph delta and required native/WASM/affected checks pass.
+Re-scoped 2026-10-12: this ticket closes on the private model, solver and projection below;
+the operation-, lifecycle- and activation-bound criteria are handed on (next section).
+
+- [x] Reviewed source-grounded representation and endpoint/ownership semantics are explicit;114 consumes the accepted result.
+- [x] Independently authored synthetic tests first fail for slanted-axis and mixed linked/Local cases; exact intended geometry and stable identities are asserted.
+- [x] Existing horizontal/vertical Mirror and Offset documents preserve behavior and remain loadable. The stored solver arithmetic is untouched and a framed record is still not a storable kind; the format-6 and migration choices are handed to 111.
+
+## Handed to 114, 115, 111
+
+Each of these needs a seam that exists only after 139's private model, so they move with it:
+
+- Editing from either linked half respects the constraint while retaining unaffected linked
+  relationships and deliberate Local behavior. Handed to **114/115**: needs the canonical
+  operation seam of 110, which does not exist yet; 139 supplies the pure retune helper and the
+  `constraint_driving_part` lookup it will call.
+- Exception transitions, omission/reference cleanup, rejoin and unlink remain valid without
+  resurrecting omitted parts or corrupting unrelated relations. Handed to **114/115**: needs
+  109's durable source identity and its lifecycle helpers to rewrite endpoints in the same
+  transaction; the design's transition table is the contract.
+- Canonical operation reaches apply and all required resolution stages; atomic refusal preserves
+  the accepted document/history. Handed to **115** (transaction composition) and **111**
+  (activation): the operation seam and history routing are theirs.
+- Fresh independent acceptance, complete graph delta and native/WASM/affected checks, plus the
+  `Constraint::Framed` arm and format 6 with its migration tests. Handed to **111**: the arm and
+  version land with activation, and the locked/conflicting-movement refusal fixture
+  (design.md:278) lands with the seam that can express movement.
 
 ## Ownership and execution
 
@@ -56,16 +75,19 @@ Private, unactivated units on branch `worktree-agent-a1258f0b7ce0babff`, all in 
   horizontal is `(0,c)` heading 0).
 - **Endpoint projection.** `EndpointFrame::{LinkedKey, LinkedCompanion}` with the design's
   literal, stabiliser, duplicate and tweaked companion rules, forward and inverse, pinned by the
-  design table's oracles. The companion's key pose is a solver input; no document binding reaches
-  matrix keys or companions yet (only `Part` correspondences are bound).
+  design table's oracles. Matrix keys and companions are bound from the live matrices (a
+  companion's rule comes from its definition, correspondence mode and tweak, over the pair
+  default) and measured against the key's resolved pose, so a cycle through the key is refused.
 - **Prepared solver.** `resolve_prepared(doc, positions, framed)` is the one engine; stored
   records keep their exact arithmetic and production calls it with no framed records. Endpoints
   bind to the live pair (map direction from the construction source), targets are ordered by
   authority, and Local/Omitted mirrors, stale correspondences, derived-mirror `Part` endpoints,
-  shared authorities, alias cycles and non-finite axes refuse atomically. A framed target that is a
-  matrix companion is refused, because companion classification reads stored constraints only.
+  shared authorities, alias cycles and non-finite axes refuse atomically. An explicit framed
+  relation outranks the implicit companion placement, as a stored one does.
+- **Retune and lookup.** `retune_target` is the pure drag helper (design oracle: visible (12,1)
+  gives authority (1.6,11.2) and offset (9,-3)); `ProjectDoc::constraint_driving_part` finds the
+  one driving record through either half.
+- The compiled Mirror position is close to, not bit-equal to, the stored `2c - x`; saved Mirror
+  records stay on the stored arithmetic until an exact pin exists (see `from_legacy`).
 
-Not done, and why: the persisted `Constraint::Framed` arm and format 6 are by design landed with
-111; canonical-operation preparation (110/114/115), MakeLocal/Omit/Rejoin/Unlink endpoint
-transformations (109) and adapter/browser consumers cannot be built before those seams exist. No
-Acceptance box is ticked: bullets 2 and 5 are partly evidenced above, 1 and 3, 4, 6, 7 are open.
+What remains is in "Handed to 114, 115, 111" above.

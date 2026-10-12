@@ -53,3 +53,13 @@ kinds/both directions, save/reopen, exceptions/unlink, full preview/history matr
 activated performance and native/WASM boundary evidence. Parent remains open until that
 verification holds; activation smoke coverage alone cannot resolve it. Root owns full batch
 check, transcript blessing, integration and graph refresh.
+
+## Inherits from 139
+
+[139](139-generalized-mirrored-constraint-model.md) deliberately did not add the persisted
+`Constraint::Framed` arm or bump the format: the accepted design lands both here, together, so an
+older build refuses a framed document instead of dropping the record. The private serde shapes
+are `FramedConstraint`/`ConstraintEndpoint`/`ConstraintRelation` in `core/src/constraints/`; a
+test there pins that a framed record is not storable today. Format 6 also needs the v5 to v6
+stamp-only migration, the current-version assertions, and the archive/host round-trip tests from
+design.md ("Format version and migration").
