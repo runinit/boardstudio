@@ -1,6 +1,6 @@
 # 109: Durable mirrored-half exceptions and Unlink lifecycle
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [108](108-reconcile-mirrored-outlines-assemblies.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -131,7 +131,9 @@ Schema: a correspondence records source ↔ mirror identity in every state and a
 amendment. The mirror-only replacement-part behavior is split to
 [109b](109b-mirror-only-replacement-parts-auto-pins.md).
 
-Behavior verified in `core` (candidate on `lane/mirror-core`, not integrated):
+Behavior verified in `core`. It landed on dev in `4cb850483`; re-verified 2026-10-12 against
+`4a9b806a0` with the 139 lib `mirrored` tests, 26 `halves` tests and 46 integration
+`mirrored_half` tests green:
 
 - the lifecycle tests, including the previously red connector case, now clean only the selected
   connector reference (the module is kept with `connection` cleared, as deleting the connector
