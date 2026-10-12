@@ -99,3 +99,18 @@ first run (Omitted-with-present-part, absent-part-without-overlay, circuit-net s
 `reconcile` refuses those states; direct projection tests were added and all three were then
 killed. `check.py repo test lint` passes; the native baseline is addition only.
 
+
+## Review follow-ups (owned by 111/115, not blocking)
+
+- A Local or mirror-only embedded circuit whose `ports`/`net_ids` name a corresponded plain net that
+  becomes private is not consulted by the removal guard (`reconcile/settings.rs`, the guard counts
+  pins only). Treat staged circuit ports/net ids as ownership, or confirm validation rejects it.
+- Removing a private net leaves `netId` on copper the user routed on the mirror afterwards or after
+  a source-side change that does not pass through Omit.
+- A mirror-authored pin on a **linked** part (e.g. the mirror controller) does not keep an otherwise
+  private net; it is dropped. Consistent with ADR-0010, but the one place mirror-authored data is
+  silently lost; surface it in 115's preview.
+- A net `SetNet` registered on the first board is not removed from there when the mirror board
+  registers it, so a net can sit on both boards.
+- A source-only net rename does not reach a mirror net that already shows a name (ADR-0010: names are
+  for the mirror's side). A re-projected net takes the token-swapped source name.
