@@ -1,7 +1,8 @@
 use crate::constraints::relation::ConstraintRelation;
 use crate::mechanical::pair;
 use crate::model::{
-    MechanicalMirrorPair, MirroredExceptionState, MirroredItemKind, Pose2, ProjectDoc, Vec2,
+    MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence, MirroredExceptionState,
+    MirroredHalves, MirroredItemKind, Pose2, ProjectDoc, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +36,7 @@ pub(super) enum FramedConstraint {
     },
 }
 
-#[cfg_attr(not(test), expect(dead_code))] // The later private compiler reads both endpoint identity spaces.
+#[cfg_attr(not(test), expect(dead_code))] // Only tests read these accessors; the solver binds through resolve_endpoint.
 impl ConstraintEndpoint {
     pub(super) fn visible_part_id(&self) -> &str {
         match self {
@@ -53,7 +54,6 @@ impl ConstraintEndpoint {
 }
 
 /// How a mirrored companion sits against its mirrored key (ADR-0010).
-#[cfg_attr(not(test), expect(dead_code))] // No document binding reaches matrix companions yet.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum CompanionRule {
     /// Reflect the companion's pose like the key's.
@@ -67,7 +67,6 @@ pub(super) enum CompanionRule {
 }
 
 /// A live endpoint frame. Linked mappings are supplied by the current pair owner.
-#[cfg_attr(not(test), expect(dead_code))] // Used before solver integration.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum EndpointFrame {
     Identity,
@@ -89,6 +88,17 @@ pub(super) enum EndpointFrame {
 }
 
 impl EndpointFrame {
+    /// A companion frame with the resolved pose of the key it is measured against; other
+    /// frames do not depend on a key and are returned as they are.
+    pub(super) fn with_key(self, resolved: Option<Pose2>) -> Self {
+        match (self, resolved) {
+            (Self::LinkedCompanion { mapping, rule, .. }, Some(key)) => {
+                Self::LinkedCompanion { mapping, key, rule }
+            }
+            (frame, _) => frame,
+        }
+    }
+
     pub(super) fn project(self, authoritative: Pose2) -> Result<Pose2, String> {
         validate_pose(authoritative)?;
         let projected = match self {
@@ -263,7 +273,11 @@ fn validate_pose(pose: Pose2) -> Result<(), String> {
 pub(super) struct ResolvedEndpoint {
     pub(super) visible_id: String,
     pub(super) authoritative_id: String,
+    /// For a companion frame, `key` is a placeholder until the solver supplies `owner`'s pose.
     pub(super) frame: EndpointFrame,
+    /// The authoritative key a companion endpoint is projected against. The solver resolves it
+    /// first, so the projection depends on the key's live pose and a cycle through it is refused.
+    pub(super) owner: Option<String>,
 }
 
 fn state_name(state: MirroredExceptionState) -> &'static str {
@@ -286,6 +300,72 @@ fn source_mapping(pair: &MechanicalMirrorPair) -> Result<Pose2, String> {
             pair.id
         )),
     }
+}
+
+/// What a linked source part is in the matrix domain decides how its mirror is projected: a
+/// key, a companion on a key (under the item's effective placement rule), or an independent
+/// part. Returns the frame and, for a companion, the key it is measured against.
+fn linked_frame(
+    document: &ProjectDoc,
+    halves: &MirroredHalves,
+    correspondence: &MirroredCorrespondence,
+    source_part_id: &str,
+    mapping: Pose2,
+) -> (EndpointFrame, Option<String>) {
+    for matrix in &document.matrices {
+        for cell in matrix
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled && !cell.deleted)
+        {
+            let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
+            let Some(assembly) = cell.assemblies.iter().find(|assembly| {
+                crate::matrix::companion_id(&key_id, &assembly.id) == source_part_id
+            }) else {
+                continue;
+            };
+            let mode = correspondence
+                .companion_mode
+                .unwrap_or(halves.companion_mode);
+            let rule = if crate::mirrored_half::SYMMETRIC_DEFINITIONS
+                .contains(&assembly.definition_id.as_str())
+            {
+                CompanionRule::Stabiliser
+            } else {
+                match (mode, correspondence.companion_tweak) {
+                    (MirroredCompanionMode::DuplicatePosition, _) => CompanionRule::Duplicate,
+                    (MirroredCompanionMode::LiteralMirrorWithTweak, Some(tweak)) => {
+                        CompanionRule::Tweaked {
+                            u: tweak.x,
+                            v: tweak.y,
+                            w: tweak.rotation,
+                        }
+                    }
+                    _ => CompanionRule::Literal,
+                }
+            };
+            return (
+                EndpointFrame::LinkedCompanion {
+                    mapping,
+                    key: Pose2 {
+                        at: Vec2::default(),
+                        rotation: 0.0,
+                    },
+                    rule,
+                },
+                Some(key_id),
+            );
+        }
+    }
+    // A matrix lists its companions among its members, so keys are what is left.
+    if document
+        .matrices
+        .iter()
+        .any(|matrix| matrix.part_ids.iter().any(|id| id == source_part_id))
+    {
+        return (EndpointFrame::LinkedKey { mapping }, None);
+    }
+    (EndpointFrame::LinkedMirror { mapping }, None)
 }
 
 /// Binds one authored endpoint to the document as it stands. Nothing is cached: a later
@@ -330,6 +410,7 @@ pub(super) fn resolve_endpoint(
                 visible_id: part_id.clone(),
                 authoritative_id: part_id.clone(),
                 frame: EndpointFrame::Identity,
+                owner: None,
             })
         }
         ConstraintEndpoint::LinkedMirror {
@@ -369,12 +450,14 @@ pub(super) fn resolve_endpoint(
                     return Err(located(format!("references a missing part {id}")));
                 }
             }
+            let mapping = source_mapping(pair)?;
+            let (frame, owner) =
+                linked_frame(document, halves, correspondence, source_part_id, mapping);
             Ok(ResolvedEndpoint {
                 visible_id: mirror_part_id.clone(),
                 authoritative_id: source_part_id.clone(),
-                frame: EndpointFrame::LinkedMirror {
-                    mapping: source_mapping(pair)?,
-                },
+                frame,
+                owner,
             })
         }
     }

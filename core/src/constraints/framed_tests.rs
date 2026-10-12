@@ -530,3 +530,176 @@ fn a_pair_whose_construction_source_is_its_second_member_uses_the_inverse_map() 
     // stored map applied forward: F(8, 2) = (12.4, -10.2).
     assert_pose(&doc, "beta/T", 12.4, -10.2, 161.86989764584402);
 }
+
+// ---- matrix keys and companions -------------------------------------------------------
+
+const KEY: &str = "matrix/alpha-m/r0c0";
+const COMPANION: &str = "matrix/alpha-m/r0c0/diode";
+const MIRROR_KEY: &str = "matrix/beta-m/r0c0";
+const MIRROR_COMPANION: &str = "matrix/beta-m/r0c0/diode";
+
+/// Key K = (2, 5) heading 0 and its companion C = (4, 8) heading 30 on the alpha half, with
+/// their mirrors on beta. `definition` is the companion's definition, `mode` the pair's
+/// companion placement and `tweak` the item's adjustment (u, v, w).
+fn matrix_document(definition: &str, mode: &str, tweak: Option<(f64, f64, f64)>) -> ProjectDoc {
+    let mut doc = document((20.0, -7.0));
+    doc.definitions = serde_json::from_value(json!([
+        {"id": "key", "name": "Key", "kind": "switch", "courtyard": [], "pads": []},
+        {"id": "diode", "name": "Diode", "kind": "passive", "courtyard": [], "pads": []},
+        {"id": "kicad:marbastlib/STAB_MX_2u", "name": "Stabiliser", "kind": "passive",
+         "courtyard": [], "pads": []}
+    ]))
+    .unwrap();
+    doc.parts = serde_json::from_value(json!([
+        part(KEY, 2.0, 5.0, 0.0),
+        part(COMPANION, 4.0, 8.0, 30.0),
+        part(MIRROR_KEY, 15.4, -4.2, 36.86989764584402),
+        part(MIRROR_COMPANION, 12.0, -3.0, 6.86989764584402),
+        part("local/P", 3.0, 4.0, 40.0),
+        part("free/Q", 0.0, 0.0, 0.0),
+    ]))
+    .unwrap();
+    doc.matrices = serde_json::from_value(json!([
+        {"id": "alpha-m", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
+         "origin": {"x": 2, "y": 5}, "definitionId": "key", "partIds": [KEY, COMPANION],
+         "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": [
+             {"id": "diode", "definitionId": definition,
+              "offset": {"x": 2.0, "y": 3.0}, "rotation": 30.0}]}]},
+        {"id": "beta-m", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
+         "origin": {"x": 15.4, "y": -4.2}, "definitionId": "key", "partIds": [MIRROR_KEY]}
+    ]))
+    .unwrap();
+    let halves = doc.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    let item = |source: &str, mirror: &str| {
+        let mut value = json!({"kind": "part", "sourceId": source, "mirrorId": mirror});
+        if let Some((u, v, w)) = tweak
+            && source == COMPANION
+        {
+            value["companionTweak"] = json!({"x": u, "y": v, "rotation": w});
+            value["companionMode"] = json!("literal-mirror-with-tweak");
+        }
+        value
+    };
+    halves.correspondences = serde_json::from_value(json!([
+        item(KEY, MIRROR_KEY),
+        item(COMPANION, MIRROR_COMPANION),
+    ]))
+    .unwrap();
+    halves.companion_mode = serde_json::from_value(json!(mode)).unwrap();
+    doc
+}
+
+#[test]
+fn a_local_part_drives_a_linked_key_through_the_key_projection() {
+    let mut doc = matrix_document("diode", "literal-mirror", None);
+    let record = framed(
+        "c/key",
+        part_endpoint("local/P"),
+        linked(KEY, MIRROR_KEY),
+        offset_5_neg2(),
+    );
+    resolve_prepared(&mut doc, &[], &[record]).unwrap();
+    // The visible key is (8, 2) heading 55: its authority is F^-1(8, 2) with heading
+    // theta - 55, with no independent half turn.
+    assert_pose(&doc, KEY, 4.2, 14.4, -18.13010235415598);
+}
+
+#[test]
+fn a_linked_key_drives_a_local_part() {
+    let mut doc = matrix_document("diode", "literal-mirror", None);
+    doc.parts
+        .iter_mut()
+        .find(|part| part.id == KEY)
+        .unwrap()
+        .pose
+        .rotation = 25.0;
+    let record = framed(
+        "c/out",
+        linked(KEY, MIRROR_KEY),
+        part_endpoint("free/Q"),
+        offset_5_neg2(),
+    );
+    resolve_prepared(&mut doc, &[], &[record]).unwrap();
+    // The visible key is (15.4, -4.2) heading theta - 25 = 11.8699.
+    assert_pose(&doc, "free/Q", 20.4, -6.2, 26.86989764584402);
+}
+
+#[test]
+fn a_local_part_drives_a_linked_companion_by_each_placement_rule() {
+    // (definition, pair mode, tweak, authority x, y, heading)
+    let cases = [
+        // Literal: authority is F^-1 of the visible pose, heading theta - 55.
+        (
+            "diode",
+            "literal-mirror",
+            None,
+            4.2,
+            14.4,
+            -18.13010235415598,
+        ),
+        // Duplicate: key-local pose is kept, so the key (2, 5) heading 0 is the origin.
+        (
+            "diode",
+            "duplicate-position",
+            None,
+            -0.2,
+            14.4,
+            18.13010235415598,
+        ),
+    ];
+    for (definition, mode, tweak, x, y, heading) in cases {
+        let mut doc = matrix_document(definition, mode, tweak);
+        let record = framed(
+            "c/companion",
+            part_endpoint("local/P"),
+            linked(COMPANION, MIRROR_COMPANION),
+            offset_5_neg2(),
+        );
+        resolve_prepared(&mut doc, &[], &[record]).unwrap();
+        // The explicit relation outranks the companion's implicit placement on its key.
+        assert_pose(&doc, COMPANION, x, y, heading);
+    }
+}
+
+#[test]
+fn a_linked_companion_drives_a_local_part_under_tweak_and_stabiliser_rules() {
+    // Tweaked literal (1, -2, 7): visible (14, -4) heading 13.8699, then offset (5, -2) / 15.
+    let mut tweaked = matrix_document("diode", "literal-mirror", Some((1.0, -2.0, 7.0)));
+    let record = framed(
+        "c/out",
+        linked(COMPANION, MIRROR_COMPANION),
+        part_endpoint("free/Q"),
+        offset_5_neg2(),
+    );
+    resolve_prepared(&mut tweaked, &[], std::slice::from_ref(&record)).unwrap();
+    assert_pose(&tweaked, "free/Q", 19.0, -6.0, 28.86989764584402);
+
+    // A stabiliser keeps its world heading 30: visible (12, -3) heading 30.
+    let mut stabiliser = matrix_document("kicad:marbastlib/STAB_MX_2u", "duplicate-position", None);
+    resolve_prepared(&mut stabiliser, &[], &[record]).unwrap();
+    assert_pose(&stabiliser, "free/Q", 17.0, -5.0, 45.0);
+}
+
+#[test]
+fn a_cycle_through_a_companion_and_its_key_is_refused_atomically() {
+    // The key is driven from the companion, and the companion's projection reads the key.
+    let mut doc = matrix_document("diode", "literal-mirror", None);
+    let records = [
+        framed(
+            "c/companion",
+            part_endpoint("local/P"),
+            linked(COMPANION, MIRROR_COMPANION),
+            offset_5_neg2(),
+        ),
+        framed(
+            "c/key",
+            part_endpoint(COMPANION),
+            part_endpoint(KEY),
+            offset_5_neg2(),
+        ),
+    ];
+    refuses(&mut doc, &records, "cycle");
+}

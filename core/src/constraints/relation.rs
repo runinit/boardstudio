@@ -22,7 +22,7 @@ pub(super) enum ConstraintRelation {
     },
 }
 
-#[cfg_attr(not(test), expect(dead_code))] // Consumed by later private solver integration.
+#[cfg_attr(not(test), expect(dead_code))] // `from_legacy` and `inverse` have no production caller yet: the compile-all-records pass and the drag seam land with 114/115.
 impl ConstraintRelation {
     /// The relation a stored record states, so every record kind is compiled by one path.
     /// A vertical mirror at `c` is the line through `(c, 0)` heading 90; a horizontal one is

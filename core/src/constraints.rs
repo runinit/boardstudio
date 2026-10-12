@@ -49,6 +49,8 @@ struct Framed<'a> {
     source_authority: String,
     source_frame: EndpointFrame,
     target_frame: EndpointFrame,
+    source_owner: Option<String>,
+    target_owner: Option<String>,
     relation: &'a ConstraintRelation,
 }
 
@@ -62,13 +64,18 @@ impl Driver<'_> {
 
     /// The target authority's pose given the resolved source authority's pose. `current` is the
     /// target's stored pose, which chooses between headings a full turn apart.
-    fn evaluate(&self, source: Pose2, current: Pose2) -> Result<Pose2, String> {
+    fn evaluate(
+        &self,
+        source: Pose2,
+        owners: [Option<Pose2>; 2],
+        current: Pose2,
+    ) -> Result<Pose2, String> {
         match self {
             Self::Legacy(constraint) => Ok(constraint_pose(constraint, source)),
             Self::Framed(framed) => endpoints::solve_target(
                 source,
-                framed.source_frame,
-                framed.target_frame,
+                framed.source_frame.with_key(owners[0]),
+                framed.target_frame.with_key(owners[1]),
                 framed.relation,
                 current,
             )
@@ -143,6 +150,8 @@ fn resolve_prepared(
             source_authority: source.authoritative_id,
             source_frame: source.frame,
             target_frame: target.frame,
+            source_owner: source.owner,
+            target_owner: target.owner,
             relation,
         });
         if by_target
@@ -158,17 +167,6 @@ fn resolve_prepared(
 
     // Assemblies are implicit local placements; explicit constraints take priority.
     let assemblies = crate::matrix::layout::assembly_placements(doc, positions);
-    if let Some(companion) = by_target
-        .iter()
-        .find(|(id, driver)| matches!(driver, Driver::Framed(_)) && assemblies.contains_key(*id))
-        .map(|(id, _)| id)
-    {
-        // Companion placement classifies only stored constraints, so a framed target could not
-        // take precedence over its key. Refuse rather than let the assembly silently win.
-        return Err(format!(
-            "Part {companion} is a matrix companion and cannot be the target of a framed constraint"
-        ));
-    }
     // Resolve the combined graph source-first instead of relying on repeated passes.
     let mut resolved = BTreeMap::new();
     let mut visiting = BTreeSet::new();
@@ -364,6 +362,49 @@ pub(crate) fn convert_offset(
     Ok(vec![constraint_id.into()])
 }
 
+/// Evaluates the record that drives `id`: its source first, then any key a companion endpoint
+/// is projected against, so the projection reads live poses and cycles through it are refused.
+fn drive(
+    id: &str,
+    driver: &Driver,
+    parts: &BTreeMap<String, Pose2>,
+    constraints: &BTreeMap<String, Driver>,
+    assemblies: &BTreeMap<String, AssemblyPlacement>,
+    resolved: &mut BTreeMap<String, Pose2>,
+    visiting: &mut BTreeSet<String>,
+) -> Result<Pose2, String> {
+    let current = *parts
+        .get(id)
+        .ok_or_else(|| format!("Constraint target {id} is missing"))?;
+    let source = pose(
+        driver.source_authority(),
+        parts,
+        constraints,
+        assemblies,
+        resolved,
+        visiting,
+    )?;
+    let mut owners = [None, None];
+    if let Driver::Framed(framed) = driver {
+        for (slot, owner) in [&framed.source_owner, &framed.target_owner]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(owner) = owner {
+                owners[slot] = Some(pose(
+                    owner,
+                    parts,
+                    constraints,
+                    assemblies,
+                    resolved,
+                    visiting,
+                )?);
+            }
+        }
+    }
+    driver.evaluate(source, owners, current)
+}
+
 fn pose(
     id: &str,
     parts: &BTreeMap<String, Pose2>,
@@ -378,7 +419,9 @@ fn pose(
     if !visiting.insert(id.to_string()) {
         return Err(format!("Constraint cycle includes part {id}"));
     }
-    let next = if let Some(assembly) = assemblies.get(id) {
+    // An explicit framed relation outranks the implicit companion placement, like a stored one.
+    let framed = matches!(constraints.get(id), Some(Driver::Framed(_)));
+    let next = if let Some(assembly) = assemblies.get(id).filter(|_| !framed) {
         // The classification already resolved explicit-constraint precedence, so
         // a constrained companion settles from its constraint and the others
         // follow the key (an authored pose only while the key is unchanged).
@@ -387,15 +430,15 @@ fn pose(
                 let driver = constraints
                     .get(id)
                     .ok_or_else(|| format!("Constraint for companion {id} is missing"))?;
-                let source = pose(
-                    driver.source_authority(),
+                drive(
+                    id,
+                    driver,
                     parts,
                     constraints,
                     assemblies,
                     resolved,
                     visiting,
-                )?;
-                driver.evaluate(source, parts[id])?
+                )?
             }
             MatrixCompanionMode::Authored | MatrixCompanionMode::Follows => {
                 let source = pose(
@@ -417,15 +460,15 @@ fn pose(
             }
         }
     } else if let Some(driver) = constraints.get(id) {
-        let source = pose(
-            driver.source_authority(),
+        drive(
+            id,
+            driver,
             parts,
             constraints,
             assemblies,
             resolved,
             visiting,
-        )?;
-        driver.evaluate(source, parts[id])?
+        )?
     } else {
         *parts
             .get(id)
