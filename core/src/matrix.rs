@@ -1,3 +1,21 @@
+//! Matrix projection: generated keys and their companions (diodes, LEDs).
+//!
+//! Where things live (search the names; line numbers drift):
+//! - Edits: the `SetMatrix`, `SetMatrixSplay`, `SetMatrixPlacement` and `MoveParts` arms of
+//!   `apply` in lib.rs.
+//! - Key geometry: `location`, `column_rotation`, `column_basis` here; `splay::update` and
+//!   `placement::update` compute the changed matrix.
+//! - Companion modes, in the order the solver applies them (`layout::companion_mode`
+//!   classifies, `layout::assembly_placements` feeds the solver):
+//!   1. constrained: an explicit `Constraint` targets the companion (`constraint_pose` in
+//!      constraints.rs; an Offset is a world translation);
+//!   2. authored: `layoutOverride == 1` (`OVERRIDE`, `mark_override`) keeps the pose;
+//!      `placement::carrying_authored_companions` carries it with its key on splay and
+//!      placement edits (a whole-matrix `SetMatrix` does not yet, ticket 144);
+//!   3. following: generated from the key by `project_matrix` here and `follow_pose`.
+//! - Key moves and linked halves: `layout::move_keys`, `layout::sync`, `set_component_pose`.
+//! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
+
 pub(crate) mod deletion;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror, OutlineFeature,

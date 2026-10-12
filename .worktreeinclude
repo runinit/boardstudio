@@ -1,0 +1,2 @@
+# Git-ignored files a new worktree needs. Cargo's sandbox write allowlist lives in the first.
+.claude/settings.json
