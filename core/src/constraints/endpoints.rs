@@ -306,6 +306,22 @@ fn validate_pose(pose: Pose2) -> Result<(), String> {
     }
 }
 
+/// Which end of a relation an endpoint is, for located messages.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Side {
+    Source,
+    Target,
+}
+
+impl Side {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Source => "source",
+            Self::Target => "target",
+        }
+    }
+}
+
 /// An endpoint bound to the live document: the part the author sees, the part that owns the
 /// geometry, and the frame between them.
 #[derive(Clone, Debug, PartialEq)]
@@ -451,10 +467,10 @@ pub(super) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str)
 pub(super) fn resolve_endpoint(
     document: &ProjectDoc,
     constraint_id: &str,
-    side: &str,
+    side: Side,
     endpoint: &ConstraintEndpoint,
 ) -> Result<ResolvedEndpoint, String> {
-    let located = |what: String| format!("Constraint {constraint_id} {side}: {what}");
+    let located = |what: String| format!("Constraint {constraint_id} {}: {what}", side.name());
     let has_part = |id: &str| document.parts.iter().any(|part| part.id == id);
     let pairs = document
         .hardware

@@ -4,7 +4,7 @@ use crate::model::{
     Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Part, Pose2, Position,
     ProjectDoc, Vec2,
 };
-use endpoints::{EndpointFrame, FramedConstraint};
+use endpoints::{EndpointFrame, FramedConstraint, Side};
 use relation::ConstraintRelation;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -177,8 +177,8 @@ fn resolve_prepared(
             relation,
         } = record;
         claim_id(&mut ids, id)?;
-        let source = endpoints::resolve_endpoint(doc, id, "source", source)?;
-        let target = endpoints::resolve_endpoint(doc, id, "target", target)?;
+        let source = endpoints::resolve_endpoint(doc, id, Side::Source, source)?;
+        let target = endpoints::resolve_endpoint(doc, id, Side::Target, target)?;
         relation
             .validate()
             .map_err(|_| format!("Constraint {id} has a non-finite value"))?;

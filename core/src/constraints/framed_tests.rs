@@ -4,7 +4,7 @@
 //! t = (20, -7), so its independent position map is
 //! `F(x, y) = (20 - 0.8x - 0.6y, -7 - 0.6x + 0.8y)`.
 
-use super::endpoints::{ConstraintEndpoint, FramedConstraint};
+use super::endpoints::{ConstraintEndpoint, FramedConstraint, Side};
 use super::relation::ConstraintRelation;
 use super::resolve_prepared;
 use crate::model::{Constraint, Pose2, ProjectDoc, Vec2};
@@ -427,10 +427,11 @@ fn an_unrelated_part_is_left_alone() {
     assert_eq!(pose_of(&doc, "free/R"), before);
 }
 
-/// Every stored kind, compiled into a framed relation between plain parts, must place its
-/// target where the stored solver does, at several source headings and positions.
+/// Every stored kind, compiled into a framed relation between plain parts, places its target
+/// where the stored solver does, within 1e-9: the exact (bit-for-bit) pin for axis-aligned
+/// mirrors is `axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit` in relation.rs.
 #[test]
-fn stored_records_and_their_compiled_relations_place_targets_identically() {
+fn stored_records_and_their_compiled_relations_place_targets_within_tolerance() {
     use crate::model::{MirrorAxis, OffsetAxes};
 
     let stored = |kind: usize| match kind {
@@ -830,7 +831,7 @@ fn world_pose_by_endpoint(doc: &ProjectDoc) -> Pose2 {
     let endpoint = super::endpoints::resolve_endpoint(
         doc,
         "c",
-        "source",
+        Side::Source,
         &linked(COMPANION, MIRROR_COMPANION),
     )
     .unwrap();
