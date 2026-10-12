@@ -418,6 +418,93 @@ fn an_unrelated_part_is_left_alone() {
     assert_eq!(pose_of(&doc, "free/R"), before);
 }
 
+/// Every stored kind, compiled into a framed relation between plain parts, must place its
+/// target where the stored solver does, at several source headings and positions.
+#[test]
+fn stored_records_and_their_compiled_relations_place_targets_identically() {
+    use crate::model::{MirrorAxis, OffsetAxes};
+
+    let stored = |kind: usize| match kind {
+        0 => Constraint::offset(
+            OffsetAxes::Board,
+            "c".into(),
+            "alpha/S".into(),
+            "free/Q".into(),
+            Vec2 { x: 10.0, y: 2.0 },
+            5.0,
+        ),
+        1 => Constraint::offset(
+            OffsetAxes::Part,
+            "c".into(),
+            "alpha/S".into(),
+            "free/Q".into(),
+            Vec2 { x: 10.0, y: 2.0 },
+            5.0,
+        ),
+        2 => Constraint::Mirror {
+            id: "c".into(),
+            source_part_id: "alpha/S".into(),
+            target_part_id: "free/Q".into(),
+            axis: MirrorAxis::Vertical,
+            coordinate: -3.5,
+        },
+        _ => Constraint::Mirror {
+            id: "c".into(),
+            source_part_id: "alpha/S".into(),
+            target_part_id: "free/Q".into(),
+            axis: MirrorAxis::Horizontal,
+            coordinate: 4.25,
+        },
+    };
+    for kind in 0..4 {
+        for (x, y, heading) in [(2.0, 5.0, 25.0), (-7.5, 3.0, 200.0), (0.0, 0.0, -90.0)] {
+            let mut by_store = document((20.0, -7.0));
+            set_at(&mut by_store, "alpha/S", x, y);
+            by_store
+                .parts
+                .iter_mut()
+                .find(|part| part.id == "alpha/S")
+                .unwrap()
+                .pose
+                .rotation = heading;
+            let mut by_relation = by_store.clone();
+
+            by_store.constraints.push(stored(kind));
+            super::resolve(&mut by_store).unwrap();
+
+            let record = framed(
+                "c",
+                part_endpoint("alpha/S"),
+                part_endpoint("free/Q"),
+                ConstraintRelation::from_legacy(&stored(kind)),
+            );
+            resolve_prepared(&mut by_relation, &[], &[record]).unwrap();
+
+            let expected = pose_of(&by_store, "free/Q");
+            assert_pose(
+                &by_relation,
+                "free/Q",
+                expected.at.x,
+                expected.at.y,
+                expected.rotation,
+            );
+        }
+    }
+}
+
+/// Until the persisted arm and format 6 land together with 111, a framed record cannot be
+/// stored: an older reader must refuse it rather than drop it.
+#[test]
+fn a_framed_record_is_not_a_storable_constraint_kind_yet() {
+    let record = json!({
+        "kind": "framed", "id": "c",
+        "source": {"kind": "part", "partId": "a"},
+        "target": {"kind": "part", "partId": "b"},
+        "relation": {"kind": "mirror-line", "at": {"x": 0, "y": 0}, "angle": 10}
+    });
+    assert!(serde_json::from_value::<Constraint>(record).is_err());
+}
+
 #[test]
 fn a_pair_whose_construction_source_is_its_second_member_uses_the_inverse_map() {
     let mut doc = document((20.0, -7.0));

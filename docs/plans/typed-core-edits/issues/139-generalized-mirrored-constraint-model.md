@@ -45,3 +45,27 @@ Initial private math unit's ONE fresh Sol medium read-only review completed PASS
 Root completed those source gates and committed `4e55187d`, merged no-ff into integration at `5f6e9a12983448b3c3a72b694704ee939f47bfbf`. Unique `boardstudio-lane-mirror-constraints` analyzer succeeded in46s; wrapper exit1 reported the three dirty paths, while every reviewed/working/staged/indexed SHA256 matched exactly. Complete staged delta:50/50symbols,3files,MEDIUM,4affected private inverse flows; whole-index flow/call caps remain disclosed lower-bound coverage. Evidence: `/home/chris/.cache/boardstudio-baselines/ticket139-private-math/root-final-capture/{final-binding.json,graph-delta.json,staged.diff}` and `/tmp/boardstudio-139-private-math-index.log`. No new source edit or duplicate review. Coherent integration batch checks and integration index refresh remain pending alongside107; full139/111 remain open.
 
 Integration cohort107/139 PASS at0bcc292412: default repo/tooling/lint/build/test/browser859.9s, explicittypecheck25.5s,72presentationtests/0failures. Accepted four source hashes unchanged before/after. Durable `/home/chris/.cache/boardstudio-baselines/cohort-107-139/integration-result.json` binds both raw logs and source bytes. This is integrated preparation evidence, not full19/111activation acceptance.
+
+## Implementation progress (2026-10-12)
+
+Private, unactivated units on branch `worktree-agent-a1258f0b7ce0babff`, all in `core/src/constraints/`:
+
+- **143 handoff.** `ConstraintRelation::PartOffset` (offset turned by the source heading, inverse
+  recovered from the target heading) and `ConstraintRelation::from_legacy`, the one compiler for
+  Offset, PartOffset and H/V Mirror (vertical `c` is the line through `(c,0)` heading 90,
+  horizontal is `(0,c)` heading 0).
+- **Endpoint projection.** `EndpointFrame::{LinkedKey, LinkedCompanion}` with the design's
+  literal, stabiliser, duplicate and tweaked companion rules, forward and inverse, pinned by the
+  design table's oracles. The companion's key pose is a solver input; no document binding reaches
+  matrix keys or companions yet (only `Part` correspondences are bound).
+- **Prepared solver.** `resolve_prepared(doc, positions, framed)` is the one engine; stored
+  records keep their exact arithmetic and production calls it with no framed records. Endpoints
+  bind to the live pair (map direction from the construction source), targets are ordered by
+  authority, and Local/Omitted mirrors, stale correspondences, derived-mirror `Part` endpoints,
+  shared authorities, alias cycles and non-finite axes refuse atomically. A framed target that is a
+  matrix companion is refused, because companion classification reads stored constraints only.
+
+Not done, and why: the persisted `Constraint::Framed` arm and format 6 are by design landed with
+111; canonical-operation preparation (110/114/115), MakeLocal/Omit/Rejoin/Unlink endpoint
+transformations (109) and adapter/browser consumers cannot be built before those seams exist. No
+Acceptance box is ticked: bullets 2 and 5 are partly evidenced above, 1 and 3, 4, 6, 7 are open.
