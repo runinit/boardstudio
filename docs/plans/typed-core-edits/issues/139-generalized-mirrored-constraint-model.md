@@ -136,9 +136,27 @@ Deferred, with owners:
 
 - The `(parts, constraints, assemblies, resolved, visiting)` argument clump in the solver and
   the test-only accessors on `ConstraintEndpoint`: **114** (its "Inherits from 139").
-- The hand-formatted key id `format!("matrix/{}/r{}c{}", ...)` at `mirrored_half.rs:1316` and
-  `:1458`, which duplicates `matrix::member_id`: change it at the next edit of
-  `mirrored_half.rs`; 139 did not touch it to stay out of that file's other work.
+- ~~The hand-formatted key id at `mirrored_half.rs`~~: done in round 4. The three copies of
+  `format!("matrix/{}/r{}c{}", ...)` in `mirrored_half.rs` now call `matrix::member_id`; the
+  existing mirrored-half tests are the guard and nothing else changed.
 - The locked/conflicting-movement refusal fixture: **115**. The migration candidate and the
   framed serde round-trip: **111**.
+
+Round 4 (2026-10-12, review of round 3):
+
+- **Companion arithmetic is bit-pinned.** Round 3's single affine form had changed operation
+  order the framed record will persist (the tweaked heading order, a stabiliser's `-0.0`
+  heading, a zero shift folded into literal positions). `frame` keeps each rule's reviewed
+  order again (an explicit `Heading` and an optional shift), and
+  `companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed` asserts bit patterns
+  captured from 58e4f7bc4, forward and inverse, with negative zeros in the pose, key and tweak.
+  It was red first (stabiliser heading). 111 inherits the duty to keep it pinned.
+- **Parity test** uses `matrix::splay::rotate`; **key ids** use `matrix::member_id`.
+- **Repaired companion, not a real repair.** The parity test still sets the persisted
+  literal correspondence by hand: driving `materialise_missing_companions` needs the
+  `synthetic_half` fixture and a full `create`, which lives in `core/tests/support` and is not
+  reachable from a library unit test. The real repair is covered at the engine level by
+  `core/tests/mirrored_half.rs` (the missing-companion test asserts the durable
+  `literal-mirror` correspondence and the mapped mirror pose); this test pins what that
+  persisted correspondence then means to the endpoint rules.
 
