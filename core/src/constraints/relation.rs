@@ -26,7 +26,11 @@ pub(super) enum ConstraintRelation {
 impl ConstraintRelation {
     /// The relation a stored record states, so every record kind is compiled by one path.
     /// A vertical mirror at `c` is the line through `(c, 0)` heading 90; a horizontal one is
-    /// the line through `(0, c)` heading 0. Both give the legacy heading rules exactly.
+    /// the line through `(0, c)` heading 0. The heading rules are bit-equal to the stored ones;
+    /// the position is only equal to within rounding, because reflection through a unit normal
+    /// does not reproduce `2c - x` bit for bit and may nudge the coordinate along the axis.
+    /// Saved Mirror records therefore stay on the stored arithmetic: this compiled path must
+    /// not drive them until an exact pin exists.
     pub(super) fn from_legacy(constraint: &Constraint) -> Self {
         match constraint {
             Constraint::Offset {
@@ -372,7 +376,6 @@ mod tests {
 
     #[test]
     fn legacy_records_compile_to_relations_with_literal_results() {
-        let ids = |kind: &str| (kind.to_owned(), "a".to_owned(), "b".to_owned());
         let source = Pose2 {
             at: Vec2 { x: 2.0, y: 5.0 },
             rotation: 25.0,
@@ -380,9 +383,9 @@ mod tests {
         let cases = [
             (
                 Constraint::Offset {
-                    id: ids("o").0,
-                    source_part_id: ids("o").1,
-                    target_part_id: ids("o").2,
+                    id: "o".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
                     offset: Vec2 { x: 10.0, y: 2.0 },
                     rotation: 5.0,
                 },
@@ -394,9 +397,9 @@ mod tests {
             (
                 // Heading 25 turns (10, 2) to (10cos25 - 2sin25, 10sin25 + 2cos25).
                 Constraint::PartOffset {
-                    id: ids("p").0,
-                    source_part_id: ids("p").1,
-                    target_part_id: ids("p").2,
+                    id: "p".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
                     offset: Vec2 { x: 10.0, y: 2.0 },
                     rotation: 5.0,
                 },
@@ -410,9 +413,9 @@ mod tests {
             ),
             (
                 Constraint::Mirror {
-                    id: ids("v").0,
-                    source_part_id: ids("v").1,
-                    target_part_id: ids("v").2,
+                    id: "v".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
                     axis: MirrorAxis::Vertical,
                     coordinate: 10.0,
                 },
@@ -423,9 +426,9 @@ mod tests {
             ),
             (
                 Constraint::Mirror {
-                    id: ids("h").0,
-                    source_part_id: ids("h").1,
-                    target_part_id: ids("h").2,
+                    id: "h".into(),
+                    source_part_id: "a".into(),
+                    target_part_id: "b".into(),
                     axis: MirrorAxis::Horizontal,
                     coordinate: 3.0,
                 },
@@ -437,14 +440,35 @@ mod tests {
         ];
         for (constraint, expected) in cases {
             let relation = ConstraintRelation::from_legacy(&constraint);
-            let result = relation.apply(source).unwrap();
-            assert!(
-                (result.at.x - expected.at.x).abs() < 1e-9
-                    && (result.at.y - expected.at.y).abs() < 1e-9
-                    && (result.rotation - expected.rotation).abs() < 1e-9,
-                "{constraint:?} gave {result:?}"
-            );
+            assert_pose_close(relation.apply(source).unwrap(), expected);
         }
+    }
+
+    /// A vertical mirror's compiled position differs from the stored `2c - x` in the last
+    /// bits for ordinary values, and its heading does not. This is the hazard the
+    /// `from_legacy` note names; the day an exact pin exists this test is the one to flip.
+    #[test]
+    fn compiled_mirror_position_is_close_but_not_bit_equal_to_the_stored_rule() {
+        let relation = ConstraintRelation::from_legacy(&Constraint::Mirror {
+            id: "v".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            axis: MirrorAxis::Vertical,
+            coordinate: 26.377,
+        });
+        let source = Pose2 {
+            at: Vec2 {
+                x: -73.127,
+                y: 69.487,
+            },
+            rotation: 35.0,
+        };
+        let result = relation.apply(source).unwrap();
+        let stored_x = 2.0 * 26.377 - source.at.x;
+        assert!((result.at.x - stored_x).abs() < 1e-12);
+        assert_ne!(result.at.x, stored_x);
+        assert!((result.at.y - source.at.y).abs() < 1e-12);
+        assert_eq!(result.rotation, 180.0 - source.rotation);
     }
 
     #[test]
