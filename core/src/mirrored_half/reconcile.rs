@@ -1,4 +1,14 @@
 //! Forward reconciliation building blocks for already-corresponded mirrored values.
+//!
+//! Where things live (search the names; line numbers drift):
+//! - Types: `Projection`, `IndependentPartTransition`, `HostedTransition`, `MatrixStage`.
+//! - Fixed-membership view: `FixedMembershipView`, `build_fixed_membership_view`.
+//! - `reconcile` body, in order: baseline validators and `stage_matrix`; pair/halves lookup;
+//!   independent part Add/Remove; `overlay_state` and circuit pairs; hosted `AddCircuit`;
+//!   board/layout correspondences; module targets; final validation, `outlines::reconcile`.
+//! - Membership-transition kernel: `prepare_membership_transition_kernel`, `prepare_membership_transition`.
+//! - Child modules: `lifecycle` (lifecycle.rs), `outlines` (reconcile/outlines.rs).
+//! - `mod tests` at the bottom; outline tests in reconcile/outlines/tests.rs.
 
 use crate::model::{
     Matrix, MirroredCorrespondence, MirroredItemKind, Part, Pose2, ProjectDoc, Vec2,
