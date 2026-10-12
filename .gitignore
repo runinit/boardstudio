@@ -68,6 +68,8 @@ __pycache__/
 
 # Local experiments and generated frontend providers.
 .scratch/
+# Logs and hashes from scripts/mutation-check.py (and other local verification evidence).
+.evidence/
 core/pkg/
 web/assets/ergogen-models/
 web/assets/fixtures/

@@ -5,6 +5,8 @@
   check.py STEP...        run only the named steps
   check.py quick          the routine loop: only the checks that cover your changed files
   check.py quick --files F...   the same for the named files instead of the git diff
+  check.py test --update-native-baseline   after the tests pass, record the executed native test
+                          names as the new baseline (use when tests were removed or renamed on purpose)
   check.py --list         print every step and its commands
 
 Steps:
@@ -12,7 +14,9 @@ Steps:
   tooling*    tests for the Python build, content and CAD tooling
   build*      checked web build (providers without wasm-opt, unoptimized page)
   release     production web build: providers with wasm-opt and the optimized page
-  test*       native Rust tests (Core, application, footprints, renderer, CAD, web)
+  test*       native Rust tests (Core, application, footprints, renderer, CAD, web); fails when a
+              test named in scripts/check-native-tests-baseline.json no longer executes
+              (`check.py test --update-native-baseline` records a deliberate change)
   lint*       rustfmt and Clippy with warnings denied (workspace lints live in Cargo.toml)
   typecheck   WASM page compilation (the build step already compiles the page for WASM)
   browser*    mounted headless-browser tests and the real-browser CAD smoke gate; crate launches
@@ -36,6 +40,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_native_tests  # noqa: E402  (needs the scripts directory on sys.path)
+
 PY = "python3"
 # One workspace invocation compiles Core once for every crate's tests. Footprints runs
 # separately: its serde_json `preserve_order` dev-feature must not leak into Core's tests.
@@ -48,6 +54,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
@@ -132,16 +139,35 @@ def launch_order(command: Command) -> int:
     return 0 if any(f"web/crates/{crate}" in part for crate in HEAVY_CRATES for part in command) else 1
 
 
-def run_serial(command: Command, environment: dict[str, str]) -> tuple[float, int]:
+def is_cargo_test(command: Command) -> bool:
+    return command[:2] == ["cargo", "test"]
+
+
+def output_text(value: object) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def run_serial(command: Command, environment: dict[str, str],
+               captured: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
     print("$ " + shlex.join(command), flush=True)
     started = time.monotonic()
-    code = subprocess.run(command, cwd=ROOT, env=environment).returncode
+    if captured is not None and is_cargo_test(command):
+        # The native test-name guard reads this output; it is printed whole once the command ends.
+        done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True)
+        text = output_text(done.stdout)
+        print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+        captured.append((command, text))
+        code = done.returncode
+    else:
+        code = subprocess.run(command, cwd=ROOT, env=environment).returncode
     elapsed = time.monotonic() - started
     print(f"  ({elapsed:.1f}s)", flush=True)
     return elapsed, code
 
 
-def run_parallel(batch: list[Command], environment: dict[str, str]) -> tuple[float, list[Command]]:
+def run_parallel(batch: list[Command], environment: dict[str, str],
+                 captured: list[tuple[Command, str]] | None = None) -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each one's output whole and in order."""
     def launch(command: Command) -> tuple[int, str, float]:
         started = time.monotonic()
@@ -159,16 +185,19 @@ def run_parallel(batch: list[Command], environment: dict[str, str]) -> tuple[flo
             print("$ " + shlex.join(command), flush=True)
             print(output, end="" if output.endswith("\n") or not output else "\n", flush=True)
             print(f"  ({elapsed:.1f}s)", flush=True)
+            if captured is not None and is_cargo_test(command):
+                captured.append((command, output_text(output)))
             if code:
                 failed.append(command)
     return time.monotonic() - started, failed
 
 
-def run_commands(name: str, commands: list[Command], environment: dict[str, str]) -> tuple[float, bool]:
+def run_commands(name: str, commands: list[Command], environment: dict[str, str],
+                 captured: list[tuple[Command, str]] | None = None) -> tuple[float, bool]:
     """Runs a step's commands; consecutive crate launches in `browser`, and the independent
-    workspaces of `test`, run together."""
+    workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
-        elapsed, failed = run_parallel(commands, environment)
+        elapsed, failed = run_parallel(commands, environment, captured)
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
@@ -188,7 +217,7 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 return total, False
             index = end
             continue
-        elapsed, code = run_serial(command, environment)
+        elapsed, code = run_serial(command, environment, captured)
         total += elapsed
         if code:
             return total, False
@@ -196,12 +225,23 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     return total, True
 
 
-def run(names: list[str]) -> int:
-    return run_plan([(name, STEPS[name][1]) for name in names])
+def run(names: list[str], update_native_baseline: bool = False) -> int:
+    return run_plan([(name, STEPS[name][1]) for name in names], update_native_baseline)
 
 
-def run_plan(plan: list[tuple[str, list[Command]]]) -> int:
+def guard_native_tests(commands: list[Command], captured: list[tuple[Command, str]],
+                       update: bool) -> tuple[bool, bool]:
+    """The test-name guard over a passing `test` step. Returns (ok, baseline_written)."""
+    if not captured:
+        return True, False
+    # Only a step that ran the whole workspace plus footprints can say a baselined binary vanished.
+    full = all(command in commands for command in CARGO_TESTS)
+    return check_native_tests.verify([text for _, text in captured], full=full, update=update)
+
+
+def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False) -> int:
     names = [name for name, _ in plan]
+    baseline_written = False
     totals: dict[str, float] = {}
     for name, commands in plan:
         print(f"== {name}", flush=True)
@@ -214,11 +254,19 @@ def run_plan(plan: list[tuple[str, list[Command]]]) -> int:
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
             environment.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
-        elapsed, passed = run_commands(name, commands, environment)
+        captured: list[tuple[Command, str]] | None = [] if name == "test" else None
+        elapsed, passed = run_commands(name, commands, environment, captured)
         totals[name] = totals.get(name, 0.0) + elapsed
+        if passed and captured:
+            passed, written = guard_native_tests(commands, captured, update_native_baseline)
+            baseline_written = baseline_written or written
         if not passed:
             print(f"check: step '{name}' failed", file=sys.stderr)
             return 1
+    if update_native_baseline and not baseline_written:
+        print("check: --update-native-baseline: no native `cargo test` ran, so the baseline is unchanged",
+              file=sys.stderr)
+        return 1
     print("check: step times: " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in totals.items())
           + f", total {sum(totals.values()):.1f}s")
     print("check: all steps passed: " + ", ".join(dict.fromkeys(names)))
@@ -257,7 +305,7 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
     return plan
 
 
-def quick(files: list[str] | None) -> int:
+def quick(files: list[str] | None, update_native_baseline: bool = False) -> int:
     import check_quick
 
     chosen = files if files else check_quick.changed_files(ROOT)
@@ -270,7 +318,7 @@ def quick(files: list[str] | None) -> int:
         print(f"quick: {path}: not mapped to a crate, so every Rust check applies")
     plan = quick_plan(selection, packages)
     print("quick: running " + ", ".join(dict.fromkeys(name for name, _ in plan)))
-    return run_plan(plan)
+    return run_plan(plan, update_native_baseline)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -279,9 +327,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list", action="store_true", help="print every step and its commands")
     parser.add_argument("--files", nargs="+", metavar="FILE",
                         help="with `quick`: the changed files, instead of the git diff against main")
+    parser.add_argument("--update-native-baseline", action="store_true",
+                        help="after the native tests pass, record the executed test names in "
+                        "scripts/check-native-tests-baseline.json (for tests removed or renamed on purpose)")
     args = parser.parse_args(argv)
+    if args.update_native_baseline and args.steps and args.steps != ["quick"] and "test" not in args.steps:
+        parser.error("--update-native-baseline applies to the `test` step (or `quick`, or a full check)")
     if args.steps == ["quick"]:
-        return quick(args.files)
+        return quick(args.files, args.update_native_baseline)
     if args.files:
         parser.error("--files applies to `quick` only")
     unknown = [name for name in args.steps if name not in STEPS]
@@ -294,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("  " + shlex.join(command))
         print("quick  (changed files only; see `check.py quick`)")
         return 0
-    return run(args.steps or list(DEFAULT))
+    return run(args.steps or list(DEFAULT), args.update_native_baseline)
 
 
 if __name__ == "__main__":
