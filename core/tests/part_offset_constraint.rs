@@ -396,7 +396,7 @@ fn converting_a_part_offset_to_board_axes_moves_no_part_and_keeps_the_id() {
     assert_eq!(id, "held-key");
     // (1, -4) in the key's frame is (2.866, -2.964) on board axes at a 30 degree turn.
     assert!(
-        (offset.x - 2.8660254037844386).abs() < 1e-9
+        (offset.x - 2.866_025_403_784_439).abs() < 1e-9
             && (offset.y - -2.9641016151377544).abs() < 1e-9
             && rotation.abs() < 1e-9,
         "offset {offset:?} turn {rotation}"
