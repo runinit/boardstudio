@@ -27,9 +27,9 @@ mod tests;
 use super::derive;
 use crate::mechanical::pair;
 use crate::model::{
-    EditOperation, MirroredCompanionMode, MirroredCompanionTweak, MirroredCorrespondence,
-    MirroredExceptionState, MirroredHalves, MirroredItemKind, Part, Pose2, Position, ProjectDoc,
-    Vec2,
+    EditOperation, MatrixSplayChange, MirroredCompanionMode, MirroredCompanionTweak,
+    MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind, Part, Pose2,
+    Position, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -156,6 +156,80 @@ pub(super) fn canonicalize(
             canonical.translated = translated;
             canonical.operation = EditOperation::RemoveParts { ids };
         }
+        EditOperation::RemoveMatrix { id } => {
+            let (id, translated) = links.matrix_id(id)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::RemoveMatrix { id };
+        }
+        EditOperation::RemoveMatrixCells { matrix_id, cells } => {
+            let (matrix_id, translated) = links.matrix_id(matrix_id)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::RemoveMatrixCells {
+                matrix_id,
+                cells: cells.clone(),
+            };
+        }
+        EditOperation::RemoveMatrixRow { matrix_id, row } => {
+            let (matrix_id, translated) = links.matrix_id(matrix_id)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::RemoveMatrixRow {
+                matrix_id,
+                row: *row,
+            };
+        }
+        EditOperation::RemoveMatrixColumn { matrix_id, column } => {
+            let (matrix_id, translated) = links.matrix_id(matrix_id)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::RemoveMatrixColumn {
+                matrix_id,
+                column: *column,
+            };
+        }
+        EditOperation::SetMatrixCellsEnabled { cells, enabled } => {
+            let (cells, translated) = links.selected_cells(cells)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::SetMatrixCellsEnabled {
+                cells,
+                enabled: *enabled,
+            };
+        }
+        EditOperation::RemoveSelectedMatrixCells { cells } => {
+            let (cells, translated) = links.selected_cells(cells)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::RemoveSelectedMatrixCells { cells };
+        }
+        EditOperation::SetMatrixSplay {
+            matrix_id,
+            column,
+            change,
+        } => {
+            let (id, mapping) = links.matrix_frame(matrix_id)?;
+            canonical.translated = mapping.is_some();
+            // An origin is a world point, so it takes the pair's inverse. An angle is a value
+            // of the matrix's own frame, which the mirror shares with the source.
+            let change = match (change, mapping) {
+                (MatrixSplayChange::Origin { world: Some(world) }, Some(mapping)) => {
+                    MatrixSplayChange::Origin {
+                        world: Some(pair::inverse(mapping, *world)),
+                    }
+                }
+                (change, _) => change.clone(),
+            };
+            canonical.operation = EditOperation::SetMatrixSplay {
+                matrix_id: id,
+                column: *column,
+                change,
+            };
+        }
+        EditOperation::SetMatrixPlacement { matrix_id, change } => {
+            // Every placement value is in the matrix's own frame, shared with the source.
+            let (id, translated) = links.matrix_id(matrix_id)?;
+            canonical.translated = translated;
+            canonical.operation = EditOperation::SetMatrixPlacement {
+                matrix_id: id,
+                change: change.clone(),
+            };
+        }
         _ => return Err("This matrix request is not translated yet".into()),
     }
     Ok(canonical)
@@ -281,6 +355,70 @@ impl<'a> Links<'a> {
                 Ok(Some(link))
             }
         }
+    }
+
+    // ---- matrices --------------------------------------------------------------------------
+
+    /// The matrix a request names, as the request must execute it, with the pair map when the
+    /// name was a linked mirror's. A matrix reached by a native pair and a legacy layout link
+    /// at once is refused; so is an Omitted mirror matrix.
+    fn matrix_frame(&self, id: &str) -> Result<(String, Option<Pose2>), String> {
+        let native = self.pairs.iter().any(|pair| {
+            pair.halves.correspondences.iter().any(|correspondence| {
+                correspondence.kind == MirroredItemKind::Matrix
+                    && (correspondence.source_id == id || correspondence.mirror_id == id)
+            })
+        });
+        if native && crate::matrix::layout::partner(self.document, id).is_some() {
+            return Err(format!(
+                "The matrix {id:?} is linked by a native mirrored pair and by a legacy layout \
+                 mirror link; unlink one of them before editing it"
+            ));
+        }
+        match self.target(MirroredItemKind::Matrix, id)? {
+            Target::NotMirror | Target::Local => Ok((id.to_owned(), None)),
+            Target::Omitted => Err(Self::omitted(id)),
+            Target::Linked(link) => Ok((
+                link.correspondence.source_id.clone(),
+                Some(link.pair.mapping),
+            )),
+        }
+    }
+
+    fn matrix_id(&self, id: &str) -> Result<(String, bool), String> {
+        let (id, mapping) = self.matrix_frame(id)?;
+        Ok((id, mapping.is_some()))
+    }
+
+    /// Per-matrix cell selections. Entries for both halves of one link are one set of
+    /// coordinates on the source matrix, so a grouped selection cannot run the action twice.
+    fn selected_cells(
+        &self,
+        cells: &BTreeMap<String, Vec<(u32, u32)>>,
+    ) -> Result<(BTreeMap<String, Vec<(u32, u32)>>, bool), String> {
+        let mut groups: BTreeMap<String, Vec<&Vec<(u32, u32)>>> = BTreeMap::new();
+        let mut translated = false;
+        for (id, selection) in cells {
+            let (canonical, was_mirror) = self.matrix_id(id)?;
+            translated |= was_mirror;
+            groups.entry(canonical).or_default().push(selection);
+        }
+        let merged = groups
+            .into_iter()
+            .map(|(id, selections)| {
+                let cells = match selections.as_slice() {
+                    [only] => (*only).clone(),
+                    many => many
+                        .iter()
+                        .flat_map(|selection| selection.iter().copied())
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .collect(),
+                };
+                (id, cells)
+            })
+            .collect();
+        Ok((merged, translated))
     }
 
     // ---- MoveParts -------------------------------------------------------------------------

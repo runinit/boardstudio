@@ -504,3 +504,147 @@ fn a_stabiliser_keeps_the_literal_position_in_every_mode() {
         moved_source_diode((10.0, -5.0)),
     );
 }
+
+// ---- matrix parameters and structure ---------------------------------------------------------
+
+fn with_legacy_link(mut document: ProjectDoc) -> ProjectDoc {
+    document.layouts = serde_json::from_value(json!([
+        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixId": "left-keys",
+         "partIds": [], "mirrorLink": {"sourceId": "legacy-b", "axisX": 0}},
+        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixId": "right-keys", "partIds": []}
+    ]))
+    .unwrap();
+    document
+}
+
+fn with_matrix_state(mut document: ProjectDoc, state: &str) -> ProjectDoc {
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.exceptions.push(
+        serde_json::from_value(json!({"kind": "matrix", "mirrorId": "right-keys", "state": state}))
+            .unwrap(),
+    );
+    document
+}
+
+#[test]
+fn matrix_structure_requests_on_the_mirror_name_the_source_matrix() {
+    for (request, expected) in [
+        (
+            json!({"kind": "remove-matrix", "id": "right-keys"}),
+            json!({"kind": "remove-matrix", "id": "left-keys"}),
+        ),
+        (
+            json!({"kind": "remove-matrix-cells", "matrixId": "right-keys", "cells": [[0, 1]]}),
+            json!({"kind": "remove-matrix-cells", "matrixId": "left-keys", "cells": [[0, 1]]}),
+        ),
+        (
+            json!({"kind": "remove-matrix-row", "matrixId": "right-keys", "row": 0}),
+            json!({"kind": "remove-matrix-row", "matrixId": "left-keys", "row": 0}),
+        ),
+        (
+            json!({"kind": "remove-matrix-column", "matrixId": "right-keys", "column": 1}),
+            json!({"kind": "remove-matrix-column", "matrixId": "left-keys", "column": 1}),
+        ),
+    ] {
+        expect_operation(&fixture(), request, expected);
+    }
+}
+
+#[test]
+fn selected_cell_requests_move_to_the_source_key_and_union_both_halves() {
+    for kind in ["set-matrix-cells-enabled", "remove-selected-matrix-cells"] {
+        let build = |cells: Value| {
+            let mut request = json!({"kind": kind, "cells": cells});
+            if kind == "set-matrix-cells-enabled" {
+                request["enabled"] = json!(false);
+            }
+            request
+        };
+        // The mirror's list is kept as written when nothing else names the link.
+        expect_operation(
+            &fixture(),
+            build(json!({"right-keys": [[0, 1], [0, 0]], "elsewhere": [[2, 2]]})),
+            build(json!({"left-keys": [[0, 1], [0, 0]], "elsewhere": [[2, 2]]})),
+        );
+        // Both halves of one link are one set of coordinates, ordered and without repeats.
+        expect_operation(
+            &fixture(),
+            build(json!({"right-keys": [[0, 1]], "left-keys": [[0, 1], [0, 0]]})),
+            build(json!({"left-keys": [[0, 0], [0, 1]]})),
+        );
+    }
+}
+
+#[test]
+fn matrix_splay_origin_is_a_world_point_and_angles_are_matrix_frame_values() {
+    expect_operation(
+        &rotated_fixture(),
+        json!({"kind": "set-matrix-splay", "matrixId": "right-keys", "column": 1,
+            "change": {"kind": "origin", "world": {"x": 90, "y": -50}}}),
+        json!({"kind": "set-matrix-splay", "matrixId": "left-keys", "column": 1,
+            "change": {"kind": "origin", "world": {"x": 20, "y": 10}}}),
+    );
+    expect_operation(
+        &fixture(),
+        json!({"kind": "set-matrix-splay", "matrixId": "right-keys", "column": 1,
+            "change": {"kind": "origin", "world": null}}),
+        json!({"kind": "set-matrix-splay", "matrixId": "left-keys", "column": 1,
+            "change": {"kind": "origin", "world": null}}),
+    );
+    expect_operation(
+        &rotated_fixture(),
+        json!({"kind": "set-matrix-splay", "matrixId": "right-keys", "column": 0,
+            "change": {"kind": "angle", "angle": 7.5, "affect": "following"}}),
+        json!({"kind": "set-matrix-splay", "matrixId": "left-keys", "column": 0,
+            "change": {"kind": "angle", "angle": 7.5, "affect": "following"}}),
+    );
+}
+
+#[test]
+fn matrix_placement_values_are_matrix_frame_and_only_the_id_changes() {
+    expect_operation(
+        &rotated_fixture(),
+        json!({"kind": "set-matrix-placement", "matrixId": "right-keys",
+            "change": {"kind": "column-offset", "column": 1, "value": {"x": 2.5, "y": -1}}}),
+        json!({"kind": "set-matrix-placement", "matrixId": "left-keys",
+            "change": {"kind": "column-offset", "column": 1, "value": {"x": 2.5, "y": -1}}}),
+    );
+}
+
+#[test]
+fn source_and_local_matrix_requests_execute_as_written() {
+    let request = json!({"kind": "remove-matrix-row", "matrixId": "left-keys", "row": 0});
+    expect_operation(&fixture(), request.clone(), request);
+    let local = json!({"kind": "remove-matrix", "id": "right-keys"});
+    expect_operation(&with_matrix_state(fixture(), "local"), local.clone(), local);
+}
+
+#[test]
+fn an_omitted_matrix_is_refused() {
+    let message = refusal(
+        &with_matrix_state(fixture(), "omitted"),
+        json!({"kind": "remove-matrix", "id": "right-keys"}),
+    );
+    assert!(
+        message.contains("right-keys") && message.contains("omitted"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_matrix_linked_natively_and_by_a_legacy_layout_is_refused_from_either_half() {
+    let document = with_legacy_link(fixture());
+    for matrix in ["left-keys", "right-keys"] {
+        let message = refusal(
+            &document,
+            json!({"kind": "remove-matrix-row", "matrixId": matrix, "row": 0}),
+        );
+        assert!(
+            message.contains("legacy") && message.contains(matrix),
+            "{message}"
+        );
+    }
+}
