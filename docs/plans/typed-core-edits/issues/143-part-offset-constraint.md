@@ -1,6 +1,6 @@
 # 143: A part-offset constraint holds a part along its source part's axes
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Related: [139](139-generalized-mirrored-constraint-model.md), [144](144-set-matrix-carries-authored-companions.md)

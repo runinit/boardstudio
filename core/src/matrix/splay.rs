@@ -1,7 +1,7 @@
 use super::{location, valid_projection_matrix};
 use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, Vec2};
 
-pub(super) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
+pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
     let angle = degrees.to_radians();
     let (sin, cos) = angle.sin_cos();
     let x = point.x - pivot.x;

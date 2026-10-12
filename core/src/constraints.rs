@@ -1,6 +1,7 @@
 use crate::matrix::layout::AssemblyPlacement;
+use crate::matrix::splay::rotate;
 use crate::model::{
-    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Pose2, Position,
+    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Part, Pose2, Position,
     ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -163,6 +164,15 @@ fn follow_pose(source: Pose2, local: Pose2) -> Pose2 {
     }
 }
 
+/// The pose of the part a constraint is measured from.
+pub(crate) fn source_pose(parts: &[Part], constraint: &Constraint) -> Result<Pose2, String> {
+    parts
+        .iter()
+        .find(|part| part.id == constraint.source())
+        .map(|part| part.pose)
+        .ok_or_else(|| format!("Constraint {} source is missing", constraint.id()))
+}
+
 /// Moves a constraint's stored numbers so its target lands `delta` away from where it was
 /// and turns `turn` degrees further. An `offset` stores board-axis numbers, so the drag is
 /// added as it is. A `part-offset` stores source-axis numbers, so the drag is first turned
@@ -179,9 +189,9 @@ pub(crate) fn retune_offset(constraint: &mut Constraint, source: Pose2, delta: V
         Constraint::PartOffset {
             offset, rotation, ..
         } => {
-            let (sin, cos) = (-source.rotation).to_radians().sin_cos();
-            offset.x += delta.x * cos - delta.y * sin;
-            offset.y += delta.x * sin + delta.y * cos;
+            let local = rotate(delta, -source.rotation, Vec2::default());
+            offset.x += local.x;
+            offset.y += local.y;
             *rotation += turn;
         }
         Constraint::Mirror { .. } => {
@@ -203,18 +213,11 @@ pub(crate) fn convert_offset(
         .iter()
         .position(|constraint| constraint.id() == constraint_id)
         .ok_or_else(|| format!("Constraint {constraint_id} does not exist"))?;
-    let source_id = doc.constraints[index].source().to_string();
-    let source = doc
-        .parts
-        .iter()
-        .find(|part| part.id == source_id)
-        .ok_or_else(|| format!("Constraint {constraint_id} references a missing part"))?
-        .pose;
-    let (sin, cos) = source.rotation.to_radians().sin_cos();
-    let turn = |v: Vec2, sin: f64, cos: f64| Vec2 {
-        x: v.x * cos - v.y * sin,
-        y: v.x * sin + v.y * cos,
-    };
+    let source = source_pose(&doc.parts, &doc.constraints[index])?;
+    let target = doc.constraints[index].target().to_string();
+    if !doc.parts.iter().any(|part| part.id == target) {
+        return Err(format!("Constraint {constraint_id} target is missing"));
+    }
     let next = match (doc.constraints[index].clone(), to) {
         (
             Constraint::Offset {
@@ -229,7 +232,7 @@ pub(crate) fn convert_offset(
             id,
             source_part_id,
             target_part_id,
-            offset: turn(offset, -sin, cos),
+            offset: rotate(offset, -source.rotation, Vec2::default()),
             rotation,
         },
         (
@@ -245,7 +248,7 @@ pub(crate) fn convert_offset(
             id,
             source_part_id,
             target_part_id,
-            offset: turn(offset, sin, cos),
+            offset: rotate(offset, source.rotation, Vec2::default()),
             rotation,
         },
         (current @ (Constraint::Offset { .. } | Constraint::PartOffset { .. }), _) => current,

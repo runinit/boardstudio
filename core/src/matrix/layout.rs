@@ -741,12 +741,7 @@ fn set_component_pose(
                 "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
             ));
         }
-        let source = doc
-            .parts
-            .iter()
-            .find(|part| part.id == constraint.source())
-            .ok_or("Mirrored component source is missing")?
-            .pose;
+        let source = crate::constraints::source_pose(&doc.parts, constraint)?;
         crate::constraints::retune_offset(
             constraint,
             source,
@@ -899,6 +894,11 @@ pub(crate) fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
             clear_component_link(part);
         }
     }
+}
+
+/// Whether `id` is a matrix key: the primary member of a cell, never a companion of one.
+pub fn is_matrix_key(doc: &ProjectDoc, id: &str) -> bool {
+    primary_member(doc, id).is_some()
 }
 
 fn primary_member<'a>(doc: &'a ProjectDoc, id: &str) -> Option<(&'a Matrix, u32, u32)> {

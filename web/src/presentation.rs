@@ -1319,10 +1319,7 @@ fn layout_component_inspector_projection(
                 .map(|part| inspector::BoardPartChoice {
                     id: part.id.clone(),
                     reference: part.reference.clone(),
-                    matrix_key: document
-                        .matrices
-                        .iter()
-                        .any(|matrix| matrix.part_ids.contains(&part.id)),
+                    matrix_key: boardstudio_core::is_matrix_key(&document, &part.id),
                 })
         })
         .collect();

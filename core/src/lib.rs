@@ -14,6 +14,7 @@ mod inputs;
 mod keycaps;
 mod keymap;
 mod matrix;
+pub use matrix::layout::is_matrix_key;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;
@@ -1115,7 +1116,6 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
             | EditOperation::SetConstraint { .. }
-            | EditOperation::ConvertOffsetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
     )
@@ -1244,13 +1244,8 @@ fn apply(
                             position.id
                         ));
                     }
-                    let source = doc
-                        .parts
-                        .iter()
-                        .find(|part| part.id == constraint.source())
-                        .ok_or("Constraint source is missing")?
-                        .pose;
-                    crate::constraints::retune_offset(constraint, source, delta, 0.0);
+                    let source = constraints::source_pose(&doc.parts, constraint)?;
+                    constraints::retune_offset(constraint, source, delta, 0.0);
                     changed.push(position.id.clone());
                     continue;
                 }

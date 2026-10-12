@@ -128,6 +128,19 @@ pub(crate) fn offset_numbers(constraint: &Constraint) -> Option<(Vec2, f64)> {
     }
 }
 
+/// The Offset X, Offset Y and rotation drafts a constraint shows: its stored numbers for
+/// either axes, or zeros when there is no offset constraint.
+pub(crate) fn offset_drafts(constraint: Option<&Constraint>) -> (String, String, String) {
+    match constraint.and_then(offset_numbers) {
+        Some((offset, rotation)) => (
+            offset.x.to_string(),
+            offset.y.to_string(),
+            rotation.to_string(),
+        ),
+        None => ("0".to_owned(), "0".to_owned(), "0".to_owned()),
+    }
+}
+
 /// The constraint values the Save button submits for the chosen axes.
 pub(crate) fn offset_values(
     axes: OffsetAxes,
@@ -251,7 +264,9 @@ fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
 
 #[cfg(test)]
 mod offset_axes_tests {
-    use super::{default_offset_axes, offset_axes_of, offset_numbers, offset_values};
+    use super::{
+        default_offset_axes, offset_axes_of, offset_drafts, offset_numbers, offset_values,
+    };
     use crate::presentation::inspector::LayoutConstraintValues;
     use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
 
@@ -296,6 +311,17 @@ mod offset_axes_tests {
         assert_eq!(offset_numbers(&board), Some(numbers));
         assert_eq!(offset_numbers(&part), Some(numbers));
         assert_eq!(offset_numbers(&mirror), None);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn the_drafts_show_the_saved_numbers_for_either_offset_kind() {
+        let (board, part, mirror) = offsets();
+        let saved = ("1".to_owned(), "-4".to_owned(), "5".to_owned());
+        assert_eq!(offset_drafts(Some(&board)), saved);
+        assert_eq!(offset_drafts(Some(&part)), saved);
+        let zero = ("0".to_owned(), "0".to_owned(), "0".to_owned());
+        assert_eq!(offset_drafts(Some(&mirror)), zero);
+        assert_eq!(offset_drafts(None), zero);
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -379,48 +405,24 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         })
         .unwrap_or_default();
     let mut source_part_id = use_signal(|| initial_source.clone());
-    let initial_source_is_key = projection
+    let matrix_key_ids: Vec<String> = projection
         .board_parts
         .iter()
-        .find(|part| part.id == initial_source)
-        .is_some_and(|part| part.matrix_key);
+        .filter(|part| part.matrix_key)
+        .map(|part| part.id.clone())
+        .collect();
+    let initial_default_axes = default_offset_axes(matrix_key_ids.contains(&initial_source));
     let mut offset_axes = use_signal(|| {
         projection
             .active_constraint
             .as_ref()
             .and_then(offset_axes_of)
-            .unwrap_or_else(|| default_offset_axes(initial_source_is_key))
+            .unwrap_or(initial_default_axes)
     });
-    let mut offset_x = use_signal(|| {
-        match projection
-            .active_constraint
-            .as_ref()
-            .and_then(offset_numbers)
-        {
-            Some((offset, _)) => offset.x.to_string(),
-            None => "0".to_owned(),
-        }
-    });
-    let mut offset_y = use_signal(|| {
-        match projection
-            .active_constraint
-            .as_ref()
-            .and_then(offset_numbers)
-        {
-            Some((offset, _)) => offset.y.to_string(),
-            None => "0".to_owned(),
-        }
-    });
-    let mut rotation = use_signal(|| {
-        match projection
-            .active_constraint
-            .as_ref()
-            .and_then(offset_numbers)
-        {
-            Some((_, rotation)) => rotation.to_string(),
-            None => "0".to_owned(),
-        }
-    });
+    let drafts = offset_drafts(projection.active_constraint.as_ref());
+    let mut offset_x = use_signal(|| drafts.0.clone());
+    let mut offset_y = use_signal(|| drafts.1.clone());
+    let mut rotation = use_signal(|| drafts.2.clone());
     let mut mirror_axis = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { axis, .. }) => axis.clone(),
         _ => MirrorAxis::Vertical,
@@ -548,22 +550,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 })
                 .unwrap_or_default();
             source_part_id.set(source);
-            match constraint {
-                Some(Constraint::Offset {
-                    offset,
-                    rotation: degrees,
-                    ..
-                }) => {
-                    offset_x.set(offset.x.to_string());
-                    offset_y.set(offset.y.to_string());
-                    rotation.set(degrees.to_string());
-                }
-                _ => {
-                    offset_x.set("0".to_owned());
-                    offset_y.set("0".to_owned());
-                    rotation.set("0".to_owned());
-                }
-            }
+            let (x, y, degrees) = offset_drafts(constraint.as_ref());
+            offset_x.set(x);
+            offset_y.set(y);
+            rotation.set(degrees);
             match constraint {
                 Some(Constraint::Mirror {
                     axis, coordinate, ..
@@ -612,22 +602,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 },
             );
             source_part_id.set(initial_source.clone());
-            match initial_constraint.as_ref() {
-                Some(Constraint::Offset {
-                    offset,
-                    rotation: degrees,
-                    ..
-                }) => {
-                    offset_x.set(offset.x.to_string());
-                    offset_y.set(offset.y.to_string());
-                    rotation.set(degrees.to_string());
-                }
-                _ => {
-                    offset_x.set("0".to_owned());
-                    offset_y.set("0".to_owned());
-                    rotation.set("0".to_owned());
-                }
-            }
+            let (x, y, degrees) = offset_drafts(initial_constraint.as_ref());
+            offset_x.set(x);
+            offset_y.set(y);
+            rotation.set(degrees);
             match initial_constraint.as_ref() {
                 Some(Constraint::Mirror {
                     axis, coordinate, ..
@@ -750,12 +728,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         })
     };
     let has_active_constraint = projection.active_constraint.is_some();
-    let matrix_key_ids: Vec<String> = projection
-        .board_parts
-        .iter()
-        .filter(|part| part.matrix_key)
-        .map(|part| part.id.clone())
-        .collect();
     // A choice on a saved offset converts it at once; a new one only sets the default.
     let mut choose_offset_axes = {
         let latest_capture = latest_capture;

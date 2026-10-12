@@ -666,3 +666,11 @@ fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() 
         "offset {offset:?} is not the mirrored drag in the key's axes"
     );
 }
+
+#[test]
+fn a_cell_key_is_a_matrix_key_and_its_companion_is_not() {
+    let (_, doc) = fixture(held_by_part_axes);
+    assert!(boardstudio_core::is_matrix_key(&doc, KEY));
+    assert!(!boardstudio_core::is_matrix_key(&doc, HELD));
+    assert!(!boardstudio_core::is_matrix_key(&doc, "no-such-part"));
+}
