@@ -1,6 +1,6 @@
 # 108: Forward reconciliation of outlines, versions and assemblies
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [107](107-reconcile-mirrored-hosted-electrical-items.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -38,11 +38,11 @@ path/symbol and obtain root's ownership assignment; no broad outline subsystem r
 
 ## Test-first and acceptance
 
-- [ ] Direct-kernel tests first fail for source outline/version/anchor changes not propagating.
-- [ ] Axis and rotated-map cases preserve stable identities and correctly map independent-part
+- [x] Direct-kernel tests first fail for source outline/version/anchor changes not propagating.
+- [x] Axis and rotated-map cases preserve stable identities and correctly map independent-part
       anchors, protected gaps and linked/fixed version ownership.
-- [ ] Removal cleans dependent references while unrelated versions/choices remain intact.
-- [ ] Assemblies remain consistent, no closure parts are copied, and a second pass is a no-op.
+- [x] Removal cleans dependent references while unrelated versions/choices remain intact.
+- [x] Assemblies remain consistent, no closure parts are copied, and a second pass is a no-op.
 
 Independent verifier: mutation-check anchored geometry mapping, stable version/reference
 mapping and closure-copy exclusion. Engine ordering and Open repair remain 111's responsibility.
@@ -57,10 +57,24 @@ E completed141's bounded source trace: symmetric fixture/profile/pose/control ma
 
 141 user clarification supersedes any claim that the separate-outline observation reproduces their issue: the report involves ONE outline around BOTH halves. E is preparing that actual case. Preserve the separate-outline creation-contour evidence as related diagnosis only; it does not settle single-outline gap semantics or authorize a coupling/generator fix.
 
-## Current bounded execution
+## Outcome
 
-107resolved/integrated; B clean synced6041b95b before SAME Luna high writer prepared108. Lease: NEW `core/src/mirrored_half/reconcile/outlines.rs` and `outlines/tests.rs`, narrow private module declaration/wiring in reconcile.rs only; no extraction/reformat of accepted106/107 or shared-helper writes. Five source-only cases cover rotated anchored geometry/settings/protection/version/provenance/fullrepeat, closure exclusion, Local/Omitted isolation with linked-neighbor update, mapped worldRect, and source-version removal preserving unrelated target choice/pair bytes. Inert private candidate seam awaits a meaningful compiled behavioral RED; fixture-validation failure is not that evidence. Three original mutation guarantees remain. Draft/source binding: `/home/chris/.cache/boardstudio-baselines/ticket108-outlines/implementation/`. Root107/139 integration cohort passed; RED/fix/GREEN/affected-check cycle follows short root capture windows. No108runtime or fix acceptance yet.
+The forward projection is `core/src/mirrored_half/reconcile/outlines.rs`, called from `reconcile`
+and left unactivated. Its direct-kernel tests are in `reconcile/outlines/tests.rs` (14 tests).
 
-## Comments
+- Anchored geometry, settings, protected gaps, bridges and provenance project with stable
+  identities, literal expectations, and a second pass that changes nothing.
+- The shared fixture carries a 90 degree rotated map; `axis_map_projects_world_geometry_...`
+  covers the axis (0 degree) map; independent-part anchors use the full heading rule.
+- Version and outline removal retire only the exact mapped target; unrelated versions, Local
+  and Omitted exceptions and target-owned choices survive.
+- Document-level assembly definitions stay shared; mapped bridge references stay valid;
+  `case-closure/*` part ids are never copied.
+- Mutation check (`scripts/mutation-check.py`, filter `outlines`): anchored polygon points,
+  anchored control points, version identity, provenance version id and closure exclusion each
+  failed at least one test (5 killed, 0 survived).
 
-- Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.
+Not in this ticket: a source outline or version with no correspondence is refused atomically
+(an existing test pins it); minting new mirror correspondences belongs to the membership
+slices, and engine ordering and Open repair to 111. The mirrored gap-control Inspector
+behaviour stays with 141.
