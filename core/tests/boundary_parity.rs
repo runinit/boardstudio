@@ -50,3 +50,26 @@ fn native_transport_reproduces_the_golden_transcript() {
     .unwrap();
     boundary::assert_golden(&transcript, &golden);
 }
+
+#[test]
+fn a_mismatch_inside_an_array_names_the_entry_by_its_id() {
+    let message = |actual: Value, expected: Value| {
+        let panic = std::panic::catch_unwind(|| boundary::equivalent(&actual, &expected, "core"))
+            .expect_err("the values differ");
+        panic
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| panic.downcast_ref::<&str>().map(|text| text.to_string()))
+            .expect("panic message")
+    };
+    let got = serde_json::json!([{"id": "open", "n": 1}, {"id": "splay-preview", "n": 3}]);
+    let want = serde_json::json!([{"id": "open", "n": 1}, {"id": "splay-preview", "n": 7}]);
+    assert!(
+        message(got, want).contains("core[1:splay-preview].n"),
+        "the label must carry the entry's id"
+    );
+    // An entry without an id keeps the plain index.
+    let got = serde_json::json!([{"n": 3}]);
+    let want = serde_json::json!([{"n": 7}]);
+    assert!(message(got, want).contains("core[0].n"));
+}

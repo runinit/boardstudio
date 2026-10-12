@@ -35,9 +35,10 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
 
     def test_a_failing_command_stops_the_run_and_names_the_step(self):
-        # `repo` has two commands: the second fails, so `tooling` must never start.
+        # The second of three `repo` commands fails: the third and `tooling` must never start.
         results = iter([mock.Mock(returncode=0), mock.Mock(returncode=3)])
-        with mock.patch.object(check.subprocess, "run", side_effect=lambda *a, **k: next(results)) as run, \
+        with mock.patch.dict(check.STEPS, {"repo": (True, [["first"], ["second"], ["never"]])}), \
+                mock.patch.object(check.subprocess, "run", side_effect=lambda *a, **k: next(results)) as run, \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as errors:
             self.assertEqual(check.run(["repo", "tooling"]), 1)
         self.assertEqual(run.call_count, 2)
@@ -90,7 +91,8 @@ class CheckTests(unittest.TestCase):
 
     def test_each_command_and_step_reports_its_wall_time(self):
         output = io.StringIO()
-        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+        with mock.patch.dict(check.STEPS, {"repo": (True, [["first"], ["second"]])}), \
+                mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)), \
                 mock.patch.object(check.time, "monotonic", side_effect=[0.0, 2.0, 2.0, 5.0]), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(check.run(["repo"]), 0)

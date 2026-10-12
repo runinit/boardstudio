@@ -103,7 +103,14 @@ LINT: list[list[str]] = [
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
-    "repo": (True, [[PY, "-B", "scripts/test-check-doc-links.py"], [PY, "scripts/check-doc-links.py"]]),
+    "repo": (True, [
+        [PY, "-B", "scripts/test-check-doc-links.py"],
+        [PY, "scripts/check-doc-links.py"],
+        [PY, "-B", "scripts/test-check-core-tests.py"],
+        [PY, "scripts/check-core-tests.py"],
+        [PY, "-B", "scripts/test-check-tickets.py"],
+        [PY, "scripts/check-tickets.py"],
+    ]),
     "tooling": (True, [[PY, "-B", script] for script in TOOLING_TESTS]),
     "lint": (True, LINT),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
