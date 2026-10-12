@@ -414,6 +414,9 @@ struct ModuleMirror<'a> {
     mirror_instance: &'a str,
     mapping: Pose2,
     parts: &'a BTreeMap<String, String>,
+    /// Source parts whose mirror is Omitted. A module plugged into one keeps everything except
+    /// its connection, which is cleared as deleting the connector clears it.
+    omitted_parts: &'a BTreeSet<String>,
     modules: &'a BTreeMap<String, String>,
 }
 
@@ -447,6 +450,13 @@ fn mirror_module(module: &MountedModule, context: &ModuleMirror) -> Result<Mount
     mirrored.host_instance_id = host_instance_id;
     mirrored.at = pose.at;
     mirrored.rotation = pose.rotation;
+    if mirrored.connection.as_ref().is_some_and(|connection| {
+        context
+            .omitted_parts
+            .contains(&connection.host_connector_part_id)
+    }) {
+        mirrored.connection = None;
+    }
     if let Some(connection) = mirrored.connection.as_mut() {
         let connector = connection.host_connector_part_id.clone();
         if !connector.is_empty() {
@@ -1783,6 +1793,7 @@ fn new_board(
         mirror_instance: instance_id,
         mapping,
         parts: &part_map,
+        omitted_parts: &BTreeSet::new(),
         modules: &module_map,
     };
     let mut mirrored_modules = Vec::new();

@@ -101,15 +101,24 @@ Any other schema/storage/migration path requires root assignment first.
 
 ## Test-first and acceptance
 
-- [ ] Local/Omit/Rejoin and schema validation tests fail for the expected missing behavior first.
-- [ ] Selective independent-part and owned-companion changes/removals preserve the rest of the linked pair, visible Local independence, durable omission and targeted reference cleanup.
-- [ ] Local geometry and omission survive serde round-trip plus direct reconciliation; Rejoin
+Updated 2026-10-12 after the schema decision in the ADR-0010 amendment (a correspondence is the
+identity; an exception is a state overlay). Evidence is in the Resolution section below.
+
+- [x] Local/Omit/Rejoin and schema validation tests fail for the expected missing behavior first.
+      (The connector regression and the pin and copper behavior were red before their code; the
+      validator unit tests and the electrical projection were written after their code, and the
+      eight mutations below show every one of them fails when its code is removed.)
+- [x] Selective independent-part and owned-companion changes/removals preserve the rest of the linked pair, visible Local independence, durable omission and targeted reference cleanup.
+- [x] Local geometry and omission survive serde round-trip plus direct reconciliation; Rejoin
       reflects current source with retained modes/tweaks, unrelated and child exceptions intact.
-- [ ] Matrix/circuit owner exceptions affect only owned projections; joined nets, connectors
+- [x] Matrix/circuit owner exceptions affect only owned projections; joined nets, connectors
       and independent layout objects survive. Source deletion cleans only actual removed records.
-- [ ] Unlink follows the existing callable route with internally normalized mounting-hole
+- [x] Unlink follows the existing callable route with internally normalized mounting-hole
       context and passes the required nonempty new-board/reuse-board closure regressions.
-- [ ] Existing valid v5 data remains valid; no inferred links or format-version change.
+      (Its tests were written after the code; see the limits.)
+- [x] Existing valid v5 data remains valid; no inferred links or format-version change.
+- [x] Omit removes the mirror footprint, private nets and owned copper only, frees the item's
+      pins and locks mirrored items to the source's pins; Rejoin restores from the current source.
 
 Independent verifier: disable omitted-absence allowance, durable association, local exclusion,
 child-exception retention and mechanical materialization separately. Save/Open integration is 111.
@@ -121,3 +130,47 @@ This child does not resolve parent19. Follow [19](19-reconcile-mirrored-halves.m
 Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`; inspect overlaps and source/index binding before edits. Run bound impact and complete nonpartial/nontruncated change analysis; warn on HIGH/CRITICAL and source-confirm unresolved UNKNOWN/stale answers. Root alone refreshes `boardstudio-lane-mirror-core`, integrates and owns goldens/shared tracking.
 
 Request one bounded foreground sequence from root, then run its commands sequentially without per-command approval; release explicitly. Approved disjoint non-shell source work may overlap another lane’s ordinary checks. Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when behavior/transcript changes. Reuse sufficient source-bound evidence; target concrete gaps and important claimed guarantees. No full check per slice, `release` or background checks; Cargo uses12 jobs. Preserve explicit staging, actual-author trailers and all Git safety rules. Report completed acceptance, exact evidence, unrun/blocked gates and the explicit release; root owns integration commits.
+
+## Resolution (2026-10-12)
+
+Schema: a correspondence records source ↔ mirror identity in every state and an exception is a
+`(kind, mirrorId)` overlay on it; `MirroredException.sourceId` was removed and an optional
+`removedCopper` added. Old unassociated exceptions keep their meaning. See the ADR-0010
+amendment. The mirror-only replacement-part behavior is split to
+[109b](109b-mirror-only-replacement-parts-auto-pins.md).
+
+Behavior verified in `core` (candidate on `lane/mirror-core`, not integrated):
+
+- the lifecycle tests, including the previously red connector case, now clean only the selected
+  connector reference (the module is kept with `connection` cleared, as deleting the connector
+  clears it);
+- Omit frees an item's pins and locks every mirrored item to the source's, removes private nets
+  and exactly the copper that belonged to the item, and keeps the source half unchanged;
+- Rejoin restores nets, pins and saved copper from the current source, restoring copper only if
+  the pads are where they were, with a notice otherwise; a conflicting mirror-authored assignment
+  is released; a Local controller keeps its mapped locks and assignments.
+
+Eight isolated mutations were each killed and restored byte for byte: omitted-absence allowance,
+durable association, Local exclusion, explicit child retention, Unlink template `None`,
+bypassed mechanical materialization, skipped copper saving, skipped pin freeing.
+
+### Honest limits
+
+- The Unlink tests were added after its implementation. The historical probes 01–05 were invalid
+  setups and probe 06 was a positive control; the missed test-first step is not relabelled.
+- Copper is matched to an omitted pad only where a trace end or a via lies on the pad centre (to
+  1e-6 mm), using `outline_controls::world` and the definition's pad positions. A trace that
+  merely crosses a pad, or ends on a pad that is not an omitted item's, is not owned by it.
+- Board nets are not re-projected by reconciliation in general (only embedded circuit nets are).
+  Rejoin adds back the nets and pins of the parts it rejoins; it does not repair other drift.
+- The notice a Rejoin raises is carried on the private transition output; surfacing it belongs to 111.
+- The legacy unassociated-exception path in the hosted-circuit projection (`exception_target`)
+  and the hosted omission baselines remain, because the kernel-only tests still exercise
+  unassociated records. Removing them needs those fixtures converted first.
+- An explicitly Omitted child cleared under a Local owner (a tombstone already in the owner's
+  descriptor) has no dedicated test; the tested child-clear cases are Local children.
+- The candidate had deleted the kernel test
+  `membership_transition_expands_with_planned_pair_identities_and_references`; it was restored.
+- Function keys of the electrical board still map part ids by substring replacement (as before);
+  the new Omitted-item detection matches whole path segments.
+- Not run: browser/WASM runtime, `release`, Save/Open and production dispatch (111).

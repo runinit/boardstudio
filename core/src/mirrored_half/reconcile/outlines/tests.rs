@@ -594,6 +594,7 @@ fn outline_exception_is_targeted_and_unrelated_local_version_survives_projection
         companion_mode: None,
         companion_tweak: None,
         kind: MirroredItemKind::OutlineVersion,
+        removed_copper: None,
         mirror_id: "mirror-board/local-version".into(),
         state: crate::model::MirroredExceptionState::Local,
     });
@@ -601,6 +602,7 @@ fn outline_exception_is_targeted_and_unrelated_local_version_survives_projection
         companion_mode: None,
         companion_tweak: None,
         kind: MirroredItemKind::Outline,
+        removed_copper: None,
         mirror_id: "mirror-board/omitted-outline".into(),
         state: crate::model::MirroredExceptionState::Omitted,
     });
@@ -1330,6 +1332,7 @@ fn clearing_source_active_version_preserves_a_local_target_selection() {
         companion_mode: None,
         companion_tweak: None,
         kind: MirroredItemKind::OutlineVersion,
+        removed_copper: None,
         mirror_id: "mirror-board/local-version".into(),
         state: crate::model::MirroredExceptionState::Local,
     });

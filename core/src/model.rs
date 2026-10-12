@@ -1104,8 +1104,10 @@ pub struct MirroredCorrespondence {
     pub mirror_id: String,
 }
 
-/// A mirror item that is not linked to its source: kept `local` or `omitted`. An exception
-/// names a mirror item only; it never changes the source or a neighbouring item.
+/// A state overlay on a mirror item: kept `local` or `omitted`. The item's identity stays in its
+/// correspondence; an exception with no matching correspondence is a legacy, unassociated record
+/// whose mirror item is present and has no inferred source. An exception never changes the source
+/// or a neighbouring item.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MirroredException {
@@ -1118,6 +1120,32 @@ pub struct MirroredException {
     pub kind: MirroredItemKind,
     pub mirror_id: String,
     pub state: MirroredExceptionState,
+    /// Mirror-board copper removed with an Omitted item, kept so a Rejoin can restore it while the
+    /// source pads still line up. Only valid on an Omitted exception that overlays a correspondence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removed_copper: Option<OmittedCopper>,
+}
+
+/// Board copper that belonged only to an Omitted mirror item, and where its pads stood.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmittedCopper {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub traces: Vec<CopperTrace>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vias: Vec<CopperVia>,
+    /// World position of each omitted pad when the copper was removed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pads: Vec<OmittedPad>,
+}
+
+/// A mirror pad's world position at the moment its copper was saved.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmittedPad {
+    pub part_id: String,
+    pub pad_id: String,
+    pub at: Vec2,
 }
 
 /// The kinds of item a mirrored half reflects.
