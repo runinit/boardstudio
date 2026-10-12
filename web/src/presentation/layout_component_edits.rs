@@ -254,20 +254,22 @@ pub fn constraint_resolver(
             let constraint_id =
                 existing_id.unwrap_or_else(|| format!("layout-component-constraint-{id_seed}"));
             let constraint = match &values {
-                LayoutConstraintValues::Offset { offset, rotation } => Constraint::Offset {
-                    id: constraint_id,
-                    source_part_id: source_part_id.clone(),
-                    target_part_id: part_id.clone(),
-                    offset: *offset,
-                    rotation: *rotation,
-                },
-                LayoutConstraintValues::PartOffset { offset, rotation } => Constraint::PartOffset {
-                    id: constraint_id,
-                    source_part_id: source_part_id.clone(),
-                    target_part_id: part_id.clone(),
-                    offset: *offset,
-                    rotation: *rotation,
-                },
+                LayoutConstraintValues::Offset { offset, rotation } => Constraint::offset(
+                    OffsetAxes::Board,
+                    constraint_id,
+                    source_part_id.clone(),
+                    part_id.clone(),
+                    *offset,
+                    *rotation,
+                ),
+                LayoutConstraintValues::PartOffset { offset, rotation } => Constraint::offset(
+                    OffsetAxes::Part,
+                    constraint_id,
+                    source_part_id.clone(),
+                    part_id.clone(),
+                    *offset,
+                    *rotation,
+                ),
                 LayoutConstraintValues::Mirror { axis, coordinate } => Constraint::Mirror {
                     id: constraint_id,
                     source_part_id: source_part_id.clone(),

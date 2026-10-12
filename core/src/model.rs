@@ -766,6 +766,33 @@ pub enum Constraint {
     },
 }
 impl Constraint {
+    /// An offset constraint whose numbers run along `axes`: `Board` builds `offset`, `Part`
+    /// builds `part-offset`.
+    pub fn offset(
+        axes: OffsetAxes,
+        id: String,
+        source_part_id: String,
+        target_part_id: String,
+        offset: Vec2,
+        rotation: f64,
+    ) -> Self {
+        match axes {
+            OffsetAxes::Board => Self::Offset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset,
+                rotation,
+            },
+            OffsetAxes::Part => Self::PartOffset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset,
+                rotation,
+            },
+        }
+    }
     pub fn id(&self) -> &str {
         match self {
             Self::Offset { id, .. } | Self::PartOffset { id, .. } | Self::Mirror { id, .. } => id,
@@ -3146,22 +3173,15 @@ mod constraint_tests {
 
     fn held(axes: Option<OffsetAxes>, x: f64, rotation: f64) -> Constraint {
         let (id, source_part_id, target_part_id) = ("c".to_owned(), "a".to_owned(), "b".to_owned());
-        let offset = Vec2 { x, y: -4.0 };
         match axes {
-            Some(OffsetAxes::Board) => Constraint::Offset {
+            Some(axes) => Constraint::offset(
+                axes,
                 id,
                 source_part_id,
                 target_part_id,
-                offset,
+                Vec2 { x, y: -4.0 },
                 rotation,
-            },
-            Some(OffsetAxes::Part) => Constraint::PartOffset {
-                id,
-                source_part_id,
-                target_part_id,
-                offset,
-                rotation,
-            },
+            ),
             None => Constraint::Mirror {
                 id,
                 source_part_id,
@@ -3170,6 +3190,33 @@ mod constraint_tests {
                 coordinate: x,
             },
         }
+    }
+
+    #[test]
+    fn offset_builds_the_kind_its_axes_name_and_carries_every_field() {
+        let offset = Vec2 { x: 3.0, y: -4.0 };
+        let build =
+            |axes| Constraint::offset(axes, "c".into(), "a".into(), "b".into(), offset, 5.0);
+        assert_eq!(
+            build(OffsetAxes::Board),
+            Constraint::Offset {
+                id: "c".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                offset,
+                rotation: 5.0,
+            }
+        );
+        assert_eq!(
+            build(OffsetAxes::Part),
+            Constraint::PartOffset {
+                id: "c".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                offset,
+                rotation: 5.0,
+            }
+        );
     }
 
     #[test]
