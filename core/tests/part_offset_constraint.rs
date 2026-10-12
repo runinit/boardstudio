@@ -615,6 +615,51 @@ fn dragging_a_board_axes_companion_retunes_its_offset_on_the_board_axes() {
     assert_eq!(*rotation, 0.0);
 }
 
+/// A drag moves a companion; it never turns it, so the stored turn keeps its exact bits.
+#[test]
+fn dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind() {
+    for axes in [OffsetAxes::Board, OffsetAxes::Part] {
+        for stored in [-0.0_f64, 7.5] {
+            let (mut engine, before) = fixture(|| {
+                held_by(
+                    axes,
+                    "held-key",
+                    KEY,
+                    HELD,
+                    Vec2 { x: 1.0, y: -4.0 },
+                    stored,
+                )
+            });
+            let kept = |doc: &ProjectDoc| match held_constraint(doc) {
+                Constraint::Offset { rotation, .. } | Constraint::PartOffset { rotation, .. } => {
+                    rotation.to_bits()
+                }
+                Constraint::Mirror { .. } => panic!("the constraint became a mirror"),
+            };
+            assert_eq!(kept(&before), stored.to_bits(), "{axes:?} precondition");
+            let start = part(&before, HELD).pose.at;
+            let (_, after) = edit(
+                &mut engine,
+                &before,
+                EditOperation::MoveParts {
+                    positions: vec![Position {
+                        id: HELD.into(),
+                        at: Vec2 {
+                            x: start.x + 3.0,
+                            y: start.y - 2.0,
+                        },
+                    }],
+                },
+            );
+            assert_eq!(
+                kept(&after),
+                stored.to_bits(),
+                "{axes:?} drag rewrote the stored rotation {stored:?}"
+            );
+        }
+    }
+}
+
 /// A mirrored pair of layouts. The left layout owns a free diode, held to a left key that is
 /// turned `left_rotation` degrees by an offset constraint along `axes`. The right layout's
 /// mirror of that diode is derived by Core.

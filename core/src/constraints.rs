@@ -174,17 +174,26 @@ pub(crate) fn source_pose(parts: &[Part], constraint: &Constraint) -> Result<Pos
 }
 
 /// Moves a constraint's stored numbers so its target lands `delta` away from where it was
-/// and turns `turn` degrees further. An `offset` stores board-axis numbers, so the drag is
-/// added as it is. A `part-offset` stores source-axis numbers, so the drag is first turned
-/// back into the source's frame. Mirrors reflect rather than offset; callers reject them.
-pub(crate) fn retune_offset(constraint: &mut Constraint, source: Pose2, delta: Vec2, turn: f64) {
+/// and, when `turn` is given, turns that many degrees further. `None` leaves the stored
+/// rotation untouched, bit for bit: adding `0.0` would rewrite a stored `-0.0`. An `offset`
+/// stores board-axis numbers, so the drag is added as it is. A `part-offset` stores
+/// source-axis numbers, so the drag is first turned back into the source's frame. Mirrors
+/// reflect rather than offset; callers reject them.
+pub(crate) fn retune_offset(
+    constraint: &mut Constraint,
+    source: Pose2,
+    delta: Vec2,
+    turn: Option<f64>,
+) {
     match constraint {
         Constraint::Offset {
             offset, rotation, ..
         } => {
             offset.x += delta.x;
             offset.y += delta.y;
-            *rotation += turn;
+            if let Some(turn) = turn {
+                *rotation += turn;
+            }
         }
         Constraint::PartOffset {
             offset, rotation, ..
@@ -192,7 +201,9 @@ pub(crate) fn retune_offset(constraint: &mut Constraint, source: Pose2, delta: V
             let local = rotate(delta, -source.rotation, Vec2::default());
             offset.x += local.x;
             offset.y += local.y;
-            *rotation += turn;
+            if let Some(turn) = turn {
+                *rotation += turn;
+            }
         }
         Constraint::Mirror { .. } => {
             unreachable!("mirror constraints are rejected before a retune")

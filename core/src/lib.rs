@@ -1245,7 +1245,7 @@ fn apply(
                         ));
                     }
                     let source = constraints::source_pose(&doc.parts, constraint)?;
-                    constraints::retune_offset(constraint, source, delta, 0.0);
+                    constraints::retune_offset(constraint, source, delta, None);
                     changed.push(position.id.clone());
                     continue;
                 }

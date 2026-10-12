@@ -749,7 +749,7 @@ fn set_component_pose(
                 x: pose.at.x - current.at.x,
                 y: pose.at.y - current.at.y,
             },
-            pose.rotation - current.rotation,
+            Some(pose.rotation - current.rotation),
         );
     }
     let part = doc
