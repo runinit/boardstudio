@@ -149,7 +149,17 @@ fn assert_close(actual: &Value, expected: &Value, path: &str) {
 }
 
 fn canonical(document: &ProjectDoc, operation: &Value) -> Result<Canonical, String> {
-    canonicalize(document, &op(operation.clone()))
+    canonicalize(document, &op(operation.clone())).map_err(|refusal| refusal.to_string())
+}
+
+/// The ledger entry of a request, read from the one dispatch that executes it.
+fn coverage(operation: Value) -> Coverage {
+    let empty = ProjectDoc::empty("empty", "Empty");
+    match canonicalize(&empty, &op(operation.clone())) {
+        Ok(canonical) => canonical.coverage,
+        Err(Refusal::Unsupported(coverage)) => coverage,
+        Err(Refusal::Request(message)) => panic!("{operation}: {message}"),
+    }
 }
 
 fn expect_operation(document: &ProjectDoc, request: Value, expected: Value) {
@@ -168,9 +178,11 @@ fn refusal(document: &ProjectDoc, request: Value) -> String {
 // ---- coverage ------------------------------------------------------------------------------
 
 #[test]
-fn coverage_names_this_slice_and_the_owner_of_every_other_family() {
-    let owned = |value: Value| coverage(&op(value));
+fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() {
+    let owned = coverage;
     let translated = [
+        json!({"kind": "add-part", "part": {"id": "p", "definitionId": "d", "reference": "P1",
+            "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"}}),
         json!({"kind": "set-matrix", "matrix": {"id": "m", "rows": 1, "columns": 1,
             "pitch": {"x": 1, "y": 1}, "origin": {"x": 0, "y": 0}, "definitionId": "d", "partIds": []}}),
         json!({"kind": "set-matrix-splay", "matrixId": "m", "column": 0,
@@ -189,18 +201,45 @@ fn coverage_names_this_slice_and_the_owner_of_every_other_family() {
     for request in translated {
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
-    assert_eq!(
-        owned(json!({"kind": "remove-constraint", "id": "c"})),
-        Coverage::OwnedBy("114")
-    );
-    assert_eq!(
-        owned(json!({"kind": "remove-mounted-module", "id": "m"})),
-        Coverage::OwnedBy("112")
-    );
-    assert_eq!(
-        owned(json!({"kind": "select-outline", "boardId": "b"})),
-        Coverage::OwnedBy("113")
-    );
+    // Other tickets own these; this module refuses them and says whose they are.
+    for (request, ticket) in [
+        (json!({"kind": "remove-constraint", "id": "c"}), "114"),
+        (json!({"kind": "remove-mounted-module", "id": "m"}), "112"),
+        (json!({"kind": "select-outline", "boardId": "b"}), "113"),
+    ] {
+        let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
+            panic!("{request} must be unsupported here");
+        };
+        assert_eq!(owner, ticket, "{request}");
+        assert!(!reason.is_empty(), "{request}");
+        let message = canonical(&fixture(), &request).unwrap_err();
+        assert!(
+            message.contains(ticket) && message.contains(reason),
+            "{message}"
+        );
+    }
+    // Bindings keep their targeted-half semantics; typed mechanical edits already carry
+    // their own two-way lifecycle and must not be inverse-mapped a second time.
+    assert!(matches!(
+        owned(json!({"kind": "set-key-binding", "boardId": "b", "keyId": "k", "binding": "A"})),
+        Coverage::DeliberatelyUnchanged(_)
+    ));
+    assert!(matches!(
+        owned(
+            json!({"kind": "apply-mechanical-edit", "edit": {"target": {"kind": "instance", "instanceId": "left"}, "change": "enable"}})
+        ),
+        Coverage::Delegated(_)
+    ));
+}
+
+#[test]
+fn deliberately_unchanged_and_delegated_requests_run_as_written() {
+    for request in [
+        json!({"kind": "set-key-binding", "boardId": "right", "keyId": "right/U1", "binding": "A"}),
+        json!({"kind": "apply-mechanical-edit", "edit": {"target": {"kind": "instance", "instanceId": "left"}, "change": "enable"}}),
+    ] {
+        expect_operation(&fixture(), request.clone(), request);
+    }
 }
 
 // ---- unrelated and local targets -----------------------------------------------------------
@@ -219,7 +258,6 @@ fn an_unpaired_document_and_source_side_requests_are_returned_unchanged() {
         {"id": "right/U1", "at": {"x": 1, "y": 2}}]});
     expect_operation(&unpaired, moved.clone(), moved);
     let result = canonical(&fixture(), &request).unwrap();
-    assert!(!result.translated);
     assert!(result.additions.is_empty());
 }
 
@@ -322,7 +360,6 @@ fn a_part_added_on_the_mirror_board_becomes_a_source_addition_with_its_mirror_pl
             "properties": {"note": "kept"}}}),
         "operation",
     );
-    assert!(result.translated);
     assert_eq!(
         result.additions,
         vec![PartAddition {
@@ -705,7 +742,7 @@ fn a_mirror_only_matrix_value_or_unrepresentable_cell_is_refused_not_dropped() {
 }
 
 #[test]
-fn a_source_a_local_mirror_and_a_new_matrix_execute_as_written() {
+fn a_source_and_a_local_mirror_matrix_execute_as_written() {
     let source = set_matrix(json!({
         "id": "left-keys", "name": "Left keys", "rows": 1, "columns": 1,
         "pitch": {"x": 19, "y": 19}, "origin": {"x": 3, "y": 3}, "definitionId": "sw",
@@ -713,10 +750,125 @@ fn a_source_a_local_mirror_and_a_new_matrix_execute_as_written() {
     expect_operation(&fixture(), source.clone(), source);
     let local = set_matrix(mirror_payload(json!({"name": "Local rename"})));
     expect_operation(&with_matrix_state(fixture(), "local"), local.clone(), local);
-    let added = set_matrix(json!({
-        "id": "brand-new", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
-        "origin": {"x": 250, "y": 40}, "definitionId": "sw", "boardId": "right", "partIds": []}));
-    expect_operation(&fixture(), added.clone(), added);
+}
+
+// ---- a new matrix on a paired board is mirrored and linked ------------------------------------
+
+fn new_matrix(id: &str, board: &str, origin: (f64, f64)) -> Value {
+    let mut request = set_matrix(json!({
+        "id": id, "name": "Thumbs", "rows": 1, "columns": 2, "pitch": {"x": 19, "y": 19},
+        "origin": {"x": origin.0, "y": origin.1}, "definitionId": "sw", "boardId": board,
+        "partIds": [],
+        "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": [
+            {"id": "diode", "definitionId": "d",
+             "offset": {"x": if board == "right" { -8 } else { 8 }, "y": -2},
+             "rotation": if board == "right" { -90 } else { 90 }}]}]
+    }));
+    if board == "right" {
+        request["matrix"]["mirror"] = json!("x");
+    }
+    request
+}
+
+fn addition(result: &Canonical) -> &MatrixAddition {
+    assert_eq!(result.matrix_additions.len(), 1, "one planned matrix pair");
+    &result.matrix_additions[0]
+}
+
+#[test]
+fn a_matrix_added_on_the_mirror_board_becomes_a_source_matrix_with_a_planned_pair() {
+    let result = canonical(
+        &fixture(),
+        &new_matrix("right-thumbs", "right", (190.0, 40.0)),
+    )
+    .unwrap();
+    let value = serde_json::to_value(&result.operation).unwrap();
+    assert_close(
+        &value["matrix"],
+        &json!({
+            "id": "left-thumbs", "name": "Thumbs", "rows": 1, "columns": 2,
+            "pitch": {"x": 19, "y": 19}, "origin": {"x": 10, "y": 40}, "definitionId": "sw",
+            "boardId": "left", "partIds": [],
+            "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": [
+                {"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -2},
+                 "rotation": 90}]}]}),
+        "matrix",
+    );
+    let planned = addition(&result);
+    assert_eq!(planned.source_id, "left-thumbs");
+    assert_eq!(planned.mirror_id, "right-thumbs");
+    assert_eq!(planned.source_board_id, "left");
+    assert_eq!(planned.mirror_board_id, "right");
+    // The cell with no stored entry is an enabled default cell, so it is a member too.
+    let pair = |source: &str, mirror: &str| (source.to_owned(), mirror.to_owned());
+    assert_eq!(
+        planned.members,
+        vec![
+            pair("matrix/left-thumbs/r0c0", "matrix/right-thumbs/r0c0"),
+            pair(
+                "matrix/left-thumbs/r0c0/diode",
+                "matrix/right-thumbs/r0c0/diode"
+            ),
+            pair("matrix/left-thumbs/r0c1", "matrix/right-thumbs/r0c1"),
+        ]
+    );
+}
+
+#[test]
+fn a_matrix_added_on_the_source_board_runs_as_written_and_plans_its_mirror() {
+    let request = new_matrix("left-thumbs", "left", (10.0, 40.0));
+    let result = canonical(&fixture(), &request).unwrap();
+    assert_close(
+        &serde_json::to_value(&result.operation).unwrap(),
+        &request,
+        "operation",
+    );
+    let planned = addition(&result);
+    assert_eq!(planned.source_id, "left-thumbs");
+    assert_eq!(planned.mirror_id, "right-thumbs");
+    assert_eq!(planned.members.len(), 3);
+    assert_eq!(planned.members[1].1, "matrix/right-thumbs/r0c0/diode");
+}
+
+#[test]
+fn a_planned_matrix_identity_skips_ids_already_in_use() {
+    let mut document = fixture();
+    document.matrices.push(
+        serde_json::from_value(json!({"id": "left-thumbs", "rows": 1, "columns": 1,
+            "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": 90}, "definitionId": "sw",
+            "boardId": "left", "partIds": []}))
+        .unwrap(),
+    );
+    let result = canonical(
+        &document,
+        &new_matrix("right-thumbs", "right", (190.0, 40.0)),
+    )
+    .unwrap();
+    assert_eq!(addition(&result).source_id, "left-thumbs-2");
+    assert_eq!(addition(&result).mirror_id, "right-thumbs");
+    let value = serde_json::to_value(&result.operation).unwrap();
+    assert_eq!(value["matrix"]["id"], "left-thumbs-2");
+}
+
+#[test]
+fn an_existing_unpaired_matrix_and_a_matrix_on_an_unpaired_board_are_not_additions() {
+    let mut document = fixture();
+    document.matrices.push(
+        serde_json::from_value(json!({"id": "right-extra", "rows": 1, "columns": 1,
+            "pitch": {"x": 19, "y": 19}, "origin": {"x": 300, "y": 0}, "definitionId": "sw",
+            "boardId": "right", "partIds": []}))
+        .unwrap(),
+    );
+    let existing = set_matrix(json!({"id": "right-extra", "rows": 1, "columns": 1,
+        "pitch": {"x": 19, "y": 19}, "origin": {"x": 310, "y": 0}, "definitionId": "sw",
+        "boardId": "right", "partIds": []}));
+    let result = canonical(&document, &existing).unwrap();
+    assert!(result.matrix_additions.is_empty());
+    expect_operation(&document, existing.clone(), existing);
+    let elsewhere = new_matrix("other-thumbs", "other-board", (0.0, 0.0));
+    let result = canonical(&fixture(), &elsewhere).unwrap();
+    assert!(result.matrix_additions.is_empty());
+    expect_operation(&fixture(), elsewhere.clone(), elsewhere);
 }
 
 #[test]
@@ -1118,7 +1270,17 @@ fn every_in_scope_variant_runs_source_and_local_requests_as_written_and_inverts_
             ),
             matrix_payload(json!({"origin": {"x": 190, "y": 5}})),
             matrix_payload(json!({"origin": {"x": 190, "y": 5}})),
-            Value::Null, // checked by the matrix tests; only the id is asserted below
+            json!({"kind": "set-matrix", "matrix": {
+                "id": "left-keys", "name": "Left keys", "rows": 1, "columns": 2,
+                "pitch": {"x": 19, "y": 19}, "origin": {"x": 10, "y": 5}, "definitionId": "sw",
+                "boardId": "left",
+                "partIds": ["matrix/left-keys/r0c0", "matrix/left-keys/r0c0/diode",
+                            "matrix/left-keys/r0c1"],
+                "cells": [
+                    {"row": 0, "column": 0, "enabled": true, "assemblies": [
+                        {"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -2},
+                         "rotation": 90}]},
+                    {"row": 0, "column": 1, "enabled": true}]}}),
         ),
         (
             "set-matrix-splay",
@@ -1186,17 +1348,10 @@ fn every_in_scope_variant_runs_source_and_local_requests_as_written_and_inverts_
         ),
     ];
     let local_matrix = with_matrix_state(fixture(), "local");
-    for (variant, source, local, mirror, expected) in rows {
+    for (_, source, local, mirror, expected) in rows {
         expect_operation(&fixture(), source.clone(), source);
         expect_operation(&local_matrix, local.clone(), local);
-        if variant == "set-matrix" {
-            let result = canonical(&fixture(), &mirror).unwrap();
-            assert!(result.translated, "{variant}");
-            let value = serde_json::to_value(&result.operation).unwrap();
-            assert_eq!(value["matrix"]["id"], "left-keys", "{variant}");
-        } else {
-            expect_operation(&fixture(), mirror, expected);
-        }
+        expect_operation(&fixture(), mirror, expected);
     }
 
     // The part variants, with a Local mirror part (`right/HEADER`) as the local target.
@@ -1220,7 +1375,6 @@ fn every_in_scope_variant_runs_source_and_local_requests_as_written_and_inverts_
         expect_operation(&fixture(), source.clone(), source);
         expect_operation(&fixture(), local.clone(), local);
         let result = canonical(&fixture(), &mirror).unwrap();
-        assert!(result.translated, "{variant}");
         assert_close(
             &serde_json::to_value(&result.operation).unwrap(),
             &expected,

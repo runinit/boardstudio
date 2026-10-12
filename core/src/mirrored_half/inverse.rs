@@ -6,10 +6,14 @@
 //! yet: ticket 115 composes the result through apply and resolution, and 111 activates it.
 //!
 //! Where things live (search the names; line numbers drift):
-//! - Seam: [`canonicalize`] returns a [`Canonical`] request; [`coverage`] is the exhaustive
-//!   ledger of every `EditOperation` variant and who translates it.
+//! - Seam: [`canonicalize`] is the one exhaustive dispatch over every `EditOperation` variant. It
+//!   returns a [`Canonical`] request, or a [`Refusal`] that carries the ledger entry
+//!   ([`Coverage`]) of a family another ticket owns. There is no wildcard arm: a new variant does
+//!   not compile until it is given a ledger entry here.
 //! - Targets: [`Links`] resolves an id to Not-a-mirror, Local, Omitted or Linked.
 //! - Parts: `move_parts`, `add_part`, `remove_parts`; companion placement is `source_position`.
+//! - Matrices: `matrix_frame`, `selected_cells`, `set_matrix`; a matrix new to a paired board is
+//!   `matrix_addition`.
 //!
 //! Rules this layer keeps:
 //! - A target that is not a linked mirror (unpaired, a source, or a Local exception) executes
@@ -19,11 +23,15 @@
 //!   their stored placement mode and stabilisers keep their world heading.
 //! - Two entries that resolve to one canonical target are one action when they agree and a
 //!   refusal when they do not; they are never executed twice.
+//! - A part or matrix added on a paired board is planned as a source/mirror identity pair
+//!   (`PartAddition`, `MatrixAddition`) for the forward Add transitions to consume.
 
 #[cfg(test)]
 #[path = "inverse/tests.rs"]
 mod tests;
 
+use crate::matrix::column_rotation;
+use crate::matrix::splay::rotate as rotate_about;
 use crate::mechanical::pair;
 use crate::model::{
     EditOperation, Matrix, MatrixSplayChange, Mirror, MirroredCompanionMode,
@@ -31,6 +39,7 @@ use crate::model::{
     MirroredItemKind, Part, Pose2, Position, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 
 /// Cell coordinates chosen per matrix id.
 type CellSelection = BTreeMap<String, Vec<(u32, u32)>>;
@@ -38,65 +47,51 @@ type CellSelection = BTreeMap<String, Vec<(u32, u32)>>;
 /// Two requested values of one canonical target agree when they differ by less than this.
 const AGREEMENT_TOLERANCE_MM: f64 = 1e-6;
 
-/// Who translates an operation.
+const ORIGIN: Vec2 = Vec2 { x: 0.0, y: 0.0 };
+
+/// What becomes of an operation under the inverse map: one entry of the ledger.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Coverage {
-    /// Ticket 110 (this module).
+    /// Ticket 110 (this module) rewrites linked mirror targets to their sources.
     Translated,
-    /// Another slice of ticket 19 owns the family; this module refuses it rather than let it
-    /// pass through untranslated.
-    OwnedBy(&'static str),
+    /// An existing lifecycle already carries both halves; the inverse must not run twice.
+    Delegated(&'static str),
+    /// The request keeps its meaning on the half it names.
+    DeliberatelyUnchanged(&'static str),
+    /// This module does not translate it. Another ticket owns the family, and the request is
+    /// refused rather than let through untranslated.
+    Unsupported {
+        owner: &'static str,
+        reason: &'static str,
+    },
 }
 
-/// The exhaustive ledger. There is no wildcard arm: a new `EditOperation` variant does not
-/// compile until it is given an owner.
-pub(super) fn coverage(operation: &EditOperation) -> Coverage {
-    use EditOperation as Op;
-    match operation {
-        Op::SetMatrix { .. }
-        | Op::SetMatrixSplay { .. }
-        | Op::SetMatrixPlacement { .. }
-        | Op::RemoveMatrix { .. }
-        | Op::SetMatrixCellsEnabled { .. }
-        | Op::RemoveSelectedMatrixCells { .. }
-        | Op::RemoveMatrixCells { .. }
-        | Op::RemoveMatrixRow { .. }
-        | Op::RemoveMatrixColumn { .. }
-        | Op::MoveParts { .. }
-        | Op::AddPart { .. }
-        | Op::RemoveParts { .. } => Coverage::Translated,
-        // Ticket 112: hosted, electrical and keycap families.
-        Op::SetModuleDefinition { .. }
-        | Op::SetMountedModule { .. }
-        | Op::RemoveMountedModule { .. }
-        | Op::EmbedModuleCircuit { .. }
-        | Op::RemoveEmbeddedCircuit { .. }
-        | Op::SetNet { .. }
-        | Op::SetInputScanMode { .. }
-        | Op::SetWiringMode { .. }
-        | Op::SetKeycapBoard { .. }
-        | Op::SetMatrixKeycaps { .. }
-        | Op::SetKeycapKey { .. } => Coverage::OwnedBy("112"),
-        // Ticket 113: outline and reviewed geometry.
-        Op::SetOutline { .. }
-        | Op::CopyOutline { .. }
-        | Op::SelectOutline { .. }
-        | Op::RenameOutline { .. }
-        | Op::RemoveOutline { .. }
-        | Op::ApplyOutlineEdit { .. } => Coverage::OwnedBy("113"),
-        // Ticket 114: compatibility, constraints and the final exhaustive ledger.
-        Op::EditKeymap { .. }
-        | Op::SetKeyBinding { .. }
-        | Op::SetLayout { .. }
-        | Op::CreateMirroredPair { .. }
-        | Op::SetConstraint { .. }
-        | Op::RemoveConstraint { .. }
-        | Op::ConvertOffsetConstraint { .. }
-        | Op::ApplyMechanicalEdit { .. }
-        | Op::SetMechanical { .. }
-        | Op::SetCase { .. }
-        | Op::CreateMirroredHalf { .. }
-        | Op::ReplaceDocument { .. } => Coverage::OwnedBy("114"),
+/// Why a request was not canonicalised.
+#[derive(Debug)]
+pub(super) enum Refusal {
+    /// The family is not translated here; the ledger says whose it is.
+    Unsupported(Coverage),
+    /// This request cannot be translated, with the reason.
+    Request(String),
+}
+
+impl fmt::Display for Refusal {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Refusal::Unsupported(Coverage::Unsupported { owner, reason }) => write!(
+                formatter,
+                "This request is not translated by the matrix and part inverse; ticket {owner} \
+                 owns it: {reason}"
+            ),
+            Refusal::Unsupported(other) => write!(formatter, "{other:?} is not a refusal"),
+            Refusal::Request(message) => formatter.write_str(message),
+        }
+    }
+}
+
+impl From<String> for Refusal {
+    fn from(message: String) -> Self {
+        Refusal::Request(message)
     }
 }
 
@@ -111,102 +106,117 @@ pub(super) struct PartAddition {
     pub(super) mirror_reference: String,
 }
 
+/// A matrix new to a paired board, planned as a linked pair. This layer supplies the identities
+/// and the canonical source request; the forward transition that creates the mirror matrix, its
+/// members, modules and wiring, and records the correspondence, is ticket 145's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MatrixAddition {
+    pub(super) source_id: String,
+    pub(super) mirror_id: String,
+    pub(super) source_board_id: String,
+    pub(super) mirror_board_id: String,
+    /// Each generated member (key or companion) as `(source id, mirror id)`.
+    pub(super) members: Vec<(String, String)>,
+}
+
+/// The source matrix a mirror-side addition becomes, with its planned pair.
+struct NewMatrix {
+    source_matrix: Matrix,
+    plan: MatrixAddition,
+}
+
 /// The source-equivalent request.
 #[derive(Debug)]
 pub(super) struct Canonical {
     /// The request to execute, apply and resolve; downstream resolution must see this value too.
     pub(super) operation: EditOperation,
-    /// Whether any target was rewritten.
-    pub(super) translated: bool,
+    /// How the operation was handled; `Translated` unless the ledger says it runs as written.
+    pub(super) coverage: Coverage,
     /// Mirror-side part additions, one per translated `AddPart`.
     pub(super) additions: Vec<PartAddition>,
+    /// Matrices new to a paired board, one per `SetMatrix` that creates one.
+    pub(super) matrix_additions: Vec<MatrixAddition>,
+}
+
+const BINDINGS_UNCHANGED: &str =
+    "bindings are never reflected; the edit keeps its targeted-half semantics (ADR-0010)";
+const MECHANICAL_DELEGATED: &str = "the typed mechanical lifecycle already edits both halves of a pair; inverting it again would \
+     apply it twice";
+
+fn unsupported(owner: &'static str, reason: &'static str) -> Refusal {
+    Refusal::Unsupported(Coverage::Unsupported { owner, reason })
 }
 
 /// Rewrites `operation` so that every linked mirror target names its authored source value.
 pub(super) fn canonicalize(
     document: &ProjectDoc,
     operation: &EditOperation,
-) -> Result<Canonical, String> {
-    if let Coverage::OwnedBy(ticket) = coverage(operation) {
-        return Err(format!(
-            "This request is translated by ticket {ticket}, not by the matrix and part inverse"
-        ));
-    }
+) -> Result<Canonical, Refusal> {
+    use EditOperation as Op;
     let links = Links::new(document);
     let mut canonical = Canonical {
         operation: operation.clone(),
-        translated: false,
+        coverage: Coverage::Translated,
         additions: Vec::new(),
+        matrix_additions: Vec::new(),
     };
     match operation {
-        EditOperation::MoveParts { positions } => {
-            let positions = links.move_parts(positions)?;
-            canonical.translated = positions.1;
-            canonical.operation = EditOperation::MoveParts {
-                positions: positions.0,
+        Op::MoveParts { positions } => {
+            canonical.operation = Op::MoveParts {
+                positions: links.move_parts(positions)?,
             };
         }
-        EditOperation::AddPart { part, board_id } => {
+        Op::AddPart { part, board_id } => {
             if let Some((source, addition)) = links.add_part(part, board_id.as_deref())? {
                 canonical.operation = source;
                 canonical.additions.push(addition);
-                canonical.translated = true;
             }
         }
-        EditOperation::RemoveParts { ids } => {
-            let (ids, translated) = links.remove_parts(ids)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::RemoveParts { ids };
+        Op::RemoveParts { ids } => {
+            canonical.operation = Op::RemoveParts {
+                ids: links.remove_parts(ids)?,
+            };
         }
-        EditOperation::RemoveMatrix { id } => {
-            let (id, translated) = links.matrix_id(id)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::RemoveMatrix { id };
+        Op::RemoveMatrix { id } => {
+            canonical.operation = Op::RemoveMatrix {
+                id: links.matrix_id(id)?,
+            };
         }
-        EditOperation::RemoveMatrixCells { matrix_id, cells } => {
-            let (matrix_id, translated) = links.matrix_id(matrix_id)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::RemoveMatrixCells {
-                matrix_id,
+        Op::RemoveMatrixCells { matrix_id, cells } => {
+            canonical.operation = Op::RemoveMatrixCells {
+                matrix_id: links.matrix_id(matrix_id)?,
                 cells: cells.clone(),
             };
         }
-        EditOperation::RemoveMatrixRow { matrix_id, row } => {
-            let (matrix_id, translated) = links.matrix_id(matrix_id)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::RemoveMatrixRow {
-                matrix_id,
+        Op::RemoveMatrixRow { matrix_id, row } => {
+            canonical.operation = Op::RemoveMatrixRow {
+                matrix_id: links.matrix_id(matrix_id)?,
                 row: *row,
             };
         }
-        EditOperation::RemoveMatrixColumn { matrix_id, column } => {
-            let (matrix_id, translated) = links.matrix_id(matrix_id)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::RemoveMatrixColumn {
-                matrix_id,
+        Op::RemoveMatrixColumn { matrix_id, column } => {
+            canonical.operation = Op::RemoveMatrixColumn {
+                matrix_id: links.matrix_id(matrix_id)?,
                 column: *column,
             };
         }
-        EditOperation::SetMatrixCellsEnabled { cells, enabled } => {
-            let (cells, translated) = links.selected_cells(cells)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::SetMatrixCellsEnabled {
-                cells,
+        Op::SetMatrixCellsEnabled { cells, enabled } => {
+            canonical.operation = Op::SetMatrixCellsEnabled {
+                cells: links.selected_cells(cells)?,
                 enabled: *enabled,
             };
         }
-        EditOperation::RemoveSelectedMatrixCells { cells } => {
-            let (cells, translated) = links.selected_cells(cells)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::RemoveSelectedMatrixCells { cells };
+        Op::RemoveSelectedMatrixCells { cells } => {
+            canonical.operation = Op::RemoveSelectedMatrixCells {
+                cells: links.selected_cells(cells)?,
+            };
         }
-        EditOperation::SetMatrixSplay {
+        Op::SetMatrixSplay {
             matrix_id,
             column,
             change,
         } => {
             let (id, mapping) = links.matrix_frame(matrix_id)?;
-            canonical.translated = mapping.is_some();
             // An origin is a world point, so it takes the pair's inverse. An angle is a value
             // of the matrix's own frame, which the mirror shares with the source.
             let change = match (change, mapping) {
@@ -217,34 +227,89 @@ pub(super) fn canonicalize(
                 }
                 (change, _) => change.clone(),
             };
-            canonical.operation = EditOperation::SetMatrixSplay {
+            canonical.operation = Op::SetMatrixSplay {
                 matrix_id: id,
                 column: *column,
                 change,
             };
         }
-        EditOperation::SetMatrixPlacement { matrix_id, change } => {
+        Op::SetMatrixPlacement { matrix_id, change } => {
             // Every placement value is in the matrix's own frame, shared with the source.
-            let (id, translated) = links.matrix_id(matrix_id)?;
-            canonical.translated = translated;
-            canonical.operation = EditOperation::SetMatrixPlacement {
-                matrix_id: id,
+            canonical.operation = Op::SetMatrixPlacement {
+                matrix_id: links.matrix_id(matrix_id)?,
                 change: change.clone(),
             };
         }
-        EditOperation::SetMatrix {
+        Op::SetMatrix {
             matrix,
             definitions,
         } => {
-            if let Some(source) = links.set_matrix(matrix)? {
-                canonical.translated = true;
-                canonical.operation = EditOperation::SetMatrix {
+            if let Some(addition) = links.matrix_addition(matrix)? {
+                canonical.operation = Op::SetMatrix {
+                    matrix: addition.source_matrix,
+                    definitions: definitions.clone(),
+                };
+                canonical.matrix_additions.push(addition.plan);
+            } else if let Some(source) = links.set_matrix(matrix)? {
+                canonical.operation = Op::SetMatrix {
                     matrix: source,
                     definitions: definitions.clone(),
                 };
             }
         }
-        _ => return Err("This request is not an inverse-translated family".into()),
+        // Bindings are excluded by ADR-0010: the edit keeps its targeted-half semantics.
+        Op::EditKeymap { .. } | Op::SetKeyBinding { .. } => {
+            canonical.coverage = Coverage::DeliberatelyUnchanged(BINDINGS_UNCHANGED);
+        }
+        // The typed mechanical lifecycle is already bidirectional.
+        Op::ApplyMechanicalEdit { .. } => {
+            canonical.coverage = Coverage::Delegated(MECHANICAL_DELEGATED);
+        }
+        // Ticket 112: hosted, electrical, keycap and shared-definition families.
+        Op::SetModuleDefinition { .. }
+        | Op::SetMountedModule { .. }
+        | Op::RemoveMountedModule { .. }
+        | Op::EmbedModuleCircuit { .. }
+        | Op::RemoveEmbeddedCircuit { .. }
+        | Op::SetNet { .. }
+        | Op::SetInputScanMode { .. }
+        | Op::SetWiringMode { .. }
+        | Op::SetKeycapBoard { .. }
+        | Op::SetMatrixKeycaps { .. }
+        | Op::SetKeycapKey { .. } => {
+            return Err(unsupported(
+                "112",
+                "hosted, electrical and keycap requests map module, circuit, net and owner ids",
+            ));
+        }
+        // Ticket 113: outline and reviewed geometry.
+        Op::SetOutline { .. }
+        | Op::CopyOutline { .. }
+        | Op::SelectOutline { .. }
+        | Op::RenameOutline { .. }
+        | Op::RemoveOutline { .. }
+        | Op::ApplyOutlineEdit { .. } => {
+            return Err(unsupported(
+                "113",
+                "outline requests transform reviewed geometry, seeds and identities together",
+            ));
+        }
+        // Ticket 114: compatibility, constraints and the final exhaustive ledger.
+        Op::SetLayout { .. }
+        | Op::CreateMirroredPair { .. }
+        | Op::SetConstraint { .. }
+        | Op::RemoveConstraint { .. }
+        | Op::ConvertOffsetConstraint { .. }
+        | Op::SetMechanical { .. }
+        | Op::SetCase { .. }
+        | Op::CreateMirroredHalf { .. }
+        | Op::ReplaceDocument { .. } => {
+            return Err(unsupported(
+                "114",
+                "layout, constraint, raw configuration, creation and import requests need \
+                 compatibility or endpoint classification",
+            ));
+        }
     }
     Ok(canonical)
 }
@@ -399,9 +464,8 @@ impl<'a> Links<'a> {
         }
     }
 
-    fn matrix_id(&self, id: &str) -> Result<(String, bool), String> {
-        let (id, mapping) = self.matrix_frame(id)?;
-        Ok((id, mapping.is_some()))
+    fn matrix_id(&self, id: &str) -> Result<String, String> {
+        Ok(self.matrix_frame(id)?.0)
     }
 
     /// A full matrix payload for a linked mirror, as the source matrix that derives it.
@@ -459,97 +523,136 @@ impl<'a> Links<'a> {
             ));
         }
 
-        let mut source = crate::matrix::layout::reflected(payload, current_source, mapping, false)?;
-        // `reflected` maps the origin with the forward map, which is not its own inverse when the
-        // map has a translation along the mirror line; the heading rule is an involution.
-        source.origin = pair::inverse(mapping, payload.origin);
-        // An absent flag and `none` are one frame; keep the stored spelling so an unchanged
-        // matrix translates to exactly what the source holds.
-        if source.mirror == Some(Mirror::None) && current_source.mirror.is_none() {
-            source.mirror = None;
+        Ok(Some(invert_matrix(
+            payload,
+            current_source,
+            mapping,
+            link.pair.halves,
+        )?))
+    }
+
+    /// A `SetMatrix` that creates a matrix on a board a pair relates is the addition of a linked
+    /// pair: the matrix on the other board must be mirrored and linked too. Returns the source
+    /// matrix to create and the planned identities, or `None` when the matrix already exists, is
+    /// already named by a correspondence, or sits on a board no pair relates.
+    fn matrix_addition(&self, payload: &Matrix) -> Result<Option<NewMatrix>, String> {
+        if self
+            .document
+            .matrices
+            .iter()
+            .any(|matrix| matrix.id == payload.id)
+            || self.pairs.iter().any(|pair| {
+                pair.halves.correspondences.iter().any(|correspondence| {
+                    correspondence.kind == MirroredItemKind::Matrix
+                        && (correspondence.source_id == payload.id
+                            || correspondence.mirror_id == payload.id)
+                })
+            })
+        {
+            return Ok(None);
         }
-        // Companion placement depends on each companion's stored mode, so it is recomputed from
-        // the payload rather than taken from the literal reflection.
-        for cell in &mut source.cells {
-            if cell.assemblies_local == Some(true) {
-                continue;
+        let board = payload
+            .board_id
+            .clone()
+            .or_else(|| self.document.boards.first().map(|board| board.id.clone()));
+        let Some(board) = board else {
+            return Ok(None);
+        };
+        let Some(pair) = self.pairs.iter().find(|pair| {
+            pair.halves.source_board_id == board || pair.halves.mirror_board_id == board
+        }) else {
+            return Ok(None);
+        };
+        let source_board = pair.halves.source_board_id.clone();
+        let mirror_board = pair.halves.mirror_board_id.clone();
+        let mirror_side = board == mirror_board;
+
+        let mut taken: BTreeSet<String> = self
+            .document
+            .matrices
+            .iter()
+            .map(|matrix| matrix.id.clone())
+            .collect();
+        for pair in &self.pairs {
+            for correspondence in &pair.halves.correspondences {
+                if correspondence.kind == MirroredItemKind::Matrix {
+                    taken.insert(correspondence.source_id.clone());
+                    taken.insert(correspondence.mirror_id.clone());
+                }
             }
-            let Some(payload_cell) = payload
-                .cells
-                .iter()
-                .find(|candidate| (candidate.row, candidate.column) == (cell.row, cell.column))
-            else {
-                continue;
-            };
-            let heading = source.rotation.unwrap_or(0.0)
-                + column_rotation(&source.column_splays, source.mirror, cell.column)
-                + cell.rotation.unwrap_or(0.0);
-            let mirror_key_id = format!("matrix/{}/r{}c{}", payload.id, cell.row, cell.column);
-            let mut assemblies = Vec::with_capacity(payload_cell.assemblies.len());
-            for assembly in &payload_cell.assemblies {
-                let part_id = format!("{mirror_key_id}/{}", assembly.id);
-                let correspondence = link.pair.halves.correspondences.iter().find(|candidate| {
-                    candidate.kind == MirroredItemKind::Part && candidate.mirror_id == part_id
-                });
-                let mode = correspondence
-                    .and_then(|candidate| candidate.companion_mode)
-                    .unwrap_or(link.pair.halves.companion_mode);
-                let tweak = correspondence.and_then(|candidate| candidate.companion_tweak);
-                let stabiliser =
-                    super::SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
-                let mut placed = assembly.clone();
-                (placed.offset, placed.rotation) = if stabiliser {
-                    // The forward rule keeps the stabiliser's world heading:
-                    // `mirror = 2 * key + source - map`, so `source = mirror + map - 2 * key`.
-                    (
-                        Vec2 {
-                            x: -assembly.offset.x,
-                            y: assembly.offset.y,
-                        },
-                        Some(assembly.rotation.unwrap_or(0.0) + mapping.rotation - 2.0 * heading),
-                    )
-                } else {
-                    match mode {
-                        MirroredCompanionMode::LiteralMirror => (
-                            Vec2 {
-                                x: -assembly.offset.x,
-                                y: assembly.offset.y,
-                            },
-                            assembly.rotation.map(|rotation| -rotation),
-                        ),
-                        MirroredCompanionMode::LiteralMirrorWithTweak => {
-                            let tweak = tweak.ok_or_else(|| {
-                                format!("The companion {part_id:?} has no stored tweak")
-                            })?;
-                            (
-                                Vec2 {
-                                    x: -(assembly.offset.x - tweak.x),
-                                    y: assembly.offset.y - tweak.y,
-                                },
-                                Some(-(assembly.rotation.unwrap_or(0.0) - tweak.rotation)),
-                            )
-                        }
-                        MirroredCompanionMode::DuplicatePosition => {
-                            (assembly.offset, assembly.rotation)
-                        }
-                    }
-                };
-                assemblies.push(placed);
-            }
-            cell.assemblies = assemblies;
         }
-        Ok(Some(source))
+        taken.insert(payload.id.clone());
+        let free = |candidate: String| {
+            let mut id = candidate.clone();
+            let mut index = 2;
+            while taken.contains(&id) {
+                id = format!("{candidate}-{index}");
+                index += 1;
+            }
+            id
+        };
+        let (source_id, mirror_id, source_matrix) = if mirror_side {
+            let source_id = free(super::mirror_id(&mirror_board, &source_board, &payload.id));
+            let mut seed = payload.clone();
+            seed.id = source_id.clone();
+            seed.board_id = Some(source_board.clone());
+            seed.part_ids.clear();
+            seed.cells.clear();
+            seed.mirror = None;
+            if let Some(name) = &payload.name {
+                seed.name = Some(
+                    super::substitute_token(name, &mirror_board, &source_board)
+                        .unwrap_or_else(|| name.clone()),
+                );
+            }
+            let source_matrix = invert_matrix(payload, &seed, pair.mapping, pair.halves)?;
+            (source_id, payload.id.clone(), source_matrix)
+        } else {
+            let mirror_id = free(super::mirror_id(&source_board, &mirror_board, &payload.id));
+            (payload.id.clone(), mirror_id, payload.clone())
+        };
+
+        let mut members = Vec::new();
+        for row in 0..source_matrix.rows {
+            for column in 0..source_matrix.columns {
+                let cell = source_matrix
+                    .cells
+                    .iter()
+                    .find(|cell| (cell.row, cell.column) == (row, column));
+                if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
+                    continue;
+                }
+                let key = |matrix: &str| format!("matrix/{matrix}/r{row}c{column}");
+                members.push((key(&source_id), key(&mirror_id)));
+                for assembly in cell.iter().flat_map(|cell| &cell.assemblies) {
+                    members.push((
+                        format!("{}/{}", key(&source_id), assembly.id),
+                        format!("{}/{}", key(&mirror_id), assembly.id),
+                    ));
+                }
+            }
+        }
+        Ok(Some(NewMatrix {
+            plan: MatrixAddition {
+                source_id,
+                mirror_id,
+                source_board_id: source_board,
+                mirror_board_id: mirror_board,
+                members,
+            },
+            source_matrix,
+        }))
     }
 
     /// Per-matrix cell selections. Entries for both halves of one link are one set of
     /// coordinates on the source matrix, so a grouped selection cannot run the action twice.
-    fn selected_cells(&self, cells: &CellSelection) -> Result<(CellSelection, bool), String> {
+    fn selected_cells(&self, cells: &CellSelection) -> Result<CellSelection, String> {
         let mut groups: BTreeMap<String, Vec<&Vec<(u32, u32)>>> = BTreeMap::new();
-        let mut translated = false;
         for (id, selection) in cells {
-            let (canonical, was_mirror) = self.matrix_id(id)?;
-            translated |= was_mirror;
-            groups.entry(canonical).or_default().push(selection);
+            groups
+                .entry(self.matrix_id(id)?)
+                .or_default()
+                .push(selection);
         }
         let merged = groups
             .into_iter()
@@ -566,24 +669,22 @@ impl<'a> Links<'a> {
                 (id, cells)
             })
             .collect();
-        Ok((merged, translated))
+        Ok(merged)
     }
 
     // ---- MoveParts -------------------------------------------------------------------------
 
-    fn move_parts(&self, positions: &[Position]) -> Result<(Vec<Position>, bool), String> {
+    fn move_parts(&self, positions: &[Position]) -> Result<Vec<Position>, String> {
         let requested: BTreeMap<&str, Vec2> = positions
             .iter()
             .map(|position| (position.id.as_str(), position.at))
             .collect();
         // (canonical position, the id as written when it was rewritten)
         let mut out: Vec<(Position, Option<&str>)> = Vec::with_capacity(positions.len());
-        let mut translated = false;
         for position in positions {
             match self.linked_part(&position.id)? {
                 None => out.push((position.clone(), None)),
                 Some(link) => {
-                    translated = true;
                     let at = self.source_position(link, &position.id, position.at, &requested)?;
                     out.push((
                         Position {
@@ -618,10 +719,7 @@ impl<'a> Links<'a> {
                 }
             }
         }
-        Ok((
-            result.into_iter().map(|(position, _)| position).collect(),
-            translated,
-        ))
+        Ok(result.into_iter().map(|(position, _)| position).collect())
     }
 
     /// The source position that makes the linked mirror `id` land at `at`.
@@ -664,12 +762,13 @@ impl<'a> Links<'a> {
                         y: 0.0,
                         rotation: 0.0,
                     });
-                let shift = rotate(
+                let shift = rotate_about(
                     Vec2 {
                         x: tweak.x,
                         y: tweak.y,
                     },
                     mirror_rotation,
+                    ORIGIN,
                 );
                 Ok(pair::inverse(
                     mapping,
@@ -696,15 +795,16 @@ impl<'a> Links<'a> {
                     .get(mirror_key_id.as_str())
                     .copied()
                     .unwrap_or(mirror_key.pose.at);
-                let offset = rotate(
+                let offset = rotate_about(
                     Vec2 {
                         x: at.x - mirror_key_at.x,
                         y: at.y - mirror_key_at.y,
                     },
                     -mirror_rotation,
+                    ORIGIN,
                 );
                 let source_key_at = pair::inverse(mapping, mirror_key_at);
-                let carried = rotate(offset, source_key.pose.rotation);
+                let carried = rotate_about(offset, source_key.pose.rotation, ORIGIN);
                 Ok(Vec2 {
                     x: source_key_at.x + carried.x,
                     y: source_key_at.y + carried.y,
@@ -819,14 +919,12 @@ impl<'a> Links<'a> {
 
     // ---- RemoveParts -----------------------------------------------------------------------
 
-    fn remove_parts(&self, ids: &[String]) -> Result<(Vec<String>, bool), String> {
+    fn remove_parts(&self, ids: &[String]) -> Result<Vec<String>, String> {
         let mut out: Vec<String> = Vec::with_capacity(ids.len());
-        let mut translated = false;
         for id in ids {
             match self.linked_part(id)? {
                 None => out.push(id.clone()),
                 Some(link) => {
-                    translated = true;
                     let source = link.correspondence.source_id.clone();
                     if !out.contains(&source) {
                         out.push(source);
@@ -836,33 +934,102 @@ impl<'a> Links<'a> {
         }
         // A source named before or after its mirror is one removal.
         let mut seen = BTreeSet::new();
-        let ids = if translated {
-            out.into_iter()
-                .filter(|id| seen.insert(id.clone()))
-                .collect()
-        } else {
-            out
+        out.retain(|id| seen.insert(id.clone()));
+        Ok(out)
+    }
+}
+
+/// The source matrix that derives `payload` (a mirror matrix) under `mapping`, with identity,
+/// name, definition, board and members taken from `receiver`. Companion placement follows each
+/// companion's stored mode in `halves`, or the pair default for a companion with no record yet.
+fn invert_matrix(
+    payload: &Matrix,
+    receiver: &Matrix,
+    mapping: Pose2,
+    halves: &MirroredHalves,
+) -> Result<Matrix, String> {
+    let mut source = crate::matrix::layout::reflected(payload, receiver, mapping, false)?;
+    // `reflected` maps the origin with the forward map, which is not its own inverse when the
+    // map has a translation along the mirror line; the heading rule is an involution.
+    source.origin = pair::inverse(mapping, payload.origin);
+    // An absent flag and `none` are one frame; keep the stored spelling so an unchanged
+    // matrix translates to exactly what the source holds.
+    if source.mirror == Some(Mirror::None) && receiver.mirror.is_none() {
+        source.mirror = None;
+    }
+    // Companion placement depends on each companion's stored mode, so it is recomputed from
+    // the payload rather than taken from the literal reflection.
+    let frame = Matrix {
+        cells: Vec::new(),
+        ..source.clone()
+    };
+    for cell in &mut source.cells {
+        if cell.assemblies_local == Some(true) {
+            continue;
+        }
+        let Some(payload_cell) = payload
+            .cells
+            .iter()
+            .find(|candidate| (candidate.row, candidate.column) == (cell.row, cell.column))
+        else {
+            continue;
         };
-        Ok((ids, translated))
+        let heading = frame.rotation.unwrap_or(0.0)
+            + column_rotation(&frame, cell.column)
+            + cell.rotation.unwrap_or(0.0);
+        let mirror_key_id = format!("matrix/{}/r{}c{}", payload.id, cell.row, cell.column);
+        let mut assemblies = Vec::with_capacity(payload_cell.assemblies.len());
+        for assembly in &payload_cell.assemblies {
+            let part_id = format!("{mirror_key_id}/{}", assembly.id);
+            let correspondence = halves.correspondences.iter().find(|candidate| {
+                candidate.kind == MirroredItemKind::Part && candidate.mirror_id == part_id
+            });
+            let mode = correspondence
+                .and_then(|candidate| candidate.companion_mode)
+                .unwrap_or(halves.companion_mode);
+            let tweak = correspondence.and_then(|candidate| candidate.companion_tweak);
+            let stabiliser =
+                super::SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
+            let mut placed = assembly.clone();
+            (placed.offset, placed.rotation) = if stabiliser {
+                // The forward rule keeps the stabiliser's world heading:
+                // `mirror = 2 * key + source - map`, so `source = mirror + map - 2 * key`.
+                (
+                    Vec2 {
+                        x: -assembly.offset.x,
+                        y: assembly.offset.y,
+                    },
+                    Some(assembly.rotation.unwrap_or(0.0) + mapping.rotation - 2.0 * heading),
+                )
+            } else {
+                match mode {
+                    MirroredCompanionMode::LiteralMirror => (
+                        Vec2 {
+                            x: -assembly.offset.x,
+                            y: assembly.offset.y,
+                        },
+                        assembly.rotation.map(|rotation| -rotation),
+                    ),
+                    MirroredCompanionMode::LiteralMirrorWithTweak => {
+                        let tweak = tweak.ok_or_else(|| {
+                            format!("The companion {part_id:?} has no stored tweak")
+                        })?;
+                        (
+                            Vec2 {
+                                x: -(assembly.offset.x - tweak.x),
+                                y: assembly.offset.y - tweak.y,
+                            },
+                            Some(-(assembly.rotation.unwrap_or(0.0) - tweak.rotation)),
+                        )
+                    }
+                    MirroredCompanionMode::DuplicatePosition => {
+                        (assembly.offset, assembly.rotation)
+                    }
+                }
+            };
+            assemblies.push(placed);
+        }
+        cell.assemblies = assemblies;
     }
-}
-
-/// `vector` turned by `degrees` about the origin.
-fn rotate(vector: Vec2, degrees: f64) -> Vec2 {
-    let (sin, cos) = degrees.to_radians().sin_cos();
-    Vec2 {
-        x: vector.x * cos - vector.y * sin,
-        y: vector.x * sin + vector.y * cos,
-    }
-}
-
-/// The turn a matrix's column splays give a key, as the generator applies it: the splays up to
-/// and including the column, negated when the local frame is flipped.
-fn column_rotation(splays: &[f64], mirror: Option<Mirror>, column: u32) -> f64 {
-    let angle: f64 = splays.iter().take(column as usize + 1).sum();
-    if matches!(mirror, Some(Mirror::X | Mirror::Y)) {
-        -angle
-    } else {
-        angle
-    }
+    Ok(source)
 }

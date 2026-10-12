@@ -360,7 +360,7 @@ fn location(matrix: &Matrix, row: u32, column: u32, cell: Option<&MatrixCell>) -
     }
 }
 
-fn column_rotation(matrix: &Matrix, column: u32) -> f64 {
+pub(crate) fn column_rotation(matrix: &Matrix, column: u32) -> f64 {
     let angle = matrix
         .column_splays
         .iter()
