@@ -1313,7 +1313,7 @@ fn new_board(
     let mut companion_ids = BTreeSet::new();
     for matrix in &matrices {
         for cell in &matrix.cells {
-            let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+            let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
             for assembly in &cell.assemblies {
                 companion_ids.insert(crate::matrix::companion_id(&key_id, &assembly.id));
             }
@@ -1455,7 +1455,7 @@ fn new_board(
                 continue;
             }
             for assembly in &mut cell.assemblies {
-                let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+                let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
                 let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
                 let stabiliser = SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
                 let fallback = repaired_companions.contains(&companion_id);
