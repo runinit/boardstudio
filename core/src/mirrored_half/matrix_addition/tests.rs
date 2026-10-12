@@ -19,7 +19,7 @@ pub(in crate::mirrored_half) fn op(value: Value) -> EditOperation {
 }
 
 /// A left half with one 2 x 2 matrix (`left-keys`, a diode on each key) and a controller.
-fn source_half() -> ProjectDoc {
+pub(in crate::mirrored_half) fn source_half() -> ProjectDoc {
     let mut cells = Vec::new();
     for row in 0..2 {
         for column in 0..2 {
@@ -83,7 +83,7 @@ fn created(mapping: Value, companion_mode: &str) -> ProjectDoc {
     create_from(source_half(), mapping, companion_mode, None)
 }
 
-fn create_from(
+pub(in crate::mirrored_half) fn create_from(
     mut document: ProjectDoc,
     mapping: Value,
     companion_mode: &str,
