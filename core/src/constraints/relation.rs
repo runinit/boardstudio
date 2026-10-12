@@ -74,16 +74,13 @@ impl ConstraintRelation {
                 },
                 rotation: source.rotation + rotation,
             },
-            Self::PartOffset { offset, rotation } => {
-                let (sin, cos) = source.rotation.to_radians().sin_cos();
+            Self::PartOffset { offset, rotation } => super::follow_pose(
+                source,
                 Pose2 {
-                    at: Vec2 {
-                        x: source.at.x + offset.x * cos - offset.y * sin,
-                        y: source.at.y + offset.x * sin + offset.y * cos,
-                    },
-                    rotation: source.rotation + rotation,
-                }
-            }
+                    at: *offset,
+                    rotation: *rotation,
+                },
+            ),
             Self::MirrorLine { at, angle } => {
                 let tangent = angle.to_radians();
                 let (sin, cos) = tangent.sin_cos();
@@ -122,11 +119,12 @@ impl ConstraintRelation {
                 // The source heading is the target's minus the stored turn, so the turned
                 // offset can be taken back out without the source pose.
                 let source_rotation = target.rotation - rotation;
-                let (sin, cos) = source_rotation.to_radians().sin_cos();
+                let turned =
+                    crate::matrix::splay::rotate(*offset, source_rotation, Vec2::default());
                 Pose2 {
                     at: Vec2 {
-                        x: target.at.x - (offset.x * cos - offset.y * sin),
-                        y: target.at.y - (offset.x * sin + offset.y * cos),
+                        x: target.at.x - turned.x,
+                        y: target.at.y - turned.y,
                     },
                     rotation: source_rotation,
                 }

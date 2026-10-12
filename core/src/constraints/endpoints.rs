@@ -237,11 +237,7 @@ impl EndpointFrame {
 }
 
 fn turned(vector: Vec2, degrees: f64) -> Vec2 {
-    let (sin, cos) = degrees.to_radians().sin_cos();
-    Vec2 {
-        x: vector.x * cos - vector.y * sin,
-        y: vector.x * sin + vector.y * cos,
-    }
+    crate::matrix::splay::rotate(vector, degrees, Vec2::default())
 }
 
 fn nearest_equivalent(angle: f64, reference: f64) -> f64 {
