@@ -1,6 +1,6 @@
 # 10: Highlight Relations references on the Layout canvas
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 09
 Spec: [spec.md](../spec.md#relations) · Map: [map.md](../map.md)
@@ -29,7 +29,7 @@ crate (docs/architecture.md). Keep the type addition minimal.
 
 ## Tests (browser)
 
-1. Hovering Column 3's "inherited by Columns 4–7" item marks exactly those members as
+1. Hovering Column 3's "Inherited by" Column 4 (one item per later column, per ticket 08) item marks exactly those members as
    highlighted on the canvas (assert via DOM class/data attribute). Leaving clears
    it.
 2. Keyboard focus gives the same highlight. Blur clears it.
@@ -47,3 +47,22 @@ stage only that hunk.
 
 `web/crates/ui-model` (state type), the Layout canvas renderer that draws finding
 focus, and the Relations buttons from 09.
+
+## Outcome
+
+Resolved 2026-10-09. Hover or keyboard focus on a Relations reference (Structure, departure or
+constraint button) sets a transient `RelationHighlight` signal in `ui-model` state; the Layout
+canvas draws matching matrix keys and parts with a dashed `accent-secondary` outline that is
+distinct from selection (a selected item keeps its selection style). Leave, blur, unmount,
+selection, workspace and board change clear it; removed IDs draw nothing. The button carries
+`aria-describedby` text naming the highlight, with a per-instance id. Highlighting never writes a
+revision, history entry or the selection. DESIGN.md records the treatment.
+
+Tests (`layout_relation_highlight_tests.rs`): four were red before implementation (missing
+highlight class); the revision guard asserts a highlight is present mid-sequence. Full web bin
+browser batch passed (70 tests).
+
+Notes: each "Inherited by" item highlights its own column, which is ticket 08's design, so no
+projection change. Editor reads the highlight signal, so each enter, leave, focus and blur
+re-renders the Layout canvas; moving key and part drawing into components that read the signal
+would narrow it (backlog). The ticket's "Columns 4–7" wording was corrected.

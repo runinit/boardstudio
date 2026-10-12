@@ -1,6 +1,6 @@
 //! Outline version Inspector.
 
-use super::hook::{OutlineDrawTool, OutlineInspectorProjection};
+use super::hook::{OutlineDrawTool, OutlineInspectorProjection, OutlineVersionOwnership};
 use super::overlays::{OutlineCoordinate, OutlineDimension, polygon_area};
 use super::planner::{
     PerimeterAnchor, attach_connection_point, connection_point_world, move_connection_point,
@@ -23,7 +23,11 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     let contour_view = contour_preview(&projection.contours);
     let copy = projection.copy_action();
     let delete = projection.delete_action();
+    let freeze = projection.freeze_action();
+    let refine = projection.refine_action();
     let copy_handler = projection.on_action;
+    let refine_handler = projection.on_action;
+    let freeze_handler = projection.on_action;
     let delete_handler = projection.on_action;
     let mut version_name = projection.version_name_draft;
     let mut perimeter_open = projection.editing_points;
@@ -42,6 +46,29 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
     let mut drawing_points = projection.drawing_points;
     let mut draft_serial = use_signal(|| 0u64);
     let active_value = projection.active_version_id.clone().unwrap_or_default();
+    let active_choice = projection
+        .versions
+        .iter()
+        .find(|item| Some(&item.id) == projection.active_version_id.as_ref())
+        .cloned();
+    let active_ownership = active_choice
+        .as_ref()
+        .map_or(OutlineVersionOwnership::Generated, |item| item.ownership);
+    // Margin, bridge width and cleanup belong to an envelope, which Generated and a linked
+    // refinement have and an edited (fixed) copy does not.
+    let envelope_editable = active_ownership != OutlineVersionOwnership::Edited;
+    let active_problem = active_choice
+        .clone()
+        .filter(|item| item.problem_message.is_some());
+    // Alternatives that cannot resolve are listed without pretending the active outline
+    // is blocked: Core decides the affected exports and the current output stays valid.
+    let blocked_alternatives = projection
+        .versions
+        .iter()
+        .filter(|item| item.problem_message.is_some())
+        .filter(|item| Some(&item.id) != projection.active_version_id.as_ref())
+        .cloned()
+        .collect::<Vec<_>>();
     let perimeter = projection.perimeter.clone();
     let corner_value = match projection.settings.corners {
         CornerStyle::Sharp => "sharp",
@@ -230,7 +257,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
         } else {
         section { class: "m1-outline-inspector", "aria-label": "Board outline",
             div { class: "m1-outline-inspector-heading", h2 { "Board outline" } span { class: "m1-outline-board-name", "{projection.board_name}" } }
-            p { if projection.active_version_id.is_some() { "A fixed outline; component placement is shared with every version." } else { "Generated follows your keycaps and included components." } }
+            p { "{ownership_summary(active_ownership)}" }
             p { "{projection.contours.len()} accepted contours" }
             if let Some((view_box, paths)) = contour_view {
                 svg { class: "m1-outline-preview", role: "img", "aria-label": "Accepted active board outline", view_box: "{view_box}",
@@ -257,7 +284,13 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         },
                         option { value: "", selected: active_value.is_empty(), "Generated" }
                         for item in projection.versions.iter() {
-                            option { key: "{item.id}", value: "{item.id}", selected: item.id == active_value, "{item.name}" }
+                            option {
+                                key: "{item.id}",
+                                value: "{item.id}",
+                                selected: item.id == active_value,
+                                "aria-label": "{item.label()}",
+                                "{item.label()}"
+                            }
                         }
                     }
                 }
@@ -309,6 +342,33 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         p { class: "m1-inline-error", role: "alert", "{message}" }
                     }
                 }
+                if let Some(problem) = active_problem.as_ref() {
+                    div {
+                        class: "m1-outline-problem",
+                        role: "alert",
+                        "data-finding-id": "{problem.problem_finding_id.clone().unwrap_or_default()}",
+                        "data-ownership": "{active_ownership.label()}",
+                        p { "{problem.problem_message.clone().unwrap_or_default()}" }
+                        p {
+                            if !problem.blocked_exports.is_empty() {
+                                "Disabled while this refinement cannot resolve: {problem.blocked_exports.join(\", \")}. Saving and further editing stay available."
+                            } else {
+                                "This refinement is not selected, so it does not block current output. Saving and further editing stay available."
+                            }
+                        }
+                        if problem.problem_selectable {
+                            p { class: "m1-outline-problem-hint", "Select the located finding on the canvas to inspect it." }
+                        }
+                    }
+                }
+                for blocked in blocked_alternatives.iter() {
+                    p {
+                        class: "m1-outline-alternative-problem",
+                        "data-finding-id": "{blocked.problem_finding_id.clone().unwrap_or_default()}",
+                        "data-ownership": "{blocked.ownership.label()}",
+                        "{blocked.ownership.label()} \u{201c}{blocked.name}\u{201d}: {blocked.problem_message.clone().unwrap_or_default()}"
+                    }
+                }
                 if !projection.has_generated && projection.active_version_id.is_none() {
                     button {
                         class: "m1-outline-action",
@@ -354,8 +414,8 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             },
                         }
                     }
-                    if projection.active_version_id.is_none() {
-                        if let Some(margin) = projection.generated_margin {
+                    if envelope_editable {
+                        if let Some(margin) = projection.envelope_margin {
                             OutlineDimension {
                                 label: "Outline margin",
                                 value: margin,
@@ -415,7 +475,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                     }
                     fieldset { class: "m1-outline-controls", disabled: !enabled,
                         legend { "Advanced cleanup and clearance" }
-                        if projection.active_version_id.is_none() {
+                        if envelope_editable {
                             label { class: "m1-outline-field m1-outline-gap",
                                 input {
                                     r#type: "checkbox",
@@ -944,6 +1004,26 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
             }
             div { class: "m1-outline-actions",
                 button { r#type: "button", disabled: !projection.enabled || projection.one_shot_pending, onclick: move |_| copy_handler.call(copy.clone()), "Copy outline" }
+                if let Some(freeze) = freeze.clone() {
+                    button {
+                        r#type: "button",
+                        class: "m1-outline-freeze",
+                        disabled: !projection.enabled || projection.one_shot_pending,
+                        title: "Create a separate edited copy and keep this linked refinement.",
+                        onclick: move |_| freeze_handler.call(freeze.clone()),
+                        "Freeze into an edited copy"
+                    }
+                }
+                if let Some(refine) = refine.clone() {
+                    button {
+                        r#type: "button",
+                        class: "m1-outline-refine",
+                        disabled: !projection.enabled || projection.one_shot_pending,
+                        title: "Accept this generated outline as a linked refinement that follows the components.",
+                        onclick: move |_| refine_handler.call(refine.clone()),
+                        "Refine outline"
+                    }
+                }
                 if let Some(delete) = delete {
                     button { r#type: "button", disabled: !projection.enabled || projection.one_shot_pending, onclick: move |_| delete_handler.call(delete.clone()), "Delete outline" }
                 }
@@ -993,4 +1073,19 @@ fn contour_preview(contours: &[Contour]) -> Option<(String, Vec<(String, bool)>)
         })
         .collect();
     Some((view_box, paths))
+}
+
+/// The Inspector's one-line ownership summary for the selected outline.
+fn ownership_summary(ownership: OutlineVersionOwnership) -> &'static str {
+    match ownership {
+        OutlineVersionOwnership::Generated => {
+            "Generated follows your keycaps and included components."
+        }
+        OutlineVersionOwnership::Linked => {
+            "Linked refinement: it follows the board's current components and its settings stay editable. Freeze makes a separate edited copy and keeps this link."
+        }
+        OutlineVersionOwnership::Edited => {
+            "Edited outline: an authored, fixed copy. Its geometry stays put when components move."
+        }
+    }
 }

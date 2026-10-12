@@ -4,7 +4,9 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import tomllib
@@ -16,6 +18,10 @@ import cadrum_build as build
 _spec = importlib.util.spec_from_file_location("cadrum_browser", Path(__file__).with_name("test-cadrum-browser.py"))
 browser = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(browser)
+
+REPO_ROOT = build.CAD_ROOT.parent
+# The CAD crates are excluded from the root workspace but are not members of it.
+CAD_CRATES = ("wasm", "step-oracle")
 
 
 class CadrumBuildTests(unittest.TestCase):
@@ -163,6 +169,35 @@ workspace = true
                 build.build_wasm()
         run.assert_called_once()
 
+    def test_binaryen_cores_is_forwarded_for_both_runtimes_only_when_set(self):
+        self.wasm_sources()
+        for runtime in ("podman", "docker"):
+            with self.subTest(runtime=runtime, binaryen_cores="4"):
+                environment = {"CADRUM_CONTAINER_RUNTIME": runtime, "CADRUM_IMAGE_READY": "1",
+                               "CARGO_BUILD_JOBS": "2", "BINARYEN_CORES": "4"}
+                with patch.dict(build.os.environ, environment, clear=True), \
+                        patch.object(build, "prepare", return_value=self.root / "occt"), \
+                        patch.object(build, "run") as run:
+                    build.build_wasm()
+                command = next(call.args[0] for call in run.call_args_list if call.args[0][1] == "run")
+                cargo_jobs_index = command.index("CARGO_BUILD_JOBS=2")
+                self.assertIn("BINARYEN_CORES=4", command)
+                binaryen_index = command.index("BINARYEN_CORES=4")
+                self.assertEqual(command[cargo_jobs_index - 1:binaryen_index + 1],
+                                 ["--env", "CARGO_BUILD_JOBS=2", "--env", "BINARYEN_CORES=4"])
+                self.assertLess(binaryen_index, command.index(build.IMAGE))
+
+            with self.subTest(runtime=runtime, binaryen_cores="unset"):
+                environment = {"CADRUM_CONTAINER_RUNTIME": runtime, "CADRUM_IMAGE_READY": "1",
+                               "CARGO_BUILD_JOBS": "2"}
+                with patch.dict(build.os.environ, environment, clear=True), \
+                        patch.object(build, "prepare", return_value=self.root / "occt"), \
+                        patch.object(build, "run") as run:
+                    build.build_wasm()
+                command = next(call.args[0] for call in run.call_args_list if call.args[0][1] == "run")
+                self.assertFalse(any(argument.startswith("BINARYEN_CORES=") for argument in command))
+                self.assertIn("CARGO_BUILD_JOBS=2", command)
+
     def test_published_image_is_pulled_by_containerfile_digest_with_local_fallback(self):
         self.wasm_sources()
         environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": ""}
@@ -210,6 +245,39 @@ workspace = true
         self.assertEqual([command[:2] for command in commands], [["docker", "run"]])
         self.assertIn(build.IMAGE, commands[0])
 
+    def test_symlinked_cache_or_output_is_rejected_before_the_container(self):
+        # The container mounts cad/ alone, so a symlink into another checkout dangles inside it.
+        self.wasm_sources()
+        for name in (".cache", "wasm/pkg", "wasm/target"):
+            with self.subTest(path=name):
+                real = self.project / ("real-" + name.replace("/", "-").strip("."))
+                real.mkdir()
+                link = self.root / name
+                link.symlink_to(real, target_is_directory=True)
+                environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1"}
+                with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                        patch.object(build, "run") as run, self.assertRaisesRegex(RuntimeError, f"cad/{name} is a symlink"):
+                    build.build_wasm()
+                run.assert_not_called()
+                link.unlink()
+
+    def test_current_provider_skips_before_the_symlink_check(self):
+        # An up-to-date build never reaches the container, so a symlinked cache is harmless then.
+        self.wasm_sources()
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_BUILD_IMAGE": "1"}
+        output = self.root / "wasm/pkg/boardstudio_cadrum_wasm_bg.wasm"
+        with patch.dict(build.os.environ, environment), patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "run", side_effect=lambda *a, **k: output.parent.mkdir(parents=True, exist_ok=True) or output.write_bytes(b"wasm")):
+            build.build_wasm()
+        real = self.project / "real-cache"
+        (self.root / ".cache").rename(real)
+        (self.root / ".cache").symlink_to(real, target_is_directory=True)
+        with patch.dict(build.os.environ, environment), patch.object(build, "run") as run, \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
+            build.build_wasm()
+        run.assert_not_called()
+        self.assertIn("skipping the container build", printed.getvalue())
+
     def test_native_failure_is_raised(self):
         with patch.object(build, "prepare", return_value=self.extracted), patch.object(build, "run", side_effect=[None, None, subprocess.CalledProcessError(1, "cargo")]), patch.object(build, "build_wasm") as wasm:
             with self.assertRaises(subprocess.CalledProcessError):
@@ -235,6 +303,45 @@ workspace = true
                 build.test_cadrum()
         self.assertEqual(run.call_count, 2)
         wasm.assert_not_called()
+
+class CadWorkspaceTests(unittest.TestCase):
+    """cargo must find each CAD crate's own root, even when this checkout is nested in another."""
+
+    def test_cad_crates_declare_their_own_workspace(self):
+        for crate in CAD_CRATES:
+            with self.subTest(crate=crate):
+                manifest = tomllib.loads((build.CAD_ROOT / crate / "Cargo.toml").read_text())
+                self.assertIn("workspace", manifest,
+                              f"cad/{crate}/Cargo.toml needs its own [workspace] table; otherwise cargo "
+                              "walks up into a parent checkout's workspace and fails")
+
+    def test_nested_checkout_resolves_cad_crates_without_the_parent_workspace(self):
+        exclude = tomllib.loads((REPO_ROOT / "Cargo.toml").read_text())["workspace"]["exclude"]
+        with tempfile.TemporaryDirectory() as directory:
+            outer = Path(directory)
+            (outer / "app/src").mkdir(parents=True)
+            (outer / "Cargo.toml").write_text('[workspace]\nresolver = "3"\nmembers = ["app"]\n')
+            (outer / "app/Cargo.toml").write_text('[package]\nname = "app"\nversion = "0.1.0"\nedition = "2021"\n')
+            (outer / "app/src/lib.rs").write_text("")
+            # Same shape as .worktrees/<name>: the nested root excludes the CAD crates by the real list.
+            nested = outer / ".worktrees/nested"
+            (nested / "contracts/rust/src").mkdir(parents=True)
+            (nested / "contracts/rust/src/lib.rs").write_text("")
+            (nested / "contracts/rust/Cargo.toml").write_text(
+                '[package]\nname = "boardstudio-contracts"\nversion = "0.1.0"\nedition = "2021"\n')
+            (nested / "Cargo.toml").write_text('[workspace]\nresolver = "3"\nmembers = ["contracts/rust"]\n'
+                                               f"exclude = {json.dumps(exclude)}\n")
+            for crate in CAD_CRATES:
+                (nested / "cad" / crate / "src").mkdir(parents=True)
+                (nested / "cad" / crate / "src/lib.rs").write_text("")
+                shutil.copy(build.CAD_ROOT / crate / "Cargo.toml", nested / "cad" / crate / "Cargo.toml")
+            for crate in CAD_CRATES:
+                with self.subTest(crate=crate):
+                    manifest = nested / "cad" / crate / "Cargo.toml"
+                    done = subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1",
+                                           "--manifest-path", str(manifest)], capture_output=True, text=True)
+                    self.assertEqual(done.returncode, 0, done.stderr)
+
 
 class BrowserSmokeParserTests(unittest.TestCase):
     def test_result_is_read_from_the_rendered_page_and_unescaped(self):

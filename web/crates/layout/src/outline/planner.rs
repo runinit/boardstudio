@@ -1,10 +1,14 @@
-//! Pure planning for outline lifecycle actions.
+//! Pure geometry helpers and the presentation outline action vocabulary.
+//!
+//! Every action here is turned into one typed Core outline edit by
+//! [`super::adapter`]; no planning or replacement document happens in this module. The
+//! unique-id helpers below feed the adapter for the version and connection ids it still
+//! chooses itself; Core validates them.
 
-use crate::outline_settings::{OutlineEdit, apply_outline_edit, generated_feature};
-use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
+use crate::outline_settings::OutlineEdit;
+use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{
-    EditOperation, EditPhase, Operation, OutlineConnection, OutlineContourEdit,
-    OutlineControlPoint, OutlineFeature, Part, Side, Vec2,
+    EditPhase, Operation, OutlineControlPoint, OutlineFeature, Part, Side, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -71,6 +75,21 @@ pub enum OutlineAction {
         generation: u64,
         board_id: String,
         edit: OutlineEdit,
+    },
+    Refine {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+    },
+    Freeze {
+        scope: Scope,
+        token: boardstudio_application::SnapshotToken,
+        revision: u64,
+        generation: u64,
+        board_id: String,
+        version_id: String,
     },
     EditPerimeter {
         scope: Scope,
@@ -325,6 +344,21 @@ impl OutlineAction {
                 board_id,
                 ..
             }
+            | OutlineAction::Refine {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+            }
+            | OutlineAction::Freeze {
+                scope,
+                token,
+                revision,
+                generation,
+                board_id,
+                ..
+            }
             | OutlineAction::EditPerimeter {
                 scope,
                 token,
@@ -399,473 +433,6 @@ impl OutlineAction {
             board_id: board_id.clone(),
             version_id: version_id.clone(),
         })
-    }
-}
-/// Why an action plans to no edit: its target is gone or no longer eligible, or the value
-/// is already what is accepted.
-pub(crate) enum Skip {
-    Retire(String),
-    Unchanged,
-}
-
-fn retire<T>(reason: &str) -> Result<T, Skip> {
-    Err(Skip::Retire(reason.to_owned()))
-}
-
-fn next_edited_outline_name(state: Option<&boardstudio_core::model::BoardOutline>) -> String {
-    let next_number = state
-        .into_iter()
-        .flat_map(|state| &state.versions)
-        .filter_map(|version| {
-            version
-                .name
-                .strip_prefix("Edited outline ")
-                .and_then(|number| number.parse::<u32>().ok())
-        })
-        .max()
-        .unwrap_or(0)
-        .saturating_add(1);
-    format!("Edited outline {next_number}")
-}
-
-fn all_version_ids(document: &boardstudio_core::model::ProjectDoc) -> Vec<String> {
-    document
-        .board_outlines
-        .iter()
-        .flat_map(|state| &state.versions)
-        .map(|version| version.id.clone())
-        .collect()
-}
-
-/// Plan one outline action against an accepted snapshot: the edit operation and its target
-/// ids, built from the accepted document so a queued action applies on top of the edits
-/// accepted before it. New identities are chosen here, against the accepted document, from a
-/// seed captured at submit, so two queued adds cannot collide.
-pub(crate) fn plan_action(
-    snapshot: &AcceptedSnapshot,
-    action: &OutlineAction,
-    seed: u64,
-) -> Result<(EditOperation, Vec<String>), Skip> {
-    let document = snapshot.document.as_ref();
-    let (_, _, _, _, board_id) = action.envelope();
-    let Some(board) = document.boards.iter().find(|board| board.id == *board_id) else {
-        return retire("The board no longer exists.");
-    };
-    let state = document
-        .board_outlines
-        .iter()
-        .find(|state| state.board_id == *board_id);
-    let generated = generated_feature(document, board);
-    let active_version = state.and_then(|state| state.active_version_id.as_deref());
-    let version_of = |version_id: &str| {
-        state
-            .into_iter()
-            .flat_map(|state| &state.versions)
-            .find(|version| version.id == version_id)
-    };
-    match action {
-        OutlineAction::Activate { version_id, .. } => {
-            if version_id
-                .as_deref()
-                .is_some_and(|id| version_of(id).is_none())
-            {
-                return retire("That outline version no longer exists.");
-            }
-            if active_version == version_id.as_deref() {
-                return Err(Skip::Unchanged);
-            }
-            Ok((
-                EditOperation::SelectOutline {
-                    board_id: board_id.clone(),
-                    version_id: version_id.clone(),
-                },
-                vec![board_id.clone()],
-            ))
-        }
-        OutlineAction::Copy { .. } => {
-            let version_id = unique_outline_version_id(seed, all_version_ids(document));
-            Ok((
-                EditOperation::CopyOutline {
-                    board_id: board_id.clone(),
-                    version_id,
-                    name: next_edited_outline_name(state),
-                    edit: None,
-                    feature: None,
-                },
-                vec![board_id.clone()],
-            ))
-        }
-        OutlineAction::Delete { version_id, .. } => {
-            if active_version != Some(version_id.as_str()) || version_of(version_id).is_none() {
-                return retire("That outline version no longer exists.");
-            }
-            Ok((
-                EditOperation::RemoveOutline {
-                    board_id: board_id.clone(),
-                    version_id: version_id.clone(),
-                },
-                vec![board_id.clone()],
-            ))
-        }
-        OutlineAction::AddFeature {
-            context, feature, ..
-        } => {
-            if let TreeContext::OutlineVersion { version_id, .. } = context
-                && active_version != version_id.as_deref()
-            {
-                return retire("The outline version changed before the feature was added.");
-            }
-            let OutlineFeature::Polygon {
-                id,
-                points,
-                anchor_part_id,
-                operation,
-            } = feature
-            else {
-                return retire("Only polygons can be added here.");
-            };
-            if points.len() < 3
-                || points
-                    .iter()
-                    .any(|point| !point.x.is_finite() || !point.y.is_finite())
-            {
-                return retire("A polygon needs at least three finite points.");
-            }
-            let existing_ids = document
-                .outline
-                .iter()
-                .map(|item| item.id().to_owned())
-                .chain(
-                    document
-                        .board_outlines
-                        .iter()
-                        .flat_map(|item| &item.versions)
-                        .flat_map(|version| &version.geometry.features)
-                        .map(|item| item.id().to_owned()),
-                )
-                .collect::<Vec<_>>();
-            let id = if existing_ids.contains(id) {
-                unique_outline_entity_id("outline-feature", seed, existing_ids)
-            } else {
-                id.clone()
-            };
-            let feature = OutlineFeature::Polygon {
-                id: id.clone(),
-                points: points.clone(),
-                anchor_part_id: anchor_part_id.clone(),
-                operation: *operation,
-            };
-            if let Some(version_id) = active_version {
-                let mut replacement = document.clone();
-                let Some(version) = replacement
-                    .board_outlines
-                    .iter_mut()
-                    .find(|outline| outline.board_id == *board_id)
-                    .and_then(|outline| {
-                        outline
-                            .versions
-                            .iter_mut()
-                            .find(|version| version.id == version_id)
-                    })
-                else {
-                    return retire("The outline version no longer exists.");
-                };
-                version.geometry.features.push(feature);
-                Ok((
-                    EditOperation::ReplaceDocument {
-                        document: Box::new(replacement),
-                    },
-                    vec![board_id.clone(), id],
-                ))
-            } else {
-                Ok((
-                    EditOperation::CopyOutline {
-                        board_id: board_id.clone(),
-                        version_id: unique_outline_version_id(seed, all_version_ids(document)),
-                        name: next_edited_outline_name(state),
-                        edit: None,
-                        feature: Some(feature),
-                    },
-                    vec![board_id.clone(), id],
-                ))
-            }
-        }
-        OutlineAction::AddConnection { points, .. } => {
-            if active_version.is_some() {
-                return retire("Connections only apply to the automatic outline.");
-            }
-            if points.len() < 2
-                || points
-                    .iter()
-                    .any(|point| !point.x.is_finite() || !point.y.is_finite())
-            {
-                return retire("A connection needs at least two finite points.");
-            }
-            let Some(OutlineFeature::PartEnvelope {
-                part_ids, settings, ..
-            }) = generated
-            else {
-                return retire("The automatic outline no longer exists.");
-            };
-            let eligible = document
-                .parts
-                .iter()
-                .filter(|part| {
-                    part_ids.contains(&part.id)
-                        && !part
-                            .outline
-                            .as_ref()
-                            .is_some_and(|outline| outline.excluded)
-                })
-                .collect::<Vec<_>>();
-            let mut feature = generated.expect("matched generated feature").clone();
-            let OutlineFeature::PartEnvelope { connections, .. } = &mut feature else {
-                return retire("The automatic outline no longer exists.");
-            };
-            connections.push(OutlineConnection {
-                id: unique_outline_entity_id(
-                    "outline-connection",
-                    seed,
-                    connections.iter().map(|connection| connection.id.clone()),
-                ),
-                width: settings.bridge_width,
-                points: points
-                    .iter()
-                    .enumerate()
-                    .map(|(index, point)| {
-                        if index == 0 || index + 1 == points.len() {
-                            outline_connection_control(*point, &eligible)
-                        } else {
-                            OutlineControlPoint {
-                                at: *point,
-                                part_id: None,
-                            }
-                        }
-                    })
-                    .collect(),
-            });
-            let id = feature.id().to_owned();
-            Ok((
-                EditOperation::SetOutline { feature },
-                vec![board_id.clone(), id],
-            ))
-        }
-        OutlineAction::SetFeature {
-            version_id,
-            before,
-            after,
-            ..
-        } => {
-            if before.id() != after.id() {
-                return retire("The outline feature identity changed.");
-            }
-            if active_version != version_id.as_deref() {
-                return retire("The outline version changed before the feature was edited.");
-            }
-            let accepted = if let Some(version_id) = version_id {
-                version_of(version_id).and_then(|version| {
-                    version
-                        .geometry
-                        .features
-                        .iter()
-                        .find(|feature| feature.id() == before.id())
-                })
-            } else {
-                document.outline.iter().find(|feature| {
-                    feature.id() == before.id()
-                        && board.outline_ids.iter().any(|id| id == feature.id())
-                })
-            };
-            let Some(accepted) = accepted else {
-                return retire("The outline feature no longer exists.");
-            };
-            if accepted == after {
-                return Err(Skip::Unchanged);
-            }
-            let operation = if let Some(version_id) = version_id {
-                let mut replacement = document.clone();
-                let Some(feature) = replacement
-                    .board_outlines
-                    .iter_mut()
-                    .find(|outline| outline.board_id == *board_id)
-                    .and_then(|outline| {
-                        outline
-                            .versions
-                            .iter_mut()
-                            .find(|version| version.id == *version_id)
-                    })
-                    .and_then(|version| {
-                        version
-                            .geometry
-                            .features
-                            .iter_mut()
-                            .find(|feature| feature.id() == before.id())
-                    })
-                else {
-                    return retire("The outline feature no longer exists.");
-                };
-                *feature = after.clone();
-                EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                }
-            } else {
-                EditOperation::SetOutline {
-                    feature: after.clone(),
-                }
-            };
-            Ok((operation, vec![board_id.clone(), before.id().to_owned()]))
-        }
-        OutlineAction::RemoveFeature {
-            version_id,
-            feature_id,
-            ..
-        } => {
-            if active_version != Some(version_id.as_str()) {
-                return retire("The outline version changed before the feature was removed.");
-            }
-            let Some(version) = version_of(version_id) else {
-                return retire("The outline version no longer exists.");
-            };
-            let authored_index = version
-                .geometry
-                .features
-                .iter()
-                .filter(|feature| !matches!(feature, OutlineFeature::PartEnvelope { .. }))
-                .position(|feature| feature.id() == feature_id);
-            match authored_index {
-                None => return retire("The outline feature no longer exists."),
-                Some(0) => return retire("The base outline feature cannot be removed."),
-                Some(_) => {}
-            }
-            let mut replacement = document.clone();
-            let Some(target) = replacement
-                .board_outlines
-                .iter_mut()
-                .find(|outline| outline.board_id == *board_id)
-                .and_then(|outline| {
-                    outline
-                        .versions
-                        .iter_mut()
-                        .find(|version| version.id == *version_id)
-                })
-            else {
-                return retire("The outline version no longer exists.");
-            };
-            target
-                .geometry
-                .features
-                .retain(|feature| feature.id() != feature_id);
-            Ok((
-                EditOperation::ReplaceDocument {
-                    document: Box::new(replacement),
-                },
-                vec![board_id.clone(), feature_id.clone()],
-            ))
-        }
-        OutlineAction::FocusGap { .. } => retire("A gap focus is not an edit."),
-        OutlineAction::Update { edit, .. } => {
-            let Some((operation, target_ids)) =
-                apply_outline_edit(document, &snapshot.scene, board_id, edit, OperationId(seed))
-            else {
-                if let OutlineEdit::RenameVersion { version_id, .. } = edit
-                    && version_of(version_id).is_none()
-                {
-                    return retire("That outline version no longer exists.");
-                }
-                return Err(Skip::Unchanged);
-            };
-            Ok((operation, target_ids))
-        }
-        OutlineAction::EditPerimeter { target, points, .. } => {
-            if points.len() < 3
-                || points
-                    .iter()
-                    .any(|point| !point.x.is_finite() || !point.y.is_finite())
-            {
-                return retire("A perimeter needs at least three finite points.");
-            }
-            match target {
-                OutlinePointTarget::Generated { contour } => {
-                    let Some(source_points) = snapshot
-                        .scene
-                        .board_outline_scenes
-                        .iter()
-                        .find(|scene| scene.board_id == *board_id)
-                        .and_then(|scene| scene.source_contours.get(*contour as usize))
-                        .map(|source| &source.points)
-                    else {
-                        return retire("The perimeter no longer exists.");
-                    };
-                    if active_version.is_some() {
-                        return retire(
-                            "The outline version changed before the perimeter was edited.",
-                        );
-                    }
-                    if source_points == points {
-                        return Err(Skip::Unchanged);
-                    }
-                    Ok((
-                        EditOperation::CopyOutline {
-                            board_id: board_id.clone(),
-                            version_id: unique_outline_version_id(seed, all_version_ids(document)),
-                            name: next_edited_outline_name(state),
-                            edit: Some(OutlineContourEdit {
-                                contour: *contour,
-                                points: points.clone(),
-                            }),
-                            feature: None,
-                        },
-                        vec![board_id.clone()],
-                    ))
-                }
-                OutlinePointTarget::Fixed {
-                    version_id,
-                    feature_id,
-                    anchor_part_id,
-                    operation,
-                } => {
-                    if active_version != Some(version_id.as_str()) {
-                        return retire(
-                            "The outline version changed before the perimeter was edited.",
-                        );
-                    }
-                    let Some(OutlineFeature::Polygon {
-                        id,
-                        points: current,
-                        anchor_part_id: current_anchor,
-                        operation: current_operation,
-                    }) = version_of(version_id).and_then(|version| {
-                        version
-                            .geometry
-                            .features
-                            .iter()
-                            .find(|feature| feature.id() == *feature_id)
-                    })
-                    else {
-                        return retire("The outline feature no longer exists.");
-                    };
-                    if current_anchor != anchor_part_id || current_operation != operation {
-                        return retire(
-                            "The outline feature changed before the perimeter was edited.",
-                        );
-                    }
-                    if current == points {
-                        return Err(Skip::Unchanged);
-                    }
-                    Ok((
-                        EditOperation::SetOutline {
-                            feature: OutlineFeature::Polygon {
-                                id: id.clone(),
-                                points: points.clone(),
-                                anchor_part_id: anchor_part_id.clone(),
-                                operation: *operation,
-                            },
-                        },
-                        vec![board_id.clone(), feature_id.clone()],
-                    ))
-                }
-            }
-        }
     }
 }
 

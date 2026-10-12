@@ -586,7 +586,7 @@ guides in the Parts preview remain dashed. The Layout canvas offers a separate
 keycap overlay with a rounded outer envelope and inset top face, using the
 resolved key dimensions and existing geometry/selection tokens. Matrix membership
 identifies keys even when their definition is a socket; pitch minus edge gap
-supplies missing key dimensions. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
+supplies missing key dimensions. A Relations reference hover or focus marks its parts with a dashed `accent-secondary` (violet) outline, never the selection surface or accent stroke, and clears on leave, blur, selection change or removal. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
 and Board switches; all start visible except Footprints. The toolbar Footprints
 switch shares that view-only state. Visibility survives workspace changes without
 creating document revisions or history entries. The control overlays the canvas
@@ -595,8 +595,9 @@ a Close action; Escape closes the list and restores focus to the trigger.
 Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
-Selection types have direct icon shortcuts. Stagger, Splay, and Origin activate
-explicit canvas tools; handles remain hidden outside those tools. Origin snapping
+Selection types have direct icon shortcuts. Stagger, Offset, Splay, and Origin activate
+explicit canvas tools; Shift held at pointer-down turns a Stagger drag into a quick
+Offset of its column; handles remain hidden outside those tools. Origin snapping
 uses component origins, corners, midpoints, and physical edges before the grid. PCB draws pad
 shapes and drills at their authored positions and rotations, plus supported
 bundled footprint graphics. Its collapsible Layers list groups the available
@@ -718,8 +719,14 @@ straight TRRS cable, sleeve ground, and an unused ring 1.
 
 Physical assembly selection is separate from the PCB design. A split may share one
 reversible PCB or use two boards. Turning a half over changes its face and reflects
-its physical X/Z placement. Construction dimensions may be linked; openings, mounts,
-and battery space remain local. PCB thickness remains authoritative. Case geometry
+its physical X/Z placement. Mechanical features stay local to each half by
+default. An explicit mechanical
+mirror pair links mounts, closure mounts, authored Case openings and gasket
+support anchors across both halves by default, shares construction dimensions,
+materials and processes within the pair, and settles linked edits from either
+half in one Undo step. Per-feature exceptions are explicit: Make local, remove
+on one half, or rejoin with a chosen source. Battery space remains local. PCB
+thickness remains authoritative. Case geometry
 is retained across electrical-only edits only when its exact physical dependency
 signature and project/instance identity still match.
 The Case preview uses that instance's reflected parts and outline together. Layout

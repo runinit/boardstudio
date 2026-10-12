@@ -39,7 +39,8 @@ parameter it changes, and that Core owns the rules:
 
 - `EditOperation` gains `SetMatrixPlacement`, and the scene gains `staggerAxis`
   and companion placement modes. These are public Core interface additions. The
-  saved document format does not change.
+  saved document format does not change. `MatrixPlacementChange::ColumnOffsetToStagger`
+  and the pure helper `convert_offset_available` are the only extra public surface.
 - The boundary transcript fixture is regenerated once the scene grows.
 - Toolbar Stagger behaves differently from before. Rows use the Offset tool.
 

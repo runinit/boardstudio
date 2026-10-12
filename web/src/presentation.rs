@@ -30,6 +30,8 @@ mod layout_component_inspector_tests;
 #[cfg(test)]
 mod layout_layers_tests;
 #[cfg(test)]
+mod layout_relation_highlight_tests;
+#[cfg(test)]
 mod layout_remainder_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
 pub(crate) use boardstudio_web_layout::layout_findings_state::{
@@ -53,7 +55,7 @@ pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selectio
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
     CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
+    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedTheme, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
@@ -63,6 +65,7 @@ pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_key_selection_actions;
+mod layout_matrix_relations;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
 pub(crate) use boardstudio_web_case::mechanical_settings_mount;
@@ -1397,10 +1400,56 @@ fn layout_component_inspector_projection(
     })
 }
 
-fn matrix_context_relationship_summary(
+/// Resolve a Relations reference against the live accepted document. A component opens
+/// its Inspector context, as for a finding. A target that has gone, or a request for a
+/// session that has moved on, resolves to `None` and nothing is selected.
+fn relation_target_request(
+    runtime: &Runtime,
+    mut request: objects::TreeSelectRequest,
+) -> Option<objects::TreeSelectRequest> {
+    if runtime.scope().as_ref() != Some(&request.scope) {
+        return None;
+    }
+    let model = runtime.model();
+    if let objects::TreeContext::Component {
+        part_id: Some(part_id),
+        ..
+    } = &request.context
+    {
+        request.context = objects::component_context_for_finding_part(&model, part_id)?;
+    }
+    if !selection::context_is_current(&model, &request.scope, &request.context) {
+        return None;
+    }
+    // A removed key keeps a resolvable (empty) context, so check the cell itself.
+    if let objects::TreeContext::Key {
+        matrix_id,
+        row,
+        column,
+    } = &request.context
+    {
+        let document = &model.accepted.as_ref()?.document;
+        let removed = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == *matrix_id)?
+            .cells
+            .iter()
+            .any(|cell| cell.row == *row && cell.column == *column && cell.deleted);
+        if removed {
+            return None;
+        }
+    }
+    Some(request)
+}
+
+/// The Relations projection for the selected matrix context, from the accepted document and
+/// Core's matrix scene. `None` when nothing is selected, the selection is stale, or the
+/// context names no live object of a matrix.
+fn matrix_context_relations(
     model: &ReadModel,
     selected: Option<&objects::ScopedTreeContext>,
-) -> Option<String> {
+) -> Option<boardstudio_web_layout::matrix_relations::MatrixRelations> {
     let selected = selected?;
     if !selection::context_is_current(model, &selected.scope, &selected.context) {
         return None;
@@ -1417,64 +1466,16 @@ fn matrix_context_relationship_summary(
         _ => return None,
     };
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
-    let board_id = &selected.scope.board_id;
-    let layout = document
-        .layouts
+    let scene = snapshot
+        .scene
+        .matrix_scenes
         .iter()
-        .find(|layout| layout.board_id == *board_id && layout.matrix_id == *matrix_id);
-    let board = document.boards.iter().find(|board| board.id == *board_id)?;
-    Some(layout_relationship_summary(
-        document,
-        board,
-        layout,
-        matrix_context_active_part(model, selected),
-    ))
-}
-
-fn matrix_context_relationship_target(
-    model: &ReadModel,
-    selected: Option<&objects::ScopedTreeContext>,
-) -> Option<objects::TreeSelectRequest> {
-    let selected = selected?;
-    let part = matrix_context_active_part(model, selected)?;
-    let context = objects::component_context_for_finding_part(model, &part.id)?;
-    Some(objects::TreeSelectRequest {
-        scope: selected.scope.clone(),
-        context,
-        mode: SelectionMode::Replace,
-        outline_action: None,
-    })
-}
-
-fn matrix_context_active_part<'a>(
-    model: &'a ReadModel,
-    selected: &objects::ScopedTreeContext,
-) -> Option<&'a Part> {
-    if !selection::context_is_current(model, &selected.scope, &selected.context) {
-        return None;
-    }
-    let board = model
-        .accepted
-        .as_ref()?
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == selected.scope.board_id)?;
-    let context_parts = objects::resolve_selection(model, &selected.context)?;
-    model
-        .selected_part_ids
-        .iter()
-        .find(|part_id| context_parts.contains(part_id) && board.part_ids.contains(part_id))
-        .and_then(|part_id| {
-            model
-                .accepted
-                .as_ref()?
-                .document
-                .parts
-                .iter()
-                .find(|part| part.id == *part_id)
-        })
+        .find(|scene| scene.matrix_id == *matrix_id)?;
+    boardstudio_web_layout::matrix_relations::matrix_relations(
+        &snapshot.document,
+        scene,
+        &selected.context,
+    )
 }
 
 fn layout_relationship_summary(
@@ -2786,6 +2787,20 @@ fn Editor() -> Element {
             }
         }
     }));
+    // The Relations highlight is transient view state. A selection, workspace or board change
+    // clears it; an accepted revision that drops its parts is handled by the canvas filter.
+    let relation_highlight = use_signal(|| None::<Vec<String>>);
+    use_context_provider(|| RelationHighlight(relation_highlight));
+    let relation_ids = relation_highlight().unwrap_or_default();
+    let highlight_context = (
+        adapter.selected_context.read().clone(),
+        model.selected_part_ids.clone(),
+        model.active_board_id.clone(),
+        active_workspace,
+    );
+    use_effect(use_reactive((&highlight_context,), move |(_,)| {
+        RelationHighlight(relation_highlight).clear();
+    }));
     let active_board_id = model.active_board_id.clone();
     let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
         layout_owner.workspace,
@@ -2957,7 +2972,7 @@ fn Editor() -> Element {
             }
         }),
         Rc::new(|accepted, intent| {
-            Box::pin(parts::prepare_physical_setup_proposal(accepted, intent))
+            Box::pin(parts::prepare_physical_setup_resources(accepted, intent))
         }),
     );
     // Keep the operation observer alive even when the workspace panel is hidden.
@@ -6702,19 +6717,16 @@ fn Editor() -> Element {
                         } => matrix_id.as_str(),
                         _ => return,
                     };
-                    if !matrix_ids.contains(matrix_id) || active_tool() == Some(tool) {
+                    if !matrix_ids.contains(matrix_id) {
                         active_tool.set(None);
                         return;
                     }
-                    active_tool.set(Some(tool));
-                    let next_kind = match (tool, &selected.context) {
-                        (
-                            objects::LayoutTransformTool::Stagger,
-                            objects::TreeContext::Row { .. },
-                        ) => objects::LayoutSelectionKind::Row,
-                        _ => objects::LayoutSelectionKind::Column,
-                    };
-                    on_selection_kind.call(next_kind);
+                    let activation =
+                        objects::activate_transform_tool(active_tool(), tool, &selected.context);
+                    active_tool.set(activation.active);
+                    if let Some(kind) = activation.selection_kind {
+                        on_selection_kind.call(kind);
+                    }
                 }
             });
             let transform = objects::LayoutTransformMenuMount {
@@ -7225,14 +7237,14 @@ fn Editor() -> Element {
                     EventHandler::new(move |()| pending.set(None))
                 },
                 inspector_tab: layout_context_tab,
-                matrix_relationship_summary: matrix_context_relationship_summary(
-                    &model,
-                    selected_tree_context.as_ref(),
-                ),
-                matrix_relationship_target: matrix_context_relationship_target(
-                    &model,
-                    selected_tree_context.as_ref(),
-                ),
+                matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
+                relation_target: {
+                    let runtime = runtime.clone();
+                    Rc::new(move |request| relation_target_request(&runtime, request))
+                },
+                relation_scope: selected_tree_context
+                    .as_ref()
+                    .map(|selected| selected.scope.clone()),
                 on_select_context: workspace_routing.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
                 findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
@@ -7699,7 +7711,8 @@ fn Editor() -> Element {
                                             let transform_inspector = matrix_transform_inspector.clone();
                                             let canvas_interaction = canvas_interaction.clone();
                                             let mirrored_pair = mirrored_pair.clone();
-                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
+                                            let relation_highlighted = cell.member_id.as_ref().is_some_and(|id| relation_ids.contains(id));
+                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else if relation_highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
                                                 onpointerdown: move |event: PointerEvent| {
                                                     let Some(pointer) = event.data().try_as_web_event() else { return; };
                                                     if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
@@ -7839,7 +7852,7 @@ fn Editor() -> Element {
                                         *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
                                     },
                                     if layer_visible {
-                                        polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
+                                        polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else if relation_ids.contains(&part.id) { "m1-part is-relation-highlight" } else { "m1-part" } }
                                     }
                                     if layer_visible && footprints_on {
                                         if let Some(definition) = definition {

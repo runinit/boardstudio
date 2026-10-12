@@ -1,6 +1,11 @@
 use crate::matrix::layout::AssemblyPlacement;
-use crate::model::{Constraint, EditOperation, MirrorAxis, Pose2, Position, ProjectDoc, Vec2};
+use crate::model::{
+    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, Pose2, Position, ProjectDoc, Vec2,
+};
 use std::collections::{BTreeMap, BTreeSet};
+
+mod endpoints;
+mod relation;
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
@@ -101,6 +106,50 @@ fn resolve_with_positions(
     Ok(changed)
 }
 
+fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
+    match constraint {
+        Constraint::Offset {
+            offset, rotation, ..
+        } => Pose2 {
+            at: Vec2 {
+                x: source.at.x + offset.x,
+                y: source.at.y + offset.y,
+            },
+            rotation: source.rotation + rotation,
+        },
+        Constraint::Mirror {
+            axis, coordinate, ..
+        } => Pose2 {
+            at: match axis {
+                MirrorAxis::Vertical => Vec2 {
+                    x: 2.0 * coordinate - source.at.x,
+                    y: source.at.y,
+                },
+                MirrorAxis::Horizontal => Vec2 {
+                    x: source.at.x,
+                    y: 2.0 * coordinate - source.at.y,
+                },
+            },
+            // Pose2 records direction only; reflection chirality is not represented.
+            rotation: match axis {
+                MirrorAxis::Vertical => 180.0 - source.rotation,
+                MirrorAxis::Horizontal => -source.rotation,
+            },
+        },
+    }
+}
+
+fn follow_pose(source: Pose2, local: Pose2) -> Pose2 {
+    let (sin, cos) = source.rotation.to_radians().sin_cos();
+    Pose2 {
+        at: Vec2 {
+            x: source.at.x + local.at.x * cos - local.at.y * sin,
+            y: source.at.y + local.at.x * sin + local.at.y * cos,
+        },
+        rotation: source.rotation + local.rotation,
+    }
+}
+
 fn pose(
     id: &str,
     parts: &BTreeMap<String, Pose2>,
@@ -115,7 +164,45 @@ fn pose(
     if !visiting.insert(id.to_string()) {
         return Err(format!("Constraint cycle includes part {id}"));
     }
-    let next = if let Some(constraint) = constraints.get(id) {
+    let next = if let Some(assembly) = assemblies.get(id) {
+        // The classification already resolved explicit-constraint precedence, so
+        // a constrained companion settles from its constraint and the others
+        // follow the key (an authored pose only while the key is unchanged).
+        match &assembly.mode {
+            MatrixCompanionMode::Constrained { .. } => {
+                let constraint = constraints
+                    .get(id)
+                    .ok_or_else(|| format!("Constraint for companion {id} is missing"))?;
+                let source = pose(
+                    constraint.source(),
+                    parts,
+                    constraints,
+                    assemblies,
+                    resolved,
+                    visiting,
+                )?;
+                constraint_pose(constraint, source)
+            }
+            MatrixCompanionMode::Authored | MatrixCompanionMode::Follows => {
+                let source = pose(
+                    &assembly.parent_id,
+                    parts,
+                    constraints,
+                    assemblies,
+                    resolved,
+                    visiting,
+                )?;
+                if matches!(assembly.mode, MatrixCompanionMode::Authored)
+                    && let Some(authored) = assembly.authored_pose
+                    && parts.get(&assembly.parent_id) == Some(&source)
+                {
+                    authored
+                } else {
+                    follow_pose(source, assembly.local_pose)
+                }
+            }
+        }
+    } else if let Some(constraint) = constraints.get(id) {
         let source = pose(
             constraint.source(),
             parts,
@@ -124,62 +211,7 @@ fn pose(
             resolved,
             visiting,
         )?;
-        match constraint {
-            Constraint::Offset {
-                offset, rotation, ..
-            } => Pose2 {
-                at: Vec2 {
-                    x: source.at.x + offset.x,
-                    y: source.at.y + offset.y,
-                },
-                rotation: source.rotation + rotation,
-            },
-            Constraint::Mirror {
-                axis, coordinate, ..
-            } => Pose2 {
-                at: match axis {
-                    MirrorAxis::Vertical => Vec2 {
-                        x: 2.0 * coordinate - source.at.x,
-                        y: source.at.y,
-                    },
-                    MirrorAxis::Horizontal => Vec2 {
-                        x: source.at.x,
-                        y: 2.0 * coordinate - source.at.y,
-                    },
-                },
-                // Pose2 records direction only; reflection chirality is not represented.
-                rotation: match axis {
-                    MirrorAxis::Vertical => 180.0 - source.rotation,
-                    MirrorAxis::Horizontal => -source.rotation,
-                },
-            },
-        }
-    } else if let Some(assembly) = assemblies.get(id) {
-        let source = pose(
-            &assembly.parent_id,
-            parts,
-            constraints,
-            assemblies,
-            resolved,
-            visiting,
-        )?;
-        if let Some(authored) = assembly.authored_pose
-            && parts.get(&assembly.parent_id) == Some(&source)
-        {
-            authored
-        } else {
-            let (sin, cos) = source.rotation.to_radians().sin_cos();
-            Pose2 {
-                at: Vec2 {
-                    x: source.at.x + assembly.local_pose.at.x * cos
-                        - assembly.local_pose.at.y * sin,
-                    y: source.at.y
-                        + assembly.local_pose.at.x * sin
-                        + assembly.local_pose.at.y * cos,
-                },
-                rotation: source.rotation + assembly.local_pose.rotation,
-            }
-        }
+        constraint_pose(constraint, source)
     } else {
         *parts
             .get(id)

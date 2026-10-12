@@ -111,10 +111,17 @@ fn kicad10() -> bool {
         .unwrap_or(false)
 }
 
-/// Whether KiCad 10 parses the board; skipped (true) without KiCad 10.
+/// Whether KiCad 10 parses the board. Without KiCad 10 the check fails, as
+/// `kicad_integration.rs` does, unless `BOARDSTUDIO_ALLOW_NO_KICAD=1` skips it on purpose.
 fn kicad_parses(content: &str) -> bool {
     if !kicad10() {
-        return true;
+        if std::env::var("BOARDSTUDIO_ALLOW_NO_KICAD").as_deref() == Ok("1") {
+            return true;
+        }
+        panic!(
+            "kicad-cli (KiCad 10) is required for the generator KiCad checks; \
+             set BOARDSTUDIO_ALLOW_NO_KICAD=1 to skip them"
+        );
     }
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let directory = std::env::temp_dir().join(format!(
@@ -244,13 +251,50 @@ fn upgrades_legacy_vendor_arcs() {
 
 #[test]
 fn every_bundled_generator_exports_a_board_kicad_parses() {
-    for item in definitions() {
-        let source = item.generator.as_ref().unwrap().source.clone();
-        let placed = part(&item, "part", 0.0, "front", json!({}));
-        let paths = model_paths(&[(&item, Some(&placed))]);
-        let board = export_board(project(&[item], &[placed], &[]), paths);
-        assert!(kicad_parses(&board), "{source}");
+    let items = definitions();
+    // Every generator on one board, spaced so the footprints do not overlap: one KiCad run.
+    let parts: Vec<Value> = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            part(
+                item,
+                &format!("g{index}"),
+                index as f64 * 20.0,
+                "front",
+                json!({}),
+            )
+        })
+        .collect();
+    let pairs: Vec<(&PartDefinition, Option<&Value>)> = items
+        .iter()
+        .zip(&parts)
+        .map(|(item, placed)| (item, Some(placed)))
+        .collect();
+    let board = export_board(project(&items, &parts, &[]), model_paths(&pairs));
+    if kicad_parses(&board) {
+        return;
     }
+    // Only after a failure: export each generator alone to name the ones KiCad rejects.
+    let rejected: Vec<String> = items
+        .iter()
+        .filter_map(|item| {
+            let placed = part(item, "part", 0.0, "front", json!({}));
+            let paths = model_paths(&[(item, Some(&placed))]);
+            let alone = export_board(
+                project(
+                    std::slice::from_ref(item),
+                    std::slice::from_ref(&placed),
+                    &[],
+                ),
+                paths,
+            );
+            (!kicad_parses(&alone)).then(|| item.generator.as_ref().unwrap().source.clone())
+        })
+        .collect();
+    panic!(
+        "KiCad 10 rejects the board with every generator; generators it rejects alone: {rejected:?}"
+    );
 }
 
 #[test]

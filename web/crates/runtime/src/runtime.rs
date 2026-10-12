@@ -5723,44 +5723,6 @@ impl Runtime {
             }
         }
     }
-    pub async fn fixture_document(&self, name: &'static str) -> Result<ProjectDoc, String> {
-        let bytes = fetch_bytes(&format!("assets/fixtures/{name}.json")).await?;
-        serde_json::from_slice(&bytes)
-            .map_err(|error| format!("Could not read the {name} demo preview: {error}"))
-    }
-    pub fn open_fixture(self: &Rc<Self>, name: &str) {
-        let name = name.to_owned();
-        let sequence = match self.begin_open() {
-            Ok(sequence) => sequence,
-            Err(error) => {
-                self.report(error);
-                return;
-            }
-        };
-        let copy_id = match browser_uuid() {
-            Ok(copy_id) => copy_id,
-            Err(error) => {
-                if self.open_sequence.get() == sequence {
-                    self.report(error);
-                }
-                return;
-            }
-        };
-        let this = self.clone();
-        spawn_local(async move {
-            match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
-                Ok(bytes) => {
-                    if let Err(error) = this.import_archive_at(bytes, sequence, Some(copy_id)).await
-                        && this.open_sequence.get() == sequence
-                    {
-                        this.report(error);
-                    }
-                }
-                Err(error) if this.open_sequence.get() == sequence => this.report(error),
-                Err(_) => {}
-            }
-        });
-    }
     fn begin_open(&self) -> Result<u64, String> {
         if self.project_deletion_pending.get() {
             return Err("A saved keyboard deletion is in progress.".into());
@@ -6493,6 +6455,7 @@ pub mod firmware_export_test_support {
             transport: HardwareTransport::None,
             instances: Vec::new(),
             shared_construction: None,
+            pairs: Vec::new(),
             boards: vec![ElectricalBoardConfiguration {
                 board_id: "board-a".into(),
                 controller_part_id: Some("mcu-left".into()),
@@ -6909,6 +6872,18 @@ pub mod project_name_test_support {
         futures_channel::oneshot::Sender<()>,
     ) {
         installed(runtime).current_core().gate_next_reply()
+    }
+
+    pub fn gate_next_core_reply_then_fail(
+        runtime: &Runtime,
+        _reason: impl Into<String>,
+    ) -> (
+        futures_channel::oneshot::Receiver<()>,
+        futures_channel::oneshot::Sender<()>,
+    ) {
+        installed(runtime)
+            .current_core()
+            .gate_next_reply_then_fail(_reason)
     }
 
     /// The copy a completed save left in the in-process memory store.
@@ -7626,6 +7601,185 @@ mod in_process_adapter_tests {
             "Adapter test",
             "the failed edit's save never replaced the accepted copy"
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn held_core_failure_scaffold_expects_executor_failure_after_release() {
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
+        let reason = "injected held core failure";
+        let (entered, release) = test_support::gate_next_core_reply_then_fail(&runtime, reason);
+        let slot = submit_edit(&runtime, &accepted, "Held failing rename");
+        test_support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the edit request reaches the in-process executor");
+        assert!(
+            slot.borrow().is_none(),
+            "the held edit has no terminal outcome before release"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.revision,
+            accepted.document.revision,
+            "nothing is accepted while the reply is held"
+        );
+        release.send(()).expect("release the held reply");
+        let outcome = format!("{:?}", wait_outcome(&slot).await);
+        assert!(
+            outcome.contains("ExecutorFailed"),
+            "expected ExecutorFailed after releasing the held request, got {outcome}"
+        );
+        assert!(
+            outcome.contains(reason),
+            "expected the specific injected failure reason, got {outcome}"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn held_failure_stays_with_its_request_when_the_next_gate_replaces_it() {
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
+        // Reuse a real Session Core effect twice. Request A fails before engine dispatch, so
+        // this checks adapter fixture identity, not two distinct Session operations.
+        let _slot = submit_edit(&runtime, &accepted, "Held failing rename");
+        let (request_id, executor_epoch, request) = test_support::take_held_effects(&runtime)
+            .into_iter()
+            .find_map(|effect| match effect {
+                Effect::Core {
+                    request_id,
+                    executor_epoch,
+                    request,
+                    ..
+                } => Some((request_id, executor_epoch, request)),
+                _ => None,
+            })
+            .expect("the submitted edit produces a Core request");
+        let core = test_support::in_process_core(&runtime);
+        let reason_a = "failure captured by held request A";
+        let (entered_a, release_a) =
+            test_support::gate_next_core_reply_then_fail(&runtime, reason_a);
+        let (done_a_tx, mut done_a_rx) = futures_channel::oneshot::channel();
+        let core_a = core.clone();
+        let request_id_a = format!("m1-{}", request_id.0);
+        let executor_epoch_a = executor_epoch.0.to_string();
+        let request_a = request.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let result = core_a
+                .request(
+                    request_id_a.as_str(),
+                    executor_epoch_a.as_str(),
+                    request_a.as_ref(),
+                )
+                .await;
+            let _ = done_a_tx.send(result);
+        });
+        entered_a
+            .await
+            .expect("request A reaches the in-process executor");
+        assert!(
+            matches!(done_a_rx.try_recv(), Ok(None)),
+            "request A is pending"
+        );
+
+        let (entered_b, release_b) = test_support::gate_next_core_reply(&runtime);
+        let (done_b_tx, mut done_b_rx) = futures_channel::oneshot::channel();
+        let core_b = core.clone();
+        let request_id_b = format!("m1-{}", request_id.0);
+        let executor_epoch_b = executor_epoch.0.to_string();
+        let request_b = request.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let result = core_b
+                .request(
+                    request_id_b.as_str(),
+                    executor_epoch_b.as_str(),
+                    request_b.as_ref(),
+                )
+                .await;
+            let _ = done_b_tx.send(result);
+        });
+        entered_b
+            .await
+            .expect("request B reaches its replacement gate");
+        assert!(
+            matches!(done_a_rx.try_recv(), Ok(None)),
+            "request A remains pending"
+        );
+        assert!(
+            matches!(done_b_rx.try_recv(), Ok(None)),
+            "request B is pending"
+        );
+
+        release_a.send(()).expect("release request A");
+        let result_a = done_a_rx.await.expect("request A reports its result");
+        let result_a_debug = format!("{result_a:?}");
+        assert!(
+            result_a.is_err()
+                && result_a_debug.contains("HostError")
+                && result_a_debug.contains(reason_a),
+            "request A should retain its exact captured failure: {result_a_debug}"
+        );
+        assert!(
+            matches!(done_b_rx.try_recv(), Ok(None)),
+            "request B remains held"
+        );
+
+        release_b.send(()).expect("release request B");
+        let result_b = done_b_rx.await.expect("request B reports its result");
+        let request_b_succeeded = matches!(&result_b, Ok(reply) if !matches!(
+            reply,
+            boardstudio_core::model::CoreReply::Error { .. }
+        ));
+        assert!(
+            request_b_succeeded,
+            "request B should complete without A's stale failure: {result_b:?}"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn replacing_an_unclaimed_held_failure_with_fail_uses_the_new_reason() {
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
+        let (entered, release) = test_support::gate_next_core_reply_then_fail(
+            &runtime,
+            "unclaimed reason must be replaced",
+        );
+        drop(entered);
+        drop(release);
+
+        let replacement_reason = "ordinary failure replacement";
+        test_support::fail_next_core_reply(&runtime, replacement_reason);
+        let slot = submit_edit(&runtime, &accepted, "Replacement failure rename");
+        test_support::drive_pending(&runtime);
+        let outcome = format!("{:?}", wait_outcome(&slot).await);
+        assert!(
+            outcome.contains("ExecutorFailed") && outcome.contains(replacement_reason),
+            "the ordinary failure should replace the unclaimed held failure, got {outcome}"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn replacing_an_unclaimed_held_failure_with_a_gate_completes_normally() {
+        let runtime = installed_runtime();
+        let accepted = submit_open(&runtime, "Adapter test").await;
+        let (stale_entered, stale_release) = test_support::gate_next_core_reply_then_fail(
+            &runtime,
+            "unclaimed reason must be cleared by the gate setter",
+        );
+        drop(stale_entered);
+        drop(stale_release);
+
+        let (entered, release) = test_support::gate_next_core_reply(&runtime);
+        let slot = submit_edit(&runtime, &accepted, "Replacement gate rename");
+        test_support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the replacement gate reaches the in-process executor");
+        assert!(
+            slot.borrow().is_none(),
+            "the replacement-gated request is pending"
+        );
+        release.send(()).expect("release the replacement gate");
+        assert_eq!(wait_outcome(&slot).await, TerminalOutcome::Completed);
     }
 
     #[wasm_bindgen_test]

@@ -332,128 +332,6 @@ fn KeyboardCard(
 }
 
 #[component]
-fn DemoKeyboardPreview(preview: Option<Preview>, fallback: String) -> Element {
-    match preview {
-        Some(preview) if preview.keys.is_empty() => rsx! {
-            div { class: "m1-keyboard-preview is-empty",
-                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
-                }
-                span { "No keys placed" }
-            }
-        },
-        Some(preview) => rsx! {
-            div { class: "m1-keyboard-preview",
-                svg { view_box: "{preview.left} {preview.top} {preview.width} {preview.height}", "aria-hidden": "true",
-                    for key in &preview.keys {
-                        rect {
-                            key: "{key.id}",
-                            transform: "translate({key.x} {key.y}) rotate({key.angle})",
-                            x: "{-key.width / 2.0}",
-                            y: "{-key.height / 2.0}",
-                            width: "{key.width}",
-                            height: "{key.height}",
-                            rx: "2",
-                        }
-                    }
-                }
-            }
-        },
-        None => rsx! {
-            div { class: "m1-keyboard-preview is-empty",
-                svg { class: "m1-library-keyboard-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: "M2 5h16v11H2ZM5 8h.1M8 8h.1M11 8h.1M14 8h.1M5 11h.1M8 11h.1M11 11h.1M14 11h.1M6 14h8" }
-                }
-                span { "{fallback}" }
-            }
-        },
-    }
-}
-
-#[component]
-fn DemoKeyboardCard(name: &'static str, fixture: &'static str) -> Element {
-    let runtime = use_context::<Rc<Runtime>>();
-    let fixture_document = use_resource({
-        let runtime = runtime.clone();
-        move || {
-            let runtime = runtime.clone();
-            async move { runtime.fixture_document(fixture).await.map(Arc::new) }
-        }
-    });
-    let loaded = fixture_document.read();
-    let document = loaded.as_ref().and_then(|result| result.as_ref().ok());
-    let preview_result = document.map(|document| preview(document));
-    let detail = match (document, preview_result.as_ref()) {
-        (Some(document), Some(Ok(preview))) => format!(
-            "{} keys · {}",
-            preview.keys.len(),
-            if document.boards.len() > 1 {
-                format!("{} boards", document.boards.len())
-            } else {
-                "Single board".into()
-            }
-        ),
-        (Some(_), Some(Err(()))) => "Preview unavailable".into(),
-        _ => "Start an editable copy".into(),
-    };
-    let graphic = preview_result.and_then(Result::ok);
-    let fallback = if loaded.is_none() {
-        "Loading preview…"
-    } else {
-        "Preview unavailable"
-    };
-    let runtime = runtime.clone();
-    rsx! {
-        article { class: "m1-keyboard-card m1-demo-keyboard-card",
-            button {
-                class: "m1-keyboard-tile",
-                r#type: "button",
-                aria_label: "Start {name}",
-                onclick: move |_| {
-                    super::close_project_menu();
-                    runtime.open_fixture(fixture);
-                },
-                DemoKeyboardPreview { preview: graphic, fallback }
-                span { class: "m1-keyboard-title", "{name}" }
-                span { class: "m1-keyboard-detail", "{detail}" }
-            }
-        }
-    }
-}
-
-#[component]
-fn DemoKeyboardCards(project_menu: bool) -> Element {
-    rsx! {
-        section { class: if project_menu { "m1-project-menu-demo-actions m1-demo-keyboards" } else { "m1-demo-keyboards" }, aria_label: "Demo keyboards",
-            header { class: "m1-demo-keyboards-heading",
-                h3 { "Demo keyboards" }
-                span { "Start an editable copy" }
-            }
-            div { class: "m1-keyboard-grid",
-                DemoKeyboardCard { key: "sofle", name: "Sofle v2", fixture: "sofle" }
-                DemoKeyboardCard { key: "sofle-rgb", name: "Sofle RGB", fixture: "sofle-rgb" }
-                DemoKeyboardCard { key: "sofle-choc", name: "Sofle Choc", fixture: "sofle-choc" }
-                DemoKeyboardCard { key: "corne", name: "Corne", fixture: "measured-corne" }
-                DemoKeyboardCard { key: "lily58", name: "Lily58", fixture: "measured-lily58" }
-                DemoKeyboardCard { key: "sweep", name: "Ferris Sweep", fixture: "measured-sweep" }
-                DemoKeyboardCard { key: "chocofi", name: "Chocofi", fixture: "measured-chocofi" }
-                DemoKeyboardCard { key: "reviung41", name: "REVIUNG41", fixture: "measured-reviung41" }
-                DemoKeyboardCard { key: "totem", name: "TOTEM", fixture: "measured-totem" }
-                DemoKeyboardCard { key: "klor", name: "KLOR", fixture: "measured-klor" }
-                DemoKeyboardCard { key: "cantor", name: "Cantor", fixture: "measured-cantor" }
-                DemoKeyboardCard { key: "gh60", name: "GH60 · ANSI", fixture: "measured-gh60" }
-                DemoKeyboardCard { key: "discipline", name: "Discipline · ANSI", fixture: "measured-discipline" }
-                DemoKeyboardCard { key: "mysterium", name: "Mysterium · ANSI", fixture: "measured-mysterium" }
-                DemoKeyboardCard { key: "voyager97", name: "Voyager97 · 103-key layout", fixture: "measured-voyager97" }
-                DemoKeyboardCard { key: "voyager104", name: "Voyager104 · ANSI", fixture: "measured-voyager104" }
-                DemoKeyboardCard { key: "plaid", name: "Plaid", fixture: "measured-plaid" }
-                DemoKeyboardCard { key: "lumberjack", name: "Lumberjack", fixture: "measured-lumberjack" }
-            }
-        }
-    }
-}
-
-#[component]
 pub fn Library(
     project_menu: bool,
     #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
@@ -817,12 +695,9 @@ pub fn Library(
                 if no_search_matches {
                     p { class: "m1-keyboard-empty", "No keyboards match your search." }
                 }
-                if project_menu {
-                    DemoKeyboardCards { project_menu: true }
-                } else {
-                    div { class: "m1-library-actions",
+                div { class: if project_menu { "m1-project-menu-actions" } else { "m1-library-actions" },
                         button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_landing(), "New project" }
-                        if let Some(project_id) = current_project_id.clone() {
+                        if !project_menu && let Some(project_id) = current_project_id.clone() {
                             button { r#type: "button", onclick: move |_| {
                                 guide_request_counter += 1;
                                 guide_request.set(Some(SetupGuideRequest {
@@ -842,8 +717,6 @@ pub fn Library(
                                 input.set_value("");
                             }}
                         }
-                    }
-                    DemoKeyboardCards { project_menu: false }
                 }
             }
             if project_menu {
@@ -986,6 +859,9 @@ mod mounted_tests {
     use super::*;
     use boardstudio_application::{Completion, Effect, OperationId, SaveResult, Session};
     use boardstudio_core::CoreEngine;
+    use boardstudio_web_ui_shared::test_wait::{
+        WAIT_BOUND_MS, wait_for_step, wait_until, wait_until_step,
+    };
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -1031,48 +907,59 @@ mod mounted_tests {
         }
     }
 
-    async fn settle() {
-        gloo_timers::future::TimeoutFuture::new(80).await;
+    fn saved_card_count(root: &web_sys::Element) -> u32 {
+        root.query_selector_all(".m1-keyboard-card")
+            .unwrap()
+            .length()
+    }
+
+    /// The saved-keyboard listing's alert, when the listing failed.
+    fn list_alert(root: &web_sys::Element) -> Option<web_sys::Element> {
+        root.query_selector("[role='alert']").unwrap()
+    }
+
+    /// The current dialog for deleting a keyboard is open (its DOM `open` attribute).
+    fn delete_dialog_open(root: &web_sys::Element) -> bool {
+        root.query_selector(".m1-project-delete-dialog")
+            .unwrap()
+            .is_some_and(|dialog| dialog.has_attribute("open"))
+    }
+
+    /// The title of the only saved keyboard card, when the filtered listing shows one.
+    fn saved_card_title(root: &web_sys::Element) -> Option<String> {
+        root.query_selector(".m1-keyboard-card .m1-keyboard-title")
+            .unwrap()
+            .and_then(|title| title.text_content())
+    }
+
+    /// Drains held work, then takes one event-loop turn so a render that work scheduled can
+    /// run. This is not a wait for any condition. A negative assertion after it is only
+    /// drain-protected: no render signal proves the menu re-rendered (recorded in the Outcome).
+    async fn drain_and_yield(runtime: &Rc<Runtime>) {
+        crate::runtime::project_name_test_support::run_pending(runtime).await;
+        gloo_timers::future::TimeoutFuture::new(0).await;
     }
 
     async fn wait_for_saved_cards(root: &web_sys::Element, expected: u32) {
-        for _ in 0..40 {
-            if root
-                .query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
-                .unwrap()
-                .length()
-                == expected
-            {
-                return;
-            }
-            settle().await;
-        }
-        panic!("expected {expected} saved keyboard cards to load");
+        wait_until(&format!("{expected} saved keyboard cards load"), || {
+            saved_card_count(root) == expected
+        })
+        .await;
     }
 
     async fn wait_for_project_cards(root: &web_sys::Element, expected: u32) {
-        for _ in 0..40 {
-            if root
-                .query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
-                .unwrap()
-                .length()
-                == expected
-            {
-                return;
-            }
-            settle().await;
-        }
-        panic!("expected {expected} saved project cards to load");
+        wait_until(&format!("{expected} saved project cards load"), || {
+            saved_card_count(root) == expected
+        })
+        .await;
     }
 
     async fn wait_for_list_error(root: &web_sys::Element) -> web_sys::Element {
-        for _ in 0..40 {
-            if let Some(alert) = root.query_selector("[role='alert']").unwrap() {
-                return alert;
-            }
-            settle().await;
-        }
-        panic!("expected the saved-keyboard list error to render");
+        wait_until("the saved-keyboard list error renders", || {
+            list_alert(root).is_some()
+        })
+        .await;
+        list_alert(root).expect("the list alert rendered")
     }
 
     #[wasm_bindgen_test]
@@ -1111,9 +998,7 @@ mod mounted_tests {
         wait_for_project_cards(&root, 2).await;
 
         let damaged_card = root
-            .query_selector(
-                ".m1-keyboard-card:not(.m1-demo-keyboard-card) button[aria-label='Open Damaged preview keyboard']",
-            )
+            .query_selector(".m1-keyboard-card button[aria-label='Open Damaged preview keyboard']")
             .unwrap()
             .expect("damaged preview remains an accessible Open action");
         assert!(damaged_card.get_attribute("disabled").is_none());
@@ -1130,11 +1015,9 @@ mod mounted_tests {
                 .contains("Open to check this keyboard")
         );
         assert!(
-            root.query_selector(
-                ".m1-keyboard-card:not(.m1-demo-keyboard-card) button[aria-label='Open Healthy keyboard']",
-            )
-            .unwrap()
-            .is_some(),
+            root.query_selector(".m1-keyboard-card button[aria-label='Open Healthy keyboard']",)
+                .unwrap()
+                .is_some(),
             "one damaged preview does not hide a healthy saved card"
         );
 
@@ -1162,7 +1045,18 @@ mod mounted_tests {
         });
 
         let root = mount_menu(runtime, "saved-project-list-retry-mounted-regression");
-        settle().await;
+        // The test-only hold on this listing keeps the Loading status on screen for 120 ms.
+        wait_until("the initial loading status renders", || {
+            root.query_selector("[role='status']")
+                .unwrap()
+                .is_some_and(|status| {
+                    status
+                        .text_content()
+                        .unwrap()
+                        .contains("Loading saved keyboards")
+                })
+        })
+        .await;
         assert!(
             root.query_selector("[role='status']")
                 .unwrap()
@@ -1184,7 +1078,7 @@ mod mounted_tests {
             "failed listing exposes retry"
         );
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1,
@@ -1215,23 +1109,29 @@ mod mounted_tests {
         runtime: &Rc<Runtime>,
         slot: &crate::operation_outcomes::OutcomeSlot,
     ) -> boardstudio_application::TerminalOutcome {
-        for _ in 0..100 {
+        let found = RefCell::new(None);
+        let waited = wait_for_step("the operation settles", WAIT_BOUND_MS, async || {
             crate::runtime::project_name_test_support::run_pending(runtime).await;
-            if let Some(outcome) = slot.borrow().clone() {
-                return outcome;
-            }
-            gloo_timers::future::TimeoutFuture::new(20).await;
+            let outcome = slot.borrow().clone();
+            *found.borrow_mut() = outcome.clone();
+            outcome.is_some()
+        })
+        .await;
+        match waited {
+            Ok(()) => found
+                .into_inner()
+                .expect("the operation recorded its outcome"),
+            Err(message) => panic!(
+                "{message}; outcome={:?}, accepted_revision={:?}, status={}",
+                *slot.borrow(),
+                runtime
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .map(|snapshot| snapshot.document.revision),
+                runtime.status()
+            ),
         }
-        panic!(
-            "operation did not settle; outcome={:?}, accepted_revision={:?}, status={}",
-            *slot.borrow(),
-            runtime
-                .model()
-                .accepted
-                .as_ref()
-                .map(|snapshot| snapshot.document.revision),
-            runtime.status()
-        );
     }
 
     fn submit(
@@ -1356,7 +1256,12 @@ mod mounted_tests {
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let root = mount_menu(runtime, "project-copy-mounted-regression");
-        settle().await;
+        wait_until("the Project menu renders its copy action", || {
+            root.query_selector(".m1-project-copy-action")
+                .unwrap()
+                .is_some()
+        })
+        .await;
 
         let copy = root
             .query_selector(".m1-project-copy-action")
@@ -1365,7 +1270,13 @@ mod mounted_tests {
         assert_eq!(copy.text_content().unwrap().trim(), "Save project copy…");
 
         copy.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-        settle().await;
+        // The menu starts open, so "closed" is false before the click and proves its effect.
+        wait_until("starting a project copy closes the menu", || {
+            root.query_selector("details.m1-project-menu")
+                .unwrap()
+                .is_some_and(|menu| !menu.has_attribute("open"))
+        })
+        .await;
         let menu = root
             .query_selector("details.m1-project-menu")
             .unwrap()
@@ -1400,7 +1311,6 @@ mod mounted_tests {
             .unwrap();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let root = mount_menu(runtime.clone(), "delete-current-mounted-regression");
-        settle().await;
         wait_for_saved_cards(&root, 1).await;
 
         let trigger = root
@@ -1410,7 +1320,7 @@ mod mounted_tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         trigger.click();
-        settle().await;
+        wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
         let dialog = root
             .query_selector(".m1-project-delete-dialog")
             .unwrap()
@@ -1427,8 +1337,13 @@ mod mounted_tests {
         dialog
             .dispatch_event(&DomEvent::new("cancel").unwrap())
             .unwrap();
-        settle().await;
+        wait_until("Cancel closes the delete dialog", || {
+            !delete_dialog_open(&root)
+        })
+        .await;
         assert!(!dialog.open());
+        // Cancel submits nothing: drain held work, then the store must still hold the record.
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
         assert!(
             runtime
                 .store
@@ -1437,6 +1352,20 @@ mod mounted_tests {
                 .unwrap()
                 .is_some()
         );
+        wait_until(
+            "Escape restores focus to the initiating delete button",
+            || {
+                web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .active_element()
+                    .and_then(|element| element.get_attribute("data-project-id"))
+                    .as_deref()
+                    == Some("delete-current-ui")
+            },
+        )
+        .await;
         let active = web_sys::window()
             .unwrap()
             .document()
@@ -1452,26 +1381,34 @@ mod mounted_tests {
         );
 
         trigger.click();
-        settle().await;
+        wait_until("the delete dialog reopens", || delete_dialog_open(&root)).await;
         click(&root, ".m1-project-delete-confirm");
-        let mut replacement_id = None;
-        for _ in 0..100 {
-            settle().await;
-            let accepted = runtime.model().accepted;
-            if let Some(accepted) = accepted
-                && accepted.document.id != "delete-current-ui"
-                && runtime
-                    .store
-                    .load_document("delete-current-ui".into())
-                    .await
-                    .unwrap()
-                    .is_none()
-            {
-                replacement_id = Some(accepted.document.id.clone());
-                break;
-            }
-        }
-        let replacement_id = replacement_id.expect("the durable fallback must precede deletion");
+        let replacement = RefCell::new(None::<String>);
+        wait_until_step(
+            "the durable fallback is active and deletion closes its dialog",
+            async || {
+                let accepted = runtime.model().accepted;
+                if let Some(accepted) = accepted
+                    && accepted.document.id != "delete-current-ui"
+                    && runtime.store.active_project_id("").unwrap() == accepted.document.id
+                    && !delete_dialog_open(&root)
+                    && runtime
+                        .store
+                        .load_document("delete-current-ui".into())
+                        .await
+                        .unwrap()
+                        .is_none()
+                {
+                    *replacement.borrow_mut() = Some(accepted.document.id.clone());
+                    return true;
+                }
+                false
+            },
+        )
+        .await;
+        let replacement_id = replacement
+            .into_inner()
+            .expect("the durable fallback must precede deletion");
         assert_eq!(runtime.store.active_project_id("").unwrap(), replacement_id);
         assert!(!dialog.open());
         clean_saved_projects(&runtime, &[&replacement_id]).await;
@@ -1509,38 +1446,31 @@ mod mounted_tests {
         }
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let root = mount_menu(runtime.clone(), "delete-current-sort-regression");
-        settle().await;
         wait_for_saved_cards(&root, 3).await;
         click(
             &root,
             ".m1-keyboard-delete[data-project-id='delete-sort-current']",
         );
-        settle().await;
+        wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
         click(&root, ".m1-project-delete-confirm");
 
-        let mut expected_replacement = false;
-        for _ in 0..100 {
-            settle().await;
-            if runtime
-                .model()
-                .accepted
-                .as_ref()
-                .is_some_and(|accepted| accepted.document.id == "delete-sort-unnamed")
-                && runtime
-                    .store
-                    .load_document("delete-sort-current".into())
-                    .await
-                    .unwrap()
-                    .is_none()
-            {
-                expected_replacement = true;
-                break;
-            }
-        }
-        assert!(
-            expected_replacement,
-            "the raw blank name sorts before the displayed Untitled fallback"
-        );
+        wait_until_step(
+            "the raw blank name sorts before the displayed Untitled fallback",
+            async || {
+                runtime
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|accepted| accepted.document.id == "delete-sort-unnamed")
+                    && runtime
+                        .store
+                        .load_document("delete-sort-current".into())
+                        .await
+                        .unwrap()
+                        .is_none()
+            },
+        )
+        .await;
         assert!(
             runtime
                 .store
@@ -1584,31 +1514,23 @@ mod mounted_tests {
             "replacement storage failed",
         );
         let root = mount_menu(runtime.clone(), "delete-current-failure-regression");
-        settle().await;
         wait_for_saved_cards(&root, 2).await;
         click(
             &root,
             ".m1-keyboard-delete[data-project-id='delete-failure-current']",
         );
-        settle().await;
+        wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
         click(&root, ".m1-project-delete-confirm");
 
-        let mut saw_error = false;
-        for _ in 0..100 {
-            settle().await;
-            if root
-                .query_selector(".m1-project-delete-dialog [role='alert']")
-                .unwrap()
-                .is_some()
-            {
-                saw_error = true;
-                break;
-            }
-        }
-        assert!(
-            saw_error,
-            "a failed replacement stays actionable in the dialog"
-        );
+        wait_until(
+            "a failed replacement stays actionable in the dialog",
+            || {
+                root.query_selector(".m1-project-delete-dialog [role='alert']")
+                    .unwrap()
+                    .is_some()
+            },
+        )
+        .await;
         assert!(
             root.query_selector(".m1-project-delete-dialog")
                 .unwrap()
@@ -1642,28 +1564,23 @@ mod mounted_tests {
                 .is_some()
         );
         click(&root, ".m1-project-delete-confirm");
-        let mut retried = false;
-        for _ in 0..100 {
-            settle().await;
-            let accepted = runtime.model().accepted;
-            if accepted
-                .as_ref()
-                .is_some_and(|accepted| accepted.document.id == "delete-failure-alpha")
-                && runtime
-                    .store
-                    .load_document("delete-failure-current".into())
-                    .await
-                    .unwrap()
-                    .is_none()
-            {
-                retried = true;
-                break;
-            }
-        }
-        assert!(
-            retried,
-            "the still-open dialog can retry and finish deletion"
-        );
+        wait_until_step(
+            "the still-open dialog can retry and finish deletion",
+            async || {
+                runtime
+                    .model()
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|accepted| accepted.document.id == "delete-failure-alpha")
+                    && runtime
+                        .store
+                        .load_document("delete-failure-current".into())
+                        .await
+                        .unwrap()
+                        .is_none()
+            },
+        )
+        .await;
         clean_saved_projects(&runtime, &["delete-failure-alpha"]).await;
         let _ = web_sys::window()
             .unwrap()
@@ -1760,6 +1677,16 @@ mod mounted_tests {
             .unwrap()
     }
 
+    fn name_field_rendered() -> bool {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("input[aria-label='Project name']")
+            .unwrap()
+            .is_some()
+    }
+
     fn search_field() -> HtmlInputElement {
         web_sys::window()
             .unwrap()
@@ -1843,7 +1770,6 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle().await;
         wait_for_saved_cards(&root, 4).await;
 
         let project_menu = root
@@ -1897,16 +1823,19 @@ mod mounted_tests {
             Some("Search your keyboards")
         );
         type_value(&search, "  sOfLe  ");
-        settle().await;
+        wait_until("the trimmed search leaves the current keyboard", || {
+            saved_card_count(&root) == 1 && saved_card_title(&root).as_deref() == Some("Sofle v2")
+        })
+        .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1,
             "trimmed case-insensitive search includes the current keyboard"
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1914,15 +1843,19 @@ mod mounted_tests {
             Some("Sofle v2")
         );
         type_value(&search, "alpha");
-        settle().await;
+        wait_until("the alpha search shows Alpha Board", || {
+            saved_card_count(&root) == 1
+                && saved_card_title(&root).as_deref() == Some("Alpha Board")
+        })
+        .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1930,15 +1863,19 @@ mod mounted_tests {
             Some("Alpha Board")
         );
         type_value(&search, "untitled");
-        settle().await;
+        wait_until("the untitled search shows the Untitled fallback", || {
+            saved_card_count(&root) == 1
+                && saved_card_title(&root).as_deref() == Some("Untitled keyboard")
+        })
+        .await;
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             1
         );
         assert_eq!(
-            root.query_selector(".m1-keyboard-card:not(.m1-demo-keyboard-card) .m1-keyboard-title")
+            root.query_selector(".m1-keyboard-card .m1-keyboard-title")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1946,17 +1883,16 @@ mod mounted_tests {
             Some("Untitled keyboard")
         );
         type_value(&search, "missing");
-        settle().await;
+        wait_until("the missing search reports no matches", || {
+            root.text_content()
+                .unwrap()
+                .contains("No keyboards match your search.")
+        })
+        .await;
         assert!(
             root.text_content()
                 .unwrap()
                 .contains("No keyboards match your search.")
-        );
-        assert!(
-            root.query_selector(".m1-project-menu-demo-actions button")
-                .unwrap()
-                .is_some(),
-            "demo actions stay outside the saved-keyboard filter"
         );
         let clear_search = root
             .query_selector(".m1-keyboard-search button")
@@ -1965,10 +1901,13 @@ mod mounted_tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         clear_search.click();
-        settle().await;
+        wait_until("clearing the search restores all four saved cards", || {
+            search.value().is_empty() && saved_card_count(&root) == 4
+        })
+        .await;
         assert_eq!(search.value(), "");
         assert_eq!(
-            root.query_selector_all(".m1-keyboard-card:not(.m1-demo-keyboard-card)")
+            root.query_selector_all(".m1-keyboard-card")
                 .unwrap()
                 .length(),
             4
@@ -1982,7 +1921,6 @@ mod mounted_tests {
         );
         assert_eq!(label.text_content().unwrap().trim(), "Current project");
         type_value(&field(), "  My custom keyboard  ");
-        settle().await;
 
         let mut unrelated = snapshot.document.as_ref().clone();
         unrelated
@@ -2006,7 +1944,7 @@ mod mounted_tests {
             wait_outcome(&runtime, &unrelated_slot).await,
             boardstudio_application::TerminalOutcome::Completed
         );
-        settle().await;
+        drain_and_yield(&runtime).await;
 
         assert_eq!(
             field().value(),
@@ -2020,7 +1958,10 @@ mod mounted_tests {
             wait_outcome(&runtime, &rename_slot).await,
             boardstudio_application::TerminalOutcome::Completed
         );
-        settle().await;
+        wait_until("the committed name renders in the field", || {
+            field().value() == "My custom keyboard"
+        })
+        .await;
         let committed = runtime.model().accepted.unwrap();
         assert_eq!(committed.document.revision, latest.document.revision + 1);
         assert_eq!(committed.document.name, "My custom keyboard");
@@ -2057,8 +1998,10 @@ mod mounted_tests {
             Some(&serde_json::json!(42)),
             "Undoing the rename must leave the earlier unrelated edit accepted"
         );
-        settle().await;
-        assert_eq!(field().value(), "Sofle v2");
+        wait_until("the field follows Undo to the earlier name", || {
+            field().value() == "Sofle v2"
+        })
+        .await;
 
         let redo_slot = submit(&runtime, |operation_id| Event::Redo { operation_id });
         assert_eq!(
@@ -2067,8 +2010,10 @@ mod mounted_tests {
         );
         let redone = runtime.model().accepted.unwrap();
         assert_eq!(redone.document.name, "My custom keyboard");
-        settle().await;
-        assert_eq!(field().value(), "My custom keyboard");
+        wait_until("the field follows Redo to the renamed keyboard", || {
+            field().value() == "My custom keyboard"
+        })
+        .await;
 
         type_value(&field(), "Keyboard entered");
         let enter_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
@@ -2079,14 +2024,15 @@ mod mounted_tests {
         );
         let entered = runtime.model().accepted.unwrap();
         assert_eq!(entered.document.name, "Keyboard entered");
-        settle().await;
 
         type_value(&field(), "Canceled draft");
         press(&field(), "Escape");
-        settle().await;
-        assert_eq!(field().value(), "Keyboard entered");
+        wait_until("Escape restores the accepted name", || {
+            field().value() == "Keyboard entered"
+        })
+        .await;
         let _ = field().blur();
-        settle().await;
+        drain_and_yield(&runtime).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.revision,
             entered.document.revision
@@ -2094,7 +2040,10 @@ mod mounted_tests {
 
         type_value(&field(), "   ");
         let _ = field().blur();
-        settle().await;
+        wait_until("a blank draft restores the accepted name", || {
+            field().value() == "Keyboard entered"
+        })
+        .await;
         assert_eq!(field().value(), "Keyboard entered");
         assert_eq!(
             runtime.model().accepted.unwrap().document.revision,
@@ -2103,7 +2052,7 @@ mod mounted_tests {
 
         type_value(&field(), "Keyboard entered");
         let _ = field().blur();
-        settle().await;
+        drain_and_yield(&runtime).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.revision,
             entered.document.revision
@@ -2118,8 +2067,10 @@ mod mounted_tests {
             wait_outcome(&runtime, &reopen_slot).await,
             boardstudio_application::TerminalOutcome::Completed
         );
-        settle().await;
-        assert_eq!(field().value(), "Sofle v2");
+        wait_until("the same-project reopen restores the accepted name", || {
+            field().value() == "Sofle v2"
+        })
+        .await;
         type_value(&field(), "Stale same-name epoch draft");
         let same_name_reopen = submit(&runtime, |operation_id| Event::Open {
             operation_id,
@@ -2129,10 +2080,12 @@ mod mounted_tests {
             wait_outcome(&runtime, &same_name_reopen).await,
             boardstudio_application::TerminalOutcome::Completed
         );
-        settle().await;
-        assert_eq!(field().value(), "Sofle v2");
+        wait_until("the same-name reopen replaces the stale draft", || {
+            field().value() == "Sofle v2"
+        })
+        .await;
         let _ = field().blur();
-        settle().await;
+        drain_and_yield(&runtime).await;
         assert_eq!(runtime.model().accepted.unwrap().document.revision, 0);
 
         let reopen_saved = submit(&runtime, |operation_id| Event::Open {
@@ -2143,7 +2096,10 @@ mod mounted_tests {
             wait_outcome(&runtime, &reopen_saved).await,
             boardstudio_application::TerminalOutcome::Completed
         );
-        settle().await;
+        wait_until("the reopened field shows the saved name", || {
+            field().value() == stored.name
+        })
+        .await;
         let reopened = runtime.model().accepted.unwrap();
         assert_eq!(reopened.document.name, stored.name);
         assert_eq!(
@@ -2205,7 +2161,11 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle().await;
+        wait_until("the mounted Library publishes its name action", || {
+            PROJECT_NAME_ACTION_PROBE.with(|probe| probe.borrow().is_some())
+                && seed.show_library.borrow().is_some()
+        })
+        .await;
 
         let retained_action = project_name_action();
         assert!(retained_action.mounted.get());
@@ -2214,16 +2174,15 @@ mod mounted_tests {
             .borrow()
             .expect("host exposes its mounted state");
         show_library.set(false);
-        settle().await;
-        assert!(
-            !retained_action.mounted.get(),
-            "Library cleanup retires the exact guard captured by its name action"
-        );
+        wait_until(
+            "Library cleanup retires the exact guard captured by its name action",
+            || !retained_action.mounted.get(),
+        )
+        .await;
 
         let next_operation = crate::runtime::project_name_test_support::observe_next(&runtime);
         retained_action.commit("Stale retained rename");
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
-        settle().await;
+        drain_and_yield(&runtime).await;
         assert!(
             next_operation.borrow().is_none(),
             "the retained name action must not submit after unmount"
@@ -2275,57 +2234,69 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle().await;
+        wait_until("the Library mounts the name field", name_field_rendered).await;
 
         use crate::runtime::project_name_test_support as support;
-        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let (mut entered, release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "Committed");
         let _ = field().blur();
-        settle().await;
-        support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_step("the rename reaches the gated Core reply", async || {
+            support::drive_pending(&runtime);
+            matches!(entered.try_recv(), Ok(Some(())))
+        })
+        .await;
         type_value(&field(), "Canceled");
-        settle().await;
         press(&field(), "Escape");
-        settle().await;
         let _ = field().blur();
         release.send(()).unwrap();
-        for _ in 0..12 {
+        wait_until_step("the gated rename lands as Committed", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
+            runtime.model().accepted.unwrap().document.name == "Committed"
+        })
+        .await;
+        // Escape and blur submit nothing after the landing: drain held work, then recheck.
+        drain_and_yield(&runtime).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.name,
             "Committed",
             "Escape and blur must not queue a rename of the old accepted name"
         );
-        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let (mut entered, release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "Next committed");
         let _ = field().blur();
-        settle().await;
-        support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_step("the next rename reaches the gated Core reply", async || {
+            support::drive_pending(&runtime);
+            matches!(entered.try_recv(), Ok(Some(())))
+        })
+        .await;
         type_value(&field(), "Still typing");
-        settle().await;
         release.send(()).unwrap();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
+        wait_until_step(
+            "the older landing is accepted as Next committed",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.name == "Next committed"
+            },
+        )
+        .await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.name,
             "Next committed"
         );
+        // The DOM is checked after the landing's Core state; no render signal proves the
+        // menu re-rendered, so this is drain-protected only (recorded in the Outcome).
+        drain_and_yield(&runtime).await;
         assert_eq!(
             field().value(),
             "Still typing",
             "older landing preserves the newer uncommitted draft"
         );
         let _ = field().blur();
-        for _ in 0..12 {
+        wait_until_step("the blur of Still typing lands", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
+            runtime.model().accepted.unwrap().document.name == "Still typing"
+        })
+        .await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.name,
             "Still typing"
@@ -2369,7 +2340,7 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle().await;
+        wait_until("the Library mounts the name field", name_field_rendered).await;
 
         crate::runtime::project_name_test_support::fail_next_persist(
             &runtime,
@@ -2415,7 +2386,7 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle().await;
+        wait_until("the Library mounts the name field", name_field_rendered).await;
         (runtime, root)
     }
 
@@ -2432,10 +2403,14 @@ mod mounted_tests {
         support::fail_next_core_reply(&runtime, "name executor failed");
         type_value(&field(), "Rejected");
         let _ = field().blur();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
+        wait_until_step(
+            "the unchanged draft restores with its inline failure",
+            async || {
+                support::run_pending(&runtime).await;
+                field().value() == "Original" && name_alert(&root).is_some()
+            },
+        )
+        .await;
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Original");
         assert_eq!(field().value(), "Original", "the unchanged draft restores");
         assert!(name_alert(&root).is_some_and(|message| message.contains("name executor failed")));
@@ -2456,10 +2431,15 @@ mod mounted_tests {
         let _ = field().blur();
         // The older rename has not settled when the user types the next draft.
         type_value(&field(), "Still typing");
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
+        // The inline failure renders with the draft, so its presence is the render sentinel.
+        wait_until_step(
+            "the older failure reports beside the newer draft",
+            async || {
+                support::run_pending(&runtime).await;
+                name_alert(&root).is_some()
+            },
+        )
+        .await;
         assert_eq!(field().value(), "Still typing", "a newer draft survives");
         assert!(
             name_alert(&root).is_some_and(|message| message.contains("name executor failed")),
@@ -2477,19 +2457,36 @@ mod mounted_tests {
     async fn two_project_name_commits_keep_the_latest_observation_and_both_undo_steps() {
         use crate::runtime::project_name_test_support as support;
         let (runtime, root) = mounted_name_field("menu-name-latest-observation").await;
-        let (first_entered, first_release) = support::gate_next_core_reply(&runtime);
+        let (mut first_entered, first_release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "First name");
         let _ = field().blur();
-        support::drive_pending(&runtime);
-        first_entered.await.unwrap();
+        wait_until_step(
+            "the first rename reaches its gated Core reply",
+            async || {
+                support::drive_pending(&runtime);
+                matches!(first_entered.try_recv(), Ok(Some(())))
+            },
+        )
+        .await;
 
-        let (second_entered, second_release) = support::gate_next_core_reply(&runtime);
+        let (mut second_entered, second_release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "Latest name");
         let _ = field().blur();
-        support::drive_pending(&runtime);
         first_release.send(()).unwrap();
-        second_entered.await.unwrap();
-        settle().await;
+        wait_until_step(
+            "the latest rename reaches its gated Core reply",
+            async || {
+                support::drive_pending(&runtime);
+                matches!(second_entered.try_recv(), Ok(Some(())))
+            },
+        )
+        .await;
+        wait_until_step("the first landing is accepted as First name", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().accepted.unwrap().document.name == "First name"
+        })
+        .await;
+        drain_and_yield(&runtime).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.name,
             "First name"
@@ -2502,10 +2499,12 @@ mod mounted_tests {
         assert!(name_alert(&root).is_none());
 
         second_release.send(()).unwrap();
-        for _ in 0..12 {
+        wait_until_step("the latest rename lands as Latest name", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
+            runtime.model().accepted.unwrap().document.name == "Latest name"
+        })
+        .await;
+        drain_and_yield(&runtime).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.name,
             "Latest name"
@@ -2516,8 +2515,12 @@ mod mounted_tests {
             runtime.submit(Event::Undo {
                 operation_id: runtime.operation(),
             });
-            support::run_pending(&runtime).await;
-            settle().await;
+            wait_until_step("Undo lands and the field follows it", async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.name == expected
+                    && field().value() == expected
+            })
+            .await;
             assert_eq!(runtime.model().accepted.unwrap().document.name, expected);
             assert_eq!(field().value(), expected, "the settled field follows Undo");
         }
@@ -2561,24 +2564,29 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle().await;
+        wait_until("the Library mounts the name field", name_field_rendered).await;
 
-        let (entered, release) =
+        let (mut entered, release) =
             crate::runtime::project_name_test_support::gate_next_persist(&runtime);
         type_value(&field(), "Delayed old rename");
         let slot = crate::runtime::project_name_test_support::observe_next(&runtime);
         let _ = field().blur();
-        crate::runtime::project_name_test_support::drive_pending(&runtime);
-        entered
-            .await
-            .expect("the actual Persist effect reaches the gate");
+        wait_until_step("the actual Persist effect reaches the gate", async || {
+            crate::runtime::project_name_test_support::drive_pending(&runtime);
+            matches!(entered.try_recv(), Ok(Some(())))
+        })
+        .await;
         let (replacement, _replacement_core) =
             accepted(ProjectDoc::empty("menu-name-replacement", "Replacement"));
         crate::runtime::project_name_test_support::replace_session(&runtime, replacement);
-        settle().await;
-        assert_eq!(field().value(), "Replacement");
+        wait_until("the replacement session renders its name", || {
+            field().value() == "Replacement"
+        })
+        .await;
         release.send(()).expect("release the captured old save");
-        settle().await;
+        // The released save's completion has no observable signal here: this drain is the
+        // only idle check before the negative (recorded as unproven in the Outcome).
+        drain_and_yield(&runtime).await;
         assert!(
             slot.borrow().is_none(),
             "a completion owned by the prior session epoch is ignored"
@@ -2606,6 +2614,7 @@ mod mounted_tests {
 mod queued_rename_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
     use wasm_bindgen_test::*;
 
     #[wasm_bindgen_test]
@@ -2620,7 +2629,7 @@ mod queued_rename_tests {
         let owner = ProjectNameOwner::from(&accepted);
         let mut replacement = accepted.document.as_ref().clone();
         replacement.definitions[0].name = "Updated switch".into();
-        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let (mut entered, release) = support::gate_next_core_reply(&runtime);
         support::submit_fixed_command(
             &runtime,
             EditCommand {
@@ -2633,8 +2642,11 @@ mod queued_rename_tests {
                 },
             },
         );
-        support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_step("the parts edit reaches its gated Core reply", async || {
+            support::drive_pending(&runtime);
+            matches!(entered.try_recv(), Ok(Some(())))
+        })
+        .await;
         ProjectNameCommitAction {
             runtime: runtime.clone(),
             owner,
@@ -2645,24 +2657,40 @@ mod queued_rename_tests {
         .commit("Renamed");
         support::drive_pending(&runtime);
         release.send(()).unwrap();
-        for _ in 0..20 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        wait_until_step(
+            "the parts edit and the queued rename both land",
+            async || {
+                support::run_pending(&runtime).await;
+                let result = runtime.model().accepted.unwrap();
+                result.document.name == "Renamed"
+                    && result.document.definitions[0].name == "Updated switch"
+            },
+        )
+        .await;
         let result = runtime.model().accepted.unwrap();
         assert_eq!(result.document.name, "Renamed");
         assert_eq!(result.document.definitions[0].name, "Updated switch");
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
+        wait_until_step("the first undo reverts only the rename", async || {
+            support::run_pending(&runtime).await;
+            let result = runtime.model().accepted.unwrap();
+            result.document.name == "Original"
+                && result.document.definitions[0].name == "Updated switch"
+        })
+        .await;
         let result = runtime.model().accepted.unwrap();
         assert_eq!(result.document.name, "Original");
         assert_eq!(result.document.definitions[0].name, "Updated switch");
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
+        wait_until_step("the second undo reverts the parts edit", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().accepted.unwrap().document.definitions[0].name == "Original switch"
+        })
+        .await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.definitions[0].name,
             "Original switch"

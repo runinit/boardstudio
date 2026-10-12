@@ -48,6 +48,39 @@ pub struct MatrixTransformRequest {
     pub(super) one_shot: bool,
 }
 
+impl MatrixTransformRequest {
+    /// The request for a one-shot action (reset, convert, delete), shared by the
+    /// Inspector buttons and the Relations panel so there is one construction path.
+    /// `scope` is the snapshot token and revision; `change` the field, baseline and value.
+    pub(super) fn one_shot(
+        owner: MatrixTransformInspectorOwner,
+        scope: (SnapshotToken, u64),
+        request_id: u64,
+        change: (
+            MatrixTransformField,
+            MatrixTransformValue,
+            MatrixTransformValue,
+        ),
+        splay_affect: MatrixSplayAffect,
+    ) -> Self {
+        let (field, baseline, value) = change;
+        Self {
+            owner,
+            request_id,
+            snapshot_token: scope.0,
+            revision: scope.1,
+            field,
+            baseline,
+            value,
+            splay_affect,
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: true,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatrixTransformProjection {
     pub owner: MatrixTransformInspectorOwner,
@@ -159,6 +192,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             splay_angle,
             splay_origin,
             custom_origin,
+            convert,
         } => (
             "Column properties",
             rsx! {
@@ -248,7 +282,19 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         request_sequence, editable: props.mount.editable,
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                     }
-                    span { class: "m1-matrix-field-context", "Column {column}" }
+                    if offset.y != 0.0 {
+                        ResetTransformButton {
+                            label: "Convert to stagger", owner: owner.clone(), snapshot_token, revision,
+                            field: MatrixTransformField::ColumnOffsetConvert,
+                            pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetConvert),
+                            baseline: MatrixTransformValue::Number(offset.y),
+                            value: MatrixTransformValue::Number(0.0),
+                            blocked: convert.clone().err(),
+                            request_sequence, editable: props.mount.editable,
+                            feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                        }
+                    }
+                    span { class: "m1-matrix-field-context", {format!("Column {}", column + 1)} }
                 }
             },
         ),
@@ -929,6 +975,9 @@ struct ResetTransformButtonProps {
     feedback: Vec<MatrixTransformFeedback>,
     splay_affect: Signal<MatrixSplayAffect>,
     on_edit: EventHandler<MatrixTransformRequest>,
+    /// Why the action is unavailable; disables the button and is shown beside it.
+    #[props(default)]
+    blocked: Option<String>,
 }
 
 #[component]
@@ -955,7 +1004,7 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 && item.message.is_some()
         })
         .and_then(|item| item.message.clone());
-    let disabled = !props.editable || (props.pending_disabled)();
+    let disabled = !props.editable || (props.pending_disabled)() || props.blocked.is_some();
     let mut sequence = props.request_sequence;
     let owner = props.owner.clone();
     let baseline = props.baseline.clone();
@@ -972,15 +1021,14 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
                 let Some(id) = sequence().checked_add(1) else { return; };
                 sequence.set(id);
                 submitted.set(Some(id));
-                on_edit.call(MatrixTransformRequest {
-                    owner: owner.clone(), request_id: id, snapshot_token: token, revision,
-                    field, baseline: baseline.clone(), value: value.clone(), splay_affect: affect(),
-                    draft: None, failure: None, submitted_text: None,
-            one_shot: true,
-                });
+                on_edit.call(MatrixTransformRequest::one_shot(
+                    owner.clone(), (token, revision), id,
+                    (field, baseline.clone(), value.clone()), affect(),
+                ));
             },
             "{props.label}"
         }
+        if let Some(reason) = props.blocked.as_deref() { small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" } }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }
 }

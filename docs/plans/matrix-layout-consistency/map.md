@@ -65,12 +65,39 @@ Saved projects keep their geometry.
 
 <!-- one line per resolved build ticket -->
 
+- 02 `SetMatrixPlacement` and the published stagger axis:
+  [Outcome](issues/02-core-set-matrix-placement.md#outcome).
+- 03 Core publishes companion placement modes:
+  [Outcome](issues/03-core-companion-placement-modes.md#outcome).
+- 04 one web module builds every placement edit and the Inspector uses it:
+  [Outcome](issues/04-web-placement-module-and-inspector.md#outcome).
+- 08 the pure Relations projection lands:
+  [Outcome](issues/08-matrix-relations-projection.md#outcome).
+- 05 the toolbar Stagger and Shift quick offset use the placement module:
+  [Outcome](issues/05-toolbar-stagger-and-quick-offset.md#outcome).
+- 07 Core converts an offset to stagger when geometry is preserved:
+  [Outcome](issues/07-convert-offset-to-stagger.md#outcome).
+- 06 the Offset tool, with activation rules and real-pointer coverage:
+  [Outcome](issues/06-toolbar-offset-tool.md#outcome).
+- 09 the Relations panel renders the projection with Reset and Convert:
+  [Outcome](issues/09-relations-panel.md#outcome).
+- 10 Relations references highlight their parts on the canvas without changing selection:
+  [Outcome](issues/10-relations-canvas-highlight.md#outcome).
+- 11 integrated checks, save/reopen test and a real product gesture pass (with gaps):
+  [Outcome](issues/11-integrated-verification.md#outcome).
+- 12 corrects two Inspector labels; independent review and the E12+F135 integration cohort passed:
+  [Outcome](issues/12-inspector-copy.md#outcome).
+- 12 corrects two Inspector labels to match the constraint domain and Properties navigation:
+  [ticket](issues/12-inspector-copy.md).
+
 ## Still open
 
 - Ticket 07 exports `convert_offset_available` from Core so the UI and Core share the
   rule. That is one more public function than ADR-0007 names; confirm it in 07's
   review.
-- Inspector wording and visuals go to a later `impeccable` pass, outside this effort.
+- Remaining Inspector visual observation/polish belongs to a later `impeccable` pass. Five objective
+  source/acceptance packets are complete, but no live visual observation occurred and no rendered CSS
+  defect was established. Ticket 12 only covers two copy corrections.
 
 ## Limitations of this plan
 

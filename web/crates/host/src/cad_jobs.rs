@@ -472,8 +472,6 @@ fn effective_case_inputs(
     scene: &SceneDelta,
     scope: &Scope,
 ) -> Result<(ProjectDoc, SceneDelta), CadJobError> {
-    let mut effective = document.clone();
-    let mut effective_scene = scene.clone();
     let board = document
         .boards
         .iter()
@@ -506,46 +504,33 @@ fn effective_case_inputs(
     };
 
     let flipped = selected_instance.is_some_and(|instance| instance.flipped);
-    if let Some(instance) = selected_instance {
-        effective.physical_instance_id = Some(instance.id.clone());
-    }
-    let configuration = if let Some(instance) = selected_instance {
-        effective_instance_configuration(document, instance, board.thickness)
-    } else {
-        document.mechanical.clone()
-    };
-    effective.mechanical = configuration.map(|configuration| {
-        mechanical_defaults(document, configuration, &scope.board_id, flipped)
-    });
 
+    // Core owns the effective-document projection: the fully defaulted configuration,
+    // the physical-instance identity, flipped-instance part/reference mirroring and the
+    // target board's mirrored contours. The host keeps only the scene transform and
+    // target-contour mirroring that are not part of the document projection.
+    let target = match &scope.instance_id {
+        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
+    };
+    let (effective, _target_contours) =
+        boardstudio_core::mechanical::inputs::effective_document(document, &target)
+            .map_err(CadJobError::Blocked)?;
+
+    let mut effective_scene = scene.clone();
     if flipped {
+        // The scene transform and contour mirroring are not part of the document
+        // projection, so the host keeps them and mirrors the accepted scene's own
+        // target-board contours in place. Core's `effective_document` returns the
+        // same contours for its own resolver and clearance projection.
         let selected_parts = board
             .part_ids
             .iter()
             .collect::<std::collections::HashSet<_>>();
-        for part in &mut effective.parts {
-            if !selected_parts.contains(&part.id) {
-                continue;
-            }
-            part.pose.at.x = -part.pose.at.x;
-            part.pose.rotation = -part.pose.rotation;
-            part.side = match part.side {
-                Side::Front => Side::Back,
-                Side::Back => Side::Front,
-            };
-            let parameters = part
-                .generator_parameters
-                .get_or_insert_with(Default::default);
-            parameters.insert(
-                "side".into(),
-                serde_json::Value::String(if part.side == Side::Front { "F" } else { "B" }.into()),
-            );
-        }
-        for reference in &mut effective.board_references {
-            if reference.board_id == scope.board_id {
-                reference.enabled = false;
-            }
-        }
         for transform in &mut effective_scene.transforms {
             if selected_parts.contains(&transform.id) {
                 transform.pose.at.x = -transform.pose.at.x;
@@ -566,192 +551,30 @@ fn effective_case_inputs(
     Ok((effective, effective_scene))
 }
 
-#[cfg(feature = "page")]
-fn effective_instance_configuration(
+/// Whether the selected target's own accepted findings leave its Case output clear.
+///
+/// Uses the approved target-scoped effective read, so a finding naming a sibling half of
+/// the same board never blocks this target, and a finding naming this target does.
+#[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
+fn target_case_findings_are_clear(
     document: &ProjectDoc,
-    instance: &PhysicalBoardInstance,
-    board_thickness: f64,
-) -> Option<MechanicalConfiguration> {
-    let hardware = document.hardware.as_ref()?;
-    let common = hardware.shared_construction.as_ref().or_else(|| {
-        hardware
-            .instances
-            .iter()
-            .find_map(|entry| entry.mechanical.as_ref())
-    });
-    let mut configuration = instance.mechanical.clone().or_else(|| common.cloned())?;
-    if instance.mechanical.is_none() {
-        configuration.openings = None;
-        configuration.mounts.clear();
-        configuration.closure_mounts = None;
-        configuration.battery = None;
-        configuration.battery_height = 0.0;
-    }
-    if let Some(common) = common {
-        let mut output = serde_json::to_value(&configuration)
-            .ok()?
-            .as_object()?
-            .clone();
-        let shared = serde_json::to_value(common).ok()?.as_object()?.clone();
-        for field in [
-            "method",
-            "mount",
-            "integratedPlateFrame",
-            "bottomStyle",
-            "middleFrame",
-            "plateThickness",
-            "plateFoamThickness",
-            "bottomFoamThickness",
-            "bottomThickness",
-            "plateToPcb",
-            "wallThickness",
-            "clearance",
-            "gasket",
-            "gasketTravel",
-            "openingAllowance",
-            "partProcesses",
-            "internalGasket",
-            "hardware",
-            "criticalFits",
-            "profiles",
-        ] {
-            if let Some(value) = shared.get(field) {
-                output.insert(field.into(), value.clone());
-            }
-        }
-        if let Some(mut gasket_layout) = shared.get("gasketLayout").cloned() {
-            let supports = instance
-                .mechanical
-                .as_ref()
-                .and_then(|item| item.gasket_layout.as_ref())
-                .map(|item| item.supports.clone())
-                .unwrap_or_default();
-            if let Some(layout) = gasket_layout.as_object_mut() {
-                layout.insert("supports".into(), serde_json::to_value(supports).ok()?);
-            }
-            output.insert("gasketLayout".into(), gasket_layout);
-        }
-        output.insert(
-            "boardId".into(),
-            serde_json::Value::String(instance.board_id.clone()),
-        );
-        output.insert("pcbThickness".into(), serde_json::json!(board_thickness));
-        configuration = serde_json::from_value(serde_json::Value::Object(output)).ok()?;
-    }
-    configuration.board_id = instance.board_id.clone();
-    configuration.pcb_thickness = board_thickness;
-    Some(configuration)
-}
-
-#[cfg(feature = "page")]
-fn mechanical_defaults(
-    document: &ProjectDoc,
-    mut configuration: MechanicalConfiguration,
-    board_id: &str,
-    flipped: bool,
-) -> MechanicalConfiguration {
-    let board = document.boards.iter().find(|board| board.id == board_id);
-    let parts = document
-        .parts
-        .iter()
-        .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
-        .collect::<Vec<_>>();
-    fn center(parts: &[&Part], coordinate: impl Fn(&Part) -> f64) -> f64 {
-        let values = parts
-            .iter()
-            .map(|part| coordinate(part))
-            .collect::<Vec<_>>();
-        values
-            .iter()
-            .copied()
-            .reduce(f64::min)
-            .zip(values.iter().copied().reduce(f64::max))
-            .map_or(0.0, |(min, max)| (min + max) / 2.0)
-    }
-    let at = Vec2 {
-        x: center(&parts, |part| part.pose.at.x) * if flipped { -1.0 } else { 1.0 },
-        y: center(&parts, |part| part.pose.at.y),
+    scene: &SceneDelta,
+    scope: &Scope,
+) -> bool {
+    let target = match &scope.instance_id {
+        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
     };
-    if configuration.battery.is_none()
-        && document
-            .hardware
-            .as_ref()
-            .is_some_and(|hardware| hardware.transport == HardwareTransport::Wireless)
-    {
-        configuration.battery = Some(MechanicalBattery {
-            cable_width: Some(2.0),
-            size: Vec3 {
-                x: 30.0,
-                y: 20.0,
-                z: 6.0,
-            },
-            at,
-            cable_exit: Vec2 {
-                x: at.x + 17.0,
-                y: at.y,
-            },
-        });
+    match boardstudio_core::mechanical::effective_inputs(document, &scene.board_contours, &target) {
+        // Core owns the rule; the adapter only selects the target.
+        Ok(inputs) => inputs.case_findings_are_clear(),
+        // An unresolvable target is decided by the shared board-level admission.
+        Err(_) => true,
     }
-    if let Some(battery) = &configuration.battery {
-        configuration.battery_height = battery.size.z;
-    }
-
-    let explicit = configuration.stabilizers.clone().unwrap_or_default();
-    let mut stabilizers = Vec::new();
-    for part in &parts {
-        let Some(definition) = document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == part.definition_id)
-        else {
-            continue;
-        };
-        let size = part.keycap.as_ref().or(definition.keycap.as_ref());
-        let Some(size) = size.filter(|size| size.x.max(size.y) >= 37.0) else {
-            continue;
-        };
-        if definition
-            .generator
-            .as_ref()
-            .is_none_or(|generator| generator.source.to_lowercase() != "ceoloide/switch_mx")
-        {
-            continue;
-        }
-        let has_existing = document.parts.iter().any(|candidate| {
-            let is_stabilizer = document
-                .definitions
-                .iter()
-                .find(|entry| entry.id == candidate.definition_id)
-                .and_then(|entry| entry.kicad_source.as_ref())
-                .is_some_and(|source| source.source.contains("(footprint \"STAB_MX_"));
-            is_stabilizer
-                && (candidate.pose.at.x - part.pose.at.x)
-                    .hypot(candidate.pose.at.y - part.pose.at.y)
-                    < 0.01
-        });
-        if has_existing {
-            continue;
-        }
-        let key_units = (((size.x.max(size.y) + 1.0) / 19.05) * 4.0).round() / 4.0;
-        let units = if key_units <= 2.75 { 2.0 } else { key_units };
-        let rotation = if size.y > size.x { 90.0 } else { 0.0 };
-        let mut stabilizer = explicit
-            .iter()
-            .find(|entry| entry.part_id == part.id)
-            .cloned()
-            .unwrap_or(MechanicalStabilizerOverride {
-                profile: None,
-                part_id: part.id.clone(),
-                kind: MechanicalStabilizerKind::PcbMount,
-                units,
-                rotation: Some(rotation),
-            });
-        stabilizer.units = units;
-        stabilizer.rotation = Some(rotation);
-        stabilizers.push(stabilizer);
-    }
-    configuration.stabilizers = Some(stabilizers);
-    configuration
 }
 
 #[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
@@ -790,12 +613,17 @@ fn preparation_request(
         .mechanical
         .as_ref()
         .is_some_and(|case| case.board_id == scope.board_id);
+    // Admission is decided per selected target: the target-scoped effective read is the
+    // authority for this half's Case problems. A conflict that names a sibling half of
+    // the same PCB is not this target's problem, while this target's own conflict blocks
+    // its case generation even though the board-level admission cannot see the half.
     if !boardstudio_core::case_preparation_ready(
         &effective_document,
         &effective_scene,
         &scope.board_id,
         configured,
-    ) {
+    ) || !target_case_findings_are_clear(document, scene, scope)
+    {
         return Err(CadJobError::Blocked(
             "selected board is not ready for case generation".into(),
         ));
@@ -976,10 +804,19 @@ mod tests {
     fn flipped_instance_reflects_only_its_board_parts_and_scene_transform() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.revision = 4;
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline-a".into(),
+            center: Vec2 { x: 10.0, y: 0.0 },
+            size: Vec2 { x: 20.0, y: 10.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
         document.boards.push(Board {
             id: "board-a".into(),
             name: "Board A".into(),
-            outline_ids: vec![],
+            outline_ids: vec!["outline-a".into()],
             part_ids: vec!["part-a".into()],
             net_ids: vec![],
             thickness: 1.6,
@@ -1022,7 +859,9 @@ mod tests {
                 flipped: true,
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: true,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
+                mechanical_identity_reservation: None,
             }],
             ..HardwareConfiguration::default()
         });
@@ -1048,7 +887,18 @@ mod tests {
             ],
             matrix_scenes: vec![],
             contours: vec![],
-            board_contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board-a".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: 0.0, y: 5.0 },
+                        Vec2 { x: 0.0, y: -5.0 },
+                        Vec2 { x: 20.0, y: -5.0 },
+                        Vec2 { x: 20.0, y: 5.0 },
+                    ],
+                    hole: false,
+                }],
+            }],
             board_readiness: vec![],
             board_outline_scenes: vec![],
             module_scenes: vec![],
@@ -1082,6 +932,21 @@ mod tests {
         assert_eq!(effective.parts[1], document.parts[1]);
         assert_eq!(scene.transforms[0].pose.at.x, -3.0);
         assert_eq!(scene.transforms[1].pose.at.x, 8.0);
+        // The target board's scene contours come from Core's mirrored projection.
+        let board_contours = scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == "board-a")
+            .unwrap();
+        assert!(!board_contours.contours.is_empty());
+        assert!(
+            board_contours
+                .contours
+                .iter()
+                .flat_map(|contour| &contour.points)
+                .all(|point| point.x <= 0.0),
+            "the mirrored contours negate X"
+        );
         assert_eq!(
             captured_document.physical_instance_id.as_deref(),
             Some("instance-a")
@@ -1236,6 +1101,205 @@ mod tests {
         assert!(matches!(
             preparation_request(&snapshot, &scope, "fixture"),
             Err(CadJobError::Stale(_))
+        ));
+    }
+
+    /// Two halves sharing one PCB where the reflected linked mount clashes with the
+    /// second half's own hardware. Admission must be decided per selected target.
+    #[cfg(feature = "page")]
+    #[test]
+    fn case_admission_is_scoped_to_the_selected_half_of_a_shared_pcb() {
+        use boardstudio_core::model::{
+            HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
+            MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureMember,
+            MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind,
+            PhysicalBoardInstance, Pose2,
+        };
+        fn configuration() -> MechanicalConfiguration {
+            serde_json::from_value(serde_json::json!({
+                "boardId": "board",
+                "method": "printed",
+                "mount": "rigid",
+                "plateThickness": 1.5,
+                "plateFoamThickness": 0.5,
+                "pcbThickness": 1.6,
+                "bottomFoamThickness": 0.4,
+                "batteryHeight": 4.0,
+                "bottomThickness": 3.0,
+                "plateToPcb": 3.5,
+                "wallThickness": 2.0,
+                "clearance": 0.3,
+                "bottomStyle": "shell",
+                "middleFrame": false,
+                "openingAllowance": 0.25,
+                "mounts": [],
+                "closureMounts": [],
+                "profiles": []
+            }))
+            .unwrap()
+        }
+        fn mount(id: &str, x: f64, y: f64) -> Mount {
+            Mount {
+                id: id.into(),
+                at: Vec2 { x, y },
+                kind: MountKind::Hole,
+                hole_diameter: 2.2,
+                boss_diameter: None,
+                height: None,
+            }
+        }
+        fn instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
+            let mut mechanical = configuration();
+            mechanical.mounts = mounts;
+            PhysicalBoardInstance {
+                id: id.into(),
+                name: id.into(),
+                board_id: "board".into(),
+                half: id.into(),
+                role: "controller".into(),
+                flipped: false,
+                controller_part_id: None,
+                mechanical: Some(mechanical),
+                construction_ownership: MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
+            }
+        }
+
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.revision = 7;
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.case_bodies.push(CaseBody {
+            features: None,
+            openings: None,
+            id: "plate".into(),
+            name: "Plate".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Plate,
+            thickness: 2.0,
+            clearance: 0.0,
+            material_id: Some("pla".into()),
+            z: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: None,
+            gasket: None,
+        });
+        let left = instance("left", vec![mount("mount-1", 2.0, 3.0)]);
+        let right = instance(
+            "right",
+            vec![
+                mount("mount-1", 7.0, 3.0),
+                mount("mount-encoder", -2.0, 3.0),
+            ],
+        );
+        let construction = boardstudio_core::mechanical::features::shared_construction(
+            left.mechanical.as_ref().unwrap(),
+        );
+        document.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![left, right],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![MechanicalMirrorPair {
+                id: "pair-left-right".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction,
+                construction_source: None,
+                halves: None,
+                features: vec![MechanicalFeature {
+                    id: "mount-1".into(),
+                    kind: MechanicalFeatureKind::Mount,
+                    author: "left".into(),
+                    value: MechanicalFeatureValue::Mount {
+                        mount: mount("mount-1", 2.0, 3.0),
+                    },
+                    members: vec![
+                        MechanicalFeatureMember {
+                            instance_id: "left".into(),
+                            feature_id: "mount-1".into(),
+                            state: MechanicalFeatureState::Linked,
+                        },
+                        MechanicalFeatureMember {
+                            instance_id: "right".into(),
+                            feature_id: "mount-1".into(),
+                            state: MechanicalFeatureState::Linked,
+                        },
+                    ],
+                }],
+            }],
+        });
+        let scene = SceneDelta {
+            revision: 7,
+            transaction_id: String::new(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: -40.0, y: -30.0 },
+                        Vec2 { x: 40.0, y: -30.0 },
+                        Vec2 { x: 40.0, y: 30.0 },
+                        Vec2 { x: -40.0, y: 30.0 },
+                    ],
+                    hole: false,
+                }],
+            }],
+            board_readiness: vec![BoardReadiness {
+                board_id: "board".into(),
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            }],
+            board_outline_scenes: vec![],
+            module_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(9),
+            session_epoch: SessionEpoch(1),
+            document: std::sync::Arc::new(document),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = |instance_id: Option<&str>| Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: instance_id.map(str::to_string),
+        };
+
+        // The conflict belongs to the right half, so the left half is admitted.
+        assert!(
+            preparation_request(&snapshot, &scope(Some("left")), "fixture").is_ok(),
+            "a sibling half's conflict must not block this half"
+        );
+        // The half that owns the conflict is blocked.
+        assert!(matches!(
+            preparation_request(&snapshot, &scope(Some("right")), "fixture"),
+            Err(CadJobError::Blocked(_))
         ));
     }
 }

@@ -79,9 +79,7 @@ fn host() -> Element {
     rsx! { Editor {} }
 }
 
-async fn settle() {
-    gloo_timers::future::TimeoutFuture::new(80).await;
-}
+use boardstudio_web_ui_shared::test_wait::wait_until;
 
 fn count(root: &web_sys::Element, selector: &str) -> u32 {
     root.query_selector_all(selector).unwrap().length()
@@ -110,13 +108,26 @@ async fn switch_visibility_keeps_keycaps_independent() {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    settle().await;
+    wait_until("the scene shows its keycap and switch", || {
+        count(&root, ".m1-keycap-overlay") == 1 && count(&root, ".m1-scene-part .m1-part") == 1
+    })
+    .await;
     assert_eq!(count(&root, ".m1-keycap-overlay"), 1);
     assert_eq!(count(&root, ".m1-scene-part .m1-part"), 1);
     click(&root, "#m1-layers-trigger");
-    settle().await;
+    wait_until("the layers menu offers Hide Switches", || {
+        count(&root, "button[aria-label='Hide Switches']") == 1
+    })
+    .await;
     click(&root, "button[aria-label='Hide Switches']");
-    settle().await;
+    wait_until(
+        "hiding switches removes the switch and offers Show Switches",
+        || {
+            count(&root, ".m1-scene-part .m1-part") == 0
+                && count(&root, "button[aria-label='Show Switches']") == 1
+        },
+    )
+    .await;
     assert_eq!(
         count(&root, ".m1-keycap-overlay"),
         1,
@@ -125,11 +136,19 @@ async fn switch_visibility_keeps_keycaps_independent() {
     assert_eq!(count(&root, ".m1-scene-part .m1-part"), 0);
     assert_eq!(count(&root, "button[aria-label='Show Switches']"), 1);
     click(&root, "button[aria-label='Hide Keycaps']");
-    settle().await;
+    wait_until(
+        "hiding keycaps removes the keycaps and the scene part",
+        || count(&root, ".m1-keycap-overlay") == 0 && count(&root, ".m1-scene-part") == 0,
+    )
+    .await;
     assert_eq!(count(&root, ".m1-keycap-overlay"), 0);
     assert_eq!(count(&root, ".m1-scene-part"), 0);
     click(&root, "button[aria-label='Show Switches']");
-    settle().await;
+    wait_until(
+        "showing switches restores the switch without keycaps",
+        || count(&root, ".m1-scene-part .m1-part") == 1 && count(&root, ".m1-keycap-overlay") == 0,
+    )
+    .await;
     assert_eq!(count(&root, ".m1-scene-part .m1-part"), 1);
     assert_eq!(count(&root, ".m1-keycap-overlay"), 0);
     assert_eq!(

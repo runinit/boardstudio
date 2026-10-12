@@ -1,6 +1,6 @@
 # 02: Core `SetMatrixPlacement` and the stagger axis
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 01
 Spec: [spec.md](../spec.md#core-owns-the-parameter-rules) · Map: [map.md](../map.md) · Decision: [ADR-0007](../../../adr/0007-matrix-gestures-edit-named-parameters.md)
@@ -62,6 +62,48 @@ RED first:
 
 Tests 1–8 pass. `lint`, `test` and `typecheck` pass. Run `detect-changes --scope all`
 before committing.
+
+## Outcome
+
+Implemented on `typed-core-edits/matrix-core` from `ef45d94d7`:
+
+- `50939cfff` claim; `59b0cbc49` Core implementation; `91ffa779c` boundary coverage.
+- `EditOperation::SetMatrixPlacement { matrix_id, change }` with
+  `MatrixPlacementChange::{ColumnStagger, ColumnOffset, RowOffset}` (serde
+  kebab-case, `matrixId`), applied by `core/src/matrix/placement.rs`. `update`
+  validates index and finiteness, pads vectors with zeros, treats the current value
+  as a no-op, and changes only the named entry. `apply` routes through
+  `matrix::set_matrix` + `layout::sync`, carries authored companions by their key's
+  world delta, and reports only members whose projection actually moved.
+- `MatrixColumnBasis.stagger_axis` (`staggerAxis`) is computed by differencing
+  `location` with the column stagger raised by one, keeping `location` the single
+  formula. The spec's derived axis formula matched Core for plain, rotated, mirrored,
+  default-origin and custom-origin cases, so the spec was not changed.
+- Added the variant to the preview admission and outline-affecting sets, matching
+  `SetMatrixSplay`. Web keycap fixtures gained the new scene field.
+- Boundary requests now exercise all three variants (preview + commit) through both
+  native and WASM transports; the golden transcript changed only by `staggerAxis`
+  values and the six new replies.
+
+Impact (GitNexus `impact`, before edits): `apply` MEDIUM (20 impacted, 7 direct);
+`column_basis` CRITICAL (22 impacted, 3 processes, 10 modules); `EditOperation`
+UNKNOWN (no callers resolved, so exhaustive matches were found by compiling).
+`detect-changes --scope compare --base-ref ef45d94d7` and `--scope all` reported a
+low-risk change set with no affected processes and no truncation.
+
+Checks run: `core/tests/matrix_placement.rs` 9 tests; `cargo test -p
+boardstudio_core` 345 integration plus unit; `cargo test -p
+boardstudio-application` 30; `cargo clippy --workspace --locked --all-targets
+--no-deps -- -D warnings`; `cargo fmt --all --check`; WASM `cargo check -p
+boardstudio-web --target wasm32-unknown-unknown --features page`; native boundary
+parity. Standards review found no violations (one optional dedup observation);
+spec review's only High finding — the boundary fixture did not exercise the new
+operation — is fixed in `91ffa779c`. The WASM browser half of the boundary test was
+not run here; `typecheck` covers compilation only.
+
+Behaviour note: `SetMatrixPlacement` carries authored companions (spec point 7)
+while `SetMatrix`/`SetMatrixSplay` keep their existing behaviour; that asymmetry is
+deliberate and scoped to the new operation. Ticket 03 is now unblocked.
 
 ## Files
 

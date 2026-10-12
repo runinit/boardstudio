@@ -1,5 +1,6 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
 use super::case_bodies::CaseBodyEdit;
+use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
     ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
@@ -1307,6 +1308,7 @@ fn submit_settings_patch(
             request_id,
             field_id,
             patch,
+            reviewed_fingerprint: None,
         });
     true
 }
@@ -2317,7 +2319,9 @@ mod gesture_cancellation_tests {
                     flipped: false,
                     controller_part_id: None,
                     mechanical: None,
-                    construction_linked: false,
+                    construction_ownership:
+                        boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                    mechanical_identity_reservation: None,
                 })
                 .collect(),
             ..Default::default()

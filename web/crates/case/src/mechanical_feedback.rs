@@ -187,6 +187,9 @@ mod tests {
 
     fn configuration() -> MechanicalConfiguration {
         MechanicalConfiguration {
+            // Zero means nothing is reserved yet: Core normalizes it from the
+            // configuration's existing identities on the first allocation.
+            next_opening_identity: 0,
             internal_gasket: None,
             gasket_layout: None,
             hardware: None,

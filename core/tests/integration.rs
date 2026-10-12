@@ -9,14 +9,14 @@
 mod boundary_parity;
 #[path = "case.rs"]
 mod case;
+#[path = "closure_generator_parameters.rs"]
+mod closure_generator_parameters;
 #[path = "contracts.rs"]
 mod contracts;
 #[path = "core.rs"]
 mod core_engine;
 #[path = "current_schema.rs"]
 mod current_schema;
-#[path = "demo_projects.rs"]
-mod demo_projects;
 #[path = "electrical_wiring.rs"]
 mod electrical_wiring;
 #[path = "encoder_inputs.rs"]
@@ -31,6 +31,8 @@ mod firmware_local_build;
 mod gasket_features;
 #[path = "generator_export.rs"]
 mod generator_export;
+#[path = "generator_parameters.rs"]
+mod generator_parameters;
 #[path = "keycaps.rs"]
 mod keycaps;
 #[path = "keymap_edits.rs"]
@@ -41,8 +43,14 @@ mod keymap_workflow;
 mod kicad_integration;
 #[path = "legacy_archive_migration.rs"]
 mod legacy_archive_migration;
+#[path = "mechanical_integration.rs"]
+mod mechanical_integration;
+#[path = "mechanical_settings_edits.rs"]
+mod mechanical_settings_edits;
 #[path = "mechanical_workflow.rs"]
 mod mechanical_workflow;
+#[path = "mirrored_half.rs"]
+mod mirrored_half;
 #[path = "mixed_project_acceptance.rs"]
 mod mixed_project_acceptance;
 #[path = "module_board_supports.rs"]
@@ -63,6 +71,14 @@ mod module_service_clearance;
 mod mounted_modules;
 #[path = "outline_clearance.rs"]
 mod outline_clearance;
+#[path = "outline_edits.rs"]
+mod outline_edits;
+#[path = "outline_linked_resolution.rs"]
+mod outline_linked_resolution;
+#[path = "outline_ownership.rs"]
+mod outline_ownership;
+#[path = "outline_persistence.rs"]
+mod outline_persistence;
 #[path = "outline_repairs.rs"]
 mod outline_repairs;
 #[path = "outline_versions.rs"]
@@ -71,8 +87,16 @@ mod outline_versions;
 mod outlines;
 #[path = "splay_reconciliation.rs"]
 mod splay_reconciliation;
+#[path = "support/mod.rs"]
+mod support;
 #[path = "thqwgd001_library.rs"]
 mod thqwgd001_library;
 
 #[path = "key_move_assemblies.rs"]
 mod key_move_assemblies;
+
+#[path = "matrix_placement.rs"]
+mod matrix_placement;
+
+#[path = "matrix_companions.rs"]
+mod matrix_companions;

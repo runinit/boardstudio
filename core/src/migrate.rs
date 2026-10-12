@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use crate::generators;
 
 /// The version this build reads and writes.
-pub const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 5;
 /// The version of a document that does not state one.
 pub const LEGACY_VERSION: u32 = 1;
 
@@ -36,6 +36,9 @@ pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
     while version < CURRENT_VERSION {
         match version {
             1 => version_1_to_2(object),
+            2 => version_2_to_3(object),
+            3 => version_3_to_4(object),
+            4 => version_4_to_5(object),
             _ => unreachable!("every version below the current one has a migration"),
         }
         version += 1;
@@ -65,11 +68,80 @@ const LEGACY_LOGO_NAME: &str = "utility ergogen logo";
 const LEGACY_LIBRARY_SOURCE: &str = "bundled Ergogen library";
 
 fn version_1_to_2(document: &mut Map<String, Value>) {
-    normalize_generator_values(document);
+    state_back_sides(document);
     let mut value = Value::Object(std::mem::take(document));
     rename_in_place(&mut value);
     if let Value::Object(renamed) = value {
         *document = renamed;
+    }
+}
+
+/// Give authored openings and their vertices stable identities and record explicit
+/// construction ownership.
+///
+/// Existing physical instances become `legacy`, which preserves today's effective
+/// shared overlay and first-instance fallback; the old `constructionLinked` flag never
+/// affected that overlay and is retired. Geometry is preserved and no mechanical pair
+/// or feature correspondence is inferred.
+fn version_2_to_3(document: &mut Map<String, Value>) {
+    identify_mechanical_openings(document.get_mut("mechanical"));
+    let Some(Value::Object(hardware)) = document.get_mut("hardware") else {
+        return;
+    };
+    identify_mechanical_openings(hardware.get_mut("sharedConstruction"));
+    let Some(Value::Array(instances)) = hardware.get_mut("instances") else {
+        return;
+    };
+    for instance in instances {
+        let Some(object) = instance.as_object_mut() else {
+            continue;
+        };
+        identify_mechanical_openings(object.get_mut("mechanical"));
+        object.insert("constructionOwnership".into(), Value::from("legacy"));
+        object.remove("constructionLinked");
+    }
+}
+
+/// Rewrite a mechanical configuration's `openings` from point arrays to identified
+/// openings and vertices. Geometry, order, Z and height are unchanged.
+fn identify_mechanical_openings(configuration: Option<&mut Value>) {
+    let Some(Value::Object(configuration)) = configuration else {
+        return;
+    };
+    let Some(Value::Array(openings)) = configuration.get_mut("openings") else {
+        return;
+    };
+    for (index, opening) in openings.iter_mut().enumerate() {
+        let Some(object) = opening.as_object_mut() else {
+            continue;
+        };
+        object
+            .entry("id")
+            .or_insert_with(|| Value::from(format!("opening-{}", index + 1)));
+        if let Some(Value::Array(points)) = object.remove("points") {
+            let vertices = points
+                .into_iter()
+                .enumerate()
+                .map(|(vertex_index, point)| {
+                    let mut vertex = Map::new();
+                    vertex.insert(
+                        "id".into(),
+                        Value::from(format!("vertex-{}", vertex_index + 1)),
+                    );
+                    vertex.insert("point".into(), point);
+                    Value::Object(vertex)
+                })
+                .collect();
+            object.insert("vertices".into(), Value::Array(vertices));
+        } else if let Some(Value::Array(vertices)) = object.get_mut("vertices") {
+            for (vertex_index, vertex) in vertices.iter_mut().enumerate() {
+                if let Some(vertex) = vertex.as_object_mut() {
+                    vertex
+                        .entry("id")
+                        .or_insert_with(|| Value::from(format!("vertex-{}", vertex_index + 1)));
+                }
+            }
+        }
     }
 }
 
@@ -99,9 +171,72 @@ fn generator_definitions(document: &Map<String, Value>) -> Vec<(String, String, 
         .collect()
 }
 
-/// Convert saved numeric strings to numbers, drop empty text saved for list parameters and,
-/// on back-side parts, state the layer the old renderer derived from the part side.
-fn normalize_generator_values(document: &mut Map<String, Value>) {
+/// Version 3 saved generator parameters as text. Converts the numeric text that the typed
+/// generators declare to numbers and removes empty or whitespace-only number and list text.
+/// Non-empty list text (for example `"[1,2,3]"`) stays text, as in the old 1 to 2 step. Names
+/// that no generator declares and values that cannot be converted are kept, so Core's
+/// validation reports them.
+fn version_3_to_4(document: &mut Map<String, Value>) {
+    convert_generator_values(document);
+}
+
+/// Version 5 adds optional fields to mechanical pairs (`constructionSource`, `halves`), and
+/// absence means what version 4 meant. Only the version changes, so an older build refuses a
+/// version 5 document instead of dropping the record (ADR-0004).
+fn version_4_to_5(_document: &mut Map<String, Value>) {}
+
+/// On back-side parts, state the layer the old renderer derived from the part side.
+fn state_back_sides(document: &mut Map<String, Value>) {
+    let known = generator_definitions(document);
+    if let Some(Value::Array(parts)) = document.get_mut("parts") {
+        for part in parts {
+            state_back_side(part, "generatorParameters", &known);
+        }
+    }
+    if let Some(Value::Array(assemblies)) = document.get_mut("assemblies") {
+        for assembly in assemblies {
+            if let Some(Value::Array(members)) = assembly.get_mut("members") {
+                for member in members {
+                    state_back_side(member, "parameters", &known);
+                }
+            }
+        }
+    }
+}
+
+fn state_back_side(instance: &mut Value, parameters_key: &str, known: &[(String, String, bool)]) {
+    let Some(object) = instance.as_object_mut() else {
+        return;
+    };
+    let Some((_, _, definition_saves_side)) = object
+        .get("definitionId")
+        .and_then(Value::as_str)
+        .and_then(|id| known.iter().find(|(known_id, _, _)| known_id == id))
+    else {
+        return;
+    };
+    let back = object.get("side").and_then(Value::as_str) == Some("back");
+    let saves_side = *definition_saves_side
+        || object
+            .get(parameters_key)
+            .and_then(|parameters| parameters.get("side"))
+            .is_some();
+    if back && !saves_side {
+        let entry = object
+            .entry(parameters_key)
+            .or_insert_with(|| Value::Object(Map::new()));
+        if entry.is_null() {
+            *entry = Value::Object(Map::new());
+        }
+        if let Some(parameters) = entry.as_object_mut() {
+            parameters.insert("side".into(), Value::from("B"));
+        }
+    }
+}
+
+/// Convert saved numeric strings to numbers and remove empty or whitespace-only number and list
+/// text, on definitions, parts and assembly members. Non-empty list text is not converted.
+fn convert_generator_values(document: &mut Map<String, Value>) {
     let known = generator_definitions(document);
 
     if let Some(Value::Array(definitions)) = document.get_mut("definitions") {
@@ -131,57 +266,36 @@ fn normalize_generator_values(document: &mut Map<String, Value>) {
     // Parts and assembly members name their parameters differently.
     if let Some(Value::Array(parts)) = document.get_mut("parts") {
         for part in parts {
-            normalize_instance(part, "generatorParameters", &known);
+            convert_instance(part, "generatorParameters", &known);
         }
     }
     if let Some(Value::Array(assemblies)) = document.get_mut("assemblies") {
         for assembly in assemblies {
             if let Some(Value::Array(members)) = assembly.get_mut("members") {
                 for member in members {
-                    normalize_instance(member, "parameters", &known);
+                    convert_instance(member, "parameters", &known);
                 }
             }
         }
     }
 }
 
-fn normalize_instance(
-    instance: &mut Value,
-    parameters_key: &str,
-    known: &[(String, String, bool)],
-) {
+fn convert_instance(instance: &mut Value, parameters_key: &str, known: &[(String, String, bool)]) {
     let Some(object) = instance.as_object_mut() else {
         return;
     };
-    let Some((_, source, definition_saves_side)) = object
+    let Some((_, source, _)) = object
         .get("definitionId")
         .and_then(Value::as_str)
         .and_then(|id| known.iter().find(|(known_id, _, _)| known_id == id))
     else {
         return;
     };
-    let back = object.get("side").and_then(Value::as_str) == Some("back");
     if let Some(parameters) = object
         .get_mut(parameters_key)
         .and_then(Value::as_object_mut)
     {
         convert_parameters(source, parameters);
-    }
-    let saves_side = *definition_saves_side
-        || object
-            .get(parameters_key)
-            .and_then(|parameters| parameters.get("side"))
-            .is_some();
-    if back && !saves_side {
-        let entry = object
-            .entry(parameters_key)
-            .or_insert_with(|| Value::Object(Map::new()));
-        if entry.is_null() {
-            *entry = Value::Object(Map::new());
-        }
-        if let Some(parameters) = entry.as_object_mut() {
-            parameters.insert("side".into(), Value::from("B"));
-        }
     }
 }
 
@@ -314,7 +428,7 @@ mod tests {
     fn migrates_a_version_1_document() {
         let (document, changed) = migrate_value(version_1()).unwrap();
         assert!(changed);
-        assert_eq!(document["formatVersion"], 2);
+        assert_eq!(document["formatVersion"], 5);
         assert_eq!(document["future"], json!({ "keep": true }));
 
         let definitions = &document["definitions"];
@@ -373,6 +487,93 @@ mod tests {
     }
 
     #[test]
+    fn gives_authored_openings_identity_without_moving_geometry() {
+        let mut value =
+            serde_json::to_value(crate::model::ProjectDoc::empty("doc", "Doc")).unwrap();
+        value["formatVersion"] = json!(2);
+        value["mechanical"] = json!({ "boardId": "board", "method": "printed", "mount": "tray",
+                "plateThickness": 1.5, "plateFoamThickness": 0.0, "pcbThickness": 1.6,
+                "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [],
+                "openings": [
+                    { "points": [ { "x": -2.5, "y": -2.5 }, { "x": 2.5, "y": 2.5 } ], "z": 0.0, "height": 10.0 }
+                ] });
+        value["hardware"] = json!({
+                "instances": [
+                    { "id": "left", "name": "Left", "boardId": "board", "half": "left", "role": "primary", "flipped": false, "controllerPartId": null, "constructionLinked": true,
+                      "mechanical": { "boardId": "board", "method": "printed", "mount": "tray",
+                        "plateThickness": 1.5, "plateFoamThickness": 0.0, "pcbThickness": 1.6,
+                        "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                        "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [],
+                        "openings": [
+                            { "points": [ { "x": 1.0, "y": 1.0 }, { "x": 2.0, "y": 2.0 }, { "x": 1.0, "y": 2.0 } ], "z": 1.0, "height": 5.0 }
+                        ] } }
+                ],
+                "sharedConstruction": { "boardId": "board", "method": "printed", "mount": "tray",
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0, "pcbThickness": 1.6,
+                    "bottomFoamThickness": 2.0, "batteryHeight": 0.0, "bottomThickness": 3.0,
+                    "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [],
+                    "openings": [
+                        { "points": [ { "x": 0.0, "y": 0.0 }, { "x": 4.0, "y": 0.0 }, { "x": 4.0, "y": 4.0 } ], "z": -1.0, "height": 8.0 }
+                    ] }
+        });
+        let (document, changed) = migrate_value(value).unwrap();
+        assert!(changed);
+        assert_eq!(document["formatVersion"], 5);
+
+        let canonical = &document["mechanical"]["openings"][0];
+        assert_eq!(canonical["id"], "opening-1");
+        assert_eq!(canonical["vertices"][0]["id"], "vertex-1");
+        assert_eq!(
+            canonical["vertices"][0]["point"],
+            json!({ "x": -2.5, "y": -2.5 })
+        );
+        assert_eq!(
+            canonical["vertices"][1]["point"],
+            json!({ "x": 2.5, "y": 2.5 })
+        );
+        assert_eq!(canonical["z"], 0.0);
+        assert_eq!(canonical["height"], 10.0);
+        assert!(canonical.get("points").is_none());
+
+        let shared = &document["hardware"]["sharedConstruction"]["openings"][0];
+        assert_eq!(shared["id"], "opening-1");
+        assert_eq!(
+            shared["vertices"][2]["point"],
+            json!({ "x": 4.0, "y": 4.0 })
+        );
+
+        let instance = &document["hardware"]["instances"][0];
+        assert_eq!(instance["constructionOwnership"], "legacy");
+        assert!(instance.get("constructionLinked").is_none());
+        assert_eq!(instance["mechanical"]["openings"][0]["id"], "opening-1");
+        assert_eq!(
+            instance["mechanical"]["openings"][0]["vertices"][1]["point"],
+            json!({ "x": 2.0, "y": 2.0 })
+        );
+
+        // No mechanical pairs or feature correspondences are invented.
+        assert!(document["hardware"].get("pairs").is_none());
+
+        // The migrated document deserializes and round-trips its geometry.
+        let parsed: crate::model::ProjectDoc = serde_json::from_value(document.clone()).unwrap();
+        let openings = parsed
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .openings
+            .as_ref()
+            .unwrap();
+        assert_eq!(openings[0].id, "opening-1");
+        assert_eq!(openings[0].vertices.len(), 2);
+        assert_eq!(openings[0].vertices[0].point.x, -2.5);
+        assert_eq!(
+            parsed.hardware.as_ref().unwrap().instances[0].construction_ownership,
+            crate::model::MechanicalConstructionOwnership::Legacy
+        );
+    }
+
+    #[test]
     fn migration_is_idempotent_and_leaves_current_documents_alone() {
         let (once, _) = migrate_value(version_1()).unwrap();
         let (twice, changed) = migrate_value(once.clone()).unwrap();
@@ -380,15 +581,51 @@ mod tests {
         assert_eq!(once, twice);
     }
 
+    /// Version 5 adds optional mirrored-half fields to mechanical pairs. Old documents have none,
+    /// so the step changes only the version: a version 4 document comes out identical apart
+    /// from `formatVersion`, and pairs stay unpaired.
+    #[test]
+    fn version_4_to_5_changes_only_the_format_version() {
+        let value = json!({
+            "format": "boardstudio/v2", "formatVersion": 4, "id": "p", "name": "P", "revision": 2,
+            "future": { "keep": true },
+            "hardware": { "pairs": [{
+                "id": "pair", "members": ["left", "right"],
+                "mapping": { "at": { "x": 200.0, "y": 0.0 }, "rotation": 0.0 },
+                "construction": { "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.3, "plateFoamThickness": 2.0, "bottomFoamThickness": 2.0,
+                    "bottomThickness": 3.0, "plateToPcb": 2.2, "wallThickness": 2.0, "clearance": 0.3 },
+                "features": []
+            }] }
+        });
+        let (document, changed) = migrate_value(value.clone()).unwrap();
+        assert!(changed);
+        let mut expected = value;
+        expected["formatVersion"] = json!(5);
+        assert_eq!(document, expected);
+        assert!(document["hardware"]["pairs"][0].get("halves").is_none());
+        assert!(
+            document["hardware"]["pairs"][0]
+                .get("constructionSource")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn version_5_documents_with_mirrored_halves_keep_their_text() {
+        let text = r#" { "format":"boardstudio/v2", "formatVersion":5, "hardware": { "pairs": [ { "id": "pair", "halves": { "sourceBoardId": "a", "mirrorBoardId": "b", "correspondences": [], "exceptions": [] } } ] } } "#;
+        assert_eq!(migrate_json(text).unwrap(), (text.to_owned(), false));
+    }
+
     #[test]
     fn current_documents_keep_their_text() {
-        let text = r#" { "format":"boardstudio/v2", "formatVersion":2, "x": 1 } "#;
+        let text = r#" { "format":"boardstudio/v2", "formatVersion":5, "x": 1 } "#;
         assert_eq!(migrate_json(text).unwrap(), (text.to_owned(), false));
     }
 
     #[test]
     fn rejects_newer_or_malformed_versions() {
-        let newer = migrate_value(json!({ "formatVersion": 3 })).unwrap_err();
+        let newer = migrate_value(json!({ "formatVersion": 6 })).unwrap_err();
         assert!(newer.contains("newer than this app supports"), "{newer}");
         assert!(migrate_value(json!({ "formatVersion": "2" })).is_err());
         assert!(migrate_value(json!({ "formatVersion": null })).is_err());
@@ -424,5 +661,96 @@ mod tests {
         let size = &definition.generator.as_ref().unwrap().parameters["hole_size"];
         assert_eq!(size, &json!(2.2));
         generators::render_forms(definition, None).expect("a migrated definition renders");
+    }
+
+    #[test]
+    fn version_3_saved_strings_become_numbers_and_render() {
+        let mut definition = generators::catalogue()
+            .unwrap()
+            .into_iter()
+            .find(|item| item.id == "generator:ceoloide/mounting_hole_npth")
+            .unwrap();
+        let parameters = &mut definition.generator.as_mut().unwrap().parameters;
+        parameters.insert("hole_size".into(), json!("2.2"));
+        parameters.insert("hole_drill".into(), json!("3"));
+        let mut value =
+            serde_json::to_value(crate::model::ProjectDoc::empty("saved", "Saved")).unwrap();
+        value["formatVersion"] = json!(3);
+        value["definitions"] = json!([definition]);
+
+        let (value, changed) = migrate_value(value).unwrap();
+        assert!(
+            changed,
+            "a version 3 document is rewritten at the current version"
+        );
+        assert_eq!(value["formatVersion"], 5);
+        let document: crate::model::ProjectDoc = serde_json::from_value(value).unwrap();
+        let definition = &document.definitions[0];
+        let parameters = &definition.generator.as_ref().unwrap().parameters;
+        assert_eq!(parameters["hole_size"], json!(2.2));
+        assert_eq!(parameters["hole_drill"], json!(3));
+        generators::render_forms(definition, None).expect("a migrated definition renders");
+    }
+
+    #[test]
+    fn version_3_to_4_keeps_unknown_names_and_unconvertible_values() {
+        let value = json!({
+            "format": "boardstudio/v2", "formatVersion": 3, "id": "p", "name": "P", "revision": 1,
+            "future": { "keep": true },
+            "definitions": [
+                { "id": "generator:ceoloide/mounting_hole_npth", "name": "hole",
+                  "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1",
+                    "parameters": { "hole_size": "two", "hole_drill": "3", "not_a_parameter": "9" } } }
+            ],
+            "parts": [
+                { "id": "hole", "definitionId": "generator:ceoloide/mounting_hole_npth", "side": "back",
+                  "generatorParameters": { "hole_size": " 3.5 ", "not_a_parameter": "4" } }
+            ],
+            "assemblies": [{ "id": "a", "name": "A", "members": [
+                { "id": "m", "definitionId": "generator:ceoloide/mounting_hole_npth", "side": "back",
+                  "parameters": { "hole_drill": "3" } }
+            ]}]
+        });
+
+        let (migrated, changed) = migrate_value(value).unwrap();
+        assert!(changed);
+        assert_eq!(migrated["formatVersion"], 5);
+        assert_eq!(migrated["future"], json!({ "keep": true }));
+        assert_eq!(
+            migrated["definitions"][0]["generator"]["parameters"],
+            json!({ "hole_size": "two", "hole_drill": 3, "not_a_parameter": "9" })
+        );
+        assert_eq!(
+            migrated["parts"][0]["generatorParameters"],
+            json!({ "hole_size": 3.5, "not_a_parameter": "4" })
+        );
+        assert_eq!(
+            migrated["assemblies"][0]["members"][0]["parameters"],
+            json!({ "hole_drill": 3 })
+        );
+        assert!(
+            migrated["parts"][0]["generatorParameters"]
+                .get("side")
+                .is_none(),
+            "the back-side default is a version 1 step, not a version 3 one"
+        );
+    }
+
+    #[test]
+    fn the_version_1_step_states_the_back_side_and_leaves_text_for_version_4() {
+        let mut document = version_1().as_object().unwrap().clone();
+        version_1_to_2(&mut document);
+        assert_eq!(
+            document["parts"][1]["generatorParameters"],
+            json!({ "hotswap": false, "side": "B" })
+        );
+        assert_eq!(
+            document["definitions"][1]["generator"]["parameters"]["hole_size"],
+            "2.2"
+        );
+        assert_eq!(
+            document["parts"][4]["generatorParameters"]["hole_size"],
+            " 3.5 "
+        );
     }
 }

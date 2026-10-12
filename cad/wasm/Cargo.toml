@@ -3,6 +3,10 @@ name = "boardstudio-cadrum-wasm"
 version = "0.1.0"
 edition = "2021"
 publish = false
+# Its own workspace root. The repo root excludes this crate, but cargo still walks up past that
+# exclusion into an enclosing checkout (a nested .worktrees/ checkout) and fails. See
+# docs/plans/check-speed/issues/10-nested-worktrees.md.
+[workspace]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

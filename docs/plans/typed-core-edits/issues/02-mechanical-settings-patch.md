@@ -1,13 +1,14 @@
 # 02: Core owns mechanical settings and linked mirrored features
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 01, [matrix Core placement](../../matrix-layout-consistency/issues/02-core-set-matrix-placement.md), [matrix companion modes](../../matrix-layout-consistency/issues/03-core-companion-placement-modes.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [module deepening](../../module-deepening/map.md), [review candidate 04](../../../investigations/architecture-review-2026-10-07.html#c4)
 
 Ticket 01 has settled the typed-edit pattern. This ticket combines the mechanical
 ownership migration with the agreed mirrored-feature behavior. Q1-Q13 are settled;
-the complete design below was confirmed on 2026-10-08 (see Answer). Matrix Core
+the complete design below was confirmed on 2026-10-08. Q14 clarifies paired Disable
+and was confirmed on 2026-10-09 (see Answer). Matrix Core
 tickets 02/03 remain integration prerequisites.
 
 ## What to build
@@ -541,3 +542,174 @@ prerequisites; implementation, source/browser checks and required reviews remain
 This reconciliation is documentation only. It does not claim implemented mirrored
 mechanical links or fresh source/browser verification. Before a PR, run the full
 `python3 scripts/check.py` on the integrated source and complete both required reviews.
+
+### Q14: Unlink and disable this half — 2026-10-09
+
+The user selected **Unlink and disable this half**. For a paired physical instance,
+the UI explicitly names both effects. Submit the existing typed `Disable` change
+once, not separate Unlink and Disable requests or a replacement document.
+
+Core materializes both members' current effective geometry, construction and local
+settings, clears the pair and its ownership references, then disables only the
+selected half's mechanical stack. The other half keeps its geometry and settings.
+Both physical instances, PCBs, electrical parts and unrelated split/layout settings
+remain. Update affected generated holes and memberships in the same staged edit.
+One Undo restores the whole change; Redo repeats it. Validation or missing required
+input rolls back everything. A supplied mounting-hole template is validated; it is
+required only for actual generated-hole creation/update, not deletion or unchanged
+holes alone.
+
+A pending settings/geometry edit to the disabled stack retires as ineligible even
+though the physical instance still exists. Enable remains possible and does not
+infer a new pair. Opening/vertex identity reservations must survive the lifecycle
+so a later recreated feature cannot receive an earlier pending edit. Existing
+unpaired/canonical Disable behavior remains unchanged.
+
+Verify through the public Core operation/evaluator, real Session/Core and mounted
+controls: explicit action, preserved survivor, no PCB/instance removal, one
+Undo/Redo, atomic rollback, queued retirement and save/reopen without relinking.
+This is design approval, not implementation acceptance or ticket closure.
+
+## Comments
+
+### Progress — step 1 complete (commit `c77ab3a6f`)
+
+Branch `typed-core-edits/mechanical`, based on the integrated matrix work at `d543201a8`
+(`typed-core-edits/matrix-core`). Matrix Core 02/03 verified present and resolved first.
+
+Implemented and verified:
+
+- `MechanicalConfiguration.openings` is `Option<Vec<MechanicalOpening>>`, where each
+  opening and vertex has a stable `id` and geometry is unchanged. `CaseOpening`
+  remains for profile/derived geometry; adapters convert at their boundary.
+- `HardwareConfiguration.pairs` (explicit `MechanicalMirrorPair`s), `MechanicalConstruction`
+  (the shared subset: method/style, dimensional/foam, gasket, processes/materials,
+  internal gasket, gasket layout), `MechanicalFeature`/`MechanicalFeatureMember` with
+  `MechanicalFeatureKind`/`MechanicalFeatureState`/`MechanicalFeatureValue`. Pair
+  mapping is a `Pose2` composed with a fixed X reflection.
+- `PhysicalBoardInstance.construction_ownership` replaces the retired
+  `construction_linked` (whose value never affected the effective overlay).
+- Ordered 2-to-3 migration (`CURRENT_VERSION = 3`): assigns deterministic
+  `opening-N`/`vertex-N` identities in the canonical, instance and legacy shared
+  configurations, preserves geometry, marks every existing instance `legacy` and
+  removes the old flag. It creates no pairs and infers no correspondences.
+
+Verification: `cargo test -p boardstudio_core` (175 unit + 349 integration),
+`-p boardstudio-application` (30), `wasm-pack test web/crates/case` (77), WASM
+`typecheck`, `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`,
+and GitNexus `detect-changes` (23 files, 117 symbols, risk medium; 4 mechanical
+generation flows). The boundary transcript, `reviung41` fixture and the demo
+baseline were updated for the version/ownership representation change.
+
+### Next — step 2
+
+Move the `MechanicalSettingsPatch` domain vocabulary and defaults into Core behind
+`EditOperation::ApplyMechanicalEdit { edit: MechanicalEdit }`, and implement
+`evaluate_edit`/`effective_inputs`/apply with validation, absent mount
+initialization, closure-clearance projection and the no-op short-circuit. The patch
+enum payload uses only Core types; `field_id()`/`NumberRule` stay in Case as a
+Case-side extension trait. Then steps 3-5 (pairs/features/findings, Case adapter,
+integrated verification) per this ticket.
+
+Note: the GitNexus MCP server is now configured for pi (`/home/chris/01_Projects/ts-boardstudio2/.pi/mcp.json`,
+project scope, direct exposure, `cwd` = this worktree); it serves the worktree index.
+
+### Progress — slices charted and two parallel slices landed
+
+Split the remaining build into child tickets (05-10) with blocking edges:
+05 Core effective inputs, 06 Core apply settings, 07 Core closure-mount
+initialization and clearance projection, 08 Core mirror pairs and linked
+features, 09 Case adapter and setup, 10 integrated verification and reviews.
+
+Landed so far on `typed-core-edits/mechanical`:
+
+- `c77ab3a6f` identified openings, pair/construction ownership and the 2-to-3 migration.
+- `7e1ec0e04` moved the `MechanicalSettingsPatch` vocabulary into
+  `core::mechanical::change` behind `EditOperation::ApplyMechanicalEdit`.
+- `043a0604e` moved the mechanical defaults into Core and deleted the Case copies.
+- Parallel slice (branch merged): `925f0083a` moved the closure-clearance projection
+  into `core::mechanical::clearance`, with the Case file now a thin adapter.
+- Parallel slice (branch merged): `4bde2993f` added the pair geometry helpers in
+  `core::mechanical::pair` (forward/inverse map, orientation involution, opening
+  reflection with preserved vertex ids and reversed winding).
+- `8aa0423ba` corrected pair orientation recovery to the reflection involution.
+
+Verification: `cargo test -p boardstudio_core` 192 unit + 349 integration,
+`wasm-pack test web/crates/case` 77, WASM `typecheck`, `fmt`, `clippy`, and
+GitNexus `detect-changes` (5 files, 67 symbols, medium risk, 2 mechanical flows).
+
+Next: slice 05 (`effective_inputs`) and slice 06 (`apply` settings families),
+then 07-10.
+
+### Progress — slices 05 and 06 landed
+
+- Slice 05 (Core effective inputs, `e1de79af7`): `core::mechanical::inputs::effective_inputs`
+  resolves canonical, Legacy overlay with first-instance fallback, Local, Pair,
+  board thickness, wireless battery defaults and flipped instances; the host
+  `effective_instance_configuration` is now a thin adapter over it.
+- Slice 06 (Core applies settings, `3fbce5418`): `core::mechanical::edit::apply`
+  ports the whole settings vocabulary (enable/disable, battery, closure hardware,
+  critical fits, hardware, openings, method/mount collections, dimensions, gasket
+  support placement, profiles, switch family, processes, stabilizers) with
+  validation, rollback on malformed input, precise changed ids and no-op detection.
+  Closure-mount initialization and clearance projection are deliberately deferred to
+  slice 07 (documented `TODO(slice 07)`); the Case controller still holds its own
+  `apply_patch` until slice 09.
+
+Verification: `cargo test -p boardstudio_core` 219 unit + 349 integration; Case WASM
+tests 77; host `page` tests 12; WASM `typecheck`; `fmt`; `clippy`; GitNexus
+`detect-changes` medium risk.
+
+Known follow-up for slice 08: instance persistence currently writes only
+`instance.mechanical`, so a Legacy instance overlaid from a distinct
+`shared_construction` can have an overlaid-field change reverted on the next read.
+Construction ownership and pair scope must settle that.
+
+### Progress — implementation finished and reviewed (2026-10-09)
+
+All slices 05-10 completed across two implementation lanes (Core: `typed-core-edits/mechanical-integration`;
+Case/UI: `typed-core-edits/mechanical-actions`) and integrated on this branch through `2a8d5e076`.
+The complete `python3 scripts/check.py` passed on the integrated source (parent checkout + non-nested
+validation worktree, same commit, each owning the steps its environment supports), the boundary
+transcript reproduces byte-for-byte (native golden + WASM host parity), and real Session/Core queue,
+Undo/Redo, save/reopen and browser IndexedDB round-trips pass. Independent Standards and Spec reviews
+ran over the phase range `d543201a8...3a00845c`; every blocker they raised was fixed and re-verified
+(new-instance `Local` stamping `a67c266a2`, linked changed-id completeness `acf3d332b`, Core-owned
+case-admission predicate `d6ef1715b` with the page adoption `2a8d5e076`), and the full check repassed
+after the fixes. Per-ticket evidence is in the Outcomes of 05-10.
+
+### Ratified wire shape
+
+The mechanical change vocabulary is frozen with this consciously ratified naming: variant tags are
+kebab-case (`remove-physical-instance`, `materialize-legacy-construction`), struct-variant payload
+fields retain snake_case (`pair_id`, `construction_source`), and `MechanicalTarget` plus the
+correspondence records use camelCase (`boardId`, `instanceId`, `sourceInstanceId`) with `kind` tags.
+The mixed spelling between the target and the change payload is deliberate; do not "fix" it without
+a new wire-format decision, because persisted documents and the boundary transcript encode this shape.
+
+### Accepted deviations and limits (from the reviews)
+
+- `UnlinkMirrorPair` is a Core-tested primitive with no reachable UI control this phase: Q14's compound
+  unlink-and-disable is the surfaced pair-dissolution path. Surfacing a pure unlink remains a product
+  decision, not a defect.
+- Physical-instance removal is paired-only; removing an unpaired instance stays with the topology
+  replacement path, which reconciles pairs and materializes survivors.
+- The Legacy construction conversion is a single-half UI action by design (Core accepts a member
+  list; no batch control is specified).
+- Outline cache classification for mechanical edits is static (`affects_outline` aliases projection
+  need) and the cache recomputes projecting inputs; the projection implies the composer inputs that
+  changed, so per-input rebuild bookkeeping is not required for correctness.
+- Browser storage round-trip tests live in the host crate (`storage_lifetime_tests.rs`), which the
+  browser step of the full check covers.
+- Legacy ownership is stamped exclusively by the v2-to-v3 migration; newly created instances are
+  `Local` until an eligible pair link promotes them.
+
+## Outcome
+
+Resolved 2026-10-09. The typed mechanical interface, Core-owned defaults/validation/effective
+inputs/findings, mirror pairs with per-feature sources, atomic lifecycle (link/unlink, make local,
+omit, rejoin, removal, Q14 paired disable, legacy conversion), durable identity reservations,
+author-contour gasket resolution, per-target Case admission and selected-board export gating, and
+the Case adapters with reviewed fingerprints and a read-only projection port are implemented,
+integrated, fully checked and independently reviewed with all blockers fixed. The included-keyboards
+refresh (ticket 04) remains blocked by matrix integrated verification (matrix 11).

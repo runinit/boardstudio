@@ -136,6 +136,12 @@ def build_wasm():
     if output.is_file() and stamp.is_file() and stamp.read_text().strip() == inputs:
         print("cadrum: wasm/pkg is current; skipping the container build", flush=True)
         return
+    # The container mounts cad/ alone, so a symlink's target does not exist inside it and the
+    # failure only appears after the image step. A real directory is required.
+    for name in (".cache", "wasm/pkg", "wasm/target"):
+        if (CAD_ROOT / name).is_symlink():
+            raise RuntimeError(f"cad/{name} is a symlink; the CAD container cannot resolve it. Remove the link "
+                               f"and copy the real directory in (rm cad/{name} && cp -a <checkout that owns it>/cad/{name} cad/{name}).")
     occt = prepare("wasm").relative_to(CAD_ROOT).as_posix()
     runtime = os.environ.get("CADRUM_CONTAINER_RUNTIME") or next(
         (name for name in ("podman", "docker") if available(name)), None)
@@ -158,6 +164,7 @@ def build_wasm():
         directory.mkdir(parents=True, exist_ok=True)
     stamp.parent.mkdir(parents=True, exist_ok=True)
     jobs = ["--env", f"CARGO_BUILD_JOBS={os.environ['CARGO_BUILD_JOBS']}"] if os.environ.get("CARGO_BUILD_JOBS") else []
+    binaryen_cores = ["--env", f"BINARYEN_CORES={os.environ['BINARYEN_CORES']}"] if os.environ.get("BINARYEN_CORES") else []
     # The full root workspace references crates absent from these narrow mounts.
     # Give contracts its inherited lints without joining CAD to that workspace.
     with tempfile.TemporaryDirectory(prefix="workspace-", dir=stamp.parent) as directory:
@@ -169,7 +176,7 @@ def build_wasm():
              "--volume", f"{manifest}:/workspace/Cargo.toml:ro{',Z' if label else ''}",
              "--volume", f"{contracts}:/workspace/contracts/rust:ro",
              "--workdir", "/workspace/cad", "--env", f"OCCT_ROOT=/workspace/cad/{occt}",
-             "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", *jobs, IMAGE,
+             "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", *jobs, *binaryen_cores, IMAGE,
              "wasm-pack", "build", "wasm", "--target", "web", "--out-dir", "pkg",
              "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked"])
     stamp.write_text(inputs + "\n")

@@ -1,6 +1,6 @@
 # 03: Decide the outline version intents
 
-Status: ready-for-human
+Status: resolved
 Type: grilling
 Blocked by: 01, [module deepening 06](../../module-deepening/issues/06-split-outline-lifecycle.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Source: [review candidate 06](../../../investigations/architecture-review-2026-10-07.html#c6)
@@ -64,3 +64,88 @@ claim that ADR-0002 linked refinements already exist in the model.
 After approval, slice builds into feature/settings/connection intents and atomic
 version lifecycle intents, with shared Core ID allocation and Session/Core Undo tests.
 These builds remain separate from the module-deepening waves in the handoff.
+
+## Answer
+
+Confirmed by the user on 2026-10-09 after Q1-Q12 and a complete shared-understanding
+summary. This resolves the design decision, not its implementation. The proposal
+above is retained as history: its exclusion of linked-refinement implementation is
+superseded by the approved scope below.
+
+### Interface and ownership
+
+- One typed `ApplyOutlineEdit` interface carries the specific named change. Core owns
+  rules, target eligibility, validation, identity allocation and mutation; web owns
+  drafts, selection, focus and submission. Composite copy/edit/activate actions are
+  one accepted edit and one Undo step, not a generic batch interface.
+- Core allocates version, feature and connection IDs against the accepted document,
+  using a captured creation seed where needed. Core owns collisions and stable
+  identity; web must not prepare replacement documents or pre-plan entity IDs.
+- Core evaluation and apply share private rules. Equal field values settle Unchanged
+  without a revision/history step. Vanished or ineligible targets retire; malformed
+  submitted data fails with a Core error and no mutation. Keep the unrelated-operation
+  no-op policy unchanged and keep private helpers/cache types private.
+- Geometry changes report precise board/version/feature/connection/protected-gap
+  owners and update dependent outlines/findings. Metadata-only naming does not rebuild
+  geometry. Tests cross the typed Core operation and real Session/Core seams.
+
+### Linked refinements are in scope
+
+- Implement [ADR-0002](../../../adr/0002-linked-outline-refinements.md), not just the
+  current fixed-version lifecycle. A linked refinement follows the board's current
+  included components: placement, rotation, geometry, additions, removals and inclusion
+  changes. Do not freeze or unlink it merely because its source changes.
+- Each refinement owns its own settings and authored outline choices. Margin, corner
+  finishing, connection width and other settings remain editable while linked;
+  recalculation changes that version, not unrelated alternatives.
+- Removing a component removes only authored connections, protected gaps and cutouts
+  that require it. Preserve independent choices and recalculate the outline and
+  bridges from the remaining components using that version's settings. Source removal
+  and this cleanup share the same Undo step. Do not leave obsolete references or
+  silently retarget an authored connection to another component.
+- Freeze or manual perimeter editing creates a separate fixed edited outline while
+  retaining the linked refinement. Component movement does not reshape edited
+  outlines; findings expose clearance problems under [ADR-0001](../../../adr/0001-fixed-edited-outlines.md).
+- Persist explicit ownership, sources and each version's choices. Save/reopen keeps
+  linked outlines linked and unlinked/edited outlines unlinked. Existing files retain
+  authored geometry and effective behavior; missing link state or origin provenance
+  must not infer a new link. Append the next ordered migration only if the
+  representation needs one, coordinated with mechanical schema work.
+- Recompute after source changes, including bridges. If recomputation cannot supply
+  valid manufacturing geometry, the link stays active: retain a clearly identified
+  last-valid display where necessary, show located findings and block only affected
+  exports. Continue saving/editing and retry resolution on later changes. Ordinary
+  component removal with valid remaining inputs is not a reason to retain stale shape.
+
+### Pending edits and errors
+
+- A pending geometry edit for version A retires if another version becomes active
+  before execution. Never redirect it to the new active version. Preserve the existing
+  action-specific eligibility of activation, naming and other lifecycle actions.
+- An edit based on a reviewed generated/source shape retires if that relevant shape
+  changes before execution. Capture relevant target/source identity and inputs, not
+  the whole document revision; unrelated names or other-board edits do not retire it.
+- Too few points or nonfinite coordinates fail with an error and change nothing.
+  Self-intersection and other geometric findings remain visible/editable and block
+  affected manufacturing outputs rather than impose a blanket simple-polygon
+  admission rule. Inactive alternatives and unrelated boards do not block valid output.
+- Preserve current lifecycle behavior where not explicitly extended: Generated stays
+  available; removing an active named version returns to Generated; focus is
+  presentation-only. Source references on copies record origin, not an implicit live
+  dependency between versions.
+
+### Implementation tickets and gates
+
+1. [11: Ownership, identity and persistence](11-core-outline-ownership.md).
+2. [12: Linked resolution and source cleanup](12-linked-outline-resolution.md).
+3. [13: Typed edits and atomic lifecycle](13-core-outline-edits.md).
+4. [14: Web adapter and linked/fixed presentation](14-outline-web-adapter.md).
+5. [15: Integrated verification and reviews](15-outline-integrated-verification.md).
+
+Design and isolated work can proceed alongside mechanical 02. Shared `model.rs`,
+`migrate.rs`, `lib.rs`, geometry settlement and the combined boundary transcript need
+one coordinated writer/integration window; parallel work does not authorize conflicting
+schema versions or concurrent transcript blessing. Mechanical 02 remains open under
+its own acceptance. None of the new outline build tickets is resolved by this Answer.
+Run affected native/WASM checks, the complete `python3 scripts/check.py`, and independent
+Standards and Spec reviews before accepting the outline implementation.

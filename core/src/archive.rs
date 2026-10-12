@@ -372,7 +372,7 @@ mod tests {
     use serde_json::json;
 
     fn document(hashes: &[String]) -> String {
-        json!({"format":"boardstudio/v2","formatVersion":2,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
+        json!({"format":"boardstudio/v2","formatVersion":5,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
     }
 
     fn pack_project(json: String, files: &[(String, Vec<u8>)], limits: Limits) -> ArchiveResult {
@@ -410,7 +410,7 @@ mod tests {
             panic!("expected project")
         };
         let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(project["formatVersion"], 2);
+        assert_eq!(project["formatVersion"], 5);
         assert_eq!(
             project["definitions"][0]["id"],
             "generator:ceoloide/switch_mx"
@@ -456,6 +456,35 @@ mod tests {
             }]
         );
         assert_eq!(unpacked, vec![data]);
+    }
+
+    #[test]
+    fn version_5_mirrored_halves_cross_the_archive_boundary_unchanged() {
+        let json = json!({
+            "format": "boardstudio/v2", "formatVersion": 5, "parts": [], "boards": [], "assets": [],
+            "hardware": { "pairs": [{
+                "id": "pair", "members": ["left", "right"],
+                "mapping": { "at": { "x": 200.0, "y": 0.0 }, "rotation": 0.0 },
+                "construction": { "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.3, "plateFoamThickness": 2.0, "bottomFoamThickness": 2.0,
+                    "bottomThickness": 3.0, "plateToPcb": 2.2, "wallThickness": 2.0, "clearance": 0.3 },
+                "constructionSource": "left",
+                "halves": { "sourceBoardId": "left-board", "mirrorBoardId": "right-board",
+                    "correspondences": [{ "kind": "part", "sourceId": "l-key", "mirrorId": "r-key" }],
+                    "exceptions": [{ "kind": "part", "mirrorId": "r-extra", "state": "omitted" }] }
+            }] },
+            "future": { "keep": true }
+        })
+        .to_string();
+        let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
+        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
+        let ArchiveReply::Unpacked { project_json, .. } = reply else {
+            panic!("expected project")
+        };
+        assert_eq!(
+            project_json, json,
+            "a version 5 project keeps its mirrored halves"
+        );
     }
 
     #[test]

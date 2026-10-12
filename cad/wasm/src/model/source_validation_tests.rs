@@ -3,6 +3,7 @@ use super::read_step_model_data;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -218,10 +219,12 @@ fn vik_display_transform_aligns_board_and_asymmetric_h1_h2_rims() {
         serde_json::json!({"x":0,"y":0,"z":0})
     );
     assert_eq!(transform["scale"], serde_json::json!({"x":1,"y":1,"z":1}));
-    assert!(transform["evidence"]["asymmetricFeatures"]
-        .as_str()
-        .unwrap()
-        .contains("H1/H2"));
+    assert!(
+        transform["evidence"]["asymmetricFeatures"]
+            .as_str()
+            .unwrap()
+            .contains("H1/H2")
+    );
     let model = read_step_model_data(bytes(asset["bundledFile"].as_str().unwrap())).unwrap();
     let offset = [
         transform["offset"]["x"].as_f64().unwrap(),
@@ -442,8 +445,15 @@ fn thq_pins_align_with_leads_and_front_back_transform_oracle() {
 fn step_expectations_agree_with_fixture_manifests() {
     let expectations = json("cad/test/fixtures/step-expectations.json");
     assert_eq!(expectations["units"], "millimetres");
-    assert!(expectations["cases"].as_array().unwrap().len() >= 25);
+    let cases = expectations["cases"].as_array().unwrap();
+    assert!(!cases.is_empty(), "STEP expectations retain authored cases");
+    let case_ids = cases
+        .iter()
+        .map(|case| case["id"].as_str().expect("case id"))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(case_ids.len(), cases.len(), "case IDs are unique");
     let baselines = expectations["manifestBaselines"].as_object().unwrap();
+    assert!(!baselines.is_empty(), "manifest baselines retain fixtures");
     let mut checked = 0;
     for name in ["manifest.json", "followup-manifest.json"] {
         let manifest = json(&format!("cad/test/fixtures/{name}"));

@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::context::{NetRef, RenderContext, Resolved};
 use crate::error::{GeneratorError, Result};
 use crate::nets::NetIndexer;
-use crate::params::{ParamKind, ParamSpec, ParameterSchema};
+use crate::params::{ParamKind, ParamSpec, ParameterProblem, ParameterSchema};
 use crate::sexpr::{Expr, parse_forms};
 use crate::types::{GeneratorRef, MatrixTerminals, PartKind, PartRef, Side};
 
@@ -113,6 +113,39 @@ impl Registry {
                 value: param.default.to_value(),
             })
             .collect())
+    }
+
+    /// Checks one map of saved parameters against a generator's declared schema, in name
+    /// order, with the same rule render applies: a null value is absent, and any other value
+    /// must be accepted by its declared kind. Names the generator does not declare are
+    /// reported too, because render ignores them.
+    pub fn check_parameters(
+        &self,
+        source: &str,
+        parameters: &BTreeMap<String, Value>,
+    ) -> Result<Vec<ParameterProblem>> {
+        let spec = self.spec(source)?;
+        let mut problems = Vec::new();
+        for (name, value) in parameters {
+            if value.is_null() {
+                continue;
+            }
+            match spec.parameters.iter().find(|param| param.name == name) {
+                None => problems.push(ParameterProblem::Undeclared {
+                    parameter: name.clone(),
+                    found: value.clone(),
+                }),
+                Some(param) if !param.kind.accepts(value) => {
+                    problems.push(ParameterProblem::WrongType {
+                        parameter: name.clone(),
+                        expected: param.kind,
+                        found: value.clone(),
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+        Ok(problems)
     }
 
     /// Render a definition (and optionally a placed part) to KiCad forms.

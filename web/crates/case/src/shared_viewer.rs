@@ -6,6 +6,7 @@ use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };
 use super::layout_viewer_source::LayoutPreviewSnapshot;
+use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;
@@ -2755,6 +2756,7 @@ fn SharedViewer(
                                     request_id,
                                     field_id: patch.field_id(),
                                     patch,
+                                    reviewed_fingerprint: None,
                                 });
                             },
                             "Unlink selected support"
@@ -3393,7 +3395,9 @@ mod tests {
                 flipped: false,
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: false,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
             }],
             ..Default::default()
         });

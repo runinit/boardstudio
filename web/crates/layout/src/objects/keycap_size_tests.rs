@@ -287,22 +287,49 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
 #[wasm_bindgen_test]
 fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
-        "../../../../../core/tests/fixtures/reviung41-outline-original.json"
+        "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .unwrap();
     let first_matrix_id = document.matrices[0].id.clone();
+    let overlap_id = "matrix/matrix/r0c2".to_owned();
+    let mut overlap_part = document
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/matrix/r0c1")
+        .expect("the synthetic matrix has an authored key to clone")
+        .clone();
+    overlap_part.id = overlap_id.clone();
+    overlap_part.reference = "M3".into();
+    overlap_part.keycap = Some(Vec2 {
+        x: 1000.0,
+        y: 1000.0,
+    });
+    document.parts.push(overlap_part);
+    document.matrices[0].part_ids.push(overlap_id.clone());
+    document.matrices[0].columns = 3;
+    document.boards[0].part_ids.push(overlap_id.clone());
+    let overlap_definition = document.matrices[0].definition_id.clone();
+    document.matrices[0]
+        .cells
+        .push(boardstudio_core::model::MatrixCell {
+            deleted: false,
+            row: 0,
+            column: 2,
+            enabled: true,
+            definition_id: Some(overlap_definition),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: Vec::new(),
+            assemblies_local: Some(true),
+        });
     let first_ids: Vec<_> = document.matrices[0]
         .part_ids
         .iter()
         .filter(|id| !id.ends_with("/diode"))
         .cloned()
         .collect();
-    let other_id = document.matrices[1]
-        .part_ids
-        .iter()
-        .find(|id| !id.ends_with("/diode"))
-        .unwrap()
-        .clone();
+    let other_id = overlap_id;
     let first_id = first_ids[0].clone();
     let context_id = first_ids[1].clone();
     for id in [&first_id, &other_id] {

@@ -95,11 +95,20 @@ fn remap_outline(features: &mut [OutlineFeature], changes: &PartChanges, before:
 
 /// Rename retained coordinate-derived identities simultaneously, so a removed
 /// slot's old ID can never donate its metadata to the next surviving key.
-fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) {
+///
+/// A linked outline version drops the authored choices that required a removed key, in
+/// this same edit, instead of detaching them to world points; the ids it dropped return.
+fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) -> Vec<String> {
     let before = doc.parts.clone();
     doc.parts
         .retain(|part| changes.get(&part.id) != Some(&None));
     crate::outline_controls::detach_removed(&before, doc);
+    let removed: Vec<String> = changes
+        .iter()
+        .filter(|(_, next)| next.is_none())
+        .map(|(id, _)| id.clone())
+        .collect();
+    let pruned = crate::outline_versions::prune_removed_sources(doc, &removed);
     for part in &mut doc.parts {
         if let Some(Some(id)) = changes.get(&part.id) {
             part.id = id.clone();
@@ -218,6 +227,7 @@ fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) {
     for circuit in &mut doc.embedded_circuits {
         remap_ids(&mut circuit.part_ids, changes);
     }
+    pruned
 }
 
 fn matrices(doc: &ProjectDoc, matrix_id: &str) -> Result<Vec<Matrix>, String> {
@@ -268,6 +278,14 @@ fn changed_ids(changes: &PartChanges) -> Vec<String> {
         .collect()
 }
 
+/// Remove exactly the supplied part identities and remap their project dependencies.
+pub(crate) fn remove_parts_by_id(
+    doc: &mut ProjectDoc,
+    removed_ids: &BTreeSet<String>,
+) -> Vec<String> {
+    let changes: PartChanges = removed_ids.iter().cloned().map(|id| (id, None)).collect();
+    remap_parts(doc, &changes)
+}
 pub(crate) fn remove_cells(
     doc: &mut ProjectDoc,
     matrix_id: &str,
@@ -309,8 +327,9 @@ pub(crate) fn remove_cells(
             }
         }
     }
-    remap_parts(doc, &changes);
+    let pruned = remap_parts(doc, &changes);
     let mut changed = changed_ids(&changes);
+    changed.extend(pruned);
     for matrix in matrices {
         changed.extend(set_matrix(doc, &matrix)?);
     }
@@ -348,11 +367,13 @@ pub(crate) fn remove_axis(
                 }
             }
         }
-        remap_parts(doc, &changes);
+        let pruned = remap_parts(doc, &changes);
         let mut changed = changed_ids(&changes);
+        changed.extend(pruned);
         for matrix in matrices {
             changed.extend(crate::apply(
                 doc,
+                &[],
                 &EditOperation::RemoveMatrix { id: matrix.id },
             )?);
         }
@@ -402,8 +423,9 @@ pub(crate) fn remove_axis(
         }
         remap_ids(&mut matrix.part_ids, &changes);
     }
-    remap_parts(doc, &changes);
+    let pruned = remap_parts(doc, &changes);
     let mut changed = changed_ids(&changes);
+    changed.extend(pruned);
     for matrix in matrices {
         changed.extend(set_matrix(doc, &matrix)?);
     }

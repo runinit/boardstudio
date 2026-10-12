@@ -818,7 +818,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 details { class: "m1-layout-component-constraint", open: constraint_open(),
                     summary { onclick: move |_| constraint_open.set(!constraint_open()), span { "Layout constraint" } small { if active_constraint.is_some() { "Active" } else { "Optional" } } }
                     if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
-                        label { "Relationship"
+                        label { "Constraint type"
                             select { aria_label: "Constraint type", value: if constraint_kind() == ConstraintKind::Offset { "offset" } else { "mirror" }, onchange: move |event| constraint_kind.set(if event.value() == "mirror" { ConstraintKind::Mirror } else { ConstraintKind::Offset }),
                                 option { value: "offset", selected: constraint_kind() == ConstraintKind::Offset, "Offset from part" }
                                 option { value: "mirror", selected: constraint_kind() == ConstraintKind::Mirror, "Mirror placement across axis" }
@@ -873,7 +873,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             } else {
                 h2 { "Relationships" }
                 p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
-                button { r#type: "button", onclick: move |_| tab.set(LayoutInspectorTab::Properties), "Edit placement relationship" }
+                button { r#type: "button", onclick: move |_| tab.set(LayoutInspectorTab::Properties), "Go to Properties" }
                 p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
             }
         }

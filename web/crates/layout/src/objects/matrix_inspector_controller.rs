@@ -2659,24 +2659,24 @@ mod tests {
         ));
     }
 
-    fn reviung_document() -> ProjectDoc {
+    fn synthetic_outline_document() -> ProjectDoc {
         serde_json::from_str(include_str!(
-            "../../../../../core/tests/fixtures/reviung41-outline-original.json"
+            "../../../../../core/tests/fixtures/synthetic-outline.json"
         ))
-        .expect("checked-in Reviung 41 project fixture should deserialize")
+        .expect("synthetic outline fixture should deserialize")
     }
 
-    fn reviung_matrix() -> Matrix {
-        let document = reviung_document();
+    fn synthetic_matrix() -> Matrix {
+        let document = synthetic_outline_document();
         document
             .matrices
             .into_iter()
-            .find(|matrix| matrix.id == "main-right-keys")
-            .expect("fixture has the right-hand 3 by 6 matrix")
+            .find(|matrix| matrix.id == "matrix")
+            .expect("synthetic fixture has its authored matrix")
     }
 
     fn request_matrix(matrix: &Matrix, field: MatrixEditField, value: MatrixEditValue) -> Matrix {
-        let document = reviung_document();
+        let document = synthetic_outline_document();
         match build_operation(&document, matrix, &MatrixNameTarget::Matrix, field, value)
             .expect("the selected matrix field should produce a SetMatrix request")
         {
@@ -2686,8 +2686,8 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn resizing_real_preset_matrix_preserves_cells_and_inherits_only_electrical_members() {
-        let mut matrix = reviung_matrix();
+    fn resizing_synthetic_matrix_preserves_cells_and_inherits_only_electrical_members() {
+        let mut matrix = synthetic_matrix();
         matrix.rows = 2;
         matrix.columns = 2;
         let old_rows = matrix.rows;
@@ -2697,6 +2697,13 @@ mod tests {
             .retain(|cell| cell.row < old_rows && cell.column < old_columns);
         let original = matrix.cells[0].clone();
         matrix.cells[0].variant = Some("preset/mx-hotswap/north".into());
+        matrix.cells[0].assemblies.push(MatrixAssembly {
+            id: "diode".into(),
+            definition_id: "fixture-diode".into(),
+            offset: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            rotation: None,
+            side: None,
+        });
         matrix.cells[0].assemblies.push(MatrixAssembly {
             id: "led".into(),
             definition_id: "fixture-led".into(),
@@ -2757,8 +2764,8 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn resize_preserves_sparse_holes_and_trims_only_cells_outside_new_bounds() {
-        let mut matrix = reviung_matrix();
+    fn resize_preserves_sparse_slots_and_trims_only_cells_outside_new_bounds() {
+        let mut matrix = synthetic_matrix();
         matrix.rows = 2;
         matrix.columns = 2;
         let old_rows = matrix.rows;
@@ -2766,6 +2773,7 @@ mod tests {
         matrix
             .cells
             .retain(|cell| cell.row < old_rows && cell.column < old_columns);
+        matrix.cells[0].variant = Some("preset/mx-hotswap/north".into());
         matrix
             .cells
             .retain(|cell| !(cell.row == 1 && cell.column == 1));
@@ -2816,8 +2824,8 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    fn custom_resize_leaves_cells_unchanged_and_rejects_oversized_dimensions_before_allocation() {
-        let mut matrix = reviung_matrix();
+    fn custom_matrix_resize_keeps_cells_and_rejects_oversized_dimensions() {
+        let mut matrix = synthetic_matrix();
         matrix.cells.iter_mut().for_each(|cell| cell.variant = None);
         let cells = matrix.cells.clone();
         let resized = request_matrix(&matrix, MatrixEditField::Rows, MatrixEditValue::Rows(4));
@@ -2835,7 +2843,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn matrix_pitch_request_preserves_every_unrelated_accepted_matrix_field() {
-        let matrix = reviung_matrix();
+        let matrix = synthetic_matrix();
         let next = request_matrix(
             &matrix,
             MatrixEditField::PitchX,
@@ -2852,12 +2860,14 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn owning_layout_name_request_uses_set_layout_without_renaming_the_matrix() {
-        let document = reviung_document();
-        let matrix = document
+        let document = synthetic_outline_document();
+        let mut matrix = document
             .matrices
             .iter()
-            .find(|matrix| matrix.id == "main-right-keys")
-            .unwrap();
+            .find(|matrix| matrix.id == "matrix")
+            .unwrap()
+            .clone();
+        matrix.name = Some("Authored matrix name".into());
         let layout = document
             .layouts
             .iter()
@@ -2865,7 +2875,7 @@ mod tests {
             .unwrap();
         let operation = build_operation(
             &document,
-            matrix,
+            &matrix,
             &MatrixNameTarget::Layout {
                 id: layout.id.clone(),
             },
@@ -2879,7 +2889,7 @@ mod tests {
         assert_eq!(renamed.id, layout.id);
         assert_eq!(renamed.matrix_id, matrix.id);
         assert_eq!(renamed.name, "Renamed layout");
-        assert_eq!(matrix.name.as_deref(), Some("right keys"));
+        assert_eq!(matrix.name.as_deref(), Some("Authored matrix name"));
     }
 
     mod queued_edits {

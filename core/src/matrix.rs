@@ -5,6 +5,7 @@ use crate::model::{
 };
 use serde_json::json;
 pub(crate) mod layout;
+pub(crate) mod placement;
 pub(crate) mod splay;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -56,6 +57,11 @@ fn matrix_terminal_pad_ids(definition: &crate::model::PartDefinition, row: bool)
 
 fn member_id(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
+}
+
+/// The generated part ID of one assembly on a matrix key.
+pub(crate) fn companion_id(key_id: &str, assembly_id: &str) -> String {
+    format!("{key_id}/{assembly_id}")
 }
 
 fn cell_members(matrix: &Matrix) -> BTreeMap<(u32, u32), String> {
@@ -131,7 +137,7 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
                     );
                 } else {
                     cell.assemblies
-                        .retain(|assembly| !requested.contains(&format!("{id}/{}", assembly.id)));
+                        .retain(|assembly| !requested.contains(&companion_id(&id, &assembly.id)));
                 }
             }
         }
@@ -371,6 +377,23 @@ fn column_basis(matrix: &Matrix, column: u32) -> MatrixColumnBasis {
     };
     let axis_x = rotate(reflect(Vec2 { x: cos, y: sin }));
     let axis_y = rotate(reflect(Vec2 { x: -sin, y: cos }));
+    // The stagger axis is exact by differencing `location`: raising this column's
+    // stagger by one moves its keys by exactly this vector. A default splay pivot
+    // moves with the stagger and does not rotate the displacement; a custom pivot
+    // is fixed, so this column's own splay does rotate it.
+    let stagger_axis = {
+        let mut raised = matrix.clone();
+        if raised.column_staggers.len() <= column as usize {
+            raised.column_staggers.resize(column as usize + 1, 0.0);
+        }
+        raised.column_staggers[column as usize] += 1.0;
+        let here = location(matrix, 0, column, None);
+        let there = location(&raised, 0, column, None);
+        Vec2 {
+            x: there.x - here.x,
+            y: there.y - here.y,
+        }
+    };
     MatrixColumnBasis {
         column,
         splay_origin: splay::origin_world(matrix, column),
@@ -385,6 +408,7 @@ fn column_basis(matrix: &Matrix, column: u32) -> MatrixColumnBasis {
             .is_some_and(Option::is_some),
         axis_x,
         axis_y,
+        stagger_axis,
     }
 }
 
@@ -523,7 +547,35 @@ pub(crate) fn project_matrix(
         columns: (0..matrix.columns)
             .map(|column| column_basis(matrix, column))
             .collect(),
+        companions: vec![],
     })
+}
+
+/// The companions this matrix generates, with the placement mode Core uses for
+/// each. Only enabled, non-deleted cells whose companion part exists are listed.
+pub(crate) fn scene_companions(
+    matrix: &Matrix,
+    doc: &ProjectDoc,
+) -> Vec<crate::model::MatrixCompanionPlacement> {
+    let mut companions = Vec::new();
+    for cell in &matrix.cells {
+        if !cell.enabled || cell.deleted {
+            continue;
+        }
+        let key_id = member_id(&matrix.id, cell.row, cell.column);
+        for assembly in &cell.assemblies {
+            let part_id = companion_id(&key_id, &assembly.id);
+            if !doc.parts.iter().any(|part| part.id == part_id) {
+                continue;
+            }
+            companions.push(crate::model::MatrixCompanionPlacement {
+                part_id: part_id.clone(),
+                key_id: key_id.clone(),
+                mode: layout::companion_mode(doc, &part_id),
+            });
+        }
+    }
+    companions
 }
 
 pub fn mark_override(part: &mut Part) {
@@ -756,7 +808,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                     .unwrap_or(&incoming.definition_id)
                     .clone();
                 for assembly in &cell.assemblies {
-                    let id = format!("{}/{}", members[0].0, assembly.id);
+                    let id = companion_id(&members[0].0, &assembly.id);
                     let rotation = pose.rotation.to_radians();
                     let (sin, cos) = rotation.sin_cos();
                     let at = Vec2 {
@@ -792,8 +844,15 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                             })
                         })
                         .and_then(|definition| definition.keycap);
+                    let new_source = doc
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == definition_id)
+                        .and_then(|definition| definition.generator.as_ref())
+                        .map(|generator| generator.source.clone());
                     let part = &mut doc.parts[index];
-                    if part.definition_id != definition_id && part.keycap.is_none() {
+                    let new_definition = part.definition_id != definition_id;
+                    if new_definition && part.keycap.is_none() {
                         part.keycap = authored_keycap;
                     }
                     let overridden = part
@@ -804,6 +863,15 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                         part.pose = pose;
                     }
                     part.definition_id = definition_id;
+                    if let (true, Some(source), Some(parameters)) = (
+                        new_definition,
+                        new_source.as_deref(),
+                        part.generator_parameters.as_mut(),
+                    ) {
+                        // Parameters of the previous generator (its terminal nets, for
+                        // example) mean nothing to the new one and must not be saved on it.
+                        crate::generators::drop_foreign_parameters(source, parameters);
+                    }
                     part.side = side;
                     if let Some(variant) = variant {
                         part.properties

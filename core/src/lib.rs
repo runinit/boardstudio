@@ -17,9 +17,11 @@ mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;
+mod mirrored_half;
 pub mod model;
 mod modules;
 mod outline_controls;
+pub mod outline_edit;
 mod outline_validation;
 mod outline_versions;
 mod script;
@@ -250,6 +252,12 @@ impl CoreEngine {
                     return self.error(id, &message);
                 }
                 if let Err(message) = layout::sync_components(&mut document) {
+                    return self.error(id, &message);
+                }
+                if let Err(message) = generators::document_error(&document) {
+                    return self.error(id, &message);
+                }
+                if let Err(message) = mechanical::halves::validate_document(&document) {
                     return self.error(id, &message);
                 }
                 self.document = document;
@@ -502,12 +510,23 @@ impl CoreEngine {
                 EditOperation::MoveParts { .. }
                     | EditOperation::SetMatrix { .. }
                     | EditOperation::SetMatrixSplay { .. }
+                    | EditOperation::SetMatrixPlacement { .. }
             )
         {
             return self.preview_edit(id, command);
         }
         let mut next = self.document.clone();
-        let changed = match apply(&mut next, &command.operation) {
+        // Mechanical edits resolve against the accepted outline projection the user
+        // sees, not a stale or re-derived one, so the accepted cache supplies it.
+        let accepted_contours;
+        let board_contours: &[BoardContours] =
+            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+                &accepted_contours
+            } else {
+                &[]
+            };
+        let changed = match apply(&mut next, board_contours, &command.operation) {
             Ok(changed) => changed,
             Err(message) => return self.error(id, &message),
         };
@@ -538,8 +557,39 @@ impl CoreEngine {
             Err(message) => return self.error(id, &message),
         }
         outline_controls::detach_removed(&self.document.parts, &mut next);
+        changed.extend(prune_removed_components(&self.document.parts, &mut next));
         changed.sort();
         changed.dedup();
+        // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
+        if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
+            && let Err(message) =
+                generators::introduced_error(&generators::parameter_problems(&self.document), &next)
+        {
+            return self.error(id, &message);
+        }
+        // A committed mechanical edit that reports nothing changed is a no-op: return
+        // the current committed scene without a revision bump, an undo entry or a redo
+        // clear. The no-op policy of every other operation is unchanged.
+        if changed.is_empty()
+            && command.phase == EditPhase::Commit
+            && matches!(
+                command.operation,
+                EditOperation::ApplyMechanicalEdit { .. } | EditOperation::ApplyOutlineEdit { .. }
+            )
+        {
+            return self.scene(
+                id,
+                SceneInput {
+                    transaction: &command.transaction_id,
+                    changed,
+                    document: &self.document,
+                    contours: &self.contours,
+                    geom_findings: &self.findings,
+                    cache: &self.outline_cache,
+                    kind: SceneKind::Committed,
+                },
+            );
+        }
         let (cache, contours, findings) = if affects_outline(&command.operation) {
             let previous = if matches!(command.operation, EditOperation::MoveParts { .. }) {
                 Some(&self.outline_cache)
@@ -591,9 +641,11 @@ impl CoreEngine {
     }
 
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
+        let accepted = generators::parameter_problems(&self.document);
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
-        let result = apply(&mut self.document, &command.operation).and_then(|mut changed| {
+        let before_parts = self.document.parts.clone();
+        let result = apply(&mut self.document, &[], &command.operation).and_then(|mut changed| {
             layout::validate(&self.document)?;
             changed.extend(constraints::resolve_edit(
                 &mut self.document,
@@ -606,8 +658,10 @@ impl CoreEngine {
             )?);
             changed.extend(layout::sync_components(&mut self.document)?);
             outline_controls::detach_removed(&attachments, &mut self.document);
+            changed.extend(prune_removed_components(&before_parts, &mut self.document));
             changed.sort();
             changed.dedup();
+            generators::introduced_error(&accepted, &self.document)?;
             Ok(changed)
         });
         let reply = match result {
@@ -710,6 +764,14 @@ impl CoreEngine {
                     .all(|id| fitted_targets.contains(id))
         });
         findings.extend(board_findings);
+        // Mechanical pair fit findings recomputed from accepted state, so readiness and
+        // the selected export gates see them instead of only a transient assembly
+        // diagnostic. A Case-scope finding blocks its affected assembly's output; a
+        // fabricated-drill violation is Pcb scope and blocks only that board.
+        findings.extend(crate::mechanical::inputs::pair_findings(
+            doc,
+            &board_contours,
+        ));
         let board_outline_scenes = geometry::board_outline_scenes(doc, cache);
         let (outline_findings, mut finding_markers) =
             outline_validation::validate(doc, &board_contours, &board_outline_scenes);
@@ -749,17 +811,23 @@ impl CoreEngine {
                 });
             }
         }
+        // A finding attributed to a linked alternative the board has not selected is
+        // visible but never blocks the selected outline or another board (ADR-0001/0002).
+        let active =
+            |finding: &Finding| !outline_versions::is_inactive_version_finding(doc, &finding.id);
         let layout = !findings
             .iter()
+            .filter(|finding| active(finding))
             .any(|f| matches!(f.scope, Scope::Layout) && matches!(f.severity, Severity::Error));
         let outline = !contours.is_empty()
-            && !findings.iter().any(|f| {
+            && !findings.iter().filter(|finding| active(finding)).any(|f| {
                 matches!(f.scope, Scope::Outline) && matches!(f.severity, Severity::Error)
             });
         let pcb = layout
             && !doc.boards.is_empty()
             && !findings
                 .iter()
+                .filter(|finding| active(finding))
                 .any(|f| matches!(f.scope, Scope::Pcb) && matches!(f.severity, Severity::Error));
         let board_readiness: Vec<BoardReadiness> = board_contours
             .iter()
@@ -778,27 +846,39 @@ impl CoreEngine {
                                 || owner.net_ids.contains(id)
                         })
                 };
-                let invalid_pcb = findings.iter().any(|finding| {
-                    matches!(finding.severity, Severity::Error)
-                        && matches!(finding.scope, Scope::Pcb)
-                        && relevant(finding)
-                });
-                let invalid_outline = findings.iter().any(|finding| {
-                    matches!(finding.severity, Severity::Error)
-                        && matches!(finding.scope, Scope::Pcb)
-                        && finding
-                            .id
-                            .starts_with(&format!("board:{}:", board.board_id))
-                        && (finding.id.contains(":outline")
-                            || finding.id.contains(":feature:")
-                            || finding.id.ends_with(":empty-outline"))
-                });
+                let invalid_pcb =
+                    findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            matches!(finding.severity, Severity::Error)
+                                && matches!(finding.scope, Scope::Pcb)
+                                && relevant(finding)
+                        });
+                let invalid_outline =
+                    findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            matches!(finding.severity, Severity::Error)
+                                && matches!(finding.scope, Scope::Pcb)
+                                && finding
+                                    .id
+                                    .starts_with(&format!("board:{}:", board.board_id))
+                                && (finding.id.contains(":outline")
+                                    || finding.id.contains(":feature:")
+                                    || finding.id.ends_with(":empty-outline"))
+                        });
                 let outline = !board.contours.is_empty() && !invalid_outline;
-                let valid_layout = !findings.iter().any(|finding| {
-                    finding.severity == Severity::Error
-                        && finding.scope == Scope::Layout
-                        && relevant(finding)
-                });
+                let valid_layout =
+                    !findings
+                        .iter()
+                        .filter(|finding| active(finding))
+                        .any(|finding| {
+                            finding.severity == Severity::Error
+                                && finding.scope == Scope::Layout
+                                && relevant(finding)
+                        });
                 let pcb = valid_layout && outline && !invalid_pcb;
                 let bodies: Vec<_> = doc
                     .case_bodies
@@ -855,7 +935,12 @@ impl CoreEngine {
                     if matrix::valid_matrix(matrix, doc).is_err() {
                         return None;
                     }
-                    matrix::project_matrix(matrix, &doc.parts, matrix::ProjectionMode::Actual).ok()
+                    matrix::project_matrix(matrix, &doc.parts, matrix::ProjectionMode::Actual)
+                        .map(|mut scene| {
+                            scene.companions = matrix::scene_companions(matrix, doc);
+                            scene
+                        })
+                        .ok()
                 })
                 .collect(),
             contours: contours.to_vec(),
@@ -999,6 +1084,12 @@ impl PreviewBackup {
 }
 
 fn affects_outline(op: &EditOperation) -> bool {
+    if let EditOperation::ApplyMechanicalEdit { edit } = op {
+        return crate::mechanical::edit::affects_outline(&edit.change);
+    }
+    if let EditOperation::ApplyOutlineEdit { edit } = op {
+        return crate::outline_edit::affects_outline(&edit.change);
+    }
     matches!(
         op,
         EditOperation::SetMountedModule {
@@ -1019,7 +1110,9 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::RemoveMatrixColumn { .. }
             | EditOperation::SetMatrix { .. }
             | EditOperation::SetMatrixSplay { .. }
+            | EditOperation::SetMatrixPlacement { .. }
             | EditOperation::CreateMirroredPair { .. }
+            | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
@@ -1027,7 +1120,23 @@ fn affects_outline(op: &EditOperation) -> bool {
     )
 }
 
-fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String> {
+/// Linked outline versions drop the authored choices that required a component the edit
+/// removed, whichever operation removed it, inside that same accepted edit and Undo step.
+fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
+    let present: BTreeSet<&str> = after.parts.iter().map(|part| part.id.as_str()).collect();
+    let removed: Vec<String> = before
+        .iter()
+        .filter(|part| !present.contains(part.id.as_str()))
+        .map(|part| part.id.clone())
+        .collect();
+    outline_versions::prune_removed_sources(after, &removed)
+}
+
+fn apply(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+) -> Result<Vec<String>, String> {
     match op {
         EditOperation::SetModuleDefinition { definition } => {
             modules::set_definition(doc, definition)
@@ -1237,7 +1346,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
                 .part_ids
                 .clone();
             layout::remove_matrix(doc, id);
-            let mut changed = apply(doc, &EditOperation::RemoveParts { ids })?;
+            let mut changed = apply(doc, &[], &EditOperation::RemoveParts { ids })?;
             doc.matrices.retain(|matrix| matrix.id != *id);
             let prefix = format!("matrix/{id}/net/");
             let empty_owned: std::collections::BTreeSet<_> = doc
@@ -1299,7 +1408,12 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             for layout in &mut doc.layouts {
                 layout.part_ids.retain(|id| !ids.contains(id));
             }
+            // A linked refinement drops exactly the authored choices that required a
+            // removed component, inside this same accepted edit, so the cleanup and the
+            // removal share one Undo step and never retarget onto another component.
             let mut changed = ids;
+            let cleanup = outline_versions::prune_removed_sources(doc, &changed);
+            changed.extend(cleanup);
             for matrix_id in affected {
                 changed.extend(layout::sync(doc, &matrix_id)?);
             }
@@ -1369,6 +1483,37 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             changed.extend(layout::sync(doc, matrix_id)?);
             Ok(changed)
         }
+        EditOperation::SetMatrixPlacement { matrix_id, change } => {
+            let current = doc
+                .matrices
+                .iter()
+                .find(|matrix| &matrix.id == matrix_id)
+                .cloned()
+                .ok_or("Matrix not found")?;
+            let matrix = matrix::placement::update(&current, change)?;
+            // Setting the current value is a valid no-op.
+            if matrix == current {
+                return Ok(Vec::new());
+            }
+            let before: BTreeMap<String, Part> = doc
+                .parts
+                .iter()
+                .map(|part| (part.id.clone(), part.clone()))
+                .collect();
+            let mut changed = matrix::set_matrix(doc, &matrix)?;
+            changed.extend(layout::sync(doc, matrix_id)?);
+            changed.extend(matrix::placement::carry_authored_companions(doc, &before));
+            // Report only members whose projection actually moved.
+            changed.retain(|id| match before.get(id) {
+                Some(previous) => doc
+                    .parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .is_none_or(|part| part != previous),
+                None => true,
+            });
+            Ok(changed)
+        }
         EditOperation::CreateMirroredPair {
             left,
             right,
@@ -1405,6 +1550,7 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             }
             let mut changed = apply(
                 doc,
+                &[],
                 &EditOperation::SetMatrix {
                     matrix: matrix.as_ref().clone(),
                     definitions: definitions.clone(),
@@ -1419,13 +1565,36 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
                     assembly.rotation = assembly.rotation.map(|angle| -angle);
                 }
             }
-            let target = layout::reflected(matrix, &target, link.axis_x)?;
+            let target =
+                layout::reflected(matrix, &target, layout::axis_mapping(link.axis_x), false)?;
             changed.extend(matrix::set_matrix(doc, &target)?);
             doc.layouts.extend([left.clone(), right.clone()]);
             layout::validate(doc)?;
             changed.extend([left.id.clone(), right.id.clone()]);
             Ok(changed)
         }
+        EditOperation::CreateMirroredHalf {
+            pair_id,
+            source_instance_id,
+            mode,
+            labels,
+            companion_mode,
+            companion_tweak,
+            mapping,
+            id_rule,
+            mounting_hole,
+        } => mirrored_half::create(
+            doc,
+            pair_id,
+            source_instance_id,
+            mode,
+            *mapping,
+            *id_rule,
+            mounting_hole.as_deref(),
+            *companion_mode,
+            *companion_tweak,
+            labels.as_ref(),
+        ),
         EditOperation::SetLayout { layout: incoming } => {
             let current = doc
                 .layouts
@@ -1479,6 +1648,10 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             doc.constraints.retain(|item| item.id() != id);
             Ok(vec![id.clone()])
         }
+        EditOperation::ApplyMechanicalEdit { edit } => {
+            crate::mechanical::edit::apply(doc, board_contours, edit)
+        }
+        EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
@@ -1486,11 +1659,22 @@ fn apply(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<String>, String
             if document.format_version != migrate::CURRENT_VERSION {
                 return Err("Document must be migrated before it replaces the open one".into());
             }
-            let changed = changed_ids(doc, document);
+            let accepted = doc.clone();
+            let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();
             script::apply_scripts(&mut prepared)?;
             layout::resolve(&mut prepared)?;
+            generators::document_error(&prepared)?;
             *doc = prepared;
+            // A wholesale replacement can add or remove a physical member without the
+            // typed pair operations. Reconcile ownership against the accepted state so
+            // the replacement can never leave a dangling pair or lose the survivor's
+            // visible geometry and construction.
+            changed.extend(crate::mechanical::edit::reconcile_physical_topology(
+                doc, &accepted,
+            )?);
+            changed.sort();
+            changed.dedup();
             Ok(changed)
         }
     }
@@ -1570,7 +1754,12 @@ mod set_wiring_mode_tests {
     fn setting_direct_creates_board_configuration_and_reports_only_the_board() {
         let mut document = document();
 
-        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Direct)).unwrap();
+        let changed = apply(
+            &mut document,
+            &[],
+            &set_mode(electrical::ElectricalMode::Direct),
+        )
+        .unwrap();
 
         assert_eq!(changed, ["left"]);
         let configuration = document.hardware.unwrap().boards.pop().unwrap();
@@ -1588,10 +1777,10 @@ mod set_wiring_mode_tests {
     fn setting_the_current_mode_is_a_no_op() {
         let mut document = document();
         let operation = set_mode(electrical::ElectricalMode::Direct);
-        apply(&mut document, &operation).unwrap();
+        apply(&mut document, &[], &operation).unwrap();
         let before = document.clone();
 
-        let changed = apply(&mut document, &operation).unwrap();
+        let changed = apply(&mut document, &[], &operation).unwrap();
 
         assert!(changed.is_empty());
         assert_eq!(document, before);
@@ -1613,7 +1802,12 @@ mod set_wiring_mode_tests {
             .boards
             .push(configuration.clone());
 
-        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Direct)).unwrap();
+        let changed = apply(
+            &mut document,
+            &[],
+            &set_mode(electrical::ElectricalMode::Direct),
+        )
+        .unwrap();
 
         assert_eq!(changed, ["left"]);
         configuration.mode = electrical::ElectricalMode::Direct;
@@ -1624,7 +1818,12 @@ mod set_wiring_mode_tests {
     fn setting_the_default_mode_is_a_no_op() {
         let mut document = document();
 
-        let changed = apply(&mut document, &set_mode(electrical::ElectricalMode::Matrix)).unwrap();
+        let changed = apply(
+            &mut document,
+            &[],
+            &set_mode(electrical::ElectricalMode::Matrix),
+        )
+        .unwrap();
 
         assert!(changed.is_empty());
         assert!(document.hardware.is_none());
@@ -1639,7 +1838,7 @@ mod set_wiring_mode_tests {
         };
 
         assert_eq!(
-            apply(&mut document, &operation),
+            apply(&mut document, &[], &operation),
             Err("Unknown board missing".into())
         );
     }
@@ -1649,5 +1848,300 @@ mod set_wiring_mode_tests {
         assert!(!affects_outline(&set_mode(
             electrical::ElectricalMode::Direct
         )));
+    }
+}
+
+#[cfg(test)]
+mod mechanical_edit_engine_tests {
+    use super::*;
+    use crate::mechanical::change::MechanicalDimension;
+    use crate::mechanical::{MechanicalChange, MechanicalEdit, MechanicalTarget};
+
+    fn board() -> Board {
+        Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        }
+    }
+
+    fn configuration(board_id: &str) -> MechanicalConfiguration {
+        serde_json::from_value(serde_json::json!({
+            "boardId": board_id, "method": "printed", "mount": "rigid",
+            "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+            "bottomFoamThickness": 0.4, "batteryHeight": 0.0, "bottomThickness": 3.0,
+            "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3,
+            "mounts": [], "closureMounts": [], "profiles": []
+        }))
+        .unwrap()
+    }
+
+    fn template() -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+            "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
+                "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+            "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+            "envelopeSource":{"courtyard":"generated"},
+            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
+        }))
+        .unwrap()
+    }
+
+    fn edit_op(board_id: &str, change: MechanicalChange, mounting_hole: bool) -> EditOperation {
+        EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(MechanicalEdit {
+                target: MechanicalTarget::Board {
+                    board_id: board_id.into(),
+                },
+                change,
+                mounting_hole: mounting_hole.then(|| Box::new(template())),
+            }),
+        }
+    }
+
+    fn command(base: u64, operation: EditOperation) -> CoreRequest {
+        CoreRequest::Edit {
+            id: "mechanical".into(),
+            command: EditCommand {
+                base_revision: base,
+                transaction_id: "mechanical".into(),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation,
+            },
+        }
+    }
+
+    fn open(engine: &mut CoreEngine, document: ProjectDoc) -> SceneDelta {
+        match engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document,
+        }) {
+            CoreReply::Scene { scene, .. } => scene,
+            reply => panic!("open failed: {reply:?}"),
+        }
+    }
+
+    fn scene(reply: CoreReply) -> (SceneDelta, ProjectDoc) {
+        match reply {
+            CoreReply::Scene {
+                scene, document, ..
+            } => (scene, *document),
+            reply => panic!("expected scene: {reply:?}"),
+        }
+    }
+
+    fn generated_parts(document: &ProjectDoc) -> Vec<&str> {
+        document
+            .parts
+            .iter()
+            .map(|part| part.id.as_str())
+            .filter(|id| id.starts_with("case-closure/"))
+            .collect()
+    }
+
+    fn generated_definitions(document: &ProjectDoc) -> Vec<&str> {
+        document
+            .definitions
+            .iter()
+            .map(|definition| definition.id.as_str())
+            .filter(|id| id.starts_with("assembly-closure/definition/"))
+            .collect()
+    }
+
+    /// Case 3: a no-op mechanical edit adds no history step and no revision bump.
+    #[test]
+    fn a_no_op_mechanical_edit_keeps_revision_and_history() {
+        let mut engine = CoreEngine::new();
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.boards.push(board());
+        document.mechanical = Some(configuration("board"));
+        open(&mut engine, document);
+
+        let revision = engine.document.revision;
+        let undo = engine.undo.len();
+        let redo = engine.redo.len();
+        let reply = engine.handle(command(
+            revision,
+            edit_op(
+                "board",
+                MechanicalChange::SetDimension {
+                    field: MechanicalDimension::WallThickness,
+                    value: 2.0,
+                },
+                false,
+            ),
+        ));
+        let CoreReply::Scene {
+            scene, document, ..
+        } = reply
+        else {
+            panic!("expected scene")
+        };
+        assert!(scene.changed_ids.is_empty());
+        assert_eq!(document.revision, revision, "no revision bump");
+        assert_eq!(engine.document.revision, revision);
+        assert_eq!(engine.undo.len(), undo, "no undo entry");
+        assert_eq!(engine.redo.len(), redo, "redo is not cleared");
+    }
+
+    /// Case 2: generated clearance parts, definitions and memberships appear in
+    /// the same reply and disappear together on one Undo.
+    #[test]
+    fn closure_projection_lands_atomically_and_undoes_in_one_step() {
+        let mut engine = CoreEngine::new();
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline".into(),
+            center: Vec2 { x: 0.0, y: 0.0 },
+            size: Vec2 { x: 80.0, y: 60.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
+        let mut board = board();
+        board.outline_ids = vec!["outline".into()];
+        document.boards.push(board);
+        // Absent closure mounts are initialized by the edit.
+        document.mechanical = Some(configuration("board"));
+        document.mechanical.as_mut().unwrap().closure_mounts = None;
+        open(&mut engine, document);
+
+        let revision = engine.document.revision;
+        let (reply_scene, projected) = scene(engine.handle(command(
+            revision,
+            edit_op("board", MechanicalChange::InitializeClosures, true),
+        )));
+
+        let parts = generated_parts(&projected);
+        let definitions = generated_definitions(&projected);
+        assert!(!parts.is_empty(), "generated clearance parts appear");
+        assert!(
+            !definitions.is_empty(),
+            "generated clearance definitions appear"
+        );
+        assert!(
+            projected.boards[0]
+                .part_ids
+                .iter()
+                .any(|id| id.starts_with("case-closure/")),
+            "the board membership includes the generated parts"
+        );
+        for id in parts.iter().chain(definitions.iter()) {
+            assert!(
+                reply_scene.changed_ids.contains(&(*id).to_string()),
+                "changed ids name generated {id}"
+            );
+        }
+        assert!(reply_scene.changed_ids.contains(&"board".to_string()));
+
+        let undo_reply = engine.handle(CoreRequest::Undo { id: "undo".into() });
+        let (_, undone) = scene(undo_reply);
+        assert!(
+            generated_parts(&undone).is_empty(),
+            "one Undo removes every generated part"
+        );
+        assert!(
+            generated_definitions(&undone).is_empty(),
+            "one Undo removes every generated definition"
+        );
+        assert!(
+            undone.boards[0]
+                .part_ids
+                .iter()
+                .all(|id| !id.starts_with("case-closure/")),
+            "one Undo removes the generated memberships"
+        );
+        assert_eq!(
+            undone.mechanical.as_ref().unwrap().closure_mounts,
+            None,
+            "one Undo restores the absent closure mounts"
+        );
+    }
+
+    /// Case 6: a pure settings edit does not rebuild board outlines; the
+    /// outline-version recovery snapshot is the observable.
+    #[test]
+    fn pure_settings_edits_preserve_the_outline_recovery_snapshot() {
+        let mut source: ProjectDoc =
+            serde_json::from_str(include_str!("../tests/fixtures/synthetic-outline.json")).unwrap();
+        // Use only two authored square courtyards with a 4 mm gap. This creates
+        // an independent automatic bridge pocket for the recovery contract.
+        source
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "main/SW2")
+            .expect("the second synthetic switch exists")
+            .pose
+            .at = Vec2 { x: 24.0, y: 0.0 };
+        let protected_parts = vec!["main/SW1".to_string(), "main/SW2".to_string()];
+        let OutlineFeature::PartEnvelope {
+            part_ids,
+            margin,
+            settings,
+            ..
+        } = &mut source.outline[0]
+        else {
+            unreachable!("the synthetic outline is a part envelope")
+        };
+        *part_ids = protected_parts.clone();
+        *margin = 1.0;
+        settings.bridge_width = 10.0;
+        source.boards[0].part_ids = protected_parts;
+        // Protect a generated gap so opening the project writes a recovery snapshot.
+        let mut probe = CoreEngine::new();
+        let probe_scene = open(&mut probe, source.clone());
+        let gap = probe_scene.board_outline_scenes[0]
+            .gaps
+            .first()
+            .cloned()
+            .expect("the repaired outline exposes a gap");
+        if let OutlineFeature::PartEnvelope { settings, .. } = &mut source.outline[0] {
+            settings.repair = Some(OutlineRepairSettings {
+                keep_gaps: vec![ProtectedOutlineGap {
+                    id: gap.id,
+                    points: gap.points,
+                }],
+                ..Default::default()
+            });
+        }
+        source.mechanical = Some(configuration("main"));
+
+        let mut engine = CoreEngine::new();
+        open(&mut engine, source);
+        assert!(
+            engine
+                .document
+                .board_outlines
+                .iter()
+                .any(|state| state.generated_last_valid.is_some()),
+            "the protected outline has a recovery snapshot to observe"
+        );
+        let revision = engine.document.revision;
+        let before = engine.document.board_outlines.clone();
+        let (_, document) = scene(engine.handle(command(
+            revision,
+            edit_op(
+                "main",
+                MechanicalChange::SetDimension {
+                    field: MechanicalDimension::WallThickness,
+                    value: 2.5,
+                },
+                false,
+            ),
+        )));
+        assert_eq!(document.revision, revision + 1, "the settings edit commits");
+        assert_eq!(
+            document.board_outlines, before,
+            "a pure settings edit leaves the outline recovery snapshot untouched"
+        );
     }
 }

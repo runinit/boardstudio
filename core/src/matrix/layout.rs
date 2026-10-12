@@ -1,4 +1,4 @@
-use crate::{matrix, model::*};
+use crate::{matrix, mechanical::pair, model::*};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MIRRORED_COMPONENT_SOURCE: &str = "boardstudio.mirroredComponentSource";
@@ -90,7 +90,44 @@ pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)
     Some((other.matrix_id.clone(), other.mirror_link.as_ref()?.axis_x))
 }
 
-pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result<Matrix, String> {
+/// The pair map of a vertical mirror line at `axis_x`: the reflection `x' = 2 * axis_x - x`.
+pub(crate) fn axis_mapping(axis_x: f64) -> Pose2 {
+    Pose2 {
+        at: Vec2 {
+            x: 2.0 * axis_x,
+            y: 0.0,
+        },
+        rotation: 0.0,
+    }
+}
+
+/// A companion's offset and turn are relative to its part, so the reflection only flips their
+/// handedness. The pair rotation is carried once, by the part's own heading.
+fn reflected_companion(mut assembly: MatrixAssembly) -> MatrixAssembly {
+    assembly.offset.x = -assembly.offset.x;
+    assembly.rotation = assembly.rotation.map(|rotation| -rotation);
+    assembly
+}
+
+/// Reflects `source` through a pair's `mapping` onto `target`, which keeps its identity, board and
+/// part ids. The local frame flips (`mirror` toggles) so the mirror keeps the source's numbering:
+/// column 0 is the same physical column on both halves. The origin and the matrix heading take
+/// the pair's rule ([`crate::mechanical::pair::forward`] and `forward_angle`); everything the
+/// matrix places relative to that frame (cell turns, companions) only flips handedness.
+///
+/// Key switch rule (ADR-0010, amendment on switches and companions). A switch takes no half turn.
+/// Its world heading is the pair's `forward_angle` of its heading: the mirrored matrix frame carries
+/// `forward_angle(map, matrix rotation)` and the column splays are negated by the mirror, and the
+/// cell turn is `-r`, so the sum reproduces `forward_angle(map, world heading)` exactly for any map
+/// (`-r` on an axis map, `rotation - r` under a rotated map). A companion (diode, LED) is an
+/// assembly of the cell: it keeps its side (local x flips, local y does not) and takes the negated
+/// member heading. No generator parameter is changed to suit the mirror.
+pub(crate) fn reflected(
+    source: &Matrix,
+    target: &Matrix,
+    mapping: Pose2,
+    local_companions: bool,
+) -> Result<Matrix, String> {
     // The pair uses a vertical reflection of the local None/X frames.
     // Switching to a horizontal local frame requires an independent layout.
     if source.mirror == Some(Mirror::Y) {
@@ -101,11 +138,12 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
     result.columns = source.columns;
     result.pitch = source.pitch;
     result.edge_gap = source.edge_gap;
-    result.origin = Vec2 {
-        x: 2.0 * axis_x - source.origin.x,
-        y: source.origin.y,
+    result.origin = pair::forward(mapping, source.origin);
+    result.rotation = if source.rotation.is_some() || mapping.rotation != 0.0 {
+        Some(pair::forward_angle(mapping, source.rotation.unwrap_or(0.0)))
+    } else {
+        None
     };
-    result.rotation = source.rotation.map(|angle| -angle);
     result.mirror = Some(if source.mirror == Some(Mirror::X) {
         Mirror::None
     } else {
@@ -172,11 +210,15 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
         cell.enabled = source_cell.is_none_or(|cell| cell.enabled);
         cell.deleted = source_cell.is_some_and(|cell| cell.deleted);
         cell.offset = source_cell.and_then(|cell| cell.offset);
+        // Cell turns and companion offsets are relative to the matrix frame and to the part, which
+        // already carry the pair rotation, so only their handedness flips here.
         cell.rotation = source_cell
             .and_then(|cell| cell.rotation)
             .map(|angle| -angle);
+        // A sync keeps the other half's local companions; a new half copies them, since it has none.
         if cell.assemblies_local != Some(true)
-            && !source_cell.is_some_and(|cell| cell.assemblies_local == Some(true))
+            && (local_companions
+                || !source_cell.is_some_and(|cell| cell.assemblies_local == Some(true)))
         {
             cell.definition_id = source_cell.and_then(|cell| cell.definition_id.clone());
             cell.variant = source_cell.and_then(|cell| cell.variant.clone());
@@ -185,15 +227,15 @@ pub(crate) fn reflected(source: &Matrix, target: &Matrix, axis_x: f64) -> Result
                     cell.assemblies
                         .iter()
                         .cloned()
-                        .map(|mut assembly| {
-                            assembly.offset.x = -assembly.offset.x;
-                            assembly.rotation = assembly.rotation.map(|rotation| -rotation);
-                            assembly
-                        })
+                        .map(reflected_companion)
                         .collect()
                 })
                 .unwrap_or_default();
-            cell.assemblies_local = None;
+            cell.assemblies_local = if local_companions {
+                source_cell.and_then(|cell| cell.assemblies_local)
+            } else {
+                None
+            };
         }
     }
     result.cells = cells.into_values().collect();
@@ -229,7 +271,8 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                 .map(|size| (cell, size))
         })
         .collect();
-    let mut reflected_matrix = reflected(source, target, axis_x)?;
+    let mapping = axis_mapping(axis_x);
+    let mut reflected_matrix = reflected(source, target, mapping, false)?;
     if source_is_target {
         let canonical_cells: BTreeMap<_, _> = target
             .cells
@@ -286,11 +329,7 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                     .assemblies
                     .iter()
                     .cloned()
-                    .map(|mut assembly| {
-                        assembly.offset.x = -assembly.offset.x;
-                        assembly.rotation = assembly.rotation.map(|rotation| -rotation);
-                        assembly
-                    })
+                    .map(reflected_companion)
                     .collect();
             } else {
                 cell.assemblies.clear();
@@ -964,7 +1003,7 @@ pub(crate) fn move_keys(
             .find(|cell| cell.row == row && cell.column == column);
         if let Some(cell) = cell {
             for assembly in &cell.assemblies {
-                let id = format!("{}/{}", position.id, assembly.id);
+                let id = matrix::companion_id(&position.id, &assembly.id);
                 if positions.iter().any(|position| position.id == id)
                     || doc
                         .constraints
@@ -1074,6 +1113,38 @@ pub(crate) struct AssemblyPlacement {
     pub(crate) parent_id: String,
     pub(crate) local_pose: Pose2,
     pub(crate) authored_pose: Option<Pose2>,
+    pub(crate) mode: MatrixCompanionMode,
+}
+
+/// Classify a generated companion the same way the solver places it: an explicit
+/// constraint wins, then an authored pose, otherwise the companion follows its
+/// key. The placement solver and the scene projection both read this mode, so the
+/// precedence rule has one source.
+pub(crate) fn companion_mode(doc: &ProjectDoc, companion_id: &str) -> MatrixCompanionMode {
+    if let Some(constraint) = doc
+        .constraints
+        .iter()
+        .find(|constraint| constraint.target() == companion_id)
+    {
+        return MatrixCompanionMode::Constrained {
+            constraint_id: constraint.id().to_string(),
+            source_part_id: constraint.source().to_string(),
+        };
+    }
+    let authored = doc
+        .parts
+        .iter()
+        .find(|part| part.id == companion_id)
+        .is_some_and(|part| {
+            part.properties.as_ref().is_some_and(|properties| {
+                properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
+            })
+        });
+    if authored {
+        MatrixCompanionMode::Authored
+    } else {
+        MatrixCompanionMode::Follows
+    }
 }
 
 pub(crate) fn assembly_placements(
@@ -1096,16 +1167,15 @@ pub(crate) fn assembly_placements(
                 continue;
             };
             for assembly in &cell.assemblies {
-                let id = format!("{parent_id}/{}", assembly.id);
+                let id = matrix::companion_id(&parent_id, &assembly.id);
                 if explicit.iter().any(|position| position.id == id) {
                     continue;
                 }
                 let Some(companion) = parts.get(id.as_str()) else {
                     continue;
                 };
-                let authored = companion.properties.as_ref().is_some_and(|properties| {
-                    properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
-                });
+                let mode = companion_mode(doc, &id);
+                let authored = matches!(mode, MatrixCompanionMode::Authored);
                 let local_pose = if authored {
                     let (sin, cos) = parent.pose.rotation.to_radians().sin_cos();
                     let dx = companion.pose.at.x - parent.pose.at.x;
@@ -1129,6 +1199,7 @@ pub(crate) fn assembly_placements(
                         parent_id: parent_id.clone(),
                         local_pose,
                         authored_pose: authored.then_some(companion.pose),
+                        mode,
                     },
                 );
             }
@@ -1226,5 +1297,60 @@ mod case_hardware_tests {
         doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixId":"matrix","partIds":[]}])).unwrap();
         adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
         assert!(doc.layouts[0].part_ids.is_empty());
+    }
+
+    fn matrix_with_companion() -> Matrix {
+        serde_json::from_value(serde_json::json!({
+            "id": "source", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
+            "origin": {"x": 10, "y": 5}, "rotation": 20, "definitionId": "key", "partIds": [],
+            "cells": [{"row": 0, "column": 0, "enabled": true, "rotation": 15,
+                "assemblies": [{"id": "diode", "definitionId": "d", "offset": {"x": 3, "y": 4}, "rotation": 30}]}]
+        }))
+        .unwrap()
+    }
+
+    fn empty_target() -> Matrix {
+        let mut target = matrix_with_companion();
+        target.id = "target".into();
+        target.cells.clear();
+        target
+    }
+
+    #[test]
+    fn a_vertical_axis_reflects_the_origin_turns_and_companions() {
+        let reflected = reflected(
+            &matrix_with_companion(),
+            &empty_target(),
+            axis_mapping(50.0),
+            true,
+        )
+        .unwrap();
+        assert_eq!(reflected.origin, Vec2 { x: 90.0, y: 5.0 });
+        assert_eq!(reflected.rotation, Some(-20.0));
+        assert_eq!(reflected.mirror, Some(Mirror::X));
+        let cell = &reflected.cells[0];
+        assert_eq!(cell.rotation, Some(-15.0));
+        assert_eq!(cell.assemblies[0].offset, Vec2 { x: -3.0, y: 4.0 });
+        assert_eq!(cell.assemblies[0].rotation, Some(-30.0));
+    }
+
+    #[test]
+    fn a_rotated_map_turns_the_matrix_heading_once_and_leaves_relative_values_alone() {
+        let mapping = Pose2 {
+            at: Vec2 { x: 100.0, y: 10.0 },
+            rotation: 40.0,
+        };
+        let reflected =
+            reflected(&matrix_with_companion(), &empty_target(), mapping, true).unwrap();
+        // The origin goes through the map and the heading is `rotation - angle`.
+        let expected = pair::forward(mapping, Vec2 { x: 10.0, y: 5.0 });
+        assert_eq!(reflected.origin, expected);
+        assert_eq!(reflected.rotation, Some(20.0));
+        // The cell turn and the companion are relative to that frame and to the part, which
+        // already carry the pair rotation: only their handedness flips.
+        let cell = &reflected.cells[0];
+        assert_eq!(cell.rotation, Some(-15.0));
+        assert_eq!(cell.assemblies[0].offset, Vec2 { x: -3.0, y: 4.0 });
+        assert_eq!(cell.assemblies[0].rotation, Some(-30.0));
     }
 }

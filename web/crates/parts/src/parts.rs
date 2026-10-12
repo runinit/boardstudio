@@ -4,7 +4,7 @@ mod assembly_presets;
 pub use boardstudio_web_catalogue::bundled::{
     generator_parameter_schema, is_generator_source, load_all_catalogue_definitions,
     load_component_definition, load_matrix_templates, normalize_matrix_definition,
-    prepare_physical_setup_proposal, reversible_layout,
+    prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
 mod component_model_editor;

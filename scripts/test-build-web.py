@@ -20,9 +20,19 @@ class BuildWebTests(unittest.TestCase):
         for retained in (
             "--features core-worker", "--features cad-worker", "--features service-worker",
             "cad/scripts/build-cadrum-wasm.py",
-            "--example prepare_demo_projects", "stage-ergogen-models.py",
+            "stage-ergogen-models.py",
         ):
             self.assertIn(retained, joined)
+
+    def test_fast_provider_commands_skip_wasm_opt_and_the_shipped_ones_keep_it(self):
+        def builds(fast):
+            return [command for command, _ in BUILD.provider_commands(fast)
+                    if command[:2] == ["wasm-pack", "build"]]
+
+        self.assertEqual(len(builds(True)), 4)
+        self.assertTrue(all("--no-opt" in command for command in builds(True)))
+        self.assertTrue(all("--no-opt" not in command for command in builds(False)))
+        self.assertTrue(all("--release" in command for command in builds(True)))
 
     def test_model_staging_command_runs_with_the_staging_cli(self):
         import subprocess

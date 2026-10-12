@@ -1,6 +1,6 @@
 # 05: Toolbar Stagger edits the column stagger; Shift-drag gives a quick offset
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 04
 Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)
@@ -66,3 +66,25 @@ Tests pass. `lint`, `test`, `typecheck` and `browser` pass.
 ## Files
 
 Owner of `layout_transform_toolbar.rs` until 06 resolves.
+
+## Outcome
+
+Resolved 2026-10-09. Every Stagger route in `layout_transform_toolbar.rs` goes through
+`matrix_transform_operation.rs`: preview (`gesture_value` + `placement_operation`), commit (net
+change added to the accepted value under the drag's transaction ID), keyboard (`nudge_value`
+against the accepted scene's stagger axis; the perpendicular pair is not consumed) and the no-op
+check. The gesture is `Stagger { column, quick_offset }`, latched from `shiftKey` at pointer-down;
+a Shift drag edits `column_offsets[c]` in the column frame and shows an offset glyph until
+release. The arrow follows `staggerAxis`; `aria-valuenow` is the stagger. `stagger_by` and the
+toolbar's `local_matrix_delta` are deleted. A Row selection renders no Stagger handle until 06.
+
+Tests: `toolbar_stagger_and_inspector_stagger_land_the_same_matrix` was red first (the toolbar
+changed `column_offsets`), plus the two reassigned tests and tests 2 to 8, all in the layout
+browser batch.
+
+Known gaps, for 06 and 11: no test dispatches real pointer events, so the Shift latch at
+pointer-down and the glyph are not exercised end to end; the drag-commit resolver does not retire
+when the column has gone (Core refuses cleanly, nothing mutates); stagger snapping uses the grid's
+Y step whatever the axis; `aria-valuenow` on `role="button"` is not valid ARIA (the ticket asked
+for it; consider `slider` in the design pass); `RowOffset` arms in the toolbar are unused until 06.
+`layout_align_controller.rs:822` remains a second `column_offsets` writer for 11 to decide.

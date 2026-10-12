@@ -9,9 +9,10 @@ A board boundary derived from the current placement of its included components
 and the chosen outline settings; it updates as the layout changes.
 
 **Outline refinement**:
-An accepted alternative boundary that remains linked to its source components
-and follows their placement. Freezing or manually editing it creates a separate
-fixed copy while retaining the linked version.
+An accepted alternative boundary that remains linked to the board's current
+included components and follows changes to their placement, geometry and membership.
+Each refinement owns its outline choices independently. Freezing or manually editing
+its perimeter creates a separate fixed copy while retaining the linked version.
 
 **Edited outline**:
 A manually modified copy of an outline, retained separately from its generated
@@ -24,7 +25,13 @@ cutouts, bridges, protected gaps and corner finishing. Versions share component
 placement while retaining independent outline choices.
 
 **Active outline**:
-The outline version selected to define the current board shape and its exports.
+The generated outline, refinement or edited outline selected to define the current
+board shape and its exports.
+
+**Outline connection**:
+An authored path and width requesting PCB material between component groups within
+an outline version. Its control points may follow named components; the resulting
+material is an outline bridge.
 
 **Outline bridge**:
 PCB material connecting component groups within one outline version. A bridge
@@ -72,7 +79,11 @@ generator parameters; it is not tied to any external tool's format or name.
 
 **Generator parameters**:
 The values saved for one footprint generator on a part definition or a placed
-part. Values not saved fall back to the generator's defaults.
+part. Values not saved fall back to the generator's defaults. Each value is typed by
+the generator's declaration: a length is a number, not text. Core refuses an edit that
+writes a value of the wrong type or a name the generator does not declare. A saved project
+that holds an undeclared name, or text where a number is declared, opens with a warning
+instead of being refused.
 
 **Generated support placement**:
 A support position produced by the generator and not subsequently positioned or
@@ -89,6 +100,15 @@ Two physical halves whose shared mechanical features stay reflected when edited
 from either half. They may use one reversible PCB design or different PCB designs,
 and individual features may be half-specific exceptions. New pairs share their
 construction settings within the pair; existing independent halves link explicitly.
+Everything in a pair is linked by default, including proposed and generated
+features; only an explicitly recorded exception is not
+([ADR-0008](docs/adr/0008-linked-halves-stay-linked.md)).
+
+**Mirrored half**:
+The second half of a mechanical mirror pair, kept as a reflection of the first in
+its matrices, keys, components, outlines and mechanical features. Differences are
+explicit per-item exceptions, and the pair never drifts silently
+([ADR-0010](docs/adr/0010-mirrored-half-is-a-core-maintained-reflection.md)).
 
 **Linked mechanical feature**:
 A mechanical feature whose counterparts on mirrored halves remain related as

@@ -181,6 +181,8 @@ def runner_environment(root=ROOT):
     env = os.environ.copy()
     # Broad mounted batches exceed the runner's small per-invocation default.
     env.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
+    # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
+    env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
     driver = env.get("CHROMEDRIVER") or shutil.which("chromedriver")
     if not driver:
         raise RunnerError("chromedriver not found; install it (e.g. `pacman -S chromium`/`apt install chromium-driver`) "

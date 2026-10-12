@@ -1,6 +1,6 @@
 # 07: Convert a column offset to stagger, only when geometry is preserved
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 04
 Spec: [spec.md](../spec.md#core-owns-the-parameter-rules) · Map: [map.md](../map.md)
@@ -48,3 +48,20 @@ Browser (layout batch):
 The Core change sits in `matrix/placement.rs` and `model.rs`; rebase with 03 if it
 is still open. The Inspector change sits in `matrix_transform_inspector.rs` and its
 controller (after 04).
+
+## Outcome
+
+Resolved 2026-10-09. Core: `MatrixPlacementChange::ColumnOffsetToStagger { column }` and
+`pub fn convert_offset_available(&Matrix, u32) -> Result<(), String>` in `core/src/model.rs`
+(`mod matrix` is private, and `placement.rs` calls the same function, so the rule has one source).
+It moves offset Y into `stagger[c]`, compensates `stagger[c+1]`, keeps X, and refuses with the
+ticket's text unless the splay is 0 or the origin is custom. Offset Y of 0 is a no-op, even on a
+splayed column. Inspector: a "Convert to stagger" one-shot button next to Reset offset, shown only
+for a nonzero offset Y, disabled while pending or when Core refuses (reason shown beside it); the
+resolver re-checks availability and reports `Unchanged` once offset Y is 0.
+
+Tests: Core 1 to 4 red first, then green (poses identical to 1e-9; refusal leaves the document
+unchanged; both linked halves convert); browser 5 and 6 pass. The boundary golden is append-only
+(2843 added lines, none removed; revisions 43 to 45). Review: no blocking findings from Standards
+or Spec reviews. The extra public Core function is accepted; ADR-0007 now mentions it. A
+scene-published per-column `convertible` flag would avoid it if a later ticket prefers that.

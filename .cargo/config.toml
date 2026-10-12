@@ -1,3 +1,8 @@
+# Parallel rustc jobs for every cargo, wasm-pack and dx build. An explicit
+# CARGO_BUILD_JOBS in the environment still overrides this default.
+[build]
+jobs = 12
+
 # wasm-bindgen-test bounds one test-binary run at 20 seconds by default, which a broad
 # mounted batch exceeds once the wasm module load is counted. Two minutes is the bound
 # scripts/run-wasm-tests.py already sets for its batches and README.md documents; an
