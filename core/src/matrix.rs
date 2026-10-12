@@ -74,7 +74,7 @@ fn matrix_terminal_pad_ids(definition: &crate::model::PartDefinition, row: bool)
         .collect()
 }
 
-fn member_id(matrix: &str, row: u32, column: u32) -> String {
+pub(crate) fn member_id(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
 }
 

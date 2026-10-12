@@ -251,7 +251,7 @@ const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
 
 /// Imported MX stabilisers: ADR-0010 keeps their world heading in every companion mode. Their
 /// position takes the X reflection, and they never raise an uncertain-heading finding.
-const SYMMETRIC_DEFINITIONS: [&str; 2] = [
+pub(crate) const SYMMETRIC_DEFINITIONS: [&str; 2] = [
     "kicad:marbastlib/STAB_MX_2u",
     "kicad:marbastlib/STAB_MX_6.25u",
 ];
@@ -359,6 +359,34 @@ pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
 /// kept in `[0, 360)`; the rule never reduces the heading modulo 180.
 pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
     derive::pose(mapping, pose)
+}
+
+/// A test-only window onto `derive::companion_assembly`, the authority for companion placement,
+/// so the constraint endpoint rules can be pinned to it. No production caller.
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)] // Mirrors derive's input record field for field.
+pub(crate) fn companion_placement(
+    offset: crate::model::Vec2,
+    rotation: Option<f64>,
+    key: &crate::model::Part,
+    companion: &crate::model::Part,
+    mapping: Pose2,
+    mode: MirroredCompanionMode,
+    tweak: Option<MirroredCompanionTweak>,
+    stabiliser: bool,
+    fallback: bool,
+) -> Result<(crate::model::Vec2, Option<f64>), &'static str> {
+    derive::companion_assembly(derive::CompanionAssemblyInput {
+        offset,
+        rotation,
+        key: Some(key),
+        companion: Some(companion),
+        mapping,
+        mode,
+        tweak,
+        stabiliser,
+        fallback,
+    })
 }
 
 /// A point in a part's own frame keeps its place in that frame; only the handedness flips,
@@ -1155,7 +1183,7 @@ fn materialise_missing_companions(
                 if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
                     continue;
                 }
-                let key_id = format!("matrix/{}/r{row}c{column}", matrix.id);
+                let key_id = crate::matrix::member_id(&matrix.id, row, column);
                 if !doc.parts.iter().any(|part| part.id == key_id) {
                     return Err(format!(
                         "A companion's source switch {key_id:?} is unavailable"
@@ -1285,7 +1313,7 @@ fn new_board(
     let mut companion_ids = BTreeSet::new();
     for matrix in &matrices {
         for cell in &matrix.cells {
-            let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+            let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
             for assembly in &cell.assemblies {
                 companion_ids.insert(crate::matrix::companion_id(&key_id, &assembly.id));
             }
@@ -1427,7 +1455,7 @@ fn new_board(
                 continue;
             }
             for assembly in &mut cell.assemblies {
-                let key_id = format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
+                let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
                 let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
                 let stabiliser = SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
                 let fallback = repaired_companions.contains(&companion_id);

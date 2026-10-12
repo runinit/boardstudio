@@ -59,3 +59,22 @@ Any constraint implementation/schema file needs separate explicit ownership befo
 
 Independent verifier: mutate one constraint conversion/delegation, legacy ownership guard and
 ADR-excluded binding pass-through. Do not claim readiness or resolution from inventory alone.
+
+## Inherits from 139
+
+[139](139-generalized-mirrored-constraint-model.md) resolved the private model: framed endpoints,
+slanted `mirror-line` and `part-offset`, key/companion projection, `retune_target` and
+`constraints::driving_constraint` (`core/src/constraints/`; crate-visible, no `ProjectDoc`
+forwarder). A companion frame is unbound (`key: None`) until the solver supplies the key's
+resolved pose, and the key-reading rules refuse while unbound, so a caller of `project` or
+`retune_target` outside the solver must bind it with `with_key` first. 114 owns what 139 handed on:
+translating `SetConstraint`/`RemoveConstraint` and `MoveParts` through these, editing from either
+linked half, and the endpoint rewrites on MakeLocal/Omit/Rejoin/Unlink per design.md's transition
+table (109 is on dev; what is missing is the persisted arm and the operation seam). The
+persisted arm and format 6 are 111's.
+
+Two deferrals 139 left for 114's own edit of `core/src/constraints.rs`: the solver's
+`(parts, constraints, assemblies, resolved, visiting)` argument clump should become one value
+when the operation seam adds more state to it, and the accessors
+`ConstraintEndpoint::visible_part_id` and `authoritative_part_id`, read only by tests, are to be
+deleted if nothing in 114 uses them.

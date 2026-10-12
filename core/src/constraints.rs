@@ -4,10 +4,46 @@ use crate::model::{
     Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Part, Pose2, Position,
     ProjectDoc, Vec2,
 };
+use endpoints::{EndpointFrame, FramedConstraint, Side};
+use relation::ConstraintRelation;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod endpoints;
+#[cfg(test)]
+mod framed_tests;
 mod relation;
+mod retune;
+
+/// The refusal for a second driving record on one authority, worded once.
+fn multiple_constraints(authority: &str) -> String {
+    format!("Part {authority} has multiple constraints")
+}
+
+/// The one record that drives `part_id`'s geometry, found through whichever half is asked:
+/// a part and its live mirror have one authority, so one driving record. Pure: nothing is
+/// solved. More than one record on an authority is a located error rather than a pick.
+///
+/// This is the activation-time contract: it already counts two stored records on one authority
+/// (one naming the source, one naming its visible mirror) as a conflict, which the production
+/// solver does not refuse until format 6 activates canonical conflicts (design, "Format
+/// version and migration"). `a_stored_pair_on_one_authority_is_a_lookup_error_the_solver_accepts`
+/// pins the difference so a caller does not read the lookup as what the solver enforces.
+#[cfg_attr(not(test), expect(dead_code))] // The operation seam that calls it lands with 114/115.
+pub(crate) fn driving_constraint<'a>(
+    doc: &'a ProjectDoc,
+    part_id: &str,
+) -> Result<Option<&'a Constraint>, String> {
+    let authority = endpoints::authoritative_part(doc, part_id).to_owned();
+    let mut driving = doc
+        .constraints
+        .iter()
+        .filter(|constraint| endpoints::authoritative_part(doc, constraint.target()) == authority);
+    let first = driving.next();
+    if driving.next().is_some() {
+        return Err(multiple_constraints(&authority));
+    }
+    Ok(first)
+}
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
@@ -28,41 +64,144 @@ fn resolve_with_positions(
     doc: &mut ProjectDoc,
     positions: &[Position],
 ) -> Result<Vec<String>, String> {
+    resolve_prepared(doc, positions, &[])
+}
+
+/// A record the solver evaluates for one authoritative target part.
+enum Driver<'a> {
+    /// A stored Offset, PartOffset or Mirror, evaluated with its exact legacy arithmetic.
+    Legacy(&'a Constraint),
+    /// A framed relation bound to the live document.
+    Framed(Framed<'a>),
+}
+
+struct Framed<'a> {
+    id: &'a str,
+    source_authority: String,
+    source_frame: EndpointFrame,
+    target_frame: EndpointFrame,
+    source_owner: Option<String>,
+    target_owner: Option<String>,
+    relation: &'a ConstraintRelation,
+}
+
+impl Driver<'_> {
+    fn source_authority(&self) -> &str {
+        match self {
+            Self::Legacy(constraint) => constraint.source(),
+            Self::Framed(framed) => &framed.source_authority,
+        }
+    }
+
+    /// The target authority's pose given the resolved source authority's pose. `current` is the
+    /// target's stored pose, which chooses between headings a full turn apart.
+    fn evaluate(
+        &self,
+        source: Pose2,
+        owners: [Option<Pose2>; 2],
+        current: Pose2,
+    ) -> Result<Pose2, String> {
+        match self {
+            Self::Legacy(constraint) => Ok(constraint_pose(constraint, source)),
+            Self::Framed(framed) => endpoints::solve_target(
+                source,
+                framed.source_frame.with_key(owners[0]),
+                framed.target_frame.with_key(owners[1]),
+                framed.relation,
+                current,
+            )
+            .map_err(|message| format!("Constraint {}: {message}", framed.id)),
+        }
+    }
+}
+
+fn claim_id<'a>(ids: &mut BTreeSet<&'a str>, id: &'a str) -> Result<(), String> {
+    if id.trim().is_empty() || !ids.insert(id) {
+        return Err(format!("Duplicate or empty constraint ID {id}"));
+    }
+    Ok(())
+}
+
+/// Gives `authority` its one driving record; a second one is refused.
+fn claim_target<'a>(
+    by_target: &mut BTreeMap<String, Driver<'a>>,
+    authority: &str,
+    driver: Driver<'a>,
+) -> Result<(), String> {
+    if by_target.insert(authority.to_owned(), driver).is_some() {
+        return Err(multiple_constraints(authority));
+    }
+    Ok(())
+}
+
+/// Resolves the document's stored constraints together with `framed` relations in one
+/// source-first graph. Framed relations are private to this module until the persisted arm is
+/// activated; a document never supplies them, so production resolution is unchanged.
+fn resolve_prepared(
+    doc: &mut ProjectDoc,
+    positions: &[Position],
+    framed: &[FramedConstraint],
+) -> Result<Vec<String>, String> {
     let parts: BTreeMap<_, _> = doc
         .parts
         .iter()
         .map(|part| (part.id.clone(), part.pose))
         .collect();
-    let mut by_target = BTreeMap::new();
+    let mut by_target: BTreeMap<String, Driver> = BTreeMap::new();
     let mut ids = BTreeSet::new();
     for constraint in &doc.constraints {
-        if constraint.id().trim().is_empty() || !ids.insert(constraint.id()) {
-            return Err(format!(
-                "Duplicate or empty constraint ID {}",
-                constraint.id()
-            ));
-        }
+        claim_id(&mut ids, constraint.id())?;
         if !parts.contains_key(constraint.source()) || !parts.contains_key(constraint.target()) {
             return Err(format!(
                 "Constraint {} references a missing part",
                 constraint.id()
             ));
         }
-        if by_target
-            .insert(constraint.target().to_string(), constraint)
-            .is_some()
-        {
-            return Err(format!(
-                "Part {} has multiple constraints",
-                constraint.target()
-            ));
-        }
+        claim_target(
+            &mut by_target,
+            constraint.target(),
+            Driver::Legacy(constraint),
+        )?;
         if !constraint.is_finite() {
             return Err(format!(
                 "Constraint {} has a non-finite value",
                 constraint.id()
             ));
         }
+    }
+    for record in framed {
+        let FramedConstraint::Framed {
+            id,
+            source,
+            target,
+            relation,
+        } = record;
+        claim_id(&mut ids, id)?;
+        let source = endpoints::resolve_endpoint(doc, id, Side::Source, source)?;
+        let target = endpoints::resolve_endpoint(doc, id, Side::Target, target)?;
+        relation
+            .validate()
+            .map_err(|_| format!("Constraint {id} has a non-finite value"))?;
+        // A stored record that names the visible mirror of this authority drives it too.
+        let authority = &target.authoritative_id;
+        if doc.constraints.iter().any(|stored| {
+            stored.target() != authority
+                && endpoints::authoritative_part(doc, stored.target()) == authority
+        }) {
+            return Err(multiple_constraints(authority));
+        }
+        // Authorities are what the graph orders: two visible targets of one authority, or a
+        // visible source that is its own target's authority, are one part.
+        let driver = Driver::Framed(Framed {
+            id,
+            source_authority: source.authoritative_id,
+            source_frame: source.frame,
+            target_frame: target.frame,
+            source_owner: source.owner,
+            target_owner: target.owner,
+            relation,
+        });
+        claim_target(&mut by_target, &target.authoritative_id, driver)?;
     }
 
     // Assemblies are implicit local placements; explicit constraints take priority.
@@ -262,10 +401,53 @@ pub(crate) fn convert_offset(
     Ok(vec![constraint_id.into()])
 }
 
+/// Evaluates the record that drives `id`: its source first, then any key a companion endpoint
+/// is projected against, so the projection reads live poses and cycles through it are refused.
+fn drive(
+    id: &str,
+    driver: &Driver,
+    parts: &BTreeMap<String, Pose2>,
+    constraints: &BTreeMap<String, Driver>,
+    assemblies: &BTreeMap<String, AssemblyPlacement>,
+    resolved: &mut BTreeMap<String, Pose2>,
+    visiting: &mut BTreeSet<String>,
+) -> Result<Pose2, String> {
+    let current = *parts
+        .get(id)
+        .ok_or_else(|| format!("Constraint target {id} is missing"))?;
+    let source = pose(
+        driver.source_authority(),
+        parts,
+        constraints,
+        assemblies,
+        resolved,
+        visiting,
+    )?;
+    let mut owners = [None, None];
+    if let Driver::Framed(framed) = driver {
+        for (slot, owner) in [&framed.source_owner, &framed.target_owner]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(owner) = owner {
+                owners[slot] = Some(pose(
+                    owner,
+                    parts,
+                    constraints,
+                    assemblies,
+                    resolved,
+                    visiting,
+                )?);
+            }
+        }
+    }
+    driver.evaluate(source, owners, current)
+}
+
 fn pose(
     id: &str,
     parts: &BTreeMap<String, Pose2>,
-    constraints: &BTreeMap<String, &Constraint>,
+    constraints: &BTreeMap<String, Driver>,
     assemblies: &BTreeMap<String, AssemblyPlacement>,
     resolved: &mut BTreeMap<String, Pose2>,
     visiting: &mut BTreeSet<String>,
@@ -276,24 +458,30 @@ fn pose(
     if !visiting.insert(id.to_string()) {
         return Err(format!("Constraint cycle includes part {id}"));
     }
-    let next = if let Some(assembly) = assemblies.get(id) {
+    // An explicit framed relation outranks the implicit companion placement, as a stored one
+    // does: the accepted design's "Compiler, solver and canonical edit flow" step 3
+    // (docs/plans/typed-core-edits/design/139-generalized-mirrored-constraint-model.md) keeps
+    // "explicit constraints ... current precedence over following-assembly placement", and
+    // `companion_mode` in matrix/layout.rs documents the stored rule.
+    let framed = matches!(constraints.get(id), Some(Driver::Framed(_)));
+    let next = if let Some(assembly) = assemblies.get(id).filter(|_| !framed) {
         // The classification already resolved explicit-constraint precedence, so
         // a constrained companion settles from its constraint and the others
         // follow the key (an authored pose only while the key is unchanged).
         match &assembly.mode {
             MatrixCompanionMode::Constrained { .. } => {
-                let constraint = constraints
+                let driver = constraints
                     .get(id)
                     .ok_or_else(|| format!("Constraint for companion {id} is missing"))?;
-                let source = pose(
-                    constraint.source(),
+                drive(
+                    id,
+                    driver,
                     parts,
                     constraints,
                     assemblies,
                     resolved,
                     visiting,
-                )?;
-                constraint_pose(constraint, source)
+                )?
             }
             MatrixCompanionMode::Authored | MatrixCompanionMode::Follows => {
                 let source = pose(
@@ -314,16 +502,16 @@ fn pose(
                 }
             }
         }
-    } else if let Some(constraint) = constraints.get(id) {
-        let source = pose(
-            constraint.source(),
+    } else if let Some(driver) = constraints.get(id) {
+        drive(
+            id,
+            driver,
             parts,
             constraints,
             assemblies,
             resolved,
             visiting,
-        )?;
-        constraint_pose(constraint, source)
+        )?
     } else {
         *parts
             .get(id)
