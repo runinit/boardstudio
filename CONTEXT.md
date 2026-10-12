@@ -148,6 +148,18 @@ A separately authored placement relationship from a source part to a target part
 It takes priority over a companion's attachment to its key.
 _Avoid_: relationship (unqualified)
 
+**Offset constraint**:
+An explicit constraint that holds its target at a fixed distance from its source along the
+board's axes, and at a fixed angle to it. Turning the source turns the target but does not
+swing it around the source.
+_Avoid_: offset (unqualified, when the axes matter)
+
+**Part-offset constraint**:
+An explicit constraint that holds its target at a fixed distance and angle measured along the
+source part's own axes. Turning the source swings the target around it, as a following
+companion moves with its key.
+_Avoid_: attach constraint (an attached companion is one that follows its key)
+
 ### Editing
 
 **Accepted document**:

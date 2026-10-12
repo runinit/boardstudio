@@ -3,7 +3,7 @@
 Status: ready-for-agent
 Type: build
 Blocked by: none
-Related: [143](143-offset-constraint-source-frame.md)
+Related: [143](143-part-offset-constraint.md)
 
 ## Request
 
@@ -48,4 +48,4 @@ their keys, the way a column splay and a placement edit already do.
 
 ## Not in this ticket
 
-- A constrained companion's offset frame, which is [143](143-offset-constraint-source-frame.md).
+- A constrained companion's offset axes, which is [143](143-part-offset-constraint.md).
