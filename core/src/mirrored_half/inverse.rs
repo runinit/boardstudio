@@ -14,7 +14,7 @@
 //! Rules this layer keeps:
 //! - A target that is not a linked mirror (unpaired, a source, or a Local exception) executes
 //!   as written. An Omitted target is refused: its geometry is absent and is not recreated.
-//! - Positions and headings use the pair's exact inverse (`pair::inverse`, `derive::pose`).
+//! - Positions and headings use the pair's exact inverse (`pair::inverse`, `inverse_angle`).
 //!   Switches take no half turn; independent parts take the full-circle rule; companions follow
 //!   their stored placement mode and stabilisers keep their world heading.
 //! - Two entries that resolve to one canonical target are one action when they agree and a
@@ -24,12 +24,11 @@
 #[path = "inverse/tests.rs"]
 mod tests;
 
-use super::derive;
 use crate::mechanical::pair;
 use crate::model::{
-    EditOperation, MatrixSplayChange, MirroredCompanionMode, MirroredCompanionTweak,
-    MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind, Part, Pose2,
-    Position, ProjectDoc, Vec2,
+    EditOperation, Matrix, MatrixSplayChange, Mirror, MirroredCompanionMode,
+    MirroredCompanionTweak, MirroredCorrespondence, MirroredExceptionState, MirroredHalves,
+    MirroredItemKind, Part, Pose2, Position, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -230,7 +229,19 @@ pub(super) fn canonicalize(
                 change: change.clone(),
             };
         }
-        _ => return Err("This matrix request is not translated yet".into()),
+        EditOperation::SetMatrix {
+            matrix,
+            definitions,
+        } => {
+            if let Some(source) = links.set_matrix(matrix)? {
+                canonical.translated = true;
+                canonical.operation = EditOperation::SetMatrix {
+                    matrix: source,
+                    definitions: definitions.clone(),
+                };
+            }
+        }
+        _ => return Err("This request is not an inverse-translated family".into()),
     }
     Ok(canonical)
 }
@@ -388,6 +399,143 @@ impl<'a> Links<'a> {
     fn matrix_id(&self, id: &str) -> Result<(String, bool), String> {
         let (id, mapping) = self.matrix_frame(id)?;
         Ok((id, mapping.is_some()))
+    }
+
+    /// A full matrix payload for a linked mirror, as the source matrix that derives it.
+    ///
+    /// Apart from its origin, the matrix reflection is its own inverse (the heading rule, the
+    /// local frame's X flip toggled, cell turns and companion handedness negated), so the
+    /// forward `reflected` is reused with the payload as input and the current source matrix as
+    /// the receiver of identity, name, definition, board and members; the origin takes the
+    /// exact inverse map. Companion placement is
+    /// then re-derived under each companion's own placement mode. A value the forward pass never
+    /// carries to the mirror (name, definition, board) cannot travel back through a source
+    /// edit, so a payload that changed one is refused instead of silently dropped.
+    fn set_matrix(&self, payload: &Matrix) -> Result<Option<Matrix>, String> {
+        let (source_id, Some(mapping)) = self.matrix_frame(&payload.id)? else {
+            return Ok(None);
+        };
+        let link = match self.target(MirroredItemKind::Matrix, &payload.id)? {
+            Target::Linked(link) => link,
+            Target::NotMirror | Target::Local | Target::Omitted => return Ok(None),
+        };
+        let find = |id: &str| {
+            self.document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+                .ok_or_else(|| format!("The matrix {id:?} is unavailable"))
+        };
+        let current_mirror = find(&payload.id)?;
+        let current_source = find(&source_id)?;
+        let mirror_only = |field: &str| {
+            format!(
+                "The {field} of the linked mirror matrix {:?} is not reflected from its source; \
+                 change it on a local matrix instead",
+                payload.id
+            )
+        };
+        if payload.name != current_mirror.name {
+            return Err(mirror_only("name"));
+        }
+        if payload.definition_id != current_mirror.definition_id {
+            return Err(mirror_only("definition"));
+        }
+        if payload.board_id.is_some() && payload.board_id != current_mirror.board_id {
+            return Err(mirror_only("board"));
+        }
+        if payload
+            .cells
+            .iter()
+            .any(|cell| cell.assemblies_local.is_some())
+        {
+            return Err(format!(
+                "The linked mirror matrix {:?} cannot carry local companions; a native pair \
+                 reflects every companion from its source",
+                payload.id
+            ));
+        }
+
+        let mut source = crate::matrix::layout::reflected(payload, current_source, mapping, false)?;
+        // `reflected` maps the origin with the forward map, which is not its own inverse when the
+        // map has a translation along the mirror line; the heading rule is an involution.
+        source.origin = pair::inverse(mapping, payload.origin);
+        // An absent flag and `none` are one frame; keep the stored spelling so an unchanged
+        // matrix translates to exactly what the source holds.
+        if source.mirror == Some(Mirror::None) && current_source.mirror.is_none() {
+            source.mirror = None;
+        }
+        // Companion placement depends on each companion's stored mode, so it is recomputed from
+        // the payload rather than taken from the literal reflection.
+        for cell in &mut source.cells {
+            if cell.assemblies_local == Some(true) {
+                continue;
+            }
+            let Some(payload_cell) = payload
+                .cells
+                .iter()
+                .find(|candidate| (candidate.row, candidate.column) == (cell.row, cell.column))
+            else {
+                continue;
+            };
+            let heading = source.rotation.unwrap_or(0.0)
+                + column_rotation(&source.column_splays, source.mirror, cell.column)
+                + cell.rotation.unwrap_or(0.0);
+            let mirror_key_id = format!("matrix/{}/r{}c{}", payload.id, cell.row, cell.column);
+            let mut assemblies = Vec::with_capacity(payload_cell.assemblies.len());
+            for assembly in &payload_cell.assemblies {
+                let part_id = format!("{mirror_key_id}/{}", assembly.id);
+                let correspondence = link.pair.halves.correspondences.iter().find(|candidate| {
+                    candidate.kind == MirroredItemKind::Part && candidate.mirror_id == part_id
+                });
+                let mode = correspondence
+                    .and_then(|candidate| candidate.companion_mode)
+                    .unwrap_or(link.pair.halves.companion_mode);
+                let tweak = correspondence.and_then(|candidate| candidate.companion_tweak);
+                let stabiliser =
+                    super::SYMMETRIC_DEFINITIONS.contains(&assembly.definition_id.as_str());
+                let mut placed = assembly.clone();
+                (placed.offset, placed.rotation) = if stabiliser {
+                    // The forward rule keeps the stabiliser's world heading:
+                    // `mirror = 2 * key + source - map`, so `source = mirror + map - 2 * key`.
+                    (
+                        Vec2 {
+                            x: -assembly.offset.x,
+                            y: assembly.offset.y,
+                        },
+                        Some(assembly.rotation.unwrap_or(0.0) + mapping.rotation - 2.0 * heading),
+                    )
+                } else {
+                    match mode {
+                        MirroredCompanionMode::LiteralMirror => (
+                            Vec2 {
+                                x: -assembly.offset.x,
+                                y: assembly.offset.y,
+                            },
+                            assembly.rotation.map(|rotation| -rotation),
+                        ),
+                        MirroredCompanionMode::LiteralMirrorWithTweak => {
+                            let tweak = tweak.ok_or_else(|| {
+                                format!("The companion {part_id:?} has no stored tweak")
+                            })?;
+                            (
+                                Vec2 {
+                                    x: -(assembly.offset.x - tweak.x),
+                                    y: assembly.offset.y - tweak.y,
+                                },
+                                Some(-(assembly.rotation.unwrap_or(0.0) - tweak.rotation)),
+                            )
+                        }
+                        MirroredCompanionMode::DuplicatePosition => {
+                            (assembly.offset, assembly.rotation)
+                        }
+                    }
+                };
+                assemblies.push(placed);
+            }
+            cell.assemblies = assemblies;
+        }
+        Ok(Some(source))
     }
 
     /// Per-matrix cell selections. Entries for both halves of one link are one set of
@@ -648,7 +796,13 @@ impl<'a> Links<'a> {
         let mut source = part.clone();
         source.id = source_id.clone();
         source.reference = reference;
-        source.pose = derive::pose(pair.mapping, part.pose);
+        // The position takes the exact inverse; the heading rule `map - r + 180` is its own
+        // inverse over the full circle.
+        source.pose = Pose2 {
+            at: pair::inverse(pair.mapping, part.pose.at),
+            rotation: (pair::inverse_angle(pair.mapping, part.pose.rotation) + 180.0)
+                .rem_euclid(360.0),
+        };
         Ok(Some((
             EditOperation::AddPart {
                 part: source,
@@ -699,5 +853,16 @@ fn rotate(vector: Vec2, degrees: f64) -> Vec2 {
     Vec2 {
         x: vector.x * cos - vector.y * sin,
         y: vector.x * sin + vector.y * cos,
+    }
+}
+
+/// The turn a matrix's column splays give a key, as the generator applies it: the splays up to
+/// and including the column, negated when the local frame is flipped.
+fn column_rotation(splays: &[f64], mirror: Option<Mirror>, column: u32) -> f64 {
+    let angle: f64 = splays.iter().take(column as usize + 1).sum();
+    if matches!(mirror, Some(Mirror::X | Mirror::Y)) {
+        -angle
+    } else {
+        angle
     }
 }

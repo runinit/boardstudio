@@ -5,7 +5,7 @@
 //! point `(a, b)` to `(100 - b, -30 - a)`. No expectation calls the production mapping.
 
 use super::*;
-use crate::model::{EditOperation, Pose2, Vec2};
+use crate::model::{EditOperation, MirroredItemKind, Pose2, Vec2};
 use serde_json::{Value, json};
 
 const AXIS: Pose2 = Pose2 {
@@ -335,6 +335,23 @@ fn a_part_added_on_the_mirror_board_becomes_a_source_addition_with_its_mirror_pl
 }
 
 #[test]
+fn a_rotated_pair_map_places_and_turns_an_added_part_back_on_the_source() {
+    let request = json!({"kind": "add-part", "boardId": "right", "part": {
+        "id": "right/LED", "definitionId": "u", "reference": "right-D9",
+        "pose": {"at": {"x": 90, "y": -50}, "rotation": 30}, "side": "front"}});
+    let result = canonical(&rotated_fixture(), &request).unwrap();
+    let EditOperation::AddPart { part, .. } = result.operation else {
+        panic!("an addition is expected");
+    };
+    // Mirror (90, -50) is the image of source (20, 10); the heading is 90 - 30 + 180.
+    assert_close(
+        &serde_json::to_value(part.pose).unwrap(),
+        &json!({"at": {"x": 20, "y": 10}, "rotation": 240}),
+        "pose",
+    );
+}
+
+#[test]
 fn a_source_side_addition_is_unchanged() {
     let source = json!({"kind": "add-part", "boardId": "left", "part": {
         "id": "left/LED", "definitionId": "u", "reference": "D9",
@@ -505,6 +522,217 @@ fn a_stabiliser_keeps_the_literal_position_in_every_mode() {
     );
 }
 
+// ---- SetMatrix -------------------------------------------------------------------------------
+
+/// What the Inspector would send for the mirror matrix of the fixture, with `edits` merged over
+/// its stored values.
+fn mirror_payload(edits: Value) -> Value {
+    let mut payload = json!({
+    "id": "right-keys", "name": "Right keys", "rows": 1, "columns": 2,
+    "pitch": {"x": 19, "y": 19}, "origin": {"x": 200, "y": 0}, "definitionId": "sw",
+    "boardId": "right", "mirror": "x", "partIds": [],
+    "cells": [
+        {"row": 0, "column": 0, "enabled": true, "assemblies": [
+            {"id": "diode", "definitionId": "d", "offset": {"x": -8, "y": -2}, "rotation": -90}]},
+        {"row": 0, "column": 1, "enabled": true}
+    ]});
+    for (key, value) in edits.as_object().unwrap() {
+        payload[key] = value.clone();
+    }
+    payload
+}
+
+fn set_matrix(payload: Value) -> Value {
+    json!({"kind": "set-matrix", "matrix": payload})
+}
+
+fn translated_matrix(document: &ProjectDoc, payload: Value) -> Value {
+    let result = canonical(document, &set_matrix(payload)).expect("the matrix translates");
+    let value = serde_json::to_value(&result.operation).unwrap();
+    assert_eq!(value["kind"], "set-matrix");
+    value["matrix"].clone()
+}
+
+#[test]
+fn a_mirror_matrix_payload_becomes_the_source_matrix_through_the_inverse_pair_map() {
+    let matrix = translated_matrix(
+        &fixture(),
+        mirror_payload(json!({
+        "origin": {"x": 190, "y": 5}, "rotation": 10,
+        "cells": [
+            {"row": 0, "column": 0, "enabled": true, "offset": {"x": 1, "y": 2}, "rotation": 5,
+             "assemblies": [
+                {"id": "diode", "definitionId": "d", "offset": {"x": -8, "y": -3}, "rotation": -80}]},
+            {"row": 0, "column": 1, "enabled": false}
+        ]})),
+    );
+    // Source identity, name, board and members are the source's own; geometry is inverted.
+    assert_eq!(matrix["id"], "left-keys");
+    assert_eq!(matrix["name"], "Left keys");
+    assert_eq!(matrix["boardId"], "left");
+    assert_eq!(
+        matrix["partIds"],
+        json!([
+            "matrix/left-keys/r0c0",
+            "matrix/left-keys/r0c0/diode",
+            "matrix/left-keys/r0c1"
+        ])
+    );
+    assert_close(
+        &matrix,
+        &json!({
+        "id": "left-keys", "name": "Left keys", "rows": 1, "columns": 2,
+        "pitch": {"x": 19, "y": 19}, "origin": {"x": 10, "y": 5}, "definitionId": "sw",
+        "boardId": "left", "rotation": -10,
+        "partIds": [
+            "matrix/left-keys/r0c0", "matrix/left-keys/r0c0/diode", "matrix/left-keys/r0c1"],
+        "cells": [
+            {"row": 0, "column": 0, "enabled": true, "offset": {"x": 1, "y": 2}, "rotation": -5,
+             "assemblies": [
+                {"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -3}, "rotation": 80}]},
+            {"row": 0, "column": 1, "enabled": false}
+        ]}),
+        "matrix",
+    );
+}
+
+#[test]
+fn a_rotated_pair_map_turns_the_matrix_origin_and_heading_back_once() {
+    let matrix = translated_matrix(
+        &rotated_fixture(),
+        mirror_payload(json!({"origin": {"x": 90, "y": -50}})),
+    );
+    // Mirror origin (90, -50) is the image of source (20, 10); no stored heading becomes the
+    // map's 90 degrees on the source, and the mirror flag clears.
+    assert_close(&matrix["origin"], &json!({"x": 20, "y": 10}), "origin");
+    assert_close(&matrix["rotation"], &json!(90), "rotation");
+    assert!(
+        matrix.get("mirror").is_none(),
+        "the source frame is not flipped"
+    );
+}
+
+fn companion_matrix(document: &ProjectDoc, assembly_definition: &str, rotation: f64) -> Value {
+    translated_matrix(
+        document,
+        mirror_payload(json!({
+        "columnSplays": [0, 15],
+        "cells": [
+            {"row": 0, "column": 0, "enabled": true, "rotation": 20, "assemblies": [
+                {"id": "diode", "definitionId": assembly_definition,
+                 "offset": {"x": -8, "y": -3}, "rotation": rotation}]},
+            {"row": 0, "column": 1, "enabled": true, "assemblies": [
+                {"id": "diode", "definitionId": assembly_definition,
+                 "offset": {"x": -8, "y": -3}, "rotation": 10}]}
+        ]})),
+    )
+}
+
+#[test]
+fn a_literal_mirror_companion_flips_offset_and_turn() {
+    let matrix = companion_matrix(&fixture(), "d", -60.0);
+    assert_close(
+        &matrix["cells"][0]["assemblies"],
+        &json!([{"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -3}, "rotation": 60}]),
+        "assemblies",
+    );
+}
+
+#[test]
+fn a_tweaked_companion_subtracts_its_tweak_before_flipping() {
+    let mut document = fixture();
+    set_companion(
+        &mut document,
+        "literal-mirror-with-tweak",
+        json!({"x": 1.0, "y": 2.0, "rotation": 10.0}),
+    );
+    // Payload offset (-8, -3) and turn -60: source x = -(-8 - 1), y = -3 - 2, turn = -(-60 - 10).
+    let matrix = companion_matrix(&document, "d", -60.0);
+    assert_close(
+        &matrix["cells"][0]["assemblies"],
+        &json!([{"id": "diode", "definitionId": "d", "offset": {"x": 9, "y": -5}, "rotation": 70}]),
+        "assemblies",
+    );
+}
+
+#[test]
+fn a_duplicate_position_companion_keeps_the_mirror_values_as_the_source_values() {
+    let mut document = fixture();
+    set_companion(&mut document, "duplicate-position", json!(null));
+    let matrix = companion_matrix(&document, "d", -60.0);
+    assert_close(
+        &matrix["cells"][0]["assemblies"],
+        &json!([{"id": "diode", "definitionId": "d", "offset": {"x": -8, "y": -3}, "rotation": -60}]),
+        "assemblies",
+    );
+}
+
+#[test]
+fn a_stabiliser_recovers_its_source_turn_from_its_keys_world_heading() {
+    let matrix = companion_matrix(&fixture(), "kicad:marbastlib/STAB_MX_2u", -60.0);
+    // Cell 0: key heading is the source cell turn -20; the turn is -60 + 0 - 2(-20) = -20.
+    assert_close(
+        &matrix["cells"][0]["assemblies"][0],
+        &json!({"id": "diode", "definitionId": "kicad:marbastlib/STAB_MX_2u",
+                "offset": {"x": 8, "y": -3}, "rotation": -20}),
+        "cell 0",
+    );
+    // Cell 1: key heading is the column splay 15; the turn is 10 + 0 - 30 = -20.
+    assert_close(
+        &matrix["cells"][1]["assemblies"][0],
+        &json!({"id": "diode", "definitionId": "kicad:marbastlib/STAB_MX_2u",
+                "offset": {"x": 8, "y": -3}, "rotation": -20}),
+        "cell 1",
+    );
+}
+
+#[test]
+fn a_mirror_only_matrix_value_or_unrepresentable_cell_is_refused_not_dropped() {
+    for (edits, needle) in [
+        (json!({"name": "Renamed right"}), "name"),
+        (json!({"definitionId": "other"}), "definition"),
+        (json!({"boardId": "left"}), "board"),
+        (json!({"mirror": "y"}), "horizontal"),
+        (
+            json!({"cells": [{"row": 0, "column": 0, "enabled": true, "assembliesLocal": true,
+                "assemblies": []}]}),
+            "local",
+        ),
+    ] {
+        let message = refusal(&fixture(), set_matrix(mirror_payload(edits.clone())));
+        assert!(message.contains(needle), "{edits}: {message}");
+    }
+}
+
+#[test]
+fn a_source_a_local_mirror_and_a_new_matrix_execute_as_written() {
+    let source = set_matrix(json!({
+        "id": "left-keys", "name": "Left keys", "rows": 1, "columns": 1,
+        "pitch": {"x": 19, "y": 19}, "origin": {"x": 3, "y": 3}, "definitionId": "sw",
+        "boardId": "left", "partIds": []}));
+    expect_operation(&fixture(), source.clone(), source);
+    let local = set_matrix(mirror_payload(json!({"name": "Local rename"})));
+    expect_operation(&with_matrix_state(fixture(), "local"), local.clone(), local);
+    let added = set_matrix(json!({
+        "id": "brand-new", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19},
+        "origin": {"x": 250, "y": 40}, "definitionId": "sw", "boardId": "right", "partIds": []}));
+    expect_operation(&fixture(), added.clone(), added);
+}
+
+#[test]
+fn matrix_definitions_travel_with_the_translated_request_unchanged() {
+    let definition =
+        json!({"id": "extra", "name": "Extra", "kind": "passive", "courtyard": [], "pads": []});
+    let result = canonical(
+        &fixture(),
+        &json!({"kind": "set-matrix", "matrix": mirror_payload(json!({})),
+                "definitions": [definition]}),
+    )
+    .unwrap();
+    let value = serde_json::to_value(&result.operation).unwrap();
+    assert_eq!(value["definitions"], json!([definition]));
+}
+
 // ---- matrix parameters and structure ---------------------------------------------------------
 
 fn with_legacy_link(mut document: ProjectDoc) -> ProjectDoc {
@@ -646,5 +874,226 @@ fn a_matrix_linked_natively_and_by_a_legacy_layout_is_refused_from_either_half()
             message.contains("legacy") && message.contains(matrix),
             "{message}"
         );
+    }
+}
+
+// ---- round trips through the production creation path --------------------------------------
+//
+// `CreateMirroredHalf` is the production forward derivation. Whatever it stores for the mirror
+// must translate back to what it stored for the source, for every placement mode and for maps
+// with a translation along the mirror line and a slanted axis.
+
+fn source_half() -> ProjectDoc {
+    let switch = "generator:ceoloide/switch_mx";
+    let diode = "generator:ceoloide/diode_tht_sod123";
+    let mut cells = Vec::new();
+    for row in 0..2 {
+        for column in 0..3 {
+            cells.push(json!({
+                "row": row, "column": column, "enabled": true,
+                "offset": {"x": f64::from(row) * 0.5, "y": f64::from(column) * -0.25},
+                "rotation": f64::from(column) * 4.0,
+                "assemblies": [
+                    {"id": "diode", "definitionId": diode, "offset": {"x": 8, "y": -2},
+                     "rotation": 90, "side": "back"},
+                    {"id": "led", "definitionId": "synthetic/led", "offset": {"x": -3, "y": 4},
+                     "rotation": 15, "side": "front"},
+                    {"id": "stab", "definitionId": "kicad:marbastlib/STAB_MX_2u",
+                     "offset": {"x": 0, "y": -12}, "rotation": 30, "side": "front"}]
+            }));
+        }
+    }
+    let mut part_ids: Vec<String> = Vec::new();
+    for row in 0..2 {
+        for column in 0..3 {
+            part_ids.push(format!("matrix/left-keys/r{row}c{column}"));
+        }
+    }
+    let definitions = json!([
+            {"id": switch, "name": "Switch", "kind": "switch", "keycap": {"x": 18, "y": 18},
+             "courtyard": [{"x":-9,"y":-9},{"x":9,"y":-9},{"x":9,"y":9},{"x":-9,"y":9}], "pads": [],
+             "terminals": {"row": ["pad-1"], "column": ["pad-2"]},
+             "matrixTerminals": {"row": "row", "column": "column"},
+             "generator": {"source": "ceoloide/switch_mx", "version": "bundled-1",
+                           "parameters": {"hotswap": true, "solder": false}}},
+            {"id": diode, "name": "Diode", "kind": "passive",
+             "courtyard": [{"x":-2,"y":-1},{"x":2,"y":-1},{"x":2,"y":1},{"x":-2,"y":1}], "pads": [],
+             "generator": {"source": "ceoloide/diode_tht_sod123", "version": "bundled-1",
+                           "parameters": {"side": "B"}}},
+            {"id": "synthetic/led", "name": "Indicator", "kind": "passive",
+             "courtyard": [{"x":-1.5,"y":-1.5},{"x":1.5,"y":-1.5},{"x":1.5,"y":1.5},{"x":-1.5,"y":1.5}],
+             "pads": []},
+            {"id": "kicad:marbastlib/STAB_MX_2u", "name": "Stabiliser", "kind": "passive",
+             "courtyard": [{"x":-3,"y":-1},{"x":3,"y":-1},{"x":3,"y":1},{"x":-3,"y":1}],
+             "pads": []},
+            {"id": "synthetic/controller", "name": "Controller", "kind": "controller",
+             "courtyard": [{"x":-5,"y":-4},{"x":5,"y":-4},{"x":5,"y":4},{"x":-5,"y":4}], "pads": []}
+    ]);
+    let parts = json!([
+            {"id": "left/U1", "definitionId": "synthetic/controller", "reference": "U1",
+             "pose": {"at": {"x": -24, "y": 5}, "rotation": 35}, "side": "front"},
+            {"id": "left/U2", "definitionId": "synthetic/controller", "reference": "U2",
+             "pose": {"at": {"x": -30, "y": -12}, "rotation": 180}, "side": "front"}
+    ]);
+    let matrices = json!([{"id": "left-keys", "name": "Keys", "rows": 2, "columns": 3,
+            "pitch": {"x": 19, "y": 21}, "origin": {"x": 4, "y": 9}, "rotation": 12,
+            "columnSplays": [0, 6, -3], "columnStaggers": [0, 3, -2],
+            "definitionId": switch, "boardId": "left", "partIds": [], "cells": cells}]);
+    let hardware = json!({"topology": "split", "transport": "wired",
+            "instances": [{"id": "left", "name": "Left", "boardId": "left", "half": "left",
+                "role": "central", "flipped": false, "controllerPartId": "left/U1",
+                "mechanical": {"boardId": "left", "method": "printed", "mount": "rigid",
+                    "integratedPlateFrame": false, "bottomStyle": "shell", "plateThickness": 1.5,
+                    "plateFoamThickness": 0, "pcbThickness": 1.6, "bottomFoamThickness": 0,
+                    "batteryHeight": 0, "bottomThickness": 2, "plateToPcb": 3.5,
+                    "wallThickness": 2, "clearance": 0.2, "profiles": [], "mounts": [],
+                    "closureMounts": [], "openings": []}}],
+            "boards": [{"boardId": "left", "controllerPartId": "left/U1", "mode": "matrix"}],
+            "pairs": []});
+    let document = json!({
+        "format": "boardstudio/v2", "formatVersion": 5, "id": "round-trip", "name": "Round trip",
+        "revision": 0, "parameters": {}, "definitions": definitions, "parts": parts,
+        "matrices": matrices, "layouts": [], "nets": [], "outline": [], "caseBodies": [],
+        "materials": [], "assets": [], "scripts": [], "constraints": [],
+        "boards": [{"id": "left", "name": "Left", "outlineIds": [], "netIds": [],
+            "thickness": 1.6, "partIds": ["left/U1", "left/U2"]}],
+        "hardware": hardware});
+    let mut document: ProjectDoc = serde_json::from_value(document).unwrap();
+    let matrix = document.matrices[0].clone();
+    crate::matrix::set_matrix(&mut document, &matrix).expect("the source matrix materialises");
+    assert_eq!(document.matrices[0].part_ids.len(), part_ids.len() * 4);
+    document
+}
+
+fn created(mapping: Value, companion_mode: &str, tweak: Option<Value>) -> ProjectDoc {
+    let mut document = source_half();
+    let mut request = json!({
+        "kind": "create-mirrored-half", "pairId": "pair", "sourceInstanceId": "left",
+        "mode": {"kind": "new-board", "boardId": "right", "instanceId": "right"},
+        "mapping": mapping, "idRule": "board-prefix", "companionMode": companion_mode});
+    if let Some(tweak) = tweak {
+        request["companionTweak"] = tweak;
+    }
+    crate::apply(&mut document, &[], &op(request)).expect("the half is created");
+    document
+}
+
+/// The mirror matrix of a created half, as a request, translated back to its source.
+fn round_tripped(document: &ProjectDoc) -> (Value, Value) {
+    let mirror = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .expect("the mirror matrix exists");
+    let request = EditOperation::SetMatrix {
+        matrix: mirror.clone(),
+        definitions: None,
+    };
+    let result = canonicalize(document, &request).expect("the mirror matrix translates");
+    let EditOperation::SetMatrix { matrix, .. } = result.operation else {
+        panic!("a matrix request is expected");
+    };
+    let stored = document
+        .matrices
+        .iter()
+        .find(|candidate| candidate.id == "left-keys")
+        .unwrap();
+    (
+        serde_json::to_value(&matrix).unwrap(),
+        serde_json::to_value(stored).unwrap(),
+    )
+}
+
+/// The same cell with `rotation` read modulo a turn and a missing companion turn read as none.
+fn comparable(mut matrix: Value) -> Value {
+    for cell in matrix["cells"].as_array_mut().into_iter().flatten() {
+        for assembly in cell["assemblies"].as_array_mut().into_iter().flatten() {
+            if assembly.get("rotation").is_none() {
+                assembly["rotation"] = json!(0.0);
+            }
+        }
+    }
+    matrix
+}
+
+const MAPS: [(f64, f64, f64); 3] = [(200.0, 0.0, 0.0), (310.0, 42.0, 27.0), (150.0, -35.0, 90.0)];
+
+#[test]
+fn a_created_mirror_matrix_translates_back_to_its_stored_source_in_every_companion_mode() {
+    for (x, y, rotation) in MAPS {
+        let mapping = json!({"at": {"x": x, "y": y}, "rotation": rotation});
+        for (mode, tweak) in [
+            ("literal-mirror", None),
+            ("duplicate-position", None),
+            (
+                "literal-mirror-with-tweak",
+                Some(json!({"x": 0.75, "y": -0.5, "rotation": 8.0})),
+            ),
+        ] {
+            let document = created(mapping.clone(), mode, tweak);
+            let (translated, stored) = round_tripped(&document);
+            assert_close(
+                &comparable(translated),
+                &comparable(stored),
+                &format!("map ({x}, {y}, {rotation}) {mode}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn every_created_mirror_part_moves_its_source_to_where_the_source_is_stored() {
+    for (x, y, rotation) in MAPS {
+        let mapping = json!({"at": {"x": x, "y": y}, "rotation": rotation});
+        for (mode, tweak) in [
+            ("literal-mirror", None),
+            ("duplicate-position", None),
+            (
+                "literal-mirror-with-tweak",
+                Some(json!({"x": 0.75, "y": -0.5, "rotation": 8.0})),
+            ),
+        ] {
+            let document = created(mapping.clone(), mode, tweak);
+            let halves = document.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap();
+            let mut checked = 0;
+            for correspondence in halves
+                .correspondences
+                .iter()
+                .filter(|correspondence| correspondence.kind == MirroredItemKind::Part)
+            {
+                let mirror = document
+                    .parts
+                    .iter()
+                    .find(|part| part.id == correspondence.mirror_id)
+                    .unwrap();
+                let source = document
+                    .parts
+                    .iter()
+                    .find(|part| part.id == correspondence.source_id)
+                    .unwrap();
+                let request = EditOperation::MoveParts {
+                    positions: vec![crate::model::Position {
+                        id: mirror.id.clone(),
+                        at: mirror.pose.at,
+                    }],
+                };
+                let result = canonicalize(&document, &request).unwrap();
+                let EditOperation::MoveParts { positions } = result.operation else {
+                    panic!("a move is expected");
+                };
+                let label = format!("map ({x}, {y}, {rotation}) {mode} {}", mirror.id);
+                assert_eq!(positions[0].id, source.id, "{label}");
+                assert_close(
+                    &serde_json::to_value(positions[0].at).unwrap(),
+                    &serde_json::to_value(source.pose.at).unwrap(),
+                    &label,
+                );
+                checked += 1;
+            }
+            assert_eq!(checked, 6 * 4 + 2, "map ({x}, {y}, {rotation}) {mode}");
+        }
     }
 }
