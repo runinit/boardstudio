@@ -24,9 +24,10 @@ target.rotation = source.rotation + rotation
 ```
 
 `constraint_pose` in `core/src/constraints.rs` and `ConstraintRelation::apply` in
-`core/src/constraints/relation.rs` implement this. Ticket 139's accepted design keeps it:
-"Offset.offset is a world vector, matching existing behavior", with legacy Offset JSON preserved
-byte-for-byte. A companion that follows its key, by contrast, is placed by `follow_pose`, which
+`core/src/constraints/relation.rs` implement this. [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) keeps it ("the
+existing world-plane Offset semantics"), and ticket 139's accepted design (the baseline cache's
+`ticket139-planning/design.md`) says Offset.offset is a world vector and keeps legacy Offset
+JSON byte-for-byte. A companion that follows its key, by contrast, is placed by `follow_pose`, which
 rotates the offset by the key's rotation. The world frame is right when the source never rotates
 (a mounting anchor) and wrong when the source can be splayed (a key).
 
@@ -56,8 +57,9 @@ frame becomes an explicit property instead.
   Offsets.
 - Authored and following companions already keep their pose relative to the key through a splay
   (the carry in `core/src/matrix/placement.rs`). They are not part of this ticket.
-- Not verified: the same drift for a matrix `rotation` change. Keys turn there too, so it is
-  likely, but no test covers it yet.
+- Not verified: the same drift for a constrained companion under a matrix `rotation` change.
+  Keys turn there too, so it is likely, but no test covers it yet. Authored companions do not
+  follow a whole-matrix edit at all; that is [144](144-set-matrix-carries-authored-companions.md).
 
 ## Constraints on the design
 
@@ -128,5 +130,6 @@ exact mirrored attachments need a handedness-aware transform; that belongs with 
 ## Not in this ticket
 
 - Changing the meaning of any existing Offset.
-- Carrying authored companions (done) or following companions (already correct).
+- Carrying authored companions: done for splay and placement edits, whole-matrix edits are
+  [144](144-set-matrix-carries-authored-companions.md). Following companions are already correct.
 - Mirror constraints and the slanted-axis model, which stay with 139.
