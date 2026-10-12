@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: [117](117-prepare-mirrored-preview-history-performance.md)
+Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
 
