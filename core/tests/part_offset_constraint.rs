@@ -421,6 +421,56 @@ fn converting_an_unknown_constraint_is_refused_and_changes_nothing() {
 }
 
 #[test]
+fn converting_a_mirror_constraint_is_refused_and_changes_nothing() {
+    for to in [OffsetAxes::Board, OffsetAxes::Part] {
+        let (mut engine, before) = splayed(|| Constraint::Mirror {
+            id: "held-key".into(),
+            source_part_id: KEY.into(),
+            target_part_id: HELD.into(),
+            axis: MirrorAxis::Vertical,
+            coordinate: 5.0,
+        });
+        let CoreReply::Error { message, .. } = convert(&mut engine, &before, "held-key", to) else {
+            panic!("a mirror has no offset axes to convert to {to:?}");
+        };
+        assert!(message.contains("mirror"), "{message}");
+        let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+        assert_eq!(now.constraints, before.constraints);
+        assert_eq!(now.revision, before.revision);
+        assert_every_part_kept(&before, &now);
+    }
+}
+
+#[test]
+fn a_constraint_that_names_a_missing_part_cannot_be_opened_so_no_conversion_meets_one() {
+    // Core validates every constraint's endpoints when it opens a document and after each
+    // edit, so an accepted document never holds a constraint with a missing endpoint. A
+    // conversion cannot meet one through the edit API; its own endpoint checks are defensive.
+    let (_, valid) = fixture(held_by_part_axes);
+    for (missing, source, target) in [
+        ("source", "no-such-source", HELD),
+        ("target", KEY, "no-such-target"),
+    ] {
+        let mut document = valid.clone();
+        document.constraints = vec![Constraint::PartOffset {
+            id: "held-key".into(),
+            source_part_id: source.into(),
+            target_part_id: target.into(),
+            offset: Vec2 { x: 1.0, y: -4.0 },
+            rotation: 0.0,
+        }];
+        let reply = CoreEngine::new().handle(CoreRequest::Open {
+            id: "open".into(),
+            document,
+        });
+        let CoreReply::Error { message, .. } = reply else {
+            panic!("a document whose constraint has a missing {missing} must be refused");
+        };
+        assert!(message.contains("missing part"), "{message}");
+    }
+}
+
+#[test]
 fn a_part_offset_constraint_has_its_own_kind_on_the_wire_and_round_trips() {
     let wire = serde_json::json!({
         "kind": "part-offset", "id": "held-key", "sourcePartId": KEY, "targetPartId": HELD,
