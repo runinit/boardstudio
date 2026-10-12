@@ -1183,7 +1183,7 @@ fn materialise_missing_companions(
                 if cell.is_some_and(|cell| !cell.enabled || cell.deleted) {
                     continue;
                 }
-                let key_id = format!("matrix/{}/r{row}c{column}", matrix.id);
+                let key_id = crate::matrix::member_id(&matrix.id, row, column);
                 if !doc.parts.iter().any(|part| part.id == key_id) {
                     return Err(format!(
                         "A companion's source switch {key_id:?} is unavailable"
