@@ -953,7 +953,10 @@ pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> 
             })
             || doc.constraints.iter().any(|constraint| {
                 constraint.target() == position.id
-                    && matches!(constraint, Constraint::Offset { .. })
+                    && matches!(
+                        constraint,
+                        Constraint::Offset { .. } | Constraint::PartOffset { .. }
+                    )
             })
     })
 }

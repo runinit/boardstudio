@@ -419,3 +419,250 @@ fn converting_an_unknown_constraint_is_refused_and_changes_nothing() {
     assert_eq!(now.constraints, before.constraints);
     assert_every_part_kept(&before, &now);
 }
+
+#[test]
+fn a_part_offset_constraint_has_its_own_kind_on_the_wire_and_round_trips() {
+    let wire = serde_json::json!({
+        "kind": "part-offset", "id": "held-key", "sourcePartId": KEY, "targetPartId": HELD,
+        "offset": {"x": 1.0, "y": -4.0}, "rotation": 0.0
+    });
+    let constraint: Constraint = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(constraint, held_by_part_axes());
+    assert_eq!(serde_json::to_value(&constraint).unwrap(), wire);
+}
+
+#[test]
+fn offset_keeps_its_board_axes_wire_shape() {
+    let encoded = serde_json::to_value(held_by_board_axes()).unwrap();
+    assert_eq!(encoded["kind"], "offset");
+    assert!(encoded.get("axes").is_none());
+}
+
+#[test]
+fn an_unknown_constraint_kind_is_refused_as_an_older_build_would_refuse_part_offset() {
+    let future = serde_json::json!({
+        "kind": "some-future-kind", "id": "held-key", "sourcePartId": KEY,
+        "targetPartId": HELD, "offset": {"x": 1.0, "y": -4.0}, "rotation": 0.0
+    });
+    assert!(serde_json::from_value::<Constraint>(future).is_err());
+}
+
+#[test]
+fn the_part_offset_kind_does_not_bump_the_format_version() {
+    assert_eq!(boardstudio_core::migrate::CURRENT_VERSION, 5);
+}
+
+#[test]
+fn previewing_a_drag_of_a_constrained_companion_leaves_its_stored_offset_untouched() {
+    for (kind, constraint) in [
+        ("offset", held_by_board_axes as fn() -> Constraint),
+        ("part-offset", held_by_part_axes as fn() -> Constraint),
+    ] {
+        let (mut engine, before) = splayed(constraint);
+        let start = part(&before, HELD).pose.at;
+        let _ = engine.handle(CoreRequest::Edit {
+            id: "preview".into(),
+            command: EditCommand {
+                base_revision: before.revision,
+                transaction_id: "drag".into(),
+                phase: EditPhase::Preview,
+                target_ids: vec![],
+                operation: EditOperation::MoveParts {
+                    positions: vec![Position {
+                        id: HELD.into(),
+                        at: Vec2 {
+                            x: start.x + 3.0,
+                            y: start.y,
+                        },
+                    }],
+                },
+            },
+        });
+        let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+        assert_eq!(
+            now.constraints, before.constraints,
+            "{kind} was changed by a preview"
+        );
+        assert_eq!(
+            part(&now, HELD).pose,
+            part(&before, HELD).pose,
+            "{kind} moved"
+        );
+    }
+}
+
+/// A mirrored pair of layouts. The left layout owns a free diode, held to a left key that is
+/// turned `left_rotation` degrees by a part-offset constraint. The right layout's mirror of
+/// that diode is derived by Core.
+fn mirrored_pair_with_held_left_component(left_rotation: f64) -> (CoreEngine, ProjectDoc) {
+    let mut doc = ProjectDoc::empty("pair", "Pair");
+    doc.definitions = serde_json::from_value(serde_json::json!([
+        {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
+        {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]},
+    ]))
+    .unwrap();
+    doc.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: vec!["left-part".into()],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    doc.parts.push(Part {
+        id: "left-part".into(),
+        definition_id: "diode".into(),
+        reference: "D1".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 2.0, y: 5.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: None,
+        keycap: None,
+        outline: None,
+        properties: None,
+        generator_parameters: None,
+    });
+    let mut engine = CoreEngine::new();
+    let (_, doc) = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    let left = Matrix {
+        id: "left-matrix".into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "switch".into(),
+        part_ids: vec![],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: Some(left_rotation),
+        edge_gap: None,
+        diode_direction: None,
+        row_offsets: vec![],
+        column_offsets: vec![],
+        column_staggers: vec![],
+        column_splays: vec![0.0],
+        column_origins: vec![],
+        cells: vec![MatrixCell {
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: None,
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    };
+    let layout = |id: &str, matrix_id: &str, part_ids: Vec<String>, mirror_link| Layout {
+        id: id.into(),
+        name: id.into(),
+        board_id: "board".into(),
+        matrix_id: matrix_id.into(),
+        part_ids,
+        mirror_link,
+    };
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::CreateMirroredPair {
+            left: layout("left-layout", "left-matrix", vec![], None),
+            right: layout(
+                "right-layout",
+                "right-matrix",
+                vec![],
+                Some(LayoutMirrorLink {
+                    source_id: "left-layout".into(),
+                    axis_x: 10.0,
+                }),
+            ),
+            matrix: Box::new(left),
+            definitions: None,
+        },
+    );
+    // The diode joins the left layout after the pair exists, which derives its mirror.
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: layout("left-layout", "left-matrix", vec!["left-part".into()], None),
+        },
+    );
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetConstraint {
+            constraint: Constraint::PartOffset {
+                id: "left-held".into(),
+                source_part_id: "matrix/left-matrix/r0c0".into(),
+                target_part_id: "left-part".into(),
+                offset: Vec2 { x: 1.0, y: -4.0 },
+                rotation: 0.0,
+            },
+        },
+    );
+    (engine, doc)
+}
+
+#[test]
+fn dragging_the_mirrored_half_retunes_a_held_part_offset_in_its_own_key_frame() {
+    let (mut engine, before) = mirrored_pair_with_held_left_component(30.0);
+    let left_key = part(&before, "matrix/left-matrix/r0c0").pose;
+    assert!(
+        (left_key.rotation - 30.0).abs() < 1e-9,
+        "the left key must be turned 30 degrees, found {}",
+        left_key.rotation
+    );
+    let right = "right-layout::mirror::left-part";
+    let start = part(&before, right).pose.at;
+    let requested = Vec2 {
+        x: start.x + 3.0,
+        y: start.y,
+    };
+    let (_, after) = edit(
+        &mut engine,
+        &before,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: right.into(),
+                at: requested,
+            }],
+        },
+    );
+    // The mirror of the requested right pose across the axis at x = 10.
+    let mirrored = Vec2 {
+        x: 2.0 * 10.0 - requested.x,
+        y: requested.y,
+    };
+    let landed = part(&after, "left-part").pose.at;
+    assert!(
+        (landed.x - mirrored.x).abs() < 1e-9 && (landed.y - mirrored.y).abs() < 1e-9,
+        "left component at {landed:?}, expected the mirror {mirrored:?}"
+    );
+    // The left component's world move, rotated into the left key's frame at 30 degrees:
+    // (dx cos 30 + dy sin 30, -dx sin 30 + dy cos 30).
+    let left_start = part(&before, "left-part").pose.at;
+    let (dx, dy) = (mirrored.x - left_start.x, mirrored.y - left_start.y);
+    let (c, s) = (30.0_f64.to_radians().cos(), 30.0_f64.to_radians().sin());
+    let Some(Constraint::PartOffset { offset, .. }) = after
+        .constraints
+        .iter()
+        .find(|constraint| constraint.target() == "left-part")
+    else {
+        panic!("the held left component lost its part-offset constraint");
+    };
+    assert!(
+        (offset.x - (1.0 + dx * c + dy * s)).abs() < 1e-9
+            && (offset.y - (-4.0 - dx * s + dy * c)).abs() < 1e-9,
+        "offset {offset:?} is not the mirrored drag in the key's axes"
+    );
+}
