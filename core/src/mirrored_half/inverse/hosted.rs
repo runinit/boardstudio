@@ -42,6 +42,9 @@ use crate::model::{
 use crate::modules::{ModuleConnection, ModuleDefinition, MountedModule};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// A member placement within this of the circuit's x axis (mm) and heading (degrees) is on it.
+const PLACEMENT_TOLERANCE: f64 = 1e-9;
+
 const SHARED_DEFINITION: &str = "a module definition is shared by both halves: the mirror and the source name the same \
      definition and its geometry is local to the module";
 
@@ -141,6 +144,9 @@ pub(super) fn translate(
                 };
             }
         }
+        // Keycap settings are keyed by board id and have no exception kind of their own; the
+        // ElectricalBoard exception governs a board's wiring configuration only (`SetWiringMode`),
+        // so a Local electrical board does not move the keycap settings off the pair.
         Op::SetKeycapBoard { board_id, change } => {
             if let Some(source) = source_board(links, board_id)? {
                 canonical.operation = Op::SetKeycapBoard {
@@ -163,7 +169,39 @@ pub(super) fn translate(
                 };
             }
         }
-        _ => unreachable!("only hosted, electrical and keycap families are routed here"),
+        // Every other family has its own translation in the parent module.
+        Op::MoveParts { .. }
+        | Op::AddPart { .. }
+        | Op::RemoveParts { .. }
+        | Op::RemoveMatrix { .. }
+        | Op::RemoveMatrixCells { .. }
+        | Op::RemoveMatrixRow { .. }
+        | Op::RemoveMatrixColumn { .. }
+        | Op::SetMatrixCellsEnabled { .. }
+        | Op::RemoveSelectedMatrixCells { .. }
+        | Op::SetMatrixSplay { .. }
+        | Op::SetMatrixPlacement { .. }
+        | Op::SetMatrix { .. }
+        | Op::EditKeymap { .. }
+        | Op::SetKeyBinding { .. }
+        | Op::ApplyMechanicalEdit { .. }
+        | Op::SetOutline { .. }
+        | Op::CopyOutline { .. }
+        | Op::SelectOutline { .. }
+        | Op::RenameOutline { .. }
+        | Op::RemoveOutline { .. }
+        | Op::ApplyOutlineEdit { .. }
+        | Op::SetLayout { .. }
+        | Op::CreateMirroredPair { .. }
+        | Op::SetConstraint { .. }
+        | Op::RemoveConstraint { .. }
+        | Op::ConvertOffsetConstraint { .. }
+        | Op::SetMechanical { .. }
+        | Op::SetCase { .. }
+        | Op::CreateMirroredHalf { .. }
+        | Op::ReplaceDocument { .. } => {
+            return Err("this family is not translated by the hosted inverse".into());
+        }
     }
     Ok(())
 }
@@ -294,7 +332,10 @@ fn source_connection(
         )?
     };
 
-    out.bus_id = if let Some(source) = unchanged(|a, b| a.bus_id == b.bus_id) {
+    out.bus_id = if payload.bus_id.is_empty() {
+        // No bus yet (a module attached before a bus exists) stays unassigned on the source.
+        String::new()
+    } else if let Some(source) = unchanged(|a, b| a.bus_id == b.bus_id) {
         source.bus_id.clone()
     } else {
         source_bus(from, to, &payload.bus_id).ok_or_else(|| {
@@ -400,6 +441,14 @@ fn source_module(
             )
         })
         .transpose()?;
+    // A mirror that shows no connection while its source has one (its connector is Omitted, so
+    // the forward rule cleared it) and still shows none has not edited the connection.
+    if let (Some(mirror), Some(current)) = (current_mirror, current_source)
+        && payload.connection.is_none()
+        && mirror.connection.is_none()
+    {
+        source.connection = current.connection.clone();
+    }
     // The pose of an unchanged mirror is the source's own, bit for bit.
     if let (Some(mirror), Some(current)) = (current_mirror, current_source)
         && mirror.at == payload.at
@@ -535,15 +584,24 @@ fn add_module(
         source_id = format!("{candidate}-{index}");
         index += 1;
     }
-    let mut source = source_module(links, pair, &source_id, instance, None, None)?;
-
     // The connector the operation creates takes `<module id>/vik-host-connector`: a mirror
-    // module's connector is planned as the mirror of the source module's own.
+    // module's connector is planned as the mirror of the source module's own. It does not exist
+    // yet, so it is staged as empty while the rest of the connection is translated.
     let creates_connector = connector.is_some()
         && instance.connection.as_ref().is_some_and(|connection| {
             connection.host_connector_part_id.is_empty()
                 || connection.host_connector_part_id == generated(&instance.id)
         });
+    let names_generated = creates_connector
+        && instance
+            .connection
+            .as_ref()
+            .is_some_and(|connection| !connection.host_connector_part_id.is_empty());
+    let mut staged = instance.clone();
+    if names_generated && let Some(connection) = staged.connection.as_mut() {
+        connection.host_connector_part_id = String::new();
+    }
+    let mut source = source_module(links, pair, &source_id, &staged, None, None)?;
     let mut planned = None;
     if creates_connector {
         let mirror_part = generated(&instance.id);
@@ -558,9 +616,7 @@ fn add_module(
                 "The generated host connector {mirror_part:?} already exists"
             ));
         }
-        if let Some(connection) = source.connection.as_mut()
-            && !connection.host_connector_part_id.is_empty()
-        {
+        if names_generated && let Some(connection) = source.connection.as_mut() {
             connection.host_connector_part_id = source_part.clone();
         }
         planned = Some(PartAddition {
@@ -756,6 +812,24 @@ fn embed_circuit(
         })
         .collect();
 
+    // The forward rule reflects members as independent parts (ADR-0010: position mirrored,
+    // heading `180 - r`), which equals embedding at the inverse pose only for members on the
+    // circuit's x axis and unturned. A member elsewhere would land mirrored, not as embedded, and
+    // a source circuit that lands it would need a reflected definition. Refuse instead.
+    for member in &circuit.parts {
+        let turn = member.pose.rotation.rem_euclid(360.0);
+        if member.pose.at.y.abs() > PLACEMENT_TOLERANCE
+            || turn.min(360.0 - turn) > PLACEMENT_TOLERANCE
+        {
+            return Err(format!(
+                "The circuit member {:?} sits off the circuit's x axis or is turned inside it, so \
+                 embedding the circuit on the mirror half would not keep its placement once the \
+                 source half is reflected; embed it on the source half",
+                member.id
+            ));
+        }
+    }
+
     let at = source_pose(pair.mapping, pose.at, pose.rotation);
     canonical.operation = EditOperation::EmbedModuleCircuit {
         id: source_id.clone(),
@@ -802,22 +876,30 @@ fn remove_circuit(links: &Links<'_>, id: &str, canonical: &mut Canonical) -> Res
     Ok(())
 }
 
-/// Whether `id`, a linked mirror part, is translated as a linked part. A member of a linked
-/// embedded circuit is: its source member must be the namespace's mirror image and a member of
-/// the source circuit. A member of a Local circuit executes as written; of an Omitted one, the
-/// request is refused.
-pub(super) fn member_is_linked(
+/// How a linked mirror part relates to its source through its embedded circuit.
+pub(super) enum MemberState {
+    /// Linked: its source is the namespace's mirror image and a member of the source circuit.
+    Linked,
+    /// Its circuit is kept Local: the part is the mirror's own.
+    Local,
+    /// Its circuit is Omitted: the part has no geometry to edit.
+    Omitted,
+}
+
+/// The state of `id`, a linked mirror part. A member of a linked embedded circuit must have the
+/// namespace's mirror image as its source and that source must be a member of the source circuit.
+pub(super) fn member_state(
     links: &Links<'_>,
     id: &str,
     link: Link<'_>,
-) -> Result<bool, String> {
+) -> Result<MemberState, String> {
     let Some(circuit) = links
         .document
         .embedded_circuits
         .iter()
         .find(|circuit| circuit.part_ids.iter().any(|member| member == id))
     else {
-        return Ok(true);
+        return Ok(MemberState::Linked);
     };
     let Some(owner) = link
         .pair
@@ -829,13 +911,13 @@ pub(super) fn member_is_linked(
                 && correspondence.mirror_id == circuit.id
         })
     else {
-        return Ok(true);
+        return Ok(MemberState::Linked);
     };
     if let Some(overlay) = link.pair.halves.overlay_of(owner) {
-        return match overlay.state {
-            MirroredExceptionState::Local => Ok(false),
-            MirroredExceptionState::Omitted => Err(Links::omitted(id)),
-        };
+        return Ok(match overlay.state {
+            MirroredExceptionState::Local => MemberState::Local,
+            MirroredExceptionState::Omitted => MemberState::Omitted,
+        });
     }
     let source_circuit = links
         .document
@@ -863,7 +945,21 @@ pub(super) fn member_is_linked(
             circuit.id
         ));
     }
-    Ok(true)
+    Ok(MemberState::Linked)
+}
+
+/// Whether `id`, a linked mirror part, is translated as a linked part: a member of a Local
+/// circuit executes as written; of an Omitted one, the request is refused.
+pub(super) fn member_is_linked(
+    links: &Links<'_>,
+    id: &str,
+    link: Link<'_>,
+) -> Result<bool, String> {
+    match member_state(links, id, link)? {
+        MemberState::Linked => Ok(true),
+        MemberState::Local => Ok(false),
+        MemberState::Omitted => Err(Links::omitted(id)),
+    }
 }
 
 // ---- nets -----------------------------------------------------------------------------------
@@ -913,12 +1009,21 @@ fn set_net(links: &Links<'_>, net: &Net, canonical: &mut Canonical) -> Result<()
     let split = |pins: &[Pin]| -> Result<(Vec<Pin>, Vec<Pin>), String> {
         let (mut mapped, mut own) = (Vec::new(), Vec::new());
         for pin in pins {
+            // A pin is the source's only where its part is a linked mirror: a part kept Local, an
+            // Omitted part, and a member of a Local or Omitted circuit are the mirror's own.
             match links.target(MirroredItemKind::Part, &pin.part_id)? {
-                Target::Linked(owner) => mapped.push(Pin {
-                    part_id: owner.correspondence.source_id.clone(),
-                    pad_id: pin.pad_id.clone(),
-                }),
-                Target::NotMirror | Target::Local | Target::Omitted => own.push(pin.clone()),
+                Target::Linked(owner)
+                    if matches!(
+                        member_state(links, &pin.part_id, owner)?,
+                        MemberState::Linked
+                    ) =>
+                {
+                    mapped.push(Pin {
+                        part_id: owner.correspondence.source_id.clone(),
+                        pad_id: pin.pad_id.clone(),
+                    });
+                }
+                _ => own.push(pin.clone()),
             }
         }
         Ok((mapped, own))

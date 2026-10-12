@@ -98,3 +98,33 @@ id, namespace, connector, net pin/pad identity, mirror-only pins, source-only pi
 x3 and payload, scan/wiring owner, shared definition): all killed (one survivor, circuit
 namespace, was killed after the test was tightened). Logs in `.evidence/ticket112/`. Tests were
 written after the code except the ledger change; red-first was not observed for this slice.
+
+### Review round (2026-10-12), red first
+
+Each item below had a failing test before its fix (the five tests failed, then went green):
+
+- **Omitted connector.** A mirror module whose connector is Omitted shows `connection: null`
+  (forward clears it). An edit that leaves it null keeps the source's connection; a mirror that
+  shows a connection and then drops it still disconnects the source.
+- **Generated host connector.** An explicit `<module id>/vik-host-connector` is staged as empty
+  while the module is translated, so it is planned (`PartAddition`) like the empty-id case and the
+  source connection names `<source id>/vik-host-connector`. An empty bus id stays empty.
+  `mirror_reference` is checked against what `modules::set` allocates on the mirror board.
+- **Circuit placement (choice: refuse).** The forward rule reflects circuit members as independent
+  parts (position mirrored, heading `180 - r`). Embedding at the inverse pose lands a member as
+  typed only when it sits on the circuit's x axis and is unturned; otherwise it lands at
+  `(x, -y)` with a different heading, and a source circuit that lands it as typed would need a
+  reflected module definition (shared definitions are not transformed). A mirror embed with a
+  member off the axis or turned is therefore refused, with a message to embed on the source half.
+  This is an ADR-0010 consequence, not a 112 defect. Accepted embeds are tested to land each member
+  where the forward rule puts it, for both sides.
+- **Net pins and circuit exceptions.** A pin on a member of a Local or Omitted circuit is the
+  mirror's own pin (`member_state`), so it can no longer be mapped onto the source net.
+- **Standards.** The ledger test uses linked requests and asserts each is rewritten. Omitted
+  connector, rotated-map source-half embed and `J_VIK` reference cases are added. The dispatch has
+  no wildcard arm. `SetKeycapBoard` does not consult the ElectricalBoard exception: keycap
+  settings are keyed by board id and have no exception kind; that exception governs wiring only.
+
+Mutation round 2: 27 mutations (the 20 above plus connection retention, generated-connector
+staging, placement x2, circuit-exception pins, connector reference, Omitted circuit member), all
+killed; logs `.evidence/ticket112/mutation-check-round2.log`.

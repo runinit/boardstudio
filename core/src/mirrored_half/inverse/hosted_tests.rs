@@ -290,32 +290,59 @@ fn source_request(x: f64, y: f64, rotation: f64) -> Value {
 // ---- ledger --------------------------------------------------------------------------------
 
 #[test]
-fn every_family_of_this_slice_has_a_ledger_entry_and_none_is_left_unsupported() {
-    let definition = json!({"id": "d", "name": "n", "family": "f", "variant": "v",
-        "source": {"repository": "r", "revision": "v", "path": "p", "license": "MIT"},
-        "board": {"contours": []}, "electrical": {"protocol": "pass-through"}});
-    let translated = [
-        module_request(module("m", "b", "i", 0.0, 0.0, Value::Null)),
-        json!({"kind": "remove-mounted-module", "id": "m"}),
-        json!({"kind": "embed-module-circuit", "id": "c", "definition": definition,
-               "hostBoardId": "b", "pose": {"at": {"x": 0, "y": 0}, "rotation": 0},
-               "side": "front", "joins": {}}),
-        json!({"kind": "remove-embedded-circuit", "id": "c"}),
-        json!({"kind": "set-net", "net": {"id": "n", "name": "N", "pins": []}}),
-        json!({"kind": "set-input-scan-mode", "partId": "p", "mode": "matrix"}),
-        json!({"kind": "set-wiring-mode", "boardId": "b", "mode": "direct"}),
-        json!({"kind": "set-keycap-board", "boardId": "b",
+fn every_family_of_this_slice_has_a_ledger_entry_and_linked_requests_are_rewritten() {
+    // Each request names a linked mirror item of the fixture, so `Translated` is not a
+    // pass-through: the operation that comes back differs from the one that went in.
+    let mut module_edit = module_request(module(
+        "right-module",
+        "right",
+        "inst-right",
+        180.0,
+        100.0,
+        connection("right/CONN", "right/bus", Some("right-up")),
+    ));
+    module_edit["instance"]["at"]["y"] = json!(7);
+    let linked = [
+        module_edit,
+        json!({"kind": "remove-mounted-module", "id": "right-module"}),
+        json!({"kind": "embed-module-circuit", "id": "right-extra",
+               "definition": circuit_definition(), "hostBoardId": "right",
+               "pose": {"at": {"x": 180, "y": 7}, "rotation": 100}, "side": "front",
+               "joins": {}}),
+        json!({"kind": "remove-embedded-circuit", "id": "right-circuit"}),
+        json!({"kind": "set-net", "net": {"id": "net-right", "name": "RENAMED",
+               "pins": [pin("right/FREE", "pad-f")]}}),
+        json!({"kind": "set-input-scan-mode", "partId": "matrix/right-keys/r0c0",
+               "mode": "direct"}),
+        json!({"kind": "set-wiring-mode", "boardId": "right", "mode": "direct"}),
+        json!({"kind": "set-keycap-board", "boardId": "right",
                "change": {"kind": "color", "value": "#ffffff"}}),
-        json!({"kind": "set-matrix-keycaps", "matrixId": "m",
+        json!({"kind": "set-matrix-keycaps", "matrixId": "right-keys",
                "change": {"kind": "first-row", "value": 2}}),
-        json!({"kind": "set-keycap-key", "keyId": "k",
+        json!({"kind": "set-keycap-key", "keyId": "matrix/right-keys/r0c0",
                "change": {"kind": "legend", "value": "A"}}),
+        json!({"kind": "move-parts", "positions": [
+               {"id": "embedded/right-circuit/U1", "at": {"x": 180, "y": 9}}]}),
+        json!({"kind": "remove-parts", "ids": ["embedded/right-circuit/U1"]}),
     ];
-    for request in translated {
-        assert_eq!(coverage(request.clone()), Coverage::Translated, "{request}");
+    for request in linked {
+        let result = run(&fixture(), &request).unwrap_or_else(|error| panic!("{request}: {error}"));
+        assert_eq!(result.coverage, Coverage::Translated, "{request}");
+        assert_ne!(
+            serde_json::to_value(&result.operation).unwrap(),
+            serde_json::to_value(op(request.clone())).unwrap(),
+            "a linked mirror request must be rewritten: {request}"
+        );
     }
+    // A request on a source or unpaired target is `Translated` and passes through.
+    let source = json!({"kind": "set-wiring-mode", "boardId": "left", "mode": "direct"});
+    assert_eq!(
+        run(&fixture(), &source).unwrap().coverage,
+        Coverage::Translated
+    );
+    unchanged(&fixture(), source);
     // A shared definition executes once, untransformed.
-    let shared = json!({"kind": "set-module-definition", "definition": definition});
+    let shared = json!({"kind": "set-module-definition", "definition": circuit_definition()});
     assert!(
         matches!(coverage(shared.clone()), Coverage::DeliberatelyUnchanged(reason) if !reason.is_empty())
     );
@@ -1015,4 +1042,302 @@ fn an_unpaired_document_runs_every_hosted_request_as_written() {
     ] {
         unchanged(&unpaired, request);
     }
+}
+
+// ---- review round: connection, generated connector, placement, circuit exceptions ----------
+
+#[test]
+fn an_unrelated_edit_to_a_module_whose_connector_is_omitted_keeps_the_source_connection() {
+    // Forward derivation clears the mirror's connection when its connector is Omitted, so the
+    // mirror shows `connection: null`. An edit that does not touch it must not clear the source's.
+    let mut document = with_exception("part", "right/CONN", MirroredExceptionState::Omitted);
+    document.modules[1].connection = None;
+    let mut request = module_request(module(
+        "right-module",
+        "right",
+        "inst-right",
+        196.0,
+        168.0,
+        Value::Null,
+    ));
+    request["instance"]["at"]["y"] = json!(3);
+    request["instance"]["gap"] = json!(0.9);
+    let result = run(&document, &request).unwrap();
+    let EditOperation::SetMountedModule { instance, .. } = result.operation else {
+        panic!();
+    };
+    assert_eq!(instance.gap, 0.9);
+    assert_eq!(instance.connection, document.modules[0].connection);
+    assert_eq!(
+        (instance.at, instance.rotation),
+        (document.modules[0].at, document.modules[0].rotation)
+    );
+    // Disconnecting a module that the mirror still shows connected is a real edit.
+    let mut disconnect = module_request(module(
+        "right-module",
+        "right",
+        "inst-right",
+        196.0,
+        168.0,
+        Value::Null,
+    ));
+    disconnect["instance"]["at"]["y"] = json!(3);
+    let result = run(&fixture(), &disconnect).unwrap();
+    let EditOperation::SetMountedModule { instance, .. } = result.operation else {
+        panic!();
+    };
+    assert_eq!(instance.connection, None);
+}
+
+fn vik_connector() -> Value {
+    serde_json::from_str(include_str!("vik_host_connector.json")).unwrap()
+}
+
+/// A paired document whose mirror board `pcb` can place a real VIK host connector.
+fn vik_document() -> ProjectDoc {
+    let mut document = serde_json::to_value(ProjectDoc::empty("vik", "Vik")).unwrap();
+    document["boards"] = json!([
+        {"id": "src", "name": "src", "partIds": [], "netIds": [], "outlineIds": [], "thickness": 1.6},
+        {"id": "pcb", "name": "pcb", "partIds": ["pcb/existing"], "netIds": [],
+         "outlineIds": ["outline"], "thickness": 1.6}]);
+    document["parts"] = json!([part("pcb/existing", "x", "J_VIK1", 30.0, 30.0, 0.0)]);
+    document["outline"] = json!([{"kind": "rect", "id": "outline", "center": {"x": 0, "y": 0},
+        "size": {"x": 80, "y": 80}, "radius": 0, "operation": "add"}]);
+    document["hardware"] = json!({"topology": "split", "transport": "wired", "instances": [],
+        "boards": [], "pairs": [{
+            "id": "pair", "members": ["src", "pcb"],
+            "mapping": {"at": {"x": 200, "y": 0}, "rotation": 0},
+            "construction": {"method": "printed", "mount": "rigid",
+                "integratedPlateFrame": false, "plateThickness": 1.5, "plateFoamThickness": 0,
+                "bottomFoamThickness": 0, "bottomThickness": 2, "plateToPcb": 3.5,
+                "wallThickness": 2, "clearance": 0.2},
+            "halves": {"sourceBoardId": "src", "mirrorBoardId": "pcb",
+                "correspondences": [], "exceptions": []}}]});
+    serde_json::from_value(document).unwrap()
+}
+
+fn vik_module_definition() -> Value {
+    json!({"id": "module-test", "name": "Test module", "family": "test", "variant": "source",
+        "source": {"repository": "https://github.com/sadekbaroudi/vik",
+                   "revision": "cd5d16e4cd9137a229fc673412a89d75f4e64553",
+                   "path": "pcb/test", "license": "CERN-OHL-S-2.0"},
+        "board": {"contours": [{"hole": false, "points": [
+            {"x": -10, "y": -8}, {"x": 10, "y": -8}, {"x": 10, "y": 8}, {"x": -10, "y": 8}]}]},
+        "mounts": [], "volumes": [], "openings": [], "models": [], "gates": [], "interfaces": [],
+        "electrical": {"protocol": "pass-through", "requiredSignals": [], "logicVoltage": 3.3},
+        "constituents": []})
+}
+
+fn vik_request(connector_id: &str) -> Value {
+    json!({"kind": "set-mounted-module",
+        "instance": {"id": "pcb-module", "definitionId": "module-test", "hostBoardId": "pcb",
+            "hostFace": "front", "facingFace": "back", "at": {"x": 0, "y": 0}, "rotation": 0,
+            "gap": 3, "attachment": "board", "serviceClearance": 0, "detached": false,
+            "connection": {"hostConnectorPartId": connector_id, "modulePortId": "input",
+                "busId": "", "assignments": {}, "cableType": "type-a-12-0.5",
+                "railVoltages": {}}},
+        "definition": vik_module_definition(), "hostConnectorDefinition": vik_connector()})
+}
+
+#[test]
+fn an_explicit_generated_connector_id_is_planned_like_an_empty_one() {
+    let document = vik_document();
+    for connector_id in ["pcb-module/vik-host-connector", ""] {
+        let result = run(&document, &vik_request(connector_id))
+            .unwrap_or_else(|error| panic!("{connector_id:?}: {error}"));
+        assert_eq!(result.additions.len(), 1, "{connector_id:?}");
+        assert_eq!(
+            result.additions[0].mirror_id,
+            "pcb-module/vik-host-connector"
+        );
+        assert_eq!(
+            result.additions[0].source_id,
+            "src-module/vik-host-connector"
+        );
+        let EditOperation::SetMountedModule { instance, .. } = &result.operation else {
+            panic!();
+        };
+        let expected = if connector_id.is_empty() {
+            ""
+        } else {
+            "src-module/vik-host-connector"
+        };
+        assert_eq!(
+            instance.connection.as_ref().unwrap().host_connector_part_id,
+            expected
+        );
+    }
+}
+
+#[test]
+fn the_planned_connector_reference_is_what_the_module_edit_allocates() {
+    let document = vik_document();
+    let request = vik_request("pcb-module/vik-host-connector");
+    let result = run(&document, &request).unwrap();
+    let EditOperation::SetMountedModule {
+        instance,
+        definition,
+        host_connector_definition,
+    } = op(request)
+    else {
+        panic!();
+    };
+    let mut executed = document.clone();
+    crate::modules::set(
+        &mut executed,
+        &instance,
+        definition.as_deref(),
+        host_connector_definition.as_deref(),
+    )
+    .expect("the mirror edit executes");
+    let created = executed
+        .parts
+        .iter()
+        .find(|part| part.id == "pcb-module/vik-host-connector")
+        .expect("the connector is created");
+    assert_eq!(created.reference, "J_VIK2", "J_VIK1 is taken on the board");
+    assert_eq!(result.additions[0].mirror_reference, created.reference);
+}
+
+fn circuit_with_member(y: f64, rotation: f64) -> Value {
+    let mut definition = circuit_definition();
+    definition["circuit"]["parts"][0]["pose"] =
+        json!({"at": {"x": 1, "y": y}, "rotation": rotation});
+    definition
+}
+
+#[test]
+fn a_mirror_embed_whose_members_would_not_land_as_typed_is_refused() {
+    // The forward rule reflects members as independent parts (ADR-0010), so a member off the
+    // circuit's x axis or turned inside it would land mirrored, not as embedded.
+    for (y, rotation) in [(2.0, 0.0), (0.0, 30.0)] {
+        let request = json!({"kind": "embed-module-circuit", "id": "right-extra",
+            "definition": circuit_with_member(y, rotation), "hostBoardId": "right",
+            "pose": {"at": {"x": 180, "y": 7}, "rotation": 100}, "side": "front", "joins": {}});
+        let message = refused(&fixture(), request.clone());
+        assert!(message.contains("placement"), "{message}");
+        // The same circuit embedded on the source board is its own edit.
+        let mut source = request;
+        source["hostBoardId"] = json!("left");
+        source["id"] = json!("left-extra");
+        unchanged(&fixture(), source);
+    }
+}
+
+#[test]
+fn an_accepted_mirror_embed_lands_each_member_where_the_forward_rule_puts_it() {
+    let definition: crate::modules::ModuleDefinition =
+        serde_json::from_value(circuit_definition()).unwrap();
+    for side in [crate::model::Side::Front, crate::model::Side::Back] {
+        let typed = Pose2 {
+            at: Vec2 { x: 180.0, y: 7.0 },
+            rotation: 100.0,
+        };
+        let request = EditOperation::EmbedModuleCircuit {
+            id: "right-extra".into(),
+            definition: definition.clone(),
+            host_board_id: "right".into(),
+            pose: typed,
+            side: side.clone(),
+            joins: Default::default(),
+        };
+        let result = canonicalize(&fixture(), &request).unwrap();
+        let EditOperation::EmbedModuleCircuit {
+            id,
+            definition,
+            host_board_id,
+            pose,
+            side,
+            joins,
+        } = result.operation
+        else {
+            panic!();
+        };
+        let mut mirror = fixture();
+        crate::modules::embed(
+            &mut mirror,
+            "right-extra",
+            &definition,
+            "right",
+            typed,
+            side.clone(),
+            &Default::default(),
+        )
+        .unwrap();
+        let mut source = fixture();
+        crate::modules::embed(
+            &mut source,
+            &id,
+            &definition,
+            &host_board_id,
+            pose,
+            side,
+            &joins,
+        )
+        .unwrap();
+        for member in ["U1", "U2"] {
+            let mirror_pose = mirror
+                .parts
+                .iter()
+                .find(|part| part.id == format!("embedded/right-extra/{member}"))
+                .unwrap()
+                .pose;
+            let source_pose = source
+                .parts
+                .iter()
+                .find(|part| part.id == format!("embedded/{id}/{member}"))
+                .unwrap()
+                .pose;
+            // The axis map and heading rule, by hand: (x, y) -> (200 - x, y), r -> 180 - r.
+            let expected = (
+                200.0 - source_pose.at.x,
+                source_pose.at.y,
+                (180.0 - source_pose.rotation).rem_euclid(360.0),
+            );
+            for (actual, wanted) in [
+                (mirror_pose.at.x, expected.0),
+                (mirror_pose.at.y, expected.1),
+                (mirror_pose.rotation.rem_euclid(360.0), expected.2),
+            ] {
+                assert!(
+                    (actual - wanted).abs() < 1e-9,
+                    "{member}: {actual} is not {wanted}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_pin_on_a_member_of_a_local_circuit_is_the_mirrors_own_pin() {
+    let document = with_exception(
+        "embedded-circuit",
+        "right-circuit",
+        MirroredExceptionState::Local,
+    );
+    // Unchanged: the source net is exactly the source's own.
+    let mirror = serde_json::to_value(&document.nets[1]).unwrap();
+    let result = run(&document, &json!({"kind": "set-net", "net": mirror})).unwrap();
+    let EditOperation::SetNet { net } = result.operation else {
+        panic!();
+    };
+    assert_eq!(net, document.nets[0]);
+    // Dropping the Local circuit member's pin changes a pin the source cannot see.
+    let request = json!({"kind": "set-net", "net": {"id": "net-right", "name": "SIGNAL", "pins": [
+        pin("right/CONN", "pad-two"), pin("right/FREE", "pad-f")]}});
+    let message = refused(&document, request.clone());
+    assert!(message.contains("no source"), "{message}");
+    // The same edit with the circuit linked removes the source's member pin.
+    let result = run(&fixture(), &request).unwrap();
+    assert!(
+        !net_pins(&result.operation).contains(&("embedded/left-circuit/U1".into(), "pad-1".into()))
+    );
+}
+
+#[test]
+fn a_rotated_map_source_half_embed_runs_as_written() {
+    let request = json!({"kind": "embed-module-circuit", "id": "left-extra",
+        "definition": circuit_definition(), "hostBoardId": "left",
+        "pose": {"at": {"x": 1, "y": 2}, "rotation": 33}, "side": "front", "joins": {}});
+    unchanged(&with_mapping(ROTATED), request);
 }
