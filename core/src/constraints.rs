@@ -103,6 +103,25 @@ impl Driver<'_> {
     }
 }
 
+fn claim_id<'a>(ids: &mut BTreeSet<&'a str>, id: &'a str) -> Result<(), String> {
+    if id.trim().is_empty() || !ids.insert(id) {
+        return Err(format!("Duplicate or empty constraint ID {id}"));
+    }
+    Ok(())
+}
+
+/// Gives `authority` its one driving record; a second one is refused.
+fn claim_target<'a>(
+    by_target: &mut BTreeMap<String, Driver<'a>>,
+    authority: &str,
+    driver: Driver<'a>,
+) -> Result<(), String> {
+    if by_target.insert(authority.to_owned(), driver).is_some() {
+        return Err(format!("Part {authority} has multiple constraints"));
+    }
+    Ok(())
+}
+
 /// Resolves the document's stored constraints together with `framed` relations in one
 /// source-first graph. Framed relations are private to this module until the persisted arm is
 /// activated; a document never supplies them, so production resolution is unchanged.
@@ -119,27 +138,18 @@ fn resolve_prepared(
     let mut by_target: BTreeMap<String, Driver> = BTreeMap::new();
     let mut ids = BTreeSet::new();
     for constraint in &doc.constraints {
-        if constraint.id().trim().is_empty() || !ids.insert(constraint.id()) {
-            return Err(format!(
-                "Duplicate or empty constraint ID {}",
-                constraint.id()
-            ));
-        }
+        claim_id(&mut ids, constraint.id())?;
         if !parts.contains_key(constraint.source()) || !parts.contains_key(constraint.target()) {
             return Err(format!(
                 "Constraint {} references a missing part",
                 constraint.id()
             ));
         }
-        if by_target
-            .insert(constraint.target().to_string(), Driver::Legacy(constraint))
-            .is_some()
-        {
-            return Err(format!(
-                "Part {} has multiple constraints",
-                constraint.target()
-            ));
-        }
+        claim_target(
+            &mut by_target,
+            constraint.target(),
+            Driver::Legacy(constraint),
+        )?;
         if !constraint.is_finite() {
             return Err(format!(
                 "Constraint {} has a non-finite value",
@@ -154,9 +164,7 @@ fn resolve_prepared(
             target,
             relation,
         } = record;
-        if id.trim().is_empty() || !ids.insert(id.as_str()) {
-            return Err(format!("Duplicate or empty constraint ID {id}"));
-        }
+        claim_id(&mut ids, id)?;
         let source = endpoints::resolve_endpoint(doc, id, "source", source)?;
         let target = endpoints::resolve_endpoint(doc, id, "target", target)?;
         relation
@@ -181,15 +189,7 @@ fn resolve_prepared(
             target_owner: target.owner,
             relation,
         });
-        if by_target
-            .insert(target.authoritative_id.clone(), driver)
-            .is_some()
-        {
-            return Err(format!(
-                "Part {} has multiple constraints",
-                target.authoritative_id
-            ));
-        }
+        claim_target(&mut by_target, &target.authoritative_id, driver)?;
     }
 
     // Assemblies are implicit local placements; explicit constraints take priority.
