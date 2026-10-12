@@ -736,21 +736,18 @@ fn set_component_pose(
         .iter_mut()
         .find(|constraint| constraint.target() == id)
     {
-        if matches!(constraint, Constraint::Mirror { .. }) {
+        let delta = Vec2 {
+            x: pose.at.x - current.at.x,
+            y: pose.at.y - current.at.y,
+        };
+        let turn = Some(pose.rotation - current.rotation);
+        if crate::constraints::retune_offset(&doc.parts, constraint, delta, turn)?
+            == crate::constraints::Retune::Mirror
+        {
             return Err(format!(
                 "Cannot move mirrored component because source {id} is controlled by a mirror constraint"
             ));
         }
-        let source = crate::constraints::source_pose(&doc.parts, constraint)?;
-        crate::constraints::retune_offset(
-            constraint,
-            source,
-            Vec2 {
-                x: pose.at.x - current.at.x,
-                y: pose.at.y - current.at.y,
-            },
-            Some(pose.rotation - current.rotation),
-        );
     }
     let part = doc
         .parts
@@ -991,11 +988,8 @@ pub(crate) fn move_keys(
             .iter()
             .find(|constraint| constraint.target() == position.id)
         {
-            if matches!(constraint, Constraint::Mirror { .. }) {
-                return Err(format!(
-                    "Part {} is controlled by a mirror constraint and cannot be dragged",
-                    position.id
-                ));
+            if constraint.offset_axes().is_none() {
+                return Err(crate::constraints::mirror_drag_refusal(&position.id));
             }
             let mut pose = part.pose;
             pose.at = position.at;

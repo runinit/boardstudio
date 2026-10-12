@@ -14,7 +14,6 @@ mod inputs;
 mod keycaps;
 mod keymap;
 mod matrix;
-pub use matrix::layout::is_matrix_key;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;
@@ -30,6 +29,7 @@ mod validate;
 
 use geometry::{OutlineCache, outlines};
 use matrix::layout;
+pub use matrix::layout::is_matrix_key;
 use model::*;
 use std::collections::{BTreeMap, BTreeSet};
 use wasm_bindgen::prelude::*;
@@ -1238,14 +1238,11 @@ fn apply(
                     .iter_mut()
                     .find(|constraint| constraint.target() == position.id)
                 {
-                    if matches!(constraint, Constraint::Mirror { .. }) {
-                        return Err(format!(
-                            "Part {} is controlled by a mirror constraint and cannot be dragged",
-                            position.id
-                        ));
+                    if constraints::retune_offset(&doc.parts, constraint, delta, None)?
+                        == constraints::Retune::Mirror
+                    {
+                        return Err(constraints::mirror_drag_refusal(&position.id));
                     }
-                    let source = constraints::source_pose(&doc.parts, constraint)?;
-                    constraints::retune_offset(constraint, source, delta, None);
                     changed.push(position.id.clone());
                     continue;
                 }

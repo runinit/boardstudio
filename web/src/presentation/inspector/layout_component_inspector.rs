@@ -97,15 +97,6 @@ pub enum LayoutConstraintValues {
     Mirror { axis: MirrorAxis, coordinate: f64 },
 }
 
-/// The axes an offset constraint runs along, or `None` for a mirror.
-pub(crate) fn offset_axes_of(constraint: &Constraint) -> Option<OffsetAxes> {
-    match constraint {
-        Constraint::Offset { .. } => Some(OffsetAxes::Board),
-        Constraint::PartOffset { .. } => Some(OffsetAxes::Part),
-        Constraint::Mirror { .. } => None,
-    }
-}
-
 /// A new offset from a matrix key follows the key's own axes; any other source uses the board's.
 pub(crate) fn default_offset_axes(source_is_matrix_key: bool) -> OffsetAxes {
     if source_is_matrix_key {
@@ -115,16 +106,28 @@ pub(crate) fn default_offset_axes(source_is_matrix_key: bool) -> OffsetAxes {
     }
 }
 
-/// The offset and turn an offset constraint stores, whichever axes they run along.
-pub(crate) fn offset_numbers(constraint: &Constraint) -> Option<(Vec2, f64)> {
-    match constraint {
-        Constraint::Offset {
-            offset, rotation, ..
-        }
-        | Constraint::PartOffset {
-            offset, rotation, ..
-        } => Some((*offset, *rotation)),
-        Constraint::Mirror { .. } => None,
+/// The default axes for an offset from the board part `source_id`.
+fn default_axes_for_source(board_parts: &[BoardPartChoice], source_id: &str) -> OffsetAxes {
+    default_offset_axes(
+        board_parts
+            .iter()
+            .any(|part| part.id == source_id && part.matrix_key),
+    )
+}
+
+/// The value the Offset axes `<select>` uses for `axes`, and the inverse.
+fn offset_axes_value(axes: OffsetAxes) -> &'static str {
+    match axes {
+        OffsetAxes::Board => "board",
+        OffsetAxes::Part => "part",
+    }
+}
+
+fn offset_axes_from_value(value: &str) -> OffsetAxes {
+    if value == offset_axes_value(OffsetAxes::Part) {
+        OffsetAxes::Part
+    } else {
+        OffsetAxes::Board
     }
 }
 
@@ -160,14 +163,11 @@ pub(crate) fn offset_drafts(
                 .map(|part| part.id.clone())
         })
         .unwrap_or_default();
-    let source_is_matrix_key = board_parts
-        .iter()
-        .any(|part| part.id == source_part_id && part.matrix_key);
     let axes = constraint
-        .and_then(offset_axes_of)
-        .unwrap_or_else(|| default_offset_axes(source_is_matrix_key));
+        .and_then(Constraint::offset_axes)
+        .unwrap_or_else(|| default_axes_for_source(board_parts, &source_part_id));
     let (offset, rotation) = constraint
-        .and_then(offset_numbers)
+        .and_then(Constraint::offset_numbers)
         .unwrap_or((Vec2::default(), 0.0));
     OffsetDrafts {
         source_part_id,
@@ -302,8 +302,8 @@ fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
 #[cfg(test)]
 mod offset_axes_tests {
     use super::{
-        BoardPartChoice, OffsetDrafts, default_offset_axes, offset_axes_of, offset_drafts,
-        offset_numbers, offset_values,
+        BoardPartChoice, OffsetDrafts, default_offset_axes, offset_axes_from_value,
+        offset_axes_value, offset_drafts, offset_values,
     };
     use crate::presentation::inspector::LayoutConstraintValues;
     use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
@@ -340,15 +340,24 @@ mod offset_axes_tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
+    fn the_axes_select_value_round_trips_for_both_axes() {
+        for axes in [OffsetAxes::Board, OffsetAxes::Part] {
+            assert_eq!(offset_axes_from_value(offset_axes_value(axes)), axes);
+        }
+        assert_eq!(offset_axes_value(OffsetAxes::Board), "board");
+        assert_eq!(offset_axes_value(OffsetAxes::Part), "part");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn the_axes_choice_and_the_numbers_read_both_offset_kinds() {
         let (board, part, mirror) = offsets();
-        assert_eq!(offset_axes_of(&board), Some(OffsetAxes::Board));
-        assert_eq!(offset_axes_of(&part), Some(OffsetAxes::Part));
-        assert_eq!(offset_axes_of(&mirror), None);
+        assert_eq!(board.offset_axes(), Some(OffsetAxes::Board));
+        assert_eq!(part.offset_axes(), Some(OffsetAxes::Part));
+        assert_eq!(mirror.offset_axes(), None);
         let numbers = (Vec2 { x: 1.0, y: -4.0 }, 5.0);
-        assert_eq!(offset_numbers(&board), Some(numbers));
-        assert_eq!(offset_numbers(&part), Some(numbers));
-        assert_eq!(offset_numbers(&mirror), None);
+        assert_eq!(board.offset_numbers(), Some(numbers));
+        assert_eq!(part.offset_numbers(), Some(numbers));
+        assert_eq!(mirror.offset_numbers(), None);
     }
 
     /// A key, a diode and a plain part, in board order.
@@ -550,12 +559,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         &owner.part_id,
     );
     let mut source_part_id = use_signal(|| drafts.source_part_id.clone());
-    let matrix_key_ids: Vec<String> = projection
-        .board_parts
-        .iter()
-        .filter(|part| part.matrix_key)
-        .map(|part| part.id.clone())
-        .collect();
     let mut offset_axes = use_signal(|| drafts.axes);
     let mut offset_x = use_signal(|| drafts.offset_x.clone());
     let mut offset_y = use_signal(|| drafts.offset_y.clone());
@@ -863,7 +866,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let saved_offset_id = projection
             .active_constraint
             .as_ref()
-            .filter(|constraint| offset_axes_of(constraint).is_some())
+            .filter(|constraint| constraint.offset_axes().is_some())
             .map(|constraint| constraint.id().to_owned());
         let mut offset_axes = offset_axes;
         move |to: OffsetAxes| {
@@ -1102,12 +1105,15 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                         }
                         label { "Source part"
-                            select { aria_label: "Constraint source part", value: "{source_part_id}", onchange: move |event| {
-                                    let value = event.value();
-                                    if !has_active_constraint {
-                                        offset_axes.set(default_offset_axes(matrix_key_ids.contains(&value)));
+                            select { aria_label: "Constraint source part", value: "{source_part_id}", onchange: {
+                                    let board_parts = board_parts.clone();
+                                    move |event: FormEvent| {
+                                        let value = event.value();
+                                        if !has_active_constraint {
+                                            offset_axes.set(default_axes_for_source(&board_parts, &value));
+                                        }
+                                        source_part_id.set(value);
                                     }
-                                    source_part_id.set(value);
                                 },
                                 for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
                                     option {
@@ -1120,9 +1126,9 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         }
                         if constraint_kind() == ConstraintKind::Offset {
                             label { "Offset axes"
-                                select { aria_label: "Offset axes", value: if offset_axes() == OffsetAxes::Part { "part" } else { "board" }, onchange: move |event| choose_offset_axes(if event.value() == "part" { OffsetAxes::Part } else { OffsetAxes::Board }),
-                                    option { value: "board", selected: offset_axes() == OffsetAxes::Board, "Offset on board axes" }
-                                    option { value: "part", selected: offset_axes() == OffsetAxes::Part, "Offset along part axes" }
+                                select { aria_label: "Offset axes", value: offset_axes_value(offset_axes()), onchange: move |event| choose_offset_axes(offset_axes_from_value(&event.value())),
+                                    option { value: offset_axes_value(OffsetAxes::Board), selected: offset_axes() == OffsetAxes::Board, "Offset on board axes" }
+                                    option { value: offset_axes_value(OffsetAxes::Part), selected: offset_axes() == OffsetAxes::Part, "Offset along part axes" }
                                 }
                             }
                             div { class: "m1-layout-component-constraint-grid",

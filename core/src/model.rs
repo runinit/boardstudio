@@ -785,6 +785,39 @@ impl Constraint {
             | Self::Mirror { target_part_id, .. } => target_part_id,
         }
     }
+    /// The axes an offset constraint runs along, or `None` for a mirror.
+    pub fn offset_axes(&self) -> Option<OffsetAxes> {
+        match self {
+            Self::Offset { .. } => Some(OffsetAxes::Board),
+            Self::PartOffset { .. } => Some(OffsetAxes::Part),
+            Self::Mirror { .. } => None,
+        }
+    }
+    /// The offset and turn an offset constraint stores, whichever axes they run along, or
+    /// `None` for a mirror.
+    pub fn offset_numbers(&self) -> Option<(Vec2, f64)> {
+        match self {
+            Self::Offset {
+                offset, rotation, ..
+            }
+            | Self::PartOffset {
+                offset, rotation, ..
+            } => Some((*offset, *rotation)),
+            Self::Mirror { .. } => None,
+        }
+    }
+    /// Whether every stored number is finite.
+    pub fn is_finite(&self) -> bool {
+        match self {
+            Self::Offset {
+                offset, rotation, ..
+            }
+            | Self::PartOffset {
+                offset, rotation, ..
+            } => offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite(),
+            Self::Mirror { coordinate, .. } => coordinate.is_finite(),
+        }
+    }
 }
 /// The axes an offset constraint's offset runs along: `Board` is `offset`, `Part` is
 /// `part-offset`. See ADR-0011.

@@ -57,16 +57,7 @@ fn resolve_with_positions(
                 constraint.target()
             ));
         }
-        let finite = match constraint {
-            Constraint::Offset {
-                offset, rotation, ..
-            }
-            | Constraint::PartOffset {
-                offset, rotation, ..
-            } => offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite(),
-            Constraint::Mirror { coordinate, .. } => coordinate.is_finite(),
-        };
-        if !finite {
+        if !constraint.is_finite() {
             return Err(format!(
                 "Constraint {} has a non-finite value",
                 constraint.id()
@@ -173,18 +164,35 @@ pub(crate) fn source_pose(parts: &[Part], constraint: &Constraint) -> Result<Pos
         .ok_or_else(|| format!("Constraint {} source is missing", constraint.id()))
 }
 
+/// What `retune_offset` did.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Retune {
+    Applied,
+    /// The constraint is a mirror, which reflects rather than offsets. Nothing changed.
+    Mirror,
+}
+
+/// Why a part driven by a mirror constraint cannot be dragged.
+pub(crate) fn mirror_drag_refusal(part_id: &str) -> String {
+    format!("Part {part_id} is controlled by a mirror constraint and cannot be dragged")
+}
+
 /// Moves a constraint's stored numbers so its target lands `delta` away from where it was
 /// and, when `turn` is given, turns that many degrees further. `None` leaves the stored
 /// rotation untouched, bit for bit: adding `0.0` would rewrite a stored `-0.0`. An `offset`
 /// stores board-axis numbers, so the drag is added as it is. A `part-offset` stores
-/// source-axis numbers, so the drag is first turned back into the source's frame. Mirrors
-/// reflect rather than offset; callers reject them.
+/// source-axis numbers, so the drag is first turned back into the source's frame, measured
+/// from the source's pose in `parts`.
 pub(crate) fn retune_offset(
+    parts: &[Part],
     constraint: &mut Constraint,
-    source: Pose2,
     delta: Vec2,
     turn: Option<f64>,
-) {
+) -> Result<Retune, String> {
+    if constraint.offset_axes().is_none() {
+        return Ok(Retune::Mirror);
+    }
+    let source = source_pose(parts, constraint)?;
     match constraint {
         Constraint::Offset {
             offset, rotation, ..
@@ -205,10 +213,9 @@ pub(crate) fn retune_offset(
                 *rotation += turn;
             }
         }
-        Constraint::Mirror { .. } => {
-            unreachable!("mirror constraints are rejected before a retune")
-        }
+        Constraint::Mirror { .. } => return Ok(Retune::Mirror),
     }
+    Ok(Retune::Applied)
 }
 
 /// Re-expresses an offset constraint's numbers in `to`'s axes, measured from the source's
@@ -229,47 +236,36 @@ pub(crate) fn convert_offset(
     if !doc.parts.iter().any(|part| part.id == target) {
         return Err(format!("Constraint {constraint_id} target is missing"));
     }
-    let next = match (doc.constraints[index].clone(), to) {
-        (
-            Constraint::Offset {
-                id,
-                source_part_id,
-                target_part_id,
-                offset,
-                rotation,
-            },
-            OffsetAxes::Part,
-        ) => Constraint::PartOffset {
-            id,
-            source_part_id,
-            target_part_id,
-            offset: rotate(offset, -source.rotation, Vec2::default()),
-            rotation,
-        },
-        (
-            Constraint::PartOffset {
-                id,
-                source_part_id,
-                target_part_id,
-                offset,
-                rotation,
-            },
-            OffsetAxes::Board,
-        ) => Constraint::Offset {
-            id,
-            source_part_id,
-            target_part_id,
-            offset: rotate(offset, source.rotation, Vec2::default()),
-            rotation,
-        },
-        (current @ (Constraint::Offset { .. } | Constraint::PartOffset { .. }), _) => current,
-        (Constraint::Mirror { .. }, _) => {
-            return Err(format!(
-                "Constraint {constraint_id} is a mirror and has no offset axes"
-            ));
-        }
+    let current = &doc.constraints[index];
+    let (Some(from), Some((offset, rotation))) = (current.offset_axes(), current.offset_numbers())
+    else {
+        return Err(format!(
+            "Constraint {constraint_id} is a mirror and has no offset axes"
+        ));
     };
-    doc.constraints[index] = next;
+    if from != to {
+        let (id, source_part_id, target_part_id) = (
+            current.id().to_owned(),
+            current.source().to_owned(),
+            current.target().to_owned(),
+        );
+        doc.constraints[index] = match to {
+            OffsetAxes::Part => Constraint::PartOffset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset: rotate(offset, -source.rotation, Vec2::default()),
+                rotation,
+            },
+            OffsetAxes::Board => Constraint::Offset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset: rotate(offset, source.rotation, Vec2::default()),
+                rotation,
+            },
+        };
+    }
     Ok(vec![constraint_id.into()])
 }
 
