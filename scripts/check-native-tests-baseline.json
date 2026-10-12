@@ -98,6 +98,7 @@
   "case::tests::zero_clearance_preserves_rectangle_geometry_and_reversed_winding",
   "constraints::endpoints::tests::a_companion_rule_that_needs_its_key_refuses_to_run_without_one",
   "constraints::endpoints::tests::a_mirrored_key_turns_its_heading_without_the_independent_half_turn",
+  "constraints::endpoints::tests::companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed",
   "constraints::endpoints::tests::companion_rules_project_and_invert_to_the_design_oracles",
   "constraints::endpoints::tests::frame_projection_rejects_non_finite_pair_or_pose_values",
   "constraints::endpoints::tests::framed_record_retains_global_id_and_source_to_target_direction",
