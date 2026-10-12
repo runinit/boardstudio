@@ -1199,110 +1199,125 @@ fn the_planned_connector_reference_is_what_the_module_edit_allocates() {
     assert_eq!(result.additions[0].mirror_reference, created.reference);
 }
 
-fn circuit_with_member(y: f64, rotation: f64) -> Value {
+/// Ticket 146: a circuit whose members sit off its x axis and are turned inside it.
+fn circuit_with_placed_members() -> Value {
     let mut definition = circuit_definition();
-    definition["circuit"]["parts"][0]["pose"] =
-        json!({"at": {"x": 1, "y": y}, "rotation": rotation});
+    definition["circuit"]["parts"][0]["pose"] = json!({"at": {"x": 1.5, "y": 2.0}, "rotation": 30});
+    definition["circuit"]["parts"][1]["pose"] =
+        json!({"at": {"x": -2.0, "y": -1.25}, "rotation": 75});
     definition
 }
 
-#[test]
-fn a_mirror_embed_whose_members_would_not_land_as_typed_is_refused() {
-    // The forward rule reflects members as independent parts (ADR-0010), so a member off the
-    // circuit's x axis or turned inside it would land mirrored, not as embedded.
-    for (y, rotation) in [(2.0, 0.0), (0.0, 30.0)] {
-        let request = json!({"kind": "embed-module-circuit", "id": "right-extra",
-            "definition": circuit_with_member(y, rotation), "hostBoardId": "right",
-            "pose": {"at": {"x": 180, "y": 7}, "rotation": 100}, "side": "front", "joins": {}});
-        let message = refused(&fixture(), request.clone());
-        assert!(message.contains("placement"), "{message}");
-        // The same circuit embedded on the source board is its own edit.
-        let mut source = request;
-        source["hostBoardId"] = json!("left");
-        source["id"] = json!("left-extra");
-        unchanged(&fixture(), source);
-    }
+/// Heading difference modulo 360.
+fn heading_gap(a: f64, b: f64) -> f64 {
+    let gap = (a - b).rem_euclid(360.0);
+    gap.min(360.0 - gap)
 }
 
 #[test]
-fn an_accepted_mirror_embed_lands_each_member_where_the_forward_rule_puts_it() {
+fn a_mirror_embed_lands_every_member_exactly_as_typed() {
+    let maps = [
+        AXIS,
+        ROTATED,
+        Pose2 {
+            at: Vec2 { x: 50.0, y: 20.0 },
+            rotation: 30.0,
+        },
+        Pose2 {
+            at: Vec2 { x: -40.0, y: 15.0 },
+            rotation: 0.0,
+        },
+    ];
     let definition: crate::modules::ModuleDefinition =
-        serde_json::from_value(circuit_definition()).unwrap();
-    for side in [crate::model::Side::Front, crate::model::Side::Back] {
-        let typed = Pose2 {
-            at: Vec2 { x: 180.0, y: 7.0 },
-            rotation: 100.0,
-        };
-        let request = EditOperation::EmbedModuleCircuit {
-            id: "right-extra".into(),
-            definition: definition.clone(),
-            host_board_id: "right".into(),
-            pose: typed,
-            side: side.clone(),
-            joins: Default::default(),
-        };
-        let result = canonicalize(&fixture(), &request).unwrap();
-        let EditOperation::EmbedModuleCircuit {
-            id,
-            definition,
-            host_board_id,
-            pose,
-            side,
-            joins,
-        } = result.operation
-        else {
-            panic!();
-        };
-        let mut mirror = fixture();
-        crate::modules::embed(
-            &mut mirror,
-            "right-extra",
-            &definition,
-            "right",
-            typed,
-            side.clone(),
-            &Default::default(),
-        )
-        .unwrap();
-        let mut source = fixture();
-        crate::modules::embed(
-            &mut source,
-            &id,
-            &definition,
-            &host_board_id,
-            pose,
-            side,
-            &joins,
-        )
-        .unwrap();
-        for member in ["U1", "U2"] {
-            let mirror_pose = mirror
-                .parts
-                .iter()
-                .find(|part| part.id == format!("embedded/right-extra/{member}"))
-                .unwrap()
-                .pose;
-            let source_pose = source
-                .parts
-                .iter()
-                .find(|part| part.id == format!("embedded/{id}/{member}"))
-                .unwrap()
-                .pose;
-            // The axis map and heading rule, by hand: (x, y) -> (200 - x, y), r -> 180 - r.
-            let expected = (
-                200.0 - source_pose.at.x,
-                source_pose.at.y,
-                (180.0 - source_pose.rotation).rem_euclid(360.0),
-            );
-            for (actual, wanted) in [
-                (mirror_pose.at.x, expected.0),
-                (mirror_pose.at.y, expected.1),
-                (mirror_pose.rotation.rem_euclid(360.0), expected.2),
-            ] {
+        serde_json::from_value(circuit_with_placed_members()).unwrap();
+    for mapping in maps {
+        for side in [crate::model::Side::Front, crate::model::Side::Back] {
+            let document = with_mapping(mapping);
+            let typed = Pose2 {
+                at: Vec2 { x: 180.0, y: 7.0 },
+                rotation: 100.0,
+            };
+            let request = EditOperation::EmbedModuleCircuit {
+                id: "right-extra".into(),
+                definition: definition.clone(),
+                host_board_id: "right".into(),
+                pose: typed,
+                side: side.clone(),
+                joins: Default::default(),
+            };
+            let result = canonicalize(&document, &request).expect("the embed is accepted");
+            let plan = &result.hosted.circuits[0];
+            let EditOperation::EmbedModuleCircuit {
+                id,
+                definition: shared,
+                host_board_id,
+                pose,
+                side: source_side,
+                joins,
+            } = result.operation
+            else {
+                panic!();
+            };
+            // The shared definition travels unchanged and registers once.
+            assert_eq!(shared, definition);
+            // What the user typed, member by member: a real embed on the mirror half.
+            let mut mirror = document.clone();
+            crate::modules::embed(
+                &mut mirror,
+                "right-extra",
+                &definition,
+                "right",
+                typed,
+                side.clone(),
+                &Default::default(),
+            )
+            .unwrap();
+            // The prepared source embed with its overrides applied, then the forward rule.
+            let mut source = document.clone();
+            crate::modules::embed(
+                &mut source,
+                &id,
+                &shared,
+                &host_board_id,
+                pose,
+                source_side,
+                &joins,
+            )
+            .unwrap();
+            assert_eq!(plan.member_poses.len(), 2, "{mapping:?} {side:?}");
+            for part in &mut source.parts {
+                if let Some(over) = plan.member_poses.get(&part.id) {
+                    part.pose = *over;
+                }
+            }
+            for member in ["U1", "U2"] {
+                let typed_member = mirror
+                    .parts
+                    .iter()
+                    .find(|part| part.id == format!("embedded/right-extra/{member}"))
+                    .unwrap();
+                let source_member = source
+                    .parts
+                    .iter()
+                    .find(|part| part.id == format!("embedded/{id}/{member}"))
+                    .unwrap();
+                let landed = crate::mirrored_half::mirror_pose(mapping, source_member.pose);
+                let context = format!("{member} {mapping:?} {side:?}");
                 assert!(
-                    (actual - wanted).abs() < 1e-9,
-                    "{member}: {actual} is not {wanted}"
+                    (landed.at.x - typed_member.pose.at.x).abs() < 1e-9,
+                    "{context}"
                 );
+                assert!(
+                    (landed.at.y - typed_member.pose.at.y).abs() < 1e-9,
+                    "{context}"
+                );
+                assert!(
+                    heading_gap(landed.rotation, typed_member.pose.rotation) < 1e-9,
+                    "{context}: {} against {}",
+                    landed.rotation,
+                    typed_member.pose.rotation
+                );
+                assert_eq!(source_member.side, typed_member.side, "{context}");
             }
         }
     }
