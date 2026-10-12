@@ -3,11 +3,12 @@
 //! against the real Session and Core with the first Core reply gated, so edits queue.
 use super::inspector::LayoutConstraintValues;
 use super::layout_component_edits::{
-    commit_position_resolver, constraint_resolver, nudge_resolver, remove_constraint_resolver,
+    commit_position_resolver, constraint_resolver, nudge_resolver, offset_axes_resolver,
+    remove_constraint_resolver,
 };
 use crate::edit_ticket::{EditTicket, Settlement};
 use crate::runtime::{Runtime, project_name_test_support as support};
-use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side, Vec2};
+use boardstudio_core::model::{Board, Constraint, OffsetAxes, Part, Pose2, ProjectDoc, Side, Vec2};
 use std::rc::Rc;
 use wasm_bindgen_test::*;
 
@@ -417,4 +418,54 @@ async fn mounted_apply_position_commits_both_axes_as_one_undo_entry() {
     assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 0.0, y: 0.0 }));
     runtime.unsubscribe();
     root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn converting_a_constraint_between_axes_leaves_the_target_where_it_was() {
+    let runtime = open().await;
+    let set = EditTicket::begin(
+        &runtime,
+        "layout-inspector-constraint",
+        Some("layout".into()),
+        constraint_resolver(
+            "b".into(),
+            "board".into(),
+            "a".into(),
+            LayoutConstraintValues::Offset {
+                offset: Vec2 { x: 20.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            9,
+        ),
+    );
+    support::drive_pending(&runtime);
+    settle(&runtime, &set).await;
+    assert!(matches!(set.settlement(true), Settlement::Landed { .. }));
+    let target_before = position(&runtime, "b");
+    let convert = EditTicket::begin(
+        &runtime,
+        "layout-inspector-offset-axes",
+        Some("layout".into()),
+        offset_axes_resolver(
+            "b".into(),
+            "layout-component-constraint-9".into(),
+            OffsetAxes::Part,
+        ),
+    );
+    support::drive_pending(&runtime);
+    settle(&runtime, &convert).await;
+    assert!(matches!(
+        convert.settlement(true),
+        Settlement::Landed { .. }
+    ));
+    assert_eq!(position(&runtime, "b"), target_before);
+    let document = runtime.model().accepted.unwrap().document;
+    assert!(
+        matches!(
+            document.constraints.as_slice(),
+            [Constraint::PartOffset { id, .. }] if id == "layout-component-constraint-9"
+        ),
+        "the constraint did not become part-offset with its id: {:?}",
+        document.constraints
+    );
 }

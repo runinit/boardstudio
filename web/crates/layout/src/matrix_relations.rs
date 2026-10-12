@@ -50,6 +50,7 @@ pub struct PartReference {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConstraintKind {
     Offset,
+    PartOffset,
     Mirror,
 }
 
@@ -322,6 +323,7 @@ impl View<'_> {
             id: constraint.id().to_owned(),
             kind: match constraint {
                 Constraint::Offset { .. } => ConstraintKind::Offset,
+                Constraint::PartOffset { .. } => ConstraintKind::PartOffset,
                 Constraint::Mirror { .. } => ConstraintKind::Mirror,
             },
             source: self.reference(constraint.source()),

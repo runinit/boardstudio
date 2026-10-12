@@ -1,7 +1,7 @@
 //! Contextual Properties and Relations for one accepted standalone Layout part.
 use crate::presentation::layout_workspace::LayoutInspectorTab;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Constraint, MirrorAxis, PartOutline, Vec2};
+use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, PartOutline, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{
@@ -86,12 +86,58 @@ pub struct LayoutChoice {
 pub struct BoardPartChoice {
     pub id: String,
     pub reference: String,
+    /// A matrix key: a new offset from it defaults to its own axes.
+    pub matrix_key: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutConstraintValues {
     Offset { offset: Vec2, rotation: f64 },
+    PartOffset { offset: Vec2, rotation: f64 },
     Mirror { axis: MirrorAxis, coordinate: f64 },
+}
+
+/// The axes an offset constraint runs along, or `None` for a mirror.
+pub(crate) fn offset_axes_of(constraint: &Constraint) -> Option<OffsetAxes> {
+    match constraint {
+        Constraint::Offset { .. } => Some(OffsetAxes::Board),
+        Constraint::PartOffset { .. } => Some(OffsetAxes::Part),
+        Constraint::Mirror { .. } => None,
+    }
+}
+
+/// A new offset from a matrix key follows the key's own axes; any other source uses the board's.
+pub(crate) fn default_offset_axes(source_is_matrix_key: bool) -> OffsetAxes {
+    if source_is_matrix_key {
+        OffsetAxes::Part
+    } else {
+        OffsetAxes::Board
+    }
+}
+
+/// The offset and turn an offset constraint stores, whichever axes they run along.
+pub(crate) fn offset_numbers(constraint: &Constraint) -> Option<(Vec2, f64)> {
+    match constraint {
+        Constraint::Offset {
+            offset, rotation, ..
+        }
+        | Constraint::PartOffset {
+            offset, rotation, ..
+        } => Some((*offset, *rotation)),
+        Constraint::Mirror { .. } => None,
+    }
+}
+
+/// The constraint values the Save button submits for the chosen axes.
+pub(crate) fn offset_values(
+    axes: OffsetAxes,
+    offset: Vec2,
+    rotation: f64,
+) -> LayoutConstraintValues {
+    match axes {
+        OffsetAxes::Board => LayoutConstraintValues::Offset { offset, rotation },
+        OffsetAxes::Part => LayoutConstraintValues::PartOffset { offset, rotation },
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -150,6 +196,12 @@ pub enum LayoutComponentInspectorAction {
         owner: LayoutComponentInspectorOwner,
         constraint_id: String,
     },
+    /// Re-expresses the saved offset constraint on the other axes without moving a part.
+    ConvertOffsetAxes {
+        owner: LayoutComponentInspectorOwner,
+        constraint_id: String,
+        to: OffsetAxes,
+    },
     NavigateElectrical {
         owner: LayoutComponentInspectorOwner,
     },
@@ -195,6 +247,75 @@ fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
         return None;
     }
     draft.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+#[cfg(test)]
+mod offset_axes_tests {
+    use super::{default_offset_axes, offset_axes_of, offset_numbers, offset_values};
+    use crate::presentation::inspector::LayoutConstraintValues;
+    use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
+
+    fn offsets() -> (Constraint, Constraint, Constraint) {
+        let board = Constraint::Offset {
+            id: "c".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            offset: Vec2 { x: 1.0, y: -4.0 },
+            rotation: 5.0,
+        };
+        let part = Constraint::PartOffset {
+            id: "c".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            offset: Vec2 { x: 1.0, y: -4.0 },
+            rotation: 5.0,
+        };
+        let mirror = Constraint::Mirror {
+            id: "m".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            axis: MirrorAxis::Vertical,
+            coordinate: 0.0,
+        };
+        (board, part, mirror)
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn a_matrix_key_source_defaults_to_part_axes_and_any_other_source_to_board_axes() {
+        assert_eq!(default_offset_axes(true), OffsetAxes::Part);
+        assert_eq!(default_offset_axes(false), OffsetAxes::Board);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn the_axes_choice_and_the_numbers_read_both_offset_kinds() {
+        let (board, part, mirror) = offsets();
+        assert_eq!(offset_axes_of(&board), Some(OffsetAxes::Board));
+        assert_eq!(offset_axes_of(&part), Some(OffsetAxes::Part));
+        assert_eq!(offset_axes_of(&mirror), None);
+        let numbers = (Vec2 { x: 1.0, y: -4.0 }, 5.0);
+        assert_eq!(offset_numbers(&board), Some(numbers));
+        assert_eq!(offset_numbers(&part), Some(numbers));
+        assert_eq!(offset_numbers(&mirror), None);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn saving_builds_the_constraint_kind_the_axes_choice_names() {
+        let offset = Vec2 { x: 2.0, y: 3.0 };
+        assert_eq!(
+            offset_values(OffsetAxes::Board, offset, 7.0),
+            LayoutConstraintValues::Offset {
+                offset,
+                rotation: 7.0
+            }
+        );
+        assert_eq!(
+            offset_values(OffsetAxes::Part, offset, 7.0),
+            LayoutConstraintValues::PartOffset {
+                offset,
+                rotation: 7.0
+            }
+        );
+    }
 }
 
 #[cfg(test)]
@@ -258,17 +379,47 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         })
         .unwrap_or_default();
     let mut source_part_id = use_signal(|| initial_source.clone());
-    let mut offset_x = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Offset { offset, .. }) => offset.x.to_string(),
-        _ => "0".to_owned(),
+    let initial_source_is_key = projection
+        .board_parts
+        .iter()
+        .find(|part| part.id == initial_source)
+        .is_some_and(|part| part.matrix_key);
+    let mut offset_axes = use_signal(|| {
+        projection
+            .active_constraint
+            .as_ref()
+            .and_then(offset_axes_of)
+            .unwrap_or_else(|| default_offset_axes(initial_source_is_key))
     });
-    let mut offset_y = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Offset { offset, .. }) => offset.y.to_string(),
-        _ => "0".to_owned(),
+    let mut offset_x = use_signal(|| {
+        match projection
+            .active_constraint
+            .as_ref()
+            .and_then(offset_numbers)
+        {
+            Some((offset, _)) => offset.x.to_string(),
+            None => "0".to_owned(),
+        }
     });
-    let mut rotation = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Offset { rotation, .. }) => rotation.to_string(),
-        _ => "0".to_owned(),
+    let mut offset_y = use_signal(|| {
+        match projection
+            .active_constraint
+            .as_ref()
+            .and_then(offset_numbers)
+        {
+            Some((offset, _)) => offset.y.to_string(),
+            None => "0".to_owned(),
+        }
+    });
+    let mut rotation = use_signal(|| {
+        match projection
+            .active_constraint
+            .as_ref()
+            .and_then(offset_numbers)
+        {
+            Some((_, rotation)) => rotation.to_string(),
+            None => "0".to_owned(),
+        }
     });
     let mut mirror_axis = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { axis, .. }) => axis.clone(),
@@ -598,8 +749,37 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             })
         })
     };
+    let has_active_constraint = projection.active_constraint.is_some();
+    let matrix_key_ids: Vec<String> = projection
+        .board_parts
+        .iter()
+        .filter(|part| part.matrix_key)
+        .map(|part| part.id.clone())
+        .collect();
+    // A choice on a saved offset converts it at once; a new one only sets the default.
+    let mut choose_offset_axes = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        let saved_offset_id = projection
+            .active_constraint
+            .as_ref()
+            .filter(|constraint| offset_axes_of(constraint).is_some())
+            .map(|constraint| constraint.id().to_owned());
+        let mut offset_axes = offset_axes;
+        move |to: OffsetAxes| {
+            offset_axes.set(to);
+            if let Some(constraint_id) = saved_offset_id.as_ref() {
+                action.call(LayoutComponentInspectorAction::ConvertOffsetAxes {
+                    owner: latest_capture(),
+                    constraint_id: constraint_id.clone(),
+                    to,
+                });
+            }
+        }
+    };
     let save_constraint = {
         let latest_capture = latest_capture;
+        let offset_axes = offset_axes;
         let action = props.on_action;
         let mut error = error;
         move |_| {
@@ -623,10 +803,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         error.set(Some("Enter finite constraint values.".to_owned()));
                         return;
                     }
-                    LayoutConstraintValues::Offset {
-                        offset: Vec2 { x, y },
-                        rotation,
-                    }
+                    offset_values(offset_axes(), Vec2 { x, y }, rotation)
                 }
                 ConstraintKind::Mirror => {
                     let Ok(coordinate) = mirror_coordinate().parse::<f64>() else {
@@ -825,7 +1002,13 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                         }
                         label { "Source part"
-                            select { aria_label: "Constraint source part", value: "{source_part_id}", onchange: move |event| source_part_id.set(event.value()),
+                            select { aria_label: "Constraint source part", value: "{source_part_id}", onchange: move |event| {
+                                    let value = event.value();
+                                    if !has_active_constraint {
+                                        offset_axes.set(default_offset_axes(matrix_key_ids.contains(&value)));
+                                    }
+                                    source_part_id.set(value);
+                                },
                                 for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
                                     option {
                                         value: "{part.id}",
@@ -836,6 +1019,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                         }
                         if constraint_kind() == ConstraintKind::Offset {
+                            label { "Offset axes"
+                                select { aria_label: "Offset axes", value: if offset_axes() == OffsetAxes::Part { "part" } else { "board" }, onchange: move |event| choose_offset_axes(if event.value() == "part" { OffsetAxes::Part } else { OffsetAxes::Board }),
+                                    option { value: "board", selected: offset_axes() == OffsetAxes::Board, "Offset on board axes" }
+                                    option { value: "part", selected: offset_axes() == OffsetAxes::Part, "Offset along part axes" }
+                                }
+                            }
                             div { class: "m1-layout-component-constraint-grid",
                                 label { "Offset X (mm)" input { r#type: "number", step: "any", aria_label: "Offset X (mm)", value: "{offset_x}", oninput: move |event| offset_x.set(event.value()) } }
                                 label { "Offset Y (mm)" input { r#type: "number", step: "any", aria_label: "Offset Y (mm)", value: "{offset_y}", oninput: move |event| offset_y.set(event.value()) } }

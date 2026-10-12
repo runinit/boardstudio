@@ -1,7 +1,7 @@
 //! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, EditOperation, Part, PartOutline, Position, ProjectDoc, Vec2,
+    Constraint, EditOperation, OffsetAxes, Part, PartOutline, Position, ProjectDoc, Vec2,
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
@@ -261,6 +261,13 @@ pub fn constraint_resolver(
                     offset: *offset,
                     rotation: *rotation,
                 },
+                LayoutConstraintValues::PartOffset { offset, rotation } => Constraint::PartOffset {
+                    id: constraint_id,
+                    source_part_id: source_part_id.clone(),
+                    target_part_id: part_id.clone(),
+                    offset: *offset,
+                    rotation: *rotation,
+                },
                 LayoutConstraintValues::Mirror { axis, coordinate } => Constraint::Mirror {
                     id: constraint_id,
                     source_part_id: source_part_id.clone(),
@@ -277,6 +284,44 @@ pub fn constraint_resolver(
                 target_ids.push(constraint.source().to_owned());
             }
             commit(EditOperation::SetConstraint { constraint }, target_ids)
+        },
+    )
+}
+
+/// Resolve a change of axes on a saved offset constraint: the constraint must still drive the
+/// part, and a mirror has no axes to change. Core moves no part.
+pub fn offset_axes_resolver(
+    part_id: String,
+    constraint_id: String,
+    to: OffsetAxes,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-inspector-offset-axes",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Some(constraint) = document.constraints.iter().find(|constraint| {
+                constraint.id() == constraint_id && constraint.target() == part_id
+            }) else {
+                return Resolution::Retire("The constraint no longer drives this part.".into());
+            };
+            let already = matches!(
+                (constraint, to),
+                (Constraint::Offset { .. }, OffsetAxes::Board)
+                    | (Constraint::PartOffset { .. }, OffsetAxes::Part)
+            );
+            if already {
+                return Resolution::Unchanged;
+            }
+            if matches!(constraint, Constraint::Mirror { .. }) {
+                return Resolution::Retire("A mirror constraint has no offset axes.".into());
+            }
+            commit(
+                EditOperation::ConvertOffsetConstraint {
+                    constraint_id: constraint_id.clone(),
+                    to,
+                },
+                vec![constraint_id.clone(), part_id.clone()],
+            )
         },
     )
 }

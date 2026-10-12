@@ -163,6 +163,7 @@ fn ConstraintRow(
 ) -> Element {
     let kind = match constraint.kind {
         ConstraintKind::Offset => "Offset",
+        ConstraintKind::PartOffset => "Part offset",
         ConstraintKind::Mirror => "Mirror",
     };
     rsx! {

@@ -1319,6 +1319,10 @@ fn layout_component_inspector_projection(
                 .map(|part| inspector::BoardPartChoice {
                     id: part.id.clone(),
                     reference: part.reference.clone(),
+                    matrix_key: document
+                        .matrices
+                        .iter()
+                        .any(|matrix| matrix.part_ids.contains(&part.id)),
                 })
         })
         .collect();
@@ -1658,6 +1662,7 @@ fn dispatch_layout_component_inspector_action(
         | inspector::LayoutComponentInspectorAction::SetOutline { owner, .. }
         | inspector::LayoutComponentInspectorAction::SetConstraint { owner, .. }
         | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
+        | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
         | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner } => owner,
     };
     if !layout_component_inspector_owner_is_current(
@@ -1785,6 +1790,23 @@ fn dispatch_layout_component_inspector_action(
                     source_part_id,
                     values,
                     id_seed,
+                ),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::ConvertOffsetAxes {
+            owner,
+            constraint_id,
+            to,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::Constraint,
+                layout_component_edits::offset_axes_resolver(
+                    owner.part_id.clone(),
+                    constraint_id,
+                    to,
                 ),
                 None,
             );
