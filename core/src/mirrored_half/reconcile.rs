@@ -18,6 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 #[path = "lifecycle.rs"]
 mod lifecycle;
 mod outlines;
+// Ticket 145: a source edit of a matrix the forward addition mirrored reaches the mirror.
+#[cfg(test)]
+#[path = "matrix_addition/reconcile_tests.rs"]
+mod matrix_addition_reconcile;
 
 #[derive(Clone)]
 struct PartProjection {
