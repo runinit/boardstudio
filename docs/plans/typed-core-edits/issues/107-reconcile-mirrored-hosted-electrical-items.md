@@ -50,33 +50,6 @@ Independent verifier: mutate module mapping, circuit member cleanup and joined-h
 preservation separately; confirm meaningful failures. Do not turn source cleanup into an
 unrelated data migration or infer new circuit ownership.
 
-## Execution and verification gates
-
-This is a child of [19](19-reconcile-mirrored-halves.md); resolving it does not resolve 19.
-Core children execute serially with exclusive Core file/API leases. The user approved
-independent A/F streams on 2026-10-10; follow the central lane registry and parallel-streams
-decision for audited disjoint edits. The current central workflow/registry governs read-only concurrency and complete bounded GLOBAL HEAVY windows; activation and timing retain their scheduled isolation. The standing approved mirror chain requires no repeated per-helper START. Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`;
-report path/branch/status and inspect overlaps before editing. Every shell call has that
-absolute `workdir`; commands run one at a time in the foreground.
-
-Read `docs/agents/agent-workflow.md`, `verification-process.md`, `gitnexus-index.md` and
-parent 19. Luna 6 high implements test-first and records `implemented (awaiting verification)`;
-ONE fresh Sol6.1 medium independently accepts the coherent unit, reusing adequate source-bound checks and retaining the three required mutation guarantees, then may set `resolved`. The same reviewer follows corrections.
-Run bound GitNexus impact before every symbol edit; list callers, processes and risk.
-`apply`/`layout::resolve` are known CRITICAL paths: warn before editing. UNKNOWN, stale or
-missing answers need source confirmation and honest limitation reporting, not an all-clear.
-Use `boardstudio-lane-mirror-core`; root alone refreshes. Run complete `detect_changes` before
-any commit; truncated/partial evidence is not clean.
-
-Root grants a complete bounded GLOBAL HEAVY cycle for test/build/browser/performance execution; read-only work and approved disjoint source work need no lease.
-Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when its
-behavior/transcript changes; targeted red/green and verifier mutations also need slots.
-No full check per slice, no `release`, no background checks; active laptop mode uses Cargo4/native test4/check runner1/Binaryen4, including explicit container forwarding where relevant.
-Maps, ADRs, CONTEXT.md, scripts/check.py and generated goldens remain root-owned.
-No merges/push/PR, stash/reset/discard or broad staging; explicit paths only.
-Commit only after root permits it, with the actual-author trailer. Outcome records exact
-commands/results/timings, mutation failures/restoration and every unrun or blocked gate.
-
 ## Implementation handoff (2026-10-11)
 
 Luna6 high writer STOPPED with exact `core/src/mirrored_half/reconcile.rs` SHA256 `63c6ff42af3b4b60e0c8b0aaf6a995d4486eaf744808b9367d7fa85384e04368`; this is the only modified source path. Final focused57/57 and Clippy pass on these bytes. The reviewer corrected the formatting binding: its earlier PASS covers6d8cdsource and is not claimed for63c6; the corrected final source needs an actual formatting check. Root synced accepted integration into the lane at `29cb5bb12d2bdb782ef1a395d533c03428686b3e` without changing the dirty107source. Post-sync Core360passed/3ignored/0failed and exact-source WASM check pass. The known old138missing-gap fixture failure is closed by the previously accepted lib.rs correction, not by a107algorithm change. Earlier compile/fixture failures are not counted as behavioral REDs; valid module-pose RED is retained.

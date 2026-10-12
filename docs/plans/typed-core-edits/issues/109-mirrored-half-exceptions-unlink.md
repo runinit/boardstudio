@@ -123,14 +123,6 @@ identity; an exception is a state overlay). Evidence is in the Resolution sectio
 Independent verifier: disable omitted-absence allowance, durable association, local exclusion,
 child-exception retention and mechanical materialization separately. Save/Open integration is 111.
 
-## Execution and verification gates
-
-This child does not resolve parent19. Follow [19](19-reconcile-mirrored-halves.md), the current central [lane registry](../lane-registry.md) and `docs/agents/agent-workflow.md` standing authority. B coordinates required planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation; no repeated root START for approved private helpers, tests or fixed-scope children. Keep each ticket’s acceptance explicit, all meaningful regressions/counterexamples intact, and production activation at111. Already approved feature API/schema contracts are authorized as specified; genuinely new/unsettled choices or visibility changes still escalate.
-
-Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`; inspect overlaps and source/index binding before edits. Run bound impact and complete nonpartial/nontruncated change analysis; warn on HIGH/CRITICAL and source-confirm unresolved UNKNOWN/stale answers. Root alone refreshes `boardstudio-lane-mirror-core`, integrates and owns goldens/shared tracking.
-
-Request one bounded foreground sequence from root, then run its commands sequentially without per-command approval; release explicitly. Approved disjoint non-shell source work may overlap another lane’s ordinary checks. Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when behavior/transcript changes. Reuse sufficient source-bound evidence; target concrete gaps and important claimed guarantees. No full check per slice, `release` or background checks; Cargo uses12 jobs. Preserve explicit staging, actual-author trailers and all Git safety rules. Report completed acceptance, exact evidence, unrun/blocked gates and the explicit release; root owns integration commits.
-
 ## Resolution (2026-10-12)
 
 Schema: a correspondence records source ↔ mirror identity in every state and an exception is a

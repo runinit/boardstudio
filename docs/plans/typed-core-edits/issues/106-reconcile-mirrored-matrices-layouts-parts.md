@@ -78,14 +78,6 @@ single entry in `core/tests/integration.rs`; root assigns any additional path fi
 Independent verifier: disable forward mapping, one addition/removal cleanup site and mode/tweak
 retention separately; each assertion must fail. Engine Undo/Open/preview are deferred to 111.
 
-## Execution and verification gates
-
-This child does not resolve parent19. Follow [19](19-reconcile-mirrored-halves.md), the current central [lane registry](../lane-registry.md) and `docs/agents/agent-workflow.md` standing authority. B coordinates required planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation; no repeated root START for approved private helpers, tests or fixed-scope children. Keep each ticket’s acceptance explicit, all meaningful regressions/counterexamples intact, and production activation at111. Already approved feature API/schema contracts are authorized as specified; genuinely new/unsettled choices or visibility changes still escalate.
-
-Use `/home/chris/01_Projects/ts-boardstudio2/.worktrees/lane-mirror-core`, branch `lane/mirror-core`; inspect overlaps and source/index binding before edits. Run bound impact and complete nonpartial/nontruncated change analysis; warn on HIGH/CRITICAL and source-confirm unresolved UNKNOWN/stale answers. Root alone refreshes `boardstudio-lane-mirror-core`, integrates and owns goldens/shared tracking.
-
-Request one bounded foreground sequence from root, then run its commands sequentially without per-command approval; release explicitly. Approved disjoint non-shell source work may overlap another lane’s ordinary checks. Affected checks: `repo lint test typecheck`, plus native/WASM boundary parity when behavior/transcript changes. Reuse sufficient source-bound evidence; target concrete gaps and important claimed guarantees. No full check per slice, `release` or background checks; Cargo uses12 jobs. Preserve explicit staging, actual-author trailers and all Git safety rules. Report completed acceptance, exact evidence, unrun/blocked gates and the explicit release; root owns integration commits.
-
 ## Guarded prototype outcome (2026-10-10)
 
 Status remains **claimed** and the ticket is **incomplete**. This outcome records a guarded structural prototype only; it does not claim implementation or verification of full ticket 106. The approved Rust snapshot is 480257d66a6085acdc0f30b879622a2b73e89675855ff4c003ee0d1a36d3d7d7; lane HEAD is 5bcf4d381aa18cf609d96485e17464dd5fe3de2f. Root integration, GitNexus refresh/delta review and commit are pending.
