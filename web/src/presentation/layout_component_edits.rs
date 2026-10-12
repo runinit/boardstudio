@@ -304,16 +304,12 @@ pub fn offset_axes_resolver(
             }) else {
                 return Resolution::Retire("The constraint no longer drives this part.".into());
             };
-            let already = matches!(
-                (constraint, to),
-                (Constraint::Offset { .. }, OffsetAxes::Board)
-                    | (Constraint::PartOffset { .. }, OffsetAxes::Part)
-            );
-            if already {
-                return Resolution::Unchanged;
-            }
-            if matches!(constraint, Constraint::Mirror { .. }) {
-                return Resolution::Retire("A mirror constraint has no offset axes.".into());
+            match constraint.offset_axes() {
+                Some(axes) if axes == to => return Resolution::Unchanged,
+                Some(_) => {}
+                None => {
+                    return Resolution::Retire("A mirror constraint has no offset axes.".into());
+                }
             }
             commit(
                 EditOperation::ConvertOffsetConstraint {
