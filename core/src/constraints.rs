@@ -14,6 +14,25 @@ mod framed_tests;
 mod relation;
 mod retune;
 
+/// The one record that drives `part_id`'s geometry, found through whichever half is asked:
+/// a part and its live mirror have one authority, so one driving record. Pure: nothing is
+/// solved. More than one record on an authority is a located error rather than a pick.
+pub(crate) fn driving_constraint<'a>(
+    doc: &'a ProjectDoc,
+    part_id: &str,
+) -> Result<Option<&'a Constraint>, String> {
+    let authority = endpoints::authoritative_part(doc, part_id).to_owned();
+    let mut driving = doc
+        .constraints
+        .iter()
+        .filter(|constraint| endpoints::authoritative_part(doc, constraint.target()) == authority);
+    let first = driving.next();
+    if driving.next().is_some() {
+        return Err(format!("Part {authority} has multiple constraints"));
+    }
+    Ok(first)
+}
+
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
 }
@@ -143,6 +162,14 @@ fn resolve_prepared(
         relation
             .validate()
             .map_err(|_| format!("Constraint {id} has a non-finite value"))?;
+        // A stored record that names the visible mirror of this authority drives it too.
+        let authority = &target.authoritative_id;
+        if doc.constraints.iter().any(|stored| {
+            stored.target() != authority
+                && endpoints::authoritative_part(doc, stored.target()) == authority
+        }) {
+            return Err(format!("Part {authority} has multiple constraints"));
+        }
         // Authorities are what the graph orders: two visible targets of one authority, or a
         // visible source that is its own target's authority, are one part.
         let driver = Driver::Framed(Framed {

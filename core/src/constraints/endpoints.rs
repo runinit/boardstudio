@@ -368,6 +368,26 @@ fn linked_frame(
     (EndpointFrame::LinkedMirror { mapping }, None)
 }
 
+/// The part that owns `part_id`'s geometry: its source while a live part correspondence derives
+/// it, otherwise the part itself. A Local or Omitted mirror is not derived, so it owns itself.
+pub(super) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
+    let pairs = document
+        .hardware
+        .as_ref()
+        .map(|hardware| hardware.pairs.as_slice())
+        .unwrap_or_default();
+    for halves in pairs.iter().filter_map(|pair| pair.halves.as_ref()) {
+        if let Some(correspondence) = halves.correspondences.iter().find(|correspondence| {
+            correspondence.kind == MirroredItemKind::Part
+                && correspondence.mirror_id == part_id
+                && halves.overlay_of(correspondence).is_none()
+        }) {
+            return &correspondence.source_id;
+        }
+    }
+    part_id
+}
+
 /// Binds one authored endpoint to the document as it stands. Nothing is cached: a later
 /// pair map, correspondence or exception change is read again on the next resolution.
 pub(super) fn resolve_endpoint(

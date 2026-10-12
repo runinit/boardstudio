@@ -703,3 +703,60 @@ fn a_cycle_through_a_companion_and_its_key_is_refused_atomically() {
     ];
     refuses(&mut doc, &records, "cycle");
 }
+
+// ---- the shared authoritative-target lookup -------------------------------------------
+
+#[test]
+fn the_driving_record_is_found_through_either_half_of_a_linked_pair() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints
+        .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
+    for asked in ["alpha/T", "beta/T"] {
+        let found = doc.constraint_driving_part(asked).unwrap();
+        assert_eq!(found.map(Constraint::id), Some("c/legacy"), "{asked}");
+    }
+    assert_eq!(doc.constraint_driving_part("free/R").unwrap(), None);
+    assert_eq!(doc.constraint_driving_part("local/P").unwrap(), None);
+}
+
+#[test]
+fn a_local_mirror_is_its_own_authority_for_the_lookup() {
+    let mut doc = with_exception("local");
+    doc.constraints
+        .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
+    assert_eq!(doc.constraint_driving_part("beta/T").unwrap(), None);
+    assert!(doc.constraint_driving_part("alpha/T").unwrap().is_some());
+}
+
+#[test]
+fn two_records_on_one_authority_are_a_located_error_not_a_guess() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints
+        .push(legacy_offset("c/one", "free/Q", "alpha/T", 1.0, 2.0));
+    doc.constraints
+        .push(legacy_offset("c/two", "free/R", "beta/T", 1.0, 2.0));
+    let message = doc.constraint_driving_part("beta/T").unwrap_err();
+    assert!(
+        message.contains("alpha/T") && message.contains("multiple constraints"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_stored_record_and_a_framed_one_on_one_authority_are_refused_by_the_solver() {
+    // The stored record names the visible mirror; the framed one names the source: one part.
+    let mut doc = document((20.0, -7.0));
+    doc.constraints
+        .push(legacy_offset("c/legacy", "free/Q", "beta/T", 0.0, 0.0));
+    // beta/T is a derived mirror, so the lookup, not the literal id, decides the conflict.
+    refuses(
+        &mut doc,
+        &[framed(
+            "c/framed",
+            part_endpoint("local/P"),
+            linked("alpha/T", "beta/T"),
+            offset_5_neg2(),
+        )],
+        "multiple constraints",
+    );
+}
