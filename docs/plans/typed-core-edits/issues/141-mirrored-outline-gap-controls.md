@@ -1,6 +1,6 @@
 # 141 — Diagnose mirrored outline gap controls
 
-Status: claimed
+Status: ready-for-agent
 Type: task
 Blocked by: none
 
@@ -59,3 +59,7 @@ The same writer has STOPPED with the one-board observation fixture ready, not ye
 Mounted observation completed1/1PASS,166filtered, after private fixture compile corrections; final browser-file SHA256 `c52a6b4cf8775daa0dabe48fcadcd1c11ac05892916b46e5cee1cbfffe423212`. Capture `141-one-outline-typed-pair-observations-20261011.json` under the existing cache has SHA256 `e3430f2abbf488933a2837f43582aded9837ef8e94f81881f379c4ff8609738f`; raw log `141-one-outline-typed-pair-retry2-20261011.log`. One board/feature owns distinct reflected recess regions (right x22..26, suffix eae8e99107225be2; left x−22..−26, suffix504a36372188880a). Each fresh-baseline uncheck clears only its own protection, changing its contour44→32points while the other remains44. These are distinct controls/regions, not duplicate IDs. However, this ONE feature generates TWO contours; a single connected perimeter around both halves remains unproved. E STOPPED/released HEAVY. Root authorizes the SAME writer to prepare the literal connected-perimeter case through valid existing bridge/settings/membership operations, source-only behind107mutations, with no product fix or new review layer.
 
 Connected-perimeter attempt STOP: first central bridge and one source-grounded upper corridor both suppressed the expected candidates before Inspector selection. Immutable counterexample pointer `/home/chris/.cache/boardstudio-baselines/mirrored-outline-gaps/141-connected-perimeter-counterexample.json` binds both logs and upper source snapshot `141-upper-bridge-source.rs`, SHA256 `0aaa5f560e26969c89c4c42ccc15697a80927d495dbd89d2baac694e1c1e061e`. Central source was not separately snapshotted; its diagnostic log is preserved without claiming exact-source binding. Connected-contour count and actual user reproduction remain unestablished. No further parameter sweeps or product edits; B108 may use these qualified observations for source-grounded diagnosis.
+
+## Comments
+
+- Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.

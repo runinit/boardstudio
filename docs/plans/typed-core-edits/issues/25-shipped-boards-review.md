@@ -1,6 +1,6 @@
 # 25: Review and rebuild the shipped board projects, Sofle first
 
-Status: claimed
+Status: ready-for-agent
 Type: task
 Blocked by: none
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -132,3 +132,7 @@ Human clarification after review: installed target hardware/BOM will be supplied
 ### Final documentation gate (root coordinator, 2026-10-10)
 
 The independent Sol 6.1 xhigh reviewer rechecked the four corrections and closed all four P2 findings in the staged drafts. The root coordinator then ran `python3 scripts/check.py repo`: passed in 0.1 s, with 244 Markdown files checked. The final bound `detect_changes` attempt still returned repository-not-found; no graph risk verdict is claimed. The reviewed 64-document plan is committed for integration, with no board implementation or hardware qualification implied. Parent 25 remains open; ticket 19's exclusive batch and the relevant board dependencies still gate implementation.
+
+## Comments
+
+- Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.

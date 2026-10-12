@@ -1,6 +1,6 @@
 # 140: Refine the BoardStudio workbench with Impeccable
 
-Status: claimed
+Status: ready-for-agent
 Type: build
 Blocked by: none
 
@@ -26,3 +26,7 @@ Direct user steering in L7 additionally authorizes a persistent private frontend
 ## Boundaries
 
 Frontend presentation, styling, UI-local interactions and tests, reusable icon assets, lane-local design documentation are in scope. Core schema/solver/mirror behavior, CAD kernel algorithms, generated goldens, demo-board code, scripts/check.py, shared maps, ADRs and CONTEXT are excluded. A missing backend capability becomes a separate scoped ticket. Root alone refreshes GitNexus and schedules the one GLOBAL HEAVY slot.
+
+## Comments
+
+- Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.

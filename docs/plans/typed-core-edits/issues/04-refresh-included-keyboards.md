@@ -1,6 +1,6 @@
 # 04: Redo all included keyboards using the settled editing model
 
-Status: claimed
+Status: ready-for-agent
 Type: task
 Blocked by: 02, [matrix integrated verification](../../matrix-layout-consistency/issues/11-integrated-verification.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -209,3 +209,7 @@ walks the polygon the other way).
   card list, the 20-project baseline counts and the provenance would change with no product need.
 - The draft was kept after review and repaired, not restarted: its approach (typed edits through
   `apply-mechanical-edit`) was right.
+
+## Comments
+
+- Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.

@@ -1,6 +1,6 @@
 # 108: Forward reconciliation of outlines, versions and assemblies
 
-Status: claimed
+Status: ready-for-agent
 Type: build
 Blocked by: [107](107-reconcile-mirrored-hosted-electrical-items.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -60,3 +60,7 @@ E completed141's bounded source trace: symmetric fixture/profile/pose/control ma
 ## Current bounded execution
 
 107resolved/integrated; B clean synced6041b95b before SAME Luna high writer prepared108. Lease: NEW `core/src/mirrored_half/reconcile/outlines.rs` and `outlines/tests.rs`, narrow private module declaration/wiring in reconcile.rs only; no extraction/reformat of accepted106/107 or shared-helper writes. Five source-only cases cover rotated anchored geometry/settings/protection/version/provenance/fullrepeat, closure exclusion, Local/Omitted isolation with linked-neighbor update, mapped worldRect, and source-version removal preserving unrelated target choice/pair bytes. Inert private candidate seam awaits a meaningful compiled behavioral RED; fixture-validation failure is not that evidence. Three original mutation guarantees remain. Draft/source binding: `/home/chris/.cache/boardstudio-baselines/ticket108-outlines/implementation/`. Root107/139 integration cohort passed; RED/fix/GREEN/affected-check cycle follows short root capture windows. No108runtime or fix acceptance yet.
+
+## Comments
+
+- Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.
