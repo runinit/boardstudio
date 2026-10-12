@@ -128,13 +128,14 @@ fn fixture(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) 
 }
 
 fn held_by_part_axes() -> Constraint {
-    Constraint::PartOffset {
-        id: "held-key".into(),
-        source_part_id: KEY.into(),
-        target_part_id: HELD.into(),
-        offset: Vec2 { x: 1.0, y: -4.0 },
-        rotation: 0.0,
-    }
+    held_by(
+        OffsetAxes::Part,
+        "held-key",
+        KEY,
+        HELD,
+        Vec2 { x: 1.0, y: -4.0 },
+        0.0,
+    )
 }
 
 fn assert_key_frame_pose_kept(before: &ProjectDoc, after: &ProjectDoc) {
@@ -284,13 +285,14 @@ fn dragging_a_part_offset_companion_retunes_its_offset_along_the_source_axes() {
 }
 
 fn held_by_board_axes() -> Constraint {
-    Constraint::Offset {
-        id: "held-key".into(),
-        source_part_id: KEY.into(),
-        target_part_id: HELD.into(),
-        offset: Vec2 { x: 1.0, y: -4.0 },
-        rotation: 0.0,
-    }
+    held_by(
+        OffsetAxes::Board,
+        "held-key",
+        KEY,
+        HELD,
+        Vec2 { x: 1.0, y: -4.0 },
+        0.0,
+    )
 }
 
 /// A key-held companion, after its column is splayed 30 degrees.
@@ -520,24 +522,14 @@ fn held_by(
     offset: Vec2,
     rotation: f64,
 ) -> Constraint {
-    let (id, source_part_id, target_part_id) =
-        (id.to_owned(), source.to_owned(), target.to_owned());
-    match axes {
-        OffsetAxes::Board => Constraint::Offset {
-            id,
-            source_part_id,
-            target_part_id,
-            offset,
-            rotation,
-        },
-        OffsetAxes::Part => Constraint::PartOffset {
-            id,
-            source_part_id,
-            target_part_id,
-            offset,
-            rotation,
-        },
-    }
+    Constraint::offset(
+        axes,
+        id.to_owned(),
+        source.to_owned(),
+        target.to_owned(),
+        offset,
+        rotation,
+    )
 }
 
 /// A board-axes drag lands the stored offset on the board's axes, whatever the key's turn.

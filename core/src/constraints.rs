@@ -246,22 +246,18 @@ pub(crate) fn convert_offset(
             current.source().to_owned(),
             current.target().to_owned(),
         );
-        doc.constraints[index] = match to {
-            OffsetAxes::Part => Constraint::PartOffset {
-                id,
-                source_part_id,
-                target_part_id,
-                offset: rotate(offset, -source.rotation, Vec2::default()),
-                rotation,
-            },
-            OffsetAxes::Board => Constraint::Offset {
-                id,
-                source_part_id,
-                target_part_id,
-                offset: rotate(offset, source.rotation, Vec2::default()),
-                rotation,
-            },
+        let into_axes = match to {
+            OffsetAxes::Part => -source.rotation,
+            OffsetAxes::Board => source.rotation,
         };
+        doc.constraints[index] = Constraint::offset(
+            to,
+            id,
+            source_part_id,
+            target_part_id,
+            rotate(offset, into_axes, Vec2::default()),
+            rotation,
+        );
     }
     Ok(vec![constraint_id.into()])
 }
