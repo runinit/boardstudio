@@ -1,6 +1,6 @@
 use crate::constraints::relation::ConstraintRelation;
 use crate::mechanical::pair;
-use crate::model::Pose2;
+use crate::model::{Pose2, Vec2};
 use serde::{Deserialize, Serialize};
 
 /// The authored, visible identity of a framed relation endpoint.
@@ -52,12 +52,36 @@ impl ConstraintEndpoint {
     }
 }
 
+/// How a mirrored companion sits against its mirrored key (ADR-0010).
+#[cfg_attr(not(test), expect(dead_code))] // No document binding reaches matrix companions yet.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum CompanionRule {
+    /// Reflect the companion's pose like the key's.
+    Literal,
+    /// Keep the source's world heading; the position is reflected.
+    Stabiliser,
+    /// Keep the source's key-local position and heading.
+    Duplicate,
+    /// Reflect, then add `(u, v)` in the mirrored key's frame and `w` to the heading.
+    Tweaked { u: f64, v: f64, w: f64 },
+}
+
 /// A live endpoint frame. Linked mappings are supplied by the current pair owner.
 #[cfg_attr(not(test), expect(dead_code))] // Used before solver integration.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum EndpointFrame {
     Identity,
+    /// An independent mirrored part: the full heading is turned half a turn.
     LinkedMirror { mapping: Pose2 },
+    /// A mirrored matrix key.
+    LinkedKey { mapping: Pose2 },
+    /// A mirrored companion. `key` is the source key's resolved authoritative pose, which the
+    /// solver supplies once the key's owner is resolved; it is never frozen in the document.
+    LinkedCompanion {
+        mapping: Pose2,
+        key: Pose2,
+        rule: CompanionRule,
+    },
 }
 
 #[cfg_attr(not(test), expect(dead_code))] // Consumed by later private solver integration.
@@ -71,6 +95,56 @@ impl EndpointFrame {
                 Pose2 {
                     at: pair::forward(mapping, authoritative.at),
                     rotation: (mapping.rotation + 180.0 - authoritative.rotation).rem_euclid(360.0),
+                }
+            }
+            Self::LinkedKey { mapping } => {
+                validate_mapping(mapping)?;
+                Pose2 {
+                    at: pair::forward(mapping, authoritative.at),
+                    rotation: mapping.rotation - authoritative.rotation,
+                }
+            }
+            Self::LinkedCompanion { mapping, key, rule } => {
+                validate_mapping(mapping)?;
+                validate_pose(key)?;
+                let reflected = pair::forward(mapping, authoritative.at);
+                match rule {
+                    CompanionRule::Literal => Pose2 {
+                        at: reflected,
+                        rotation: mapping.rotation - authoritative.rotation,
+                    },
+                    CompanionRule::Stabiliser => Pose2 {
+                        at: reflected,
+                        rotation: authoritative.rotation,
+                    },
+                    CompanionRule::Duplicate => {
+                        let turn = mapping.rotation - 2.0 * key.rotation;
+                        let local = turned(
+                            Vec2 {
+                                x: authoritative.at.x - key.at.x,
+                                y: authoritative.at.y - key.at.y,
+                            },
+                            turn,
+                        );
+                        let origin = pair::forward(mapping, key.at);
+                        Pose2 {
+                            at: Vec2 {
+                                x: origin.x + local.x,
+                                y: origin.y + local.y,
+                            },
+                            rotation: authoritative.rotation + turn,
+                        }
+                    }
+                    CompanionRule::Tweaked { u, v, w } => {
+                        let shift = turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation);
+                        Pose2 {
+                            at: Vec2 {
+                                x: reflected.x + shift.x,
+                                y: reflected.y + shift.y,
+                            },
+                            rotation: mapping.rotation - authoritative.rotation + w,
+                        }
+                    }
                 }
             }
         };
@@ -95,9 +169,75 @@ impl EndpointFrame {
                     rotation: nearest_equivalent(base_rotation, previous_authoritative.rotation),
                 }
             }
+            Self::LinkedKey { mapping } => {
+                validate_mapping(mapping)?;
+                Pose2 {
+                    at: pair::inverse(mapping, visible.at),
+                    rotation: nearest_equivalent(
+                        mapping.rotation - visible.rotation,
+                        previous_authoritative.rotation,
+                    ),
+                }
+            }
+            Self::LinkedCompanion { mapping, key, rule } => {
+                validate_mapping(mapping)?;
+                validate_pose(key)?;
+                let (at, rotation) = match rule {
+                    CompanionRule::Literal => (
+                        pair::inverse(mapping, visible.at),
+                        mapping.rotation - visible.rotation,
+                    ),
+                    CompanionRule::Stabiliser => {
+                        (pair::inverse(mapping, visible.at), visible.rotation)
+                    }
+                    CompanionRule::Duplicate => {
+                        let turn = mapping.rotation - 2.0 * key.rotation;
+                        let origin = pair::forward(mapping, key.at);
+                        let local = turned(
+                            Vec2 {
+                                x: visible.at.x - origin.x,
+                                y: visible.at.y - origin.y,
+                            },
+                            -turn,
+                        );
+                        (
+                            Vec2 {
+                                x: key.at.x + local.x,
+                                y: key.at.y + local.y,
+                            },
+                            visible.rotation - turn,
+                        )
+                    }
+                    CompanionRule::Tweaked { u, v, w } => {
+                        let shift = turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation);
+                        (
+                            pair::inverse(
+                                mapping,
+                                Vec2 {
+                                    x: visible.at.x - shift.x,
+                                    y: visible.at.y - shift.y,
+                                },
+                            ),
+                            mapping.rotation + w - visible.rotation,
+                        )
+                    }
+                };
+                Pose2 {
+                    at,
+                    rotation: nearest_equivalent(rotation, previous_authoritative.rotation),
+                }
+            }
         };
         validate_pose(authoritative)?;
         Ok(authoritative)
+    }
+}
+
+fn turned(vector: Vec2, degrees: f64) -> Vec2 {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    Vec2 {
+        x: vector.x * cos - vector.y * sin,
+        y: vector.x * sin + vector.y * cos,
     }
 }
 
@@ -342,5 +482,104 @@ mod tests {
                 })
                 .is_err()
         );
+    }
+
+    fn pair_map() -> Pose2 {
+        Pose2 {
+            at: Vec2 { x: 20.0, y: -7.0 },
+            rotation: 36.86989764584402,
+        }
+    }
+
+    fn assert_close(actual: Pose2, x: f64, y: f64, rotation: f64) {
+        assert!(
+            (actual.at.x - x).abs() < TOLERANCE
+                && (actual.at.y - y).abs() < TOLERANCE
+                && (actual.rotation - rotation).abs() < TOLERANCE,
+            "{actual:?} is not ({x}, {y}) heading {rotation}"
+        );
+    }
+
+    #[test]
+    fn a_mirrored_key_turns_its_heading_without_the_independent_half_turn() {
+        let frame = EndpointFrame::LinkedKey {
+            mapping: pair_map(),
+        };
+        let source = Pose2 {
+            at: Vec2 { x: 2.0, y: 5.0 },
+            rotation: 25.0,
+        };
+        let visible = frame.project(source).unwrap();
+        assert_close(visible, 15.4, -4.2, 11.86989764584402);
+        // The independent rule differs by exactly half a turn.
+        let independent = EndpointFrame::LinkedMirror {
+            mapping: pair_map(),
+        }
+        .project(source)
+        .unwrap();
+        assert_close(independent, 15.4, -4.2, 191.86989764584402);
+        assert_close(frame.unproject(visible, source).unwrap(), 2.0, 5.0, 25.0);
+    }
+
+    #[test]
+    fn companion_rules_project_and_invert_to_the_design_oracles() {
+        let companion = Pose2 {
+            at: Vec2 { x: 4.0, y: 8.0 },
+            rotation: 30.0,
+        };
+        let key_at = |rotation: f64| Pose2 {
+            at: Vec2 { x: 2.0, y: 5.0 },
+            rotation,
+        };
+        let cases = [
+            (CompanionRule::Literal, 0.0, 12.0, -3.0, 6.86989764584402),
+            (CompanionRule::Stabiliser, 0.0, 12.0, -3.0, 30.0),
+            (CompanionRule::Stabiliser, 90.0, 12.0, -3.0, 30.0),
+            (CompanionRule::Duplicate, 0.0, 15.2, -0.6, 66.86989764584402),
+            (
+                CompanionRule::Duplicate,
+                90.0,
+                15.6,
+                -7.8,
+                -113.13010235415598,
+            ),
+            (
+                CompanionRule::Tweaked {
+                    u: 1.0,
+                    v: -2.0,
+                    w: 7.0,
+                },
+                0.0,
+                14.0,
+                -4.0,
+                13.86989764584402,
+            ),
+            (
+                CompanionRule::Tweaked {
+                    u: 1.0,
+                    v: -2.0,
+                    w: 7.0,
+                },
+                90.0,
+                11.0,
+                -5.0,
+                13.86989764584402,
+            ),
+        ];
+        for (rule, key_heading, x, y, heading) in cases {
+            let frame = EndpointFrame::LinkedCompanion {
+                mapping: pair_map(),
+                key: key_at(key_heading),
+                rule,
+            };
+            let visible = frame.project(companion).unwrap();
+            assert_close(visible, x, y, heading);
+            assert_close(
+                frame.unproject(visible, companion).unwrap(),
+                4.0,
+                8.0,
+                30.0,
+            );
+        }
     }
 }
