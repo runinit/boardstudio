@@ -26,6 +26,9 @@ definition geometry. Keycap scalar/legend payloads remain unchanged; owner IDs m
 - Canonicalize source-side additions before derivation allocates counterparts. Preserve
   locked-member/collision refusal and module connector/joined-host-net independence.
 - Local/omitted targets use 109's rules. No independent-part companion-mode semantics.
+- `MoveParts` and `RemoveParts` whose ids are parts owned by a linked embedded circuit: 110
+  refuses them (they are circuit members, not independent parts). Translate them with the
+  circuit's namespace and member map, atomically with the circuit's own edit.
 - Maintain the exhaustive coverage ledger in 110: translated/delegated/deliberately unchanged/
   unsupported with reason. Unsupported acceptance-bearing behavior remains blocked.
 

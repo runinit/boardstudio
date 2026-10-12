@@ -49,3 +49,14 @@ are read-only. No new EditOperation arms, visibility widening, hardware API fiel
 
 Independent verifier: mutate canonical operation propagation, reconciliation/cleanup order and
 final validation separately. History/Open/preview are deliberately owned by 116/117.
+
+## Inherited from 110 and 145
+
+- Feed the `Canonical.operation` to apply and to both downstream `resolve_edit` calls, and use
+  `Canonical.additions` (`PartAddition`) as the independent-Add transition's source/mirror pair.
+- `Canonical.matrix_additions` (`MatrixAddition`) plans a new matrix pair with its members;
+  the transition that creates the mirror matrix and records its correspondences is
+  [145](145-mirror-new-matrices-on-a-mirrored-board.md). Do not mint matrix correspondences here.
+- A moved linked companion translates, then forward validation refuses authored placement on a
+  linked slot; surface that refusal as the existing validation error (not covered end to end by 110).
+- Parts owned by a linked embedded circuit are refused by 110; 112 translates them.

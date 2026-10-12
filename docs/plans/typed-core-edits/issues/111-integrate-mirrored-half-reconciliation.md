@@ -53,3 +53,14 @@ kinds/both directions, save/reopen, exceptions/unlink, full preview/history matr
 activated performance and native/WASM boundary evidence. Parent remains open until that
 verification holds; activation smoke coverage alone cannot resolve it. Root owns full batch
 check, transcript blessing, integration and graph refresh.
+
+## Inherited from 110 and 145
+
+- Consume `inverse::canonicalize` (110) for every translated variant; its `Coverage` ledger says
+  which variants are translated, delegated (`ApplyMechanicalEdit`), deliberately unchanged
+  (bindings) or owned by 112-114. Wire matrix additions only together with
+  [145](145-mirror-new-matrices-on-a-mirrored-board.md): `matrix_additions` is a plan, not a
+  transition.
+- A linked companion `MoveParts` translates geometrically but the forward validation refuses
+  authored companion placement on linked slots; that refusal is untested end to end and
+  surfaces here and in 115.
