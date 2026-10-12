@@ -18,6 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 #[path = "lifecycle.rs"]
 mod lifecycle;
 mod outlines;
+mod settings;
+// Ticket 147: keycap settings and plain nets follow their source after creation.
+#[cfg(test)]
+mod settings_tests;
 // Ticket 145: a source edit of a matrix the forward addition mirrored reaches the mirror.
 #[cfg(test)]
 #[path = "matrix_addition/reconcile_tests.rs"]
@@ -3063,6 +3067,7 @@ fn reconcile(
     } else if !allow_absent_matrix {
         return Err("The final mirror matrix is unavailable".into());
     }
+    settings::project(document, &mut staged, halves)?;
     outlines::reconcile(&mut staged, pair_id, projection)?;
 
     let mut validated_draft = staged.clone();
