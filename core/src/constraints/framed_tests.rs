@@ -790,15 +790,14 @@ fn world_pose_by_derive(
     let (key, companion) = (part(KEY), part(COMPANION));
     let mapping = doc.hardware.as_ref().unwrap().pairs[0].mapping;
     // The source assembly in the key's frame, then the matrix reflection: x and heading flip.
-    let (sin, cos) = (-key.pose.rotation).to_radians().sin_cos();
-    let (dx, dy) = (
-        companion.pose.at.x - key.pose.at.x,
-        companion.pose.at.y - key.pose.at.y,
+    let local = crate::matrix::splay::rotate(
+        Vec2 {
+            x: companion.pose.at.x - key.pose.at.x,
+            y: companion.pose.at.y - key.pose.at.y,
+        },
+        -key.pose.rotation,
+        Vec2::default(),
     );
-    let local = Vec2 {
-        x: dx * cos - dy * sin,
-        y: dx * sin + dy * cos,
-    };
     let (offset, rotation) = crate::mirrored_half::companion_placement(
         Vec2 {
             x: -local.x,
