@@ -989,12 +989,6 @@ impl ProjectDoc {
             constraints: vec![],
         }
     }
-
-    /// The constraint that drives `part_id`, asked through either half of a linked pair.
-    /// Nothing is solved; two records on one authority are an error naming it.
-    pub fn constraint_driving_part(&self, part_id: &str) -> Result<Option<&Constraint>, String> {
-        crate::constraints::driving_constraint(self, part_id)
-    }
 }
 
 /// Project-level physical/electrical topology for automatic wiring.

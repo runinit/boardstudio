@@ -331,6 +331,8 @@ fn linked_frame(
     source_part_id: &str,
     mapping: Pose2,
 ) -> (EndpointFrame, Option<String>) {
+    // The rule choice below mirrors `mirrored_half::derive::companion_assembly`, which is the
+    // authority for companion placement: keep the two in step.
     for matrix in &document.matrices {
         for cell in matrix
             .cells
@@ -384,24 +386,34 @@ fn linked_frame(
     (EndpointFrame::LinkedMirror { mapping }, None)
 }
 
-/// The part that owns `part_id`'s geometry: its source while a live part correspondence derives
-/// it, otherwise the part itself. A Local or Omitted mirror is not derived, so it owns itself.
-pub(super) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
+/// The pair and correspondence that derive `part_id` while linked: a part correspondence names
+/// it as the mirror and no Local or Omitted overlay sits on it. Such a part is not authored.
+fn derived_from<'a>(
+    document: &'a ProjectDoc,
+    part_id: &str,
+) -> Option<(&'a MechanicalMirrorPair, &'a MirroredCorrespondence)> {
     let pairs = document
         .hardware
         .as_ref()
         .map(|hardware| hardware.pairs.as_slice())
         .unwrap_or_default();
-    for halves in pairs.iter().filter_map(|pair| pair.halves.as_ref()) {
-        if let Some(correspondence) = halves.correspondences.iter().find(|correspondence| {
+    pairs.iter().find_map(|pair| {
+        let halves = pair.halves.as_ref()?;
+        let correspondence = halves.correspondences.iter().find(|correspondence| {
             correspondence.kind == MirroredItemKind::Part
                 && correspondence.mirror_id == part_id
                 && halves.overlay_of(correspondence).is_none()
-        }) {
-            return &correspondence.source_id;
-        }
-    }
-    part_id
+        })?;
+        Some((pair, correspondence))
+    })
+}
+
+/// The part that owns `part_id`'s geometry: its source while a live part correspondence derives
+/// it, otherwise the part itself. A Local or Omitted mirror is not derived, so it owns itself.
+pub(super) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
+    derived_from(document, part_id).map_or(part_id, |(_, correspondence)| {
+        correspondence.source_id.as_str()
+    })
 }
 
 /// Binds one authored endpoint to the document as it stands. Nothing is cached: a later
@@ -426,21 +438,11 @@ pub(super) fn resolve_endpoint(
             }
             // A part that a live correspondence derives is not authored: it is addressed
             // through its source so the relation survives the mirror being regenerated.
-            for pair in pairs {
-                let Some(halves) = pair.halves.as_ref() else {
-                    continue;
-                };
-                let derived = halves.correspondences.iter().any(|correspondence| {
-                    correspondence.kind == MirroredItemKind::Part
-                        && correspondence.mirror_id == *part_id
-                        && halves.overlay_of(correspondence).is_none()
-                });
-                if derived {
-                    return Err(located(format!(
-                        "part {part_id} is a linked mirror in pair {}; address it with a linked-mirror endpoint",
-                        pair.id
-                    )));
-                }
+            if let Some((pair, _)) = derived_from(document, part_id) {
+                return Err(located(format!(
+                    "part {part_id} is a linked mirror in pair {}; address it with a linked-mirror endpoint",
+                    pair.id
+                )));
             }
             Ok(ResolvedEndpoint {
                 visible_id: part_id.clone(),
@@ -513,7 +515,7 @@ pub(super) fn solve_target(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::constraints::relation::ConstraintRelation;
     use crate::model::{Pose2, Vec2};
@@ -724,14 +726,14 @@ mod tests {
         );
     }
 
-    fn pair_map() -> Pose2 {
+    pub(in crate::constraints) fn pair_map() -> Pose2 {
         Pose2 {
             at: Vec2 { x: 20.0, y: -7.0 },
             rotation: 36.86989764584402,
         }
     }
 
-    fn assert_close(actual: Pose2, x: f64, y: f64, rotation: f64) {
+    pub(in crate::constraints) fn assert_close(actual: Pose2, x: f64, y: f64, rotation: f64) {
         assert!(
             (actual.at.x - x).abs() < TOLERANCE
                 && (actual.at.y - y).abs() < TOLERANCE

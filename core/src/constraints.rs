@@ -14,9 +14,21 @@ mod framed_tests;
 mod relation;
 mod retune;
 
+/// The refusal for a second driving record on one authority, worded once.
+fn multiple_constraints(authority: &str) -> String {
+    format!("Part {authority} has multiple constraints")
+}
+
 /// The one record that drives `part_id`'s geometry, found through whichever half is asked:
 /// a part and its live mirror have one authority, so one driving record. Pure: nothing is
 /// solved. More than one record on an authority is a located error rather than a pick.
+///
+/// This is the activation-time contract: it already counts two stored records on one authority
+/// (one naming the source, one naming its visible mirror) as a conflict, which the production
+/// solver does not refuse until format 6 activates canonical conflicts (design, "Format
+/// version and migration"). `a_stored_pair_on_one_authority_is_a_lookup_error_the_solver_accepts`
+/// pins the difference so a caller does not read the lookup as what the solver enforces.
+#[cfg_attr(not(test), expect(dead_code))] // The operation seam that calls it lands with 114/115.
 pub(crate) fn driving_constraint<'a>(
     doc: &'a ProjectDoc,
     part_id: &str,
@@ -28,7 +40,7 @@ pub(crate) fn driving_constraint<'a>(
         .filter(|constraint| endpoints::authoritative_part(doc, constraint.target()) == authority);
     let first = driving.next();
     if driving.next().is_some() {
-        return Err(format!("Part {authority} has multiple constraints"));
+        return Err(multiple_constraints(&authority));
     }
     Ok(first)
 }
@@ -117,7 +129,7 @@ fn claim_target<'a>(
     driver: Driver<'a>,
 ) -> Result<(), String> {
     if by_target.insert(authority.to_owned(), driver).is_some() {
-        return Err(format!("Part {authority} has multiple constraints"));
+        return Err(multiple_constraints(authority));
     }
     Ok(())
 }
@@ -176,7 +188,7 @@ fn resolve_prepared(
             stored.target() != authority
                 && endpoints::authoritative_part(doc, stored.target()) == authority
         }) {
-            return Err(format!("Part {authority} has multiple constraints"));
+            return Err(multiple_constraints(authority));
         }
         // Authorities are what the graph orders: two visible targets of one authority, or a
         // visible source that is its own target's authority, are one part.

@@ -123,6 +123,15 @@ fn set_at(doc: &mut ProjectDoc, id: &str, x: f64, y: f64) {
         .at = Vec2 { x, y };
 }
 
+fn set_heading(doc: &mut ProjectDoc, id: &str, rotation: f64) {
+    doc.parts
+        .iter_mut()
+        .find(|part| part.id == id)
+        .unwrap()
+        .pose
+        .rotation = rotation;
+}
+
 fn legacy_offset(id: &str, source: &str, target: &str, x: f64, y: f64) -> Constraint {
     Constraint::Offset {
         id: id.into(),
@@ -460,13 +469,7 @@ fn stored_records_and_their_compiled_relations_place_targets_identically() {
         for (x, y, heading) in [(2.0, 5.0, 25.0), (-7.5, 3.0, 200.0), (0.0, 0.0, -90.0)] {
             let mut by_store = document((20.0, -7.0));
             set_at(&mut by_store, "alpha/S", x, y);
-            by_store
-                .parts
-                .iter_mut()
-                .find(|part| part.id == "alpha/S")
-                .unwrap()
-                .pose
-                .rotation = heading;
+            set_heading(&mut by_store, "alpha/S", heading);
             let mut by_relation = by_store.clone();
 
             by_store.constraints.push(stored(kind));
@@ -610,12 +613,7 @@ fn a_local_part_drives_a_linked_key_through_the_key_projection() {
 #[test]
 fn a_linked_key_drives_a_local_part() {
     let mut doc = matrix_document("diode", "literal-mirror", None);
-    doc.parts
-        .iter_mut()
-        .find(|part| part.id == KEY)
-        .unwrap()
-        .pose
-        .rotation = 25.0;
+    set_heading(&mut doc, KEY, 25.0);
     let record = framed(
         "c/out",
         linked(KEY, MIRROR_KEY),
@@ -712,11 +710,11 @@ fn the_driving_record_is_found_through_either_half_of_a_linked_pair() {
     doc.constraints
         .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
     for asked in ["alpha/T", "beta/T"] {
-        let found = doc.constraint_driving_part(asked).unwrap();
+        let found = super::driving_constraint(&doc, asked).unwrap();
         assert_eq!(found.map(Constraint::id), Some("c/legacy"), "{asked}");
     }
-    assert_eq!(doc.constraint_driving_part("free/R").unwrap(), None);
-    assert_eq!(doc.constraint_driving_part("local/P").unwrap(), None);
+    assert_eq!(super::driving_constraint(&doc, "free/R").unwrap(), None);
+    assert_eq!(super::driving_constraint(&doc, "local/P").unwrap(), None);
 }
 
 #[test]
@@ -724,8 +722,12 @@ fn a_local_mirror_is_its_own_authority_for_the_lookup() {
     let mut doc = with_exception("local");
     doc.constraints
         .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
-    assert_eq!(doc.constraint_driving_part("beta/T").unwrap(), None);
-    assert!(doc.constraint_driving_part("alpha/T").unwrap().is_some());
+    assert_eq!(super::driving_constraint(&doc, "beta/T").unwrap(), None);
+    assert!(
+        super::driving_constraint(&doc, "alpha/T")
+            .unwrap()
+            .is_some()
+    );
 }
 
 #[test]
@@ -735,11 +737,24 @@ fn two_records_on_one_authority_are_a_located_error_not_a_guess() {
         .push(legacy_offset("c/one", "free/Q", "alpha/T", 1.0, 2.0));
     doc.constraints
         .push(legacy_offset("c/two", "free/R", "beta/T", 1.0, 2.0));
-    let message = doc.constraint_driving_part("beta/T").unwrap_err();
+    let message = super::driving_constraint(&doc, "beta/T").unwrap_err();
     assert!(
         message.contains("alpha/T") && message.contains("multiple constraints"),
         "{message}"
     );
+}
+
+/// The lookup is the activation-time contract; the production solver still takes two stored
+/// records that name a source and its visible mirror, as every existing document may hold.
+#[test]
+fn a_stored_pair_on_one_authority_is_a_lookup_error_the_solver_accepts() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints
+        .push(legacy_offset("c/one", "free/Q", "alpha/T", 1.0, 2.0));
+    doc.constraints
+        .push(legacy_offset("c/two", "free/R", "beta/T", 1.0, 2.0));
+    assert!(super::driving_constraint(&doc, "alpha/T").is_err());
+    super::resolve(&mut doc).unwrap();
 }
 
 #[test]
