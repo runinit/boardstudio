@@ -38,6 +38,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod derive;
 #[allow(dead_code)] // Ticket 111 activates the inverse translation; 110 prepares it privately.
 mod inverse;
+#[allow(dead_code)] // Ticket 111 activates the forward matrix addition; 145 prepares it privately.
+mod matrix_addition;
 mod reconcile;
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
