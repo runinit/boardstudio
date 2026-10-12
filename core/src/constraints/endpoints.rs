@@ -66,39 +66,93 @@ pub(super) enum CompanionRule {
     Tweaked { u: f64, v: f64, w: f64 },
 }
 
+/// How a companion rule turns the authoritative heading into the visible one, and back.
+#[derive(Clone, Copy)]
+enum Heading {
+    /// The world heading is kept.
+    Keep,
+    /// `mapping - c`, plus a tweak when the rule has one.
+    Reflect { mapping: f64, tweak: Option<f64> },
+    /// The heading is turned by a fixed amount.
+    Turn(f64),
+}
+
+impl Heading {
+    fn forward(self, heading: f64) -> f64 {
+        match self {
+            Self::Keep => heading,
+            Self::Reflect {
+                mapping,
+                tweak: None,
+            } => mapping - heading,
+            Self::Reflect {
+                mapping,
+                tweak: Some(tweak),
+            } => (mapping - heading) + tweak,
+            Self::Turn(turn) => heading + turn,
+        }
+    }
+
+    fn inverse(self, heading: f64) -> f64 {
+        match self {
+            Self::Keep => heading,
+            Self::Reflect {
+                mapping,
+                tweak: None,
+            } => mapping - heading,
+            Self::Reflect {
+                mapping,
+                tweak: Some(tweak),
+            } => (mapping + tweak) - heading,
+            Self::Turn(turn) => heading - turn,
+        }
+    }
+}
+
 /// A companion rule written once as a map from the authoritative pose to the visible one, so
 /// `project` and `unproject` cannot drift apart.
 ///
-/// Position: with no `turn`, `forward(mapping, p) + shift`; with a `turn`,
-/// `origin + R(turn) (p - pivot)`. Heading: `heading_sign * c + heading_base`, the sign being
-/// +1 or -1.
+/// Position: with no `turn`, `forward(mapping, p)` plus `shift` when the rule has one; with a
+/// `turn`, `origin + R(turn) (p - pivot)`. Heading: see [`Heading`].
+///
+/// Why each rule keeps its own operation order: these numbers are persisted and hashed once a
+/// framed record is stored, so the order is part of the contract and is pinned bit for bit by
+/// `companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed`. Do not "tidy" a sign
+/// or fold a zero shift in: a stabiliser's `-0.0` heading and a literal position must stay
+/// as the reviewed rule wrote them.
 struct CompanionMap {
     turn: Option<f64>,
     pivot: Vec2,
     origin: Vec2,
-    shift: Vec2,
-    heading_sign: f64,
-    heading_base: f64,
+    shift: Option<Vec2>,
+    heading: Heading,
 }
 
 impl CompanionRule {
     /// The rule's map for a pair `mapping` and the resolved key pose it is measured against.
     fn frame(self, mapping: Pose2, key: Pose2) -> CompanionMap {
-        let reflected = |shift: Vec2, heading_sign: f64, heading_base: f64| CompanionMap {
+        let reflected = |shift: Option<Vec2>, heading: Heading| CompanionMap {
             turn: None,
             pivot: Vec2::default(),
             origin: Vec2::default(),
             shift,
-            heading_sign,
-            heading_base,
+            heading,
         };
         match self {
-            Self::Literal => reflected(Vec2::default(), -1.0, mapping.rotation),
-            Self::Stabiliser => reflected(Vec2::default(), 1.0, 0.0),
+            Self::Literal => reflected(
+                None,
+                Heading::Reflect {
+                    mapping: mapping.rotation,
+                    tweak: None,
+                },
+            ),
+            Self::Stabiliser => reflected(None, Heading::Keep),
             Self::Tweaked { u, v, w } => reflected(
-                turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation),
-                -1.0,
-                mapping.rotation + w,
+                Some(turned(Vec2 { x: u, y: v }, mapping.rotation - key.rotation)),
+                Heading::Reflect {
+                    mapping: mapping.rotation,
+                    tweak: Some(w),
+                },
             ),
             Self::Duplicate => {
                 let turn = mapping.rotation - 2.0 * key.rotation;
@@ -106,9 +160,8 @@ impl CompanionRule {
                     turn: Some(turn),
                     pivot: key.at,
                     origin: pair::forward(mapping, key.at),
-                    shift: Vec2::default(),
-                    heading_sign: 1.0,
-                    heading_base: turn,
+                    shift: None,
+                    heading: Heading::Turn(turn),
                 }
             }
         }
@@ -175,9 +228,12 @@ impl EndpointFrame {
                 let at = match map.turn {
                     None => {
                         let reflected = pair::forward(mapping, authoritative.at);
-                        Vec2 {
-                            x: reflected.x + map.shift.x,
-                            y: reflected.y + map.shift.y,
+                        match map.shift {
+                            Some(shift) => Vec2 {
+                                x: reflected.x + shift.x,
+                                y: reflected.y + shift.y,
+                            },
+                            None => reflected,
                         }
                     }
                     Some(turn) => {
@@ -196,7 +252,7 @@ impl EndpointFrame {
                 };
                 Pose2 {
                     at,
-                    rotation: map.heading_sign * authoritative.rotation + map.heading_base,
+                    rotation: map.heading.forward(authoritative.rotation),
                 }
             }
         };
@@ -237,9 +293,12 @@ impl EndpointFrame {
                 let at = match map.turn {
                     None => pair::inverse(
                         mapping,
-                        Vec2 {
-                            x: visible.at.x - map.shift.x,
-                            y: visible.at.y - map.shift.y,
+                        match map.shift {
+                            Some(shift) => Vec2 {
+                                x: visible.at.x - shift.x,
+                                y: visible.at.y - shift.y,
+                            },
+                            None => visible.at,
                         },
                     ),
                     Some(turn) => {
@@ -256,8 +315,7 @@ impl EndpointFrame {
                         }
                     }
                 };
-                // The heading sign is +1 or -1, so it is its own inverse.
-                let rotation = (visible.rotation - map.heading_base) * map.heading_sign;
+                let rotation = map.heading.inverse(visible.rotation);
                 Pose2 {
                     at,
                     rotation: nearest_equivalent(rotation, previous_authoritative.rotation),
@@ -899,6 +957,191 @@ pub(super) mod tests {
                 rule,
             };
             assert!(unbound.project(pose).is_ok());
+        }
+    }
+
+    /// Companion headings and positions are persisted and hashed once a framed record is
+    /// stored, so their arithmetic is pinned bit for bit, not to a tolerance. The patterns were
+    /// captured from the 58e4f7bc4 implementation (the last one written rule by rule, before
+    /// `CompanionRule::frame`), forward then inverse, over inputs that include negative zero
+    /// for the pose, the key and the tweak. They are not recomputed from the code under test.
+    #[test]
+    fn companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed() {
+        const PINNED: [(u64, u64, u64); 120] = [
+            (0x4028000000000000, 0xc008000000000000, 0x401b7ac672cf11e0),
+            (0x400e666666666668, 0x403599999999999a, 0x401b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0xc074307b4c9b2a1e),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0x40427c259b26af10),
+            (0x4028000000000000, 0xc008000000000000, 0x401b7ac672cf11e0),
+            (0x400e666666666668, 0x403599999999999a, 0x401b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0xc074307b4c9b2a1e),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0x40427c259b26af10),
+            (0x4028000000000000, 0xc008000000000000, 0x401b7ac672cf11e0),
+            (0x400e666666666668, 0x403599999999999a, 0x401b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0xc074307b4c9b2a1e),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0x40427c259b26af10),
+            (0x4028000000000000, 0xc008000000000000, 0x403e000000000000),
+            (0x400e666666666668, 0x403599999999999a, 0x403e000000000000),
+            (0x4034000000000000, 0xc01c000000000000, 0x8000000000000000),
+            (0x402799999999999a, 0x403199999999999a, 0x0000000000000000),
+            (0x4034000000000000, 0xc01c000000000000, 0x0000000000000000),
+            (0x402799999999999a, 0x403199999999999a, 0x0000000000000000),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0x40767e6666666666),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0xbfb999999999a000),
+            (0x4028000000000000, 0xc008000000000000, 0x403e000000000000),
+            (0x400e666666666668, 0x403599999999999a, 0x403e000000000000),
+            (0x4034000000000000, 0xc01c000000000000, 0x8000000000000000),
+            (0x402799999999999a, 0x403199999999999a, 0x0000000000000000),
+            (0x4034000000000000, 0xc01c000000000000, 0x0000000000000000),
+            (0x402799999999999a, 0x403199999999999a, 0x0000000000000000),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0x40767e6666666666),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0xbfb999999999a000),
+            (0x4028000000000000, 0xc008000000000000, 0x403e000000000000),
+            (0x400e666666666668, 0x403599999999999a, 0x403e000000000000),
+            (0x4034000000000000, 0xc01c000000000000, 0x8000000000000000),
+            (0x402799999999999a, 0x403199999999999a, 0x0000000000000000),
+            (0x4034000000000000, 0xc01c000000000000, 0x0000000000000000),
+            (0x402799999999999a, 0x403199999999999a, 0x0000000000000000),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0x40767e6666666666),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0xbfb999999999a000),
+            (0x402e666666666667, 0xbfe3333333333330, 0x4050b7ac672cf11e),
+            (0x3fc9999999999960, 0x403599999999999a, 0xc01b7ac672cf11e0),
+            (0x4030cccccccccccd, 0xc022cccccccccccd, 0x40426f58ce59e23c),
+            (0xc01f333333333334, 0x403199999999999a, 0xc0426f58ce59e23c),
+            (0x4030cccccccccccd, 0xc022cccccccccccd, 0x40426f58ce59e23c),
+            (0xc01f333333333334, 0x403199999999999a, 0xc0426f58ce59e23c),
+            (0x4064d9a027525461, 0xc06a2cc7e28240b7, 0x4078cc518031a2ae),
+            (0xc063b9930be0ded2, 0xc066ccd1b71758e3, 0xc0427c259b26af10),
+            (0x402f333333333333, 0xc01f333333333334, 0xc05c485398d30ee2),
+            (0x400e66666666666a, 0xc027333333333334, 0x4065a429cc698771),
+            (0x402c000000000000, 0x3ff0000000000000, 0xc061e429cc698771),
+            (0x402799999999999a, 0xc01e666666666668, 0x4061e429cc698771),
+            (0x402c000000000000, 0x3ff0000000000000, 0xc061e429cc698771),
+            (0x402799999999999a, 0xc01e666666666668, 0x4061e429cc698771),
+            (0xc06100068db8bac7, 0x40691ffb15b573eb, 0x406b18a30063455b),
+            (0x406439930be0ded2, 0x40680cd1b71758e3, 0x4061e0f69936543c),
+            (0x4032666666666666, 0x3ffcccccccccccd0, 0x4050b7ac672cf11e),
+            (0xc00e666666666668, 0x403599999999999a, 0xc01b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0xc02799999999999a, 0x403199999999999a, 0xc0426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0xc02799999999999a, 0x403199999999999a, 0xc0426f58ce59e23c),
+            (0x406540068db8bac7, 0xc069dffb15b573eb, 0x4078cc518031a2ae),
+            (0xc06439930be0ded2, 0xc066ccd1b71758e2, 0xc0427c259b26af10),
+            (0x402c000000000000, 0xc010000000000000, 0x402bbd63396788f0),
+            (0x4013333333333334, 0x403799999999999a, 0x402bbd63396788f0),
+            (0x4036000000000000, 0xc020000000000000, 0x4045ef58ce59e23c),
+            (0x402999999999999a, 0x403399999999999a, 0x4045ef58ce59e23c),
+            (0x4036000000000000, 0xc020000000000000, 0x4045ef58ce59e23c),
+            (0x402999999999999a, 0x403399999999999a, 0x4045ef58ce59e23c),
+            (0x40657ff972474539, 0xc06a0004ea4a8c15, 0xc073c07b4c9b2a1e),
+            (0x406459930be0ded2, 0xc0668cd1b71758e3, 0x4045fc259b26af10),
+            (0x4026000000000000, 0xc014000000000000, 0x402bbd63396788f0),
+            (0x3ffcccccccccccd0, 0x403699999999999a, 0x402bbd63396788f0),
+            (0x4033000000000000, 0xc022000000000000, 0x4045ef58ce59e23c),
+            (0x402399999999999a, 0x403299999999999a, 0x4045ef58ce59e23c),
+            (0x4033000000000000, 0xc022000000000000, 0x4045ef58ce59e23c),
+            (0x402399999999999a, 0x403299999999999a, 0x4045ef58ce59e23c),
+            (0x40651ff972474539, 0xc06a2004ea4a8c15, 0xc073c07b4c9b2a1e),
+            (0x4063f9930be0ded2, 0xc066acd1b71758e3, 0x4045fc259b26af10),
+            (0x402c000000000000, 0xc010000000000000, 0x402bbd63396788f0),
+            (0x4013333333333334, 0x403799999999999a, 0x402bbd63396788f0),
+            (0x4036000000000000, 0xc020000000000000, 0x4045ef58ce59e23c),
+            (0x402999999999999a, 0x403399999999999a, 0x4045ef58ce59e23c),
+            (0x4036000000000000, 0xc020000000000000, 0x4045ef58ce59e23c),
+            (0x402999999999999a, 0x403399999999999a, 0x4045ef58ce59e23c),
+            (0x40657ff972474539, 0xc06a0004ea4a8c15, 0xc073c07b4c9b2a1e),
+            (0x406459930be0ded2, 0xc0668cd1b71758e3, 0x4045fc259b26af10),
+            (0x4028000000000000, 0xc008000000000000, 0x401b7ac672cf11e0),
+            (0x400e666666666668, 0x403599999999999a, 0x401b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0xc074307b4c9b2a1e),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0x40427c259b26af10),
+            (0x4028000000000000, 0xc008000000000000, 0x401b7ac672cf11e0),
+            (0x400e666666666668, 0x403599999999999a, 0x401b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0xc074307b4c9b2a1e),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0x40427c259b26af10),
+            (0x4028000000000000, 0xc008000000000000, 0x401b7ac672cf11e0),
+            (0x400e666666666668, 0x403599999999999a, 0x401b7ac672cf11e0),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x4034000000000000, 0xc01c000000000000, 0x40426f58ce59e23c),
+            (0x402799999999999a, 0x403199999999999a, 0x40426f58ce59e23c),
+            (0x40653ff972474539, 0xc069e004ea4a8c15, 0xc074307b4c9b2a1e),
+            (0x406439930be0ded2, 0xc066ccd1b71758e2, 0x40427c259b26af10),
+        ];
+        let p = |x: f64, y: f64, rotation: f64| Pose2 {
+            at: Vec2 { x, y },
+            rotation,
+        };
+        let rules = [
+            CompanionRule::Literal,
+            CompanionRule::Stabiliser,
+            CompanionRule::Duplicate,
+            CompanionRule::Tweaked {
+                u: 1.0,
+                v: -2.0,
+                w: 7.0,
+            },
+            CompanionRule::Tweaked {
+                u: -0.0,
+                v: -0.0,
+                w: -0.0,
+            },
+        ];
+        let poses = [
+            p(4.0, 8.0, 30.0),
+            p(-0.0, -0.0, -0.0),
+            p(0.0, 0.0, 0.0),
+            p(0.001, -250.0, 359.9),
+        ];
+        let keys = [p(2.0, 5.0, 0.0), p(2.0, 5.0, 90.0), p(-0.0, -0.0, -0.0)];
+        let previous = p(4.0, 8.0, 30.0);
+        let mut pinned = PINNED.iter();
+        for rule in rules {
+            for key in keys {
+                for pose in poses {
+                    let frame = EndpointFrame::LinkedCompanion {
+                        mapping: pair_map(),
+                        key: Some(key),
+                        rule,
+                    };
+                    for result in [
+                        frame.project(pose).unwrap(),
+                        frame.unproject(pose, previous).unwrap(),
+                    ] {
+                        let bits = (
+                            result.at.x.to_bits(),
+                            result.at.y.to_bits(),
+                            result.rotation.to_bits(),
+                        );
+                        assert_eq!(
+                            bits,
+                            *pinned.next().unwrap(),
+                            "{rule:?} key {key:?} pose {pose:?}: {result:?}"
+                        );
+                    }
+                }
+            }
         }
     }
 }

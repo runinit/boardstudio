@@ -68,4 +68,10 @@ required", and so: the v5 to v6 stamp-only migration candidate and its idempoten
 text, a framed serde round-trip with both endpoint kinds and `mirror-line` (design, "Independent
 synthetic geometry oracles" and the compatibility tests), the v7-rejection test (the current
 newer-version input 6 becomes 7), the current-version assertions, and the archive/host
-round-trip tests.
+round-trip tests. Before the `Framed` arm persists, the companion and mirror-line arithmetic
+in `core/src/constraints/` must stay bit-pinned: positions and headings are persisted and
+hashed, so a reordered operation or a folded zero is a format change. Today
+`companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed` (companion rules, forward
+and inverse, with negative zeros) and `axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit`
+pin it; the slanted-axis reflection is pinned only to 1e-9 and needs its own literal bit
+patterns before it persists.
