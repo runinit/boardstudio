@@ -32,12 +32,17 @@ import sys
 BASELINE = Path(__file__).with_name("check-native-tests-baseline.json")
 RUNNING = re.compile(r"^\s*Running\s.*\(([^()]*)\)\s*$")
 DOC_TESTS = re.compile(r"^\s*Doc-tests\s")
-# Not anchored to the line start: a test's own uncaptured stderr (a Drop impl printing, say) can
-# land on the same line just before libtest's `test <name> ... ok`.
-RESULT = re.compile(r"(?:^|\W)test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored)\b")
-# A test's stderr can also land between `...` and the verdict (`... Customok {`), which hides it
-# from RESULT. A test that wrote output ran, so a name followed by `...` still counts as executed.
-STARTED = re.compile(r"(?:^|\W)test (\S+)(?: - should panic)? \.\.\. ")
+# Not anchored to the line start, and not to a word boundary: a test's own uncaptured stderr (a
+# Drop impl printing, say) can land on the same line just before libtest's `test <name> ... ok`,
+# and can stop mid-word (`kind: Othertest archive::...`). A name is only counted with its
+# ` ... ` marker, so noise that merely mentions a name does not count.
+# No `\b` after the verdict: stderr glued straight after `ignored` must still read as ignored,
+# or STARTED below would count that ignored test as executed.
+RESULT = re.compile(r"test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored)")
+# A test's stderr can also land between `...` and the verdict (`... Customok {`, `... , okerror`),
+# which hides it from RESULT. A test that wrote output ran, so a name followed by `...` still
+# counts as executed.
+STARTED = re.compile(r"test (\S+)(?: - should panic)? \.\.\. ")
 HASH = re.compile(r"-[0-9a-f]{16}$")
 SHOWN = 20  # names listed per binary before "... and N more"
 
