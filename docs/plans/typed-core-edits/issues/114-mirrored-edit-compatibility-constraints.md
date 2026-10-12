@@ -70,4 +70,11 @@ resolved pose, and the key-reading rules refuse while unbound, so a caller of `p
 `retune_target` outside the solver must bind it with `with_key` first. 114 owns what 139 handed on:
 translating `SetConstraint`/`RemoveConstraint` and `MoveParts` through these, editing from either
 linked half, and the endpoint rewrites on MakeLocal/Omit/Rejoin/Unlink per design.md's transition
-table (needs 109's durable source identity). The persisted arm and format 6 are 111's.
+table (109 is on dev; what is missing is the persisted arm and the operation seam). The
+persisted arm and format 6 are 111's.
+
+Two deferrals 139 left for 114's own edit of `core/src/constraints.rs`: the solver's
+`(parts, constraints, assemblies, resolved, visiting)` argument clump should become one value
+when the operation seam adds more state to it, and the accessors
+`ConstraintEndpoint::visible_part_id` and `authoritative_part_id`, read only by tests, are to be
+deleted if nothing in 114 uses them.

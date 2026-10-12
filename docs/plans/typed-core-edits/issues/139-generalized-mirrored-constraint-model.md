@@ -99,8 +99,46 @@ Private, unactivated units on branch `worktree-agent-a1258f0b7ce0babff`, all in 
   one driving record through either half (crate-visible; 114/115 call it). It counts two stored
   records on one authority as a conflict, which the production solver still accepts.
 - An unbound companion frame (`key: None`) refuses for the rules that read the key.
-- The compiled Mirror position is close to, not bit-equal to, the stored `2c - x`; saved Mirror
-  records stay on the stored arithmetic until an exact pin exists (see `from_legacy`).
+- Axis-aligned Mirror records compile to the stored arithmetic bit for bit (round 3, below);
+  a slanted axis has no stored counterpart and uses the general reflection.
 
 What remains is in "Handed to 114, 115, 111" above. The accepted design is in the repository at
 `docs/plans/typed-core-edits/design/139-generalized-mirrored-constraint-model.md`.
+
+## Outcome
+
+Bullets 1 and 2 are met and the ticket is resolved; the rest is handed on above. Round 3
+(2026-10-12, user-approved decisions) changed:
+
+- **Exact Mirror.** `MirrorLine::apply` takes the stored formulas for a line at exactly 90 or
+  0 degrees (position `2c - x` or `2c - y`, heading `180 - r` or `-r`, keeping a zero's sign),
+  which is every line `from_legacy` produces. An exact-equality test against the stored
+  `constraint_pose` covers both axes, several coordinates (including negative zero) and sources;
+  slanted axes keep the near-equal pin. The earlier "not bit-exact" caveat is retired.
+- **One companion map.** `CompanionRule::frame` states each rule once for `project` and
+  `unproject`. A test-only window onto `derive::companion_assembly` pins the stabiliser,
+  duplicate, tweaked and literal rules to it at three key headings (within 1e-9: the two compose
+  the same rotations in a different order), and a repaired companion's persisted literal
+  correspondence is pinned to derive's fallback path.
+- **Unproduced companions refuse.** A key or companion of a disabled or deleted cell, or a
+  companion whose key part is absent, is an explicit refusal, no longer an independent part.
+- **`Side` enum** replaces the `"source"`/`"target"` string; the tolerant equivalence test says so.
+
+Evidence honesty for bullet 2: RED-first was observed for the pure-math unit only (7/14 failures
+under "Initial private math handoff"). The 2026-10-12 solver, binding and projection tests were
+written with or after their code and are mutation-checked instead (`.evidence/`, local and
+gitignored). Of the round-3 tests, the two that change behaviour were red first: the exact-Mirror
+test failed on the general formula by one ulp, and the unproduced-companion test failed with
+`Ok`. The parity and repaired-companion tests passed on first run, because they pin behaviour
+that already agreed with derive; they are covered by the mutation run instead.
+
+Deferred, with owners:
+
+- The `(parts, constraints, assemblies, resolved, visiting)` argument clump in the solver and
+  the test-only accessors on `ConstraintEndpoint`: **114** (its "Inherits from 139").
+- The hand-formatted key id `format!("matrix/{}/r{}c{}", ...)` at `mirrored_half.rs:1316` and
+  `:1458`, which duplicates `matrix::member_id`: change it at the next edit of
+  `mirrored_half.rs`; 139 did not touch it to stay out of that file's other work.
+- The locked/conflicting-movement refusal fixture: **115**. The migration candidate and the
+  framed serde round-trip: **111**.
+
