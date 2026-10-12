@@ -60,6 +60,20 @@ class CollectTests(unittest.TestCase):
                  "test archive::tests::limits_apply ... ok\n")
         self.assertEqual(guard.collect([noisy]).executed, {"boardstudio_core": {"archive::tests::limits_apply"}})
 
+    def test_a_should_panic_test_is_collected_by_its_name(self):
+        output = ("     Running tests/integration.rs (target/debug/deps/integration-0123456789abcdef)\n"
+                  "test boundary_parity::rejects_a_mismatch - should panic ... ok\n"
+                  "test boundary_parity::plain ... ok\n")
+        self.assertEqual(guard.collect([output]).executed,
+                         {"integration": {"boundary_parity::rejects_a_mismatch", "boundary_parity::plain"}})
+
+    def test_a_result_split_by_a_tests_stderr_inside_the_line_still_counts_as_executed(self):
+        # Observed: the test's stderr lands between `...` and the verdict, leaving `Customok {`.
+        split = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                 "ZipWriter::drop: failed to finalize archive: Io("
+                 "test archive::tests::pack_verifies ... Customok { \n")
+        self.assertEqual(guard.collect([split]).executed, {"boardstudio_core": {"archive::tests::pack_verifies"}})
+
     def test_doc_tests_are_not_baselined(self):
         run = guard.collect([CORE_OUTPUT])
         self.assertNotIn("src/lib.rs - documented (line 12)", run.executed["durable_session"])

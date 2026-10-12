@@ -957,6 +957,8 @@
   "recorded_forms_round_trip_through_the_parser"
  ],
  "integration": [
+  "boundary_parity::a_mismatch_inside_an_array_names_the_entry_by_its_id",
+  "boundary_parity::an_array_entry_without_an_id_keeps_its_index",
   "boundary_parity::fixture_hashes_match_their_bytes",
   "boundary_parity::native_transport_reproduces_the_golden_transcript",
   "case::case_preparation_uses_request_revision_and_preserves_document_and_history",
@@ -1482,6 +1484,8 @@
   "outlines::shrinking_matrix_preview_and_commit_detach_outline_at_the_same_position",
   "outlines::subgrid_bridge_cannot_export_a_self_touching_sharp_outline",
   "outlines::touching_islands_get_a_finite_width_bridge",
+  "splay_companions::a_column_splay_carries_following_and_authored_companions_with_their_keys",
+  "splay_companions::a_translation_carries_an_authored_companion_by_exactly_the_keys_delta",
   "splay_reconciliation::custom_origin_and_linked_following_change_are_preserved",
   "splay_reconciliation::editing_the_mirrored_half_updates_both_projections",
   "splay_reconciliation::preview_and_commit_have_equal_matrix_projection_and_history_roundtrips",
