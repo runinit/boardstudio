@@ -51,7 +51,7 @@ class TicketTests(unittest.TestCase):
 
     def test_an_unknown_status_is_reported_with_the_allowed_values(self):
         self.ticket("a.md", "needs-design")
-        self.assertEqual(self.violations(), {"a.md": {"status"}})
+        self.assertEqual(self.violations(), {"a.md": {check.STATUS}})
         problems = check.problems(self.root, {})
         self.assertIn("needs-design", problems[0])
         self.assertIn("ready-for-human", problems[0])
@@ -63,6 +63,11 @@ class TicketTests(unittest.TestCase):
     def test_a_ticket_the_map_does_not_name_is_reported(self):
         self.ticket("a.md", "resolved", listed=False)
         self.assertEqual(self.violations(), {"a.md": {"listed"}})
+
+    def test_a_longer_file_name_does_not_list_a_shorter_one(self):
+        self.ticket("19-x.md", "resolved")
+        self.write(f"{ISSUES}/9-x.md", "# 9: T\n\nStatus: resolved\n")
+        self.assertEqual(self.violations(), {"9-x.md": {"listed"}})
 
     def test_a_status_in_the_body_does_not_count(self):
         self.write(f"{ISSUES}/a.md", "# 1: T\n" + "\n" * 20 + "Status: resolved\n")

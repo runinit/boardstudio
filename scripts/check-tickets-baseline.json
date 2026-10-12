@@ -1,249 +1,249 @@
 {
-  "04-handoff.md": [
-    "listed",
-    "status"
-  ],
-  "100-lumberjack-native-mechanics.md": [
-    "listed"
-  ],
-  "101-reviung41-native-assembly.md": [
-    "listed"
-  ],
-  "102-reviung41-real-components.md": [
-    "listed"
-  ],
-  "103-reviung41-native-mechanics.md": [
-    "listed"
-  ],
-  "104-preserve-reviung41-original-archive.md": [
-    "listed"
-  ],
-  "108-reconcile-mirrored-outlines-assemblies.md": [
-    "listed"
-  ],
-  "109-mirrored-half-exceptions-unlink.md": [
-    "listed"
-  ],
-  "109b-mirror-only-replacement-parts-auto-pins.md": [
-    "listed"
-  ],
-  "110-inverse-map-mirrored-half-edits.md": [
-    "listed"
-  ],
-  "112-inverse-map-hosted-electrical-edits.md": [
-    "listed"
-  ],
-  "113-inverse-map-reviewed-outline-edits.md": [
-    "listed"
-  ],
-  "115-prepare-mirrored-edit-transaction.md": [
-    "listed"
-  ],
-  "116-prepare-mirrored-open-repair.md": [
-    "listed"
-  ],
-  "117-prepare-mirrored-preview-history-performance.md": [
-    "listed"
-  ],
-  "140-ui-design-impeccable.md": [
-    "listed"
-  ],
-  "19-reconcile-mirrored-halves.md": [
-    "listed"
-  ],
-  "20-recipes-build-one-half.md": [
-    "listed"
-  ],
-  "21-mirrored-half-web-adapter.md": [
-    "listed"
-  ],
-  "22-mirrored-half-integrated-verification.md": [
-    "listed"
-  ],
-  "23-redo-keyboard-04-on-native-halves.md": [
-    "listed"
-  ],
-  "26-mirrored-half-linked-mechanical-and-unchanged-parameters.md": [
-    "listed"
-  ],
-  "31-companion-placement-modes.md": [
-    "listed"
-  ],
-  "32-mirrored-half-labels.md": [
-    "listed"
-  ],
-  "35-test-maintenance-cuts.md": [
-    "listed"
-  ],
-  "37-sleeps-layout-library-ui-page.md": [
-    "status"
-  ],
-  "40-set-companion-placement-operation.md": [
-    "listed"
-  ],
-  "41-inspector-companion-mode.md": [
-    "listed"
-  ],
-  "42-global-key-spacing-preference.md": [
-    "listed"
-  ],
-  "43-apply-key-spacing-on-creation.md": [
-    "listed"
-  ],
-  "44-native-recipe-assembly-profiles.md": [
-    "listed"
-  ],
-  "45-reversible-variant-substitution-decision.md": [
-    "listed"
-  ],
-  "47-sofle-v2-native-assembly.md": [
-    "listed"
-  ],
-  "48-sofle-v2-real-components.md": [
-    "listed"
-  ],
-  "49-sofle-v2-native-mechanics.md": [
-    "listed"
-  ],
-  "50-sofle-rgb-native-assembly.md": [
-    "listed"
-  ],
-  "51-sofle-rgb-real-components.md": [
-    "listed"
-  ],
-  "52-sofle-rgb-native-mechanics.md": [
-    "listed"
-  ],
-  "53-sofle-choc-native-assembly.md": [
-    "listed"
-  ],
-  "54-sofle-choc-real-components.md": [
-    "listed"
-  ],
-  "55-sofle-choc-native-mechanics.md": [
-    "listed"
-  ],
-  "58-corne-native-assembly.md": [
-    "listed"
-  ],
-  "59-corne-real-components.md": [
-    "listed"
-  ],
-  "60-corne-native-mechanics.md": [
-    "listed"
-  ],
-  "61-lily58-native-assembly.md": [
-    "listed"
-  ],
-  "62-lily58-real-components.md": [
-    "listed"
-  ],
-  "63-lily58-native-mechanics.md": [
-    "listed"
-  ],
-  "64-klor-native-assembly.md": [
-    "listed"
-  ],
-  "65-klor-real-components.md": [
-    "listed"
-  ],
-  "66-klor-native-mechanics.md": [
-    "listed"
-  ],
-  "67-sweep-native-assembly.md": [
-    "listed"
-  ],
-  "68-sweep-real-components.md": [
-    "listed"
-  ],
-  "69-sweep-native-mechanics.md": [
-    "listed"
-  ],
-  "70-chocofi-native-assembly.md": [
-    "listed"
-  ],
-  "71-chocofi-real-components.md": [
-    "listed"
-  ],
-  "72-chocofi-native-mechanics.md": [
-    "listed"
-  ],
-  "73-totem-native-assembly.md": [
-    "listed"
-  ],
-  "74-totem-real-components.md": [
-    "listed"
-  ],
-  "75-totem-native-mechanics.md": [
-    "listed"
-  ],
-  "76-cantor-native-assembly.md": [
-    "listed"
-  ],
-  "77-cantor-real-components.md": [
-    "listed"
-  ],
-  "78-cantor-native-mechanics.md": [
-    "listed"
-  ],
-  "80-gh60-native-assembly.md": [
-    "listed"
-  ],
-  "81-gh60-real-components.md": [
-    "listed"
-  ],
-  "82-gh60-native-mechanics.md": [
-    "listed"
-  ],
-  "83-discipline-native-assembly.md": [
-    "listed"
-  ],
-  "84-discipline-real-components.md": [
-    "listed"
-  ],
-  "85-discipline-native-mechanics.md": [
-    "listed"
-  ],
-  "86-mysterium-native-assembly.md": [
-    "listed"
-  ],
-  "87-mysterium-real-components.md": [
-    "listed"
-  ],
-  "88-mysterium-native-mechanics.md": [
-    "listed"
-  ],
-  "89-voyager97-native-assembly.md": [
-    "listed"
-  ],
-  "90-voyager97-real-components.md": [
-    "listed"
-  ],
-  "91-voyager97-native-mechanics.md": [
-    "listed"
-  ],
-  "92-voyager104-native-assembly.md": [
-    "listed"
-  ],
-  "93-voyager104-real-components.md": [
-    "listed"
-  ],
-  "94-voyager104-native-mechanics.md": [
-    "listed"
-  ],
-  "95-plaid-native-assembly.md": [
-    "listed"
-  ],
-  "96-plaid-real-components.md": [
-    "listed"
-  ],
-  "97-plaid-native-mechanics.md": [
-    "listed"
-  ],
-  "98-lumberjack-native-assembly.md": [
-    "listed"
-  ],
-  "99-lumberjack-real-components.md": [
-    "listed"
-  ]
+ "04-handoff.md": [
+  "listed",
+  "status"
+ ],
+ "100-lumberjack-native-mechanics.md": [
+  "listed"
+ ],
+ "101-reviung41-native-assembly.md": [
+  "listed"
+ ],
+ "102-reviung41-real-components.md": [
+  "listed"
+ ],
+ "103-reviung41-native-mechanics.md": [
+  "listed"
+ ],
+ "104-preserve-reviung41-original-archive.md": [
+  "listed"
+ ],
+ "108-reconcile-mirrored-outlines-assemblies.md": [
+  "listed"
+ ],
+ "109-mirrored-half-exceptions-unlink.md": [
+  "listed"
+ ],
+ "109b-mirror-only-replacement-parts-auto-pins.md": [
+  "listed"
+ ],
+ "110-inverse-map-mirrored-half-edits.md": [
+  "listed"
+ ],
+ "112-inverse-map-hosted-electrical-edits.md": [
+  "listed"
+ ],
+ "113-inverse-map-reviewed-outline-edits.md": [
+  "listed"
+ ],
+ "115-prepare-mirrored-edit-transaction.md": [
+  "listed"
+ ],
+ "116-prepare-mirrored-open-repair.md": [
+  "listed"
+ ],
+ "117-prepare-mirrored-preview-history-performance.md": [
+  "listed"
+ ],
+ "140-ui-design-impeccable.md": [
+  "listed"
+ ],
+ "19-reconcile-mirrored-halves.md": [
+  "listed"
+ ],
+ "20-recipes-build-one-half.md": [
+  "listed"
+ ],
+ "21-mirrored-half-web-adapter.md": [
+  "listed"
+ ],
+ "22-mirrored-half-integrated-verification.md": [
+  "listed"
+ ],
+ "23-redo-keyboard-04-on-native-halves.md": [
+  "listed"
+ ],
+ "26-mirrored-half-linked-mechanical-and-unchanged-parameters.md": [
+  "listed"
+ ],
+ "31-companion-placement-modes.md": [
+  "listed"
+ ],
+ "32-mirrored-half-labels.md": [
+  "listed"
+ ],
+ "35-test-maintenance-cuts.md": [
+  "listed"
+ ],
+ "37-sleeps-layout-library-ui-page.md": [
+  "status"
+ ],
+ "40-set-companion-placement-operation.md": [
+  "listed"
+ ],
+ "41-inspector-companion-mode.md": [
+  "listed"
+ ],
+ "42-global-key-spacing-preference.md": [
+  "listed"
+ ],
+ "43-apply-key-spacing-on-creation.md": [
+  "listed"
+ ],
+ "44-native-recipe-assembly-profiles.md": [
+  "listed"
+ ],
+ "45-reversible-variant-substitution-decision.md": [
+  "listed"
+ ],
+ "47-sofle-v2-native-assembly.md": [
+  "listed"
+ ],
+ "48-sofle-v2-real-components.md": [
+  "listed"
+ ],
+ "49-sofle-v2-native-mechanics.md": [
+  "listed"
+ ],
+ "50-sofle-rgb-native-assembly.md": [
+  "listed"
+ ],
+ "51-sofle-rgb-real-components.md": [
+  "listed"
+ ],
+ "52-sofle-rgb-native-mechanics.md": [
+  "listed"
+ ],
+ "53-sofle-choc-native-assembly.md": [
+  "listed"
+ ],
+ "54-sofle-choc-real-components.md": [
+  "listed"
+ ],
+ "55-sofle-choc-native-mechanics.md": [
+  "listed"
+ ],
+ "58-corne-native-assembly.md": [
+  "listed"
+ ],
+ "59-corne-real-components.md": [
+  "listed"
+ ],
+ "60-corne-native-mechanics.md": [
+  "listed"
+ ],
+ "61-lily58-native-assembly.md": [
+  "listed"
+ ],
+ "62-lily58-real-components.md": [
+  "listed"
+ ],
+ "63-lily58-native-mechanics.md": [
+  "listed"
+ ],
+ "64-klor-native-assembly.md": [
+  "listed"
+ ],
+ "65-klor-real-components.md": [
+  "listed"
+ ],
+ "66-klor-native-mechanics.md": [
+  "listed"
+ ],
+ "67-sweep-native-assembly.md": [
+  "listed"
+ ],
+ "68-sweep-real-components.md": [
+  "listed"
+ ],
+ "69-sweep-native-mechanics.md": [
+  "listed"
+ ],
+ "70-chocofi-native-assembly.md": [
+  "listed"
+ ],
+ "71-chocofi-real-components.md": [
+  "listed"
+ ],
+ "72-chocofi-native-mechanics.md": [
+  "listed"
+ ],
+ "73-totem-native-assembly.md": [
+  "listed"
+ ],
+ "74-totem-real-components.md": [
+  "listed"
+ ],
+ "75-totem-native-mechanics.md": [
+  "listed"
+ ],
+ "76-cantor-native-assembly.md": [
+  "listed"
+ ],
+ "77-cantor-real-components.md": [
+  "listed"
+ ],
+ "78-cantor-native-mechanics.md": [
+  "listed"
+ ],
+ "80-gh60-native-assembly.md": [
+  "listed"
+ ],
+ "81-gh60-real-components.md": [
+  "listed"
+ ],
+ "82-gh60-native-mechanics.md": [
+  "listed"
+ ],
+ "83-discipline-native-assembly.md": [
+  "listed"
+ ],
+ "84-discipline-real-components.md": [
+  "listed"
+ ],
+ "85-discipline-native-mechanics.md": [
+  "listed"
+ ],
+ "86-mysterium-native-assembly.md": [
+  "listed"
+ ],
+ "87-mysterium-real-components.md": [
+  "listed"
+ ],
+ "88-mysterium-native-mechanics.md": [
+  "listed"
+ ],
+ "89-voyager97-native-assembly.md": [
+  "listed"
+ ],
+ "90-voyager97-real-components.md": [
+  "listed"
+ ],
+ "91-voyager97-native-mechanics.md": [
+  "listed"
+ ],
+ "92-voyager104-native-assembly.md": [
+  "listed"
+ ],
+ "93-voyager104-real-components.md": [
+  "listed"
+ ],
+ "94-voyager104-native-mechanics.md": [
+  "listed"
+ ],
+ "95-plaid-native-assembly.md": [
+  "listed"
+ ],
+ "96-plaid-real-components.md": [
+  "listed"
+ ],
+ "97-plaid-native-mechanics.md": [
+  "listed"
+ ],
+ "98-lumberjack-native-assembly.md": [
+  "listed"
+ ],
+ "99-lumberjack-real-components.md": [
+  "listed"
+ ]
 }

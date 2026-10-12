@@ -639,7 +639,7 @@ pub fn equivalent(actual: &Value, expected: &Value, label: &str) {
                 .unwrap_or_else(|| panic!("{label}: not an array"));
             assert_eq!(got.len(), want.len(), "{label} length");
             for (index, value) in want.iter().enumerate() {
-                // A transcript entry carries its request id; name it so a failure is findable.
+                // An entry with an `id` is named by it, so a failure at `core[11]` is findable.
                 let entry = match value.get("id").and_then(Value::as_str) {
                     Some(id) => format!("{label}[{index}:{id}]"),
                     None => format!("{label}[{index}]"),

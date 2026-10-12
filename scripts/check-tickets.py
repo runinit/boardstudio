@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sys
 
 STATUSES = ("ready-for-agent", "ready-for-human", "claimed", "resolved", "wontfix")
-ISSUES = Path("docs/plans/typed-core-edits/issues")
+STATUS, LISTED = "status", "listed"  # violation codes, as recorded in the baseline
+TICKETS = Path("docs/plans/typed-core-edits/issues")
 MAP = Path("docs/plans/typed-core-edits/map.md")
 BASELINE = Path("scripts/check-tickets-baseline.json")
 HEADER_LINES = 12
@@ -32,38 +34,39 @@ def status_of(text: str) -> str | None:
 def violations(root: Path) -> dict[str, set[str]]:
     listing = (root / MAP).read_text(encoding="utf-8")
     found: dict[str, set[str]] = {}
-    for file in sorted((root / ISSUES).glob("*.md")):
+    for file in sorted((root / TICKETS).glob("*.md")):
         codes = set()
         if status_of(file.read_text(encoding="utf-8")) not in STATUSES:
-            codes.add("status")
-        if file.name not in listing:
-            codes.add("listed")
+            codes.add(STATUS)
+        # The name must stand alone: `19-x.md` does not list `9-x.md`.
+        if not re.search(rf"(?<![\w.-]){re.escape(file.name)}", listing):
+            codes.add(LISTED)
         if codes:
             found[file.name] = codes
     return found
 
 
 def describe(root: Path, name: str, code: str) -> str:
-    if code == "status":
-        status = status_of((root / ISSUES / name).read_text(encoding="utf-8"))
-        shown = "no Status line in the first 12 lines" if status is None else f"unknown Status {status!r}"
-        return f"ticket-status: {ISSUES.as_posix()}/{name} — {shown}; use one of {', '.join(STATUSES)}"
-    return f"ticket-unlisted: {ISSUES.as_posix()}/{name} — not named in {MAP.as_posix()}; add a link to it"
+    if code == STATUS:
+        status = status_of((root / TICKETS / name).read_text(encoding="utf-8"))
+        shown = f"no Status line in the first {HEADER_LINES} lines" if status is None else f"unknown Status {status!r}"
+        return f"ticket-status: {TICKETS.as_posix()}/{name} — {shown}; use one of {', '.join(STATUSES)}"
+    return f"ticket-unlisted: {TICKETS.as_posix()}/{name} — not named in {MAP.as_posix()}; add a link to it"
 
 
 def problems(root: Path, baseline: dict[str, list[str]]) -> list[str]:
     found = violations(root)
-    issues = []
+    messages = []
     for name, codes in found.items():
         for code in sorted(codes - set(baseline.get(name, []))):
-            issues.append(describe(root, name, code))
+            messages.append(describe(root, name, code))
     for name, codes in sorted(baseline.items()):
         for code in sorted(set(codes) - found.get(name, set())):
-            issues.append(
+            messages.append(
                 f"stale-baseline: {name} no longer has {code!r}; "
                 "run `python3 scripts/check-tickets.py --update-baseline` and review the diff"
             )
-    return issues
+    return messages
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -74,16 +77,16 @@ def main(argv: list[str] | None = None) -> int:
     path = root / BASELINE
     if update:
         found = {name: sorted(codes) for name, codes in violations(root).items()}
-        path.write_text(json.dumps(found, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(json.dumps(found, indent=1, sort_keys=True) + "\n", encoding="utf-8")
         print(f"Recorded {len(found)} tickets in {BASELINE.as_posix()}.")
         return 0
     baseline = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-    issues = problems(root, baseline)
-    for issue in issues:
-        print(issue, file=sys.stderr)
-    if issues:
+    messages = problems(root, baseline)
+    for message in messages:
+        print(message, file=sys.stderr)
+    if messages:
         return 1
-    print(f"Ticket check passed: {len(list((root / ISSUES).glob('*.md')))} tickets.")
+    print(f"Ticket check passed: {len(list((root / TICKETS).glob('*.md')))} tickets.")
     return 0
 
 

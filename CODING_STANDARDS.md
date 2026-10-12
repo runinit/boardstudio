@@ -4,8 +4,8 @@ Read during review. Mechanical rules live in checks (`python3 scripts/check.py`)
 the judgement calls that no check can make.
 
 - **Reuse the helper.** When the module or its neighbours already hold the geometry or the
-  arithmetic (`matrix/splay.rs` `rotate`, `follow_pose` in `constraints.rs`), call it. A second
-  hand-rolled copy drifts the first time one of them changes.
+  arithmetic (`rotate` in `matrix/splay.rs`), call it, widening its visibility if needed. A
+  second hand-rolled copy drifts the first time one of them changes.
 - **Keep the operation order of saved arithmetic.** Poses are persisted and hashed. When an edit
   rewrites existing arithmetic, keep the order of the operations and pin it with an
   exact-equality test; floating-point addition is not associative, so `a + (b - c)` can differ
