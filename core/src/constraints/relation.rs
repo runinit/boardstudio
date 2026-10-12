@@ -1,4 +1,4 @@
-use crate::model::{Pose2, Vec2};
+use crate::model::{Constraint, MirrorAxis, Pose2, Vec2};
 use serde::{Deserialize, Serialize};
 
 /// A directional relation evaluated between the source and target endpoint views.
@@ -6,12 +6,54 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub(super) enum ConstraintRelation {
+    /// `offset` is a vector along the board's axes, added to the source position.
     Offset { offset: Vec2, rotation: f64 },
+    /// `offset` runs along the source's own axes: it is turned by the source's heading before
+    /// it is added, so the target keeps its pose in the source's frame (ADR-0011).
+    PartOffset { offset: Vec2, rotation: f64 },
     MirrorLine { at: Vec2, angle: f64 },
 }
 
 #[cfg_attr(not(test), expect(dead_code))] // Consumed by later private solver integration.
 impl ConstraintRelation {
+    /// The relation a stored record states, so every record kind is compiled by one path.
+    /// A vertical mirror at `c` is the line through `(c, 0)` heading 90; a horizontal one is
+    /// the line through `(0, c)` heading 0. Both give the legacy heading rules exactly.
+    pub(super) fn from_legacy(constraint: &Constraint) -> Self {
+        match constraint {
+            Constraint::Offset {
+                offset, rotation, ..
+            } => Self::Offset {
+                offset: *offset,
+                rotation: *rotation,
+            },
+            Constraint::PartOffset {
+                offset, rotation, ..
+            } => Self::PartOffset {
+                offset: *offset,
+                rotation: *rotation,
+            },
+            Constraint::Mirror {
+                axis, coordinate, ..
+            } => match axis {
+                MirrorAxis::Vertical => Self::MirrorLine {
+                    at: Vec2 {
+                        x: *coordinate,
+                        y: 0.0,
+                    },
+                    angle: 90.0,
+                },
+                MirrorAxis::Horizontal => Self::MirrorLine {
+                    at: Vec2 {
+                        x: 0.0,
+                        y: *coordinate,
+                    },
+                    angle: 0.0,
+                },
+            },
+        }
+    }
+
     pub(super) fn apply(&self, source: Pose2) -> Result<Pose2, String> {
         self.validate()?;
         validate_pose(source)?;
@@ -24,6 +66,16 @@ impl ConstraintRelation {
                 },
                 rotation: source.rotation + rotation,
             },
+            Self::PartOffset { offset, rotation } => {
+                let (sin, cos) = source.rotation.to_radians().sin_cos();
+                Pose2 {
+                    at: Vec2 {
+                        x: source.at.x + offset.x * cos - offset.y * sin,
+                        y: source.at.y + offset.x * sin + offset.y * cos,
+                    },
+                    rotation: source.rotation + rotation,
+                }
+            }
             Self::MirrorLine { at, angle } => {
                 let tangent = angle.to_radians();
                 let (sin, cos) = tangent.sin_cos();
@@ -58,6 +110,19 @@ impl ConstraintRelation {
                 },
                 rotation: target.rotation - rotation,
             },
+            Self::PartOffset { offset, rotation } => {
+                // The source heading is the target's minus the stored turn, so the turned
+                // offset can be taken back out without the source pose.
+                let source_rotation = target.rotation - rotation;
+                let (sin, cos) = source_rotation.to_radians().sin_cos();
+                Pose2 {
+                    at: Vec2 {
+                        x: target.at.x - (offset.x * cos - offset.y * sin),
+                        y: target.at.y - (offset.x * sin + offset.y * cos),
+                    },
+                    rotation: source_rotation,
+                }
+            }
             Self::MirrorLine { .. } => self.apply(target)?,
         };
 
@@ -67,7 +132,7 @@ impl ConstraintRelation {
 
     pub(super) fn validate(&self) -> Result<(), String> {
         let finite = match self {
-            Self::Offset { offset, rotation } => {
+            Self::Offset { offset, rotation } | Self::PartOffset { offset, rotation } => {
                 offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite()
             }
             Self::MirrorLine { at, angle } => {
@@ -93,7 +158,7 @@ fn validate_pose(pose: Pose2) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Pose2, Vec2};
+    use crate::model::{Constraint, MirrorAxis, Pose2, Vec2};
     use serde_json::json;
 
     const TOLERANCE: f64 = 1e-9;
@@ -243,6 +308,162 @@ mod tests {
                     rotation: 3.0,
                 })
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn part_offset_turns_the_offset_by_the_source_heading_before_adding_it() {
+        let relation = ConstraintRelation::PartOffset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        };
+        // Heading 90: (5, -2) turns to (2, 5).
+        let quarter = Pose2 {
+            at: Vec2 { x: 3.0, y: 4.0 },
+            rotation: 90.0,
+        };
+        assert_pose_close(
+            relation.apply(quarter).unwrap(),
+            Pose2 {
+                at: Vec2 { x: 5.0, y: 9.0 },
+                rotation: 105.0,
+            },
+        );
+        // Heading 30: x = 5cos30 + 2sin30, y = 5sin30 - 2cos30.
+        let thirty = Pose2 {
+            at: Vec2 { x: 3.0, y: 4.0 },
+            rotation: 30.0,
+        };
+        assert_pose_close(
+            relation.apply(thirty).unwrap(),
+            Pose2 {
+                at: Vec2 {
+                    x: 8.330127018922193,
+                    y: 4.767949192431122,
+                },
+                rotation: 45.0,
+            },
+        );
+        // The same numbers as a board-axes offset do not turn with the source.
+        let board = ConstraintRelation::Offset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        };
+        assert_pose_close(
+            board.apply(quarter).unwrap(),
+            Pose2 {
+                at: Vec2 { x: 8.0, y: 2.0 },
+                rotation: 105.0,
+            },
+        );
+        for source in [quarter, thirty] {
+            assert_pose_close(
+                relation.inverse(relation.apply(source).unwrap()).unwrap(),
+                source,
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_records_compile_to_relations_with_literal_results() {
+        let ids = |kind: &str| (kind.to_owned(), "a".to_owned(), "b".to_owned());
+        let source = Pose2 {
+            at: Vec2 { x: 2.0, y: 5.0 },
+            rotation: 25.0,
+        };
+        let cases = [
+            (
+                Constraint::Offset {
+                    id: ids("o").0,
+                    source_part_id: ids("o").1,
+                    target_part_id: ids("o").2,
+                    offset: Vec2 { x: 10.0, y: 2.0 },
+                    rotation: 5.0,
+                },
+                Pose2 {
+                    at: Vec2 { x: 12.0, y: 7.0 },
+                    rotation: 30.0,
+                },
+            ),
+            (
+                // Heading 25 turns (10, 2) to (10cos25 - 2sin25, 10sin25 + 2cos25).
+                Constraint::PartOffset {
+                    id: ids("p").0,
+                    source_part_id: ids("p").1,
+                    target_part_id: ids("p").2,
+                    offset: Vec2 { x: 10.0, y: 2.0 },
+                    rotation: 5.0,
+                },
+                Pose2 {
+                    at: Vec2 {
+                        x: 10.2178413468851,
+                        y: 11.038798191480295,
+                    },
+                    rotation: 30.0,
+                },
+            ),
+            (
+                Constraint::Mirror {
+                    id: ids("v").0,
+                    source_part_id: ids("v").1,
+                    target_part_id: ids("v").2,
+                    axis: MirrorAxis::Vertical,
+                    coordinate: 10.0,
+                },
+                Pose2 {
+                    at: Vec2 { x: 18.0, y: 5.0 },
+                    rotation: 155.0,
+                },
+            ),
+            (
+                Constraint::Mirror {
+                    id: ids("h").0,
+                    source_part_id: ids("h").1,
+                    target_part_id: ids("h").2,
+                    axis: MirrorAxis::Horizontal,
+                    coordinate: 3.0,
+                },
+                Pose2 {
+                    at: Vec2 { x: 2.0, y: 1.0 },
+                    rotation: -25.0,
+                },
+            ),
+        ];
+        for (constraint, expected) in cases {
+            let relation = ConstraintRelation::from_legacy(&constraint);
+            let result = relation.apply(source).unwrap();
+            assert!(
+                (result.at.x - expected.at.x).abs() < 1e-9
+                    && (result.at.y - expected.at.y).abs() < 1e-9
+                    && (result.rotation - expected.rotation).abs() < 1e-9,
+                "{constraint:?} gave {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn part_offset_relation_serializes_with_its_own_kind() {
+        let relation = ConstraintRelation::PartOffset {
+            offset: Vec2 { x: 1.0, y: 2.0 },
+            rotation: 3.0,
+        };
+        assert_eq!(
+            serde_json::to_value(&relation).unwrap(),
+            json!({"kind": "part-offset", "offset": {"x": 1.0, "y": 2.0}, "rotation": 3.0})
+        );
+        let bad = ConstraintRelation::PartOffset {
+            offset: Vec2 {
+                x: f64::NAN,
+                y: 0.0,
+            },
+            rotation: 0.0,
+        };
+        assert!(
+            bad.apply(Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0
+            })
+            .is_err()
         );
     }
 }
