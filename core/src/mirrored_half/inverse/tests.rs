@@ -204,7 +204,6 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
     // Other tickets own these; this module refuses them and says whose they are.
     for (request, ticket) in [
         (json!({"kind": "remove-constraint", "id": "c"}), "114"),
-        (json!({"kind": "remove-mounted-module", "id": "m"}), "112"),
         (json!({"kind": "select-outline", "boardId": "b"}), "113"),
     ] {
         let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {

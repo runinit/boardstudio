@@ -12,6 +12,7 @@
 //!   not compile until it is given a ledger entry here.
 //! - Targets: [`Links`] resolves an id to Not-a-mirror, Local, Omitted or Linked.
 //! - Parts: `move_parts`, `add_part`, `remove_parts`; companion placement is `source_position`.
+//! - Hosted, electrical and keycap families (ticket 112) live in the child module `hosted`.
 //! - Matrices: `matrix_frame`, `selected_cells`, `set_matrix`; a matrix new to a paired board is
 //!   `matrix_addition`.
 //!
@@ -29,6 +30,8 @@
 #[cfg(test)]
 #[path = "inverse/tests.rs"]
 mod tests;
+
+mod hosted;
 
 use crate::matrix::column_rotation;
 use crate::matrix::splay::rotate as rotate_about;
@@ -136,6 +139,8 @@ pub(super) struct Canonical {
     pub(super) additions: Vec<PartAddition>,
     /// Matrices new to a paired board, one per `SetMatrix` that creates one.
     pub(super) matrix_additions: Vec<MatrixAddition>,
+    /// Modules and circuits new to a mirror board (ticket 112).
+    pub(super) hosted: hosted::Plan,
 }
 
 const BINDINGS_UNCHANGED: &str =
@@ -159,6 +164,7 @@ pub(super) fn canonicalize(
         coverage: Coverage::Translated,
         additions: Vec::new(),
         matrix_additions: Vec::new(),
+        hosted: hosted::Plan::default(),
     };
     match operation {
         Op::MoveParts { positions } => {
@@ -277,10 +283,7 @@ pub(super) fn canonicalize(
         | Op::SetKeycapBoard { .. }
         | Op::SetMatrixKeycaps { .. }
         | Op::SetKeycapKey { .. } => {
-            return Err(unsupported(
-                "112",
-                "hosted, electrical and keycap requests map module, circuit, net and owner ids",
-            ));
+            hosted::translate(&links, operation, &mut canonical)?;
         }
         // Ticket 113: outline and reviewed geometry.
         Op::SetOutline { .. }
@@ -416,22 +419,8 @@ impl<'a> Links<'a> {
             Target::NotMirror | Target::Local => Ok(None),
             Target::Omitted => Err(Self::omitted(id)),
             Target::Linked(link) => {
-                let owned = self.document.embedded_circuits.iter().any(|circuit| {
-                    circuit.part_ids.iter().any(|part| part == id)
-                        && self.pairs.iter().any(|pair| {
-                            pair.halves.correspondences.iter().any(|correspondence| {
-                                correspondence.kind == MirroredItemKind::EmbeddedCircuit
-                                    && correspondence.mirror_id == circuit.id
-                            })
-                        })
-                });
-                if owned {
-                    return Err(format!(
-                        "{id:?} belongs to a linked embedded circuit; ticket 112 translates \
-                         circuit edits"
-                    ));
-                }
-                Ok(Some(link))
+                // A circuit member follows its circuit's namespace and member map (ticket 112).
+                Ok(hosted::member_is_linked(self, id, link)?.then_some(link))
             }
         }
     }
