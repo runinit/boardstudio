@@ -41,6 +41,7 @@ plan and completion criteria. It is an assessment, not a completed migration.
 
 ## Design and decisions
 
+- [Architecture decisions](adr/README.md) lists every ADR with the area it governs.
 - [Fixed edited outlines](adr/0001-fixed-edited-outlines.md) and
   [linked outline refinements](adr/0002-linked-outline-refinements.md) are accepted
   domain decisions. Their acceptance does not establish implementation completion.
