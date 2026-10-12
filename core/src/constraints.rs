@@ -189,7 +189,7 @@ pub(crate) fn retune_offset(
     delta: Vec2,
     turn: Option<f64>,
 ) -> Result<Retune, String> {
-    if constraint.offset_axes().is_none() {
+    if constraint.is_mirror() {
         return Ok(Retune::Mirror);
     }
     let source = source_pose(parts, constraint)?;

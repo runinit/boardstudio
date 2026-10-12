@@ -949,11 +949,7 @@ pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> 
                     == Some(position.id.as_str())
             })
             || doc.constraints.iter().any(|constraint| {
-                constraint.target() == position.id
-                    && matches!(
-                        constraint,
-                        Constraint::Offset { .. } | Constraint::PartOffset { .. }
-                    )
+                constraint.target() == position.id && constraint.offset_axes().is_some()
             })
     })
 }
@@ -988,7 +984,7 @@ pub(crate) fn move_keys(
             .iter()
             .find(|constraint| constraint.target() == position.id)
         {
-            if constraint.offset_axes().is_none() {
+            if constraint.is_mirror() {
                 return Err(crate::constraints::mirror_drag_refusal(&position.id));
             }
             let mut pose = part.pose;

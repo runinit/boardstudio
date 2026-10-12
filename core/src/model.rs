@@ -785,6 +785,10 @@ impl Constraint {
             | Self::Mirror { target_part_id, .. } => target_part_id,
         }
     }
+    /// Whether this reflects across a coordinate rather than offsetting.
+    pub fn is_mirror(&self) -> bool {
+        matches!(self, Self::Mirror { .. })
+    }
     /// The axes an offset constraint runs along, or `None` for a mirror.
     pub fn offset_axes(&self) -> Option<OffsetAxes> {
         match self {
