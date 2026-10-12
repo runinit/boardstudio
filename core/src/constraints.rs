@@ -1,6 +1,7 @@
 use crate::matrix::layout::AssemblyPlacement;
 use crate::model::{
-    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, Pose2, Position, ProjectDoc, Vec2,
+    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Pose2, Position,
+    ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -187,6 +188,75 @@ pub(crate) fn retune_offset(constraint: &mut Constraint, source: Pose2, delta: V
             unreachable!("mirror constraints are rejected before a retune")
         }
     }
+}
+
+/// Re-expresses an offset constraint's numbers in `to`'s axes, measured from the source's
+/// current pose, so the target does not move. The id and endpoints are kept. Every check
+/// runs before the constraint is replaced, so a refusal changes nothing.
+pub(crate) fn convert_offset(
+    doc: &mut ProjectDoc,
+    constraint_id: &str,
+    to: OffsetAxes,
+) -> Result<Vec<String>, String> {
+    let index = doc
+        .constraints
+        .iter()
+        .position(|constraint| constraint.id() == constraint_id)
+        .ok_or_else(|| format!("Constraint {constraint_id} does not exist"))?;
+    let source_id = doc.constraints[index].source().to_string();
+    let source = doc
+        .parts
+        .iter()
+        .find(|part| part.id == source_id)
+        .ok_or_else(|| format!("Constraint {constraint_id} references a missing part"))?
+        .pose;
+    let (sin, cos) = source.rotation.to_radians().sin_cos();
+    let turn = |v: Vec2, sin: f64, cos: f64| Vec2 {
+        x: v.x * cos - v.y * sin,
+        y: v.x * sin + v.y * cos,
+    };
+    let next = match (doc.constraints[index].clone(), to) {
+        (
+            Constraint::Offset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset,
+                rotation,
+            },
+            OffsetAxes::Part,
+        ) => Constraint::PartOffset {
+            id,
+            source_part_id,
+            target_part_id,
+            offset: turn(offset, -sin, cos),
+            rotation,
+        },
+        (
+            Constraint::PartOffset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset,
+                rotation,
+            },
+            OffsetAxes::Board,
+        ) => Constraint::Offset {
+            id,
+            source_part_id,
+            target_part_id,
+            offset: turn(offset, sin, cos),
+            rotation,
+        },
+        (current @ (Constraint::Offset { .. } | Constraint::PartOffset { .. }), _) => current,
+        (Constraint::Mirror { .. }, _) => {
+            return Err(format!(
+                "Constraint {constraint_id} is a mirror and has no offset axes"
+            ));
+        }
+    };
+    doc.constraints[index] = next;
+    Ok(vec![constraint_id.into()])
 }
 
 fn pose(

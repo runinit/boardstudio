@@ -1115,6 +1115,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
             | EditOperation::SetConstraint { .. }
+            | EditOperation::ConvertOffsetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
     )
@@ -1628,6 +1629,9 @@ fn apply(
                 detached,
             ]
             .concat())
+        }
+        EditOperation::ConvertOffsetConstraint { constraint_id, to } => {
+            constraints::convert_offset(doc, constraint_id, *to)
         }
         EditOperation::SetConstraint { constraint } => {
             if let Some(current) = doc

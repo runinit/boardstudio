@@ -282,3 +282,140 @@ fn dragging_a_part_offset_companion_retunes_its_offset_along_the_source_axes() {
         "offset {offset:?} is not the drag in the key's axes"
     );
 }
+
+fn held_by_board_axes() -> Constraint {
+    Constraint::Offset {
+        id: "held-key".into(),
+        source_part_id: KEY.into(),
+        target_part_id: HELD.into(),
+        offset: Vec2 { x: 1.0, y: -4.0 },
+        rotation: 0.0,
+    }
+}
+
+/// A key-held companion, after its column is splayed 30 degrees.
+fn splayed(constraint: impl FnOnce() -> Constraint) -> (CoreEngine, ProjectDoc) {
+    let (mut engine, before) = fixture(constraint);
+    let (_, after) = edit(
+        &mut engine,
+        &before,
+        EditOperation::SetMatrixSplay {
+            matrix_id: "m".into(),
+            column: 1,
+            change: MatrixSplayChange::Angle {
+                angle: 30.0,
+                affect: MatrixSplayAffect::Column,
+            },
+        },
+    );
+    (engine, after)
+}
+
+fn convert(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    constraint_id: &str,
+    to: OffsetAxes,
+) -> CoreReply {
+    engine.handle(CoreRequest::Edit {
+        id: "convert".into(),
+        command: EditCommand {
+            base_revision: doc.revision,
+            transaction_id: "convert".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::ConvertOffsetConstraint {
+                constraint_id: constraint_id.into(),
+                to,
+            },
+        },
+    })
+}
+
+fn assert_every_part_kept(before: &ProjectDoc, after: &ProjectDoc) {
+    assert_eq!(before.parts.len(), after.parts.len());
+    for (was, now) in before.parts.iter().zip(&after.parts) {
+        assert_eq!(was.id, now.id);
+        assert!(
+            (was.pose.at.x - now.pose.at.x).abs() < 1e-9
+                && (was.pose.at.y - now.pose.at.y).abs() < 1e-9
+                && (was.pose.rotation - now.pose.rotation).abs() < 1e-9,
+            "{} moved on conversion: {:?} -> {:?}",
+            was.id,
+            was.pose,
+            now.pose
+        );
+    }
+}
+
+fn held_constraint(doc: &ProjectDoc) -> &Constraint {
+    doc.constraints
+        .iter()
+        .find(|constraint| constraint.target() == HELD)
+        .expect("the held companion keeps a constraint")
+}
+
+#[test]
+fn converting_a_board_offset_to_part_axes_moves_no_part_and_keeps_the_id() {
+    let (mut engine, before) = splayed(held_by_board_axes);
+    let (_, after) = scene(convert(&mut engine, &before, "held-key", OffsetAxes::Part));
+    assert_every_part_kept(&before, &after);
+    let Constraint::PartOffset {
+        id,
+        offset,
+        rotation,
+        ..
+    } = held_constraint(&after)
+    else {
+        panic!("the constraint did not become part-offset");
+    };
+    assert_eq!(id, "held-key");
+    // (1, -4) on board axes is (-1.134, -3.964) in the key's frame at a 30 degree turn.
+    assert!(
+        (offset.x - -1.1339745962155614).abs() < 1e-9
+            && (offset.y - -3.9641016151377544).abs() < 1e-9
+            && rotation.abs() < 1e-9,
+        "offset {offset:?} turn {rotation}"
+    );
+}
+
+#[test]
+fn converting_a_part_offset_to_board_axes_moves_no_part_and_keeps_the_id() {
+    let (mut engine, before) = splayed(held_by_part_axes);
+    let (_, after) = scene(convert(&mut engine, &before, "held-key", OffsetAxes::Board));
+    assert_every_part_kept(&before, &after);
+    let Constraint::Offset {
+        id,
+        offset,
+        rotation,
+        ..
+    } = held_constraint(&after)
+    else {
+        panic!("the constraint did not become offset");
+    };
+    assert_eq!(id, "held-key");
+    // (1, -4) in the key's frame is (2.866, -2.964) on board axes at a 30 degree turn.
+    assert!(
+        (offset.x - 2.8660254037844386).abs() < 1e-9
+            && (offset.y - -2.9641016151377544).abs() < 1e-9
+            && rotation.abs() < 1e-9,
+        "offset {offset:?} turn {rotation}"
+    );
+}
+
+#[test]
+fn converting_an_unknown_constraint_is_refused_and_changes_nothing() {
+    let (mut engine, before) = splayed(held_by_part_axes);
+    let CoreReply::Error { message, .. } = convert(
+        &mut engine,
+        &before,
+        "no-such-constraint",
+        OffsetAxes::Board,
+    ) else {
+        panic!("an unknown constraint must be refused");
+    };
+    assert!(message.contains("no-such-constraint"), "{message}");
+    let (_, now) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+    assert_eq!(now.constraints, before.constraints);
+    assert_every_part_kept(&before, &now);
+}

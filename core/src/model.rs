@@ -786,6 +786,14 @@ impl Constraint {
         }
     }
 }
+/// The axes an offset constraint's offset runs along: `Board` is `offset`, `Part` is
+/// `part-offset`. See ADR-0011.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OffsetAxes {
+    Board,
+    Part,
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MirrorAxis {
@@ -1554,6 +1562,13 @@ pub enum EditOperation {
     },
     SetConstraint {
         constraint: Constraint,
+    },
+    /// Re-expresses one offset constraint on the other axes without moving any part. `to`
+    /// names the kind it becomes. See ADR-0011.
+    ConvertOffsetConstraint {
+        #[serde(rename = "constraintId")]
+        constraint_id: String,
+        to: OffsetAxes,
     },
     /// Applies one typed mechanical settings/feature change. Core owns defaults,
     /// validation, linked-feature propagation and closure-clearance projection,
