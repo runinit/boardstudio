@@ -245,6 +245,12 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   [08](issues/08-core-mirror-pairs.md#outcome),
   [09](issues/09-case-adapter-and-setup.md#outcome),
   [10](issues/10-integrated-verification.md#outcome).
+- [148](issues/148-mirror-electrical-configuration-for-added-matrices.md) resolved: new matrix
+  assignments and locks follow member correspondences, Local/Omitted electrical-board overlays
+  preserve their state, and missing controller pins refuse by function identity. Source
+  `7efaf94ec`, merged `b9db54166`; focused 26/26, mutations 3/3 killed, native baseline 1695,
+  independent Standards/Spec review clear, merged `repo test lint` passed. 111 still has other
+  prerequisites.
 
 ## Ready for implementation
 

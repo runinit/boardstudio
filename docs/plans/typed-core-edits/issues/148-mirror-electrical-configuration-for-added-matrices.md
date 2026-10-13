@@ -1,6 +1,6 @@
 # 148: Extend the mirror electrical configuration for added matrices
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [145](145-mirror-new-matrices-on-a-mirrored-board.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -23,9 +23,10 @@ fully wired on both halves.
 
 ## Acceptance
 
-- [ ] Red-first: add a base matrix then a thumb cluster; the mirror board's assignments and locks
+- [x] Red-first: add a base matrix then a thumb cluster; the mirror board's assignments and locks
       equal what `CreateMirroredHalf` derives for the same source.
-- [ ] Local/Omitted overlay cases; no change to unrelated assignments; mutation check.
+- [x] Local/Omitted overlay cases; no change to unrelated assignments; missing-pin refusal and
+      mutation checks.
 
 ## File ownership
 
@@ -43,5 +44,6 @@ Evidence: red-first assignment test failed because the mapped mirror function wa
 focused run: `cargo test -p boardstudio_core --lib mirrored_half::matrix_addition::tests:: -- --nocapture`
 (26 passed). Mutation checks for function mapping, overlay handling and missing-pin refusal: 3 killed,
 0 survived. `python3 scripts/check.py test --update-native-baseline` passed with 1695 executed native
-tests and updated the baseline through the project command. Acceptance checkboxes remain for review
-and integration.
+tests and updated the baseline through the project command. Independent Standards and Spec reviews
+found no violations or gaps (the Standards review noted one judgment-call duplicate loop). Merged
+to `dev` as `b9db54166`. Post-merge `python3 scripts/check.py repo test lint` passed.
