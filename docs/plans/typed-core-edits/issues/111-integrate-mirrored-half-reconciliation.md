@@ -240,3 +240,23 @@ Open seed ordering compose the already approved preparation/model contract. Pres
 loaded Framed bindings, untouched legacy JSON, and no-op history; do not invent recovery rules.
 Root also assigns `core/src/constraints/retune.rs` solely to remove the obsolete dead-code
 expectation once the existing helper is used in production; no visibility change is included.
+
+## Public integration edge coverage (2026-10-13)
+
+Root additionally assigns `core/tests/mirrored_half/activation_edges.rs` as a private child
+of the existing mirrored-half integration tests. It reuses their private test helpers without
+visibility changes. Coverage includes actual nonempty closure lifecycle/history and 147's
+Local-circuit joined-net and linked-controller pin projection edges. No production logic or
+new net policy belongs in this test file.
+
+The dependency integration preserves verified preparation through 155. The exact lifecycle
+helper coalescing and current/intentional-v5 fixture corrections have both independent review
+axes accepted. The existing mechanical evaluator is wired before prepared mechanical commits
+so an actual Unchanged disposition preserves revision/history; its focused public regression
+and the exact-ID circuit absolute typed-placement regression both pass. Full gates remain open.
+
+The ordinary authored companion fixture remains part of acceptance. A passing companion-free
+preview control does not replace all four public preview families on authored companion data.
+Separate preparation follow-up 156 covers selected-cell tombstones and exact legacy unassociated
+child state; these must retain the original public regressions. New edge tests and further
+authored-preview cases are preserved as WIP until actual execution and delta review pass.

@@ -1,4 +1,7 @@
 //! `CreateMirroredHalf` (ticket 18) through Core's request surface using a small authored input.
+#[path = "mirrored_half/activation_edges.rs"]
+mod activation_edges;
+
 use crate::support::synthetic_half;
 use boardstudio_core::CoreEngine;
 use boardstudio_core::mechanical::MechanicalTarget;
@@ -3690,16 +3693,30 @@ fn production_prepared_circuit_addition_preserves_member_frames_and_bidirectiona
         .into_iter()
         .find(|(_, mirror_id)| mirror_id == "right/runtime-circuit")
         .unwrap_or_else(|| panic!("the new circuit pair is absent: {document}"));
-        let member_pair = pairs_of_kind(document, &format!("runtime-circuit-{side}"), "part")
-            .into_iter()
-            .find(|(source_id, mirror_id)| {
-                source_id.starts_with(&format!("embedded/{}/", circuit_pair.0))
-                    && mirror_id.starts_with("embedded/right/runtime-circuit/")
-            })
-            .unwrap_or_else(|| panic!("the new member pair is absent: {document}"));
+        let typed_member = &definition["circuit"]["parts"][0];
+        let typed_member_id = typed_member["id"].as_str().unwrap();
+        let typed_member_reference = typed_member["reference"].as_str().unwrap();
+        let member_candidates: Vec<_> = pairs_of_kind(
+            document,
+            &format!("runtime-circuit-{side}"),
+            "part",
+        )
+        .into_iter()
+        .filter(|(source_id, mirror_id)| {
+            source_id.starts_with(&format!("embedded/{}/", circuit_pair.0))
+                && source_id.rsplit('/').next() == Some(typed_member_id)
+                && part(document, source_id)["reference"] == typed_member_reference
+                && mirror_id.starts_with("embedded/right/runtime-circuit/")
+        })
+        .collect();
+        assert_eq!(
+            member_candidates.len(),
+            1,
+            "the typed member must resolve to exactly one source/mirror correspondence: {member_candidates:?}"
+        );
+        let member_pair = member_candidates.into_iter().next().unwrap();
         let source_member = part(document, &member_pair.0);
         let mirror_member = part(document, &member_pair.1);
-        let typed_member = &definition["circuit"]["parts"][0];
         assert_eq!(
             typed_member["side"],
             "back",
@@ -4009,7 +4026,11 @@ fn production_matrix_membership_transition_updates_pair_context_for_later_source
 
 #[test]
 fn production_paired_previews_project_all_matrix_edit_families_without_publishing() {
-    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let mut document = runtime_supported_document();
+    for cell in document["matrices"][0]["cells"].as_array_mut().unwrap() {
+        cell["assemblies"] = json!([]);
+    }
+    let (mut engine, seed) = seed(&document, "left");
     let created = create(
         &mut engine,
         &seed,
@@ -4027,13 +4048,21 @@ fn production_paired_previews_project_all_matrix_edit_families_without_publishin
         .find(|matrix| matrix["id"] == "left-synthetic-keys")
         .unwrap()
         .clone();
-    let first_cell = matrix["cells"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|cell| cell["row"] == 0 && cell["column"] == 0)
-        .unwrap();
-    first_cell["rotation"] = json!(12.0);
+    matrix["columns"] = json!(3);
+    let additions: Vec<Value> = (0..2)
+        .map(|row| {
+            let mut cell = matrix["cells"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|cell| cell["row"] == row && cell["column"] == 1)
+                .unwrap()
+                .clone();
+            cell["column"] = json!(2);
+            cell
+        })
+        .collect();
+    matrix["cells"].as_array_mut().unwrap().extend(additions);
 
     let previews = [
         (
@@ -4045,8 +4074,8 @@ fn production_paired_previews_project_all_matrix_edit_families_without_publishin
         (
             "set-matrix",
             json!({"kind":"set-matrix","matrix":matrix}),
-            "matrix/left-synthetic-keys/r0c0",
-            "matrix/right-synthetic-keys/r0c0",
+            "matrix/left-synthetic-keys/r0c2",
+            "matrix/right-synthetic-keys/r0c2",
         ),
         (
             "set-matrix-splay",
@@ -4088,22 +4117,151 @@ fn production_paired_previews_project_all_matrix_edit_families_without_publishin
         };
         let source_pose = &transform(source_id)["pose"];
         let mirror_pose = &transform(mirror_id)["pose"];
-        assert_ne!(
-            source_pose,
-            &part(&accepted, source_id)["pose"],
-            "{family}: source draft"
-        );
-        assert_ne!(
-            mirror_pose,
-            &part(&accepted, mirror_id)["pose"],
-            "{family}: mirror draft"
-        );
+        assert!(source_pose.is_object(), "{family}: source draft pose");
+        assert!(mirror_pose.is_object(), "{family}: mirror draft pose");
+        if let Some(before) = find_part(&accepted, source_id) {
+            assert_ne!(source_pose, &before["pose"], "{family}: source draft");
+        } else {
+            assert_eq!(family, "set-matrix", "only expansion adds preview parts");
+        }
+        if let Some(before) = find_part(&accepted, mirror_id) {
+            assert_ne!(mirror_pose, &before["pose"], "{family}: mirror draft");
+        } else {
+            assert_eq!(family, "set-matrix", "only expansion adds preview parts");
+        }
         assert_eq!(
             snapshot(&mut engine),
             accepted,
             "{family}: preview {index} must leave accepted state unchanged"
         );
     }
+}
+
+fn assert_authored_companion_preview(
+    family: &str,
+    operation: Value,
+    source_id: &str,
+    mirror_id: &str,
+    expected_source: (f64, f64),
+    expected_mirror: (f64, f64),
+) {
+    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let created = create(
+        &mut engine,
+        &seed,
+        &format!("runtime-authored-preview-{family}"),
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let accepted = created["document"].clone();
+    let transaction_id = format!("runtime-authored-preview-{family}");
+    let preview: Value = serde_json::from_str(
+        &engine.request(
+            &json!({"id":transaction_id,"kind":"edit","command":{
+                "baseRevision":accepted["revision"],
+                "transactionId":transaction_id,
+                "phase":"preview",
+                "targetIds":[source_id,mirror_id],
+                "operation":operation
+            }})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(
+        snapshot(&mut engine),
+        accepted,
+        "{family}: authored-companion preview must leave accepted document and history unchanged"
+    );
+    assert_eq!(preview["kind"], "preview", "{family}: {preview}");
+    let preview_pose = |id: &str| {
+        let transform = preview["scene"]["transforms"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|transform| transform["id"] == id)
+            .unwrap_or_else(|| panic!("{family}: missing preview transform for {id}: {preview}"));
+        (
+            transform["pose"]["at"]["x"].as_f64().unwrap(),
+            transform["pose"]["at"]["y"].as_f64().unwrap(),
+        )
+    };
+    assert_point(preview_pose(source_id), expected_source, "authored source preview pose");
+    assert_point(preview_pose(mirror_id), expected_mirror, "authored mirror preview pose");
+}
+
+#[test]
+fn production_authored_companion_move_parts_preview_projects_both_halves() {
+    assert_authored_companion_preview(
+        "move-parts",
+        json!({"kind":"move-parts","positions":[{"id":"right/U1","at":{"x":222.0,"y":4.0}}]}),
+        "left/U1",
+        "right/U1",
+        (-22.0, 4.0),
+        (222.0, 4.0),
+    );
+}
+
+#[test]
+fn production_authored_companion_set_matrix_preview_projects_expansion() {
+    let mut matrix = runtime_supported_document()["matrices"][0].clone();
+    matrix["columns"] = json!(3);
+    let additions: Vec<Value> = (0..2)
+        .map(|row| {
+            let mut cell = matrix["cells"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|cell| cell["row"] == row && cell["column"] == 1)
+                .unwrap()
+                .clone();
+            cell["column"] = json!(2);
+            cell
+        })
+        .collect();
+    matrix["cells"].as_array_mut().unwrap().extend(additions);
+    matrix["partIds"].as_array_mut().unwrap().extend([
+        json!("matrix/left-synthetic-keys/r0c2"),
+        json!("matrix/left-synthetic-keys/r1c2"),
+    ]);
+    assert_authored_companion_preview(
+        "set-matrix",
+        json!({"kind":"set-matrix","matrix":matrix}),
+        "matrix/left-synthetic-keys/r0c2",
+        "matrix/right-synthetic-keys/r0c2",
+        (38.0, 0.0),
+        (162.0, 0.0),
+    );
+}
+
+#[test]
+fn production_authored_companion_set_matrix_splay_preview_projects_both_halves() {
+    let x = 19.0 + 21.0 * 12.0_f64.to_radians().sin();
+    let y = 21.0 * 12.0_f64.to_radians().cos();
+    assert_authored_companion_preview(
+        "set-matrix-splay",
+        json!({"kind":"set-matrix-splay","matrixId":"left-synthetic-keys","column":1,
+            "change":{"kind":"angle","angle":12.0,"affect":"column"}}),
+        "matrix/left-synthetic-keys/r1c1",
+        "matrix/right-synthetic-keys/r1c1",
+        (x, y),
+        (200.0 - x, y),
+    );
+}
+
+#[test]
+fn production_authored_companion_set_matrix_placement_preview_projects_both_halves() {
+    assert_authored_companion_preview(
+        "set-matrix-placement",
+        json!({"kind":"set-matrix-placement","matrixId":"left-synthetic-keys",
+            "change":{"kind":"column-stagger","column":1,"value":4.0}}),
+        "matrix/left-synthetic-keys/r0c1",
+        "matrix/right-synthetic-keys/r0c1",
+        (19.0, 4.0),
+        (181.0, 4.0),
+    );
 }
 
 #[test]
@@ -4148,7 +4306,10 @@ fn production_paired_noop_commit_preserves_revision_history_and_redo() {
             "transactionId":"runtime-noop-commit",
             "phase":"commit",
             "targetIds":["left/U1"],
-            "operation":{"kind":"move-parts","positions":[{"id":"left/U1","at":{"x":-24.0,"y":0.0}}]}
+            "operation":{"kind":"apply-mechanical-edit","edit":{
+                "target":{"kind":"instance","instanceId":"left"},
+                "change":{"set-dimension":{"field":"wall-thickness","value":2.0}}
+            }}
         }}),
     );
     assert_eq!(noop["kind"], "scene", "{noop}");
