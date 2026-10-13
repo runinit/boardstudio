@@ -834,6 +834,27 @@ fn removing_a_mirror_circuit_removes_the_source_circuit() {
 }
 
 #[test]
+fn a_circuit_member_inherits_its_associated_local_owner_state() {
+    let mut document = fixture();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(
+            serde_json::from_value(json!({
+                "kind": "embedded-circuit",
+                "mirrorId": "right-circuit",
+                "state": "local"
+            }))
+            .unwrap(),
+        );
+    let request = json!({"kind": "move-parts", "positions": [
+        {"id": "embedded/right-circuit/U1", "at": {"x": 180, "y": 9}}]});
+    unchanged(&document, request);
+}
+
+#[test]
 fn circuit_member_moves_and_removals_translate_with_the_circuit_member_map() {
     expect(
         &fixture(),
@@ -991,7 +1012,7 @@ fn source_local_omitted_and_new_nets_follow_the_established_rules() {
             MirroredExceptionState::Local,
         ),
         json!({"kind": "set-net", "net": {"id": "embedded/right-circuit/N$1", "name": "X",
-            "pins": []}}),
+            "pins": [pin("right/CONN", "pad-two")]}}),
     );
 }
 

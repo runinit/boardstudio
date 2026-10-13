@@ -620,6 +620,113 @@ fn a_linked_part_that_is_absent_from_the_mirror_has_no_entry() {
 }
 
 #[test]
+fn inherited_local_circuit_member_keycap_edit_survives_reconciliation() {
+    let (mut document, projection) = super::tests::hosted_electrical_fixture().unwrap();
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.exceptions.push(MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::EmbeddedCircuit,
+        mirror_id: "mirror-circuit".into(),
+        state: MirroredExceptionState::Local,
+        removed_copper: None,
+    });
+    let mut keycaps = crate::model::KeycapConfiguration::default();
+    keycaps.keys.insert(
+        "embedded/source-circuit/U1".into(),
+        crate::model::KeycapKeySettings {
+            legend: Some("SOURCE".into()),
+            ..Default::default()
+        },
+    );
+    keycaps.keys.insert(
+        "embedded/mirror-circuit/U1".into(),
+        crate::model::KeycapKeySettings {
+            legend: Some("MIRROR".into()),
+            ..Default::default()
+        },
+    );
+    document.keycaps = Some(keycaps);
+
+    let request = EditOperation::SetKeycapKey {
+        key_id: "embedded/mirror-circuit/U1".into(),
+        change: KeycapKeyChange::Legend {
+            value: Some("LOCAL EDIT".into()),
+        },
+    };
+    let canonical = inverse::canonicalize(&document, &request)
+        .expect("a member of a Local circuit edits its keycap setting as written");
+    assert_eq!(canonical.operation, request);
+    crate::apply(&mut document, &[], &canonical.operation)
+        .expect("the mirror-side keycap edit applies");
+    let mirror_definition = document
+        .definitions
+        .iter_mut()
+        .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
+        .unwrap();
+    let mut local_pad = mirror_definition.pads[0].clone();
+    local_pad.id = "pad-2".into();
+    mirror_definition.pads.push(local_pad);
+    document.nets.extend([
+        net(
+            "source-plain-member-net",
+            "SOURCE MEMBER NET",
+            vec![pin("embedded/source-circuit/U1", "pad-1")],
+        ),
+        net(
+            "mirror-plain-member-net",
+            "LOCAL MEMBER NET",
+            vec![pin("embedded/mirror-circuit/U1", "pad-2")],
+        ),
+    ]);
+    document
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "source-board")
+        .unwrap()
+        .net_ids
+        .push("source-plain-member-net".into());
+    document
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "mirror-board")
+        .unwrap()
+        .net_ids
+        .push("mirror-plain-member-net".into());
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(crate::model::MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Net,
+            source_id: "source-plain-member-net".into(),
+            mirror_id: "mirror-plain-member-net".into(),
+        });
+
+    reconcile(&mut document, "pair-source-mirror", &projection)
+        .expect("the Local circuit member remains valid through reconciliation");
+    assert_eq!(
+        legend(&document, "embedded/source-circuit/U1").as_deref(),
+        Some("SOURCE")
+    );
+    assert_eq!(
+        legend(&document, "embedded/mirror-circuit/U1").as_deref(),
+        Some("LOCAL EDIT")
+    );
+    assert_eq!(
+        net_of(&document, "mirror-plain-member-net").unwrap().pins,
+        vec![pin("embedded/mirror-circuit/U1", "pad-2")],
+        "a host net keeps its pin on a Local circuit member",
+    );
+}
+
+#[test]
 fn a_circuit_net_is_left_to_the_circuit_projection() {
     let mut document = paired();
     document

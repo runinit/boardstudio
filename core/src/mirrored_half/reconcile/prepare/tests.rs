@@ -26,6 +26,54 @@ fn key_relative_pose(document: &ProjectDoc, key_id: &str, companion_id: &str) ->
     )
 }
 
+fn associated_local_circuit_document() -> ProjectDoc {
+    let mut document = pair_document();
+    document.module_definitions.push(
+        serde_json::from_value(json!({
+            "id": "local-circuit-module",
+            "name": "Local circuit module",
+            "family": "fixture",
+            "variant": "fixture",
+            "source": {
+                "repository": "https://example.invalid/fixture",
+                "revision": "fixture",
+                "path": "fixture.kicad_pcb",
+                "license": "MIT"
+            },
+            "board": {"contours": []},
+            "mounts": [], "volumes": [], "openings": [], "models": [], "gates": [],
+            "interfaces": [],
+            "electrical": {"protocol": "pass-through", "requiredSignals": [], "logicVoltage": 3.3},
+            "constituents": []
+        }))
+        .unwrap(),
+    );
+    document.embedded_circuits = serde_json::from_value(json!([
+        {"id":"source-circuit","definitionId":"local-circuit-module","hostBoardId":"left",
+         "partIds":[],"netIds":[],"ports":{}},
+        {"id":"mirror-circuit","definitionId":"local-circuit-module","hostBoardId":"right",
+         "partIds":[],"netIds":[],"ports":{}}
+    ]))
+    .unwrap();
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences.push(
+        serde_json::from_value(json!({
+            "kind":"embedded-circuit","sourceId":"source-circuit","mirrorId":"mirror-circuit"
+        }))
+        .unwrap(),
+    );
+    halves.exceptions.push(
+        serde_json::from_value(json!({
+            "kind":"embedded-circuit","mirrorId":"mirror-circuit","state":"local"
+        }))
+        .unwrap(),
+    );
+    document
+}
+
 fn open_pair_engine(document: ProjectDoc) -> crate::CoreEngine {
     let mut engine = crate::CoreEngine::default();
     assert!(matches!(
@@ -43,6 +91,92 @@ fn prepare_preview(
     operation: &EditOperation,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     prepare_transaction(&engine.document, &[], operation)
+}
+
+#[test]
+fn prepared_open_preserves_an_associated_local_circuit_and_validates_its_definition() {
+    let accepted = associated_local_circuit_document();
+    let (opened, _) = super::prepare_open(&accepted, &[])
+        .expect("a valid associated Local circuit remains openable");
+    assert_eq!(opened.embedded_circuits, accepted.embedded_circuits);
+    assert_eq!(
+        opened.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions,
+        accepted.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+    );
+    let (reopened, _) = super::prepare_open(&opened, &[])
+        .expect("the preserved Local circuit is stable on repeat Open");
+    assert_eq!(reopened, opened);
+
+    let mut malformed = accepted;
+    malformed.module_definitions.clear();
+    let error = super::prepare_open(&malformed, &[])
+        .expect_err("Open rejects a Local owner with an unavailable module definition");
+    assert!(error.contains("module definition"), "{error}");
+}
+
+#[test]
+fn replace_document_validates_local_owner_when_every_matrix_membership_changed() {
+    let accepted = associated_local_circuit_document();
+    let mut replacement = accepted.clone();
+    replacement.module_definitions.clear();
+    for (matrix_id, part_id) in [
+        ("left-keys", "matrix/left-keys/r0c0"),
+        ("right-keys", "matrix/right-keys/r0c0"),
+    ] {
+        let mut matrix = replacement
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .unwrap()
+            .clone();
+        let cell = matrix
+            .cells
+            .iter_mut()
+            .find(|cell| cell.row == 0 && cell.column == 0)
+            .unwrap();
+        cell.deleted = true;
+        crate::matrix::set_matrix(&mut replacement, &matrix)
+            .expect("the replacement removes a valid matrix member");
+        replacement.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .retain(|association| {
+                let member_prefix = format!("{part_id}/");
+                association.source_id != part_id
+                    && association.mirror_id != part_id
+                    && !association.source_id.starts_with(&member_prefix)
+                    && !association.mirror_id.starts_with(&member_prefix)
+            });
+    }
+    assert!(super::super::matrix_membership_changed(
+        &accepted,
+        &replacement,
+        "left-keys"
+    ));
+    assert!(super::super::matrix_membership_changed(
+        &accepted,
+        &replacement,
+        "right-keys"
+    ));
+    let operation = EditOperation::ReplaceDocument {
+        document: Box::new(replacement),
+    };
+
+    let error = prepare_transaction(&accepted, &[], &operation).expect_err(
+        "ReplaceDocument validates the Local closure even when matrix projection skips",
+    );
+
+    assert!(error.contains("module definition"), "{error}");
 }
 
 #[test]
