@@ -1037,7 +1037,7 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
     for request in translated {
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
-    // Raw SetMechanical remains unclassified for this slice; removed constraints are prepared.
+    // Raw SetMechanical is unsupported with a reason; removed constraints are prepared.
     let request = json!({"kind":"set-mechanical","configuration":null});
     let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
         panic!("{request} must be unsupported here");
