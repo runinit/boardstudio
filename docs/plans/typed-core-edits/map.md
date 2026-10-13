@@ -438,7 +438,8 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   111 still needs Preview loss visibility and full activation gates.
 
 
-- [160](issues/160-show-paired-preview-electrical-loss.md): claimed bounded preparation for
-  exact pin/net/registration loss notices through existing transient Info Findings, passive
-  UI rows and clear/stale ownership controls. Root must prove actual rendered Preview delivery
-  in isolated 111 before accepting this work; no new model/visibility/lifecycle policy.
+- [160](issues/160-show-paired-preview-electrical-loss.md): resolved exact electrical-loss
+  Preview notices, passive rendered rows and clearing/stale ownership controls. Native/WASM
+  transport and mounted Editor proof pass in isolated 111; eight mutations are killed.
+  Preparation `aef4fd22` merged locally at `684e8e92`; candidate/post-merge repository/test/lint
+  pass all 1,859 native tests (three additions, no removals). 111 activation remains unaccepted.
