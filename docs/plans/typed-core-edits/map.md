@@ -393,16 +393,17 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   independent exceptions alongside exact single/multiple Matrix owners; both review axes accept,
   221 focused tests and six final refined compiled mutation kills pass. Full repo/test/lint passes
   with 1,833 native tests. Merged locally as `d897b057` (source `ab697e05`); post-merge
-  repo/test/lint also passes with all 1,833 native tests. 111 remains unmerged until 154 completes.
+  repo/test/lint also passes with all 1,833 native tests. 111 activation remains unmerged.
 - [154](issues/154-reserve-staged-circuit-member-references.md): resolved source/staged reference
   reservation using existing allocators. Both review axes accept, 31 hosted/223 reconciliation
   tests and four compiled mutation kills pass; full repo/test/lint passes with all 1,836 native
-  tests. 155's durable links make the preserved bidirectional pose assertions pass. Local
-  integration/post-merge checks remain pending before 111 activation.
+  tests. 155's durable links make the preserved bidirectional pose assertions pass. Merged locally
+  as `08b469b59` (source `395fcd97`); post-merge repo/test/lint also passes with all 1,836 native
+  tests. 111 activation remains unmerged.
 
 - [155](issues/155-admit-hosted-addition-correspondences.md): resolved private durable admission
   of selected hosted Module/Circuit/member/private-Net links. Both review axes accept, 222 focused
   tests and eight final compiled mutation kills pass; full repo/test/lint passes with all 1,834
   native tests. Merged locally as `fb6bdbfb6` (source `1ee69ac54`); post-merge repo/test/lint
   also passes with all 1,834 native tests. 154's propagated-pose proof now passes; its local
-  integration and111 activation remain open. No new policy/schema/visibility.
+  integration also passes; 111 activation remains open. No new policy/schema/visibility.

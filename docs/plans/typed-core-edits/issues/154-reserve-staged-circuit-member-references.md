@@ -59,5 +59,6 @@ mutations were killed with exact restoration. Full repo/test/lint passes with al
 tests executed; the baseline adds exactly two names. Main evidence: `.evidence/ticket154/`.
 
 No helper visibility, naming policy, schema or production route changed. 111's member-pose and
-production activation wiring remains separate. Local integration and post-merge checks are
-pending before 111 resumes.
+production activation wiring remains separate. Merged locally as `08b469b59` (source `395fcd97`);
+post-merge repo/test/lint passes with all 1,836 baselined native tests executed. 111 can now
+integrate the verified preparation into its preserved activation draft.
