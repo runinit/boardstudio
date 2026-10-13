@@ -485,6 +485,17 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
     );
     assert_eq!(committed["kind"], "scene", "{committed}");
     assert!(
+        committed["scene"]["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|finding| !finding["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("preview:electrical:")),
+        "committed findings must not retain Preview-only notices: {committed}"
+    );
+    assert!(
         net(&accepted, &mirror_net_id)["pins"]
             .as_array()
             .unwrap()
@@ -737,6 +748,17 @@ fn public_local_circuit_keeps_its_corresponded_plain_net_across_private_source_o
         }}),
     );
     assert_eq!(committed["kind"], "scene", "{committed}");
+    assert!(
+        committed["scene"]["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|finding| !finding["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("preview:electrical:")),
+        "committed findings must not retain Preview-only notices: {committed}"
+    );
     assert!(find_part(&committed["document"], "right/RST").is_none());
     assert!(
         committed["document"]["nets"]
