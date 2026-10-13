@@ -1,6 +1,6 @@
 # 154: Reserve staged source circuit references during mirror planning
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
