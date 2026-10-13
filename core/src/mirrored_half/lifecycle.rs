@@ -2450,11 +2450,13 @@ fn prepare_lifecycle_transition(
         })
         .collect();
     let projection = super::Projection {
+        matrix: Some(super::MatrixLink {
+            source_matrix_id: context.source_matrix_id.clone(),
+            mirror_matrix_id: context.mirror_matrix_id.clone(),
+        }),
         preserve_matrix_geometry: true,
         source_board_id: context.source_board_id.clone(),
         mirror_board_id: context.mirror_board_id.clone(),
-        source_matrix_id: context.source_matrix_id.clone(),
-        mirror_matrix_id: context.mirror_matrix_id.clone(),
         mapping: context.mapping,
         parts: output
             .context

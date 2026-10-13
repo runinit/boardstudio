@@ -3,7 +3,10 @@
 //! This module owns a disposable draft. It does not publish a revision or history entry; ticket
 //! 111 will connect the single preparation entry point to the normal edit lifecycle.
 
-use super::{HostedTransition, IndependentPartTransition, PartProjection, Projection, reconcile};
+use super::{
+    HostedTransition, IndependentPartTransition, PartProjection, Projection, omitted_mirror_matrix,
+    reconcile,
+};
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
 use crate::model::{
@@ -51,7 +54,7 @@ fn prepare_open(
             .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
             .collect();
         if matrices.is_empty() {
-            let projection = projection_for_matrixless_pair(&draft, &pair_id, &halves, mapping);
+            let projection = projection_for_matrixless_pair(&halves, mapping);
             reconcile(&mut draft, &pair_id, &projection)?;
         }
         for (source_matrix_id, mirror_matrix_id) in matrices {
@@ -108,36 +111,14 @@ fn native_pair_views(document: &ProjectDoc) -> Vec<NativePairView> {
 }
 
 fn projection_for_matrixless_pair(
-    document: &ProjectDoc,
-    pair_id: &str,
     halves: &crate::model::MirroredHalves,
     mapping: Pose2,
 ) -> Projection {
-    let mut suffix = 0usize;
-    let (source_matrix_id, mirror_matrix_id) = loop {
-        let source = format!("__open_matrixless__{pair_id}__source__{suffix}");
-        let mirror = format!("__open_matrixless__{pair_id}__mirror__{suffix}");
-        let occupied = |id: &str| {
-            document.matrices.iter().any(|matrix| matrix.id == id)
-                || halves.correspondences.iter().any(|association| {
-                    association.kind == MirroredItemKind::Matrix
-                        && (association.source_id == id || association.mirror_id == id)
-                })
-                || halves.exceptions.iter().any(|exception| {
-                    exception.kind == MirroredItemKind::Matrix && exception.mirror_id == id
-                })
-        };
-        if !occupied(&source) && !occupied(&mirror) {
-            break (source, mirror);
-        }
-        suffix += 1;
-    };
     Projection {
+        matrix: None,
         preserve_matrix_geometry: true,
         source_board_id: halves.source_board_id.clone(),
         mirror_board_id: halves.mirror_board_id.clone(),
-        source_matrix_id,
-        mirror_matrix_id,
         mapping,
         parts: Vec::new(),
         independent_part_transitions: Vec::new(),
@@ -154,12 +135,25 @@ fn projection_for_matrixless_pair(
 }
 
 fn changed_linked_mirror_targets(
-    before: &ProjectDoc,
-    after: &ProjectDoc,
+    before_document: &ProjectDoc,
+    after_document: &ProjectDoc,
     pair_id: &str,
     halves: &crate::model::MirroredHalves,
 ) -> Result<BTreeSet<String>, String> {
     let mut changed = BTreeSet::new();
+    let before_board_keycaps = before_document
+        .keycaps
+        .as_ref()
+        .and_then(|keycaps| keycaps.boards.get(&halves.mirror_board_id));
+    let after_board_keycaps = after_document
+        .keycaps
+        .as_ref()
+        .and_then(|keycaps| keycaps.boards.get(&halves.mirror_board_id));
+    if serialize_matching_items(before_board_keycaps.into_iter())?
+        != serialize_matching_items(after_board_keycaps.into_iter())?
+    {
+        changed.insert(halves.mirror_board_id.clone());
+    }
     for association in &halves.correspondences {
         if halves.overlay_of(association).is_some_and(|exception| {
             matches!(
@@ -169,17 +163,45 @@ fn changed_linked_mirror_targets(
         }) {
             continue;
         }
-        let before =
-            mirror_item_snapshot(before, pair_id, association.kind, &association.mirror_id)?;
-        let after = mirror_item_snapshot(after, pair_id, association.kind, &association.mirror_id)?;
-        if before != after {
+        let before_snapshot = mirror_item_snapshot(
+            before_document,
+            pair_id,
+            association.kind,
+            &association.mirror_id,
+        )?;
+        let after_snapshot = mirror_item_snapshot(
+            after_document,
+            pair_id,
+            association.kind,
+            &association.mirror_id,
+        )?;
+        let before_keycap =
+            keycap_setting_snapshot(before_document, association.kind, &association.mirror_id)?;
+        let after_keycap =
+            keycap_setting_snapshot(after_document, association.kind, &association.mirror_id)?;
+        if before_snapshot != after_snapshot || before_keycap != after_keycap {
             changed.insert(association.mirror_id.clone());
         }
     }
     Ok(changed)
 }
 
-fn snapshot_matches<'a, T: serde::Serialize + 'a>(
+fn keycap_setting_snapshot(
+    document: &ProjectDoc,
+    kind: MirroredItemKind,
+    id: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let Some(keycaps) = document.keycaps.as_ref() else {
+        return Ok(None);
+    };
+    match kind {
+        MirroredItemKind::Part => serialize_matching_items(keycaps.keys.get(id).into_iter()),
+        MirroredItemKind::Matrix => serialize_matching_items(keycaps.matrices.get(id).into_iter()),
+        _ => Ok(None),
+    }
+}
+
+fn serialize_matching_items<'a, T: serde::Serialize + 'a>(
     items: impl Iterator<Item = &'a T>,
 ) -> Result<Option<Vec<u8>>, String> {
     let items: Vec<_> = items.collect();
@@ -199,27 +221,27 @@ fn mirror_item_snapshot(
 ) -> Result<Option<Vec<u8>>, String> {
     match kind {
         MirroredItemKind::Part => {
-            snapshot_matches(document.parts.iter().filter(|item| item.id == id))
+            serialize_matching_items(document.parts.iter().filter(|item| item.id == id))
         }
         MirroredItemKind::Matrix => {
-            snapshot_matches(document.matrices.iter().filter(|item| item.id == id))
+            serialize_matching_items(document.matrices.iter().filter(|item| item.id == id))
         }
         MirroredItemKind::Layout => {
-            snapshot_matches(document.layouts.iter().filter(|item| item.id == id))
+            serialize_matching_items(document.layouts.iter().filter(|item| item.id == id))
         }
         MirroredItemKind::Outline => {
-            snapshot_matches(document.outline.iter().filter(|item| item.id() == id))
+            serialize_matching_items(document.outline.iter().filter(|item| item.id() == id))
         }
         MirroredItemKind::Net => {
-            snapshot_matches(document.nets.iter().filter(|item| item.id == id))
+            serialize_matching_items(document.nets.iter().filter(|item| item.id == id))
         }
         MirroredItemKind::Assembly => {
-            snapshot_matches(document.assemblies.iter().filter(|item| item.id == id))
+            serialize_matching_items(document.assemblies.iter().filter(|item| item.id == id))
         }
         MirroredItemKind::Module => {
-            snapshot_matches(document.modules.iter().filter(|item| item.id == id))
+            serialize_matching_items(document.modules.iter().filter(|item| item.id == id))
         }
-        MirroredItemKind::ElectricalBoard => snapshot_matches(
+        MirroredItemKind::ElectricalBoard => serialize_matching_items(
             document
                 .hardware
                 .as_ref()
@@ -227,14 +249,14 @@ fn mirror_item_snapshot(
                 .flat_map(|hardware| &hardware.boards)
                 .filter(|item| item.board_id == id),
         ),
-        MirroredItemKind::OutlineVersion => snapshot_matches(
+        MirroredItemKind::OutlineVersion => serialize_matching_items(
             document
                 .board_outlines
                 .iter()
                 .flat_map(|outline| &outline.versions)
                 .filter(|version| version.id == id),
         ),
-        MirroredItemKind::MechanicalFeature => snapshot_matches(
+        MirroredItemKind::MechanicalFeature => serialize_matching_items(
             document
                 .hardware
                 .as_ref()
@@ -244,7 +266,7 @@ fn mirror_item_snapshot(
                 .flat_map(|pair| &pair.features)
                 .filter(|feature| feature.id == id),
         ),
-        MirroredItemKind::EmbeddedCircuit => snapshot_matches(
+        MirroredItemKind::EmbeddedCircuit => serialize_matching_items(
             document
                 .embedded_circuits
                 .iter()
@@ -855,24 +877,16 @@ fn projection_for(
             && exception.state == MirroredExceptionState::Omitted
             && halves.overlay_source(exception) == Some(source_matrix_id)
     });
-    let mut absent_omitted_matrix;
+    let absent_omitted_matrix;
     let mirror_matrix = match matrix_by_id(document, mirror_matrix_id) {
         Ok(matrix) => matrix,
         Err(_) if omitted_matrix => {
-            absent_omitted_matrix = source_matrix.clone();
-            absent_omitted_matrix.id = mirror_matrix_id.to_owned();
-            absent_omitted_matrix.board_id = Some(halves.mirror_board_id.clone());
-            let source_members: BTreeSet<_> =
-                source_matrix.part_ids.iter().map(String::as_str).collect();
-            absent_omitted_matrix.part_ids = halves
-                .correspondences
-                .iter()
-                .filter(|association| {
-                    association.kind == MirroredItemKind::Part
-                        && source_members.contains(association.source_id.as_str())
-                })
-                .map(|association| association.mirror_id.clone())
-                .collect();
+            absent_omitted_matrix = omitted_mirror_matrix(
+                source_matrix,
+                mirror_matrix_id,
+                &halves.mirror_board_id,
+                halves,
+            );
             &absent_omitted_matrix
         }
         Err(error) => return Err(error),
@@ -937,11 +951,13 @@ fn projection_for(
             (Vec::new(), Vec::new(), BTreeMap::new())
         };
     Ok(Projection {
+        matrix: Some(super::MatrixLink {
+            source_matrix_id: source_matrix_id.to_owned(),
+            mirror_matrix_id: mirror_matrix_id.to_owned(),
+        }),
         preserve_matrix_geometry: false,
         source_board_id,
         mirror_board_id,
-        source_matrix_id: source_matrix_id.to_owned(),
-        mirror_matrix_id: mirror_matrix_id.to_owned(),
         mapping,
         parts,
         independent_part_transitions,

@@ -61,6 +61,90 @@ fn open_preparation_reports_linked_drift_normalized_before_reconciliation() {
 }
 
 #[test]
+fn open_preparation_preserves_linked_parts_across_multiple_matrix_pairs() {
+    let initial = pair_document();
+    let second_matrix = crate::mirrored_half::matrix_addition::tests::new_matrix(
+        "left-extra",
+        "left",
+        (30.0, 40.0),
+        1,
+    );
+    let accepted =
+        crate::mirrored_half::matrix_addition::tests::add_matrix(&initial, &second_matrix);
+    let expected: Vec<_> = accepted
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("matrix/right-"))
+        .cloned()
+        .collect();
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("each linked matrix keeps its own projection during Open repair");
+
+    for expected_part in expected {
+        assert_eq!(part(&prepared, &expected_part.id), &expected_part);
+    }
+    assert!(findings.is_empty());
+}
+
+#[test]
+fn open_preparation_reports_repaired_linked_keycap_settings() {
+    let mut accepted = pair_document();
+    for operation in [
+        EditOperation::SetKeycapBoard {
+            board_id: "left".into(),
+            change: crate::model::KeycapBoardChange::Color {
+                value: "#112233".into(),
+            },
+        },
+        EditOperation::SetKeycapBoard {
+            board_id: "right".into(),
+            change: crate::model::KeycapBoardChange::Color {
+                value: "#abcdef".into(),
+            },
+        },
+        EditOperation::SetMatrixKeycaps {
+            matrix_id: "left-keys".into(),
+            change: crate::model::KeycapMatrixChange::Profile {
+                value: Some(crate::model::KeycapProfile::Choc),
+            },
+        },
+        EditOperation::SetKeycapKey {
+            key_id: "matrix/left-keys/r0c0".into(),
+            change: crate::model::KeycapKeyChange::Legend {
+                value: Some("Q".into()),
+            },
+        },
+        EditOperation::SetKeycapKey {
+            key_id: "matrix/right-keys/r0c0".into(),
+            change: crate::model::KeycapKeyChange::Legend {
+                value: Some("wrong".into()),
+            },
+        },
+    ] {
+        crate::apply(&mut accepted, &[], &operation).expect("the keycap edit applies");
+    }
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("linked keycap settings are restored from their source");
+
+    let keycaps = prepared.keycaps.as_ref().unwrap();
+    assert_eq!(keycaps.boards["right"].color, "#112233");
+    assert_eq!(
+        keycaps.matrices["right-keys"].profile,
+        Some(crate::model::KeycapProfile::Choc)
+    );
+    assert_eq!(
+        keycaps.keys["matrix/right-keys/r0c0"].legend.as_deref(),
+        Some("Q")
+    );
+    assert_eq!(findings.len(), 1);
+    for target in ["right", "right-keys", "matrix/right-keys/r0c0"] {
+        assert!(findings[0].target_ids.iter().any(|id| id == target));
+    }
+}
+
+#[test]
 fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
     let mut accepted = pair_document();
     accepted.parts.retain(|part| part.id != "right/U1");

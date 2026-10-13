@@ -76,8 +76,7 @@ fn version(id: &str, ownership: OutlineOwnership, geometry: OutlineSnapshot) -> 
 struct ProjectionState {
     source_board_id: String,
     mirror_board_id: String,
-    source_matrix_id: String,
-    mirror_matrix_id: String,
+    matrix: Option<(String, String)>,
     mapping: crate::model::Pose2,
     parts: Vec<(String, String)>,
     independent_part_transitions: Vec<super::super::IndependentPartTransition>,
@@ -102,8 +101,12 @@ fn projection_state(projection: &Projection) -> ProjectionState {
     ProjectionState {
         source_board_id: projection.source_board_id.clone(),
         mirror_board_id: projection.mirror_board_id.clone(),
-        source_matrix_id: projection.source_matrix_id.clone(),
-        mirror_matrix_id: projection.mirror_matrix_id.clone(),
+        matrix: projection.matrix.as_ref().map(|matrix| {
+            (
+                matrix.source_matrix_id.clone(),
+                matrix.mirror_matrix_id.clone(),
+            )
+        }),
         mapping: projection.mapping,
         parts: projection
             .parts

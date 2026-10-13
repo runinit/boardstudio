@@ -4,7 +4,7 @@
 //! apply it (`canonicalize` the request, execute the source-equivalent operation), and the mirror
 //! is reconciled from its source.
 
-use super::{PartProjection, Projection, reconcile};
+use super::{MatrixLink, PartProjection, Projection, reconcile};
 use crate::mirrored_half::inverse;
 use crate::mirrored_half::matrix_addition::tests::{create_from, halves, matrix, source_half};
 use crate::model::{
@@ -112,11 +112,13 @@ fn reconciled(document: &ProjectDoc) -> ProjectDoc {
         final_owners.insert(id.clone(), "right".to_owned());
     }
     let projection = Projection {
+        matrix: Some(MatrixLink {
+            source_matrix_id: "left-keys".into(),
+            mirror_matrix_id: "right-keys".into(),
+        }),
         preserve_matrix_geometry: false,
         source_board_id: "left".into(),
         mirror_board_id: "right".into(),
-        source_matrix_id: "left-keys".into(),
-        mirror_matrix_id: "right-keys".into(),
         mapping: pair.mapping,
         parts,
         independent_part_transitions: vec![],
