@@ -1,6 +1,6 @@
 # 157: Classify matrix membership by identity rather than order
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [156](156-preserve-validated-matrix-reconciliation-states.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -34,7 +34,7 @@ guard unchanged; diagnose any distinct fixed-reconciliation refusal separately.
 - [x] Both original public111 authored Splay/Placement regressions pass without stripping companions
       or weakening position/isolation assertions.
 - [x] Independent Standards/Spec review, compiled mutation probes and affected/full checks pass.
-- [ ] Root records native-baseline additions, local merge and post-merge checks. No push.
+- [x] Root records native-baseline additions, local merge and post-merge checks. No push.
 
 ## Comments
 
@@ -65,5 +65,7 @@ separate Local controller net and associated Local circuit payload failures rema
 
 Evidence: main `.evidence/ticket157/` (review, delta1, oracle-delta, mutation-run, full-checks-final,
 native-baseline-delta and activation-proof). Initial lint failure is retained; the fresh rerun
-passes. Final local dev integration/postmerge checks remain pending, so this ticket remains
-claimed.111 activation and parent19 remain open; no push.
+passes. Final source13765c3f merged locally into dev at e95d8e6e, with identical candidate and
+merge trees. Post-merge repo/test/lint passes with all1,847 baselined native tests executed;
+exact HEAD and commands are in post-merge-checks.json/log.111 activation and parent19 remain
+open; no push.
