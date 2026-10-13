@@ -1,6 +1,6 @@
 # 114: Classify compatibility and constraint translation
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [113](113-inverse-map-reviewed-outline-edits.md), [139](139-generalized-mirrored-constraint-model.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -79,3 +79,25 @@ Two deferrals 139 left for 114's own edit of `core/src/constraints.rs`: the solv
 when the operation seam adds more state to it, and the accessors
 `ConstraintEndpoint::visible_part_id` and `authoritative_part_id`, read only by tests, are to be
 deleted if nothing in 114 uses them.
+
+## Root source review and first implementation lease (2026-10-12)
+
+The product/design gate is resolved by the accepted [139 design](../design/139-generalized-mirrored-constraint-model.md)
+and its source checkpoint above. Root rechecked the current `dev` sources after 113/139 landed:
+the 139 endpoint, relation, lookup and resolver helpers are present; the persisted `Constraint::Framed`
+arm and format-6 migration remain 111-owned; the prepared transaction and propagation through apply
+and both resolver calls remain 115-owned. No product question is open. The current 41-operation enum
+is exhaustively classified in `inverse::canonicalize`; the runtime ledger test is intentionally a
+sample, so the documented ledger and exhaustive dispatch are the completeness evidence.
+
+Exclusive first-unit lease on `typed-core-edits/114-mirrored-compatibility`:
+`core/src/mirrored_half/inverse.rs`, new `core/src/mirrored_half/inverse/constraints.rs` and its
+module-local tests, `core/src/constraints.rs`, and `core/src/constraints/{endpoints,relation,retune}.rs`
+with their module-local tests. This unit prepares the private Set/Remove/Convert constraint mapping,
+legacy-to-live endpoint compilation and shared retuning seam required by the accepted design. It may
+add narrowly crate-visible prepared-value constructors/types only if the downstream prepared
+transaction needs them; these remain non-public and are not a production route. Do not edit
+`core/src/model.rs`, `core/src/lib.rs`, `core/src/matrix/layout.rs`, `core/src/matrix/placement.rs`,
+`core/src/mechanical/edit.rs`, migration, web adapters or goldens in this unit. Root will grant any
+additional shared-path lease after reviewing the first stable handoff. Production activation and
+persisted schema remain with 111; transaction composition remains with 115.
