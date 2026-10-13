@@ -1,8 +1,7 @@
 use crate::mirrored_half::matrix_addition::tests::pair_document;
 use crate::mirrored_half::prepare_transaction;
 use crate::model::{
-    CaseBody, Constraint, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Position,
-    ProjectDoc, Vec2,
+    CaseBody, Constraint, CoreReply, CoreRequest, EditOperation, Position, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -22,21 +21,11 @@ fn open_pair_engine(document: ProjectDoc) -> crate::CoreEngine {
     engine
 }
 
-fn move_preview(engine: &mut crate::CoreEngine, positions: Vec<Position>) -> CoreReply {
-    let base_revision = engine.document.revision;
-    engine.handle(CoreRequest::Edit {
-        id: "preview-move".into(),
-        command: EditCommand {
-            base_revision,
-            transaction_id: "preview-move".into(),
-            phase: EditPhase::Preview,
-            target_ids: positions
-                .iter()
-                .map(|position| position.id.clone())
-                .collect(),
-            operation: EditOperation::MoveParts { positions },
-        },
-    })
+fn prepare_preview(
+    engine: &crate::CoreEngine,
+    operation: &EditOperation,
+) -> Result<(ProjectDoc, Vec<String>), String> {
+    prepare_transaction(&engine.document, &[], operation)
 }
 
 fn add_linked_independent_part(document: &mut ProjectDoc) {
@@ -112,22 +101,31 @@ fn nonempty_closure_pair_document() -> ProjectDoc {
 }
 
 #[test]
-fn mirror_side_preview_uses_a_prepared_draft_without_publishing() {
-    let mut engine = open_pair_engine(pair_document());
+fn mirror_side_prepared_preview_uses_a_draft_without_publishing() {
+    let engine = open_pair_engine(pair_document());
     let accepted = engine.document.clone();
-    let reply = move_preview(
-        &mut engine,
-        vec![Position {
-            id: "right/U1".into(),
-            at: Vec2 { x: 216.0, y: 14.0 },
-        }],
-    );
-    let CoreReply::Preview { scene, .. } = reply else {
-        panic!("expected a paired preview, got {reply:?}");
-    };
+    let (prepared, changed) = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/U1".into(),
+                at: Vec2 { x: 216.0, y: 14.0 },
+            }],
+        },
+    )
+    .expect("the linked mirror edit prepares as an inert draft");
 
-    assert!(scene.changed_ids.iter().any(|id| id == "left/U1"));
-    assert!(scene.changed_ids.iter().any(|id| id == "right/U1"));
+    assert!(changed.iter().any(|id| id == "left/U1"));
+    assert!(changed.iter().any(|id| id == "right/U1"));
+    assert_eq!(
+        part(&prepared, "left/U1").pose.at,
+        Vec2 { x: -16.0, y: 14.0 }
+    );
+    assert_eq!(
+        part(&prepared, "right/U1").pose.at,
+        Vec2 { x: 216.0, y: 14.0 }
+    );
+    assert_eq!(prepared.revision, accepted.revision);
     assert_eq!(engine.document, accepted);
     assert!(engine.undo.is_empty());
     assert!(engine.redo.is_empty());
@@ -150,63 +148,74 @@ fn mixed_preview_keeps_local_geometry_and_projects_linked_mirror_intent() {
             companion_tweak: None,
             removed_copper: None,
         });
-    let mut engine = open_pair_engine(accepted);
+    let engine = open_pair_engine(accepted);
+    let accepted = engine.document.clone();
     let original_local = part(&engine.document, "right/U1").pose.at;
+    let original_source = part(&engine.document, "left/U1").pose.at;
 
-    let reply = move_preview(
-        &mut engine,
-        vec![
-            Position {
-                id: "right/U1".into(),
-                at: Vec2 { x: 260.0, y: 7.0 },
-            },
-            Position {
-                id: "right/RST".into(),
-                at: Vec2 { x: 216.0, y: 17.0 },
-            },
-        ],
+    let (prepared, changed) = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![
+                Position {
+                    id: "right/U1".into(),
+                    at: Vec2 { x: 260.0, y: 7.0 },
+                },
+                Position {
+                    id: "right/RST".into(),
+                    at: Vec2 { x: 216.0, y: 17.0 },
+                },
+            ],
+        },
+    )
+    .expect("the mixed Local and linked edit prepares as an inert draft");
+
+    assert!(changed.contains(&"right/U1".to_owned()));
+    assert!(changed.contains(&"left/RST".to_owned()));
+    assert!(changed.contains(&"right/RST".to_owned()));
+    assert_eq!(
+        part(&prepared, "right/U1").pose.at,
+        Vec2 { x: 260.0, y: 7.0 }
     );
-    let CoreReply::Preview { scene, .. } = reply else {
-        panic!("expected a mixed paired preview, got {reply:?}");
-    };
-
-    assert!(scene.changed_ids.contains(&"right/U1".to_owned()));
-    assert!(scene.changed_ids.contains(&"left/RST".to_owned()));
-    assert!(scene.changed_ids.contains(&"right/RST".to_owned()));
+    assert_eq!(part(&prepared, "left/U1").pose.at, original_source);
     assert_eq!(part(&engine.document, "right/U1").pose.at, original_local);
+    assert_eq!(engine.document, accepted);
     assert!(engine.undo.is_empty());
     assert!(engine.redo.is_empty());
 }
 
 #[test]
 fn no_op_and_refused_mirror_previews_do_not_publish_history() {
-    let mut engine = open_pair_engine(pair_document());
+    let engine = open_pair_engine(pair_document());
     let accepted = engine.document.clone();
     let same_pose = part(&accepted, "left/U1").pose.at;
 
-    let reply = move_preview(
-        &mut engine,
-        vec![Position {
-            id: "left/U1".into(),
-            at: same_pose,
-        }],
-    );
-    let CoreReply::Preview { scene, .. } = reply else {
-        panic!("expected a no-op preview, got {reply:?}");
-    };
+    let (preview, changed) = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "left/U1".into(),
+                at: same_pose,
+            }],
+        },
+    )
+    .expect("the no-op preview draft is valid");
     assert_eq!(engine.document, accepted);
-    assert!(scene.changed_ids.is_empty());
+    assert_eq!(preview, accepted);
+    assert!(changed.is_empty());
     assert!(engine.undo.is_empty());
     assert!(engine.redo.is_empty());
 
-    let refused = move_preview(
-        &mut engine,
-        vec![Position {
-            id: "right/not-present".into(),
-            at: Vec2 { x: 215.0, y: 9.0 },
-        }],
+    let refused = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/not-present".into(),
+                at: Vec2 { x: 215.0, y: 9.0 },
+            }],
+        },
     );
-    assert!(matches!(refused, CoreReply::Error { .. }));
+    assert!(refused.is_err());
     assert_eq!(engine.document, accepted);
     assert!(engine.undo.is_empty());
     assert!(engine.redo.is_empty());
@@ -236,18 +245,20 @@ fn omitted_mirror_preview_refusal_preserves_document_and_history() {
             companion_tweak: None,
             removed_copper: None,
         });
-    let mut engine = open_pair_engine(accepted);
+    let engine = open_pair_engine(accepted);
     let accepted = engine.document.clone();
 
-    let reply = move_preview(
-        &mut engine,
-        vec![Position {
-            id: "right/U1".into(),
-            at: Vec2 { x: 216.0, y: 14.0 },
-        }],
+    let reply = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/U1".into(),
+                at: Vec2 { x: 216.0, y: 14.0 },
+            }],
+        },
     );
 
-    assert!(matches!(reply, CoreReply::Error { .. }));
+    assert!(reply.is_err());
     assert_eq!(engine.document, accepted);
     assert!(engine.undo.is_empty());
     assert!(engine.redo.is_empty());
@@ -267,17 +278,19 @@ fn retired_mirror_target_preview_refusal_preserves_document_and_history() {
     .expect("the linked part can be retired as one prepared edit");
     assert!(retired.parts.iter().all(|part| part.id != "right/RST"));
 
-    let mut engine = open_pair_engine(retired);
+    let engine = open_pair_engine(retired);
     let accepted = engine.document.clone();
-    let reply = move_preview(
-        &mut engine,
-        vec![Position {
-            id: "right/RST".into(),
-            at: Vec2 { x: 216.0, y: 17.0 },
-        }],
+    let reply = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/RST".into(),
+                at: Vec2 { x: 216.0, y: 17.0 },
+            }],
+        },
     );
 
-    assert!(matches!(reply, CoreReply::Error { .. }));
+    assert!(reply.is_err());
     assert_eq!(engine.document, accepted);
     assert!(engine.undo.is_empty());
     assert!(engine.redo.is_empty());

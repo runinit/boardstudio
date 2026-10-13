@@ -663,30 +663,6 @@ impl CoreEngine {
     }
 
     fn preview_edit(&mut self, id: String, command: EditCommand) -> CoreReply {
-        if has_native_mirrored_pair(&self.document) {
-            return match prepare_paired_preview(&self.document, &command.operation) {
-                Err(message) => self.error(id, &message),
-                Ok(prepared) => {
-                    let previous = matches!(&command.operation, EditOperation::MoveParts { .. })
-                        .then_some(&self.outline_cache);
-                    let (cache, contours, findings) =
-                        outlines(&prepared.document, previous, &prepared.changed);
-                    self.scene(
-                        id,
-                        SceneInput {
-                            transaction: &command.transaction_id,
-                            changed: prepared.changed,
-                            document: &prepared.document,
-                            contours: &contours,
-                            geom_findings: &findings,
-                            cache: &cache,
-                            kind: SceneKind::Preview,
-                        },
-                    )
-                }
-            };
-        }
-
         let accepted = generators::parameter_problems(&self.document);
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
@@ -1025,27 +1001,6 @@ enum History {
     Undo,
     Redo,
 }
-
-struct PreparedPreview {
-    document: ProjectDoc,
-    changed: Vec<String>,
-}
-
-fn has_native_mirrored_pair(document: &ProjectDoc) -> bool {
-    document
-        .hardware
-        .as_ref()
-        .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.halves.is_some()))
-}
-
-fn prepare_paired_preview(
-    accepted: &ProjectDoc,
-    operation: &EditOperation,
-) -> Result<PreparedPreview, String> {
-    let (document, changed) = mirrored_half::prepare_transaction(accepted, &[], operation)?;
-    Ok(PreparedPreview { document, changed })
-}
-
 enum SceneKind {
     Preview,
     Committed,
