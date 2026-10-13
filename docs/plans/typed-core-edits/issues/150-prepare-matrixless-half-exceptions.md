@@ -105,4 +105,5 @@ over-cleanup probe was killed by the new Local-reference assertion. The initial 
 recorded as a transcript; an independent empty-route mutation automatically reproduced the
 expected zero-versus-one Local-draft failure. No raw original-red command log is claimed.
 Evidence, accepted hashes and combined mutation results are in `.evidence/ticket150/` in the main
-checkout. Source commit `5a2ca4d4`; local merge and post-merge checks are next. No push.
+checkout. Source commit `5a2ca4d4`, merged locally as `e8192350`; post-merge
+`repo test lint` passed with all 1,821 baselined native tests. No push.
