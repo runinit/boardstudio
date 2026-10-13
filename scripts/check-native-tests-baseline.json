@@ -543,7 +543,7 @@
   "mirrored_half::reconcile::prepare::tests::matrix_member_addition_updates_both_memberships_and_associations",
   "mirrored_half::reconcile::prepare::tests::mirror_side_matrix_removal_retires_its_complete_correspondence_closure",
   "mirrored_half::reconcile::prepare::tests::mirror_side_move_prepares_the_source_and_reconciled_mirror_in_one_draft",
-  "mirrored_half::reconcile::prepare::tests::mirror_side_preview_uses_a_prepared_draft_without_publishing",
+  "mirrored_half::reconcile::prepare::tests::mirror_side_prepared_preview_uses_a_draft_without_publishing",
   "mirrored_half::reconcile::prepare::tests::mixed_preview_keeps_local_geometry_and_projects_linked_mirror_intent",
   "mirrored_half::reconcile::prepare::tests::new_matrix_addition_and_its_members_are_composed_before_reconciliation",
   "mirrored_half::reconcile::prepare::tests::no_op_and_refused_mirror_previews_do_not_publish_history",
