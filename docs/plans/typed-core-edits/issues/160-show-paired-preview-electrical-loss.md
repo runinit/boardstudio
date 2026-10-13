@@ -1,6 +1,6 @@
 # 160: Show electrical loss in paired Preview through transient findings
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [159](159-preserve-associated-local-circuit-owner-state.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -42,15 +42,37 @@ browser/WASM proof. No production routing or public model changes on dev.
 
 ## Acceptance
 
-- [ ] Exact pin-loss notices include whole-net removals; no removed net/registration notice when a surviving Local circuit reference retains them.
-- [ ] Notice generation is deterministic, collision-safe and inert for retained pins/nets/registrations; unpaired Preview unchanged.
-- [ ] Original public controller Rejoin case shows exact pin/net/registration loss in Preview and retains accepted isolation/history assertions, then independently checks Commit.
-- [ ] Original public Local circuit Omit case shows linked-pin loss while its net and registration remain; no policy/oracle weakening.
-- [ ] Session delivers then clears notices, and cancellation/stale replies cannot restore or clear a newer Preview's notices.
-- [ ] Actual mounted browser displays exact Part/pad/net notices before Commit; clear/cancel removes them. An Info-only scene exposes the findings panel/footer. Preview rows have no navigation action; accepted diagnostic navigation remains guarded.
-- [ ] Existing native/WASM boundary and serde proof confirms transport; independent Standards/Spec review, meaningful mutations and affected/full checks pass.
-- [ ] Local integration and postmerge evidence recorded; no push.
+- [x] Exact pin-loss notices include whole-net removals; no removed net/registration notice when a surviving Local circuit reference retains them.
+- [x] Notice generation is deterministic, collision-safe and inert for retained pins/nets/registrations; unpaired Preview unchanged.
+- [x] Original public controller Rejoin case shows exact pin/net/registration loss in Preview and retains accepted isolation/history assertions, then independently checks Commit.
+- [x] Original public Local circuit Omit case shows linked-pin loss while its net and registration remain; no policy/oracle weakening.
+- [x] Session delivers then clears notices, and cancellation/stale replies cannot restore or clear a newer Preview's notices.
+- [x] Actual mounted browser displays exact Part/pad/net notices before Commit; clear/cancel removes them. An Info-only scene exposes the findings panel/footer. Preview rows have no navigation action; accepted diagnostic navigation remains guarded.
+- [x] Existing native/WASM boundary and serde proof confirms transport; independent Standards/Spec review, meaningful mutations and affected/full checks pass.
+- [x] Local integration and postmerge evidence recorded; no push.
 
 ## Comments
 
 Claimed after ticket 159 resolved with both final review axes and post-merge repository/test/lint passing all 1,856 native tests. Local dev bookkeeping is `7acda250`. Coordinator decision and existing consumer inventory are in main .evidence/ticket160/coordinator-decision.md. Selected existing Findings interface fulfills the authorized visible-loss requirement without a new public contract or visibility. Stop for concrete approval if implementation needs a new visibility/API grant or ownership/Preview policy.
+
+
+## Answer
+
+Resolved preparation at `aef4fd22`, merged locally into dev at `684e8e92` with identical
+candidate/merge trees. The private notice builder remains test-only on dev; its producer is
+connected only in isolated 111. No public model or visibility change was needed.
+
+Exact public Rejoin and Local-circuit Omit Preview assertions pass in isolated 111, including
+independent Commit cleanup (62/62 public mirrored-half tests). The actual mounted Editor shows
+the three Info-only loss rows and clears them on ClearPreview and gesture cancellation;
+Session tests cover stale/cancelled completions and newer notice ownership. Accepted diagnostic
+navigation and ordinary Preview filtering remain covered. Six Core mutations and two browser
+mutations are killed with exact restoration and no compile failures. Both review axes pass.
+The native JSON boundary (5 tests) and real WASM export replay (1 test) pass with the reviewed
+v6 transcript and paired Preview/history/electrical sections.
+
+Candidate and post-merge repository/test/lint checks pass all 1,859 native test names: three
+additions, no removals. Evidence: `.evidence/ticket160/`, with activated transport evidence in
+`.evidence/ticket111/integration/`. A broader isolated111 browser run exposed a separate legacy
+off-board Inspector regression; its fix and final activation gates remain under 111.
+111 activation, 151, 109b and fresh parent19 acceptance remain open. Nothing was pushed.
