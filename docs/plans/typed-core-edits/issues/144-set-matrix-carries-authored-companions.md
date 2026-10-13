@@ -1,6 +1,6 @@
 # 144: A whole-matrix edit carries authored companions with their keys
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: none
 Related: [143](143-part-offset-constraint.md)
@@ -49,3 +49,9 @@ their keys, the way a column splay and a placement edit already do.
 ## Not in this ticket
 
 - A constrained companion's offset axes, which is [143](143-part-offset-constraint.md).
+
+## Comments
+
+- 2026-10-12: Coverage carries an authored source companion through `SetMatrix` and checks that
+  the linked mirror's companion remains materialized by the existing layout sync. Full linked
+  edit transaction behavior and activation remain with [111](111-activate-typed-mirrored-edits.md).

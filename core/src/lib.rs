@@ -1441,27 +1441,32 @@ fn apply(
         EditOperation::SetMatrix {
             matrix,
             definitions,
-        } => {
-            let mut changed = vec![];
-            let mut provided = BTreeSet::new();
-            for definition in definitions.iter().flatten() {
-                if definition.id.trim().is_empty() || !provided.insert(&definition.id) {
-                    return Err("Matrix definition ID is invalid or duplicated".into());
-                }
-                if let Some(existing) = doc.definitions.iter().find(|item| item.id == definition.id)
-                {
-                    if existing != definition {
-                        return Err(format!("Conflicting definition {}", definition.id));
+        } => matrix::placement::carrying_authored_companions(
+            doc,
+            matrix::placement::Reported::PreserveEditReport,
+            |doc| {
+                let mut changed = vec![];
+                let mut provided = BTreeSet::new();
+                for definition in definitions.iter().flatten() {
+                    if definition.id.trim().is_empty() || !provided.insert(&definition.id) {
+                        return Err("Matrix definition ID is invalid or duplicated".into());
                     }
-                    continue;
+                    if let Some(existing) =
+                        doc.definitions.iter().find(|item| item.id == definition.id)
+                    {
+                        if existing != definition {
+                            return Err(format!("Conflicting definition {}", definition.id));
+                        }
+                        continue;
+                    }
+                    doc.definitions.push(definition.clone());
+                    changed.push(definition.id.clone());
                 }
-                doc.definitions.push(definition.clone());
-                changed.push(definition.id.clone());
-            }
-            changed.extend(matrix::set_matrix(doc, matrix)?);
-            changed.extend(layout::sync(doc, &matrix.id)?);
-            Ok(changed)
-        }
+                changed.extend(matrix::set_matrix(doc, matrix)?);
+                changed.extend(layout::sync(doc, &matrix.id)?);
+                Ok(changed)
+            },
+        ),
         EditOperation::SetMatrixSplay {
             matrix_id,
             column,

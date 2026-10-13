@@ -4,7 +4,7 @@
 use super::splay::rotate;
 use super::{OVERRIDE, member_id, valid_projection_matrix};
 use crate::model::{
-    Matrix, MatrixPlacementChange, Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
+    Matrix, MatrixPlacementChange, Mirror, Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
 };
 use std::collections::BTreeMap;
 
@@ -110,6 +110,9 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
 /// Which parts an edit that carries companions reports as changed.
 #[derive(Clone, Copy)]
 pub(crate) enum Reported {
+    /// Preserve the edit closure's ID list. `SetMatrix`'s matrix and generated-member
+    /// report is pinned by `core/tests/fixtures/boundary/transcript.json`.
+    PreserveEditReport,
     /// Every part the edit touched, moved or not. A splay uses this: the golden
     /// transcript pins that it reports every matrix member.
     Touched,
@@ -128,8 +131,16 @@ pub(crate) fn carrying_authored_companions(
         .iter()
         .map(|part| (part.id.clone(), part.clone()))
         .collect();
+    let before_matrices: BTreeMap<String, Matrix> = doc
+        .matrices
+        .iter()
+        .map(|matrix| (matrix.id.clone(), matrix.clone()))
+        .collect();
     let mut changed = edit(doc)?;
-    changed.extend(carry_authored_companions(doc, &before));
+    let carried = carry_authored_companions(doc, &before, &before_matrices);
+    if !matches!(reported, Reported::PreserveEditReport) {
+        changed.extend(carried);
+    }
     if matches!(reported, Reported::Moved) {
         changed.retain(|id| match before.get(id) {
             Some(previous) => doc
@@ -148,9 +159,14 @@ pub(crate) fn carrying_authored_companions(
 /// relative to the key. A splay turns the key, so the companion turns around it.
 /// Companions with an explicit constraint keep that constraint instead: the
 /// constraint solver settles them.
-fn carry_authored_companions(doc: &mut ProjectDoc, before: &BTreeMap<String, Part>) -> Vec<String> {
-    let mut carries: Vec<(String, Pose2, Pose2)> = Vec::new();
+fn carry_authored_companions(
+    doc: &mut ProjectDoc,
+    before: &BTreeMap<String, Part>,
+    before_matrices: &BTreeMap<String, Matrix>,
+) -> Vec<String> {
+    let mut carries: Vec<(String, Pose2, Pose2, Option<CompanionMirror>)> = Vec::new();
     for matrix in &doc.matrices {
+        let previous_matrix = before_matrices.get(&matrix.id);
         for cell in &matrix.cells {
             if !cell.enabled || cell.deleted {
                 continue;
@@ -162,7 +178,18 @@ fn carry_authored_companions(doc: &mut ProjectDoc, before: &BTreeMap<String, Par
             let Some(key) = doc.parts.iter().find(|part| part.id == key_id) else {
                 continue;
             };
-            if key.pose == previous.pose {
+            let mirror = previous_matrix
+                .filter(|previous_matrix| {
+                    previous_matrix.mirror.unwrap_or(crate::model::Mirror::None)
+                        != matrix.mirror.unwrap_or(crate::model::Mirror::None)
+                })
+                .map(|previous_matrix| CompanionMirror {
+                    from_mirror: previous_matrix.mirror.unwrap_or(Mirror::None),
+                    to_mirror: matrix.mirror.unwrap_or(Mirror::None),
+                    from_rotation: previous_matrix.rotation.unwrap_or(0.0),
+                    to_rotation: matrix.rotation.unwrap_or(0.0),
+                });
+            if key.pose == previous.pose && mirror.is_none() {
                 continue;
             }
             for assembly in &cell.assemblies {
@@ -184,31 +211,80 @@ fn carry_authored_companions(doc: &mut ProjectDoc, before: &BTreeMap<String, Par
                         })
                     });
                 if authored {
-                    carries.push((id, previous.pose, key.pose));
+                    carries.push((id, previous.pose, key.pose, mirror));
                 }
             }
         }
     }
     let mut changed = Vec::new();
-    for (id, from, to) in carries {
+    for (id, from, to, mirror) in carries {
         if let Some(part) = doc.parts.iter_mut().find(|part| part.id == id) {
             let turn = to.rotation - from.rotation;
             // Turn about the key's old position, then move by the key's delta. With no
             // turn the companion only adds the delta, so a translation stays bit-identical.
-            let at = if turn == 0.0 {
-                part.pose.at
+            if let Some(mirror) = mirror {
+                let relative = Vec2 {
+                    x: part.pose.at.x - from.at.x,
+                    y: part.pose.at.y - from.at.y,
+                };
+                let offset = mirror.apply_world(relative);
+                part.pose.at = Vec2 {
+                    x: to.at.x + offset.x,
+                    y: to.at.y + offset.y,
+                };
+
+                let heading = Vec2 {
+                    x: part.pose.rotation.to_radians().cos(),
+                    y: part.pose.rotation.to_radians().sin(),
+                };
+                let heading = mirror.apply_world(heading);
+                part.pose.rotation = heading.y.atan2(heading.x).to_degrees();
             } else {
-                rotate(part.pose.at, turn, from.at)
-            };
-            part.pose.at = Vec2 {
-                x: at.x + (to.at.x - from.at.x),
-                y: at.y + (to.at.y - from.at.y),
-            };
-            if turn != 0.0 {
-                part.pose.rotation += turn;
+                let at = if turn == 0.0 {
+                    part.pose.at
+                } else {
+                    rotate(part.pose.at, turn, from.at)
+                };
+                part.pose.at = Vec2 {
+                    x: at.x + (to.at.x - from.at.x),
+                    y: at.y + (to.at.y - from.at.y),
+                };
+                if turn != 0.0 {
+                    part.pose.rotation += turn;
+                }
             }
             changed.push(id);
         }
     }
     changed
+}
+
+#[derive(Clone, Copy)]
+struct CompanionMirror {
+    from_mirror: Mirror,
+    to_mirror: Mirror,
+    from_rotation: f64,
+    to_rotation: f64,
+}
+
+impl CompanionMirror {
+    fn apply(&self, point: Vec2) -> Vec2 {
+        let reflect = |point: Vec2, mirror| match mirror {
+            Mirror::X => Vec2 {
+                x: -point.x,
+                y: point.y,
+            },
+            Mirror::Y => Vec2 {
+                x: point.x,
+                y: -point.y,
+            },
+            Mirror::None => point,
+        };
+        reflect(reflect(point, self.from_mirror), self.to_mirror)
+    }
+
+    fn apply_world(&self, point: Vec2) -> Vec2 {
+        let local = rotate(point, -self.from_rotation, Vec2::default());
+        rotate(self.apply(local), self.to_rotation, Vec2::default())
+    }
 }
