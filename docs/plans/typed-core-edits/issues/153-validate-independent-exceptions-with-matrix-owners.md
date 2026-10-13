@@ -1,6 +1,6 @@
 # 153: Validate independent exceptions alongside exact Matrix owners
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [152](152-reconcile-authored-matrix-cells.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -27,13 +27,33 @@ assigns further paths before edits; shared source changes remain serial after 15
 
 ## Acceptance
 
-- [ ] Runtime private regression first exposes the independent-item context refusal.
-- [ ] Independent Part and applicable circuit Local/Omit/Rejoin work beside one and multiple
+- [x] Runtime private regression first exposes the independent-item context refusal.
+- [x] Independent Part and applicable circuit Local/Omit/Rejoin work beside one and multiple
       Matrix pairs, preserving current-source derivation, exact identity and explicit children.
-- [ ] Matrix-owned selections use their exact owner; unrelated matrices/pairs and local data
+- [x] Matrix-owned selections use their exact owner; unrelated matrices/pairs and local data
       remain unchanged. No arbitrary first-matrix selection or fake context is used.
-- [ ] Stale/ambiguous/wrong-board/incorrect actual membership refuses atomically; existing
+- [x] Stale/ambiguous/wrong-board/incorrect actual membership refuses atomically; existing
       matrixless and matrix-backed lifecycle/membership tests remain green.
-- [ ] Independent Standards/Spec review, sensitivity mutations and required checks pass.
+- [x] Independent Standards/Spec review, sensitivity mutations and required checks pass.
 
 Root owns full checks/baseline/integration. 111 stays unmerged until this preparation is verified.
+
+## Answer (2026-10-13)
+
+Private lifecycle preparation now authenticates each Matrix companion against its exact durable
+Matrix owner and actual source/mirror memberships, independently of the selected operation context.
+Independent Part/circuit Local/Omit/Rejoin works alongside one or multiple Matrix pairs; the selected
+Matrix child uses its exact association. Other Matrix state and explicit Local children are preserved.
+Wrong owner, board, ambiguous identity and missing actual membership remain strict refusals.
+No production activation, operation vocabulary, schema or helper visibility changed.
+
+Four runtime-private regression failures were captured before the fix; the refusal control passed
+as expected. Final focused reconciliation coverage is 221 tests, including two direct-helper
+sensitivity controls. Independent Standards and Spec reviews accept the initial source and test-only
+delta. All six final refined compiled mutations were killed and every file restored exactly. Earlier
+survivors and evidence corrections remain recorded, rather than being counted as kills.
+
+Root `repo test lint --update-native-baseline` passes with all 1,833 native tests executed; the baseline
+adds exactly seven names. Evidence is in main `.evidence/ticket153/`, including immutable review
+snapshots, captured final greens, mutation histories and full-check logs. Local integration and
+post-merge checks follow; 111 remains an unmerged activation draft until 154 also completes.

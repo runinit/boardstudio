@@ -3985,22 +3985,23 @@ fn prepare_membership_transition_kernel(
     ) -> Result<(), String> {
         let matrix_pair = require_matrix_pair(context)?;
 
-        let mut associations = context
-            .associations
-            .iter()
-            .filter(|association| association.kind == MirroredItemKind::Matrix);
+        let mut associations = context.associations.iter().filter(|association| {
+            association.kind == MirroredItemKind::Matrix
+                && association.source_id == matrix_pair.source_id
+                && association.mirror_id == matrix_pair.mirror_id
+        });
         let association = associations.next();
         if associations.next().is_some() {
-            return Err("The transition matrix association is ambiguous".into());
+            return Err("The selected transition matrix association is ambiguous".into());
         }
-        let mut correspondences = context
-            .pair_right
-            .correspondences
-            .iter()
-            .filter(|record| record.kind == MirroredItemKind::Matrix);
+        let mut correspondences = context.pair_right.correspondences.iter().filter(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == matrix_pair.source_id
+                && record.mirror_id == matrix_pair.mirror_id
+        });
         let correspondence = correspondences.next();
         if correspondences.next().is_some() {
-            return Err("The transition matrix association is ambiguous".into());
+            return Err("The selected transition matrix association is ambiguous".into());
         }
         if !expected_present {
             if association.is_none()
