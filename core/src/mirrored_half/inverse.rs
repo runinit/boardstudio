@@ -33,6 +33,7 @@ mod tests;
 
 mod constraints;
 mod hosted;
+mod layout;
 mod outline;
 
 use crate::matrix::column_rotation;
@@ -325,12 +326,20 @@ pub(super) fn canonicalize(
         | Op::RenameOutline { .. }
         | Op::RemoveOutline { .. }
         | Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
-        // Ticket 114: compatibility, constraints and the final exhaustive ledger.
-        Op::SetLayout { .. } | Op::SetMechanical { .. } => {
+        // Ticket 114: native SetLayout compatibility and raw mechanical configuration.
+        Op::SetLayout { layout } => match layout::translate(&links, layout)? {
+            layout::Outcome::Translated(source) => {
+                canonical.operation = Op::SetLayout { layout: source };
+            }
+            layout::Outcome::PassThrough => {}
+            layout::Outcome::DeliberatelyUnchanged(reason) => {
+                canonical.coverage = Coverage::DeliberatelyUnchanged(reason);
+            }
+        },
+        Op::SetMechanical { .. } => {
             return Err(unsupported(
                 "114",
-                "layout ownership and raw mechanical configuration compatibility remain \
-                 unclassified",
+                "raw mechanical configuration compatibility remains unclassified",
             ));
         }
         Op::SetConstraint { .. }

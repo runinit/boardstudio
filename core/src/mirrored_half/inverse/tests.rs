@@ -113,6 +113,56 @@ fn rotated_fixture() -> ProjectDoc {
     document
 }
 
+fn native_layout_fixture() -> ProjectDoc {
+    let mut document = fixture();
+    let mut omitted_source = document
+        .parts
+        .iter()
+        .find(|part| part.id == "left/U1")
+        .unwrap()
+        .clone();
+    omitted_source.id = "left/GONE".into();
+    omitted_source.reference = "HIDDEN".into();
+    document.parts.push(omitted_source);
+    document
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "left")
+        .unwrap()
+        .part_ids
+        .push("left/GONE".into());
+    document.layouts = vec![
+        serde_json::from_value(json!({"id":"left-layout","name":"Source layout",
+            "boardId":"left","matrixId":"left-keys",
+            "partIds":["left/U1","left/GONE","left/HEADER"]}))
+        .unwrap(),
+        serde_json::from_value(json!({"id":"right-layout","name":"Mirror layout",
+            "boardId":"right","matrixId":"right-keys",
+            "partIds":["right/U1","right/HEADER","right/FREE"]}))
+        .unwrap(),
+    ];
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(
+            serde_json::from_value(json!({"kind":"layout",
+            "sourceId":"left-layout","mirrorId":"right-layout"}))
+            .unwrap(),
+        );
+    document
+}
+
+fn add_empty_local_matrix(document: &mut ProjectDoc, id: &str) {
+    document.matrices.push(
+        serde_json::from_value(json!({"id":id,"name":id,"rows":0,"columns":0,
+            "pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},
+            "definitionId":"sw","boardId":"right","partIds":[]}))
+        .unwrap(),
+    );
+}
+
 fn op(value: Value) -> EditOperation {
     serde_json::from_value(value).expect("the operation is valid")
 }
@@ -987,9 +1037,8 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
     for request in translated {
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
-    // SetLayout remains unclassified for this slice; removed constraints are now prepared.
-    let request = json!({"kind":"set-layout","layout":{"id":"l","name":"L",
-        "boardId":"b","matrixId":"m","partIds":[]}});
+    // Raw SetMechanical remains unclassified for this slice; removed constraints are prepared.
+    let request = json!({"kind":"set-mechanical","configuration":null});
     let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
         panic!("{request} must be unsupported here");
     };
@@ -1108,29 +1157,406 @@ fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_throu
 }
 
 #[test]
-fn set_layout_and_raw_set_mechanical_remain_refused() {
+fn raw_set_mechanical_remains_refused() {
     let document = fixture();
-    for operation in [
-        EditOperation::SetLayout {
-            layout: serde_json::from_value(json!({"id":"right-layout","name":"Right",
-                "boardId":"right","matrixId":"right-matrix","partIds":[]}))
+    let operation = EditOperation::SetMechanical {
+        configuration: None,
+    };
+    assert!(
+        matches!(
+            canonicalize(&document, &operation),
+            Err(Refusal::Unsupported(Coverage::Unsupported {
+                owner: "114",
+                ..
+            }))
+        ),
+        "{operation:?} must remain refused while its semantics are unclassified"
+    );
+}
+
+#[test]
+fn set_layout_on_native_mirror_maps_linked_members_and_preserves_hidden_and_local_members() {
+    let document = native_layout_fixture();
+    let request = EditOperation::SetLayout {
+        layout: document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "right-layout")
+            .unwrap()
+            .clone(),
+    };
+    let result = canonicalize(&document, &request).expect("native mirror layout translates");
+    let EditOperation::SetLayout { layout } = result.operation else {
+        panic!("SetLayout remains a SetLayout")
+    };
+    assert_eq!(layout.id, "left-layout");
+    assert_eq!(layout.board_id, "left");
+    assert_eq!(layout.matrix_id, "left-keys");
+    assert_eq!(layout.part_ids, ["left/U1", "left/HEADER", "left/GONE"]);
+}
+
+#[test]
+fn set_layout_native_mirror_reorders_projected_local_and_linked_members() {
+    let document = native_layout_fixture();
+    let mut requested = document.layouts[1].clone();
+    requested.part_ids = vec![
+        "right/HEADER".into(),
+        "right/U1".into(),
+        "right/FREE".into(),
+    ];
+    let result = canonicalize(&document, &EditOperation::SetLayout { layout: requested })
+        .expect("a projected-member reorder can be expressed by source order");
+    let EditOperation::SetLayout { layout } = result.operation else {
+        panic!("SetLayout remains a SetLayout")
+    };
+    assert_eq!(layout.id, "left-layout");
+    assert_eq!(layout.part_ids, ["left/HEADER", "left/U1", "left/GONE"]);
+}
+
+#[test]
+fn set_layout_native_mirror_removes_linked_members_from_source_membership() {
+    let document = native_layout_fixture();
+    let mut requested = document.layouts[1].clone();
+    requested.part_ids = vec!["right/HEADER".into(), "right/FREE".into()];
+    let result = canonicalize(&document, &EditOperation::SetLayout { layout: requested })
+        .expect("removing a linked member maps to source membership");
+    let EditOperation::SetLayout { layout } = result.operation else {
+        panic!("SetLayout remains a SetLayout")
+    };
+    assert_eq!(layout.id, "left-layout");
+    assert_eq!(layout.part_ids, ["left/HEADER", "left/GONE"]);
+}
+
+#[test]
+fn native_mirror_target_owned_name_and_membership_edits_pass_through_deliberately() {
+    let document = native_layout_fixture();
+    let cases = [
+        (document.clone(), {
+            let mut layout = document.layouts[1].clone();
+            layout.name = "Mirror-specific name".into();
+            layout
+        }),
+        (document.clone(), {
+            let mut layout = document.layouts[1].clone();
+            layout.part_ids.retain(|id| id != "right/FREE");
+            layout
+        }),
+        (
+            {
+                let mut document = document.clone();
+                document.layouts[1].part_ids.retain(|id| id != "right/FREE");
+                document
+            },
+            {
+                let mut layout = document.layouts[1].clone();
+                layout.part_ids.retain(|id| id != "right/FREE");
+                layout.part_ids.push("right/FREE".into());
+                layout
+            },
+        ),
+    ];
+    for (document, layout) in cases {
+        let request = EditOperation::SetLayout { layout };
+        let result = canonicalize(&document, &request).expect("target-owned edit passes through");
+        assert_eq!(result.operation, request);
+        assert!(matches!(
+            result.coverage,
+            Coverage::DeliberatelyUnchanged(_)
+        ));
+    }
+}
+
+#[test]
+fn source_local_and_legacy_only_layout_requests_keep_their_authored_targets() {
+    let document = native_layout_fixture();
+    let mut source = document
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "left-layout")
+        .unwrap()
+        .clone();
+    source.name = "Source renamed".into();
+    let source_request = EditOperation::SetLayout { layout: source };
+    assert_eq!(
+        canonicalize(&document, &source_request).unwrap().operation,
+        source_request
+    );
+
+    let mut local_document = document.clone();
+    local_document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(
+            serde_json::from_value(json!({"kind":"layout",
+            "mirrorId":"right-layout","state":"local"}))
             .unwrap(),
-        },
-        EditOperation::SetMechanical {
-            configuration: None,
-        },
-    ] {
+        );
+    let mut local = local_document.layouts[1].clone();
+    local.name = "Local target name".into();
+    let local_request = EditOperation::SetLayout { layout: local };
+    assert_eq!(
+        canonicalize(&local_document, &local_request)
+            .unwrap()
+            .operation,
+        local_request
+    );
+
+    let mut legacy_document = fixture();
+    add_empty_local_matrix(&mut legacy_document, "legacy-source-matrix");
+    add_empty_local_matrix(&mut legacy_document, "legacy-target-matrix");
+    legacy_document.layouts = vec![
+        serde_json::from_value(json!({"id":"legacy-source","name":"Legacy source",
+            "boardId":"right","matrixId":"legacy-source-matrix","partIds":[]}))
+        .unwrap(),
+        serde_json::from_value(json!({"id":"legacy-mirror","name":"Legacy mirror",
+            "boardId":"right","matrixId":"legacy-target-matrix","partIds":[],
+            "mirrorLink":{"sourceId":"legacy-source","axisX":100.0}}))
+        .unwrap(),
+    ];
+    let mut legacy_target = legacy_document.layouts[1].clone();
+    legacy_target.name = "Legacy target renamed".into();
+    let legacy_request = EditOperation::SetLayout {
+        layout: legacy_target,
+    };
+    assert_eq!(
+        canonicalize(&legacy_document, &legacy_request)
+            .unwrap()
+            .operation,
+        legacy_request
+    );
+}
+
+#[test]
+fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overlap() {
+    let document = native_layout_fixture();
+    let mut renamed = document.layouts[1].clone();
+    renamed.name = "Target-only rename".into();
+    let rename_request = EditOperation::SetLayout { layout: renamed };
+    let renamed_result = canonicalize(&document, &rename_request).unwrap();
+    assert_eq!(renamed_result.operation, rename_request);
+    assert!(matches!(
+        renamed_result.coverage,
+        Coverage::DeliberatelyUnchanged(_)
+    ));
+
+    let mut reassigned = document.layouts[1].clone();
+    reassigned.matrix_id = "left-keys".into();
+    assert!(matches!(
+        canonicalize(&document, &EditOperation::SetLayout { layout: reassigned }),
+        Err(Refusal::Request(message)) if message.contains("ownership")
+    ));
+
+    let mut linked = document.layouts[1].clone();
+    linked.mirror_link = Some(
+        serde_json::from_value(json!({
+            "sourceId":"left-layout","axisX":100.0
+        }))
+        .unwrap(),
+    );
+    assert!(matches!(
+        canonicalize(&document, &EditOperation::SetLayout { layout: linked }),
+        Err(Refusal::Request(message)) if message.contains("legacy mirror link")
+    ));
+
+    let mut source_with_new_legacy_link = document.layouts[0].clone();
+    source_with_new_legacy_link.mirror_link =
+        Some(serde_json::from_value(json!({"sourceId":"right-layout","axisX":100.0})).unwrap());
+    assert!(matches!(
+        canonicalize(
+            &document,
+            &EditOperation::SetLayout {
+                layout: source_with_new_legacy_link
+            }
+        ),
+        Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
+    ));
+
+    let mut new_overlap = document.clone();
+    add_empty_local_matrix(&mut new_overlap, "new-legacy-peer-matrix");
+    new_overlap.layouts.push(
+        serde_json::from_value(json!({"id":"new-legacy-peer","name":"New legacy peer",
+            "boardId":"right","matrixId":"new-legacy-peer-matrix","partIds":[]}))
+        .unwrap(),
+    );
+    let mut new_legacy_link = new_overlap.layouts[2].clone();
+    new_legacy_link.mirror_link =
+        Some(serde_json::from_value(json!({"sourceId":"right-layout","axisX":100.0})).unwrap());
+    assert!(matches!(
+        canonicalize(
+            &new_overlap,
+            &EditOperation::SetLayout {
+                layout: new_legacy_link
+            }
+        ),
+        Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
+    ));
+
+    let mut changed_local_members = document.layouts[1].clone();
+    changed_local_members
+        .part_ids
+        .retain(|id| id != "right/FREE");
+    let local_request = EditOperation::SetLayout {
+        layout: changed_local_members,
+    };
+    let local_result = canonicalize(&document, &local_request).unwrap();
+    assert_eq!(local_result.operation, local_request);
+    assert!(matches!(
+        local_result.coverage,
+        Coverage::DeliberatelyUnchanged(_)
+    ));
+
+    let mut removed_source_local = document.layouts[1].clone();
+    removed_source_local
+        .part_ids
+        .retain(|id| id != "right/HEADER");
+    assert!(matches!(
+        canonicalize(
+            &document,
+            &EditOperation::SetLayout {
+                layout: removed_source_local
+            }
+        ),
+        Err(Refusal::Request(message)) if message.contains("cannot be removed")
+    ));
+
+    let mut mixed_target_change = document.layouts[1].clone();
+    mixed_target_change.name = "Mixed target-owned name".into();
+    mixed_target_change.part_ids = vec![
+        "right/HEADER".into(),
+        "right/U1".into(),
+        "right/FREE".into(),
+    ];
+    assert!(matches!(
+        canonicalize(
+            &document,
+            &EditOperation::SetLayout {
+                layout: mixed_target_change
+            }
+        ),
+        Err(Refusal::Request(message)) if message.contains("source-projected membership changes")
+    ));
+
+    let mut overlap = document.clone();
+    add_empty_local_matrix(&mut overlap, "right-local-matrix");
+    overlap.layouts.push(
+        serde_json::from_value(json!({"id":"legacy-peer","name":"Legacy peer",
+            "boardId":"right","matrixId":"right-local-matrix","partIds":[],
+            "mirrorLink":{"sourceId":"right-layout","axisX":100.0}}))
+        .unwrap(),
+    );
+    for id in ["right-layout", "left-layout"] {
+        let operation = EditOperation::SetLayout {
+            layout: overlap
+                .layouts
+                .iter()
+                .find(|layout| layout.id == id)
+                .unwrap()
+                .clone(),
+        };
+        let result = canonicalize(&overlap, &operation);
         assert!(
             matches!(
-                canonicalize(&document, &operation),
-                Err(Refusal::Unsupported(Coverage::Unsupported {
-                    owner: "114",
-                    ..
-                }))
+                &result,
+                Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
+                    && message.contains("legacy layout mirror link")
             ),
-            "{operation:?} must remain refused while its semantics are unclassified"
+            "{operation:?}: {result:?}"
         );
     }
+
+    let mut repair = overlap
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "legacy-peer")
+        .unwrap()
+        .clone();
+    repair.mirror_link = None;
+    let repair_request = EditOperation::SetLayout { layout: repair };
+    assert_eq!(
+        canonicalize(&overlap, &repair_request).unwrap().operation,
+        repair_request
+    );
+
+    let mut direct_overlap = document.clone();
+    add_empty_local_matrix(&mut direct_overlap, "native-legacy-source-matrix");
+    direct_overlap.layouts.push(
+        serde_json::from_value(json!({"id":"native-legacy-source",
+            "name":"Native legacy source","boardId":"right",
+            "matrixId":"native-legacy-source-matrix","partIds":[]}))
+        .unwrap(),
+    );
+    let native_mirror = direct_overlap
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "right-layout")
+        .unwrap();
+    native_mirror.mirror_link = Some(
+        serde_json::from_value(json!({"sourceId":"native-legacy-source","axisX":100.0})).unwrap(),
+    );
+    let mut direct_repair = native_mirror.clone();
+    direct_repair.mirror_link = None;
+    let mut changed_while_unlinking = direct_repair.clone();
+    changed_while_unlinking.name = "Changed during unlink".into();
+    assert!(matches!(
+        canonicalize(
+            &direct_overlap,
+            &EditOperation::SetLayout {
+                layout: changed_while_unlinking
+            }
+        ),
+        Err(Refusal::Request(message)) if message.contains("native mirrored-pair")
+    ));
+    let direct_repair_request = EditOperation::SetLayout {
+        layout: direct_repair,
+    };
+    assert_eq!(
+        canonicalize(&direct_overlap, &direct_repair_request)
+            .unwrap()
+            .operation,
+        direct_repair_request
+    );
+}
+
+#[test]
+fn omitted_native_layout_is_refused_instead_of_recreated() {
+    let mut document = native_layout_fixture();
+    let omitted_request = EditOperation::SetLayout {
+        layout: document.layouts[1].clone(),
+    };
+    let mut source_request = document.layouts[0].clone();
+    source_request.name = "Source edit while mirror omitted".into();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(
+            serde_json::from_value(json!({"kind":"layout",
+            "mirrorId":"right-layout","state":"omitted"}))
+            .unwrap(),
+        );
+    document
+        .layouts
+        .retain(|layout| layout.id != "right-layout");
+    assert_eq!(
+        canonicalize(
+            &document,
+            &EditOperation::SetLayout {
+                layout: source_request.clone()
+            }
+        )
+        .unwrap()
+        .operation,
+        EditOperation::SetLayout {
+            layout: source_request
+        }
+    );
+    assert!(matches!(
+        canonicalize(&document, &omitted_request),
+        Err(Refusal::Request(message)) if message.contains("omitted")
+    ));
 }
 
 #[test]
