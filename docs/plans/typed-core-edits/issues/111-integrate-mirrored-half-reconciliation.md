@@ -201,3 +201,8 @@ Model readiness: SetHalfException's Rust item field remains `kind: MirroredItemK
 wire key is `itemKind` because JSON `kind` is already the EditOperation discriminator. Its
 `HalfExceptionState` accepts Local/Omitted/Linked without adding Linked to stored exception
 overlays. This is a serialization clarification of the agreed vocabulary, not a new behavior.
+
+Compiler inventory assigned `core/tests/support/synthetic_half.rs` and `core/tests/outlines.rs`
+to the model writer only for their current-document fixture version stamps; these now use
+`migrate::CURRENT_VERSION`. Preserve intentionally old migration inputs and private-kernel
+fixtures unless an affected check demonstrates a current-format requirement.

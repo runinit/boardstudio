@@ -51,3 +51,20 @@ Part on that board and its appropriate existing outline/layout memberships atomi
 creates no source Part or correspondence/exception. All placement and pin changes use one
 prepared draft, Preview and history route. Keep existing AddPart behavior; the earlier presence
 of Omit does not change its meaning. Private helpers and the resolver stay private.
+
+## Acceptance
+
+- [ ] Dedicated command creates exactly one mirror-board Part, with atomic definition, board,
+      envelope and optional layout registration; no source Part, correspondence or exception.
+- [ ] Ordinary AddPart's linked/default semantics remain unchanged. Only a unique native mirror
+      board is accepted; invalid targets/IDs/definitions/layouts refuse without publication.
+- [ ] Subsequent edits, serde/Save/Open, Preview and one-step Undo/Redo preserve the unassociated
+      mirror-only Part and leave source-half data unchanged.
+- [ ] Explicit “Only this half” placement choice emits the typed command; a prior Omit never
+      changes ordinary placement intent. Follow existing product/placement conventions.
+- [ ] Independent Standards/Spec review and meaningful mutation probes cover accidental source
+      insertion, missing membership, wrong target and preview/refusal publication. Required
+      native/WASM/browser checks pass; root owns baseline/golden/integration gates.
+
+This ticket provides explicit placement, not a second electrical assignment path. 109b consumes
+the accepted route to perform its existing automatic-pin contract in the same transaction.
