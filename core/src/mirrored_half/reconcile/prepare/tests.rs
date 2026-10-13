@@ -328,12 +328,14 @@ fn prepared_publication_and_history_restore_both_halves_and_local_exception_once
         crate::geometry::outlines(&prepared, Some(&engine.outline_cache), &changed);
     let reply = engine.publish_prepared_edit(
         "commit-prepared".into(),
-        "commit-prepared".into(),
-        prepared,
-        changed,
-        cache,
-        contours,
-        findings,
+        crate::PreparedEdit {
+            transaction: "commit-prepared".into(),
+            document: prepared,
+            changed,
+            cache,
+            contours,
+            findings,
+        },
     );
     assert!(matches!(reply, CoreReply::Scene { .. }));
 
