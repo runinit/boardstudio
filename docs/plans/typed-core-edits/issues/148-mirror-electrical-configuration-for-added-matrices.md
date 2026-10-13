@@ -1,6 +1,6 @@
 # 148: Extend the mirror electrical configuration for added matrices
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [145](145-mirror-new-matrices-on-a-mirrored-board.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -31,3 +31,17 @@ fully wired on both halves.
 
 `matrix_addition.rs` and tests; request ownership before touching electrical modules.
 
+## Comments
+
+2026-10-12 implementation candidate on `typed-core-edits/ticket-148`: new matrix member function
+keys in assignments and locks are mapped through the planned member correspondences. Unrelated mirror
+configuration remains unchanged. A Local electrical-board overlay preserves the complete mirror
+configuration; an Omitted overlay leaves the mirror electrical configuration absent. An assignment
+or lock is refused with its function identity if the mirror controller has no matching physical pin.
+
+Evidence: red-first assignment test failed because the mapped mirror function was absent. Final
+focused run: `cargo test -p boardstudio_core --lib mirrored_half::matrix_addition::tests:: -- --nocapture`
+(26 passed). Mutation checks for function mapping, overlay handling and missing-pin refusal: 3 killed,
+0 survived. `python3 scripts/check.py test --update-native-baseline` passed with 1695 executed native
+tests and updated the baseline through the project command. Acceptance checkboxes remain for review
+and integration.
