@@ -1,6 +1,6 @@
 # 115: Prepare inert mirrored-edit transaction composition
 
-Status: ready-for-agent
+Status: needs-info
 Type: build
 Blocked by: [114](114-mirrored-edit-compatibility-constraints.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -71,6 +71,16 @@ The owner approved exactly one visibility change for this ticket: make
 widen other functions or types, change the `resolve_edit` signature, or edit its existing production
 call sites. This is crate-internal access for the inert prepared transaction only; production
 activation remains with 111.
+
+## Needs-info (2026-10-12)
+
+The source audit found that the existing lifecycle and forward-reconciliation helpers are private
+inside `mirrored_half::reconcile::lifecycle` and `mirrored_half::reconcile`. The transaction
+coordinator in `CoreEngine::edit` cannot call them through the current module path. Reusing those
+kernels needs a new crate-internal preparation entry point and the minimum visibility path to reach
+it; this would exceed the sole approved `resolve_prepared` exception. No source architecture was
+changed. Per this ticket's scope rule, pause implementation until the owner either approves that
+narrow coordinator seam or chooses a visibility-preserving redesign.
 
 ## Inherited from 110 and 145
 
