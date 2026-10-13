@@ -1162,15 +1162,15 @@ fn raw_set_mechanical_remains_refused() {
     let operation = EditOperation::SetMechanical {
         configuration: None,
     };
-    assert!(
-        matches!(
-            canonicalize(&document, &operation),
-            Err(Refusal::Unsupported(Coverage::Unsupported {
-                owner: "114",
-                ..
-            }))
-        ),
-        "{operation:?} must remain refused while its semantics are unclassified"
+    let Err(Refusal::Unsupported(Coverage::Unsupported { owner, reason })) =
+        canonicalize(&document, &operation)
+    else {
+        panic!("{operation:?} must remain refused while its mirror behavior is undefined");
+    };
+    assert_eq!(owner, "114");
+    assert_eq!(
+        reason,
+        "SetMechanical replaces the whole raw mechanical configuration, including board geometry and references; no safe field-wise mirrored behavior is defined."
     );
 }
 
