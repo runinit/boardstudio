@@ -3510,6 +3510,7 @@ fn a_missing_switch_is_refused_without_mutation_even_with_missing_companions() {
 #[test]
 fn production_prepared_routes_mirror_edits_preview_and_history() {
     let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let original = seed.clone();
     let created = create(
         &mut engine,
         &seed,
@@ -3581,6 +3582,18 @@ fn production_prepared_routes_mirror_edits_preview_and_history() {
     assert_eq!(
         part(&undone["document"], "right/U1")["pose"]["at"]["x"],
         224.0
+    );
+
+    let second_undo = request(&mut engine, json!({"id":"runtime-second-undo","kind":"undo"}));
+    assert_eq!(
+        second_undo["document"]["hardware"]["pairs"],
+        original["hardware"]["pairs"],
+        "one prepared commit must publish exactly one history snapshot"
+    );
+    let first_redo = request(&mut engine, json!({"id":"runtime-first-redo","kind":"redo"}));
+    assert_eq!(
+        pair(&first_redo["document"], "runtime-pair")["id"],
+        "runtime-pair"
     );
     let redone = request(&mut engine, json!({"id":"runtime-redo","kind":"redo"}));
     assert_eq!(
@@ -3814,4 +3827,143 @@ fn production_prepared_routes_commit_exceptions_and_nonempty_unlink_atomically()
         json!({"id":"runtime-unlink-redo","kind":"redo"}),
     );
     assert!(pair(&redone["document"], "runtime-lifecycle-pair")["halves"].is_null());
+}
+
+#[test]
+fn production_prepared_refusal_keeps_document_revision_and_history_untouched() {
+    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let created = create(
+        &mut engine,
+        &seed,
+        "runtime-refusal-pair",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let undone_creation = request(&mut engine, json!({"id":"runtime-refusal-undo-first","kind":"undo"}));
+    assert!(undone_creation["document"]["hardware"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|record| record["id"] != "runtime-refusal-pair"));
+    let before = undone_creation["document"].clone();
+    let refused = request(
+        &mut engine,
+        json!({"id":"runtime-prepared-refusal","kind":"edit","command":{
+            "baseRevision":before["revision"],
+            "transactionId":"runtime-prepared-refusal",
+            "phase":"commit",
+            "targetIds":[],
+            "operation":{
+                "kind":"set-half-exception",
+                "pairId":"missing-pair",
+                "itemKind":"part",
+                "mirrorId":"right/U1",
+                "state":"local"
+            }
+        }}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert_eq!(snapshot(&mut engine), before, "a prepared refusal must not publish");
+
+    let redone = request(&mut engine, json!({"id":"runtime-refusal-redo","kind":"redo"}));
+    assert!(redone["document"]["hardware"]["pairs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|record| record["id"] == "runtime-refusal-pair"));
+}
+
+#[test]
+fn production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_instances() {
+    for initially_disabled in [false, true] {
+        let mut document = runtime_supported_document();
+        let mut configuration = document["hardware"]["instances"][0]["mechanical"].clone();
+        configuration["wallThickness"] = json!(3.0);
+        if initially_disabled {
+            document["hardware"]["instances"][0]["mechanical"] = Value::Null;
+        }
+        let (mut engine, before) = open(&document);
+        let configured = request(
+            &mut engine,
+            json!({"id":"runtime-instance-mechanical-configure","kind":"edit","command":{
+                "baseRevision":before["revision"],
+                "transactionId":format!("runtime-instance-mechanical-configure-{initially_disabled}"),
+                "phase":"commit",
+                "targetIds":[],
+                "operation":{
+                    "kind":"set-mechanical",
+                    "configuration":configuration,
+                    "target":{"kind":"instance","instanceId":"left"}
+                }
+            }}),
+        );
+        assert_eq!(configured["kind"], "scene", "disabled={initially_disabled}: {configured}");
+        assert_eq!(instance(&configured["document"], "left")["mechanical"]["wallThickness"], 3.0);
+        assert_eq!(configured["document"]["revision"], before["revision"].as_u64().unwrap() + 1);
+    }
+}
+
+#[test]
+fn production_matrix_membership_transition_updates_pair_context_for_later_source_edits() {
+    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let created = create(
+        &mut engine,
+        &seed,
+        "runtime-membership-pair",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let before = created["document"].clone();
+    let removed = request(
+        &mut engine,
+        json!({"id":"runtime-remove-cell","kind":"edit","command":{
+            "baseRevision":before["revision"],
+            "transactionId":"runtime-remove-cell",
+            "phase":"commit",
+            "targetIds":[],
+            "operation":{
+                "kind":"remove-selected-matrix-cells",
+                "cells":{"left-synthetic-keys":[[0,0]]}
+            }
+        }}),
+    );
+    assert_eq!(removed["kind"], "scene", "{removed}");
+    let correspondences = pair(&removed["document"], "runtime-membership-pair")["halves"]["correspondences"]
+        .as_array()
+        .unwrap();
+    assert!(correspondences.iter().all(|record| {
+        record["sourceId"] != "matrix/left-synthetic-keys/r0c0"
+            && record["mirrorId"] != "matrix/right-synthetic-keys/r0c0"
+    }));
+    assert!(correspondences.iter().any(|record| {
+        record["sourceId"] == "matrix/left-synthetic-keys/r0c1"
+            && record["mirrorId"] == "matrix/right-synthetic-keys/r0c1"
+    }));
+
+    let moved = request(
+        &mut engine,
+        json!({"id":"runtime-source-edit-after-membership","kind":"edit","command":{
+            "baseRevision":removed["document"]["revision"],
+            "transactionId":"runtime-source-edit-after-membership",
+            "phase":"commit",
+            "targetIds":["matrix/left-synthetic-keys/r0c1"],
+            "operation":{
+                "kind":"move-parts",
+                "positions":[{"id":"matrix/left-synthetic-keys/r0c1","at":{"x":43.0,"y":7.0}}]
+            }
+        }}),
+    );
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    assert_eq!(
+        part(&moved["document"], "matrix/left-synthetic-keys/r0c1")["pose"]["at"],
+        json!({"x":43.0,"y":7.0})
+    );
+    assert_eq!(
+        part(&moved["document"], "matrix/right-synthetic-keys/r0c1")["pose"]["at"],
+        json!({"x":157.0,"y":7.0})
+    );
 }
