@@ -1,6 +1,6 @@
 # 156: Preserve validated matrix reconciliation states across later edits and Open
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -43,17 +43,45 @@ wrong-board/slot ownership, inconsistent correspondence and invalid exception da
 
 ## Acceptance
 
-- [ ] Private regressions reproduce both failures before production changes.
-- [ ] Valid selected-cell tombstones survive later source and mirror edits and prepared Open,
+- [x] Private regressions reproduce both failures before production changes.
+- [x] Valid selected-cell tombstones survive later source and mirror edits and prepared Open,
       without resurrection, lost authored data or recreated retired associations.
-- [ ] Local/Omitted matrix child exceptions without a child correspondence reopen correctly
+- [x] Local/Omitted matrix child exceptions without a child correspondence reopen correctly
       with exact Matrix provenance and existing companion mode/tweak semantics.
-- [ ] Invalid disabled/deleted combinations, coordinate/ownership aliases, stale associations
+- [x] Invalid disabled/deleted combinations, coordinate/ownership aliases, stale associations
       and foreign/ambiguous exception identities remain atomic refusals.
-- [ ] Repeated reconciliation is stable and unrelated pairs/matrices remain unchanged.
-- [ ] Independent Standards/Spec review, meaningful compiled mutations and affected/full checks
+- [x] Repeated reconciliation is stable and unrelated pairs/matrices remain unchanged.
+- [x] Independent Standards/Spec review, meaningful compiled mutations and affected/full checks
       pass; root owns baseline updates, local merge and post-merge checks.
-- [ ] After integration into 111, original public regressions pass without changing their
+- [x] After integration into 111, original public regressions pass without changing their
       selected-cell operation or weakening companion override/history assertions.
 
 No production activation is included. Keep all work unpushed.
+
+## Answer
+
+The existing private membership view now retains exact paired inactive tombstones, rejects
+contradictory flags, mismatched inactive slots and stale generated members/associations, and
+continues filling only truly missing active coordinates. Real prepared removal followed by
+source and mirror edits, all-slots-inactive state, Open and repeated preparation are covered.
+
+Legacy unassociated Local and Omitted child records follow the existing model contract: their
+mirror item remains materialized and has no inferred source. Exact owner/slot validation admits
+that state without creating a correspondence. Its original Part payload and pose are carried
+through materialization exactly; serialized pair/exception data remains stable. Associated
+Omitted lifecycle semantics remain unchanged. No production route, schema or visibility changed.
+
+Both independent review axes accept the implementation and test-only Open follow-up; the initial
+Spec finding for missing legacy-child prepared Open proof is closed. The final focused suite
+passes 230 tests. Seven compiled mutation probes ran: six were killed, and one local validation
+perturbation survived without changing valid-document geometry or persisted exception metadata;
+that result is retained and is not counted as a kill. All sources restored exactly.
+
+Full `check.py repo test lint --update-native-baseline` passes with 1,843 native tests. The baseline
+adds exactly seven new test names and removes none. Candidate code was also integrated into the
+isolated 111 draft: both original public regressions now pass unchanged, while five unrelated 111
+failures remain visible. This does not claim full 111 or parent 19 acceptance.
+
+Evidence: main `.evidence/ticket156/` (handoff, review initial/delta1, mutation-run and honest
+summary, full-checks, native-baseline-delta and activation-proof). Local dev integration and
+post-merge checks are the next coordinator steps; nothing is pushed.
