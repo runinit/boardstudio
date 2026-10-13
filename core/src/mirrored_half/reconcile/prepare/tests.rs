@@ -149,33 +149,15 @@ fn open_preparation_preserves_a_missing_omitted_matrix() {
 }
 
 #[test]
-fn open_preparation_repairs_linked_parts_on_a_matrixless_pair() {
+fn open_preparation_repairs_linked_parts_without_matrix_correspondence() {
     let mut accepted = pair_document();
-    let matrix_members: std::collections::BTreeSet<_> = accepted
-        .matrices
-        .iter()
-        .flat_map(|matrix| matrix.part_ids.iter().cloned())
-        .collect();
-    accepted.matrices.clear();
-    accepted
-        .parts
-        .retain(|part| !matrix_members.contains(&part.id));
-    for board in &mut accepted.boards {
-        board.part_ids.retain(|id| !matrix_members.contains(id));
-    }
     let halves = accepted.hardware.as_mut().unwrap().pairs[0]
         .halves
         .as_mut()
         .unwrap();
-    halves.correspondences.retain(|association| {
-        association.kind != crate::model::MirroredItemKind::Matrix
-            && !matrix_members.contains(&association.source_id)
-            && !matrix_members.contains(&association.mirror_id)
-    });
-    halves.exceptions.retain(|exception| {
-        exception.kind != crate::model::MirroredItemKind::Matrix
-            && !matrix_members.contains(&exception.mirror_id)
-    });
+    halves
+        .correspondences
+        .retain(|association| association.kind != crate::model::MirroredItemKind::Matrix);
     part_mut(&mut accepted, "right/U1").pose.at.x = 999.0;
 
     let (prepared, findings) = super::prepare_open(&accepted, &[])

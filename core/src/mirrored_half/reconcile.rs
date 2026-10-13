@@ -1436,15 +1436,45 @@ fn reconcile(
             {
                 return Err("The retired Matrix projection retains active ownership".into());
             }
-            let mirror_members = document
-                .matrices
-                .iter()
-                .filter(|m| m.id == projection.mirror_matrix_id)
-                .flat_map(|m| m.part_ids.iter().cloned())
-                .collect();
+            let matrixless_pair = projection.preserve_matrix_geometry
+                && projection
+                    .source_matrix_id
+                    .starts_with("__open_matrixless__")
+                && projection
+                    .mirror_matrix_id
+                    .starts_with("__open_matrixless__");
+            let source_members = if matrixless_pair {
+                document
+                    .matrices
+                    .iter()
+                    .filter(|matrix| {
+                        matrix.board_id.as_deref() == Some(projection.source_board_id.as_str())
+                    })
+                    .flat_map(|matrix| matrix.part_ids.iter().cloned())
+                    .collect()
+            } else {
+                BTreeSet::new()
+            };
+            let mirror_members = if matrixless_pair {
+                document
+                    .matrices
+                    .iter()
+                    .filter(|matrix| {
+                        matrix.board_id.as_deref() == Some(projection.mirror_board_id.as_str())
+                    })
+                    .flat_map(|matrix| matrix.part_ids.iter().cloned())
+                    .collect()
+            } else {
+                document
+                    .matrices
+                    .iter()
+                    .filter(|matrix| matrix.id == projection.mirror_matrix_id)
+                    .flat_map(|matrix| matrix.part_ids.iter().cloned())
+                    .collect()
+            };
             return Ok(MatrixStage {
                 draft: document.clone(),
-                source_members: BTreeSet::new(),
+                source_members,
                 mirror_members,
                 omitted_parts: BTreeSet::new(),
                 allow_absent: true,
