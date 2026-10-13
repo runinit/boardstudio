@@ -177,6 +177,11 @@ pub(super) fn canonicalize(
             canonical.operation = Op::MoveParts {
                 positions: links.move_parts(positions)?,
             };
+            let Op::MoveParts { positions } = &canonical.operation else {
+                unreachable!("the MoveParts arm builds a MoveParts operation");
+            };
+            canonical.prepared_constraints =
+                constraints::prepare_move_parts(document, positions).map_err(Refusal::Request)?;
         }
         Op::AddPart { part, board_id } => {
             if let Some((source, addition)) = links.add_part(part, board_id.as_deref())? {

@@ -435,6 +435,526 @@ fn set_constraint_refuses_an_omitted_legacy_endpoint() {
     assert!(error.contains("right/GONE"), "{error}");
 }
 
+#[test]
+fn moving_a_linked_target_retunes_the_offset_in_its_authored_target_view() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/linked-target".into(),
+        source_part_id: "right/HEADER".into(),
+        target_part_id: "right/U1".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![crate::model::Position {
+                id: "left/U1".into(),
+                at: Vec2 { x: -20.0, y: 4.0 },
+            }],
+        },
+    )
+    .unwrap();
+
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &prepared.prepared_constraints[0]
+    else {
+        panic!("the linked target move must prepare one retuned record");
+    };
+    let crate::constraints::FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
+    } = record
+    else {
+        panic!("the target retune must retain the Offset relation");
+    };
+    assert_eq!(id, "constraint/linked-target");
+    assert_eq!(
+        source,
+        &crate::constraints::ConstraintEndpoint::Part {
+            part_id: "right/HEADER".into(),
+        }
+    );
+    assert_eq!(
+        target,
+        &crate::constraints::ConstraintEndpoint::LinkedMirror {
+            pair_id: "pair".into(),
+            source_part_id: "left/U1".into(),
+            mirror_part_id: "right/U1".into(),
+        }
+    );
+    // The rotated pair maps the old and requested authoritative poses into the authored target
+    // view; their literal visible delta is (-4, -4), added to the stored (5, -2).
+    assert!((offset.x - 1.0).abs() < 1e-12, "{offset:?}");
+    assert!((offset.y + 6.0).abs() < 1e-12, "{offset:?}");
+    assert_eq!(rotation.to_bits(), 15.0_f64.to_bits());
+}
+
+#[test]
+fn moving_a_visible_mirror_constraint_target_uses_its_literal_inverse_position() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/raw-mirror-target".into(),
+        source_part_id: "left/HEADER".into(),
+        target_part_id: "right/U1".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![crate::model::Position {
+                id: "right/U1".into(),
+                at: Vec2 { x: 104.0, y: -1.0 },
+            }],
+        },
+    )
+    .unwrap();
+
+    let EditOperation::MoveParts { positions } = &prepared.operation else {
+        panic!("a visible mirror target move must stay a MoveParts operation");
+    };
+    assert_eq!(positions.len(), 1);
+    assert_eq!(positions[0].id, "left/U1");
+    assert!(
+        (positions[0].at.x + 29.0).abs() < 1e-12,
+        "{:?}",
+        positions[0]
+    );
+    assert!(
+        (positions[0].at.y + 4.0).abs() < 1e-12,
+        "{:?}",
+        positions[0]
+    );
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &prepared.prepared_constraints[0]
+    else {
+        panic!("moving the visible mirror target must retune the same global record");
+    };
+    let crate::constraints::FramedConstraint::Framed {
+        id,
+        relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
+        ..
+    } = record
+    else {
+        panic!("the authored Offset relation must remain an Offset");
+    };
+    assert_eq!(id, "constraint/raw-mirror-target");
+    // The pair map sends the original source (-24, 0) to (100, -6); the visible
+    // request (104, -1) contributes (4, 5) to the legacy stored (5, -2).
+    assert_eq!(*offset, Vec2 { x: 9.0, y: 3.0 });
+    assert_eq!(rotation.to_bits(), 15.0_f64.to_bits());
+}
+
+#[test]
+fn moving_a_part_offset_target_uses_the_linked_source_view_and_keeps_position_heading() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.constraints.push(Constraint::PartOffset {
+        id: "constraint/part-view-target".into(),
+        source_part_id: "right/U1".into(),
+        target_part_id: "right/HEADER".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![crate::model::Position {
+                id: "right/HEADER".into(),
+                at: Vec2 { x: 228.0, y: 32.0 },
+            }],
+        },
+    )
+    .unwrap();
+
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &prepared.prepared_constraints[0]
+    else {
+        panic!("the PartOffset target move must prepare one retuned record");
+    };
+    let crate::constraints::FramedConstraint::Framed {
+        relation: crate::constraints::ConstraintRelation::PartOffset { offset, rotation },
+        ..
+    } = record
+    else {
+        panic!("the PartOffset relation must stay in its authored axes");
+    };
+    // Source view heading is 270 degrees for the 90-degree pair map, so (4, 2) turns back to
+    // (-2, 4) in the relation's source axes.
+    assert!((offset.x - 3.0).abs() < 1e-12, "{offset:?}");
+    assert!((offset.y - 2.0).abs() < 1e-12, "{offset:?}");
+    assert_eq!(rotation.to_bits(), 15.0_f64.to_bits());
+}
+
+#[test]
+fn moving_source_and_target_in_one_batch_retunes_by_target_delta_not_final_fit() {
+    let mut document = rotated_fixture();
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/batch".into(),
+        source_part_id: "right/HEADER".into(),
+        target_part_id: "right/FREE".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: -0.0,
+    });
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![
+                crate::model::Position {
+                    id: "right/FREE".into(),
+                    at: Vec2 { x: 302.0, y: 4.0 },
+                },
+                crate::model::Position {
+                    id: "right/HEADER".into(),
+                    at: Vec2 { x: 225.0, y: 31.0 },
+                },
+            ],
+        },
+    )
+    .unwrap();
+
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &prepared.prepared_constraints[0]
+    else {
+        panic!("the batch target move must prepare one retuned record");
+    };
+    let crate::constraints::FramedConstraint::Framed {
+        relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
+        ..
+    } = record
+    else {
+        panic!("the batch must retain Offset");
+    };
+    // Existing MoveParts semantics add only target's requested delta (2, 4). A fit against the
+    // moved source would replace this value with the target's final source-relative position.
+    assert_eq!(*offset, Vec2 { x: 7.0, y: 2.0 });
+    assert_eq!(rotation.to_bits(), (-0.0_f64).to_bits());
+
+    let reversed = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![
+                crate::model::Position {
+                    id: "right/HEADER".into(),
+                    at: Vec2 { x: 225.0, y: 31.0 },
+                },
+                crate::model::Position {
+                    id: "right/FREE".into(),
+                    at: Vec2 { x: 302.0, y: 4.0 },
+                },
+            ],
+        },
+    )
+    .unwrap();
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &reversed.prepared_constraints[0]
+    else {
+        panic!("the reordered batch must retain one retuned record");
+    };
+    let crate::constraints::FramedConstraint::Framed {
+        relation: crate::constraints::ConstraintRelation::Offset { offset, rotation },
+        ..
+    } = record
+    else {
+        panic!("the reordered batch must retain Offset");
+    };
+    assert_eq!(*offset, Vec2 { x: 7.0, y: 2.0 });
+    assert_eq!(rotation.to_bits(), (-0.0_f64).to_bits());
+}
+
+#[test]
+fn moving_a_legacy_mirror_constraint_target_is_refused() {
+    let mut document = rotated_fixture();
+    document.constraints.push(Constraint::Mirror {
+        id: "constraint/mirror-target".into(),
+        source_part_id: "right/HEADER".into(),
+        target_part_id: "right/FREE".into(),
+        axis: crate::model::MirrorAxis::Vertical,
+        coordinate: 200.0,
+    });
+    let error = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![crate::model::Position {
+                id: "right/FREE".into(),
+                at: Vec2 { x: 302.0, y: 4.0 },
+            }],
+        },
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("mirror"), "{error}");
+    assert!(error.contains("drag"), "{error}");
+}
+
+#[test]
+fn moving_a_companion_target_defers_until_its_key_owner_pose_is_resolved() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/companion-target".into(),
+        source_part_id: "left/U1".into(),
+        target_part_id: "matrix/right-keys/r0c0/diode".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![crate::model::Position {
+                id: "matrix/right-keys/r0c0/diode".into(),
+                at: Vec2 { x: 187.0, y: -4.0 },
+            }],
+        },
+    )
+    .unwrap();
+
+    let [super::constraints::PreparedConstraintEdit::DeferredTargetRetune(intent)] =
+        prepared.prepared_constraints.as_slice()
+    else {
+        panic!("a companion retune must wait for its live key owner pose");
+    };
+    let crate::constraints::FramedConstraint::Framed { id, .. } = &intent.record;
+    assert_eq!(id, "constraint/companion-target");
+    assert_eq!(
+        intent.target_owner.as_deref(),
+        Some("matrix/left-keys/r0c0")
+    );
+    assert_eq!(intent.source_owner, None);
+    assert_eq!(intent.requested.id, "matrix/left-keys/r0c0/diode");
+}
+
+#[test]
+fn moving_a_linked_key_and_companion_in_either_order_keeps_the_owner_intent() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/batched-companion".into(),
+        source_part_id: "left/U1".into(),
+        target_part_id: "matrix/right-keys/r0c0/diode".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let key = crate::model::Position {
+        id: "matrix/right-keys/r0c0".into(),
+        at: Vec2 { x: 190.0, y: -5.0 },
+    };
+    let companion = crate::model::Position {
+        id: "matrix/right-keys/r0c0/diode".into(),
+        at: Vec2 { x: 198.0, y: -7.0 },
+    };
+    let key_then_companion = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![key.clone(), companion.clone()],
+        },
+    )
+    .unwrap();
+    let companion_then_key = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![companion, key],
+        },
+    )
+    .unwrap();
+
+    for prepared in [&key_then_companion, &companion_then_key] {
+        let EditOperation::MoveParts { positions } = &prepared.operation else {
+            panic!("the linked key and companion moves must remain in the canonical batch");
+        };
+        assert_eq!(positions.len(), 2);
+        let source_key = positions
+            .iter()
+            .find(|position| position.id == "matrix/left-keys/r0c0")
+            .unwrap();
+        let source_companion = positions
+            .iter()
+            .find(|position| position.id == "matrix/left-keys/r0c0/diode")
+            .unwrap();
+        // The independently worked inverse of the 90-degree map is
+        // (-30 - y, 100 - x): key (-25, -90), companion (-23, -98).
+        assert!(
+            (source_key.at.x + 25.0).abs() < 1e-12,
+            "{:?}",
+            source_key.at
+        );
+        assert!(
+            (source_key.at.y + 90.0).abs() < 1e-12,
+            "{:?}",
+            source_key.at
+        );
+        assert!(
+            (source_companion.at.x + 23.0).abs() < 1e-12,
+            "{:?}",
+            source_companion.at
+        );
+        assert!(
+            (source_companion.at.y + 98.0).abs() < 1e-12,
+            "{:?}",
+            source_companion.at
+        );
+
+        let [super::constraints::PreparedConstraintEdit::DeferredTargetRetune(intent)] =
+            prepared.prepared_constraints.as_slice()
+        else {
+            panic!("the companion stays deferred until its key owner is resolved");
+        };
+        assert_eq!(
+            intent.target_owner.as_deref(),
+            Some("matrix/left-keys/r0c0")
+        );
+        assert_eq!(intent.requested.id, "matrix/left-keys/r0c0/diode");
+        assert_eq!(intent.requested.at, source_companion.at);
+    }
+}
+
+#[test]
+fn moving_a_duplicate_position_companion_in_either_order_uses_its_requested_key_owner() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .companion_mode = crate::model::MirroredCompanionMode::DuplicatePosition;
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/duplicate-position-child".into(),
+        source_part_id: "left/U1".into(),
+        target_part_id: "matrix/right-keys/r0c0/diode".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let key = crate::model::Position {
+        id: "matrix/right-keys/r0c0".into(),
+        at: Vec2 { x: 190.0, y: -5.0 },
+    };
+    let companion = crate::model::Position {
+        id: "matrix/right-keys/r0c0/diode".into(),
+        at: Vec2 { x: 198.0, y: -7.0 },
+    };
+    let key_then_companion = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![key.clone(), companion.clone()],
+        },
+    )
+    .unwrap();
+    let companion_then_key = canonicalize(
+        &document,
+        &EditOperation::MoveParts {
+            positions: vec![companion, key],
+        },
+    )
+    .unwrap();
+
+    for prepared in [&key_then_companion, &companion_then_key] {
+        let EditOperation::MoveParts { positions } = &prepared.operation else {
+            panic!("the duplicate-position move must retain its ordered batch");
+        };
+        let source_key = positions
+            .iter()
+            .find(|position| position.id == "matrix/left-keys/r0c0")
+            .unwrap();
+        let source_companion = positions
+            .iter()
+            .find(|position| position.id == "matrix/left-keys/r0c0/diode")
+            .unwrap();
+        // DuplicatePosition carries the mirror-local companion delta (8, -2) onto
+        // the source key at (-25, -90), giving source companion (-17, -92).
+        assert!(
+            (source_key.at.x + 25.0).abs() < 1e-12,
+            "{:?}",
+            source_key.at
+        );
+        assert!(
+            (source_key.at.y + 90.0).abs() < 1e-12,
+            "{:?}",
+            source_key.at
+        );
+        assert!(
+            (source_companion.at.x + 17.0).abs() < 1e-12,
+            "{:?}",
+            source_companion.at
+        );
+        assert!(
+            (source_companion.at.y + 92.0).abs() < 1e-12,
+            "{:?}",
+            source_companion.at
+        );
+
+        let [super::constraints::PreparedConstraintEdit::DeferredTargetRetune(intent)] =
+            prepared.prepared_constraints.as_slice()
+        else {
+            panic!("the duplicate-position child must wait for its requested key owner");
+        };
+        assert_eq!(
+            intent.target_owner.as_deref(),
+            Some("matrix/left-keys/r0c0")
+        );
+        assert_eq!(intent.requested.id, "matrix/left-keys/r0c0/diode");
+        assert_eq!(intent.requested.at, source_companion.at);
+    }
+}
+
+#[test]
+fn moving_a_companion_with_a_constrained_key_keeps_both_prepared_intents() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0].construction_source = Some("left".into());
+    document.constraints.extend([
+        Constraint::Offset {
+            id: "constraint/key-owner".into(),
+            source_part_id: "left/U1".into(),
+            target_part_id: "matrix/right-keys/r0c0".into(),
+            offset: Vec2 { x: 2.0, y: 1.0 },
+            rotation: -0.0,
+        },
+        Constraint::Offset {
+            id: "constraint/constrained-owner-child".into(),
+            source_part_id: "left/U1".into(),
+            target_part_id: "matrix/right-keys/r0c0/diode".into(),
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        },
+    ]);
+    let key = crate::model::Position {
+        id: "matrix/right-keys/r0c0".into(),
+        at: Vec2 { x: 190.0, y: -5.0 },
+    };
+    let companion = crate::model::Position {
+        id: "matrix/right-keys/r0c0/diode".into(),
+        at: Vec2 { x: 198.0, y: -7.0 },
+    };
+    for positions in [vec![key.clone(), companion.clone()], vec![companion, key]] {
+        let prepared = canonicalize(&document, &EditOperation::MoveParts { positions }).unwrap();
+        let mut upsert_ids = Vec::new();
+        let mut deferred = Vec::new();
+        for edit in &prepared.prepared_constraints {
+            match edit {
+                super::constraints::PreparedConstraintEdit::Upsert(
+                    crate::constraints::FramedConstraint::Framed { id, .. },
+                ) => upsert_ids.push(id.as_str()),
+                super::constraints::PreparedConstraintEdit::DeferredTargetRetune(intent) => {
+                    deferred.push(intent)
+                }
+                other => panic!("unexpected prepared edit: {other:?}"),
+            }
+        }
+        assert_eq!(upsert_ids, ["constraint/key-owner"]);
+        assert_eq!(deferred.len(), 1);
+        assert_eq!(
+            deferred[0].target_owner.as_deref(),
+            Some("matrix/left-keys/r0c0")
+        );
+        assert_eq!(deferred[0].requested.id, "matrix/left-keys/r0c0/diode");
+    }
+}
+
 // ---- coverage ------------------------------------------------------------------------------
 
 #[test]
