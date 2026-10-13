@@ -4273,7 +4273,7 @@ fn production_authored_companion_set_matrix_preview_projects_expansion() {
 
 #[test]
 fn production_authored_companion_set_matrix_splay_preview_projects_both_halves() {
-    let x = 19.0 + 21.0 * 12.0_f64.to_radians().sin();
+    let x = 19.0 - 21.0 * 12.0_f64.to_radians().sin();
     let y = 21.0 * 12.0_f64.to_radians().cos();
     assert_authored_companion_preview(
         "set-matrix-splay",
