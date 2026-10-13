@@ -2617,6 +2617,7 @@ mod mechanical_edit_engine_tests {
     fn pure_settings_edits_preserve_the_outline_recovery_snapshot() {
         let mut source: ProjectDoc =
             serde_json::from_str(include_str!("../tests/fixtures/synthetic-outline.json")).unwrap();
+        source.format_version = crate::migrate::CURRENT_VERSION;
         // Use only two authored square courtyards with a 4 mm gap. This creates
         // an independent automatic bridge pocket for the recovery contract.
         source
