@@ -14,15 +14,31 @@ use crate::model::{
 };
 use crate::outline_edit::{OutlineChange, OutlineEditTarget};
 
-#[derive(Clone, Copy)]
 struct Context<'a> {
     mapping: crate::model::Pose2,
     source_board: &'a str,
     mirror_board: &'a str,
     halves: &'a MirroredHalves,
+    matrix_owned_parts: std::collections::BTreeSet<String>,
 }
 
-impl Context<'_> {
+impl<'a> Context<'a> {
+    fn new(
+        document: &'a crate::model::ProjectDoc,
+        mapping: crate::model::Pose2,
+        halves: &'a MirroredHalves,
+    ) -> Self {
+        let mirror_board = &halves.mirror_board_id;
+        let matrix_owned_parts = super::super::matrix_owned_parts(document, mirror_board);
+        Self {
+            mapping,
+            source_board: &halves.source_board_id,
+            mirror_board,
+            halves,
+            matrix_owned_parts,
+        }
+    }
+
     fn correspondence(&self, id: &str, kind: MirroredItemKind) -> Option<String> {
         self.halves
             .correspondences
@@ -62,7 +78,7 @@ impl Context<'_> {
     }
 
     fn full_rule_part(&self, id: &str) -> bool {
-        !self.part(id).starts_with("matrix/")
+        !self.matrix_owned_parts.contains(id)
     }
 
     fn anchored(&self, point: Vec2, part_id: &str) -> Vec2 {
@@ -191,18 +207,6 @@ impl Context<'_> {
         settings
     }
 
-    fn contour(&self, contour: &Contour) -> Contour {
-        Contour {
-            points: contour
-                .points
-                .iter()
-                .rev()
-                .map(|point| pair::inverse(self.mapping, *point))
-                .collect(),
-            hole: contour.hole,
-        }
-    }
-
     fn points(&self, points: &[Vec2]) -> Vec<Vec2> {
         points
             .iter()
@@ -213,26 +217,8 @@ impl Context<'_> {
 }
 
 fn inverse_token(from: &str, to: &str, id: &str) -> String {
-    let mut replaced = false;
-    let mut result = String::new();
-    let mut token_start = 0;
-    for (index, ch) in id.char_indices().chain(std::iter::once((id.len(), '\0'))) {
-        if ch == '/' || ch == '-' || ch == '\0' {
-            let token = &id[token_start..index];
-            if token == from {
-                result.push_str(to);
-                replaced = true;
-            } else {
-                result.push_str(token);
-            }
-            if ch != '\0' {
-                result.push(ch);
-            }
-            token_start = index + ch.len_utf8();
-        }
-    }
-    if replaced {
-        result
+    if let Some(swapped) = super::super::substitute_token(id, from, to) {
+        swapped
     } else if let Some(rest) = id.strip_prefix(&format!("{from}/")) {
         format!("{to}/{rest}")
     } else {
@@ -250,12 +236,7 @@ fn board_context<'a>(links: &Links<'a>, board_id: &str) -> Result<Option<Context
                     "Board {board_id:?} is the mirror of more than one pair"
                 ));
             }
-            found = Some(Context {
-                mapping: pair.mapping,
-                source_board: &halves.source_board_id,
-                mirror_board: &halves.mirror_board_id,
-                halves,
-            });
+            found = Some(Context::new(links.document, pair.mapping, halves));
         }
     }
     Ok(found)
@@ -398,14 +379,8 @@ pub(super) fn translate(
             let Some(context) = context else {
                 return Ok(());
             };
-            edit.target = match edit.target {
-                OutlineEditTarget::Board { .. } => OutlineEditTarget::Board {
-                    board_id: source_board,
-                },
-                OutlineEditTarget::Version { version_id, .. } => OutlineEditTarget::Version {
-                    board_id: source_board,
-                    version_id: context.version(&version_id),
-                },
+            edit.target = OutlineEditTarget::Board {
+                board_id: source_board,
             };
             edit.change = change(&context, edit.change);
             edit.reviewed = edit
@@ -427,12 +402,11 @@ fn feature_context<'a>(links: &'a Links<'a>, id: &str) -> Result<Option<Context<
         Target::Omitted => Err(format!(
             "{id:?} is omitted on its mirror half and has no geometry; rejoin it before editing it"
         )),
-        Target::Linked(link) => Ok(Some(Context {
-            mapping: link.pair.mapping,
-            source_board: &link.pair.halves.source_board_id,
-            mirror_board: &link.pair.halves.mirror_board_id,
-            halves: link.pair.halves,
-        })),
+        Target::Linked(link) => Ok(Some(Context::new(
+            links.document,
+            link.pair.mapping,
+            link.pair.halves,
+        ))),
     }
 }
 
@@ -442,12 +416,11 @@ fn version_context<'a>(links: &'a Links<'a>, id: &str) -> Result<Option<Context<
         Target::Omitted => Err(format!(
             "Outline version {id:?} is omitted on its mirror half and has no geometry; rejoin it before editing it"
         )),
-        Target::Linked(link) => Ok(Some(Context {
-            mapping: link.pair.mapping,
-            source_board: &link.pair.halves.source_board_id,
-            mirror_board: &link.pair.halves.mirror_board_id,
-            halves: link.pair.halves,
-        })),
+        Target::Linked(link) => Ok(Some(Context::new(
+            links.document,
+            link.pair.mapping,
+            link.pair.halves,
+        ))),
     }
 }
 
@@ -473,7 +446,10 @@ fn reviewed(
     }
     contours
         .iter()
-        .map(|contour| context.contour(contour))
+        .map(|contour| Contour {
+            points: context.points(&contour.points),
+            hole: contour.hole,
+        })
         .collect()
 }
 

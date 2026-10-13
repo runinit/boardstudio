@@ -45,6 +45,20 @@ mod reconcile;
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
 
+/// Matrix-owned parts attached to one board, shared by projection and inverse mapping.
+fn matrix_owned_parts(document: &ProjectDoc, board_id: &str) -> BTreeSet<String> {
+    let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
+        return BTreeSet::new();
+    };
+    document
+        .matrices
+        .iter()
+        .flat_map(|matrix| &matrix.part_ids)
+        .filter(|part_id| board.part_ids.contains(part_id))
+        .cloned()
+        .collect()
+}
+
 /// What every mode of the operation shares.
 struct Request<'a> {
     pair_id: &'a str,

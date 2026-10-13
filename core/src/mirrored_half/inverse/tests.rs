@@ -396,6 +396,205 @@ fn rotated_outline_controls_anchors_reviews_and_identity_are_inverse_mapped_toge
 }
 
 #[test]
+fn an_anchor_in_another_matrix_uses_its_own_matrix_frame_rule() {
+    let mut document = fixture();
+    let source_id = "matrix/left-other/r0c0";
+    let mirror_id = "matrix/right-other/r0c0";
+    let mut source_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .clone();
+    source_matrix.id = "left-other".into();
+    source_matrix.part_ids = vec![source_id.into()];
+    let mut mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap()
+        .clone();
+    mirror_matrix.id = "right-other".into();
+    mirror_matrix.part_ids = vec![mirror_id.into()];
+    for (old_id, new_id, board_id) in [
+        ("matrix/left-keys/r0c0", source_id, "left"),
+        ("matrix/right-keys/r0c0", mirror_id, "right"),
+    ] {
+        let mut new_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == old_id)
+            .unwrap()
+            .clone();
+        new_part.id = new_id.into();
+        document.parts.push(new_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(new_id.into());
+    }
+    document.matrices.extend([source_matrix, mirror_matrix]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("matrix", "left-other", "right-other")).unwrap(),
+            serde_json::from_value(corr(
+                "part",
+                "matrix/left-other/r0c0",
+                "matrix/right-other/r0c0",
+            ))
+            .unwrap(),
+        ]);
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"add-feature": {"feature": {"kind": "polygon",
+            "id": "right/new", "anchorPartId": "matrix/right-other/r0c0",
+            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+            "operation": "add"}}},
+        "seed": 13
+    }});
+
+    let translated = canonical(&document, &request).expect("the linked anchor translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["id"],
+        "left/new"
+    );
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["anchorPartId"],
+        "matrix/left-other/r0c0"
+    );
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["points"],
+        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
+    );
+}
+
+#[test]
+fn a_matrix_shaped_anchor_without_matrix_membership_uses_full_heading_rule() {
+    let mut document = fixture();
+    let source_id = "matrix/left-loose/r0c0";
+    let mirror_id = "matrix/right-loose/r0c0";
+    for (old_id, new_id, board_id) in [
+        ("matrix/left-keys/r0c0", source_id, "left"),
+        ("matrix/right-keys/r0c0", mirror_id, "right"),
+    ] {
+        let mut new_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == old_id)
+            .unwrap()
+            .clone();
+        new_part.id = new_id.into();
+        document.parts.push(new_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(new_id.into());
+    }
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(serde_json::from_value(corr("part", source_id, mirror_id)).unwrap());
+
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"add-feature": {"feature": {"kind": "polygon",
+            "id": "right/new", "anchorPartId": mirror_id,
+            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+            "operation": "add"}}},
+        "seed": 17
+    }});
+    let translated = canonical(&document, &request).expect("the linked anchor translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["points"],
+        json!([{"x": 12.0, "y": -14.0}, {"x": 8.0, "y": -10.0}, {"x": 4.0, "y": -6.0}])
+    );
+}
+
+#[test]
+fn legacy_matrix_membership_without_board_id_uses_matrix_frame_rule() {
+    let mut document = fixture();
+    let source_id = "matrix/left-legacy/r0c0";
+    let mirror_id = "matrix/right-legacy/r0c0";
+    let mut source_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .clone();
+    source_matrix.id = "left-legacy".into();
+    source_matrix.board_id = None;
+    source_matrix.part_ids = vec![source_id.into()];
+    let mut mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap()
+        .clone();
+    mirror_matrix.id = "right-legacy".into();
+    mirror_matrix.board_id = None;
+    mirror_matrix.part_ids = vec![mirror_id.into()];
+    for (old_id, new_id, board_id) in [
+        ("matrix/left-keys/r0c0", source_id, "left"),
+        ("matrix/right-keys/r0c0", mirror_id, "right"),
+    ] {
+        let mut new_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == old_id)
+            .unwrap()
+            .clone();
+        new_part.id = new_id.into();
+        document.parts.push(new_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(new_id.into());
+    }
+    document.matrices.extend([source_matrix, mirror_matrix]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("matrix", "left-legacy", "right-legacy")).unwrap(),
+            serde_json::from_value(corr("part", source_id, mirror_id)).unwrap(),
+        ]);
+
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"add-feature": {"feature": {"kind": "polygon",
+            "id": "right/legacy-anchor", "anchorPartId": mirror_id,
+            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+            "operation": "add"}}},
+        "seed": 18
+    }});
+    let translated = canonical(&document, &request).expect("the linked anchor translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["points"],
+        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
+    );
+}
+
+#[test]
 fn outline_local_exception_runs_as_written_and_omission_is_refused() {
     let mut document = fixture();
     document.hardware.as_mut().unwrap().pairs[0]
@@ -588,14 +787,46 @@ fn current_projected_review_keeps_exact_source_coordinates_while_stale_review_st
     let mirror_review =
         crate::geometry::generated_source(&document, &cache, &document.boards[1]).source;
     let request = json!({"kind": "apply-outline-edit", "edit": {
-        "target": {"kind": "board", "boardId": "right"}, "change": {"set-margin": {"margin": 3.0}},
+        "target": {"kind": "board", "boardId": "right"}, "change": {"add-feature": {"feature": {
+            "kind": "polygon", "id": "right/added", "points": [
+                {"x": 8, "y": 9}, {"x": 10, "y": 12}, {"x": 14, "y": 9}], "operation": "add"}}},
         "seed": 11, "reviewed": mirror_review
     }});
     let translated = canonical(&document, &request).unwrap();
-    let value = serde_json::to_value(translated.operation).unwrap();
+    let EditOperation::ApplyOutlineEdit { edit } = translated.operation else {
+        panic!("the operation remains a typed outline edit")
+    };
     assert_eq!(
-        value["edit"]["reviewed"],
-        serde_json::to_value(&source_review).unwrap()
+        edit.reviewed.as_ref().unwrap(),
+        &source_review,
+        "inverse mapping preserves the exact current source review"
+    );
+    assert_eq!(
+        crate::outline_edit::evaluate(&document, &edit).unwrap(),
+        crate::outline_edit::OutlineEditDisposition::Changed
+    );
+
+    let mut relevant_change = document.clone();
+    let Some(crate::model::OutlineFeature::Polygon { points, .. }) = relevant_change
+        .outline
+        .iter_mut()
+        .find(|feature| feature.id() == "left/boundary")
+    else {
+        panic!("the reviewed source feature remains present")
+    };
+    points[0].x += 1.0;
+    assert_eq!(
+        crate::outline_edit::evaluate(&relevant_change, &edit).unwrap(),
+        crate::outline_edit::OutlineEditDisposition::Retire,
+        "a changed reviewed source retires the edit"
+    );
+
+    let mut unrelated_change = document.clone();
+    unrelated_change.boards[1].name.push_str(" (renamed)");
+    assert_eq!(
+        crate::outline_edit::evaluate(&unrelated_change, &edit).unwrap(),
+        crate::outline_edit::OutlineEditDisposition::Changed,
+        "an unrelated board rename preserves the review"
     );
 
     let mut stale = request;
@@ -606,6 +837,137 @@ fn current_projected_review_keeps_exact_source_coordinates_while_stale_review_st
         value["edit"]["reviewed"],
         serde_json::to_value(source_review).unwrap()
     );
+}
+
+#[test]
+fn apply_outline_edit_translates_fixed_and_linked_version_reviews() {
+    let mut document = rotated_fixture();
+    let mut versions = Vec::new();
+    let mut source_versions = Vec::new();
+    let mut mirror_versions = Vec::new();
+    for (ownership, source_points) in [
+        (
+            "fixed",
+            [
+                Vec2 { x: 1.25, y: -3.5 },
+                Vec2 { x: 7.75, y: 8.5 },
+                Vec2 { x: -9.5, y: 2.25 },
+            ],
+        ),
+        (
+            "linked",
+            [
+                Vec2 { x: 21.5, y: 3.25 },
+                Vec2 { x: 29.75, y: 9.0 },
+                Vec2 { x: 16.25, y: 12.5 },
+            ],
+        ),
+    ] {
+        let mirror_points: Vec<_> = source_points
+            .iter()
+            .rev()
+            .map(|point| crate::mechanical::pair::forward(ROTATED, *point))
+            .collect();
+        let source_id = format!("left-version-{ownership}");
+        let mirror_id = format!("right-version-{ownership}");
+        let source_feature_id = format!("left/{ownership}-outline");
+        let mirror_feature_id = format!("right/{ownership}-outline");
+        document.boards[0]
+            .outline_ids
+            .push(source_feature_id.clone());
+        document.boards[1]
+            .outline_ids
+            .push(mirror_feature_id.clone());
+        let source_feature = json!({"kind": "polygon", "id": source_feature_id,
+            "points": source_points, "operation": "add"});
+        let mirror_feature = json!({"kind": "polygon", "id": mirror_feature_id,
+            "points": mirror_points, "operation": "add"});
+        document.outline.extend(
+            [source_feature.clone(), mirror_feature.clone()]
+                .map(|feature| serde_json::from_value(feature).unwrap()),
+        );
+        versions.push((source_id.clone(), mirror_id.clone()));
+        source_versions.push(json!({"id": source_id, "name": ownership,
+            "ownership": ownership, "source": {"revision": 0},
+            "geometry": {"features": [source_feature], "settings": {}, "expectedRegions": 1}}));
+        mirror_versions.push(json!({"id": mirror_id, "name": ownership,
+            "ownership": ownership, "source": {"revision": 0},
+            "geometry": {"features": [mirror_feature], "settings": {}, "expectedRegions": 1}}));
+    }
+    document.board_outlines = vec![
+        serde_json::from_value(
+            json!({"boardId": "left", "activeVersionId": "left-version-fixed",
+            "versions": source_versions}),
+        )
+        .unwrap(),
+        serde_json::from_value(
+            json!({"boardId": "right", "activeVersionId": "right-version-fixed",
+            "versions": mirror_versions}),
+        )
+        .unwrap(),
+    ];
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend(versions.iter().map(|(source, mirror)| {
+            serde_json::from_value(corr("outline-version", source, mirror)).unwrap()
+        }));
+    let (cache, _, _) = crate::geometry::outlines(&document, None, &[]);
+
+    for (ownership, (source_version, mirror_version)) in
+        ["fixed", "linked"].into_iter().zip(versions)
+    {
+        let source_geometry = &document
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == "left")
+            .unwrap()
+            .versions
+            .iter()
+            .find(|version| version.id == source_version)
+            .unwrap()
+            .geometry;
+        let mirror_geometry = &document
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == "right")
+            .unwrap()
+            .versions
+            .iter()
+            .find(|version| version.id == mirror_version)
+            .unwrap()
+            .geometry;
+        let source_review =
+            crate::geometry::feature_source_contours(&document, &cache, &source_geometry.features);
+        let mirror_review =
+            crate::geometry::feature_source_contours(&document, &cache, &mirror_geometry.features);
+        let request = json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "right", "versionId": mirror_version},
+            "change": {"set-margin": {"margin": 3.0}}, "seed": 5,
+            "reviewed": mirror_review
+        }});
+        let translated = canonical(&document, &request)
+            .unwrap_or_else(|error| panic!("the {ownership} version edit translates: {error}"));
+        let value = serde_json::to_value(translated.operation).unwrap();
+        assert_eq!(value["edit"]["target"]["boardId"], "left");
+        assert_eq!(value["edit"]["target"]["versionId"], source_version);
+        assert_close(
+            &value["edit"]["reviewed"],
+            &serde_json::to_value(&source_review).unwrap(),
+            &format!("{ownership} version review"),
+        );
+
+        let mut stale = request;
+        stale["edit"]["reviewed"][0]["points"][0]["x"] = json!(54321.0);
+        let translated = canonical(&document, &stale).unwrap();
+        let value = serde_json::to_value(translated.operation).unwrap();
+        assert_ne!(
+            value["edit"]["reviewed"],
+            serde_json::to_value(&source_review).unwrap()
+        );
+    }
 }
 
 // ---- unrelated and local targets -----------------------------------------------------------

@@ -481,6 +481,169 @@ fn linked_outline_and_fixed_and_linked_versions_project_literal_anchored_payload
 }
 
 #[test]
+fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
+    let (mut document, projection) = outline_fixture();
+    let source_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "source-matrix")
+        .unwrap()
+        .clone();
+    let mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "mirror-matrix")
+        .unwrap()
+        .clone();
+    let source_thumb_id = "source-thumb";
+    let mirror_thumb_id = "mirror-thumb";
+    let mut source_thumb = source_matrix.clone();
+    source_thumb.id = source_thumb_id.into();
+    source_thumb.name = Some("Source thumb".into());
+    source_thumb.origin.x += 40.0;
+    source_thumb.part_ids = source_matrix
+        .part_ids
+        .iter()
+        .map(|id| id.replacen("matrix/source-matrix/", "matrix/source-thumb/", 1))
+        .collect();
+    let mut mirror_thumb = mirror_matrix.clone();
+    mirror_thumb.id = mirror_thumb_id.into();
+    mirror_thumb.name = Some("Mirror thumb".into());
+    mirror_thumb.origin = crate::mechanical::pair::forward(projection.mapping, source_thumb.origin);
+    mirror_thumb.part_ids = mirror_matrix
+        .part_ids
+        .iter()
+        .map(|id| id.replacen("matrix/mirror-matrix/", "matrix/mirror-thumb/", 1))
+        .collect();
+
+    for (old_id, new_id) in source_matrix.part_ids.iter().zip(&source_thumb.part_ids) {
+        let mut part = document.parts.iter().find(|part| part.id == *old_id).unwrap().clone();
+        part.id.clone_from(new_id);
+        part.reference = format!("THUMB-{}", part.reference);
+        document.parts.push(part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .push(new_id.clone());
+    }
+    for (old_id, new_id) in mirror_matrix.part_ids.iter().zip(&mirror_thumb.part_ids) {
+        let mut part = document.parts.iter().find(|part| part.id == *old_id).unwrap().clone();
+        part.id.clone_from(new_id);
+        part.reference = format!("THUMB-{}", part.reference);
+        document.parts.push(part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push(new_id.clone());
+    }
+    document.matrices.extend([source_thumb, mirror_thumb]);
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences.push(MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Matrix,
+        source_id: source_thumb_id.into(),
+        mirror_id: mirror_thumb_id.into(),
+    });
+    for (source_id, mirror_id) in source_matrix.part_ids.iter().zip(&mirror_matrix.part_ids) {
+        halves.correspondences.push(MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Part,
+            source_id: source_id.replacen("source-matrix", "source-thumb", 1),
+            mirror_id: mirror_id.replacen("mirror-matrix", "mirror-thumb", 1),
+        });
+    }
+
+    let source_feature = document
+        .outline
+        .iter_mut()
+        .find(|feature| feature.id() == "source-board/feature")
+        .unwrap();
+    let OutlineFeature::Polygon {
+        anchor_part_id,
+        points,
+        ..
+    } = source_feature
+    else {
+        panic!("the source feature remains a polygon")
+    };
+    *anchor_part_id = Some("matrix/source-thumb/r0c0".into());
+    *points = vec![point(2.0, 3.0), point(4.0, 5.0), point(6.0, 7.0)];
+    let source_linked_version = document
+        .board_outlines
+        .iter_mut()
+        .find(|state| state.board_id == "source-board")
+        .unwrap()
+        .versions
+        .iter_mut()
+        .find(|version| version.id == "source-board/version/linked")
+        .unwrap();
+    let OutlineFeature::Polygon {
+        anchor_part_id,
+        points,
+        ..
+    } = &mut source_linked_version.geometry.features[0]
+    else {
+        panic!("the source version feature remains a polygon")
+    };
+    *anchor_part_id = Some("matrix/source-thumb/r0c0".into());
+    *points = vec![point(2.0, 3.0), point(4.0, 5.0), point(6.0, 7.0)];
+
+    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        .expect("the active base matrix and linked thumb matrix both remain valid");
+    let mapped = document
+        .outline
+        .iter()
+        .find(|feature| feature.id() == "mirror-board/feature")
+        .unwrap();
+    let OutlineFeature::Polygon {
+        anchor_part_id,
+        points,
+        ..
+    } = mapped
+    else {
+        panic!("the projected feature remains a polygon")
+    };
+    assert_eq!(anchor_part_id.as_deref(), Some("matrix/mirror-thumb/r0c0"));
+    assert_eq!(
+        points,
+        &vec![point(-6.0, 7.0), point(-4.0, 5.0), point(-2.0, 3.0)]
+    );
+    let mirror_linked_version = document
+        .board_outlines
+        .iter()
+        .find(|state| state.board_id == "mirror-board")
+        .unwrap()
+        .versions
+        .iter()
+        .find(|version| version.id == "mirror-board/version/linked")
+        .unwrap();
+    let OutlineFeature::Polygon {
+        anchor_part_id,
+        points,
+        ..
+    } = &mirror_linked_version.geometry.features[0]
+    else {
+        panic!("the mirrored version feature remains a polygon")
+    };
+    assert_eq!(anchor_part_id.as_deref(), Some("matrix/mirror-thumb/r0c0"));
+    assert_eq!(
+        points,
+        &vec![point(-6.0, 7.0), point(-4.0, 5.0), point(-2.0, 3.0)]
+    );
+}
+
+#[test]
 fn outline_projection_never_copies_generated_case_closure_members() {
     let (mut document, projection) = outline_fixture();
     let source = document
