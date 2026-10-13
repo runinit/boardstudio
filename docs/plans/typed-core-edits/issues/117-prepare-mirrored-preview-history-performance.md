@@ -60,8 +60,8 @@ Production preview/history routing and all generated goldens remain untouched un
 - The native baseline update recorded 1,785 tests. The targeted preparation module passes 33 tests;
   the paired performance target compiles, the additive boundary case passes, and the mutation
   verifier killed all 3 mutants. Evidence and logs are under the gitignored `.evidence/ticket117/`.
-- Independent review: Spec found no remaining issue. Standards found no hard violation; it noted
-  the prepared-publication parameters as a mild Data Clumps judgment call.
+- Independent review: Spec found no remaining issue. Standards found no hard violation or remaining
+  smell after a follow-up review confirmed `PreparedEdit` groups the publication inputs.
 
 Independent verifier: mutate preview isolation, one-snapshot publication and exception history
 restoration. Final production performance/Undo/Open evidence remains a separate parent review.
