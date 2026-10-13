@@ -120,7 +120,8 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
   [114](issues/114-mirrored-edit-compatibility-constraints.md) is resolved after 113 and 139. On
   2026-10-13 the owner chose to design support for raw `SetMechanical`; that compatibility work
-  remains a separate parent-19 blocker and must not expand ticket 111. [115](issues/115-prepare-mirrored-edit-transaction.md)
+  is tracked separately in [149](issues/149-targeted-mirrored-set-mechanical.md), remains a
+  parent-19 blocker, and must not expand ticket 111. [115](issues/115-prepare-mirrored-edit-transaction.md)
   is resolved and merged as `78ec73f0`; post-merge `repo`, `test`, and `lint` passed. Ticket
   [116](issues/116-prepare-mirrored-open-repair.md) is now the next serial Core slice, followed by
   117 and 111. Core children stay serial; the user approved isolated A/F streams with exact

@@ -164,3 +164,11 @@ merged source snapshot. The baseline refresh added 35 test names using
 `python3 scripts/check.py test --update-native-baseline`; that command passed with 1,748 native
 tests recorded. Detailed mutation hashes and focused run evidence are in the ignored
 `.evidence/ticket114/README.md`.
+
+## Owner follow-up (2026-10-13)
+
+The owner chose to design mirror support for raw `SetMechanical`, superseding the unsupported
+disposition as the final parent-19 contract. Source review found the current operation has no
+target and writes only the singleton `ProjectDoc.mechanical` slot; native instances store their
+configurations separately. Ticket [149](149-targeted-mirrored-set-mechanical.md) records the
+target-shape decision and required behavior. Ticket 111 remains out of scope for this new design.
