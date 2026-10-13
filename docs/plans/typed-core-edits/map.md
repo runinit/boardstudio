@@ -120,10 +120,12 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
   [114](issues/114-mirrored-edit-compatibility-constraints.md) is resolved after 113 and 139; raw
   `SetMechanical` remains explicitly unsupported and blocks parent 19 until its compatibility
-  contract is specified. [115](issues/115-prepare-mirrored-edit-transaction.md) may widen only
-  `constraints::resolve_prepared` to `pub(crate)`, as approved by the owner. Core children stay
-  serial; the user approved isolated A/F streams with exact file/API leases. Every command/check
-  remains globally sequential; activation and timing stay exclusive.
+  contract is specified. [115](issues/115-prepare-mirrored-edit-transaction.md) is `needs-info`:
+  only `constraints::resolve_prepared` is approved as `pub(crate)`, and the existing private
+  lifecycle/reconciliation path needs another crate-internal entry seam. Tickets 116 and 117 remain
+  serially held behind 115. Core children stay serial; the user approved isolated A/F streams with
+  exact file/API leases. Every command/check remains globally sequential; activation and timing stay
+  exclusive.
 - [105](issues/105-mirrored-half-derivation-kernel.md) is resolved and integrated: private value-only part and companion
   derivation accepts existing identities and per-item settings; creation retains allocation and insertion. Fresh verification
   `09e07a7a` confirmed full acceptance, independently caught four companion/mode/tweak/stabiliser/fallback mutations and
