@@ -11,7 +11,8 @@
 //! - `mod tests` at the bottom; outline tests in reconcile/outlines/tests.rs.
 
 use crate::model::{
-    Matrix, MirroredCorrespondence, MirroredItemKind, Part, Pose2, ProjectDoc, Vec2,
+    Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredItemKind, Part, Pose2,
+    ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -79,12 +80,11 @@ enum HostedTransition {
 
 #[derive(Clone)]
 struct Projection {
-    /// The native membership kernel has already validated and emitted matrix geometry.
+    matrix: Option<MatrixLink>,
+    /// Preserve geometry already prepared by the native membership lifecycle.
     preserve_matrix_geometry: bool,
     source_board_id: String,
     mirror_board_id: String,
-    source_matrix_id: String,
-    mirror_matrix_id: String,
     mapping: Pose2,
     parts: Vec<PartProjection>,
     independent_part_transitions: Vec<IndependentPartTransition>,
@@ -108,6 +108,116 @@ struct Projection {
     outline_removal_baselines: std::cell::RefCell<BTreeMap<(String, String, String), ProjectDoc>>,
     locally_protected_mirror_parts: std::collections::BTreeSet<String>,
     final_owners: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Clone)]
+struct MatrixLink {
+    source_matrix_id: String,
+    mirror_matrix_id: String,
+}
+
+fn is_omitted_matrix_link(
+    halves: &crate::model::MirroredHalves,
+    source_matrix_id: &str,
+    mirror_matrix_id: &str,
+) -> bool {
+    halves.exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Matrix
+            && exception.mirror_id == mirror_matrix_id
+            && exception.state == MirroredExceptionState::Omitted
+            && halves.overlay_source(exception) == Some(source_matrix_id)
+    })
+}
+
+fn unique_board_owner<'a>(
+    document: &'a ProjectDoc,
+    part_id: &str,
+    context: &str,
+) -> Result<&'a str, String> {
+    let mut owners = document
+        .boards
+        .iter()
+        .filter(|board| board.part_ids.iter().any(|id| id == part_id));
+    let owner = owners
+        .next()
+        .ok_or_else(|| format!("The {context} part {part_id:?} has no board owner"))?;
+    if owners.next().is_some() {
+        return Err(format!(
+            "The {context} part {part_id:?} has ambiguous board ownership"
+        ));
+    }
+    Ok(&owner.id)
+}
+
+fn omitted_mirror_matrix(
+    source: &Matrix,
+    mirror_id: &str,
+    mirror_board_id: &str,
+    halves: &crate::model::MirroredHalves,
+) -> Matrix {
+    let source_members: BTreeSet<_> = source.part_ids.iter().map(String::as_str).collect();
+    let mut mirror = source.clone();
+    mirror.id = mirror_id.to_owned();
+    mirror.board_id = Some(mirror_board_id.to_owned());
+    mirror.part_ids = halves
+        .correspondences
+        .iter()
+        .filter(|correspondence| {
+            correspondence.kind == MirroredItemKind::Part
+                && source_members.contains(correspondence.source_id.as_str())
+        })
+        .map(|correspondence| correspondence.mirror_id.clone())
+        .collect();
+    mirror
+}
+
+/// Keeps every Matrix-owned Part out of the independent-Part path while matrices reconcile one at a time.
+fn matrix_members_for_pair(
+    document: &ProjectDoc,
+    halves: &crate::model::MirroredHalves,
+) -> (BTreeSet<String>, BTreeSet<String>) {
+    let mut source_members = BTreeSet::new();
+    let mut mirror_members = BTreeSet::new();
+    for matrix in &document.matrices {
+        if matrix.board_id.as_deref() == Some(halves.source_board_id.as_str()) {
+            source_members.extend(matrix.part_ids.iter().cloned());
+        }
+        if matrix.board_id.as_deref() == Some(halves.mirror_board_id.as_str()) {
+            mirror_members.extend(matrix.part_ids.iter().cloned());
+        }
+    }
+    for correspondence in halves
+        .correspondences
+        .iter()
+        .filter(|item| item.kind == MirroredItemKind::Matrix)
+    {
+        let omitted =
+            is_omitted_matrix_link(halves, &correspondence.source_id, &correspondence.mirror_id);
+        if !omitted
+            || document
+                .matrices
+                .iter()
+                .any(|matrix| matrix.id == correspondence.mirror_id)
+        {
+            continue;
+        }
+        if let Some(source) = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == correspondence.source_id)
+        {
+            mirror_members.extend(
+                omitted_mirror_matrix(
+                    source,
+                    &correspondence.mirror_id,
+                    &halves.mirror_board_id,
+                    halves,
+                )
+                .part_ids,
+            );
+        }
+    }
+    (source_members, mirror_members)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -158,22 +268,6 @@ fn build_fixed_membership_view(
 
     fn point_is_finite(point: Vec2) -> bool {
         point.x.is_finite() && point.y.is_finite()
-    }
-
-    fn owner_for<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a str, String> {
-        let mut owners = document
-            .boards
-            .iter()
-            .filter(|board| board.part_ids.iter().any(|part_id| part_id == id));
-        let board = owners
-            .next()
-            .ok_or_else(|| format!("The mirrored part {id:?} has no board owner"))?;
-        if owners.next().is_some() {
-            return Err(format!(
-                "The mirrored part {id:?} has ambiguous board ownership"
-            ));
-        }
-        Ok(&board.id)
     }
 
     fn canonical_slots(matrix: &Matrix) -> Result<SlotIds, String> {
@@ -330,7 +424,7 @@ fn build_fixed_membership_view(
     let mut omitted_parts = BTreeSet::new();
     for (slot, source_id) in &source_slots {
         let mirror_id = &mirror_slots[slot];
-        let source_owner = owner_for(document, source_id)?;
+        let source_owner = unique_board_owner(document, source_id, "mirrored")?;
         let omitted = halves
             .exceptions
             .iter()
@@ -390,7 +484,7 @@ fn build_fixed_membership_view(
                             && exception.state == crate::model::MirroredExceptionState::Local
                     });
                 if explicit_local_child {
-                    if owner_for(document, id)? != halves.mirror_board_id {
+                    if unique_board_owner(document, id, "mirrored")? != halves.mirror_board_id {
                         return Err(
                             "A Local child of an Omitted owner has an invalid board owner".into(),
                         );
@@ -413,7 +507,7 @@ fn build_fixed_membership_view(
             omitted_cells.push(RetainedCell { member_ids, cell });
             continue;
         }
-        let mirror_owner = owner_for(document, mirror_id)?;
+        let mirror_owner = unique_board_owner(document, mirror_id, "mirrored")?;
         if source_owner != halves.source_board_id
             || mirror_owner != halves.mirror_board_id
             || projection.final_owners.get(source_id).map(String::as_str) != Some(source_owner)
@@ -551,8 +645,8 @@ fn build_fixed_membership_view(
                     "The mirrored part {mirror_companion_id:?} is ambiguous"
                 ));
             }
-            let source_owner = owner_for(document, &source_companion_id)?;
-            let mirror_owner = owner_for(document, &mirror_companion_id)?;
+            let source_owner = unique_board_owner(document, &source_companion_id, "mirrored")?;
+            let mirror_owner = unique_board_owner(document, &mirror_companion_id, "mirrored")?;
             if source_owner != halves.source_board_id
                 || mirror_owner != halves.mirror_board_id
                 || projection
@@ -970,22 +1064,6 @@ fn reconcile(
             return Err(format!("The mirrored matrix {id:?} is ambiguous"));
         }
         Ok(matrix)
-    }
-
-    fn owner_for<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a str, String> {
-        let mut owners = document
-            .boards
-            .iter()
-            .filter(|board| board.part_ids.iter().any(|part_id| part_id == id));
-        let board = owners
-            .next()
-            .ok_or_else(|| format!("The mirrored part {id:?} has no board owner"))?;
-        if owners.next().is_some() {
-            return Err(format!(
-                "The mirrored part {id:?} has ambiguous board ownership"
-            ));
-        }
-        Ok(&board.id)
     }
 
     fn snapshot<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, String> {
@@ -1418,33 +1496,45 @@ fn reconcile(
         projection: &Projection,
         mapping: Pose2,
     ) -> Result<MatrixStage, String> {
+        let Some(matrix_link) = projection.matrix.as_ref() else {
+            if !projection.parts.is_empty() || !projection.locally_protected_mirror_parts.is_empty()
+            {
+                return Err("The matrixless projection retains Matrix ownership".into());
+            }
+            let (source_members, mirror_members) = matrix_members_for_pair(document, halves);
+            return Ok(MatrixStage {
+                draft: document.clone(),
+                source_members,
+                mirror_members,
+                omitted_parts: BTreeSet::new(),
+                allow_absent: true,
+            });
+        };
+        let source_matrix_id = matrix_link.source_matrix_id.as_str();
+        let mirror_matrix_id = matrix_link.mirror_matrix_id.as_str();
         let retired = projection.preserve_matrix_geometry
             && !document
                 .matrices
                 .iter()
-                .any(|m| m.id == projection.source_matrix_id)
-            && !halves.correspondences.iter().any(|r| {
-                r.kind == MirroredItemKind::Matrix
-                    && (r.source_id == projection.source_matrix_id
-                        || r.mirror_id == projection.mirror_matrix_id)
+                .any(|matrix| matrix.id == source_matrix_id)
+            && !halves.correspondences.iter().any(|correspondence| {
+                correspondence.kind == MirroredItemKind::Matrix
+                    && (correspondence.source_id == source_matrix_id
+                        || correspondence.mirror_id == mirror_matrix_id)
             })
-            && !halves.exceptions.iter().any(|e| {
-                e.kind == MirroredItemKind::Matrix && e.mirror_id == projection.mirror_matrix_id
+            && !halves.exceptions.iter().any(|exception| {
+                exception.kind == MirroredItemKind::Matrix
+                    && exception.mirror_id == mirror_matrix_id
             });
         if retired {
             if !projection.parts.is_empty() || !projection.locally_protected_mirror_parts.is_empty()
             {
                 return Err("The retired Matrix projection retains active ownership".into());
             }
-            let mirror_members = document
-                .matrices
-                .iter()
-                .filter(|m| m.id == projection.mirror_matrix_id)
-                .flat_map(|m| m.part_ids.iter().cloned())
-                .collect();
+            let (source_members, mirror_members) = matrix_members_for_pair(document, halves);
             return Ok(MatrixStage {
                 draft: document.clone(),
-                source_members: BTreeSet::new(),
+                source_members,
                 mirror_members,
                 omitted_parts: BTreeSet::new(),
                 allow_absent: true,
@@ -1452,42 +1542,44 @@ fn reconcile(
         }
         let mut matrix_correspondences = halves.correspondences.iter().filter(|correspondence| {
             correspondence.kind == MirroredItemKind::Matrix
-                && (correspondence.source_id == projection.source_matrix_id
-                    || correspondence.mirror_id == projection.mirror_matrix_id
-                    || correspondence.source_id == projection.mirror_matrix_id
-                    || correspondence.mirror_id == projection.source_matrix_id)
+                && (correspondence.source_id == source_matrix_id
+                    || correspondence.mirror_id == mirror_matrix_id
+                    || correspondence.source_id == mirror_matrix_id
+                    || correspondence.mirror_id == source_matrix_id)
         });
         // A Local or Omitted matrix keeps its correspondence; the overlay is only its state.
         let exact_matrix_exception = halves.exceptions.iter().find(|exception| {
             exception.kind == MirroredItemKind::Matrix
-                && exception.mirror_id == projection.mirror_matrix_id
-                && halves.overlay_source(exception) == Some(projection.source_matrix_id.as_str())
+                && exception.mirror_id == mirror_matrix_id
+                && halves.overlay_source(exception) == Some(source_matrix_id)
         });
         let matrix_correspondence = matrix_correspondences
             .next()
             .ok_or_else(|| "The matrix correspondence is unavailable".to_owned())?;
         if matrix_correspondences.next().is_some()
-            || matrix_correspondence.source_id != projection.source_matrix_id
-            || matrix_correspondence.mirror_id != projection.mirror_matrix_id
+            || matrix_correspondence.source_id != source_matrix_id
+            || matrix_correspondence.mirror_id != mirror_matrix_id
         {
             return Err(
                 "The matrix correspondence is ambiguous or does not match the input".into(),
             );
         }
 
-        let source_matrix = matrix_by_id(document, &projection.source_matrix_id)?;
-        let mut absent_matrix;
-        let mirror_matrix = match matrix_by_id(document, &projection.mirror_matrix_id) {
+        let source_matrix = matrix_by_id(document, source_matrix_id)?;
+        let absent_matrix;
+        let mirror_matrix = match matrix_by_id(document, mirror_matrix_id) {
             Ok(matrix) => matrix,
             Err(_)
                 if exact_matrix_exception.is_some_and(|exception| {
                     exception.state == crate::model::MirroredExceptionState::Omitted
                 }) =>
             {
-                absent_matrix = source_matrix.clone();
-                absent_matrix.id = projection.mirror_matrix_id.clone();
-                absent_matrix.board_id = Some(projection.mirror_board_id.clone());
-                absent_matrix.part_ids.clear();
+                absent_matrix = omitted_mirror_matrix(
+                    source_matrix,
+                    mirror_matrix_id,
+                    &projection.mirror_board_id,
+                    halves,
+                );
                 &absent_matrix
             }
             Err(error) => return Err(error),
@@ -1585,8 +1677,8 @@ fn reconcile(
             }
         }
 
-        let source_matrix_members: BTreeSet<_> = source_matrix.part_ids.iter().cloned().collect();
-        let mirror_matrix_members: BTreeSet<_> = mirror_matrix.part_ids.iter().cloned().collect();
+        let (source_matrix_members, mirror_matrix_members) =
+            matrix_members_for_pair(document, halves);
         Ok(MatrixStage {
             draft: staged,
             source_members: source_matrix_members,
@@ -1714,8 +1806,10 @@ fn reconcile(
             if overlay.state == crate::model::MirroredExceptionState::Local
                 && !source_matrix_members.contains(&correspondence.source_id)
             {
-                if owner_for(document, &correspondence.source_id)? != halves.source_board_id
-                    || owner_for(document, &correspondence.mirror_id)? != halves.mirror_board_id
+                if unique_board_owner(document, &correspondence.source_id, "mirrored")?
+                    != halves.source_board_id
+                    || unique_board_owner(document, &correspondence.mirror_id, "mirrored")?
+                        != halves.mirror_board_id
                 {
                     return Err("An independent Local Part has stale ownership".into());
                 }
@@ -1772,8 +1866,10 @@ fn reconcile(
             continue;
         }
 
-        if owner_for(document, &correspondence.source_id)? != halves.source_board_id
-            || owner_for(document, &correspondence.mirror_id)? != halves.mirror_board_id
+        if unique_board_owner(document, &correspondence.source_id, "mirrored")?
+            != halves.source_board_id
+            || unique_board_owner(document, &correspondence.mirror_id, "mirrored")?
+                != halves.mirror_board_id
         {
             return Err("An independent part correspondence has stale board ownership".into());
         }
@@ -1878,7 +1974,7 @@ fn reconcile(
                 "The independent Part addition {source_id:?} has conflicting pair provenance"
             ));
         }
-        if owner_for(document, source_id)? != halves.source_board_id {
+        if unique_board_owner(document, source_id, "mirrored")? != halves.source_board_id {
             return Err(format!(
                 "The independent Part addition {source_id:?} has stale source ownership"
             ));
@@ -1941,7 +2037,8 @@ fn reconcile(
             ));
         }
         if existing_target.is_some_and(|_| {
-            owner_for(document, mirror_id).ok() != Some(halves.mirror_board_id.as_str())
+            unique_board_owner(document, mirror_id, "mirrored").ok()
+                != Some(halves.mirror_board_id.as_str())
         }) || (existing_target.is_none()
             && document
                 .boards
@@ -2050,7 +2147,8 @@ fn reconcile(
                 }
                 continue;
             }
-            1 if owner_for(document, mirror_id)? == halves.mirror_board_id => {}
+            1 if unique_board_owner(document, mirror_id, "mirrored")? == halves.mirror_board_id => {
+            }
             _ => {
                 return Err(format!(
                     "The independent target Part {mirror_id:?} is unavailable, aliased, or not mirror-owned"
@@ -2795,8 +2893,16 @@ fn reconcile(
                 correspondence.mirror_id
             ));
         }
-        let source_is_current = source.matrix_id == projection.source_matrix_id;
-        let mirror_is_current = mirror.matrix_id == projection.mirror_matrix_id;
+        let (source_is_current, mirror_is_current) = projection
+            .matrix
+            .as_ref()
+            .map(|matrix| {
+                (
+                    source.matrix_id == matrix.source_matrix_id,
+                    mirror.matrix_id == matrix.mirror_matrix_id,
+                )
+            })
+            .unwrap_or((false, false));
         if source_is_current != mirror_is_current {
             return Err(
                 "The paired layouts do not follow the reconciled matrix correspondence".into(),
@@ -3071,22 +3177,26 @@ fn reconcile(
         }
     }
 
-    if let Some(final_matrix) = staged
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == projection.mirror_matrix_id)
-        .cloned()
-    {
-        crate::matrix::valid_matrix(&final_matrix, &staged)?;
-        for id in &final_matrix.part_ids {
-            if omitted_parts.contains(id) {
-                continue;
+    if let Some(matrix_link) = projection.matrix.as_ref() {
+        if let Some(final_matrix) = staged
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_link.mirror_matrix_id)
+            .cloned()
+        {
+            crate::matrix::valid_matrix(&final_matrix, &staged)?;
+            for id in &final_matrix.part_ids {
+                if omitted_parts.contains(id) {
+                    continue;
+                }
+                if unique_board_owner(&staged, id, "mirrored")? != halves.mirror_board_id {
+                    return Err(format!(
+                        "Projected mirror matrix part {id:?} has an unexpected owner"
+                    ));
+                }
             }
-            if owner_for(&staged, id)? != halves.mirror_board_id {
-                return Err(format!(
-                    "Projected mirror matrix part {id:?} has an unexpected owner"
-                ));
-            }
+        } else if !allow_absent_matrix {
+            return Err("The final mirror matrix is unavailable".into());
         }
     } else if !allow_absent_matrix {
         return Err("The final mirror matrix is unavailable".into());
@@ -5973,8 +6083,8 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::{
-        BaselineKind, FinalOwner, HostedTransition, IndependentPartTransition, MembershipContext,
-        MembershipTransitionInput, PartProjection, PlannedAddition, Projection,
+        BaselineKind, FinalOwner, HostedTransition, IndependentPartTransition, MatrixLink,
+        MembershipContext, MembershipTransitionInput, PartProjection, PlannedAddition, Projection,
         TransitionAssociation, TransitionState, changed_document_fields,
         prepare_membership_transition, prepare_membership_transition_kernel, reconcile,
     };
@@ -8694,11 +8804,13 @@ mod tests {
             final_owners.insert(id.clone(), owner.id.clone());
         }
         let projection = Projection {
+            matrix: Some(MatrixLink {
+                source_matrix_id: "source-matrix".into(),
+                mirror_matrix_id: "mirror-matrix".into(),
+            }),
             preserve_matrix_geometry: false,
             source_board_id: "source-board".into(),
             mirror_board_id: "mirror-board".into(),
-            source_matrix_id: "source-matrix".into(),
-            mirror_matrix_id: "mirror-matrix".into(),
             mapping,
             parts,
             independent_part_transitions: vec![],
@@ -10409,11 +10521,13 @@ mod tests {
             final_owners.insert(id.to_owned(), owner);
         }
         let projection = Projection {
+            matrix: Some(MatrixLink {
+                source_matrix_id: entry_source_matrix.id.clone(),
+                mirror_matrix_id: entry_mirror_matrix.id.clone(),
+            }),
             preserve_matrix_geometry: false,
             source_board_id: "source-board".into(),
             mirror_board_id: "mirror-board".into(),
-            source_matrix_id: entry_source_matrix.id.clone(),
-            mirror_matrix_id: entry_mirror_matrix.id.clone(),
             mapping: fixture_mapping(),
             parts: vec![PartProjection {
                 source_id: linked_source_id.into(),
@@ -10635,11 +10749,10 @@ mod tests {
 
         let before_rejected = serde_json::to_value(&document).unwrap();
         let unsupported = Projection {
-            preserve_matrix_geometry: false,
+            matrix: projection.matrix.clone(),
+            preserve_matrix_geometry: projection.preserve_matrix_geometry,
             source_board_id: projection.source_board_id.clone(),
             mirror_board_id: projection.mirror_board_id.clone(),
-            source_matrix_id: projection.source_matrix_id.clone(),
-            mirror_matrix_id: projection.mirror_matrix_id.clone(),
             mapping: projection.mapping,
             parts: vec![],
             independent_part_transitions: vec![],
@@ -10657,15 +10770,14 @@ mod tests {
         assert_eq!(serde_json::to_value(&document).unwrap(), before_rejected);
 
         let mismatched_pair = Projection {
-            preserve_matrix_geometry: false,
+            matrix: projection.matrix.clone(),
+            preserve_matrix_geometry: projection.preserve_matrix_geometry,
             mapping: Pose2 {
                 at: projection.mapping.at,
                 rotation: projection.mapping.rotation + 1.0,
             },
             source_board_id: projection.source_board_id.clone(),
             mirror_board_id: projection.mirror_board_id.clone(),
-            source_matrix_id: projection.source_matrix_id.clone(),
-            mirror_matrix_id: projection.mirror_matrix_id.clone(),
             parts: projection
                 .parts
                 .iter()

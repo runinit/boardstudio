@@ -4,7 +4,7 @@
 //! This module is a child of `reconcile` so it can build a `Projection`; the fixtures are the
 //! forward transition's own.
 
-use super::{PartProjection, Projection, reconcile};
+use super::{MatrixLink, PartProjection, Projection, reconcile};
 use crate::mirrored_half::matrix_addition::tests::{
     add_matrix, halves, matrix, new_matrix, op, pair_document,
 };
@@ -45,11 +45,13 @@ fn reconciled(document: &ProjectDoc, edit: impl Fn(&mut crate::model::Matrix)) -
         final_owners.insert(id.clone(), "right".to_owned());
     }
     let projection = Projection {
+        matrix: Some(MatrixLink {
+            source_matrix_id: "left-thumbs".into(),
+            mirror_matrix_id: "right-thumbs".into(),
+        }),
         preserve_matrix_geometry: false,
         source_board_id: "left".into(),
         mirror_board_id: "right".into(),
-        source_matrix_id: "left-thumbs".into(),
-        mirror_matrix_id: "right-thumbs".into(),
         mapping: pair.mapping,
         parts,
         independent_part_transitions: vec![],
