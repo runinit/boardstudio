@@ -75,5 +75,6 @@ Existing boundaries are preserved: AddCircuit first-add/exact replay keeps joine
 while ordinary circuit projection retains its established source-name normalization. Direct kernel
 removal preserves pair bytes; supported transaction preparation retires the exact records. Existing
 removal may retain an empty private Net object. No new net-lifetime policy, schema, visibility or
-production activation is included. Local integration and post-merge checks remain pending; 154's
-prepared propagated-pose assertions must still pass before 154 closes.
+production activation is included. Merged locally as `fb6bdbfb6` (source `1ee69ac54`); post-merge
+repo/test/lint passes with all 1,834 baselined native tests executed. 154's preserved prepared
+propagated-pose assertions must still pass before 154 closes.

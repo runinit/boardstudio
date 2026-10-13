@@ -400,5 +400,6 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
 - [155](issues/155-admit-hosted-addition-correspondences.md): resolved private durable admission
   of selected hosted Module/Circuit/member/private-Net links. Both review axes accept, 222 focused
   tests and eight final compiled mutation kills pass; full repo/test/lint passes with all 1,834
-  native tests. Local integration/post-merge checks pending.154's propagated-pose proof and111
-  activation remain open; no new policy/schema/visibility.
+  native tests. Merged locally as `fb6bdbfb6` (source `1ee69ac54`); post-merge repo/test/lint
+  also passes with all 1,834 native tests. 154's propagated-pose proof and111 activation remain
+  open; no new policy/schema/visibility.
