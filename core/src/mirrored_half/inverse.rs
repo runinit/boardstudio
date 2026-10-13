@@ -36,6 +36,8 @@ mod hosted;
 mod layout;
 mod outline;
 
+pub(in crate::mirrored_half) use constraints::PreparedConstraintEdit;
+
 use crate::matrix::column_rotation;
 use crate::matrix::splay::rotate as rotate_about;
 use crate::mechanical::pair;

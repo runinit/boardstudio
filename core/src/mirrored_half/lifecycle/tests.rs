@@ -710,6 +710,124 @@ fn unlink_uses_the_exact_pair_and_materializes_nonempty_owned_closures() {
 }
 
 #[test]
+fn prepared_unlink_uses_the_normalized_mechanical_route_on_a_private_draft() {
+    let accepted = nonempty_unlink_document();
+    let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
+    let operation: EditOperation = serde_json::from_value(json!({
+        "kind": "apply-mechanical-edit",
+        "edit": {
+            "target": {"kind": "instance", "instanceId": "source-instance"},
+            "change": {"unlink-mirror-pair": {"instance_id": "source-instance"}}
+        }
+    }))
+    .expect("the public UnlinkMirrorPair wire shape parses");
+    let mut expected = accepted.clone();
+    crate::mechanical::halves::unlink_pair(&mut expected, "unlink-pair").unwrap();
+
+    let (prepared, changed) = crate::mirrored_half::prepare_transaction(&accepted, &[], &operation)
+        .expect("prepared Unlink derives the normalized context internally");
+
+    assert_eq!(prepared, expected);
+    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+    assert_eq!(
+        changed.into_iter().collect::<BTreeSet<_>>(),
+        unlink_diff_ids(&accepted, &prepared)
+    );
+    crate::mechanical::halves::validate_document(&prepared).unwrap();
+    assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
+}
+
+#[test]
+fn prepared_unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
+    let accepted = reuse_board_unlink_document();
+    let before_effective: Vec<_> = ["source-instance", "mirror-instance"]
+        .into_iter()
+        .map(|instance_id| {
+            crate::mechanical::inputs::effective_inputs(
+                &accepted,
+                &[],
+                &MechanicalTarget::Instance {
+                    instance_id: instance_id.into(),
+                },
+            )
+            .unwrap()
+            .configuration
+        })
+        .collect();
+    let flipped_before = accepted.hardware.as_ref().unwrap().instances[1].flipped;
+    let operation: EditOperation = serde_json::from_value(json!({
+        "kind": "apply-mechanical-edit",
+        "edit": {
+            "target": {"kind": "instance", "instanceId": "source-instance"},
+            "change": {"unlink-mirror-pair": {"instance_id": "source-instance"}}
+        }
+    }))
+    .expect("the public UnlinkMirrorPair wire shape parses");
+
+    let (prepared, changed) = crate::mirrored_half::prepare_transaction(&accepted, &[], &operation)
+        .expect("prepared Unlink derives the reuse-board context internally");
+
+    let holes: Vec<_> = prepared
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("case-closure/source-board/"))
+        .collect();
+    let hole_ids: BTreeSet<_> = holes.iter().map(|part| part.id.as_str()).collect();
+    assert_eq!(hole_ids.len(), 4);
+    assert_eq!(
+        hole_ids,
+        expected_closure_ids("source-board")
+            .iter()
+            .map(String::as_str)
+            .collect()
+    );
+    assert_eq!(prepared.boards.len(), 1);
+    assert_eq!(prepared.boards[0].part_ids.len(), 4);
+    assert_eq!(
+        prepared.boards[0]
+            .part_ids
+            .iter()
+            .filter(|id| hole_ids.contains(id.as_str()))
+            .count(),
+        hole_ids.len(),
+        "each generated closure hole is registered exactly once"
+    );
+    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+    assert_eq!(
+        prepared.hardware.as_ref().unwrap().instances[1].flipped,
+        flipped_before
+    );
+    for (index, instance) in prepared
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .enumerate()
+    {
+        let current = instance.mechanical.as_ref().unwrap();
+        assert_eq!(current, &before_effective[index]);
+        assert_eq!(
+            crate::mechanical::inputs::effective_inputs(
+                &prepared,
+                &[],
+                &MechanicalTarget::Instance {
+                    instance_id: instance.id.clone(),
+                },
+            )
+            .unwrap()
+            .configuration,
+            before_effective[index]
+        );
+    }
+    assert_eq!(
+        changed.into_iter().collect::<BTreeSet<_>>(),
+        unlink_diff_ids(&accepted, &prepared)
+    );
+    crate::mechanical::halves::validate_document(&prepared).unwrap();
+}
+
+#[test]
 fn unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
     let mut document = reuse_board_unlink_document();
     let before = document.clone();
