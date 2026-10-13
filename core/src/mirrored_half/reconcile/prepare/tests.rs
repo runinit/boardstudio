@@ -8,6 +8,189 @@ fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
 }
 
 #[test]
+fn open_preparation_repairs_linked_geometry_and_reports_a_located_warning() {
+    let mut accepted = pair_document();
+    part_mut(&mut accepted, "right/U1").pose.at.x = 999.0;
+    let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
+
+    let (prepared, findings) =
+        super::prepare_open(&accepted, &[]).expect("the source-authoritative Open draft prepares");
+
+    assert_eq!(part(&prepared, "right/U1").pose.at.x, 224.0);
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].severity, crate::model::Severity::Warning);
+    assert!(findings[0].target_ids.contains(&"right/U1".to_owned()));
+    assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
+
+    let (reopened, second_findings) = super::prepare_open(&prepared, &[])
+        .expect("the repaired document is a valid second Open input");
+    assert_eq!(reopened, prepared);
+    assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
+    let mut accepted = pair_document();
+    accepted.parts.retain(|part| part.id != "right/U1");
+    accepted
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/U1");
+    let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("a missing linked projection is reconstructed from its source");
+
+    assert_eq!(part(&prepared, "right/U1").pose.at.x, 224.0);
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&"right/U1".to_owned()));
+    assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
+
+    let (reopened, second_findings) = super::prepare_open(&prepared, &[])
+        .expect("the reconstructed document is a valid second Open input");
+    assert_eq!(reopened, prepared);
+    assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_preparation_preserves_local_and_omitted_exceptions() {
+    let mut local = pair_document();
+    part_mut(&mut local, "right/U1").pose.at.x = 260.0;
+    let halves = local.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.exceptions.push(crate::model::MirroredException {
+        kind: crate::model::MirroredItemKind::Part,
+        mirror_id: "right/U1".into(),
+        state: crate::model::MirroredExceptionState::Local,
+        companion_mode: None,
+        companion_tweak: None,
+        removed_copper: None,
+    });
+    let (prepared_local, local_findings) =
+        super::prepare_open(&local, &[]).expect("Local geometry remains independently authored");
+    assert_eq!(part(&prepared_local, "right/U1").pose.at.x, 260.0);
+    assert!(local_findings.is_empty());
+
+    let mut omitted = pair_document();
+    let right = omitted
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap();
+    right.part_ids.retain(|id| id != "right/U1");
+    omitted.parts.retain(|part| part.id != "right/U1");
+    omitted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(crate::model::MirroredException {
+            kind: crate::model::MirroredItemKind::Part,
+            mirror_id: "right/U1".into(),
+            state: crate::model::MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (prepared_omitted, omitted_findings) =
+        super::prepare_open(&omitted, &[]).expect("Omitted geometry stays absent");
+    assert!(
+        prepared_omitted
+            .parts
+            .iter()
+            .all(|part| part.id != "right/U1")
+    );
+    assert!(omitted_findings.is_empty());
+}
+
+#[test]
+fn open_preparation_preserves_unpaired_legacy_data_and_refuses_ambiguous_associations() {
+    let unpaired = crate::mirrored_half::matrix_addition::tests::source_half();
+    let (prepared, findings) = super::prepare_open(&unpaired, &[])
+        .expect("an unpaired legacy document opens without inferred links");
+    assert_eq!(prepared, unpaired);
+    assert!(findings.is_empty());
+
+    let mut ambiguous = pair_document();
+    let halves = ambiguous.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    let association = halves
+        .correspondences
+        .iter()
+        .find(|association| association.kind == crate::model::MirroredItemKind::Part)
+        .unwrap()
+        .clone();
+    halves.correspondences.push(association);
+    let accepted_bytes = serde_json::to_vec(&ambiguous).unwrap();
+
+    let error = super::prepare_open(&ambiguous, &[]).unwrap_err();
+
+    assert!(error.contains("repeats source part"), "{error}");
+    assert_eq!(serde_json::to_vec(&ambiguous).unwrap(), accepted_bytes);
+}
+
+#[test]
+fn open_preparation_refuses_missing_part_identity_and_reference_collisions() {
+    let mut id_collision = pair_document();
+    id_collision.parts.retain(|part| part.id != "right/U1");
+    id_collision
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/U1");
+    let mut colliding_board = id_collision
+        .boards
+        .iter()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .clone();
+    colliding_board.id = "right/U1".into();
+    id_collision.boards.push(colliding_board);
+    let identity_error = super::prepare_open(&id_collision, &[]).unwrap_err();
+    assert!(
+        identity_error.contains("target identity"),
+        "{identity_error}"
+    );
+
+    let mut reference_collision = pair_document();
+    reference_collision
+        .parts
+        .retain(|part| part.id != "right/U1");
+    reference_collision
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/U1");
+    let mut collision = part(&reference_collision, "left/U1").clone();
+    collision.id = "right/J2".into();
+    collision.reference = "right-U1".into();
+    reference_collision.parts.push(collision);
+    reference_collision
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .push("right/J2".into());
+    let reference_error = super::prepare_open(&reference_collision, &[]).unwrap_err();
+    assert!(
+        reference_error.contains("mirror reference"),
+        "{reference_error}"
+    );
+}
+
+#[test]
 fn mirror_side_move_prepares_the_source_and_reconciled_mirror_in_one_draft() {
     let accepted = pair_document();
     let accepted_bytes = serde_json::to_vec(&accepted).unwrap();

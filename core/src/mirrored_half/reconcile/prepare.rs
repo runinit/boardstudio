@@ -7,14 +7,297 @@ use super::{HostedTransition, IndependentPartTransition, PartProjection, Project
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
 use crate::model::{
-    BoardContours, EditOperation, Matrix, MirroredExceptionState, MirroredItemKind, Pose2,
-    Position, ProjectDoc,
+    BoardContours, EditOperation, Finding, Matrix, MirroredExceptionState, MirroredItemKind, Pose2,
+    Position, ProjectDoc, Scope, Severity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 #[path = "prepare/tests.rs"]
 mod tests;
+
+/// Builds the source-authoritative document draft used by Open without publishing it.
+/// Open has its own route: it does not canonicalize an edit or use transaction preparation,
+/// whose ReplaceDocument behavior intentionally preserves replacement geometry.
+fn prepare_open(
+    accepted: &ProjectDoc,
+    _board_contours: &[BoardContours],
+) -> Result<(ProjectDoc, Vec<Finding>), String> {
+    let mut draft = accepted.clone();
+    if let Some(keymap) = &draft.keymap {
+        crate::keymap::validate(keymap)?;
+    }
+    crate::script::apply_scripts(&mut draft)?;
+    crate::matrix::layout::resolve(&mut draft)?;
+    crate::constraints::resolve(&mut draft)?;
+    crate::matrix::layout::sync_components(&mut draft)?;
+    crate::constraints::resolve(&mut draft)?;
+    crate::matrix::layout::sync_components(&mut draft)?;
+    crate::generators::document_error(&draft)?;
+
+    let pair_views: Vec<_> = draft
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.pairs)
+        .filter_map(|pair| {
+            let halves = pair.halves.as_ref()?;
+            (halves.source_board_id != halves.mirror_board_id)
+                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
+        })
+        .collect();
+    let mut repaired_by_pair = BTreeMap::<String, BTreeSet<String>>::new();
+    for (pair_id, mapping, halves) in pair_views {
+        let seeded_parts = seed_missing_independent_parts(&mut draft, &halves, mapping)?;
+        repaired_by_pair
+            .entry(pair_id.clone())
+            .or_default()
+            .extend(seeded_parts);
+    }
+    // Seeding accepts only the narrowly recoverable independent-Part absence. All other
+    // malformed, ambiguous, Local/Omitted or unsupported missing records remain strict refusals.
+    crate::mechanical::halves::validate_document(&draft)?;
+
+    let pair_views: Vec<_> = draft
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.pairs)
+        .filter_map(|pair| {
+            let halves = pair.halves.as_ref()?;
+            (halves.source_board_id != halves.mirror_board_id)
+                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
+        })
+        .collect();
+    for (pair_id, mapping, halves) in pair_views {
+        let matrices: Vec<_> = halves
+            .correspondences
+            .iter()
+            .filter(|association| association.kind == MirroredItemKind::Matrix)
+            .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
+            .collect();
+        for (source_matrix_id, mirror_matrix_id) in matrices {
+            let projection = projection_for(
+                &draft,
+                &draft,
+                None,
+                &halves,
+                mapping,
+                &source_matrix_id,
+                &mirror_matrix_id,
+                false,
+            )?;
+            repaired_by_pair
+                .entry(pair_id.clone())
+                .or_default()
+                .extend(reconcile(&mut draft, &pair_id, &projection)?);
+        }
+    }
+    let findings = repaired_by_pair
+        .into_iter()
+        .filter_map(|(pair_id, targets)| {
+            (!targets.is_empty()).then(|| Finding {
+                id: format!("mirrored-half:open-repaired:{pair_id}"),
+                severity: Severity::Warning,
+                scope: Scope::Layout,
+                message:
+                    "Linked mirror data was repaired from its source when this document opened."
+                        .into(),
+                target_ids: targets.into_iter().collect(),
+            })
+        })
+        .collect();
+
+    crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
+    crate::prune_removed_components(&accepted.parts, &mut draft);
+    crate::matrix::layout::validate(&draft)?;
+    crate::mechanical::halves::validate_document(&draft)?;
+    Ok((draft, findings))
+}
+
+/// Recreate only a missing, independently corresponded Part. All source geometry and payload
+/// still come from the shared derivation kernel; the durable correspondence supplies its target
+/// ID, while the creation rules deterministically select reference and definition identities.
+fn seed_missing_independent_parts(
+    document: &mut ProjectDoc,
+    halves: &crate::model::MirroredHalves,
+    mapping: Pose2,
+) -> Result<BTreeSet<String>, String> {
+    let source_board_id = &halves.source_board_id;
+    let mirror_board_id = &halves.mirror_board_id;
+    let source_matrix_members: BTreeSet<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.board_id.as_deref() == Some(source_board_id.as_str()))
+        .flat_map(|matrix| matrix.part_ids.iter().cloned())
+        .collect();
+    let circuit_members: BTreeSet<_> = document
+        .embedded_circuits
+        .iter()
+        .filter(|circuit| circuit.host_board_id == *source_board_id)
+        .flat_map(|circuit| circuit.part_ids.iter().cloned())
+        .collect();
+    let mut seen_sources = BTreeSet::new();
+    let mut seen_targets = BTreeSet::new();
+    for association in halves
+        .correspondences
+        .iter()
+        .filter(|association| association.kind == MirroredItemKind::Part)
+    {
+        if !seen_sources.insert(association.source_id.as_str()) {
+            return Err(format!(
+                "The Open repair repeats source part {:?}",
+                association.source_id
+            ));
+        }
+        if !seen_targets.insert(association.mirror_id.as_str()) {
+            return Err(format!(
+                "The Open repair repeats mirror part {:?}",
+                association.mirror_id
+            ));
+        }
+    }
+
+    let mut seeded = BTreeSet::new();
+    let mut planned_references = BTreeSet::new();
+    for association in halves
+        .correspondences
+        .iter()
+        .filter(|association| association.kind == MirroredItemKind::Part)
+    {
+        if halves.overlay_of(association).is_some()
+            || source_matrix_members.contains(&association.source_id)
+            || circuit_members.contains(&association.source_id)
+        {
+            continue;
+        }
+        let target_parts: Vec<_> = document
+            .parts
+            .iter()
+            .filter(|part| part.id == association.mirror_id)
+            .collect();
+        if target_parts.len() > 1 {
+            return Err(format!(
+                "The Open repair mirror part {:?} is ambiguous",
+                association.mirror_id
+            ));
+        }
+        if !target_parts.is_empty() {
+            continue;
+        }
+        if document
+            .boards
+            .iter()
+            .any(|board| board.part_ids.contains(&association.mirror_id))
+        {
+            return Err(format!(
+                "The missing mirror part {:?} is still registered on a board",
+                association.mirror_id
+            ));
+        }
+
+        let mut sources = document
+            .parts
+            .iter()
+            .filter(|part| part.id == association.source_id);
+        let source = sources.next().ok_or_else(|| {
+            format!(
+                "The Open repair source part {:?} is unavailable",
+                association.source_id
+            )
+        })?;
+        if sources.next().is_some() {
+            return Err(format!(
+                "The Open repair source part {:?} is ambiguous",
+                association.source_id
+            ));
+        }
+        if unique_board_owner(document, &association.source_id)? != source_board_id {
+            return Err(format!(
+                "The Open repair source part {:?} has stale board ownership",
+                association.source_id
+            ));
+        }
+        if id_exists_outside_parts(document, &association.mirror_id) {
+            return Err(format!(
+                "The Open repair target identity {:?} is already in use",
+                association.mirror_id
+            ));
+        }
+        let reference =
+            super::super::mirror_reference(source_board_id, mirror_board_id, &source.reference);
+        if !planned_references.insert(reference.clone())
+            || document
+                .parts
+                .iter()
+                .any(|part| part.reference == reference)
+        {
+            return Err(format!(
+                "The Open repair mirror reference {reference:?} is already in use"
+            ));
+        }
+        let target_board = unique_board(document, mirror_board_id)?;
+        let definition = source.definition_id.clone();
+        let target = crate::mirrored_half::derive::part(
+            source,
+            &association.mirror_id,
+            &definition,
+            &reference,
+            mapping,
+        );
+        document.parts.push(target);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == target_board)
+            .expect("unique target board was just checked")
+            .part_ids
+            .push(association.mirror_id.clone());
+        seeded.insert(association.mirror_id.clone());
+    }
+    Ok(seeded)
+}
+
+fn unique_board(document: &ProjectDoc, id: &str) -> Result<String, String> {
+    let mut boards = document.boards.iter().filter(|board| board.id == id);
+    let board = boards
+        .next()
+        .ok_or_else(|| format!("The Open repair board {id:?} is unavailable"))?;
+    if boards.next().is_some() {
+        return Err(format!("The Open repair board {id:?} is ambiguous"));
+    }
+    Ok(board.id.clone())
+}
+
+fn unique_board_owner<'a>(document: &'a ProjectDoc, part_id: &str) -> Result<&'a str, String> {
+    let mut owners = document
+        .boards
+        .iter()
+        .filter(|board| board.part_ids.iter().any(|id| id == part_id));
+    let owner = owners
+        .next()
+        .ok_or_else(|| format!("The Open repair part {part_id:?} has no board owner"))?;
+    if owners.next().is_some() {
+        return Err(format!(
+            "The Open repair part {part_id:?} has ambiguous board ownership"
+        ));
+    }
+    Ok(&owner.id)
+}
+
+fn id_exists_outside_parts(document: &ProjectDoc, id: &str) -> bool {
+    document.boards.iter().any(|item| item.id == id)
+        || document.modules.iter().any(|item| item.id == id)
+        || document.matrices.iter().any(|item| item.id == id)
+        || document.layouts.iter().any(|item| item.id == id)
+        || document.outline.iter().any(|item| item.id() == id)
+        || document.nets.iter().any(|item| item.id == id)
+        || document
+            .board_outlines
+            .iter()
+            .flat_map(|outline| &outline.versions)
+            .any(|item| item.id == id)
+}
 
 /// Builds a complete document draft for one edit without changing the accepted document.
 pub(crate) fn prepare_transaction(
@@ -325,7 +608,7 @@ fn reconcile_pairs(
             let projection = projection_for(
                 accepted,
                 document,
-                canonical,
+                Some(canonical),
                 &halves,
                 mapping,
                 source_matrix_id,
@@ -432,7 +715,7 @@ fn record_independent_additions(
 fn projection_for(
     accepted: &ProjectDoc,
     document: &ProjectDoc,
-    canonical: &Canonical,
+    canonical: Option<&Canonical>,
     halves: &crate::model::MirroredHalves,
     mapping: Pose2,
     source_matrix_id: &str,
@@ -488,6 +771,7 @@ fn projection_for(
     }
     let (independent_part_transitions, hosted_transitions, hosted_removal_baselines) =
         if include_transitions {
+            let canonical = canonical.ok_or("Edit projection requires canonical intent")?;
             transitions_for(
                 accepted,
                 document,
