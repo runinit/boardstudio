@@ -7078,7 +7078,7 @@ mod tests {
         Ok(document)
     }
 
-    pub(super) fn hosted_electrical_fixture() -> Result<(ProjectDoc, Projection), String> {
+    fn hosted_electrical_fixture() -> Result<(ProjectDoc, Projection), String> {
         let (mut document, projection) = fixed_geometry_fixture()?;
         let source_connector = "matrix/source-matrix/r0c0";
         let mirror_connector = "matrix/mirror-matrix/r0c0";
@@ -8351,24 +8351,14 @@ mod tests {
             .halves
             .as_mut()
             .unwrap();
-        halves.exceptions.extend([
-            MirroredException {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::EmbeddedCircuit,
-                removed_copper: None,
-                mirror_id: "mirror-circuit".into(),
-                state: MirroredExceptionState::Local,
-            },
-            MirroredException {
-                companion_mode: None,
-                companion_tweak: None,
-                kind: MirroredItemKind::Net,
-                removed_copper: None,
-                mirror_id: "host-mirror-net".into(),
-                state: MirroredExceptionState::Local,
-            },
-        ]);
+        halves.exceptions.push(MirroredException {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::EmbeddedCircuit,
+            removed_copper: None,
+            mirror_id: "mirror-circuit".into(),
+            state: MirroredExceptionState::Local,
+        });
         let target_circuit = document
             .embedded_circuits
             .iter_mut()
@@ -8453,6 +8443,16 @@ mod tests {
             .find(|module| module.id == "source-module")
             .unwrap()
             .at = Vec2 { x: 17.0, y: -8.0 };
+        let source_joined_net = document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "host-source-net")
+            .unwrap();
+        source_joined_net.name = "HOST SOURCE EDITED".into();
+        source_joined_net.pins.push(Pin {
+            part_id: "matrix/source-matrix/r0c0".into(),
+            pad_id: "pad-one".into(),
+        });
         let pair_before = pair_state_bytes(&document);
 
         reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
@@ -8520,15 +8520,16 @@ mod tests {
             part_id: "matrix/mirror-matrix/r0c0".into(),
             pad_id: "pad-one".into(),
         }));
-        assert_eq!(
-            document
-                .nets
-                .iter()
-                .find(|net| net.id == "host-mirror-net")
-                .unwrap()
-                .name,
-            "HOST MIRROR"
-        );
+        let joined_host_net = document
+            .nets
+            .iter()
+            .find(|net| net.id == "host-mirror-net")
+            .unwrap();
+        assert_eq!(joined_host_net.name, "HOST SOURCE EDITED");
+        assert!(joined_host_net.pins.contains(&Pin {
+            part_id: "matrix/mirror-matrix/r0c0".into(),
+            pad_id: "pad-one".into(),
+        }));
         assert!(
             (document
                 .modules
@@ -8544,6 +8545,176 @@ mod tests {
         let stable = document.clone();
         reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
         assert_eq!(document, stable);
+    }
+
+    #[test]
+    fn local_joined_net_exception_is_independent_of_local_circuit_owner() {
+        let (mut document, projection) = hosted_electrical_fixture().unwrap();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .extend([
+                MirroredException {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::EmbeddedCircuit,
+                    mirror_id: "mirror-circuit".into(),
+                    state: MirroredExceptionState::Local,
+                    removed_copper: None,
+                },
+                MirroredException {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Net,
+                    mirror_id: "host-mirror-net".into(),
+                    state: MirroredExceptionState::Local,
+                    removed_copper: None,
+                },
+            ]);
+        document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "host-source-net")
+            .unwrap()
+            .name = "HOST SOURCE EDITED".into();
+
+        reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+
+        assert_eq!(
+            document
+                .nets
+                .iter()
+                .find(|net| net.id == "host-mirror-net")
+                .unwrap()
+                .name,
+            "HOST MIRROR"
+        );
+    }
+
+    #[test]
+    fn inherited_local_circuit_member_settings_and_host_net_pins_survive() {
+        let (mut document, projection) = hosted_electrical_fixture().unwrap();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(MirroredException {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::EmbeddedCircuit,
+                mirror_id: "mirror-circuit".into(),
+                state: MirroredExceptionState::Local,
+                removed_copper: None,
+            });
+        let mut keycaps = KeycapConfiguration::default();
+        keycaps.keys.insert(
+            "embedded/source-circuit/U1".into(),
+            KeycapKeySettings {
+                legend: Some("SOURCE".into()),
+                ..Default::default()
+            },
+        );
+        keycaps.keys.insert(
+            "embedded/mirror-circuit/U1".into(),
+            KeycapKeySettings {
+                legend: Some("MIRROR".into()),
+                ..Default::default()
+            },
+        );
+        document.keycaps = Some(keycaps);
+
+        let request = EditOperation::SetKeycapKey {
+            key_id: "embedded/mirror-circuit/U1".into(),
+            change: KeycapKeyChange::Legend {
+                value: Some("LOCAL EDIT".into()),
+            },
+        };
+        let canonical = crate::mirrored_half::inverse::canonicalize(&document, &request)
+            .expect("a member of a Local circuit edits its keycap setting as written");
+        assert_eq!(canonical.operation, request);
+        crate::apply(&mut document, &[], &canonical.operation)
+            .expect("the mirror-side keycap edit applies");
+
+        let mirror_definition = document
+            .definitions
+            .iter_mut()
+            .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
+            .unwrap();
+        let mut local_pad = mirror_definition.pads[0].clone();
+        local_pad.id = "pad-2".into();
+        mirror_definition.pads.push(local_pad);
+        document.nets.extend([
+            Net {
+                id: "source-plain-member-net".into(),
+                name: "SOURCE MEMBER NET".into(),
+                pins: vec![Pin {
+                    part_id: "embedded/source-circuit/U1".into(),
+                    pad_id: "pad-1".into(),
+                }],
+            },
+            Net {
+                id: "mirror-plain-member-net".into(),
+                name: "LOCAL MEMBER NET".into(),
+                pins: vec![Pin {
+                    part_id: "embedded/mirror-circuit/U1".into(),
+                    pad_id: "pad-2".into(),
+                }],
+            },
+        ]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .net_ids
+            .push("source-plain-member-net".into());
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .net_ids
+            .push("mirror-plain-member-net".into());
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .push(MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Net,
+                source_id: "source-plain-member-net".into(),
+                mirror_id: "mirror-plain-member-net".into(),
+            });
+
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the Local circuit member remains valid through reconciliation");
+        let keycaps = document.keycaps.as_ref().unwrap();
+        assert_eq!(
+            keycaps.keys["embedded/source-circuit/U1"].legend.as_deref(),
+            Some("SOURCE")
+        );
+        assert_eq!(
+            keycaps.keys["embedded/mirror-circuit/U1"].legend.as_deref(),
+            Some("LOCAL EDIT")
+        );
+        assert_eq!(
+            document
+                .nets
+                .iter()
+                .find(|net| net.id == "mirror-plain-member-net")
+                .unwrap()
+                .pins,
+            vec![Pin {
+                part_id: "embedded/mirror-circuit/U1".into(),
+                pad_id: "pad-2".into(),
+            }],
+            "a host net keeps its pin on a Local circuit member",
+        );
     }
 
     #[test]
@@ -8638,6 +8809,9 @@ mod tests {
                 .expect_err("an invalid associated Local owner closure is refused");
 
             assert!(!error.is_empty(), "{malformed} produced no reason");
+            if malformed == "wrong-source-board" {
+                assert!(error.contains("not on board"), "{error}");
+            }
             assert_eq!(
                 serde_json::to_vec(&document).unwrap(),
                 before,
