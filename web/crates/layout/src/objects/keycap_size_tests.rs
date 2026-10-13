@@ -290,6 +290,7 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
         "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .unwrap();
+    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
     let first_matrix_id = document.matrices[0].id.clone();
     let overlap_id = "matrix/matrix/r0c2".to_owned();
     let mut overlap_part = document

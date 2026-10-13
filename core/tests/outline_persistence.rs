@@ -59,6 +59,7 @@ fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
     let mut document: ProjectDoc =
         serde_json::from_str(include_str!("fixtures/synthetic-outline.json"))
             .expect("synthetic outline fixture");
+    document.format_version = migrate::CURRENT_VERSION;
     let asset_bytes = b"synthetic persistence asset".to_vec();
     let hash = Sha256::digest(&asset_bytes)
         .iter()
@@ -244,9 +245,12 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
 
     // A version created in the current format keeps no migration debt either.
     let mut engine = CoreEngine::new();
+    let mut fixture: ProjectDoc =
+        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
+    fixture.format_version = migrate::CURRENT_VERSION;
     let opened = scene(engine.handle(CoreRequest::Open {
         id: "open".into(),
-        document: serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap(),
+        document: fixture,
     }));
     let created = edit(
         &mut engine,
