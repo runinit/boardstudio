@@ -1458,8 +1458,39 @@ fn apply(
             }
             Ok(vec![net.id.clone()])
         }
-        EditOperation::SetMechanical { configuration } => {
-            doc.mechanical = configuration.as_deref().cloned();
+        EditOperation::SetMechanical {
+            configuration,
+            target,
+        } => {
+            let configuration = configuration.as_deref().cloned();
+            match target {
+                None => doc.mechanical = configuration,
+                Some(mechanical::MechanicalTarget::Board { board_id }) => {
+                    if !doc.boards.iter().any(|board| board.id == *board_id) {
+                        return Err(format!("Board {board_id:?} is unavailable"));
+                    }
+                    if configuration
+                        .as_ref()
+                        .is_some_and(|configuration| configuration.board_id != *board_id)
+                    {
+                        return Err("The mechanical configuration belongs to another board.".into());
+                    }
+                    if configuration.is_some()
+                        || doc
+                            .mechanical
+                            .as_ref()
+                            .is_some_and(|current| current.board_id == *board_id)
+                    {
+                        doc.mechanical = configuration;
+                    }
+                }
+                Some(mechanical::MechanicalTarget::Instance { .. }) => {
+                    return Err(
+                        "A targeted instance SetMechanical operation must run through transaction preparation."
+                            .into(),
+                    );
+                }
+            }
             Ok(vec![])
         }
         EditOperation::SetCase { body } => {
@@ -1987,6 +2018,118 @@ mod mechanical_edit_engine_tests {
             .map(|definition| definition.id.as_str())
             .filter(|id| id.starts_with("assembly-closure/definition/"))
             .collect()
+    }
+
+    #[test]
+    fn explicit_board_clear_preserves_other_boards_configuration() {
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.boards.push(board());
+        let mut other = board();
+        other.id = "other".into();
+        document.boards.push(other);
+        document.mechanical = Some(configuration("board"));
+        let before = document.clone();
+
+        apply(
+            &mut document,
+            &[],
+            &EditOperation::SetMechanical {
+                configuration: None,
+                target: Some(MechanicalTarget::Board {
+                    board_id: "other".into(),
+                }),
+            },
+        )
+        .expect("clearing another board is an unchanged explicit target");
+        assert_eq!(
+            document, before,
+            "the existing slot belongs to a different board"
+        );
+
+        apply(
+            &mut document,
+            &[],
+            &EditOperation::SetMechanical {
+                configuration: None,
+                target: Some(MechanicalTarget::Board {
+                    board_id: "board".into(),
+                }),
+            },
+        )
+        .expect("clearing the slot's own board removes its configuration");
+        assert!(document.mechanical.is_none());
+    }
+
+    #[test]
+    fn targeted_instance_set_mechanical_requires_preparation_before_activation() {
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.boards.push(board());
+        let before = document.clone();
+
+        let refusal = apply(
+            &mut document,
+            &[],
+            &EditOperation::SetMechanical {
+                configuration: Some(Box::new(configuration("board"))),
+                target: Some(MechanicalTarget::Instance {
+                    instance_id: "physical-half".into(),
+                }),
+            },
+        )
+        .expect_err("the private preparation connection must not activate raw apply");
+
+        assert!(refusal.contains("must run through transaction preparation"));
+        assert_eq!(document, before);
+    }
+
+    #[test]
+    fn explicit_board_set_mechanical_keeps_board_slot_semantics() {
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.boards.push(board());
+        document.mechanical = Some(configuration("board"));
+        let mut replacement = configuration("board");
+        replacement.wall_thickness = 3.0;
+
+        apply(
+            &mut document,
+            &[],
+            &EditOperation::SetMechanical {
+                configuration: Some(Box::new(replacement.clone())),
+                target: Some(MechanicalTarget::Board {
+                    board_id: "board".into(),
+                }),
+            },
+        )
+        .expect("an explicit Board target uses the existing board slot");
+        assert_eq!(document.mechanical, Some(replacement));
+
+        let before = document.clone();
+        let mismatch = apply(
+            &mut document,
+            &[],
+            &EditOperation::SetMechanical {
+                configuration: Some(Box::new(configuration("other"))),
+                target: Some(MechanicalTarget::Board {
+                    board_id: "board".into(),
+                }),
+            },
+        );
+        assert!(mismatch.is_err());
+        assert_eq!(
+            document, before,
+            "a target mismatch leaves the document alone"
+        );
+
+        apply(
+            &mut document,
+            &[],
+            &EditOperation::SetMechanical {
+                configuration: None,
+                target: None,
+            },
+        )
+        .expect("an omitted target retains legacy board-slot clearing");
+        assert!(document.mechanical.is_none());
     }
 
     /// Case 3: a no-op mechanical edit adds no history step and no revision bump.

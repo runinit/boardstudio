@@ -20,6 +20,21 @@ use super::change::{
 use super::features;
 use super::inputs::{effective_document, effective_inputs};
 
+mod replacement;
+
+/// Applies one instance's requested configuration through mechanical ownership rules.
+///
+/// Clearing a paired instance unlinks the pair and disables that instance's stack.
+/// The complete result is staged so a refusal leaves the document untouched.
+pub(crate) fn apply_instance_configuration(
+    document: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    target: &MechanicalTarget,
+    requested: Option<MechanicalConfiguration>,
+) -> Result<Vec<String>, String> {
+    replacement::apply_instance_configuration(document, board_contours, target, requested)
+}
+
 const GENERATED_PART_PREFIX: &str = "case-closure/";
 const GENERATED_DEFINITION_PREFIX: &str = "assembly-closure/definition/";
 const AUTO_CLOSURE_PREFIX: &str = "auto-closure/";
@@ -83,7 +98,7 @@ pub fn evaluate_edit(
     }
     // A physical half that exists but has no effective configuration is ineligible:
     // a pending geometry or settings edit retires instead of erroring, while Enable
-    // stays possible and Disable stays an idempotent no-op.
+    // stays possible and Disable remains available for stored or pair-owned settings.
     if !matches!(
         edit.change,
         MechanicalChange::Enable | MechanicalChange::Disable
@@ -847,12 +862,23 @@ fn persist_edit(
                 if ownership == Some(MechanicalConstructionOwnership::Legacy)
                     && before_shared != after_shared
                     && let Some(hardware) = doc.hardware.as_mut()
-                    && let Some(shared) = hardware.shared_construction.as_mut()
                 {
-                    // The shared overlay owns these fields for every Legacy instance,
-                    // so writing them here keeps the edit from being reverted on the
-                    // next effective read.
-                    features::apply_construction(shared, &after_shared);
+                    // Legacy reads use the explicit shared construction, or the
+                    // first configured instance when it is absent. Write the same
+                    // owner so the next effective read retains the edit.
+                    if let Some(shared) = hardware.shared_construction.as_mut() {
+                        features::apply_construction(shared, &after_shared);
+                    } else if let Some((source_id, shared)) =
+                        hardware.instances.iter_mut().find_map(|instance| {
+                            instance
+                                .mechanical
+                                .as_mut()
+                                .map(|configuration| (instance.id.clone(), configuration))
+                        })
+                    {
+                        features::apply_construction(shared, &after_shared);
+                        changed.push(source_id);
+                    }
                 }
             }
         }
@@ -929,16 +955,18 @@ fn disable(
             .mechanical
             .as_ref()
             .is_some_and(|configuration| configuration.board_id == *board_id),
-        MechanicalTarget::Instance { instance_id } => doc
-            .hardware
-            .as_ref()
-            .and_then(|hardware| {
-                hardware
-                    .instances
-                    .iter()
-                    .find(|instance| instance.id == *instance_id)
-            })
-            .is_some_and(|instance| instance.mechanical.is_some()),
+        MechanicalTarget::Instance { instance_id } => {
+            doc.hardware
+                .as_ref()
+                .and_then(|hardware| {
+                    hardware
+                        .instances
+                        .iter()
+                        .find(|instance| instance.id == *instance_id)
+                })
+                .is_some_and(|instance| instance.mechanical.is_some())
+                || pair_index(doc, instance_id).is_some()
+        }
     };
     if !present {
         return Ok(Vec::new());
@@ -2062,6 +2090,9 @@ fn find_feature_value(
     }
 }
 
+/// Installs visible geometry under the destination member's durable identity.
+/// The pair's authored value can carry a different member's id; vertex and anchor
+/// associations remain part of the value and are preserved.
 pub(crate) fn install_feature(
     configuration: &mut MechanicalConfiguration,
     kind: MechanicalFeatureKind,
@@ -2077,20 +2108,24 @@ pub(crate) fn install_feature(
             replace_mount(mounts, feature_id, mount.clone());
         }
         (MechanicalFeatureKind::Opening, MechanicalFeatureValue::Opening { opening }) => {
+            let mut opening = opening.clone();
+            opening.id = feature_id.to_owned();
             let openings = configuration.openings.get_or_insert_with(Vec::new);
             if let Some(existing) = openings
                 .iter_mut()
                 .find(|existing| existing.id == feature_id)
             {
-                *existing = opening.clone();
+                *existing = opening;
             } else {
-                openings.push(opening.clone());
+                openings.push(opening);
             }
         }
         (
             MechanicalFeatureKind::GasketSupport,
             MechanicalFeatureValue::GasketSupport { anchor },
         ) => {
+            let mut anchor = anchor.clone();
+            anchor.id = feature_id.to_owned();
             let layout = configuration
                 .gasket_layout
                 .get_or_insert_with(crate::mechanical::default_gasket_layout);
@@ -2099,9 +2134,9 @@ pub(crate) fn install_feature(
                 .iter_mut()
                 .find(|existing| existing.id == feature_id)
             {
-                *existing = anchor.clone();
+                *existing = anchor;
             } else {
-                layout.supports.push(anchor.clone());
+                layout.supports.push(anchor);
             }
         }
         _ => {
@@ -2113,7 +2148,8 @@ pub(crate) fn install_feature(
     Ok(())
 }
 
-fn replace_mount(mounts: &mut Vec<Mount>, id: &str, mount: Mount) {
+fn replace_mount(mounts: &mut Vec<Mount>, id: &str, mut mount: Mount) {
+    mount.id = id.to_owned();
     if let Some(existing) = mounts.iter_mut().find(|existing| existing.id == id) {
         *existing = mount;
     } else {
@@ -3055,15 +3091,7 @@ fn apply_change(
             {
                 return Err("The selected gasket support is no longer available.".into());
             }
-            let mut ids = std::collections::HashSet::new();
-            if anchors.iter().any(|anchor| {
-                anchor.id.is_empty()
-                    || !ids.insert(&anchor.id)
-                    || !anchor.anchor.is_finite()
-                    || !(0.0..=1.0).contains(&anchor.anchor)
-            }) {
-                return Err("The gasket support placement is invalid.".into());
-            }
+            validate_gasket_support_anchors(anchors)?;
             if configuration.mount != MechanicalMount::Gasket {
                 return Err("The current configuration no longer contains gasket supports.".into());
             }
@@ -3547,6 +3575,19 @@ fn mount_collection_mut(
             configuration.closure_mounts.get_or_insert_with(Vec::new)
         }
     }
+}
+
+fn validate_gasket_support_anchors(anchors: &[MechanicalGasketAnchor]) -> Result<(), String> {
+    let mut ids = std::collections::HashSet::new();
+    if anchors.iter().any(|anchor| {
+        anchor.id.is_empty()
+            || !ids.insert(&anchor.id)
+            || !anchor.anchor.is_finite()
+            || !(0.0..=1.0).contains(&anchor.anchor)
+    }) {
+        return Err("The gasket support placement is invalid.".into());
+    }
+    Ok(())
 }
 
 fn validate_mounts(mounts: &[Mount]) -> Result<(), String> {
@@ -4425,6 +4466,90 @@ mod tests {
             outline_key: id.into(),
             anchor,
             unlinked: false,
+        }
+    }
+
+    #[test]
+    fn reflected_feature_installation_preserves_each_members_identity() {
+        let opening = MechanicalOpening {
+            id: "left-feature".into(),
+            vertices: vec![MechanicalOpeningVertex {
+                id: "vertex-4".into(),
+                point: Vec2 { x: 2.0, y: 3.0 },
+            }],
+            z: 1.0,
+            height: 5.0,
+            next_vertex_identity: 5,
+        };
+        let values = [
+            (
+                MechanicalFeatureKind::Mount,
+                MechanicalFeatureValue::Mount {
+                    mount: mount("left-feature", 8.0, 9.0),
+                },
+            ),
+            (
+                MechanicalFeatureKind::ClosureMount,
+                MechanicalFeatureValue::Mount {
+                    mount: mount("left-feature", 8.0, 9.0),
+                },
+            ),
+            (
+                MechanicalFeatureKind::Opening,
+                MechanicalFeatureValue::Opening { opening },
+            ),
+            (
+                MechanicalFeatureKind::GasketSupport,
+                MechanicalFeatureValue::GasketSupport {
+                    anchor: anchor("left-feature", 0.25),
+                },
+            ),
+        ];
+        for (kind, value) in values {
+            let mut configuration = configuration();
+            install_feature(&mut configuration, kind, "right-feature", &value).unwrap();
+            let installed = find_feature_value(&configuration, kind, "right-feature")
+                .unwrap_or_else(|| panic!("the {kind:?} counterpart must use its member identity"));
+            match (&value, installed) {
+                (
+                    MechanicalFeatureValue::Mount { mount: authored },
+                    MechanicalFeatureValue::Mount { mount: installed },
+                ) => {
+                    assert_eq!(installed.id, "right-feature");
+                    assert_eq!(installed.at, authored.at);
+                    assert_eq!(installed.hole_diameter, authored.hole_diameter);
+                }
+                (
+                    MechanicalFeatureValue::Opening { opening: authored },
+                    MechanicalFeatureValue::Opening { opening: installed },
+                ) => {
+                    assert_eq!(installed.id, "right-feature");
+                    assert_eq!(installed.vertices, authored.vertices);
+                    assert_eq!(installed.z, authored.z);
+                    assert_eq!(installed.height, authored.height);
+                    assert_eq!(
+                        installed.next_vertex_identity,
+                        authored.next_vertex_identity
+                    );
+                }
+                (
+                    MechanicalFeatureValue::GasketSupport { anchor: authored },
+                    MechanicalFeatureValue::GasketSupport { anchor: installed },
+                ) => {
+                    assert_eq!(installed.id, "right-feature");
+                    assert_eq!(installed.region_id, authored.region_id);
+                    assert_eq!(installed.outline_key, authored.outline_key);
+                    assert_eq!(installed.anchor, authored.anchor);
+                }
+                _ => panic!("installation must preserve the feature kind"),
+            }
+            assert!(find_feature_value(&configuration, kind, "left-feature").is_none());
+            let once = configuration.clone();
+            install_feature(&mut configuration, kind, "right-feature", &value).unwrap();
+            assert_eq!(
+                configuration, once,
+                "reinstallation replaces the same member"
+            );
         }
     }
 

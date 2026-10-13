@@ -95,6 +95,16 @@ placement repair preserves it until the user moves or resets it.
 
 ### Mechanical relationships
 
+**Board**:
+A PCB design with its component placement, electrical wiring and board boundary.
+One board may be used by more than one physical board instance.
+_Avoid_: half (when the PCB design is meant)
+
+**Physical board instance**:
+One physical realization of a board in the keyboard, such as its left or right half.
+Two instances remain distinct even when they use the same reversible board design.
+_Avoid_: board (when one physical realization is meant)
+
 **Mechanical mirror pair**:
 Two physical halves whose shared mechanical features stay reflected when edited
 from either half. They may use one reversible PCB design or different PCB designs,
@@ -110,9 +120,36 @@ its matrices, keys, components, outlines and mechanical features. Differences ar
 explicit per-item exceptions, and the pair never drifts silently
 ([ADR-0010](docs/adr/0010-mirrored-half-is-a-core-maintained-reflection.md)).
 
+**Pair construction**:
+The construction choices shared by a mechanical mirror pair, such as mounting method,
+plate thickness, layer spacing and wall thickness.
+_Avoid_: shared configuration (which also suggests sharing half-specific hardware)
+
+**Effective mechanical configuration**:
+The mechanical configuration applicable to one board or physical board instance,
+including its shared construction, hardware-specific settings and feature exceptions.
+_Avoid_: stored configuration (when the complete applicable configuration is meant)
+
+**Construction source**:
+The member of a mechanical mirror pair whose geometry is the reference for its
+construction and generated closure proposals.
+
+**Mechanical feature author**:
+The member whose frame defines a linked mechanical feature's authored geometry.
+It may differ from the pair's construction source.
+
 **Linked mechanical feature**:
 A mechanical feature whose counterparts on mirrored halves remain related as
 reflected geometry when the feature changes.
+
+**Local mechanical feature**:
+A counterpart of a pair feature with an explicit exception giving that half its
+own independently editable geometry.
+
+**Omitted mechanical feature**:
+A counterpart of a pair feature explicitly excluded from one half, while the
+feature remains part of the pair.
+_Avoid_: deleted feature (when only one counterpart is omitted)
 
 **Half-specific mechanical feature**:
 A mechanical feature required by one half's hardware or assembly, such as a

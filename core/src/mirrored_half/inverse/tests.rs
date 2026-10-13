@@ -1037,17 +1037,21 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
     for request in translated {
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
-    // Raw SetMechanical is unsupported with a reason; removed constraints are prepared.
+    // Untargeted SetMechanical retains the singleton board-slot semantics.
     let request = json!({"kind":"set-mechanical","configuration":null});
-    let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
-        panic!("{request} must be unsupported here");
-    };
-    assert_eq!(owner, "114", "{request}");
-    assert!(!reason.is_empty(), "{request}");
-    let message = canonical(&fixture(), &request).unwrap_err();
-    assert!(
-        message.contains("114") && message.contains(reason),
-        "{message}"
+    assert!(matches!(
+        owned(request.clone()),
+        Coverage::DeliberatelyUnchanged(_)
+    ));
+    // Explicit instance targeting belongs to the mechanical replacement lifecycle and
+    // already names the correct half, so the matrix/part inverse leaves it alone.
+    let targeted = json!({"kind":"set-mechanical","configuration":null,
+        "target":{"kind":"instance","instanceId":"left"}});
+    assert!(matches!(owned(targeted.clone()), Coverage::Delegated(_)));
+    let translated = canonical(&fixture(), &targeted).unwrap();
+    assert_eq!(
+        translated.operation,
+        serde_json::from_value(targeted).unwrap()
     );
     // Bindings keep their targeted-half semantics; typed mechanical edits already carry
     // their own two-way lifecycle and must not be inverse-mapped a second time.
@@ -1157,21 +1161,21 @@ fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_throu
 }
 
 #[test]
-fn raw_set_mechanical_remains_refused() {
+fn targeted_raw_set_mechanical_is_delegated_without_inverse_mapping() {
     let document = fixture();
     let operation = EditOperation::SetMechanical {
         configuration: None,
+        target: Some(crate::mechanical::MechanicalTarget::Instance {
+            instance_id: "left".into(),
+        }),
     };
-    let Err(Refusal::Unsupported(Coverage::Unsupported { owner, reason })) =
-        canonicalize(&document, &operation)
-    else {
-        panic!("{operation:?} must remain refused while its mirror behavior is undefined");
-    };
-    assert_eq!(owner, "114");
+    let canonical = canonicalize(&document, &operation)
+        .expect("the explicit target delegates to the mechanical replacement lifecycle");
     assert_eq!(
-        reason,
-        "SetMechanical replaces the whole raw mechanical configuration, including board geometry and references; no safe field-wise mirrored behavior is defined."
+        canonical.coverage,
+        Coverage::Delegated(SET_MECHANICAL_TARGETED)
     );
+    assert_eq!(canonical.operation, operation);
 }
 
 #[test]

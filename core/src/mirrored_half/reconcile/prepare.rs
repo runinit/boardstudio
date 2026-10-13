@@ -543,6 +543,10 @@ fn prepare_lifecycle_pairs(
     if matches!(
         canonical.operation,
         EditOperation::ApplyMechanicalEdit { .. }
+            | EditOperation::SetMechanical {
+                target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
+                ..
+            }
             | EditOperation::CreateMirroredPair { .. }
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -590,6 +594,18 @@ fn apply_canonical(
     {
         let pair_id = pair_for_instance(accepted, instance_id)?;
         return crate::mechanical::halves::unlink_pair(draft, &pair_id);
+    }
+    if let EditOperation::SetMechanical {
+        configuration,
+        target: Some(target @ crate::mechanical::MechanicalTarget::Instance { .. }),
+    } = &canonical.operation
+    {
+        return crate::mechanical::edit::apply_instance_configuration(
+            draft,
+            board_contours,
+            target,
+            configuration.as_deref().cloned(),
+        );
     }
     crate::apply(draft, board_contours, &canonical.operation)
 }
@@ -1150,11 +1166,17 @@ fn circuit_owner<'a>(document: &'a ProjectDoc, id: &str) -> Option<&'a str> {
 }
 
 fn entity_changed(before: &ProjectDoc, after: &ProjectDoc, id: &str) -> Result<bool, String> {
-    fn entity(document: &ProjectDoc, id: &str) -> Result<Option<serde_json::Value>, String> {
+    fn entities(
+        document: &ProjectDoc,
+        id: &str,
+    ) -> Result<BTreeMap<&'static str, serde_json::Value>, String> {
         let value = serde_json::to_value(document).map_err(|error| error.to_string())?;
         let root = value
             .as_object()
             .ok_or_else(|| "The prepared document did not serialize as an object".to_owned())?;
+        // A physical instance may share its board's id. Keep each domain owner in
+        // the comparison so an unchanged Board cannot hide changed instance data.
+        let mut matches = BTreeMap::new();
         for key in [
             "parts",
             "matrices",
@@ -1177,11 +1199,32 @@ fn entity_changed(before: &ProjectDoc, after: &ProjectDoc, id: &str) -> Result<b
                         .find(|item| item.get("id").and_then(serde_json::Value::as_str) == Some(id))
                 })
             {
-                return Ok(Some(item.clone()));
+                matches.insert(key, item.clone());
             }
         }
         if let Some(hardware) = root.get("hardware") {
-            for key in ["pairs", "instances"] {
+            if let Some(pairs) = hardware.get("pairs").and_then(serde_json::Value::as_array) {
+                let owned: Vec<_> = pairs
+                    .iter()
+                    .filter(|pair| {
+                        pair.get("members")
+                            .and_then(serde_json::Value::as_array)
+                            .is_some_and(|members| {
+                                members.iter().any(|member| member.as_str() == Some(id))
+                            })
+                    })
+                    .cloned()
+                    .collect();
+                if !owned.is_empty() {
+                    // Shared construction and linked features change a member's
+                    // effective configuration without changing its local slot.
+                    matches.insert("hardware.memberPairs", serde_json::Value::Array(owned));
+                }
+            }
+            for (key, owner) in [
+                ("pairs", "hardware.pairs"),
+                ("instances", "hardware.instances"),
+            ] {
                 if let Some(item) = hardware
                     .get(key)
                     .and_then(serde_json::Value::as_array)
@@ -1191,7 +1234,7 @@ fn entity_changed(before: &ProjectDoc, after: &ProjectDoc, id: &str) -> Result<b
                         })
                     })
                 {
-                    return Ok(Some(item.clone()));
+                    matches.insert(owner, item.clone());
                 }
             }
             if let Some(item) = hardware
@@ -1203,10 +1246,10 @@ fn entity_changed(before: &ProjectDoc, after: &ProjectDoc, id: &str) -> Result<b
                     })
                 })
             {
-                return Ok(Some(item.clone()));
+                matches.insert("hardware.boards", item.clone());
             }
         }
-        Ok(None)
+        Ok(matches)
     }
-    Ok(entity(before, id)? != entity(after, id)?)
+    Ok(entities(before, id)? != entities(after, id)?)
 }
