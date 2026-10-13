@@ -19,6 +19,14 @@ On dev, prepare a private inert notice builder and its tests in core/src/lib.rs 
 
 Existing Session display_preview already transports and clears SceneDelta. Use its transaction/revision ownership guards. No accepted snapshot mutation or replacement transient state engine is needed.
 
+The existing findings list stays based on the accepted scene. Append only reserved
+`preview:electrical:` notices from transient display_preview for the inspector and footer.
+Do not promote ordinary Preview-only diagnostics or change unpaired finding presentation.
+The activated page test may add its captured private JSON fixture beside the existing page
+module; keep fixture provenance and complete its unrelated synthetic definition defects
+explicitly, without suppressing validators.
+
+
 Assigned Core preparation scope: core/src/lib.rs, private notice builder and inline tests.
 Keep the builder test-only on dev with cfg(test); root removes that guard and invokes it only
 in isolated 111's prepared paired Preview branch. No dead-code suppression or visibility grant.

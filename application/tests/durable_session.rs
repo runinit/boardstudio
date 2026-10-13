@@ -193,6 +193,19 @@ fn core_effect(effects: &[Effect]) -> (RequestId, ExecutorEpoch, CoreRequest) {
         .expect("one core request")
 }
 
+fn add_preview_electrical_notice(reply: &mut CoreReply, id: &str) {
+    let CoreReply::Preview { scene, .. } = reply else {
+        panic!("an edit preview must return a preview scene");
+    };
+    scene.findings.push(Finding {
+        id: format!("preview:electrical:{id}"),
+        severity: Severity::Info,
+        scope: Scope::Pcb,
+        message: "Preview removed a pin connection".into(),
+        target_ids: vec!["key".into()],
+    });
+}
+
 fn save_effect(effects: &[Effect]) -> (SaveAttemptId, ProjectDoc) {
     effects
         .iter()
@@ -655,7 +668,8 @@ fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
         &request,
         CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview
     ));
-    let reply = engine.handle(request);
+    let mut reply = engine.handle(request);
+    add_preview_electrical_notice(&mut reply, "first");
     session.complete(Completion::Core {
         request_id,
         executor_epoch,
@@ -664,7 +678,75 @@ fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
 
     let after_preview = session.read_model().accepted.as_ref().unwrap();
     assert_eq!(after_preview.document.as_ref(), &accepted);
-    assert!(session.read_model().display_preview.is_some());
+    assert_eq!(after_preview.document.revision, 0);
+    let accepted_token = after_preview.token;
+    let display_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert!(display_preview.findings.iter().any(|finding| {
+        finding.id == "preview:electrical:first"
+            && finding.severity == Severity::Info
+            && finding.scope == Scope::Pcb
+    }));
+
+    let board_id = session.read_model().active_board_id.clone();
+    let clear = |operation_id, transaction_id: &str| Event::ClearPreview {
+        operation_id: OperationId(operation_id),
+        token: accepted_token,
+        revision: 0,
+        board_id: board_id.clone(),
+        transaction_id: transaction_id.into(),
+    };
+
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(13),
+        transaction_id: "replacement-preview".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 12.0, y: 0.0 },
+            }],
+        },
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let mut reply = engine.handle(request);
+    add_preview_electrical_notice(&mut reply, "replacement");
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let replacement_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert!(
+        replacement_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:replacement")
+    );
+    assert!(
+        !replacement_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:first")
+    );
+
+    session.submit(clear(14, "preview-position"));
+    assert!(
+        session
+            .read_model()
+            .display_preview
+            .as_ref()
+            .unwrap()
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:replacement")
+    );
+    session.submit(clear(15, "replacement-preview"));
+    assert!(session.read_model().display_preview.is_none());
+
+    let accepted_after_clears = session.read_model().accepted.as_ref().unwrap();
+    assert_eq!(accepted_after_clears.document.as_ref(), &accepted);
+    assert_eq!(accepted_after_clears.document.revision, 0);
+    assert_eq!(accepted_after_clears.token, accepted_token);
 
     let undo = engine.handle(CoreRequest::Undo {
         id: "preview-history-check".into(),
@@ -1295,6 +1377,36 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(59),
+        transaction_id: "notice-before-gesture".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 2.0, y: 0.0 },
+            }],
+        },
+    });
+    let (notice_id, notice_epoch, notice_request) = core_effect(&effects);
+    let mut notice_reply = engine.handle(notice_request);
+    add_preview_electrical_notice(&mut notice_reply, "gesture-current");
+    session.complete(Completion::Core {
+        request_id: notice_id,
+        executor_epoch: notice_epoch,
+        reply: Box::new(notice_reply),
+    });
+    assert!(
+        session
+            .read_model()
+            .display_preview
+            .as_ref()
+            .unwrap()
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-current")
+    );
+
     session.submit(Event::GestureBegin {
         operation_id: OperationId(60),
         pointer_id: 7,
@@ -1336,14 +1448,79 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
             ..
         }
     )));
-    let stale_reply = engine.handle(preview_request);
-    session.complete(Completion::Core {
+    assert!(session.read_model().display_preview.is_none());
+    let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+    let mut stale_reply = engine.handle(preview_request);
+    add_preview_electrical_notice(&mut stale_reply, "gesture-late");
+    let duplicate_stale_reply = stale_reply.clone();
+
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(61),
+        transaction_id: "after-cancel-preview".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 9.0, y: 0.0 },
+            }],
+        },
+    });
+    assert!(
+        !has_core_request(&effects),
+        "the newer preview waits for the canceled request"
+    );
+
+    let effects = session.complete(Completion::Core {
         request_id: preview_id,
         executor_epoch: preview_epoch,
         reply: Box::new(stale_reply),
     });
     assert!(session.read_model().display_preview.is_none());
+    let (newer_id, newer_epoch, newer_request) = core_effect(&effects);
+    let mut newer_reply = engine.handle(newer_request);
+    add_preview_electrical_notice(&mut newer_reply, "after-cancel-newer");
+    session.complete(Completion::Core {
+        request_id: newer_id,
+        executor_epoch: newer_epoch,
+        reply: Box::new(newer_reply),
+    });
+
+    let newer_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert_eq!(newer_preview.revision, accepted.document.revision);
+    assert!(
+        newer_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:after-cancel-newer")
+    );
+    assert!(
+        !newer_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-late")
+    );
+
+    // Core is single-flight; replay after dispatch to exercise staleness against the newer display.
+    session.complete(Completion::Core {
+        request_id: preview_id,
+        executor_epoch: preview_epoch,
+        reply: Box::new(duplicate_stale_reply),
+    });
     assert!(session.read_model().gesture.is_none());
+    assert_eq!(session.read_model().accepted.as_ref(), Some(&accepted));
+    let display_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert!(
+        display_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:after-cancel-newer")
+    );
+    assert!(
+        !display_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-late")
+    );
 }
 
 #[test]
