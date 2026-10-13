@@ -1487,7 +1487,17 @@ fn reconcile(
                 absent_matrix = source_matrix.clone();
                 absent_matrix.id = projection.mirror_matrix_id.clone();
                 absent_matrix.board_id = Some(projection.mirror_board_id.clone());
-                absent_matrix.part_ids.clear();
+                let source_members: BTreeSet<_> =
+                    source_matrix.part_ids.iter().map(String::as_str).collect();
+                absent_matrix.part_ids = halves
+                    .correspondences
+                    .iter()
+                    .filter(|correspondence| {
+                        correspondence.kind == MirroredItemKind::Part
+                            && source_members.contains(correspondence.source_id.as_str())
+                    })
+                    .map(|correspondence| correspondence.mirror_id.clone())
+                    .collect();
                 &absent_matrix
             }
             Err(error) => return Err(error),

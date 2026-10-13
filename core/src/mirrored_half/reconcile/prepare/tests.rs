@@ -29,6 +29,38 @@ fn open_preparation_repairs_linked_geometry_and_reports_a_located_warning() {
 }
 
 #[test]
+fn open_preparation_reports_linked_drift_normalized_before_reconciliation() {
+    let mut accepted = pair_document();
+    let target_id = accepted.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap()
+        .correspondences
+        .iter()
+        .find(|association| {
+            association.kind == crate::model::MirroredItemKind::Part
+                && association.source_id.starts_with("matrix/")
+                && association.source_id.ends_with("/diode")
+        })
+        .unwrap()
+        .mirror_id
+        .clone();
+    part_mut(&mut accepted, &target_id).pose.at.x += 123.0;
+    let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("the existing normalization and projection stages prepare the document");
+
+    assert_ne!(
+        part(&prepared, &target_id).pose.at.x,
+        part(&accepted, &target_id).pose.at.x
+    );
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&target_id));
+    assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
+}
+
+#[test]
 fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
     let mut accepted = pair_document();
     accepted.parts.retain(|part| part.id != "right/U1");
@@ -53,6 +85,105 @@ fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
         .expect("the reconstructed document is a valid second Open input");
     assert_eq!(reopened, prepared);
     assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_preparation_preserves_a_missing_omitted_matrix() {
+    let mut accepted = pair_document();
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    let matrix = halves
+        .correspondences
+        .iter()
+        .find(|association| association.kind == crate::model::MirroredItemKind::Matrix)
+        .unwrap()
+        .clone();
+    let mirror_members: std::collections::BTreeSet<_> = accepted
+        .matrices
+        .iter()
+        .find(|candidate| candidate.id == matrix.mirror_id)
+        .unwrap()
+        .part_ids
+        .iter()
+        .cloned()
+        .collect();
+    accepted
+        .matrices
+        .retain(|candidate| candidate.id != matrix.mirror_id);
+    accepted
+        .parts
+        .retain(|part| !mirror_members.contains(&part.id));
+    accepted
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| !mirror_members.contains(id));
+    accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(crate::model::MirroredException {
+            kind: crate::model::MirroredItemKind::Matrix,
+            mirror_id: matrix.mirror_id.clone(),
+            state: crate::model::MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("the exact Omitted matrix remains physically absent during Open repair");
+
+    assert!(
+        prepared
+            .matrices
+            .iter()
+            .all(|candidate| candidate.id != matrix.mirror_id)
+    );
+    assert!(findings.is_empty());
+}
+
+#[test]
+fn open_preparation_repairs_linked_parts_on_a_matrixless_pair() {
+    let mut accepted = pair_document();
+    let matrix_members: std::collections::BTreeSet<_> = accepted
+        .matrices
+        .iter()
+        .flat_map(|matrix| matrix.part_ids.iter().cloned())
+        .collect();
+    accepted.matrices.clear();
+    accepted
+        .parts
+        .retain(|part| !matrix_members.contains(&part.id));
+    for board in &mut accepted.boards {
+        board.part_ids.retain(|id| !matrix_members.contains(id));
+    }
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences.retain(|association| {
+        association.kind != crate::model::MirroredItemKind::Matrix
+            && !matrix_members.contains(&association.source_id)
+            && !matrix_members.contains(&association.mirror_id)
+    });
+    halves.exceptions.retain(|exception| {
+        exception.kind != crate::model::MirroredItemKind::Matrix
+            && !matrix_members.contains(&exception.mirror_id)
+    });
+    part_mut(&mut accepted, "right/U1").pose.at.x = 999.0;
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("a matrixless native pair still reconciles independently linked Parts");
+
+    assert_eq!(part(&prepared, "right/U1").pose.at.x, 224.0);
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&"right/U1".to_owned()));
 }
 
 #[test]
@@ -105,7 +236,12 @@ fn open_preparation_preserves_local_and_omitted_exceptions() {
             .iter()
             .all(|part| part.id != "right/U1")
     );
-    assert!(omitted_findings.is_empty());
+    assert_eq!(omitted_findings.len(), 1);
+    assert_eq!(omitted_findings[0].target_ids, vec!["right"]);
+    let (reopened_omitted, second_omitted_findings) =
+        super::prepare_open(&prepared_omitted, &[]).expect("the Omitted result is stable");
+    assert_eq!(reopened_omitted, prepared_omitted);
+    assert!(second_omitted_findings.is_empty());
 }
 
 #[test]

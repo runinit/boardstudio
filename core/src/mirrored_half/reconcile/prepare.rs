@@ -35,47 +35,25 @@ fn prepare_open(
     crate::matrix::layout::sync_components(&mut draft)?;
     crate::generators::document_error(&draft)?;
 
-    let pair_views: Vec<_> = draft
-        .hardware
-        .as_ref()
-        .into_iter()
-        .flat_map(|hardware| &hardware.pairs)
-        .filter_map(|pair| {
-            let halves = pair.halves.as_ref()?;
-            (halves.source_board_id != halves.mirror_board_id)
-                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
-        })
-        .collect();
-    let mut repaired_by_pair = BTreeMap::<String, BTreeSet<String>>::new();
-    for (pair_id, mapping, halves) in pair_views {
-        let seeded_parts = seed_missing_independent_parts(&mut draft, &halves, mapping)?;
-        repaired_by_pair
-            .entry(pair_id.clone())
-            .or_default()
-            .extend(seeded_parts);
+    let pair_views = native_pair_views(&draft);
+    for (_, mapping, halves) in &pair_views {
+        seed_missing_independent_parts(&mut draft, halves, *mapping)?;
     }
     // Seeding accepts only the narrowly recoverable independent-Part absence. All other
     // malformed, ambiguous, Local/Omitted or unsupported missing records remain strict refusals.
     crate::mechanical::halves::validate_document(&draft)?;
 
-    let pair_views: Vec<_> = draft
-        .hardware
-        .as_ref()
-        .into_iter()
-        .flat_map(|hardware| &hardware.pairs)
-        .filter_map(|pair| {
-            let halves = pair.halves.as_ref()?;
-            (halves.source_board_id != halves.mirror_board_id)
-                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
-        })
-        .collect();
-    for (pair_id, mapping, halves) in pair_views {
+    for (pair_id, mapping, halves) in pair_views.iter().cloned() {
         let matrices: Vec<_> = halves
             .correspondences
             .iter()
             .filter(|association| association.kind == MirroredItemKind::Matrix)
             .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
             .collect();
+        if matrices.is_empty() {
+            let projection = projection_for_matrixless_pair(&draft, &pair_id, &halves, mapping);
+            reconcile(&mut draft, &pair_id, &projection)?;
+        }
         for (source_matrix_id, mirror_matrix_id) in matrices {
             let projection = projection_for(
                 &draft,
@@ -87,16 +65,19 @@ fn prepare_open(
                 &mirror_matrix_id,
                 false,
             )?;
-            repaired_by_pair
-                .entry(pair_id.clone())
-                .or_default()
-                .extend(reconcile(&mut draft, &pair_id, &projection)?);
+            reconcile(&mut draft, &pair_id, &projection)?;
         }
     }
-    let findings = repaired_by_pair
-        .into_iter()
-        .filter_map(|(pair_id, targets)| {
-            (!targets.is_empty()).then(|| Finding {
+    crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
+    crate::prune_removed_components(&accepted.parts, &mut draft);
+    crate::matrix::layout::validate(&draft)?;
+    crate::mechanical::halves::validate_document(&draft)?;
+
+    let mut findings = Vec::new();
+    for (pair_id, _, halves) in pair_views {
+        let targets = changed_linked_mirror_targets(accepted, &draft, &pair_id, &halves)?;
+        if !targets.is_empty() {
+            findings.push(Finding {
                 id: format!("mirrored-half:open-repaired:{pair_id}"),
                 severity: Severity::Warning,
                 scope: Scope::Layout,
@@ -104,15 +85,172 @@ fn prepare_open(
                     "Linked mirror data was repaired from its source when this document opened."
                         .into(),
                 target_ids: targets.into_iter().collect(),
-            })
-        })
-        .collect();
-
-    crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
-    crate::prune_removed_components(&accepted.parts, &mut draft);
-    crate::matrix::layout::validate(&draft)?;
-    crate::mechanical::halves::validate_document(&draft)?;
+            });
+        }
+    }
     Ok((draft, findings))
+}
+
+type NativePairView = (String, Pose2, crate::model::MirroredHalves);
+
+fn native_pair_views(document: &ProjectDoc) -> Vec<NativePairView> {
+    document
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.pairs)
+        .filter_map(|pair| {
+            let halves = pair.halves.as_ref()?;
+            (halves.source_board_id != halves.mirror_board_id)
+                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
+        })
+        .collect()
+}
+
+fn projection_for_matrixless_pair(
+    document: &ProjectDoc,
+    pair_id: &str,
+    halves: &crate::model::MirroredHalves,
+    mapping: Pose2,
+) -> Projection {
+    let mut suffix = 0usize;
+    let (source_matrix_id, mirror_matrix_id) = loop {
+        let source = format!("__open_matrixless__{pair_id}__source__{suffix}");
+        let mirror = format!("__open_matrixless__{pair_id}__mirror__{suffix}");
+        let occupied = |id: &str| {
+            document.matrices.iter().any(|matrix| matrix.id == id)
+                || halves.correspondences.iter().any(|association| {
+                    association.kind == MirroredItemKind::Matrix
+                        && (association.source_id == id || association.mirror_id == id)
+                })
+                || halves.exceptions.iter().any(|exception| {
+                    exception.kind == MirroredItemKind::Matrix && exception.mirror_id == id
+                })
+        };
+        if !occupied(&source) && !occupied(&mirror) {
+            break (source, mirror);
+        }
+        suffix += 1;
+    };
+    Projection {
+        preserve_matrix_geometry: true,
+        source_board_id: halves.source_board_id.clone(),
+        mirror_board_id: halves.mirror_board_id.clone(),
+        source_matrix_id,
+        mirror_matrix_id,
+        mapping,
+        parts: Vec::new(),
+        independent_part_transitions: Vec::new(),
+        hosted_transitions: Vec::new(),
+        applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
+        applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
+        applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
+        hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
+        hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
+        outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
+        locally_protected_mirror_parts: BTreeSet::new(),
+        final_owners: BTreeMap::new(),
+    }
+}
+
+fn changed_linked_mirror_targets(
+    before: &ProjectDoc,
+    after: &ProjectDoc,
+    pair_id: &str,
+    halves: &crate::model::MirroredHalves,
+) -> Result<BTreeSet<String>, String> {
+    let mut changed = BTreeSet::new();
+    for association in &halves.correspondences {
+        if halves.overlay_of(association).is_some_and(|exception| {
+            matches!(
+                exception.state,
+                MirroredExceptionState::Local | MirroredExceptionState::Omitted
+            )
+        }) {
+            continue;
+        }
+        let before =
+            mirror_item_snapshot(before, pair_id, association.kind, &association.mirror_id)?;
+        let after = mirror_item_snapshot(after, pair_id, association.kind, &association.mirror_id)?;
+        if before != after {
+            changed.insert(association.mirror_id.clone());
+        }
+    }
+    Ok(changed)
+}
+
+fn snapshot_matches<'a, T: serde::Serialize + 'a>(
+    items: impl Iterator<Item = &'a T>,
+) -> Result<Option<Vec<u8>>, String> {
+    let items: Vec<_> = items.collect();
+    if items.is_empty() {
+        return Ok(None);
+    }
+    serde_json::to_vec(&items)
+        .map(Some)
+        .map_err(|error| error.to_string())
+}
+
+fn mirror_item_snapshot(
+    document: &ProjectDoc,
+    pair_id: &str,
+    kind: MirroredItemKind,
+    id: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    match kind {
+        MirroredItemKind::Part => {
+            snapshot_matches(document.parts.iter().filter(|item| item.id == id))
+        }
+        MirroredItemKind::Matrix => {
+            snapshot_matches(document.matrices.iter().filter(|item| item.id == id))
+        }
+        MirroredItemKind::Layout => {
+            snapshot_matches(document.layouts.iter().filter(|item| item.id == id))
+        }
+        MirroredItemKind::Outline => {
+            snapshot_matches(document.outline.iter().filter(|item| item.id() == id))
+        }
+        MirroredItemKind::Net => {
+            snapshot_matches(document.nets.iter().filter(|item| item.id == id))
+        }
+        MirroredItemKind::Assembly => {
+            snapshot_matches(document.assemblies.iter().filter(|item| item.id == id))
+        }
+        MirroredItemKind::Module => {
+            snapshot_matches(document.modules.iter().filter(|item| item.id == id))
+        }
+        MirroredItemKind::ElectricalBoard => snapshot_matches(
+            document
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flat_map(|hardware| &hardware.boards)
+                .filter(|item| item.board_id == id),
+        ),
+        MirroredItemKind::OutlineVersion => snapshot_matches(
+            document
+                .board_outlines
+                .iter()
+                .flat_map(|outline| &outline.versions)
+                .filter(|version| version.id == id),
+        ),
+        MirroredItemKind::MechanicalFeature => snapshot_matches(
+            document
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .filter(|pair| pair.id == pair_id)
+                .flat_map(|pair| &pair.features)
+                .filter(|feature| feature.id == id),
+        ),
+        MirroredItemKind::EmbeddedCircuit => snapshot_matches(
+            document
+                .embedded_circuits
+                .iter()
+                .filter(|item| item.id == id),
+        ),
+    }
 }
 
 /// Recreate only a missing, independently corresponded Part. All source geometry and payload
@@ -122,7 +260,7 @@ fn seed_missing_independent_parts(
     document: &mut ProjectDoc,
     halves: &crate::model::MirroredHalves,
     mapping: Pose2,
-) -> Result<BTreeSet<String>, String> {
+) -> Result<(), String> {
     let source_board_id = &halves.source_board_id;
     let mirror_board_id = &halves.mirror_board_id;
     let source_matrix_members: BTreeSet<_> = document
@@ -158,7 +296,6 @@ fn seed_missing_independent_parts(
         }
     }
 
-    let mut seeded = BTreeSet::new();
     let mut planned_references = BTreeSet::new();
     for association in halves
         .correspondences
@@ -253,9 +390,8 @@ fn seed_missing_independent_parts(
             .expect("unique target board was just checked")
             .part_ids
             .push(association.mirror_id.clone());
-        seeded.insert(association.mirror_id.clone());
     }
-    Ok(seeded)
+    Ok(())
 }
 
 fn unique_board(document: &ProjectDoc, id: &str) -> Result<String, String> {
@@ -580,17 +716,7 @@ fn reconcile_pairs(
     document: &mut ProjectDoc,
     canonical: &Canonical,
 ) -> Result<Vec<String>, String> {
-    let pair_views: Vec<_> = document
-        .hardware
-        .as_ref()
-        .into_iter()
-        .flat_map(|hardware| &hardware.pairs)
-        .filter_map(|pair| {
-            let halves = pair.halves.as_ref()?;
-            (halves.source_board_id != halves.mirror_board_id)
-                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
-        })
-        .collect();
+    let pair_views = native_pair_views(document);
     let mut changed = Vec::new();
     for (pair_id, mapping, halves) in pair_views {
         let matrices: Vec<_> = halves
@@ -723,7 +849,34 @@ fn projection_for(
     include_transitions: bool,
 ) -> Result<Projection, String> {
     let source_matrix = matrix_by_id(document, source_matrix_id)?;
-    let mirror_matrix = matrix_by_id(document, mirror_matrix_id)?;
+    let omitted_matrix = halves.exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Matrix
+            && exception.mirror_id == mirror_matrix_id
+            && exception.state == MirroredExceptionState::Omitted
+            && halves.overlay_source(exception) == Some(source_matrix_id)
+    });
+    let mut absent_omitted_matrix;
+    let mirror_matrix = match matrix_by_id(document, mirror_matrix_id) {
+        Ok(matrix) => matrix,
+        Err(_) if omitted_matrix => {
+            absent_omitted_matrix = source_matrix.clone();
+            absent_omitted_matrix.id = mirror_matrix_id.to_owned();
+            absent_omitted_matrix.board_id = Some(halves.mirror_board_id.clone());
+            let source_members: BTreeSet<_> =
+                source_matrix.part_ids.iter().map(String::as_str).collect();
+            absent_omitted_matrix.part_ids = halves
+                .correspondences
+                .iter()
+                .filter(|association| {
+                    association.kind == MirroredItemKind::Part
+                        && source_members.contains(association.source_id.as_str())
+                })
+                .map(|association| association.mirror_id.clone())
+                .collect();
+            &absent_omitted_matrix
+        }
+        Err(error) => return Err(error),
+    };
     let source_board_id = source_matrix
         .board_id
         .clone()
