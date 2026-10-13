@@ -1010,6 +1010,13 @@ fn capture_omitted_copper(
                 .find(|record| record.kind == MirroredItemKind::Part && record.source_id == id)
         })
         .map(|record| record.mirror_id.clone());
+    let local_mirror_controller = mirror_controller.as_ref().is_some_and(|mirror_id| {
+        context.associations.iter().any(|association| {
+            association.kind == MirroredItemKind::Part
+                && association.mirror_id == *mirror_id
+                && association.state == TransitionState::Local
+        })
+    });
     let mut rule_nets = BTreeSet::new();
     for record in context
         .pair_right
@@ -1060,7 +1067,7 @@ fn capture_omitted_copper(
         };
         let still_used = mirror_net.pins.iter().any(|pin| {
             !omitted_parts.contains(&pin.part_id)
-                && Some(&pin.part_id) != mirror_controller.as_ref()
+                && (Some(&pin.part_id) != mirror_controller.as_ref() || local_mirror_controller)
                 && draft.parts.iter().any(|part| part.id == pin.part_id)
         }) || draft.embedded_circuits.iter().any(|circuit| {
             circuit.ports.values().any(|net| *net == record.mirror_id)
