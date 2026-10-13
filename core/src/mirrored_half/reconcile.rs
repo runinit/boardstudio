@@ -17739,6 +17739,9 @@ mod tests {
                 }),
             },
         ];
+        before
+            .constraints
+            .retain(|constraint| constraint.id() != "retained-second-key-offset");
         crate::matrix::layout::validate(&before)
             .expect("the legacy pair alone is valid on one board");
         crate::mechanical::halves::validate_document(&before)

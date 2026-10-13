@@ -3699,6 +3699,40 @@ fn production_prepared_circuit_addition_preserves_member_frames_and_bidirectiona
             .unwrap_or_else(|| panic!("the new member pair is absent: {document}"));
         let source_member = part(document, &member_pair.0);
         let mirror_member = part(document, &member_pair.1);
+        let typed_member = &definition["circuit"]["parts"][0];
+        assert_eq!(
+            typed_member["side"],
+            "back",
+            "the fixture exercises an already-Back member"
+        );
+        assert_eq!(typed_member["pose"]["rotation"], 359.0);
+        let local_x = if side == "back" { -3.75 } else { 3.75 };
+        let (sin, cos) = 370.0_f64.to_radians().sin_cos();
+        let expected_typed_at = (
+            120.0 + local_x * cos - 8.5 * sin,
+            40.0 + local_x * sin + 8.5 * cos,
+        );
+        assert_point(
+            (
+                mirror_member["pose"]["at"]["x"].as_f64().unwrap(),
+                mirror_member["pose"]["at"]["y"].as_f64().unwrap(),
+            ),
+            expected_typed_at,
+            "the mirror circuit member must land at the originally requested typed pose",
+        );
+        let expected_typed_heading = if side == "back" { 11.0 } else { 729.0 };
+        assert!(
+            angles_match(
+                mirror_member["pose"]["rotation"].as_f64().unwrap(),
+                expected_typed_heading,
+            ),
+            "the typed member heading must wrap from {expected_typed_heading}"
+        );
+        assert_eq!(
+            mirror_member["side"],
+            if side == "back" { "front" } else { "back" },
+            "the already-Back definition member flips with the host side"
+        );
         assert_ne!(
             source_member["pose"]["at"]["y"], 0,
             "the member's local y must participate"
@@ -3812,7 +3846,9 @@ fn production_prepared_routes_commit_exceptions_and_nonempty_unlink_atomically()
         }}),
     );
     assert_eq!(unlinked["kind"], "scene", "{unlinked}");
-    assert!(pair(&unlinked["document"], "runtime-lifecycle-pair")["halves"].is_null());
+    assert!(!unlinked["document"]["hardware"]["pairs"]
+        .as_array()
+        .is_some_and(|pairs| pairs.iter().any(|record| record["id"] == "runtime-lifecycle-pair")));
 
     let undone = request(
         &mut engine,
@@ -3826,13 +3862,15 @@ fn production_prepared_routes_commit_exceptions_and_nonempty_unlink_atomically()
         &mut engine,
         json!({"id":"runtime-unlink-redo","kind":"redo"}),
     );
-    assert!(pair(&redone["document"], "runtime-lifecycle-pair")["halves"].is_null());
+    assert!(!redone["document"]["hardware"]["pairs"]
+        .as_array()
+        .is_some_and(|pairs| pairs.iter().any(|record| record["id"] == "runtime-lifecycle-pair")));
 }
 
 #[test]
 fn production_prepared_refusal_keeps_document_revision_and_history_untouched() {
     let (mut engine, seed) = seed(&runtime_supported_document(), "left");
-    let created = create(
+    create(
         &mut engine,
         &seed,
         "runtime-refusal-pair",
@@ -3842,30 +3880,31 @@ fn production_prepared_refusal_keeps_document_revision_and_history_untouched() {
     )
     .unwrap();
     let undone_creation = request(&mut engine, json!({"id":"runtime-refusal-undo-first","kind":"undo"}));
-    assert!(undone_creation["document"]["hardware"]["pairs"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .all(|record| record["id"] != "runtime-refusal-pair"));
+    assert_eq!(undone_creation["document"]["hardware"], seed["hardware"]);
     let before = undone_creation["document"].clone();
-    let refused = request(
-        &mut engine,
-        json!({"id":"runtime-prepared-refusal","kind":"edit","command":{
-            "baseRevision":before["revision"],
-            "transactionId":"runtime-prepared-refusal",
-            "phase":"commit",
-            "targetIds":[],
-            "operation":{
-                "kind":"set-half-exception",
-                "pairId":"missing-pair",
-                "itemKind":"part",
-                "mirrorId":"right/U1",
-                "state":"local"
-            }
-        }}),
-    );
+    let refused: Value = serde_json::from_str(
+        &engine.request(
+            &json!({"id":"runtime-prepared-refusal","kind":"edit","command":{
+                "baseRevision":before["revision"],
+                "transactionId":"runtime-prepared-refusal",
+                "phase":"commit",
+                "targetIds":[],
+                "operation":{
+                    "kind":"set-half-exception",
+                    "pairId":"missing-pair",
+                    "itemKind":"part",
+                    "mirrorId":"right/U1",
+                    "state":"local"
+                }
+            }})
+            .to_string(),
+        ),
+    )
+    .unwrap();
     assert_eq!(refused["kind"], "error", "{refused}");
-    assert_eq!(snapshot(&mut engine), before, "a prepared refusal must not publish");
+    let after_refusal = snapshot(&mut engine);
+    assert_eq!(after_refusal["revision"], before["revision"]);
+    assert_eq!(after_refusal, before, "a prepared refusal must not publish");
 
     let redone = request(&mut engine, json!({"id":"runtime-refusal-redo","kind":"redo"}));
     assert!(redone["document"]["hardware"]["pairs"]
@@ -3965,5 +4004,165 @@ fn production_matrix_membership_transition_updates_pair_context_for_later_source
     assert_eq!(
         part(&moved["document"], "matrix/right-synthetic-keys/r0c1")["pose"]["at"],
         json!({"x":157.0,"y":7.0})
+    );
+}
+
+#[test]
+fn production_paired_previews_project_all_matrix_edit_families_without_publishing() {
+    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let created = create(
+        &mut engine,
+        &seed,
+        "runtime-preview-families-pair",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let accepted = created["document"].clone();
+    let mut matrix = accepted["matrices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|matrix| matrix["id"] == "left-synthetic-keys")
+        .unwrap()
+        .clone();
+    let first_cell = matrix["cells"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|cell| cell["row"] == 0 && cell["column"] == 0)
+        .unwrap();
+    first_cell["rotation"] = json!(12.0);
+
+    let previews = [
+        (
+            "move-parts",
+            json!({"kind":"move-parts","positions":[{"id":"right/U1","at":{"x":216.0,"y":14.0}}]}),
+            "left/U1",
+            "right/U1",
+        ),
+        (
+            "set-matrix",
+            json!({"kind":"set-matrix","matrix":matrix}),
+            "matrix/left-synthetic-keys/r0c0",
+            "matrix/right-synthetic-keys/r0c0",
+        ),
+        (
+            "set-matrix-splay",
+            json!({"kind":"set-matrix-splay","matrixId":"left-synthetic-keys","column":1,
+                "change":{"kind":"angle","angle":12.0,"affect":"column"}}),
+            "matrix/left-synthetic-keys/r0c1",
+            "matrix/right-synthetic-keys/r0c1",
+        ),
+        (
+            "set-matrix-placement",
+            json!({"kind":"set-matrix-placement","matrixId":"left-synthetic-keys",
+                "change":{"kind":"column-stagger","column":1,"value":4.0}}),
+            "matrix/left-synthetic-keys/r0c1",
+            "matrix/right-synthetic-keys/r0c1",
+        ),
+    ];
+
+    for (index, (family, operation, source_id, mirror_id)) in previews.into_iter().enumerate() {
+        let preview = request(
+            &mut engine,
+            json!({"id":format!("runtime-preview-{family}"),"kind":"edit","command":{
+                "baseRevision":accepted["revision"],
+                "transactionId":format!("runtime-preview-{family}"),
+                "phase":"preview",
+                "targetIds":[source_id, mirror_id],
+                "operation":operation
+            }}),
+        );
+        assert_eq!(preview["kind"], "preview", "{family}: {preview}");
+        let transform = |id: &str| {
+            preview["scene"]["transforms"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|transform| transform["id"] == id)
+                .unwrap_or_else(|| {
+                panic!("{family}: missing preview transform for {id}: {preview}")
+            })
+        };
+        let source_pose = &transform(source_id)["pose"];
+        let mirror_pose = &transform(mirror_id)["pose"];
+        assert_ne!(
+            source_pose,
+            &part(&accepted, source_id)["pose"],
+            "{family}: source draft"
+        );
+        assert_ne!(
+            mirror_pose,
+            &part(&accepted, mirror_id)["pose"],
+            "{family}: mirror draft"
+        );
+        assert_eq!(
+            snapshot(&mut engine),
+            accepted,
+            "{family}: preview {index} must leave accepted state unchanged"
+        );
+    }
+}
+
+#[test]
+fn production_paired_noop_commit_preserves_revision_history_and_redo() {
+    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
+    let created = create(
+        &mut engine,
+        &seed,
+        "runtime-noop-pair",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let accepted = created["document"].clone();
+    let committed = request(
+        &mut engine,
+        json!({"id":"runtime-noop-history-setup","kind":"edit","command":{
+            "baseRevision":accepted["revision"],
+            "transactionId":"runtime-noop-history-setup",
+            "phase":"commit",
+            "targetIds":["left/U1"],
+            "operation":{"kind":"move-parts","positions":[{"id":"left/U1","at":{"x":-22.0,"y":4.0}}]}
+        }}),
+    );
+    assert_eq!(committed["kind"], "scene", "{committed}");
+    let undone = request(&mut engine, json!({"id":"runtime-noop-history-undo","kind":"undo"}));
+    assert_eq!(
+        part(&undone["document"], "left/U1")["pose"]["at"],
+        json!({"x":-24.0,"y":0.0})
+    );
+    assert_eq!(
+        part(&undone["document"], "right/U1")["pose"]["at"],
+        json!({"x":224.0,"y":0.0})
+    );
+    let before_noop = snapshot(&mut engine);
+
+    let noop = request(
+        &mut engine,
+        json!({"id":"runtime-noop-commit","kind":"edit","command":{
+            "baseRevision":before_noop["revision"],
+            "transactionId":"runtime-noop-commit",
+            "phase":"commit",
+            "targetIds":["left/U1"],
+            "operation":{"kind":"move-parts","positions":[{"id":"left/U1","at":{"x":-24.0,"y":0.0}}]}
+        }}),
+    );
+    assert_eq!(noop["kind"], "scene", "{noop}");
+    assert_eq!(noop["document"]["revision"], before_noop["revision"]);
+    assert_eq!(snapshot(&mut engine), before_noop, "no-op must leave document and history position unchanged");
+
+    let redone = request(&mut engine, json!({"id":"runtime-noop-history-redo","kind":"redo"}));
+    assert_eq!(redone["kind"], "scene", "{redone}");
+    assert_eq!(
+        part(&redone["document"], "left/U1")["pose"]["at"],
+        json!({"x":-22.0,"y":4.0})
+    );
+    assert_eq!(
+        part(&redone["document"], "right/U1")["pose"]["at"],
+        json!({"x":222.0,"y":4.0})
     );
 }

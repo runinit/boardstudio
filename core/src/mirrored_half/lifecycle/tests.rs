@@ -4382,6 +4382,7 @@ fn pending_baseline_and_selection_tampering_refuse_atomically() {
 #[test]
 fn legacy_v5_local_parts_are_preserved_without_inventing_source_associations() {
     let (mut document, mut context) = independent_lifecycle_fixture();
+    document.format_version = 5;
     let mut legacy = document
         .parts
         .iter()

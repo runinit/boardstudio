@@ -1,11 +1,12 @@
 //! Small authored source half for mirrored-half operation contracts.
+use super::CURRENT_VERSION;
 use serde_json::{Value, json};
 
 pub(crate) fn document() -> Value {
     let switch = "generator:ceoloide/switch_mx";
     let diode = "generator:ceoloide/diode_tht_sod123";
     let mut document = json!({
-        "format": "boardstudio/v2", "formatVersion": boardstudio_core::migrate::CURRENT_VERSION,
+        "format": "boardstudio/v2", "formatVersion": CURRENT_VERSION,
         "id": "synthetic-mirror", "name": "Synthetic mirror contract", "revision": 0,
         "parameters": {},
         "definitions": [

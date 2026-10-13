@@ -1,3 +1,4 @@
+use crate::migrate::CURRENT_VERSION;
 use crate::mirrored_half::matrix_addition::tests::pair_document;
 use crate::mirrored_half::prepare_transaction;
 use crate::model::{
@@ -13,15 +14,17 @@ fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
     document.parts.iter().find(|part| part.id == id).unwrap()
 }
 
-fn open_pair_engine(document: ProjectDoc) -> crate::CoreEngine {
+fn open_pair_engine(mut document: ProjectDoc) -> crate::CoreEngine {
+    document.format_version = crate::migrate::CURRENT_VERSION;
     let mut engine = crate::CoreEngine::default();
-    assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "open-pair".into(),
-            document,
-        }),
-        CoreReply::Scene { .. }
-    ));
+    let reply = engine.handle(CoreRequest::Open {
+        id: "open-pair".into(),
+        document,
+    });
+    assert!(
+        matches!(&reply, CoreReply::Scene { .. }),
+        "pair fixture Open reply: {reply:?}"
+    );
     engine
 }
 
