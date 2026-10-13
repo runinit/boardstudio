@@ -1562,20 +1562,7 @@ fn lifecycle_constraint_records(
     document
         .constraints
         .iter()
-        .map(|constraint| match constraint {
-            Constraint::Framed {
-                id,
-                source,
-                target,
-                relation,
-            } => Ok(FramedConstraint::Framed {
-                id: id.clone(),
-                source: source.clone(),
-                target: target.clone(),
-                relation: relation.clone(),
-            }),
-            _ => crate::constraints::compile_legacy(document, constraint),
-        })
+        .map(|constraint| crate::constraints::compile_legacy(document, constraint))
         .collect()
 }
 

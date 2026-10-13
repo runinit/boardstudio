@@ -240,20 +240,7 @@ pub(crate) fn resolve_prepared(
     let stored: Vec<_> = doc
         .constraints
         .iter()
-        .map(|constraint| match constraint {
-            Constraint::Framed {
-                id,
-                source,
-                target,
-                relation,
-            } => Ok(FramedConstraint::Framed {
-                id: id.clone(),
-                source: source.clone(),
-                target: target.clone(),
-                relation: relation.clone(),
-            }),
-            _ => endpoints::compile_legacy(doc, constraint),
-        })
+        .map(|constraint| endpoints::compile_legacy(doc, constraint))
         .collect::<Result<_, _>>()?;
     for record in stored.iter().chain(framed) {
         let FramedConstraint::Framed {
