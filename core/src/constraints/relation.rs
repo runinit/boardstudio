@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// A directional relation evaluated between the source and target endpoint views.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
-pub(super) enum ConstraintRelation {
+pub(crate) enum ConstraintRelation {
     /// `offset` is a vector along the board's axes, added to the source position.
     Offset {
         offset: Vec2,

@@ -2,12 +2,255 @@ use super::super::{
     BaselineKind, FinalOwner, MembershipContext, MembershipTransitionInput, PlannedAddition,
     TransitionAssociation, TransitionState, prepare_membership_transition,
 };
+use super::{ConstraintLifecycleEffect, prepare_constraint_lifecycle_delta};
+use crate::constraints::{ConstraintEndpoint, ConstraintRelation, FramedConstraint};
 use crate::mirrored_half::{
     MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence, MechanicalTarget,
 };
 use crate::model::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+
+fn lifecycle_constraint(
+    id: &str,
+    source: ConstraintEndpoint,
+    target: ConstraintEndpoint,
+) -> FramedConstraint {
+    FramedConstraint::Framed {
+        id: id.into(),
+        source,
+        target,
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 { x: 3.5, y: -2.25 },
+            rotation: 17.0,
+        },
+    }
+}
+
+fn literal_endpoint(part_id: &str) -> ConstraintEndpoint {
+    ConstraintEndpoint::Part {
+        part_id: part_id.into(),
+    }
+}
+
+fn linked_endpoint(
+    pair_id: &str,
+    source_part_id: &str,
+    mirror_part_id: &str,
+) -> ConstraintEndpoint {
+    ConstraintEndpoint::LinkedMirror {
+        pair_id: pair_id.into(),
+        source_part_id: source_part_id.into(),
+        mirror_part_id: mirror_part_id.into(),
+    }
+}
+
+fn lifecycle_record<'a>(records: &'a [FramedConstraint], id: &str) -> &'a FramedConstraint {
+    records
+        .iter()
+        .find(
+            |record| matches!(record, FramedConstraint::Framed { id: actual, .. } if actual == id),
+        )
+        .unwrap_or_else(|| panic!("missing lifecycle constraint {id}"))
+}
+
+#[test]
+fn make_local_rebinds_each_matching_visible_endpoint_without_changing_the_relation() {
+    let linked = linked_endpoint("pair", "source-part", "mirror-part");
+    let records = vec![
+        lifecycle_constraint("outgoing", linked.clone(), literal_endpoint("other-target")),
+        lifecycle_constraint("incoming", literal_endpoint("other-source"), linked),
+        lifecycle_constraint(
+            "source-owned",
+            literal_endpoint("other-source"),
+            literal_endpoint("source-part"),
+        ),
+    ];
+    let effect = ConstraintLifecycleEffect::MakeLocal {
+        pair_id: "pair".into(),
+        source_part_id: "source-part".into(),
+        mirror_part_id: "mirror-part".into(),
+    };
+
+    let delta = prepare_constraint_lifecycle_delta(&records, &[effect]).unwrap();
+
+    assert!(delta.removals.is_empty());
+    assert_eq!(delta.upserts.len(), 2);
+    let FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = lifecycle_record(&delta.upserts, "outgoing");
+    assert_eq!(id, "outgoing");
+    assert_eq!(source, &literal_endpoint("mirror-part"));
+    assert_eq!(target, &literal_endpoint("other-target"));
+    assert_eq!(
+        relation,
+        &ConstraintRelation::Offset {
+            offset: Vec2 { x: 3.5, y: -2.25 },
+            rotation: 17.0,
+        }
+    );
+    let FramedConstraint::Framed { source, target, .. } =
+        lifecycle_record(&delta.upserts, "incoming");
+    assert_eq!(source, &literal_endpoint("other-source"));
+    assert_eq!(target, &literal_endpoint("mirror-part"));
+    assert!(!delta.removals.iter().any(|id| id == "source-owned"));
+    assert!(!delta.upserts.iter().any(|record| {
+        matches!(record, FramedConstraint::Framed { id, .. } if id == "source-owned")
+    }));
+}
+
+#[test]
+fn omit_removes_only_constraints_naming_a_removed_visible_endpoint() {
+    let records = vec![
+        lifecycle_constraint(
+            "source-owned",
+            literal_endpoint("source-part"),
+            literal_endpoint("other-part"),
+        ),
+        lifecycle_constraint(
+            "linked-visible",
+            literal_endpoint("source-part"),
+            linked_endpoint("pair", "source-part", "mirror-part"),
+        ),
+        lifecycle_constraint(
+            "local-visible",
+            literal_endpoint("other-part"),
+            literal_endpoint("local-mirror-part"),
+        ),
+        lifecycle_constraint(
+            "other-pair",
+            literal_endpoint("other-part"),
+            linked_endpoint("other-pair", "other-source", "other-mirror"),
+        ),
+    ];
+    let effect = ConstraintLifecycleEffect::RemoveVisibleParts {
+        part_ids: BTreeSet::from(["mirror-part".into(), "local-mirror-part".into()]),
+    };
+
+    let delta = prepare_constraint_lifecycle_delta(&records, &[effect]).unwrap();
+
+    assert_eq!(delta.removals, ["linked-visible", "local-visible"]);
+    assert!(delta.upserts.is_empty());
+    assert!(records.iter().any(|record| {
+        matches!(record, FramedConstraint::Framed { id, .. } if id == "source-owned")
+    }));
+    assert!(records.iter().any(|record| {
+        matches!(record, FramedConstraint::Framed { id, .. } if id == "other-pair")
+    }));
+}
+
+#[test]
+fn rejoin_retires_incoming_local_constraints_and_rebinds_outgoing_sources() {
+    let records = vec![
+        lifecycle_constraint(
+            "incoming",
+            literal_endpoint("other-source"),
+            literal_endpoint("mirror-part"),
+        ),
+        lifecycle_constraint(
+            "outgoing",
+            literal_endpoint("mirror-part"),
+            literal_endpoint("other-target"),
+        ),
+        lifecycle_constraint(
+            "unrelated",
+            literal_endpoint("unrelated-source"),
+            literal_endpoint("unrelated-target"),
+        ),
+    ];
+    let effect = ConstraintLifecycleEffect::Rejoin {
+        pair_id: "pair".into(),
+        source_part_id: "source-part".into(),
+        mirror_part_id: "mirror-part".into(),
+    };
+
+    let delta = prepare_constraint_lifecycle_delta(&records, &[effect]).unwrap();
+
+    assert_eq!(delta.removals, ["incoming"]);
+    assert_eq!(delta.upserts.len(), 1);
+    let FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = lifecycle_record(&delta.upserts, "outgoing");
+    assert_eq!(id, "outgoing");
+    assert_eq!(
+        source,
+        &linked_endpoint("pair", "source-part", "mirror-part")
+    );
+    assert_eq!(target, &literal_endpoint("other-target"));
+    assert_eq!(
+        relation,
+        &ConstraintRelation::Offset {
+            offset: Vec2 { x: 3.5, y: -2.25 },
+            rotation: 17.0,
+        }
+    );
+    assert!(
+        delta.upserts.iter().all(
+            |record| !matches!(record, FramedConstraint::Framed { id, .. } if id == "unrelated")
+        )
+    );
+}
+
+#[test]
+fn rejoin_does_not_synthesize_constraints_retired_by_omit() {
+    let effect = ConstraintLifecycleEffect::Rejoin {
+        pair_id: "pair".into(),
+        source_part_id: "source-part".into(),
+        mirror_part_id: "mirror-part".into(),
+    };
+
+    assert_eq!(
+        prepare_constraint_lifecycle_delta(&[], &[effect]).unwrap(),
+        super::ConstraintLifecycleDelta::default(),
+        "Rejoin cannot synthesize a constraint that Omit already retired"
+    );
+}
+
+#[test]
+fn unlink_flattens_only_selected_pair_endpoints_without_cloning_records() {
+    let records = vec![
+        lifecycle_constraint(
+            "selected-pair",
+            linked_endpoint("pair", "source-one", "mirror-one"),
+            linked_endpoint("pair", "source-two", "mirror-two"),
+        ),
+        lifecycle_constraint(
+            "other-pair",
+            linked_endpoint("other-pair", "other-source", "other-mirror"),
+            literal_endpoint("fixed-target"),
+        ),
+    ];
+    let effect = ConstraintLifecycleEffect::Unlink {
+        pair_id: "pair".into(),
+    };
+
+    let delta = prepare_constraint_lifecycle_delta(&records, &[effect]).unwrap();
+
+    assert!(delta.removals.is_empty());
+    assert_eq!(delta.upserts.len(), 1);
+    let FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = lifecycle_record(&delta.upserts, "selected-pair");
+    assert_eq!(id, "selected-pair");
+    assert_eq!(source, &literal_endpoint("mirror-one"));
+    assert_eq!(target, &literal_endpoint("mirror-two"));
+    assert_eq!(
+        relation,
+        &ConstraintRelation::Offset {
+            offset: Vec2 { x: 3.5, y: -2.25 },
+            rotation: 17.0,
+        }
+    );
+}
 
 fn omitted_halves() -> Value {
     json!({

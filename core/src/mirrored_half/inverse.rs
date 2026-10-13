@@ -31,7 +31,9 @@
 #[path = "inverse/tests.rs"]
 mod tests;
 
+mod constraints;
 mod hosted;
+mod layout;
 mod outline;
 
 use crate::matrix::column_rotation;
@@ -142,12 +144,22 @@ pub(super) struct Canonical {
     pub(super) matrix_additions: Vec<MatrixAddition>,
     /// Modules and circuits new to a mirror board (ticket 112).
     pub(super) hosted: hosted::Plan,
+    /// Constraint edits compiled to their live endpoint views; ticket 115 threads this through
+    /// apply and both resolutions without activating a production route in this unit.
+    pub(super) prepared_constraints: Vec<constraints::PreparedConstraintEdit>,
 }
 
 const BINDINGS_UNCHANGED: &str =
     "bindings are never reflected; the edit keeps its targeted-half semantics (ADR-0010)";
+const CASE_BODIES_UNCHANGED: &str = "case bodies are independently authored per board";
 const MECHANICAL_DELEGATED: &str = "the typed mechanical lifecycle already edits both halves of a pair; inverting it again would \
      apply it twice";
+const PAIR_CREATION_DELEGATED: &str =
+    "CreateMirroredPair creates both linked layouts in one Core operation";
+const HALF_CREATION_DELEGATED: &str =
+    "CreateMirroredHalf derives both halves through the Core mirror lifecycle";
+const REPLACE_DOCUMENT_DELEGATED: &str =
+    "ticket 116 owns source-authoritative Open and ReplaceDocument repair";
 
 fn unsupported(owner: &'static str, reason: &'static str) -> Refusal {
     Refusal::Unsupported(Coverage::Unsupported { owner, reason })
@@ -166,12 +178,18 @@ pub(super) fn canonicalize(
         additions: Vec::new(),
         matrix_additions: Vec::new(),
         hosted: hosted::Plan::default(),
+        prepared_constraints: Vec::new(),
     };
     match operation {
         Op::MoveParts { positions } => {
             canonical.operation = Op::MoveParts {
                 positions: links.move_parts(positions)?,
             };
+            let Op::MoveParts { positions } = &canonical.operation else {
+                unreachable!("the MoveParts arm builds a MoveParts operation");
+            };
+            canonical.prepared_constraints =
+                constraints::prepare_move_parts(document, positions).map_err(Refusal::Request)?;
         }
         Op::AddPart { part, board_id } => {
             if let Some((source, addition)) = links.add_part(part, board_id.as_deref())? {
@@ -272,6 +290,21 @@ pub(super) fn canonicalize(
         Op::ApplyMechanicalEdit { .. } => {
             canonical.coverage = Coverage::Delegated(MECHANICAL_DELEGATED);
         }
+        // Case bodies are authored independently on each board; preserve the targeted board.
+        Op::SetCase { .. } => {
+            canonical.coverage = Coverage::DeliberatelyUnchanged(CASE_BODIES_UNCHANGED);
+        }
+        // These operations create or replace both sides as one Core lifecycle. Do not inverse-map
+        // their already paired effects; Open/Replace repair is owned by ticket 116.
+        Op::CreateMirroredPair { .. } => {
+            canonical.coverage = Coverage::Delegated(PAIR_CREATION_DELEGATED);
+        }
+        Op::CreateMirroredHalf { .. } => {
+            canonical.coverage = Coverage::Delegated(HALF_CREATION_DELEGATED);
+        }
+        Op::ReplaceDocument { .. } => {
+            canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
+        }
         // Ticket 112: hosted, electrical, keycap and shared-definition families.
         Op::SetModuleDefinition { .. }
         | Op::SetMountedModule { .. }
@@ -293,21 +326,28 @@ pub(super) fn canonicalize(
         | Op::RenameOutline { .. }
         | Op::RemoveOutline { .. }
         | Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
-        // Ticket 114: compatibility, constraints and the final exhaustive ledger.
-        Op::SetLayout { .. }
-        | Op::CreateMirroredPair { .. }
-        | Op::SetConstraint { .. }
-        | Op::RemoveConstraint { .. }
-        | Op::ConvertOffsetConstraint { .. }
-        | Op::SetMechanical { .. }
-        | Op::SetCase { .. }
-        | Op::CreateMirroredHalf { .. }
-        | Op::ReplaceDocument { .. } => {
+        // Ticket 114: native SetLayout compatibility and raw mechanical configuration.
+        Op::SetLayout { layout } => match layout::translate(&links, layout)? {
+            layout::Outcome::Translated(source) => {
+                canonical.operation = Op::SetLayout { layout: source };
+            }
+            layout::Outcome::PassThrough => {}
+            layout::Outcome::DeliberatelyUnchanged(reason) => {
+                canonical.coverage = Coverage::DeliberatelyUnchanged(reason);
+            }
+        },
+        Op::SetMechanical { .. } => {
             return Err(unsupported(
                 "114",
-                "layout, constraint, raw configuration, creation and import requests need \
-                 compatibility or endpoint classification",
+                "raw mechanical configuration compatibility remains unclassified",
             ));
+        }
+        Op::SetConstraint { .. }
+        | Op::RemoveConstraint { .. }
+        | Op::ConvertOffsetConstraint { .. } => {
+            if let Some(prepared) = constraints::prepare(document, operation)? {
+                canonical.prepared_constraints.push(prepared);
+            }
         }
     }
     Ok(canonical)

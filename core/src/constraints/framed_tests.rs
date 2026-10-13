@@ -93,6 +93,37 @@ fn linked(source: &str, mirror: &str) -> ConstraintEndpoint {
     }
 }
 
+#[test]
+fn compiling_legacy_mirror_endpoints_retains_authored_views_and_literal_offset() {
+    let doc = document((20.0, -7.0));
+    let legacy = Constraint::Offset {
+        id: "durable/constraint-7".into(),
+        source_part_id: "beta/S".into(),
+        target_part_id: "beta/T".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    };
+
+    let compiled = super::endpoints::compile_legacy(&doc, &legacy).unwrap();
+    let FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = compiled;
+
+    assert_eq!(id, "durable/constraint-7");
+    assert_eq!(source, linked("alpha/S", "beta/S"));
+    assert_eq!(target, linked("alpha/T", "beta/T"));
+    assert_eq!(
+        relation,
+        ConstraintRelation::Offset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        }
+    );
+}
+
 fn framed(
     id: &str,
     source: ConstraintEndpoint,

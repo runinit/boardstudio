@@ -2750,6 +2750,15 @@ fn reconcile(
         .iter()
         .filter(|correspondence| correspondence.kind == MirroredItemKind::Layout)
     {
+        if halves.overlay_of(correspondence).is_some_and(|overlay| {
+            matches!(
+                overlay.state,
+                crate::model::MirroredExceptionState::Local
+                    | crate::model::MirroredExceptionState::Omitted
+            )
+        }) {
+            continue;
+        }
         let mut sources = document
             .layouts
             .iter()
@@ -2830,6 +2839,17 @@ fn reconcile(
                 .filter(|id| {
                     !projected_member_ids.contains(*id)
                         && !removed_independent_targets.contains(*id)
+                        && halves
+                            .correspondences
+                            .iter()
+                            .find(|item| {
+                                item.kind == MirroredItemKind::Part && item.mirror_id == ***id
+                            })
+                            .is_none_or(|item| {
+                                halves.overlay_of(item).is_some_and(|exception| {
+                                    exception.state == crate::model::MirroredExceptionState::Local
+                                })
+                            })
                 })
                 .cloned(),
         );
@@ -11355,6 +11375,471 @@ mod tests {
             reconcile(&mut removal_source, "pair-source-mirror", &projection).unwrap();
         assert!(repeated_removal.is_empty());
         assert_eq!(removal_source, first_removal_output);
+    }
+
+    #[test]
+    fn source_layout_removal_prunes_linked_projection_and_keeps_local_and_unpaired_members() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let source_linked = "layout-linked-source";
+        let mirror_linked = "layout-linked-mirror";
+        let source_local = "layout-local-source";
+        let mirror_local = "layout-local-mirror";
+        let mut linked_source_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c1")
+            .unwrap()
+            .clone();
+        linked_source_part.id = source_linked.into();
+        linked_source_part.reference = "LINKED-SOURCE".into();
+        let mut linked_mirror_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c1")
+            .unwrap()
+            .clone();
+        linked_mirror_part.id = mirror_linked.into();
+        linked_mirror_part.reference = "LINKED-MIRROR".into();
+        let mut local_source_part = linked_source_part.clone();
+        local_source_part.id = source_local.into();
+        local_source_part.reference = "LOCAL-SOURCE".into();
+        let mut local_mirror_part = local_source_part.clone();
+        local_mirror_part.id = mirror_local.into();
+        local_mirror_part.reference = "LOCAL-MIRROR".into();
+        document.parts.extend([
+            linked_source_part,
+            linked_mirror_part,
+            local_source_part,
+            local_mirror_part,
+        ]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .extend([source_linked.into(), source_local.into()]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .extend([mirror_linked.into(), mirror_local.into()]);
+
+        let halves = document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.correspondences.extend([
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Part,
+                source_id: source_linked.into(),
+                mirror_id: mirror_linked.into(),
+            },
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Part,
+                source_id: source_local.into(),
+                mirror_id: mirror_local.into(),
+            },
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Layout,
+                source_id: "source-layout-removal".into(),
+                mirror_id: "mirror-layout-removal".into(),
+            },
+        ]);
+        halves.exceptions.push(
+            serde_json::from_value(serde_json::json!({
+                "kind": "part", "mirrorId": mirror_local, "state": "local"
+            }))
+            .unwrap(),
+        );
+
+        let source_layout = Layout {
+            id: "source-layout-removal".into(),
+            name: "Source layout".into(),
+            board_id: "source-board".into(),
+            matrix_id: "source-matrix".into(),
+            part_ids: vec![source_linked.into(), source_local.into()],
+            mirror_link: None,
+        };
+        let mirror_layout = Layout {
+            id: "mirror-layout-removal".into(),
+            name: "Mirror layout".into(),
+            board_id: "mirror-board".into(),
+            matrix_id: "mirror-matrix".into(),
+            part_ids: vec![
+                mirror_linked.into(),
+                mirror_local.into(),
+                "geometry-probe".into(),
+            ],
+            mirror_link: None,
+        };
+        document.layouts = vec![source_layout.clone(), mirror_layout];
+        crate::mechanical::halves::validate_document(&document).unwrap();
+
+        let request = crate::model::EditOperation::SetLayout {
+            layout: Layout {
+                part_ids: vec![mirror_local.into(), "geometry-probe".into()],
+                ..document.layouts[1].clone()
+            },
+        };
+        let canonical = crate::mirrored_half::inverse::canonicalize(&document, &request)
+            .expect("the mirror request maps into source membership");
+        let expected_source = crate::model::EditOperation::SetLayout {
+            layout: Layout {
+                part_ids: vec![source_local.into()],
+                ..source_layout
+            },
+        };
+        assert_eq!(canonical.operation, expected_source);
+        crate::apply(&mut document, &[], &canonical.operation)
+            .expect("the translated source layout removes its linked member");
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the removal and retained target members reconcile");
+
+        assert_eq!(
+            document.layouts[1].part_ids,
+            vec![mirror_local.to_owned(), "geometry-probe".to_owned()]
+        );
+    }
+
+    #[test]
+    fn mirror_layout_reorder_survives_source_apply_and_reconciliation() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let source_header = "layout-header-source";
+        let source_u1 = "layout-u1-source";
+        let mirror_header = "layout-header-mirror";
+        let mirror_u1 = "layout-u1-mirror";
+        let mut source_header_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c0")
+            .unwrap()
+            .clone();
+        source_header_part.id = source_header.into();
+        source_header_part.reference = "LAYOUT-HEADER-SOURCE".into();
+        let mut source_u1_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c1")
+            .unwrap()
+            .clone();
+        source_u1_part.id = source_u1.into();
+        source_u1_part.reference = "LAYOUT-U1-SOURCE".into();
+        let mut mirror_header_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c0")
+            .unwrap()
+            .clone();
+        mirror_header_part.id = mirror_header.into();
+        mirror_header_part.reference = "LAYOUT-HEADER-MIRROR".into();
+        let mut mirror_u1_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c1")
+            .unwrap()
+            .clone();
+        mirror_u1_part.id = mirror_u1.into();
+        mirror_u1_part.reference = "LAYOUT-U1-MIRROR".into();
+        document.parts.extend([
+            source_header_part,
+            source_u1_part,
+            mirror_header_part,
+            mirror_u1_part,
+        ]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .extend([source_header.into(), source_u1.into()]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .extend([mirror_header.into(), mirror_u1.into()]);
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .extend([
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Part,
+                    source_id: source_header.into(),
+                    mirror_id: mirror_header.into(),
+                },
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Part,
+                    source_id: source_u1.into(),
+                    mirror_id: mirror_u1.into(),
+                },
+            ]);
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(
+                serde_json::from_value(serde_json::json!({
+                    "kind": "part", "mirrorId": mirror_u1, "state": "local"
+                }))
+                .unwrap(),
+            );
+        let source_layout = Layout {
+            id: "source-layout-reorder".into(),
+            name: "Source layout".into(),
+            board_id: "source-board".into(),
+            matrix_id: "source-matrix".into(),
+            part_ids: vec![source_header.into(), source_u1.into()],
+            mirror_link: None,
+        };
+        let mirror_layout = Layout {
+            id: "mirror-layout-reorder".into(),
+            name: "Mirror layout".into(),
+            board_id: "mirror-board".into(),
+            matrix_id: "mirror-matrix".into(),
+            part_ids: vec![
+                mirror_header.into(),
+                mirror_u1.into(),
+                "geometry-probe".into(),
+            ],
+            mirror_link: None,
+        };
+        document.layouts = vec![source_layout.clone(), mirror_layout.clone()];
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .push(MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Layout,
+                source_id: source_layout.id.clone(),
+                mirror_id: mirror_layout.id.clone(),
+            });
+
+        let requested = Layout {
+            part_ids: vec![
+                mirror_u1.into(),
+                mirror_header.into(),
+                "geometry-probe".into(),
+            ],
+            ..mirror_layout
+        };
+        let canonical = crate::mirrored_half::inverse::canonicalize(
+            &document,
+            &EditOperation::SetLayout {
+                layout: requested.clone(),
+            },
+        )
+        .expect("the reordered mirror request maps to source member order");
+        assert_eq!(
+            canonical.operation,
+            EditOperation::SetLayout {
+                layout: Layout {
+                    part_ids: vec![source_u1.into(), source_header.into()],
+                    ..source_layout
+                },
+            }
+        );
+        crate::apply(&mut document, &[], &canonical.operation)
+            .expect("the canonical source layout applies");
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the reordered source layout reconciles");
+
+        assert_eq!(document.layouts[1].part_ids, requested.part_ids);
+    }
+
+    #[test]
+    fn local_mirror_layout_edit_survives_source_reconciliation() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let source_part_id = "local-layout-source-part";
+        let mirror_part_id = "local-layout-mirror-part";
+        let mut source_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c0")
+            .unwrap()
+            .clone();
+        source_part.id = source_part_id.into();
+        source_part.reference = "LOCAL-SOURCE".into();
+        let mut mirror_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c0")
+            .unwrap()
+            .clone();
+        mirror_part.id = mirror_part_id.into();
+        mirror_part.reference = "LOCAL-MIRROR".into();
+        document.parts.extend([source_part, mirror_part]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .push(source_part_id.into());
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push(mirror_part_id.into());
+        let halves = document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.correspondences.extend([
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Part,
+                source_id: source_part_id.into(),
+                mirror_id: mirror_part_id.into(),
+            },
+            MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Layout,
+                source_id: "source-local-layout".into(),
+                mirror_id: "mirror-local-layout".into(),
+            },
+        ]);
+        halves.exceptions.extend([
+            serde_json::from_value(serde_json::json!({
+                "kind": "part", "mirrorId": mirror_part_id, "state": "local"
+            }))
+            .unwrap(),
+            serde_json::from_value(serde_json::json!({
+                "kind": "layout", "mirrorId": "mirror-local-layout", "state": "local"
+            }))
+            .unwrap(),
+        ]);
+        document.layouts = vec![
+            Layout {
+                id: "source-local-layout".into(),
+                name: "Source layout".into(),
+                board_id: "source-board".into(),
+                matrix_id: "source-matrix".into(),
+                part_ids: vec![source_part_id.into()],
+                mirror_link: None,
+            },
+            Layout {
+                id: "mirror-local-layout".into(),
+                name: "Mirror layout".into(),
+                board_id: "mirror-board".into(),
+                matrix_id: "mirror-matrix".into(),
+                part_ids: vec![mirror_part_id.into(), "geometry-probe".into()],
+                mirror_link: None,
+            },
+        ];
+
+        let requested = Layout {
+            name: "Authored local name".into(),
+            part_ids: vec!["geometry-probe".into()],
+            ..document.layouts[1].clone()
+        };
+        crate::apply(
+            &mut document,
+            &[],
+            &EditOperation::SetLayout {
+                layout: requested.clone(),
+            },
+        )
+        .expect("the local mirror layout edit applies");
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the local layout does not need source projection");
+
+        assert_eq!(document.layouts[1].name, requested.name);
+        assert_eq!(document.layouts[1].part_ids, requested.part_ids);
+    }
+
+    #[test]
+    fn omitted_mirror_layout_stays_absent_after_source_edit_and_reconciliation() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        let mut source_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c0")
+            .unwrap()
+            .clone();
+        source_part.id = "omitted-layout-source-part".into();
+        source_part.reference = "OMITTED-SOURCE".into();
+        document.parts.push(source_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .part_ids
+            .push("omitted-layout-source-part".into());
+        let halves = document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.correspondences.push(MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Layout,
+            source_id: "source-omitted-layout".into(),
+            mirror_id: "mirror-omitted-layout".into(),
+        });
+        halves.exceptions.push(
+            serde_json::from_value(serde_json::json!({
+                "kind": "layout", "mirrorId": "mirror-omitted-layout", "state": "omitted"
+            }))
+            .unwrap(),
+        );
+        document.layouts.push(Layout {
+            id: "source-omitted-layout".into(),
+            name: "Source layout".into(),
+            board_id: "source-board".into(),
+            matrix_id: "source-matrix".into(),
+            part_ids: vec![],
+            mirror_link: None,
+        });
+
+        let requested = Layout {
+            name: "Edited source layout".into(),
+            part_ids: vec!["omitted-layout-source-part".into()],
+            ..document.layouts[0].clone()
+        };
+        crate::apply(
+            &mut document,
+            &[],
+            &EditOperation::SetLayout {
+                layout: requested.clone(),
+            },
+        )
+        .expect("the source layout edit applies");
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("an omitted mirror layout stays absent");
+
+        assert_eq!(document.layouts[0], requested);
+        assert!(
+            document
+                .layouts
+                .iter()
+                .all(|layout| layout.id != "mirror-omitted-layout")
+        );
     }
 
     #[test]
