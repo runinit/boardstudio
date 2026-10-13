@@ -1,6 +1,6 @@
 # 111: Atomically activate prepared mirrored-half reconciliation
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md), [149](149-targeted-mirrored-set-mechanical.md), [150](150-prepare-matrixless-half-exceptions.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -178,3 +178,21 @@ draft and located repair findings. It does not grant visibility changes to other
 modules, and Open remains separate from edit-transaction canonicalization. The reviewable
 proposal is recorded in `.evidence/ticket111/open-seam-proposal.patch`; 111 applies the bridge
 with its coherent production activation after 150 is verified.
+
+## Activation ownership (2026-10-13)
+
+All preparatory prerequisites through 150 are merged locally; 150's post-merge repository,
+native-test and lint gates passed (1,821 tests). This branch claims coherent 111 activation.
+The model/persistence writer owns the assigned model, constraints, migration, archive and host
+storage paths above, plus `core/tests/current_schema.rs` for the known current-format assertion
+and `core/src/matrix/layout.rs` / `placement.rs` only for the accepted authority-aware driver
+queries. The runtime writer owns lib and mirrored-half dispatch/preparation/inverse paths,
+established mirrored-half smoke tests, and `core/tests/support/boundary.rs` /
+`core/tests/boundary_parity.rs` for the additive paired scenario. Root retains the golden, full
+checks, mutation batch, performance/browser verification and local integration.
+
+Writers share one branch with disjoint file ownership. The model writer first publishes the
+exact operation/Framed data shapes and compiler inventory; runtime wiring starts from that
+readiness handoff. No intermediate production activation is merged. These assignments add no
+visibility beyond the inherited serialized model/read-only facade and approved Open entry point.
+New preparation/policy needs must be reported rather than hidden in activation.
