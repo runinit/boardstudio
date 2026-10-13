@@ -738,6 +738,153 @@ fn prepared_unlink_uses_the_normalized_mechanical_route_on_a_private_draft() {
 }
 
 #[test]
+fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closures() {
+    let mut engine = crate::CoreEngine::default();
+    assert!(matches!(
+        engine.handle(crate::model::CoreRequest::Open {
+            id: "open-unlink".into(),
+            document: nonempty_unlink_document(),
+        }),
+        crate::model::CoreReply::Scene { .. }
+    ));
+    let accepted = engine.document.clone();
+    let operation: EditOperation = serde_json::from_value(json!({
+        "kind": "apply-mechanical-edit",
+        "edit": {
+            "target": {"kind": "instance", "instanceId": "source-instance"},
+            "change": {"unlink-mirror-pair": {"instance_id": "source-instance"}}
+        }
+    }))
+    .expect("the public UnlinkMirrorPair wire shape parses");
+    let (prepared, changed) = crate::mirrored_half::prepare_transaction(&accepted, &[], &operation)
+        .expect("the nonempty pair closure prepares for Unlink");
+    let expected_closures: BTreeSet<_> = prepared
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("case-closure/"))
+        .map(|part| part.id.clone())
+        .collect();
+    let expected_configurations: BTreeMap<_, _> = prepared
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .map(|instance| (instance.id.clone(), instance.mechanical.clone().unwrap()))
+        .collect();
+    assert!(!expected_closures.is_empty());
+    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+
+    let (cache, contours, findings) = crate::geometry::outlines(&prepared, None, &changed);
+    let publication = engine.publish_prepared_edit(
+        "unlink-prepared".into(),
+        "unlink-prepared".into(),
+        prepared,
+        changed,
+        cache,
+        contours,
+        findings,
+    );
+    assert!(matches!(publication, crate::model::CoreReply::Scene { .. }));
+    assert_eq!(engine.undo.len(), 1);
+    assert!(engine.redo.is_empty());
+    assert!(engine.document.hardware.as_ref().unwrap().pairs.is_empty());
+    let committed_closures: BTreeSet<_> = engine
+        .document
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("case-closure/"))
+        .map(|part| part.id.clone())
+        .collect();
+    assert_eq!(committed_closures, expected_closures);
+
+    assert!(matches!(
+        engine.handle(crate::model::CoreRequest::Undo {
+            id: "undo-unlink".into(),
+        }),
+        crate::model::CoreReply::Scene { .. }
+    ));
+    assert_eq!(engine.undo.len(), 0);
+    assert_eq!(engine.redo.len(), 1);
+    assert_eq!(engine.document.hardware.as_ref().unwrap().pairs.len(), 1);
+    assert_eq!(
+        engine.document.hardware.as_ref().unwrap().pairs[0].id,
+        "unlink-pair"
+    );
+    assert_eq!(
+        engine.document.hardware.as_ref().unwrap().instances[0].construction_ownership,
+        MechanicalConstructionOwnership::Pair
+    );
+
+    assert!(matches!(
+        engine.handle(crate::model::CoreRequest::Redo {
+            id: "redo-unlink".into(),
+        }),
+        crate::model::CoreReply::Scene { .. }
+    ));
+    assert_eq!(engine.undo.len(), 1);
+    assert!(engine.redo.is_empty());
+    assert!(engine.document.hardware.as_ref().unwrap().pairs.is_empty());
+    let redone_closures: BTreeSet<_> = engine
+        .document
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("case-closure/"))
+        .map(|part| part.id.clone())
+        .collect();
+    let redone_configurations: BTreeMap<_, _> = engine
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .map(|instance| (instance.id.clone(), instance.mechanical.clone().unwrap()))
+        .collect();
+    assert_eq!(redone_closures, expected_closures);
+    assert_eq!(redone_configurations, expected_configurations);
+    assert!(
+        engine
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .all(|instance| instance.construction_ownership
+                == MechanicalConstructionOwnership::Local)
+    );
+
+    let mut reopened = crate::CoreEngine::default();
+    assert!(matches!(
+        reopened.handle(crate::model::CoreRequest::Open {
+            id: "reopen-unlinked".into(),
+            document: engine.document.clone(),
+        }),
+        crate::model::CoreReply::Scene { .. }
+    ));
+    let reopened_closures: BTreeSet<_> = reopened
+        .document
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with("case-closure/"))
+        .map(|part| part.id.clone())
+        .collect();
+    let reopened_configurations: BTreeMap<_, _> = reopened
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .map(|instance| (instance.id.clone(), instance.mechanical.clone().unwrap()))
+        .collect();
+    assert_eq!(reopened_closures, expected_closures);
+    assert_eq!(reopened_configurations, expected_configurations);
+    assert_eq!(reopened.document.hardware.as_ref().unwrap().pairs.len(), 0);
+}
+
+#[test]
 fn prepared_unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
     let accepted = reuse_board_unlink_document();
     let before_effective: Vec<_> = ["source-instance", "mirror-instance"]

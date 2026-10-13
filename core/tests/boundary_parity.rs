@@ -52,6 +52,15 @@ fn native_transport_reproduces_the_golden_transcript() {
 }
 
 #[test]
+fn paired_preview_history_case_is_ready_for_boundary_blessing() {
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let scenario = boundary::paired_preview_history_case(&mut |request| engine.request(request));
+    assert_eq!(scenario["preview"]["kind"], "preview");
+    assert_eq!(scenario["undo"]["kind"], "scene");
+    assert_eq!(scenario["redo"]["kind"], "scene");
+}
+
+#[test]
 #[should_panic(expected = "core[1:splay-preview].n")]
 fn a_mismatch_inside_an_array_names_the_entry_by_its_id() {
     let got = serde_json::json!([{"id": "open", "n": 1}, {"id": "splay-preview", "n": 3}]);

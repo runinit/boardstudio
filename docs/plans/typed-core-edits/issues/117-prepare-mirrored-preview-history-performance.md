@@ -1,6 +1,6 @@
 # 117: Prepare preview isolation, history and performance evidence
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [116](116-prepare-mirrored-open-repair.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -36,14 +36,32 @@ Production preview/history routing and all generated goldens remain untouched un
 
 ## Test-first and acceptance
 
-- [ ] Direct helper red/green cases show complete accepted-document/revision/history isolation
+- [x] Direct helper red/green cases show complete accepted-document/revision/history isolation
       after successful, refused and retired paired previews, including local/mixed operations.
-- [ ] Prepared commit and Undo/Redo restore both halves and exception state with one snapshot;
+- [x] Prepared commit and Undo/Redo restore both halves and exception state with one snapshot;
       nonempty-closure Unlink Undo restores the paired snapshot and Redo restores independent
       materialized configurations/IDs. Prepared reopen preserves the independent result.
-- [ ] Existing guard plus paired harness can report added cost; no timing claim without an
+- [x] Existing guard plus paired harness can report added cost; no timing claim without an
       exclusive root-granted slot and actual observed measurements.
-- [ ] Boundary scenarios are additive and ready for root blessing; no partial runtime activation.
+- [x] Boundary scenarios are additive and ready for root blessing; no partial runtime activation.
+
+## Outcome (2026-10-13)
+
+- Paired-preview behavior is exercised by calling the inert `prepare_transaction` path directly.
+  Production `CoreEngine::preview_edit` remains on its existing route until ticket 111; no
+  generated golden was changed.
+- Prepared publication/history coverage proves one snapshot, paired Undo/Redo and Local exception
+  preservation. Nonempty-closure Unlink Undo/Redo and prepared reopen preserve the materialized
+  configurations and IDs.
+- The additive boundary scenario is ready for root blessing. The existing unpaired 6x5/90-part
+  guard measured 520 µs p50 / 555 µs p95. A paired 6x5 case with 90 matrix-owned parts per half
+  measured 9,336 µs p50 / 10,451 µs p95. These workloads contain different amounts of data, so the
+  figures are directional; parent 19 owns final activated performance acceptance.
+- The native baseline update recorded 1,785 tests. The targeted preparation module passes 33 tests;
+  the paired performance target compiles, the additive boundary case passes, and the mutation
+  verifier killed all 3 mutants. Evidence and logs are under the gitignored `.evidence/ticket117/`.
+- Independent review: Spec found no remaining issue. Standards found no hard violation; it noted
+  the prepared-publication parameters as a mild Data Clumps judgment call.
 
 Independent verifier: mutate preview isolation, one-snapshot publication and exception history
 restoration. Final production performance/Undo/Open evidence remains a separate parent review.

@@ -1,10 +1,416 @@
 use crate::mirrored_half::matrix_addition::tests::pair_document;
 use crate::mirrored_half::prepare_transaction;
-use crate::model::{CaseBody, Constraint, EditOperation, Position, ProjectDoc, Vec2};
+use crate::model::{
+    CaseBody, Constraint, CoreReply, CoreRequest, EditOperation, Position, ProjectDoc, Vec2,
+};
 use serde_json::json;
 
 fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
     document.parts.iter().find(|part| part.id == id).unwrap()
+}
+
+fn open_pair_engine(document: ProjectDoc) -> crate::CoreEngine {
+    let mut engine = crate::CoreEngine::default();
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "open-pair".into(),
+            document,
+        }),
+        CoreReply::Scene { .. }
+    ));
+    engine
+}
+
+fn prepare_preview(
+    engine: &crate::CoreEngine,
+    operation: &EditOperation,
+) -> Result<(ProjectDoc, Vec<String>), String> {
+    prepare_transaction(&engine.document, &[], operation)
+}
+
+fn add_linked_independent_part(document: &mut ProjectDoc) {
+    let source = part(document, "left/U1").clone();
+    let mut source = source;
+    source.id = "left/RST".into();
+    source.reference = "RST".into();
+    source.pose.at = Vec2 { x: -12.0, y: 25.0 };
+    let mut mirror = source.clone();
+    mirror.id = "right/RST".into();
+    mirror.pose.at.x = 212.0;
+
+    document.parts.extend([source, mirror]);
+    for (board_id, part_id) in [("left", "left/RST"), ("right", "right/RST")] {
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(part_id.into());
+    }
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(crate::model::MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: crate::model::MirroredItemKind::Part,
+            source_id: "left/RST".into(),
+            mirror_id: "right/RST".into(),
+        });
+}
+
+fn nonempty_closure_pair_document() -> ProjectDoc {
+    let mut source = crate::mirrored_half::matrix_addition::tests::source_half();
+    source.hardware.as_mut().unwrap().instances[0]
+        .mechanical
+        .as_mut()
+        .unwrap()
+        .closure_mounts = Some(vec![crate::model::Mount {
+        id: "source-hole".into(),
+        at: Vec2 { x: -8.0, y: -16.0 },
+        kind: crate::model::MountKind::Hole,
+        hole_diameter: 2.2,
+        boss_diameter: None,
+        height: None,
+    }]);
+    let mounting_hole = crate::generators::catalogue()
+        .unwrap()
+        .into_iter()
+        .find(|definition| {
+            definition
+                .generator
+                .as_ref()
+                .is_some_and(|generator| generator.source == "ceoloide/mounting_hole_npth")
+        })
+        .expect("the bundled mounting-hole definition is available");
+    let operation = crate::mirrored_half::matrix_addition::tests::op(json!({
+        "kind":"create-mirrored-half",
+        "pairId":"pair",
+        "sourceInstanceId":"left",
+        "mode":{"kind":"new-board","boardId":"right","instanceId":"right"},
+        "mapping":{"at":{"x":200,"y":0},"rotation":0},
+        "idRule":"board-prefix",
+        "companionMode":"literal-mirror",
+        "mountingHole":mounting_hole
+    }));
+    crate::apply(&mut source, &[], &operation).expect("the half with a closure is created");
+    source
+}
+
+#[test]
+fn mirror_side_prepared_preview_uses_a_draft_without_publishing() {
+    let engine = open_pair_engine(pair_document());
+    let accepted = engine.document.clone();
+    let (prepared, changed) = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/U1".into(),
+                at: Vec2 { x: 216.0, y: 14.0 },
+            }],
+        },
+    )
+    .expect("the linked mirror edit prepares as an inert draft");
+
+    assert!(changed.iter().any(|id| id == "left/U1"));
+    assert!(changed.iter().any(|id| id == "right/U1"));
+    assert_eq!(
+        part(&prepared, "left/U1").pose.at,
+        Vec2 { x: -16.0, y: 14.0 }
+    );
+    assert_eq!(
+        part(&prepared, "right/U1").pose.at,
+        Vec2 { x: 216.0, y: 14.0 }
+    );
+    assert_eq!(prepared.revision, accepted.revision);
+    assert_eq!(engine.document, accepted);
+    assert!(engine.undo.is_empty());
+    assert!(engine.redo.is_empty());
+}
+
+#[test]
+fn mixed_preview_keeps_local_geometry_and_projects_linked_mirror_intent() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(crate::model::MirroredException {
+            kind: crate::model::MirroredItemKind::Part,
+            mirror_id: "right/U1".into(),
+            state: crate::model::MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let engine = open_pair_engine(accepted);
+    let accepted = engine.document.clone();
+    let original_local = part(&engine.document, "right/U1").pose.at;
+    let original_source = part(&engine.document, "left/U1").pose.at;
+
+    let (prepared, changed) = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![
+                Position {
+                    id: "right/U1".into(),
+                    at: Vec2 { x: 260.0, y: 7.0 },
+                },
+                Position {
+                    id: "right/RST".into(),
+                    at: Vec2 { x: 216.0, y: 17.0 },
+                },
+            ],
+        },
+    )
+    .expect("the mixed Local and linked edit prepares as an inert draft");
+
+    assert!(changed.contains(&"right/U1".to_owned()));
+    assert!(changed.contains(&"left/RST".to_owned()));
+    assert!(changed.contains(&"right/RST".to_owned()));
+    assert_eq!(
+        part(&prepared, "right/U1").pose.at,
+        Vec2 { x: 260.0, y: 7.0 }
+    );
+    assert_eq!(part(&prepared, "left/U1").pose.at, original_source);
+    assert_eq!(part(&engine.document, "right/U1").pose.at, original_local);
+    assert_eq!(engine.document, accepted);
+    assert!(engine.undo.is_empty());
+    assert!(engine.redo.is_empty());
+}
+
+#[test]
+fn no_op_and_refused_mirror_previews_do_not_publish_history() {
+    let engine = open_pair_engine(pair_document());
+    let accepted = engine.document.clone();
+    let same_pose = part(&accepted, "left/U1").pose.at;
+
+    let (preview, changed) = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "left/U1".into(),
+                at: same_pose,
+            }],
+        },
+    )
+    .expect("the no-op preview draft is valid");
+    assert_eq!(engine.document, accepted);
+    assert_eq!(preview, accepted);
+    assert!(changed.is_empty());
+    assert!(engine.undo.is_empty());
+    assert!(engine.redo.is_empty());
+
+    let refused = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/not-present".into(),
+                at: Vec2 { x: 215.0, y: 9.0 },
+            }],
+        },
+    );
+    assert!(refused.is_err());
+    assert_eq!(engine.document, accepted);
+    assert!(engine.undo.is_empty());
+    assert!(engine.redo.is_empty());
+}
+
+#[test]
+fn omitted_mirror_preview_refusal_preserves_document_and_history() {
+    let mut accepted = pair_document();
+    accepted.parts.retain(|part| part.id != "right/U1");
+    accepted
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/U1");
+    accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(crate::model::MirroredException {
+            kind: crate::model::MirroredItemKind::Part,
+            mirror_id: "right/U1".into(),
+            state: crate::model::MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let engine = open_pair_engine(accepted);
+    let accepted = engine.document.clone();
+
+    let reply = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/U1".into(),
+                at: Vec2 { x: 216.0, y: 14.0 },
+            }],
+        },
+    );
+
+    assert!(reply.is_err());
+    assert_eq!(engine.document, accepted);
+    assert!(engine.undo.is_empty());
+    assert!(engine.redo.is_empty());
+}
+
+#[test]
+fn retired_mirror_target_preview_refusal_preserves_document_and_history() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    let (retired, _) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::RemoveParts {
+            ids: vec!["left/RST".into()],
+        },
+    )
+    .expect("the linked part can be retired as one prepared edit");
+    assert!(retired.parts.iter().all(|part| part.id != "right/RST"));
+
+    let engine = open_pair_engine(retired);
+    let accepted = engine.document.clone();
+    let reply = prepare_preview(
+        &engine,
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/RST".into(),
+                at: Vec2 { x: 216.0, y: 17.0 },
+            }],
+        },
+    );
+
+    assert!(reply.is_err());
+    assert_eq!(engine.document, accepted);
+    assert!(engine.undo.is_empty());
+    assert!(engine.redo.is_empty());
+}
+
+#[test]
+fn prepared_publication_and_history_restore_both_halves_and_local_exception_once() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    part_mut(&mut accepted, "right/RST").pose.at = Vec2 { x: 260.0, y: 25.0 };
+    accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(crate::model::MirroredException {
+            kind: crate::model::MirroredItemKind::Part,
+            mirror_id: "right/RST".into(),
+            state: crate::model::MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let mut engine = open_pair_engine(accepted);
+    let accepted = engine.document.clone();
+    let operation = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "right/U1".into(),
+            at: Vec2 { x: 216.0, y: 14.0 },
+        }],
+    };
+    let (prepared, changed) = prepare_transaction(&accepted, &[], &operation)
+        .expect("the paired edit prepares without publishing");
+    let (cache, contours, findings) =
+        crate::geometry::outlines(&prepared, Some(&engine.outline_cache), &changed);
+    let reply = engine.publish_prepared_edit(
+        "commit-prepared".into(),
+        "commit-prepared".into(),
+        prepared,
+        changed,
+        cache,
+        contours,
+        findings,
+    );
+    assert!(matches!(reply, CoreReply::Scene { .. }));
+
+    assert_eq!(engine.undo.len(), 1);
+    assert!(engine.redo.is_empty());
+    assert_eq!(
+        part(&engine.document, "left/U1").pose.at,
+        Vec2 { x: -16.0, y: 14.0 }
+    );
+    assert_eq!(
+        part(&engine.document, "right/U1").pose.at,
+        Vec2 { x: 216.0, y: 14.0 }
+    );
+    assert_eq!(
+        part(&engine.document, "right/RST").pose.at,
+        Vec2 { x: 260.0, y: 25.0 }
+    );
+    assert!(crate::mechanical::halves::validate_document(&engine.document).is_ok());
+
+    let undo = engine.handle(CoreRequest::Undo {
+        id: "undo-prepared".into(),
+    });
+    assert!(matches!(undo, CoreReply::Scene { .. }));
+    assert_eq!(engine.undo.len(), 0);
+    assert_eq!(engine.redo.len(), 1);
+    let mut expected_undo = accepted.clone();
+    expected_undo.revision = engine.document.revision;
+    assert_eq!(engine.document, expected_undo);
+
+    let redo = engine.handle(CoreRequest::Redo {
+        id: "redo-prepared".into(),
+    });
+    assert!(matches!(redo, CoreReply::Scene { .. }));
+    assert_eq!(engine.undo.len(), 1);
+    assert!(engine.redo.is_empty());
+    assert_eq!(
+        part(&engine.document, "left/U1").pose.at,
+        Vec2 { x: -16.0, y: 14.0 }
+    );
+    assert_eq!(
+        part(&engine.document, "right/U1").pose.at,
+        Vec2 { x: 216.0, y: 14.0 }
+    );
+    assert_eq!(
+        part(&engine.document, "right/RST").pose.at,
+        Vec2 { x: 260.0, y: 25.0 }
+    );
+    assert_eq!(engine.document.revision, accepted.revision + 3);
+    assert!(crate::mechanical::halves::validate_document(&engine.document).is_ok());
+}
+
+#[test]
+fn prepared_reopen_preserves_a_nonempty_unlinked_result() {
+    let accepted = nonempty_closure_pair_document();
+    let operation: EditOperation = serde_json::from_value(json!({
+        "kind":"apply-mechanical-edit",
+        "edit":{
+            "target":{"kind":"instance","instanceId":"left"},
+            "change":{"unlink-mirror-pair":{"instance_id":"left"}}
+        }
+    }))
+    .expect("the UnlinkMirrorPair operation parses");
+    let (independent, _) = prepare_transaction(&accepted, &[], &operation)
+        .expect("the nonempty pair closure materializes in the prepared edit");
+    assert!(independent.hardware.as_ref().unwrap().pairs.is_empty());
+    assert!(
+        independent
+            .parts
+            .iter()
+            .any(|part| part.id.starts_with("case-closure/"))
+    );
+
+    let (reopened, findings) = super::prepare_open(&independent, &[])
+        .expect("the independent Unlink result prepares as a valid Open input");
+
+    assert_eq!(reopened, independent);
+    assert!(findings.is_empty());
 }
 
 #[test]
