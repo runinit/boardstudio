@@ -23,6 +23,10 @@ re-derived with a warning; local/omitted data and ADR-excluded fields remain pre
   accepted document is stable and does not repeatedly report a new repair.
 - Preserve labels, per-item modes/tweaks/exceptions, key bindings, parameters/side, references
   and copper exclusions. Malformed or ambiguous associations follow 109's compatibility rules.
+- Missing-object recovery is deliberately bounded: restore only a missing independently
+  corresponded Part when its stored target identity, source ownership and derived reference are
+  unique. Other missing linked targets remain strict validation refusals unless an existing
+  Omitted owner rule allows them to remain absent; do not infer additional target identities.
 - No storage format change or archive/browser decode refusal path is added. Production Open
   activation and end-to-end boundary evidence belong to 111 and parent acceptance.
 
@@ -35,8 +39,11 @@ No production Open branch change, visibility widening or generated fixture edit.
 
 ## Test-first and acceptance
 
-- [ ] Direct prepared-Open red/green cases cover altered/missing linked mirror geometry,
-      ordinary saved data, local/omitted exceptions and malformed association refusal.
+- [ ] Direct prepared-Open red/green cases cover altered linked mirror geometry, a missing
+      independently corresponded Part within the recovery boundary above, ordinary saved data,
+      local/omitted exceptions and malformed association refusal.
+- [ ] Existing matrixless pairs still repair linked non-matrix data, and an absent Omitted Matrix
+      remains absent through preparation.
 - [ ] Repair reports a located warning and stable second preparation; unrelated local/ADR-excluded
       data remains unchanged and the accepted input is not mutated on failure.
 - [ ] Existing legacy/unpaired/reuse-board behavior is preserved; runtime Open is still unchanged.

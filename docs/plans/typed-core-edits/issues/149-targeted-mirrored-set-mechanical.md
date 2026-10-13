@@ -1,8 +1,8 @@
 # 149: Give raw SetMechanical an explicit target for mirrored pairs
 
-Status: ready-for-human
+Status: ready-for-agent
 Type: build
-Blocked by: none
+Blocked by: [117](117-prepare-mirrored-preview-history-performance.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
 
@@ -27,22 +27,16 @@ under its original payload but is not the final compatibility contract for paren
   assigning a mirror-side configuration to the single project slot would not update the pair's
   per-instance storage or linked feature records.
 
-## Interface decision required before implementation
+## Owner decision (2026-10-13)
 
-Choose how a caller identifies the target of a whole-configuration replacement:
+The owner chose an optional `MechanicalTarget` field on the existing `SetMechanical` operation.
+Requests that omit it preserve the current board-slot behavior. New callers can name `Board` or
+the exact `Instance`, including when clearing with `configuration: None`. Validate that a
+provided configuration's `board_id` matches an explicit target.
 
-1. **Extend `SetMechanical` with an optional `MechanicalTarget` (recommended).** Old payloads omit
-   the field and keep today's board-slot behavior. New board-level calls specify `Board`; pair
-   edits specify the exact `Instance`, including for `configuration: None`. Validate that a
-   supplied configuration's `board_id` matches its explicit target. Keep the field optional for
-   backward compatibility and do not change saved-project format.
-2. **Add a separate target-aware replacement operation.** Keep legacy `SetMechanical` unchanged
-   and add a clearly named operation carrying `{ target, configuration }`. This is more explicit
-   at the operation name, but adds another public edit variant and dispatch path.
-
-Keeping the payload unchanged cannot support a native `new-board` instance replacement safely:
-there is no target for a mirror-side `None` and only one board-level storage slot. It would either
-mutate the wrong slot or leave the physical pair untouched, so it is not a support option.
+The optional field preserves old serialized requests and does not change saved-project format.
+Keeping the payload unchanged cannot target a native `new-board` instance safely: there is no
+target for a mirror-side `None`, and the singleton board slot cannot represent per-instance data.
 
 ## Required behavior after the interface is chosen
 
@@ -73,8 +67,8 @@ route Open through this planner.
 
 ## Acceptance
 
-- [ ] Owner chooses the target-aware operation shape above; old board-only serialized requests
-      remain compatible.
+- [x] Owner selected the optional target field; old board-only serialized requests remain
+      compatible.
 - [ ] Source- and mirror-side full replacements update the same pair atomically, including shared
       construction and linked feature additions, edits, moves, and removals.
 - [ ] Local features remain independent, Omitted features are never resurrected, and references
