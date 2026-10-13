@@ -4,8 +4,8 @@
 //! 111 will connect the single preparation entry point to the normal edit lifecycle.
 
 use super::{
-    HostedTransition, IndependentPartTransition, PartProjection, Projection, omitted_mirror_matrix,
-    reconcile,
+    HostedTransition, IndependentPartTransition, PartProjection, Projection,
+    is_omitted_matrix_link, omitted_mirror_matrix, reconcile, unique_board_owner,
 };
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
@@ -39,36 +39,37 @@ fn prepare_open(
     crate::generators::document_error(&draft)?;
 
     let pair_views = native_pair_views(&draft);
-    for (_, mapping, halves) in &pair_views {
-        seed_missing_independent_parts(&mut draft, halves, *mapping)?;
+    for pair in &pair_views {
+        seed_missing_independent_parts(&mut draft, &pair.halves, pair.mapping)?;
     }
     // Seeding accepts only the narrowly recoverable independent-Part absence. All other
     // malformed, ambiguous, Local/Omitted or unsupported missing records remain strict refusals.
     crate::mechanical::halves::validate_document(&draft)?;
 
-    for (pair_id, mapping, halves) in pair_views.iter().cloned() {
-        let matrices: Vec<_> = halves
+    for pair in pair_views.iter().cloned() {
+        let matrices: Vec<_> = pair
+            .halves
             .correspondences
             .iter()
             .filter(|association| association.kind == MirroredItemKind::Matrix)
             .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
             .collect();
         if matrices.is_empty() {
-            let projection = projection_for_matrixless_pair(&halves, mapping);
-            reconcile(&mut draft, &pair_id, &projection)?;
+            let projection = projection_for_matrixless_pair(&pair.halves, pair.mapping);
+            reconcile(&mut draft, &pair.pair_id, &projection)?;
         }
         for (source_matrix_id, mirror_matrix_id) in matrices {
             let projection = projection_for(
                 &draft,
                 &draft,
                 None,
-                &halves,
-                mapping,
+                &pair.halves,
+                pair.mapping,
                 &source_matrix_id,
                 &mirror_matrix_id,
                 false,
             )?;
-            reconcile(&mut draft, &pair_id, &projection)?;
+            reconcile(&mut draft, &pair.pair_id, &projection)?;
         }
     }
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
@@ -77,11 +78,11 @@ fn prepare_open(
     crate::mechanical::halves::validate_document(&draft)?;
 
     let mut findings = Vec::new();
-    for (pair_id, _, halves) in pair_views {
-        let targets = changed_linked_mirror_targets(accepted, &draft, &pair_id, &halves)?;
+    for pair in pair_views {
+        let targets = changed_linked_mirror_targets(accepted, &draft, &pair.pair_id, &pair.halves)?;
         if !targets.is_empty() {
             findings.push(Finding {
-                id: format!("mirrored-half:open-repaired:{pair_id}"),
+                id: format!("mirrored-half:open-repaired:{}", pair.pair_id),
                 severity: Severity::Warning,
                 scope: Scope::Layout,
                 message:
@@ -94,7 +95,12 @@ fn prepare_open(
     Ok((draft, findings))
 }
 
-type NativePairView = (String, Pose2, crate::model::MirroredHalves);
+#[derive(Clone)]
+struct NativePairView {
+    pair_id: String,
+    mapping: Pose2,
+    halves: crate::model::MirroredHalves,
+}
 
 fn native_pair_views(document: &ProjectDoc) -> Vec<NativePairView> {
     document
@@ -104,8 +110,11 @@ fn native_pair_views(document: &ProjectDoc) -> Vec<NativePairView> {
         .flat_map(|hardware| &hardware.pairs)
         .filter_map(|pair| {
             let halves = pair.halves.as_ref()?;
-            (halves.source_board_id != halves.mirror_board_id)
-                .then(|| (pair.id.clone(), pair.mapping, halves.clone()))
+            (halves.source_board_id != halves.mirror_board_id).then(|| NativePairView {
+                pair_id: pair.id.clone(),
+                mapping: pair.mapping,
+                halves: halves.clone(),
+            })
         })
         .collect()
 }
@@ -344,17 +353,6 @@ fn seed_missing_independent_parts(
         if !target_parts.is_empty() {
             continue;
         }
-        if document
-            .boards
-            .iter()
-            .any(|board| board.part_ids.contains(&association.mirror_id))
-        {
-            return Err(format!(
-                "The missing mirror part {:?} is still registered on a board",
-                association.mirror_id
-            ));
-        }
-
         let mut sources = document
             .parts
             .iter()
@@ -371,7 +369,7 @@ fn seed_missing_independent_parts(
                 association.source_id
             ));
         }
-        if unique_board_owner(document, &association.source_id)? != source_board_id {
+        if unique_board_owner(document, &association.source_id, "Open repair")? != source_board_id {
             return Err(format!(
                 "The Open repair source part {:?} has stale board ownership",
                 association.source_id
@@ -396,6 +394,27 @@ fn seed_missing_independent_parts(
             ));
         }
         let target_board = unique_board(document, mirror_board_id)?;
+        let registered_boards: Vec<_> = document
+            .boards
+            .iter()
+            .flat_map(|board| {
+                board
+                    .part_ids
+                    .iter()
+                    .filter(move |id| *id == &association.mirror_id)
+                    .map(move |_| board.id.as_str())
+            })
+            .collect();
+        let already_registered = match registered_boards.as_slice() {
+            [] => false,
+            [registered_board] if *registered_board == target_board => true,
+            _ => {
+                return Err(format!(
+                    "The missing mirror part {:?} has conflicting or repeated board registration",
+                    association.mirror_id
+                ));
+            }
+        };
         let definition = source.definition_id.clone();
         let target = crate::mirrored_half::derive::part(
             source,
@@ -405,13 +424,15 @@ fn seed_missing_independent_parts(
             mapping,
         );
         document.parts.push(target);
-        document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == target_board)
-            .expect("unique target board was just checked")
-            .part_ids
-            .push(association.mirror_id.clone());
+        if !already_registered {
+            document
+                .boards
+                .iter_mut()
+                .find(|board| board.id == target_board)
+                .expect("unique target board was just checked")
+                .part_ids
+                .push(association.mirror_id.clone());
+        }
     }
     Ok(())
 }
@@ -425,22 +446,6 @@ fn unique_board(document: &ProjectDoc, id: &str) -> Result<String, String> {
         return Err(format!("The Open repair board {id:?} is ambiguous"));
     }
     Ok(board.id.clone())
-}
-
-fn unique_board_owner<'a>(document: &'a ProjectDoc, part_id: &str) -> Result<&'a str, String> {
-    let mut owners = document
-        .boards
-        .iter()
-        .filter(|board| board.part_ids.iter().any(|id| id == part_id));
-    let owner = owners
-        .next()
-        .ok_or_else(|| format!("The Open repair part {part_id:?} has no board owner"))?;
-    if owners.next().is_some() {
-        return Err(format!(
-            "The Open repair part {part_id:?} has ambiguous board ownership"
-        ));
-    }
-    Ok(&owner.id)
 }
 
 fn id_exists_outside_parts(document: &ProjectDoc, id: &str) -> bool {
@@ -740,8 +745,9 @@ fn reconcile_pairs(
 ) -> Result<Vec<String>, String> {
     let pair_views = native_pair_views(document);
     let mut changed = Vec::new();
-    for (pair_id, mapping, halves) in pair_views {
-        let matrices: Vec<_> = halves
+    for pair in pair_views {
+        let matrices: Vec<_> = pair
+            .halves
             .correspondences
             .iter()
             .filter(|association| association.kind == MirroredItemKind::Matrix)
@@ -757,13 +763,13 @@ fn reconcile_pairs(
                 accepted,
                 document,
                 Some(canonical),
-                &halves,
-                mapping,
+                &pair.halves,
+                pair.mapping,
                 source_matrix_id,
                 mirror_matrix_id,
                 index == 0,
             )?;
-            changed.extend(reconcile(document, &pair_id, &projection)?);
+            changed.extend(reconcile(document, &pair.pair_id, &projection)?);
         }
     }
     Ok(changed)
@@ -871,12 +877,7 @@ fn projection_for(
     include_transitions: bool,
 ) -> Result<Projection, String> {
     let source_matrix = matrix_by_id(document, source_matrix_id)?;
-    let omitted_matrix = halves.exceptions.iter().any(|exception| {
-        exception.kind == MirroredItemKind::Matrix
-            && exception.mirror_id == mirror_matrix_id
-            && exception.state == MirroredExceptionState::Omitted
-            && halves.overlay_source(exception) == Some(source_matrix_id)
-    });
+    let omitted_matrix = is_omitted_matrix_link(halves, source_matrix_id, mirror_matrix_id);
     let absent_omitted_matrix;
     let mirror_matrix = match matrix_by_id(document, mirror_matrix_id) {
         Ok(matrix) => matrix,

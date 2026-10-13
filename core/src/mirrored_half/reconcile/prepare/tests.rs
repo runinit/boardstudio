@@ -172,6 +172,67 @@ fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
 }
 
 #[test]
+fn open_preparation_restores_a_missing_part_with_one_expected_board_registration() {
+    let mut accepted = pair_document();
+    accepted.parts.retain(|part| part.id != "right/U1");
+    let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("a unique expected-board registration remains recoverable");
+
+    assert_eq!(part(&prepared, "right/U1").pose.at.x, 224.0);
+    assert_eq!(
+        prepared
+            .boards
+            .iter()
+            .find(|board| board.id == "right")
+            .unwrap()
+            .part_ids
+            .iter()
+            .filter(|id| *id == "right/U1")
+            .count(),
+        1
+    );
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&"right/U1".to_owned()));
+    assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
+}
+
+#[test]
+fn open_preparation_refuses_conflicting_or_repeated_missing_part_registrations() {
+    let mut repeated = pair_document();
+    repeated.parts.retain(|part| part.id != "right/U1");
+    repeated
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .push("right/U1".into());
+    let repeated_error = super::prepare_open(&repeated, &[]).unwrap_err();
+    assert!(repeated_error.contains("conflicting or repeated board registration"));
+
+    let mut misplaced = pair_document();
+    misplaced.parts.retain(|part| part.id != "right/U1");
+    misplaced
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/U1");
+    misplaced
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "left")
+        .unwrap()
+        .part_ids
+        .push("right/U1".into());
+    let misplaced_error = super::prepare_open(&misplaced, &[]).unwrap_err();
+    assert!(misplaced_error.contains("conflicting or repeated board registration"));
+}
+
+#[test]
 fn open_preparation_preserves_a_missing_omitted_matrix() {
     let mut accepted = pair_document();
     let halves = accepted.hardware.as_mut().unwrap().pairs[0]
