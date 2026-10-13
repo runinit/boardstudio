@@ -24,12 +24,39 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
 
     let mechanical = serde_json::to_value(EditOperation::SetMechanical {
         configuration: None,
+        target: None,
     })
     .unwrap();
     assert_eq!(
         mechanical,
         json!({ "kind": "set-mechanical", "configuration": null })
     );
+    let legacy: EditOperation = serde_json::from_value(mechanical.clone()).unwrap();
+    assert!(matches!(
+        legacy,
+        EditOperation::SetMechanical {
+            target: None,
+            configuration: None
+        }
+    ));
+
+    let targeted = serde_json::to_value(EditOperation::SetMechanical {
+        configuration: None,
+        target: Some(boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: "right".into(),
+        }),
+    })
+    .unwrap();
+    assert_eq!(targeted["target"]["kind"], "instance");
+    assert_eq!(targeted["target"]["instanceId"], "right");
+    let parsed: EditOperation = serde_json::from_value(targeted).unwrap();
+    assert!(matches!(
+        parsed,
+        EditOperation::SetMechanical {
+            target: Some(boardstudio_core::mechanical::MechanicalTarget::Instance { instance_id }),
+            ..
+        } if instance_id == "right"
+    ));
 
     let mirrored_pair = serde_json::to_value(EditOperation::CreateMirroredPair {
         left: Layout {

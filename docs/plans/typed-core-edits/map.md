@@ -115,7 +115,7 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   and fixed weak library-delete predicate, six bounded mutation failures, unchanged test lists and two sequential
   full browser passes (251.3 s and 248.3 s). The entire ticket remains `implemented (awaiting verification)`:
   carried suites, negative-idle proof, PCB recovery regression and speed evidence remain. Ticket 38 waits.
-- 19 is split into independently reviewed tickets 105–117. The dependency chain starts with
+- [19](issues/19-reconcile-mirrored-halves.md) is split into independently reviewed tickets 105–117. The dependency chain starts with
   [105](issues/105-mirrored-half-derivation-kernel.md), ends with atomic activation in
   [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
   [114](issues/114-mirrored-edit-compatibility-constraints.md) is resolved after 113 and 139. On
@@ -125,8 +125,15 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   [115](issues/115-prepare-mirrored-edit-transaction.md)
   is resolved and merged as `78ec73f0`. [116](issues/116-prepare-mirrored-open-repair.md) is
   resolved and merged as `1ad134f79`; its post-merge `repo`, `test`, and `lint` passed, all 1,776
-  baselined native tests ran, and its three mutation checks were killed. Ticket 117 is the active
-  serial Core slice, followed by 149 and 111. Core children stay serial; the user approved isolated
+  baselined native tests ran, and its three mutation checks were killed. [117](issues/117-prepare-mirrored-preview-history-performance.md)
+  is resolved and merged as `dc9a2960`; its post-merge `repo`, `test`, and `lint` passed with all
+  1,785 native tests, and its three mutation checks were killed. Ticket 149 is resolved on its
+  verified branch: 1,817 native tests and 14 compiled mutation kills; local merge and post-merge
+  checks precede the next serial Core slice, [150](issues/150-prepare-matrixless-half-exceptions.md), 111 and
+  [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md). Ticket 150 closes the source-verified
+  selective-exception gap for pairs without a Matrix correspondence before activation.
+  Ticket 149's optional target and single new crate-only mechanical configuration entry point
+  are approved. Core children stay serial; the user approved isolated
   A/F streams with exact
   file/API leases. Every command/check remains globally sequential; activation and timing stay
   exclusive.

@@ -1530,6 +1530,8 @@ pub enum EditOperation {
     },
     SetMechanical {
         configuration: Option<Box<MechanicalConfiguration>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<crate::mechanical::MechanicalTarget>,
     },
     MoveParts {
         positions: Vec<Position>,

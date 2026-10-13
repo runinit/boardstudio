@@ -162,10 +162,10 @@ const HALF_CREATION_DELEGATED: &str =
     "CreateMirroredHalf derives both halves through the Core mirror lifecycle";
 const REPLACE_DOCUMENT_DELEGATED: &str =
     "ticket 116 owns source-authoritative Open and ReplaceDocument repair";
-const SET_MECHANICAL_UNSUPPORTED: &str = concat!(
-    "SetMechanical replaces the whole raw mechanical configuration, including board geometry ",
-    "and references; no safe field-wise mirrored behavior is defined."
-);
+const SET_MECHANICAL_BOARD_SLOT: &str =
+    "an omitted target preserves the legacy singleton board-slot behavior";
+const SET_MECHANICAL_TARGETED: &str =
+    "the explicit target selects the mechanical replacement lifecycle without inverse mapping";
 
 fn unsupported(owner: &'static str, reason: &'static str) -> Refusal {
     Refusal::Unsupported(Coverage::Unsupported { owner, reason })
@@ -342,8 +342,12 @@ pub(super) fn canonicalize(
                 canonical.coverage = Coverage::DeliberatelyUnchanged(reason);
             }
         },
-        Op::SetMechanical { .. } => {
-            return Err(unsupported("114", SET_MECHANICAL_UNSUPPORTED));
+        Op::SetMechanical { target, .. } => {
+            canonical.coverage = if target.is_some() {
+                Coverage::Delegated(SET_MECHANICAL_TARGETED)
+            } else {
+                Coverage::DeliberatelyUnchanged(SET_MECHANICAL_BOARD_SLOT)
+            };
         }
         Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md), [149](149-targeted-mirrored-set-mechanical.md)
+Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md), [149](149-targeted-mirrored-set-mechanical.md), [150](150-prepare-matrixless-half-exceptions.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
 
@@ -24,6 +24,9 @@ and does not perform parent 19's complete acceptance review.
 - Keep existing unpaired/legacy/reuse-board behavior. Ensure downstream resolution receives
   canonical operation and final validation sees reconciled state. No intermediate partial
   production activation or per-domain feature flags.
+- Route explicit Instance-targeted `SetMechanical` through 149's preparation even when the target
+  is unpaired or disabled. A native-pair-only dispatch condition would leave that approved request
+  at the raw apply refusal. Omitted targets retain their existing board-slot route.
 - Stop/report if connection needs new derivation rules, missing operation-family support,
   new context APIs or significant transaction redesign. Those are preparation blockers,
   not extra implementation hidden inside this activation ticket.
@@ -32,9 +35,21 @@ and does not perform parent 19's complete acceptance review.
 
 Exclusive: bounded call-site/dispatch/vocabulary edits in `core/src/lib.rs` and
 `core/src/model.rs`, necessary private helper wiring, a small set of Session/Core smoke cases
-in established mirrored-half test files. No new subsystem implementation, storage/schema
-migration, preview backup engine, performance harness, golden edits or visibility changes.
-Root assigns any additional path before editing.
+in established mirrored-half test files. The inherited 139 framed-constraint persistence and
+v5→v6 migration below are part of this activation; no additional storage/schema migration,
+new subsystem implementation, preview backup engine, performance harness, golden edits or
+visibility changes. Root assigns any additional path before editing.
+
+Root assignment (2026-10-13 readiness audit): the existing approved inherited work also owns
+`core/src/constraints.rs`, `core/src/constraints/framed_tests.rs`,
+`core/src/constraints/relation.rs`, `core/src/matrix/deletion.rs`, `core/src/migrate.rs`,
+`core/src/archive.rs`, `core/tests/part_offset_constraint.rs`, and
+`web/crates/host/src/host/storage_lifetime_tests.rs` for exhaustive framed handling, arithmetic
+pins, migration and current-version/round-trip coverage. Existing private operation wiring owns
+`core/src/mirrored_half/lifecycle.rs`, `core/src/mirrored_half/reconcile.rs`, and
+`core/src/mirrored_half/reconcile/prepare.rs` for exception dispatch and circuit `member_poses`.
+This assigns paths for already specified requirements; it adds no new visibility grant or
+derivation policy. Inspect any additional exhaustive-match errors before expanding ownership.
 
 ## Test-first and acceptance
 
@@ -99,3 +114,45 @@ Acceptance: a mirror-side embed with members at local `y != 0` and a nonzero hea
 Back, driven through the real prepared path and `reconcile`, lands every member as typed; a later
 edit from either half round-trips. Also cover a typed heading that wraps past 0/360 and a
 definition member that is already on the back side (146's unit test does not).
+
+## Readiness audit (2026-10-13)
+
+115–117 are merged but remain inert. For matrix-backed exceptions, the existing
+`prepare_edit_transition` adapter can compose the tested private `transition_exception_context`
+and `prepare_lifecycle_transition` in the same module when the agreed operation vocabulary is
+added; no new interface is needed for that wiring. Unlink uses the reviewed
+`mechanical::halves::unlink_pair` route.
+
+Do not infer complete exception coverage from that path: [150](150-prepare-matrixless-half-exceptions.md)
+prepares the missing matrixless path. `prepare_edit_transition` currently
+returns without a transition when the pair has no Matrix correspondence, while prepared Open
+already supports matrixless pairs with linked independent Parts. Resolve matrixless Local/Omit/
+Rejoin through existing lifecycle semantics before full activation under 150's private scope.
+The inherited v6 work and circuit pose wiring remain incomplete; this audit is source evidence,
+not activation acceptance.
+
+## Electrical readiness follow-ups from 147
+
+- **Circuit reference to a newly private plain net:** `reconcile/settings.rs` skips plain-net
+  projection whenever either net ID appears in any embedded circuit's `net_ids` or `ports`.
+  The private-net predicate in `mechanical/halves.rs` counts source pins, not circuit references;
+  separately, lifecycle Omit treats a circuit `ports`/`net_ids` reference as use. There is no
+  current runtime case proving the expected result when a Local or mirror-only circuit names a
+  corresponded plain net whose source becomes private. Add that bounded case before declaring
+  this edge settled. Do not infer a policy or waive the discrepancy from these implementation
+  details.
+- **Mirror-authored pin on a linked controller:** 147's accepted projection rule drops this
+  mirror-only pin when projecting from the source; the existing private-net test covers only a
+  mirror-owned pin on an uncorresponded part. Add a paired-preview assertion that makes this
+  loss visible. This is evidence for the known rule, not a request to change ownership semantics.
+- **Removed-net copper:** 147 explicitly leaves copper referencing a removed private net alone;
+  validation does not check trace/via `netId`. Parent acceptance, refusal and preview review must
+  account for that acknowledged outcome without inventing copper cleanup policy.
+- **Registration and names:** raw `SetNet` registers on the document's first board; the residual
+  non-first-board registration issue is general editor behavior. A linked mirror `SetNet` is
+  inverse-mapped to its source net before apply. Existing-net name ownership is already decided
+  by 147/ADR-0010; these are not new permission gates.
+
+If resolving either pending evidence item requires a new ownership, net-lifetime or preview rule,
+stop 111 activation and delegate that bounded preparation; do not add the rule inside activation.
+These notes record follow-up evidence only and complete no acceptance item.
