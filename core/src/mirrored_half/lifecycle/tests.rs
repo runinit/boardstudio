@@ -5308,6 +5308,126 @@ fn pin_values(config: &ElectricalBoardConfiguration) -> BTreeSet<String> {
 }
 
 #[test]
+fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
+    let (before, context) = electrical_copper_fixture();
+    let local_controller = super::transition_exception_context(
+        &context,
+        MirroredItemKind::Part,
+        "source-mcu",
+        "mirror-mcu",
+        TransitionState::Local,
+    )
+    .unwrap();
+    let localized = super::prepare_lifecycle_transition(&before, &before, &local_controller)
+        .expect("the controller can become Local");
+    assert!(localized.context.associations.iter().any(|association| {
+        association.kind == MirroredItemKind::Part
+            && association.mirror_id == "mirror-mcu"
+            && association.state == TransitionState::Local
+    }));
+
+    let omitted = omit_screen(&localized.draft, &localized.context);
+    let retained_net = omitted
+        .draft
+        .nets
+        .iter()
+        .find(|net| net.id == "mirror-sda")
+        .expect("the Local controller's own pin keeps its net");
+    assert_eq!(
+        retained_net.pins,
+        [Pin {
+            part_id: "mirror-mcu".into(),
+            pad_id: "gp2".into(),
+        }]
+    );
+    let mirror_board = omitted
+        .draft
+        .boards
+        .iter()
+        .find(|board| board.id == "mirror-board")
+        .unwrap();
+    assert!(mirror_board.net_ids.contains(&"mirror-sda".into()));
+    crate::mechanical::halves::validate_document(&omitted.draft).unwrap();
+
+    let decoded: ProjectDoc =
+        serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
+    let repeated =
+        super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
+    assert_eq!(repeated.draft, decoded);
+    let mut reopened = crate::CoreEngine::default();
+    assert!(matches!(
+        reopened.handle(crate::model::CoreRequest::Open {
+            id: "reopen-local-controller-net".into(),
+            document: repeated.draft,
+        }),
+        crate::model::CoreReply::Scene { .. }
+    ));
+    assert!(
+        reopened
+            .document
+            .nets
+            .iter()
+            .any(|net| net.id == "mirror-sda")
+    );
+    assert!(
+        reopened
+            .document
+            .boards
+            .iter()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .net_ids
+            .contains(&"mirror-sda".into())
+    );
+}
+
+#[test]
+fn malformed_local_controller_ownership_refuses_omit_atomically() {
+    let (before, context) = electrical_copper_fixture();
+    let local_controller = super::transition_exception_context(
+        &context,
+        MirroredItemKind::Part,
+        "source-mcu",
+        "mirror-mcu",
+        TransitionState::Local,
+    )
+    .unwrap();
+    let localized = super::prepare_lifecycle_transition(&before, &before, &local_controller)
+        .expect("the controller can become Local");
+    let mut malformed = localized.context.clone();
+    let controller = malformed
+        .associations
+        .iter()
+        .find(|association| {
+            association.kind == MirroredItemKind::Part && association.mirror_id == "mirror-mcu"
+        })
+        .unwrap()
+        .clone();
+    malformed.associations.push(controller);
+    let pending = super::transition_exception_context(
+        &malformed,
+        MirroredItemKind::Part,
+        "source-screen",
+        "mirror-screen",
+        TransitionState::Omitted,
+    );
+    let error = match pending {
+        Ok(pending) => {
+            let frozen = (localized.draft.clone(), malformed.clone(), pending.clone());
+            let result =
+                super::prepare_lifecycle_transition(&localized.draft, &localized.draft, &pending);
+            let Err(error) = result else {
+                panic!("duplicate controller ownership must refuse Omit");
+            };
+            assert_eq!(frozen, (localized.draft, malformed, pending));
+            error
+        }
+        Err(error) => error,
+    };
+    assert!(!error.is_empty());
+}
+
+#[test]
 fn omit_frees_the_items_pins_and_locks_every_mirrored_item_to_the_source() {
     let (before, context) = electrical_copper_fixture();
     let omitted = omit_screen(&before, &context);
