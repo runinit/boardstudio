@@ -146,16 +146,22 @@ pub(crate) struct OffsetDrafts {
     pub rotation: String,
 }
 
-/// The drafts for `part_id` given the constraint that drives it, if any. A saved offset
-/// constraint shows its own source, axes and numbers. Otherwise the source is the first
-/// other part on the board, the axes follow the default for that source, and the numbers
-/// are zero.
+/// The drafts for `part_id` given the constraint that drives it, if any. A saved Framed
+/// constraint keeps its endpoint source, even when that part is on the paired board. A legacy
+/// constraint with an off-board source falls back to the first other part. Saved offset axes
+/// and numbers are preserved; otherwise axes follow the source and numbers are zero.
 pub(crate) fn offset_drafts(
     constraint: Option<&Constraint>,
     board_parts: &[BoardPartChoice],
     part_id: &str,
 ) -> OffsetDrafts {
     let source_part_id = constraint
+        .filter(|constraint| {
+            matches!(constraint, Constraint::Framed { .. })
+                || board_parts
+                    .iter()
+                    .any(|part| part.id == constraint.source())
+        })
         .map(Constraint::source)
         .map(str::to_owned)
         .or_else(|| {
@@ -309,7 +315,9 @@ mod offset_axes_tests {
         offset_axes_value, offset_drafts, offset_values,
     };
     use crate::presentation::inspector::LayoutConstraintValues;
-    use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
+    use boardstudio_core::model::{
+        Constraint, ConstraintEndpoint, ConstraintRelation, MirrorAxis, OffsetAxes, Vec2,
+    };
 
     fn offsets() -> (Constraint, Constraint, Constraint) {
         let board = Constraint::Offset {
@@ -449,6 +457,58 @@ mod offset_axes_tests {
         let (off_board, _, _) = offsets();
         let drafts = offset_drafts(Some(&off_board), &board(), "key");
         assert_eq!(drafts.source_part_id, "diode");
+        assert_eq!(
+            drafts,
+            OffsetDrafts {
+                source_part_id: "diode".into(),
+                axes: OffsetAxes::Board,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_off_board_part_offset_keeps_saved_axes_instead_of_the_fallback_default() {
+        let (_, off_board, _) = offsets();
+        assert_eq!(
+            offset_drafts(Some(&off_board), &board(), "key"),
+            OffsetDrafts {
+                source_part_id: "diode".into(),
+                axes: OffsetAxes::Part,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_off_board_framed_source_keeps_its_endpoint_axes_and_numbers() {
+        let framed = Constraint::Framed {
+            id: "framed-offset".into(),
+            source: ConstraintEndpoint::Part {
+                part_id: "paired-board-source".into(),
+            },
+            target: ConstraintEndpoint::Part {
+                part_id: "key".into(),
+            },
+            relation: ConstraintRelation::PartOffset {
+                offset: Vec2 { x: 1.0, y: -4.0 },
+                rotation: 5.0,
+            },
+        };
+        assert_eq!(
+            offset_drafts(Some(&framed), &board(), "key"),
+            OffsetDrafts {
+                source_part_id: "paired-board-source".into(),
+                axes: OffsetAxes::Part,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
