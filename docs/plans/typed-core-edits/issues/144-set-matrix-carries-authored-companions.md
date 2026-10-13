@@ -1,6 +1,6 @@
 # 144: A whole-matrix edit carries authored companions with their keys
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Related: [143](143-part-offset-constraint.md)
@@ -39,19 +39,27 @@ their keys, the way a column splay and a placement edit already do.
 
 ## Acceptance
 
-- [ ] A test authors a companion, then changes the matrix origin, rotation and mirror through
+- [x] A test authors a companion, then changes the matrix origin, rotation and mirror through
       `SetMatrix`; the companion keeps its pose in the key's frame each time.
-- [ ] Translation-only edits move the companion by exactly the key's delta, bit for bit.
-- [ ] Linked halves, disabled and deleted cells and locked companions have an explicit test or
+- [x] Translation-only edits move the companion by exactly the key's delta, bit for bit.
+- [x] Linked halves, disabled and deleted cells and locked companions have an explicit test or
       a written reason they are out of scope.
-- [ ] Existing `SetMatrix` tests and the golden transcript pass unchanged.
+- [x] Existing `SetMatrix` tests and the golden transcript pass unchanged.
 
 ## Not in this ticket
 
 - A constrained companion's offset axes, which is [143](143-part-offset-constraint.md).
 
+## Outcome
+
+Implemented `SetMatrix` companion carrying in `3d20a7202` and merged to `dev` at `fb801a92`.
+The focused companion, placement, splay, and golden transcript suites passed before merge;
+the merged `python3 scripts/check.py repo test lint` passed after correcting the ticket 111 link.
+The native test baseline includes the five added tests. Independent Standards and Spec reviews
+cleared the change; the reviewed mirror rule reflects the key-relative X offset and heading.
+
 ## Comments
 
 - 2026-10-12: Coverage carries an authored source companion through `SetMatrix` and checks that
   the linked mirror's companion remains materialized by the existing layout sync. Full linked
-  edit transaction behavior and activation remain with [111](111-activate-typed-mirrored-edits.md).
+  edit transaction behavior and activation remain with [111](111-integrate-mirrored-half-reconciliation.md).

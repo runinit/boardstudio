@@ -251,6 +251,10 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   `7efaf94ec`, merged `b9db54166`; focused 26/26, mutations 3/3 killed, native baseline 1695,
   independent Standards/Spec review clear, merged `repo test lint` passed. 111 still has other
   prerequisites.
+- [113](issues/113-inverse-map-reviewed-outline-edits.md) and [144](issues/144-set-matrix-carries-authored-companions.md)
+  are resolved on `dev` at `f3a808680` and `e644bc341`, respectively. Outline edits now map anchored
+  geometry using each attached part's actual matrix membership; authored diode/LED companions
+  follow whole-matrix transforms. Full merged `repo test lint` passed after both integrations.
 
 ## Ready for implementation
 

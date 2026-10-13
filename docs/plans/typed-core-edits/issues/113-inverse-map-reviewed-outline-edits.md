@@ -1,6 +1,6 @@
 # 113: Inverse-map outline and reviewed-geometry edits
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [112](112-inverse-map-hosted-electrical-edits.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -38,12 +38,12 @@ anchored geometry by actual source-board matrix membership, per the owner's atta
 
 ## Test-first and acceptance
 
-- [ ] Direct translation tests fail first and classify every top-level/nested outline variant.
-- [ ] Axis and rotated/translated-map geometry, anchored controls and reviewed contours map
+- [x] Direct translation tests fail first and classify every top-level/nested outline variant.
+- [x] Axis and rotated/translated-map geometry, anchored controls and reviewed contours map
       consistently; source-equivalent reviewed edits remain admissible.
-- [ ] Relevant changed review inputs retire, unrelated changes do not; identity/seed allocation
+- [x] Relevant changed review inputs retire, unrelated changes do not; identity/seed allocation
       and independent local exceptions preserve existing behavior.
-- [ ] No unclassified variant hides behind wildcard pass-through; production routing remains
+- [x] No unclassified variant hides behind wildcard pass-through; production routing remains
       unchanged, with the owner-approved outline anchor classification exception above.
 
 Independent verifier: mutate reviewed-contour conversion, winding/anchor mapping and lifecycle
@@ -65,4 +65,14 @@ identity translation separately. A missing lifecycle family blocks resolution, n
 - Settlement acceptance now calls the existing `outline_edit::evaluate` directly on the translated operation: the current review is accepted, changing the reviewed source feature retires it, and renaming the unrelated mirror board preserves it. No production route or settlement helper was changed. Inverse `contour()` duplication and the unreachable Version target arm after the early return were also removed.
 - Review-retirement mutation: `.evidence/ticket113-final-review-retirement-mutation/results-skip-reviewed-shape-retirement.json` — skipping the existing review comparison was killed by the direct settlement assertion (1 killed, 0 survived); the read-only settlement implementation was restored exactly.
 - Legacy membership red/green: `legacy_matrix_membership_without_board_id_uses_matrix_frame_rule` failed before the ownership-set adjustment because inverse produced `[12,-14],[8,-10],[4,-6]` instead of matrix-frame `[-12,14],[-8,10],[-4,6]`; it passes with the forward-equivalent membership intersection.
-- Independent review and integration remain outstanding; acceptance boxes and status remain open/claimed for the coordinator.
+- Independent review and integration are recorded in the Outcome below.
+
+## Outcome
+
+Resolved after independent Standards and Spec reviews. The user's rule is that every attached
+part uses the matrix it belongs to when mapping anchored outline geometry. Source ownership is
+the intersection of matrix membership and the board's part list, including legacy matrices
+without `board_id`; forward and inverse paths share that rule. The ticket branch was merged
+to `dev` at `f3a808680`; the root lint-only cleanup followed at `fb801a92`. Focused inverse
+(54/54) and outline reconciliation (14/14) suites passed, and merged `repo test lint` passed.
+Production operation routing remains unchanged.
