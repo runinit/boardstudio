@@ -12,6 +12,20 @@ fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
     document.parts.iter().find(|part| part.id == id).unwrap()
 }
 
+fn key_relative_pose(document: &ProjectDoc, key_id: &str, companion_id: &str) -> (Vec2, f64) {
+    let key = part(document, key_id).pose;
+    let companion = part(document, companion_id).pose;
+    let (sin, cos) = (-key.rotation).to_radians().sin_cos();
+    let (dx, dy) = (companion.at.x - key.at.x, companion.at.y - key.at.y);
+    (
+        Vec2 {
+            x: dx * cos - dy * sin,
+            y: dx * sin + dy * cos,
+        },
+        companion.rotation - key.rotation,
+    )
+}
+
 fn open_pair_engine(document: ProjectDoc) -> crate::CoreEngine {
     let mut engine = crate::CoreEngine::default();
     assert!(matches!(
@@ -29,6 +43,94 @@ fn prepare_preview(
     operation: &EditOperation,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     prepare_transaction(&engine.document, &[], operation)
+}
+
+#[test]
+fn matrix_membership_change_ignores_member_order() {
+    let before = pair_document();
+    let mut after = before.clone();
+    let matrix = after
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == "left-keys")
+        .expect("the source matrix exists");
+    matrix.part_ids.reverse();
+
+    assert!(
+        !super::super::matrix_membership_changed(&before, &after, "left-keys"),
+        "reordering the same matrix members does not change membership"
+    );
+}
+
+#[test]
+fn matrix_membership_change_detects_additions_removals_and_duplicate_multiplicity() {
+    let before = pair_document();
+
+    let mut added = before.clone();
+    added
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .part_ids
+        .push("left/new-member".into());
+    assert!(super::super::matrix_membership_changed(
+        &before,
+        &added,
+        "left-keys"
+    ));
+
+    let mut removed = before.clone();
+    removed
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .part_ids
+        .pop();
+    assert!(super::super::matrix_membership_changed(
+        &before,
+        &removed,
+        "left-keys"
+    ));
+
+    let mut duplicated = before.clone();
+    let matrix = duplicated
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap();
+    matrix.part_ids.push(matrix.part_ids[0].clone());
+    assert!(super::super::matrix_membership_changed(
+        &before,
+        &duplicated,
+        "left-keys"
+    ));
+}
+
+#[test]
+fn matrix_membership_change_distinguishes_missing_from_present_empty() {
+    let mut empty = pair_document();
+    empty
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .part_ids
+        .clear();
+    let mut missing = empty.clone();
+    missing.matrices.retain(|matrix| matrix.id != "left-keys");
+
+    assert!(super::super::matrix_membership_changed(
+        &missing,
+        &empty,
+        "left-keys"
+    ));
+    assert!(!super::super::matrix_membership_changed(
+        &missing,
+        &missing.clone(),
+        "left-keys"
+    ));
 }
 
 fn add_linked_independent_part(document: &mut ProjectDoc) {
@@ -63,6 +165,21 @@ fn add_linked_independent_part(document: &mut ProjectDoc) {
             source_id: "left/RST".into(),
             mirror_id: "right/RST".into(),
         });
+}
+
+fn pair_document_with_unrelated_matrix() -> ProjectDoc {
+    let mut document = pair_document();
+    let unrelated = crate::mirrored_half::matrix_addition::tests::op(
+        crate::mirrored_half::matrix_addition::tests::new_matrix(
+            "right-unrelated",
+            "right",
+            (280.0, 30.0),
+            2,
+        ),
+    );
+    crate::apply(&mut document, &[], &unrelated)
+        .expect("the unrelated mirror-board matrix materializes");
+    document
 }
 
 fn nonempty_closure_pair_document() -> ProjectDoc {
@@ -133,6 +250,109 @@ fn linked_mount_pair_feature(
                 state: right_state,
             },
         ],
+    }
+}
+
+#[test]
+fn prepared_matrix_pose_edits_preserve_authored_companions_from_both_sides() {
+    for matrix_id in ["left-keys", "right-keys"] {
+        for operation in [
+            EditOperation::SetMatrixSplay {
+                matrix_id: matrix_id.into(),
+                column: 1,
+                change: crate::model::MatrixSplayChange::Angle {
+                    angle: 12.0,
+                    affect: crate::model::MatrixSplayAffect::Following,
+                },
+            },
+            EditOperation::SetMatrixPlacement {
+                matrix_id: matrix_id.into(),
+                change: crate::model::MatrixPlacementChange::ColumnStagger {
+                    column: 1,
+                    value: 4.0,
+                },
+            },
+        ] {
+            let accepted = pair_document_with_unrelated_matrix();
+            let accepted_bytes = serde_json::to_vec(&accepted).unwrap();
+            let matrix_before = accepted
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap();
+            let member_ids = matrix_before.part_ids.clone();
+            let companion_fields: Vec<_> = member_ids
+                .iter()
+                .map(|id| (id.clone(), part(&accepted, id).clone()))
+                .collect();
+            let unrelated_matrix = accepted
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "right-unrelated")
+                .unwrap()
+                .clone();
+            let unrelated_member_ids = unrelated_matrix.part_ids.clone();
+            let key_id = format!("matrix/{matrix_id}/r0c1");
+            let companion_id = format!("{key_id}/diode");
+            let companion_relative_before = key_relative_pose(&accepted, &key_id, &companion_id);
+
+            let (prepared, _) = prepare_transaction(&accepted, &[], &operation)
+                .expect("a linked source or mirror matrix pose edit prepares");
+
+            assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
+            let matrix_after = prepared
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap();
+            assert_eq!(matrix_after.part_ids.len(), member_ids.len());
+            assert!(
+                !super::super::matrix_membership_changed(&accepted, &prepared, matrix_id),
+                "pose edits retain the exact member identities"
+            );
+            assert_eq!(matrix_after.cells, matrix_before.cells);
+            assert_ne!(
+                part(&prepared, &key_id).pose,
+                part(&accepted, &key_id).pose,
+                "the selected matrix edit changes the cell pose"
+            );
+            let companion_relative_after = key_relative_pose(&prepared, &key_id, &companion_id);
+            assert!(
+                (companion_relative_before.0.x - companion_relative_after.0.x).abs() < 1e-9
+                    && (companion_relative_before.0.y - companion_relative_after.0.y).abs() < 1e-9
+                    && (companion_relative_before.1 - companion_relative_after.1).abs() < 1e-9,
+                "the authored companion remains at its key-relative pose"
+            );
+            for (id, original) in &companion_fields {
+                let actual = part(&prepared, id);
+                let mut expected_fields = original.clone();
+                expected_fields.pose = actual.pose;
+                assert_eq!(
+                    actual, &expected_fields,
+                    "authored member fields remain intact for {id}"
+                );
+            }
+            let unrelated_after = prepared
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "right-unrelated")
+                .unwrap();
+            assert_eq!(unrelated_after, &unrelated_matrix);
+            for id in &unrelated_member_ids {
+                assert_eq!(part(&prepared, id), part(&accepted, id));
+            }
+
+            let (repeated, _) = prepare_transaction(&accepted, &[], &operation)
+                .expect("repeating the same prepared pose edit is deterministic");
+            assert_eq!(repeated, prepared);
+
+            let (opened, _) = super::prepare_open(&prepared, &[])
+                .expect("the prepared authored companion state opens");
+            let (reopened, findings) = super::prepare_open(&opened, &[])
+                .expect("repeated Open remains stable after the prepared pose edit");
+            assert_eq!(reopened, opened);
+            assert!(findings.is_empty());
+        }
     }
 }
 
