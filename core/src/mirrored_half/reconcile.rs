@@ -11,8 +11,8 @@
 //! - `mod tests` at the bottom; outline tests in reconcile/outlines/tests.rs.
 
 use crate::model::{
-    Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredItemKind, Part, Pose2,
-    ProjectDoc, Vec2,
+    Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind, Part,
+    Pose2, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -212,6 +212,206 @@ fn unique_board_owner<'a>(
         ));
     }
     Ok(&owner.id)
+}
+
+fn effective_circuit_child_state(
+    document: &ProjectDoc,
+    halves: &MirroredHalves,
+    correspondence: &MirroredCorrespondence,
+) -> Option<crate::model::MirroredExceptionState> {
+    if let Some(exception) = halves.overlay_of(correspondence) {
+        return Some(exception.state);
+    }
+    let child_id = correspondence.mirror_id.as_str();
+    let owner = halves.correspondences.iter().find(|owner| {
+        if owner.kind != MirroredItemKind::EmbeddedCircuit {
+            return false;
+        }
+        let Some(circuit) = document
+            .embedded_circuits
+            .iter()
+            .find(|circuit| circuit.id == owner.mirror_id)
+        else {
+            return false;
+        };
+        match correspondence.kind {
+            MirroredItemKind::Part => circuit.part_ids.iter().any(|id| id == child_id),
+            MirroredItemKind::Net => {
+                child_id.starts_with(&format!("embedded/{}/", owner.mirror_id))
+                    && circuit.net_ids.iter().any(|id| id == child_id)
+            }
+            _ => false,
+        }
+    })?;
+    halves.overlay_of(owner).map(|exception| exception.state)
+}
+
+fn validate_local_circuit_targets(
+    document: &ProjectDoc,
+    halves: &MirroredHalves,
+) -> Result<(), String> {
+    for exception in halves.exceptions.iter().filter(|exception| {
+        exception.kind == MirroredItemKind::EmbeddedCircuit
+            && exception.state == crate::model::MirroredExceptionState::Local
+    }) {
+        let mut owners = halves.correspondences.iter().filter(|owner| {
+            owner.kind == MirroredItemKind::EmbeddedCircuit
+                && owner.mirror_id == exception.mirror_id
+                && halves.overlay_of(owner).is_some_and(|overlay| {
+                    overlay.state == crate::model::MirroredExceptionState::Local
+                })
+        });
+        let Some(owner) = owners.next() else {
+            // Historical unassociated Local circuits keep their existing unvalidated behavior.
+            continue;
+        };
+        if owners.next().is_some() {
+            return Err(format!(
+                "Local embedded circuit {:?} has duplicate owner correspondences",
+                exception.mirror_id
+            ));
+        }
+        let source_matches = document
+            .embedded_circuits
+            .iter()
+            .filter(|circuit| circuit.id == owner.source_id)
+            .count();
+        if source_matches != 1 {
+            return Err(format!(
+                "Local embedded circuit source {:?} is unavailable or ambiguous",
+                owner.source_id
+            ));
+        }
+        let mut targets = document
+            .embedded_circuits
+            .iter()
+            .filter(|circuit| circuit.id == owner.mirror_id);
+        let Some(target) = targets.next() else {
+            return Err(format!(
+                "Local embedded circuit target {:?} is unavailable",
+                owner.mirror_id
+            ));
+        };
+        if targets.next().is_some() || target.host_board_id != halves.mirror_board_id {
+            return Err(format!(
+                "Local embedded circuit target {:?} is ambiguous or belongs to the wrong board",
+                owner.mirror_id
+            ));
+        }
+        if document
+            .module_definitions
+            .iter()
+            .filter(|definition| definition.id == target.definition_id)
+            .count()
+            != 1
+        {
+            return Err(format!(
+                "Local embedded circuit {:?} has an unavailable module definition",
+                owner.mirror_id
+            ));
+        }
+        let member_prefix = format!("embedded/{}/", owner.mirror_id);
+        let mut members = BTreeSet::new();
+        for member_id in &target.part_ids {
+            if !members.insert(member_id) || !member_id.starts_with(&member_prefix) {
+                return Err(format!(
+                    "Local embedded circuit {:?} has a duplicate or foreign member {member_id:?}",
+                    owner.mirror_id
+                ));
+            }
+            if document
+                .parts
+                .iter()
+                .filter(|part| part.id == *member_id)
+                .count()
+                != 1
+                || unique_board_owner(document, member_id, "Local circuit member")?
+                    != halves.mirror_board_id
+            {
+                return Err(format!(
+                    "Local embedded circuit member {member_id:?} is unavailable or has the wrong owner"
+                ));
+            }
+            let Some(part) = document.parts.iter().find(|part| part.id == *member_id) else {
+                return Err(format!(
+                    "Local embedded circuit member {member_id:?} is unavailable"
+                ));
+            };
+            let definition_is_foreign_embedded = part.definition_id.starts_with("embedded/")
+                && !part
+                    .definition_id
+                    .starts_with(&format!("{member_prefix}definition/"));
+            if definition_is_foreign_embedded
+                || document
+                    .definitions
+                    .iter()
+                    .filter(|definition| definition.id == part.definition_id)
+                    .count()
+                    != 1
+            {
+                return Err(format!(
+                    "Local embedded circuit member {member_id:?} has an unavailable or foreign definition"
+                ));
+            }
+        }
+        let mut net_ids = BTreeSet::new();
+        for net_id in &target.net_ids {
+            if !net_ids.insert(net_id) {
+                return Err(format!(
+                    "Local embedded circuit {:?} has duplicate net reference {net_id:?}",
+                    owner.mirror_id
+                ));
+            }
+            if document.nets.iter().filter(|net| net.id == *net_id).count() != 1 {
+                return Err(format!(
+                    "Local embedded circuit net {net_id:?} is unavailable or ambiguous"
+                ));
+            }
+            let mut net_owners = document
+                .boards
+                .iter()
+                .filter(|board| board.net_ids.iter().any(|candidate| candidate == net_id));
+            let Some(net_owner) = net_owners.next() else {
+                return Err(format!(
+                    "Local embedded circuit net {net_id:?} has no board owner"
+                ));
+            };
+            if net_owners.next().is_some() || net_owner.id != halves.mirror_board_id {
+                return Err(format!(
+                    "Local embedded circuit net {net_id:?} is ambiguous or belongs to the wrong board"
+                ));
+            }
+            let Some(net) = document.nets.iter().find(|net| net.id == *net_id) else {
+                return Err(format!(
+                    "Local embedded circuit net {net_id:?} is unavailable"
+                ));
+            };
+            for pin in &net.pins {
+                if document
+                    .parts
+                    .iter()
+                    .filter(|part| part.id == pin.part_id)
+                    .count()
+                    != 1
+                    || unique_board_owner(document, &pin.part_id, "Local circuit net pin")?
+                        != halves.mirror_board_id
+                {
+                    return Err(format!(
+                        "Local embedded circuit net {net_id:?} has a missing or foreign pin {:?}",
+                        pin.part_id
+                    ));
+                }
+            }
+        }
+        for (port, net_id) in &target.ports {
+            if !net_ids.contains(net_id) {
+                return Err(format!(
+                    "Local embedded circuit port {port:?} references unregistered net {net_id:?}"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn omitted_mirror_matrix(
@@ -2052,6 +2252,7 @@ fn reconcile(
     {
         return Err("The reconciliation input does not match its canonical pair".into());
     }
+    validate_local_circuit_targets(document, halves)?;
     validate_hosted_removal_baselines(document, pair_id, projection)?;
     let hosted_omission_closure =
         validate_hosted_omission_baselines(document, pair_id, projection)?;
@@ -2509,9 +2710,7 @@ fn reconcile(
     // `omitted_source_*` name the items a reference must drop.
     let overlay_state = |kind: MirroredItemKind, correspondence: &MirroredCorrespondence| {
         debug_assert_eq!(correspondence.kind, kind);
-        halves
-            .overlay_of(correspondence)
-            .map(|exception| exception.state)
+        effective_circuit_child_state(document, halves, correspondence)
     };
     let part_targets: BTreeMap<_, _> = halves
         .correspondences
@@ -2635,9 +2834,17 @@ fn reconcile(
                 && !replayed_circuit_additions
                     .contains(&(association.source_id.clone(), association.mirror_id.clone()))
         })
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
+        .map(|association| {
+            (
+                association.source_id.clone(),
+                association.mirror_id.clone(),
+                halves.overlay_of(association).is_some_and(|overlay| {
+                    overlay.state == crate::model::MirroredExceptionState::Local
+                }),
+            )
+        })
         .collect();
-    for (source_id, mirror_id) in circuit_pairs {
+    for (source_id, mirror_id, local_owner) in circuit_pairs {
         let omitted = halves.exceptions.iter().any(|exception| {
             exception.kind == MirroredItemKind::EmbeddedCircuit
                 && exception.mirror_id == mirror_id
@@ -2765,7 +2972,11 @@ fn reconcile(
                     .map(|target_net| (port.clone(), target_net))
             })
             .collect();
-        *target = projected;
+        // A Local owner keeps the full target record; independently corresponded joined nets
+        // still flow through their own targets below.
+        if !local_owner {
+            *target = projected;
+        }
 
         for member_id in &source.part_ids {
             let Some(target_id) = part_targets.get(member_id) else {
@@ -8146,6 +8357,482 @@ mod tests {
                 .abs()
                 < 0.02
         );
+    }
+
+    #[test]
+    fn hosted_associated_local_circuit_preserves_owner_and_owned_payload() {
+        let (mut document, projection) = hosted_electrical_fixture().unwrap();
+        let halves = document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.exceptions.push(MirroredException {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::EmbeddedCircuit,
+            removed_copper: None,
+            mirror_id: "mirror-circuit".into(),
+            state: MirroredExceptionState::Local,
+        });
+        let target_circuit = document
+            .embedded_circuits
+            .iter_mut()
+            .find(|circuit| circuit.id == "mirror-circuit")
+            .unwrap();
+        target_circuit
+            .ports
+            .insert("local-authored".into(), "host-mirror-net".into());
+        target_circuit.net_ids.reverse();
+        target_circuit
+            .part_ids
+            .push("embedded/mirror-circuit/local-extra".into());
+        let mut local_extra = document
+            .parts
+            .iter()
+            .find(|part| part.id == "embedded/mirror-circuit/U1")
+            .unwrap()
+            .clone();
+        local_extra.id = "embedded/mirror-circuit/local-extra".into();
+        local_extra.definition_id = "embedded/mirror-circuit/definition/local-extra".into();
+        local_extra.reference = "LOCAL-EXTRA".into();
+        document.parts.push(local_extra);
+        let mut local_definition = document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
+            .unwrap()
+            .clone();
+        local_definition.id = "embedded/mirror-circuit/definition/local-extra".into();
+        local_definition.name = "Local extra definition".into();
+        document.definitions.push(local_definition);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push("embedded/mirror-circuit/local-extra".into());
+        document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "embedded/mirror-circuit/N$1")
+            .unwrap()
+            .pins
+            .extend([
+                Pin {
+                    part_id: "embedded/mirror-circuit/local-extra".into(),
+                    pad_id: "pad-1".into(),
+                },
+                Pin {
+                    part_id: "matrix/mirror-matrix/r0c0".into(),
+                    pad_id: "pad-one".into(),
+                },
+            ]);
+        let target_member = document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "embedded/mirror-circuit/U1")
+            .unwrap();
+        target_member.reference = "LOCAL-U".into();
+        target_member.pose.at = Vec2 { x: 31.0, y: 42.0 };
+        target_member
+            .properties
+            .as_mut()
+            .unwrap()
+            .insert("authoredLocal".into(), serde_json::json!({"v": 7}));
+        document
+            .definitions
+            .iter_mut()
+            .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
+            .unwrap()
+            .name = "Local U definition".into();
+        document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "embedded/mirror-circuit/N$1")
+            .unwrap()
+            .name = "Local private net".into();
+        document
+            .modules
+            .iter_mut()
+            .find(|module| module.id == "source-module")
+            .unwrap()
+            .at = Vec2 { x: 17.0, y: -8.0 };
+        let source_joined_net = document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "host-source-net")
+            .unwrap();
+        source_joined_net.name = "HOST SOURCE EDITED".into();
+        source_joined_net.pins.push(Pin {
+            part_id: "matrix/source-matrix/r0c0".into(),
+            pad_id: "pad-one".into(),
+        });
+        let pair_before = pair_state_bytes(&document);
+
+        reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+
+        let target_circuit = document
+            .embedded_circuits
+            .iter()
+            .find(|circuit| circuit.id == "mirror-circuit")
+            .unwrap();
+        assert_eq!(
+            target_circuit
+                .ports
+                .get("local-authored")
+                .map(String::as_str),
+            Some("host-mirror-net")
+        );
+        assert_eq!(
+            target_circuit.part_ids,
+            vec![
+                "embedded/mirror-circuit/U1",
+                "embedded/mirror-circuit/local-extra"
+            ]
+        );
+        assert_eq!(
+            target_circuit.net_ids,
+            vec!["host-mirror-net", "embedded/mirror-circuit/N$1"]
+        );
+        let target_member = document
+            .parts
+            .iter()
+            .find(|part| part.id == "embedded/mirror-circuit/U1")
+            .unwrap();
+        assert_eq!(target_member.reference, "LOCAL-U");
+        assert_eq!(target_member.pose.at, Vec2 { x: 31.0, y: 42.0 });
+        assert!(document.parts.iter().any(|part| {
+            part.id == "embedded/mirror-circuit/local-extra"
+                && part.reference == "LOCAL-EXTRA"
+                && part.definition_id == "embedded/mirror-circuit/definition/local-extra"
+        }));
+        assert_eq!(pair_state_bytes(&document), pair_before);
+        assert_eq!(
+            target_member.properties.as_ref().unwrap()["authoredLocal"],
+            serde_json::json!({"v": 7})
+        );
+        assert_eq!(
+            document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
+                .unwrap()
+                .name,
+            "Local U definition"
+        );
+        let private_net = document
+            .nets
+            .iter()
+            .find(|net| net.id == "embedded/mirror-circuit/N$1")
+            .unwrap();
+        assert_eq!(private_net.name, "Local private net");
+        assert!(private_net.pins.contains(&Pin {
+            part_id: "embedded/mirror-circuit/local-extra".into(),
+            pad_id: "pad-1".into(),
+        }));
+        assert!(private_net.pins.contains(&Pin {
+            part_id: "matrix/mirror-matrix/r0c0".into(),
+            pad_id: "pad-one".into(),
+        }));
+        let joined_host_net = document
+            .nets
+            .iter()
+            .find(|net| net.id == "host-mirror-net")
+            .unwrap();
+        assert_eq!(joined_host_net.name, "HOST SOURCE EDITED");
+        assert!(joined_host_net.pins.contains(&Pin {
+            part_id: "matrix/mirror-matrix/r0c0".into(),
+            pad_id: "pad-one".into(),
+        }));
+        assert!(
+            (document
+                .modules
+                .iter()
+                .find(|module| module.id == "mirror-module")
+                .unwrap()
+                .at
+                .x
+                - 108.0)
+                .abs()
+                < 0.02
+        );
+        let stable = document.clone();
+        reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        assert_eq!(document, stable);
+    }
+
+    #[test]
+    fn local_joined_net_exception_is_independent_of_local_circuit_owner() {
+        let (mut document, projection) = hosted_electrical_fixture().unwrap();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .extend([
+                MirroredException {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::EmbeddedCircuit,
+                    mirror_id: "mirror-circuit".into(),
+                    state: MirroredExceptionState::Local,
+                    removed_copper: None,
+                },
+                MirroredException {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Net,
+                    mirror_id: "host-mirror-net".into(),
+                    state: MirroredExceptionState::Local,
+                    removed_copper: None,
+                },
+            ]);
+        document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "host-source-net")
+            .unwrap()
+            .name = "HOST SOURCE EDITED".into();
+
+        reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+
+        assert_eq!(
+            document
+                .nets
+                .iter()
+                .find(|net| net.id == "host-mirror-net")
+                .unwrap()
+                .name,
+            "HOST MIRROR"
+        );
+    }
+
+    #[test]
+    fn inherited_local_circuit_member_settings_and_host_net_pins_survive() {
+        let (mut document, projection) = hosted_electrical_fixture().unwrap();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(MirroredException {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::EmbeddedCircuit,
+                mirror_id: "mirror-circuit".into(),
+                state: MirroredExceptionState::Local,
+                removed_copper: None,
+            });
+        let mut keycaps = KeycapConfiguration::default();
+        keycaps.keys.insert(
+            "embedded/source-circuit/U1".into(),
+            KeycapKeySettings {
+                legend: Some("SOURCE".into()),
+                ..Default::default()
+            },
+        );
+        keycaps.keys.insert(
+            "embedded/mirror-circuit/U1".into(),
+            KeycapKeySettings {
+                legend: Some("MIRROR".into()),
+                ..Default::default()
+            },
+        );
+        document.keycaps = Some(keycaps);
+
+        let request = EditOperation::SetKeycapKey {
+            key_id: "embedded/mirror-circuit/U1".into(),
+            change: KeycapKeyChange::Legend {
+                value: Some("LOCAL EDIT".into()),
+            },
+        };
+        let canonical = crate::mirrored_half::inverse::canonicalize(&document, &request)
+            .expect("a member of a Local circuit edits its keycap setting as written");
+        assert_eq!(canonical.operation, request);
+        crate::apply(&mut document, &[], &canonical.operation)
+            .expect("the mirror-side keycap edit applies");
+
+        let mirror_definition = document
+            .definitions
+            .iter_mut()
+            .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
+            .unwrap();
+        let mut local_pad = mirror_definition.pads[0].clone();
+        local_pad.id = "pad-2".into();
+        mirror_definition.pads.push(local_pad);
+        document.nets.extend([
+            Net {
+                id: "source-plain-member-net".into(),
+                name: "SOURCE MEMBER NET".into(),
+                pins: vec![Pin {
+                    part_id: "embedded/source-circuit/U1".into(),
+                    pad_id: "pad-1".into(),
+                }],
+            },
+            Net {
+                id: "mirror-plain-member-net".into(),
+                name: "LOCAL MEMBER NET".into(),
+                pins: vec![Pin {
+                    part_id: "embedded/mirror-circuit/U1".into(),
+                    pad_id: "pad-2".into(),
+                }],
+            },
+        ]);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "source-board")
+            .unwrap()
+            .net_ids
+            .push("source-plain-member-net".into());
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == "mirror-board")
+            .unwrap()
+            .net_ids
+            .push("mirror-plain-member-net".into());
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .push(MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Net,
+                source_id: "source-plain-member-net".into(),
+                mirror_id: "mirror-plain-member-net".into(),
+            });
+
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the Local circuit member remains valid through reconciliation");
+        let keycaps = document.keycaps.as_ref().unwrap();
+        assert_eq!(
+            keycaps.keys["embedded/source-circuit/U1"].legend.as_deref(),
+            Some("SOURCE")
+        );
+        assert_eq!(
+            keycaps.keys["embedded/mirror-circuit/U1"].legend.as_deref(),
+            Some("LOCAL EDIT")
+        );
+        assert_eq!(
+            document
+                .nets
+                .iter()
+                .find(|net| net.id == "mirror-plain-member-net")
+                .unwrap()
+                .pins,
+            vec![Pin {
+                part_id: "embedded/mirror-circuit/U1".into(),
+                pad_id: "pad-2".into(),
+            }],
+            "a host net keeps its pin on a Local circuit member",
+        );
+    }
+
+    #[test]
+    fn associated_local_circuit_closure_refusals_are_atomic() {
+        for malformed in [
+            "duplicate-owner",
+            "duplicate-target",
+            "wrong-board",
+            "wrong-source-board",
+            "missing-member",
+            "foreign-member",
+            "missing-definition",
+            "missing-net",
+            "invalid-port",
+            "foreign-private-pin",
+        ] {
+            let (mut document, projection) = hosted_electrical_fixture().unwrap();
+            let halves = document.hardware.as_mut().unwrap().pairs[0]
+                .halves
+                .as_mut()
+                .unwrap();
+            halves.exceptions.push(MirroredException {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::EmbeddedCircuit,
+                removed_copper: None,
+                mirror_id: "mirror-circuit".into(),
+                state: MirroredExceptionState::Local,
+            });
+            let target = document
+                .embedded_circuits
+                .iter_mut()
+                .find(|circuit| circuit.id == "mirror-circuit")
+                .unwrap();
+            let target_copy = target.clone();
+            match malformed {
+                "duplicate-owner" => halves.correspondences.push(
+                    halves
+                        .correspondences
+                        .iter()
+                        .find(|association| {
+                            association.kind == MirroredItemKind::EmbeddedCircuit
+                                && association.mirror_id == "mirror-circuit"
+                        })
+                        .unwrap()
+                        .clone(),
+                ),
+                "duplicate-target" => document.embedded_circuits.push(target_copy),
+                "wrong-board" => target.host_board_id = "source-board".into(),
+                "wrong-source-board" => {
+                    document
+                        .embedded_circuits
+                        .iter_mut()
+                        .find(|circuit| circuit.id == "source-circuit")
+                        .unwrap()
+                        .host_board_id = "mirror-board".into();
+                }
+                "missing-member" => target
+                    .part_ids
+                    .push("embedded/mirror-circuit/missing".into()),
+                "foreign-member" => target.part_ids.push("embedded/other-circuit/U2".into()),
+                "missing-definition" => {
+                    document
+                        .parts
+                        .iter_mut()
+                        .find(|part| part.id == "embedded/mirror-circuit/U1")
+                        .unwrap()
+                        .definition_id = "embedded/mirror-circuit/definition/missing".into()
+                }
+                "missing-net" => target
+                    .net_ids
+                    .push("embedded/mirror-circuit/missing".into()),
+                "invalid-port" => {
+                    target
+                        .ports
+                        .insert("invalid".into(), "embedded/mirror-circuit/missing".into());
+                }
+                "foreign-private-pin" => {
+                    document
+                        .nets
+                        .iter_mut()
+                        .find(|net| net.id == "embedded/mirror-circuit/N$1")
+                        .unwrap()
+                        .pins[0]
+                        .part_id = "embedded/other-circuit/U1".into()
+                }
+                _ => unreachable!(),
+            }
+            let before = serde_json::to_vec(&document).unwrap();
+
+            let error = reconcile(&mut document, "pair-source-mirror", &projection)
+                .expect_err("an invalid associated Local owner closure is refused");
+
+            assert!(!error.is_empty(), "{malformed} produced no reason");
+            if malformed == "wrong-source-board" {
+                assert!(error.contains("not on board"), "{error}");
+            }
+            assert_eq!(
+                serde_json::to_vec(&document).unwrap(),
+                before,
+                "{malformed}"
+            );
+        }
     }
 
     #[test]

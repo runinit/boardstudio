@@ -423,6 +423,14 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   oracle sign corrected to existing rotation math). Isolated111 is60/62; two electrical failures
   remain.111 activation remains unmerged.
 
-- [158](issues/158-retain-local-controller-private-net-on-omit.md): claimed existing147-policy
-  correction so a surviving Local controller own pin retains its net through Omit. Linked
-  controller behavior remains unchanged; associated Local circuit projection is separate.
+- [158](issues/158-retain-local-controller-private-net-on-omit.md): resolved existing 147-policy
+  Local-controller net-retention correction, merged locally at `2cb402e2`; post-merge repository,
+  test and lint checks pass with 1,849 native tests. Both reviews,
+  two mutation kills and full repo/test/lint pass with1,849 native tests. Unchanged public
+  controller Preview/Commit case passes;111 is61/62 with associated Local circuit projection
+  remaining.111 activation stays unmerged.
+
+- [159](issues/159-preserve-associated-local-circuit-owner-state.md): claimed associated Local
+  circuit ownership correction across private target mapping, projection and scoped validation.
+  Preserve inherited members/private data, explicit child exceptions and independently owned
+  joined host nets. Original public 111 circuit test remains required; activation stays unmerged.

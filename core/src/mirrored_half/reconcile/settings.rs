@@ -41,20 +41,24 @@ pub(super) fn project(
     Ok(())
 }
 
-/// How a correspondence participates: `Some(state)` is an overlay, `None` is linked.
-fn overlay(halves: &MirroredHalves, correspondence: &MirroredCorrespondence) -> Option<State> {
-    halves
-        .overlay_of(correspondence)
-        .map(|exception| match exception.state {
-            MirroredExceptionState::Local => State::Local,
-            MirroredExceptionState::Omitted => State::Omitted,
-        })
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum State {
     Local,
     Omitted,
+}
+
+/// How a correspondence participates: `Some(state)` is Local or Omitted, `None` is linked.
+fn effective_state(
+    document: &ProjectDoc,
+    halves: &MirroredHalves,
+    correspondence: &MirroredCorrespondence,
+) -> Option<State> {
+    super::effective_circuit_child_state(document, halves, correspondence).map(
+        |state| match state {
+            MirroredExceptionState::Local => State::Local,
+            MirroredExceptionState::Omitted => State::Omitted,
+        },
+    )
 }
 
 /// Sets `key` to `value`, or removes it when the source has none.
@@ -92,7 +96,7 @@ fn keycaps(document: &ProjectDoc, staged: &mut ProjectDoc, halves: &MirroredHalv
             MirroredItemKind::Part => (None, parts.contains(correspondence.mirror_id.as_str())),
             _ => continue,
         };
-        let state = overlay(halves, correspondence);
+        let state = effective_state(document, halves, correspondence);
         if state == Some(State::Local) {
             continue;
         }
@@ -136,16 +140,16 @@ fn plain_nets(document: &ProjectDoc, staged: &mut ProjectDoc, halves: &MirroredH
     let linked_parts: BTreeMap<&str, &str> = halves
         .correspondences
         .iter()
-        .filter(|c| c.kind == MirroredItemKind::Part && overlay(halves, c).is_none())
+        .filter(|c| {
+            c.kind == MirroredItemKind::Part && effective_state(document, halves, c).is_none()
+        })
         .map(|c| (c.source_id.as_str(), c.mirror_id.as_str()))
         .collect();
     let linked_mirror_parts: BTreeSet<&str> = linked_parts.values().copied().collect();
 
-    for correspondence in halves
-        .correspondences
-        .iter()
-        .filter(|c| c.kind == MirroredItemKind::Net && overlay(halves, c).is_none())
-    {
+    for correspondence in halves.correspondences.iter().filter(|c| {
+        c.kind == MirroredItemKind::Net && effective_state(document, halves, c).is_none()
+    }) {
         let (source_id, mirror_id) = (&correspondence.source_id, &correspondence.mirror_id);
         if source_id.starts_with("embedded/")
             || mirror_id.starts_with("embedded/")

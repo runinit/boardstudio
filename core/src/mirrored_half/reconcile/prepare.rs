@@ -38,6 +38,7 @@ pub(crate) fn prepare_open(
     let pair_views = native_pair_views(&draft);
     for pair in &pair_views {
         seed_missing_independent_parts(&mut draft, &pair.halves, pair.mapping)?;
+        super::validate_local_circuit_targets(&draft, &pair.halves)?;
     }
     // Seeding accepts only the narrowly recoverable independent-Part absence. All other
     // malformed, ambiguous, Local/Omitted or unsupported missing records remain strict refusals.
@@ -911,6 +912,7 @@ fn reconcile_pairs(
     let pair_views = native_pair_views(document);
     let mut changed = Vec::new();
     for pair in pair_views {
+        super::validate_local_circuit_targets(document, &pair.halves)?;
         let matrices: Vec<_> = pair
             .halves
             .correspondences
