@@ -373,6 +373,163 @@ fn targeted_set_mechanical_from_source_updates_the_pair_as_one_prepared_edit() {
 }
 
 #[test]
+fn prepared_mirror_circuit_embed_reserves_staged_source_references() {
+    let mut accepted = pair_document();
+    let mut unrelated_board = accepted.boards[0].clone();
+    unrelated_board.id = "other".into();
+    unrelated_board.name = "Other".into();
+    unrelated_board.outline_ids.clear();
+    unrelated_board.net_ids.clear();
+    unrelated_board.part_ids = vec!["other/C3".into()];
+    accepted.boards.push(unrelated_board);
+    let mut unrelated_part = accepted.parts[0].clone();
+    unrelated_part.id = "other/C3".into();
+    unrelated_part.reference = "C3".into();
+    accepted.parts.push(unrelated_part);
+    let accepted_before = accepted.clone();
+    let definition: crate::modules::ModuleDefinition = serde_json::from_value(json!({
+        "id": "staged-circuit-definition", "name": "Staged Circuit", "family": "f", "variant": "v",
+        "source": {"repository": "https://example.invalid/c", "revision": "r",
+                   "path": "c.kicad_pcb", "license": "MIT"},
+        "board": {"contours": []}, "mounts": [], "volumes": [], "openings": [], "models": [],
+        "gates": [], "interfaces": [],
+        "electrical": {"protocol": "pass-through", "requiredSignals": [], "logicVoltage": 3.3},
+        "constituents": [],
+        "circuit": {
+            "definitions": [{"id": "cd", "name": "CD", "kind": "custom", "courtyard": [], "pads": []}],
+            "parts": [
+                {"id": "Q1", "definitionId": "cd", "reference": "C1", "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"},
+                {"id": "Q2", "definitionId": "cd", "reference": "C1", "pose": {"at": {"x": 2, "y": 0}, "rotation": 0}, "side": "front"}
+            ],
+            "nets": [], "ports": {}, "adaptations": []
+        }
+    })).expect("the circuit definition is valid");
+    let operation = EditOperation::EmbedModuleCircuit {
+        id: "right-staged".into(),
+        definition,
+        host_board_id: "right".into(),
+        pose: crate::model::Pose2 {
+            at: Vec2 { x: 180.0, y: 7.0 },
+            rotation: 0.0,
+        },
+        side: crate::model::Side::Front,
+        joins: Default::default(),
+    };
+    let canonical = crate::mirrored_half::inverse::canonicalize(&accepted, &operation)
+        .expect("the mirror embed has a canonical source operation");
+    let mut source_oracle = accepted.clone();
+    crate::apply(&mut source_oracle, &[], &canonical.operation)
+        .expect("the ordinary source embed succeeds");
+
+    let (prepared, changed) = prepare_transaction(&accepted, &[], &operation)
+        .expect("the prepared mirror embed reserves references staged by the source embed");
+
+    let source_references: Vec<_> = ["embedded/left-staged/Q1", "embedded/left-staged/Q2"]
+        .iter()
+        .map(|id| part(&prepared, id).reference.as_str())
+        .collect();
+    let mirror_references: Vec<_> = ["embedded/right-staged/Q1", "embedded/right-staged/Q2"]
+        .iter()
+        .map(|id| part(&prepared, id).reference.as_str())
+        .collect();
+    let references_before = [
+        "embedded/left-staged/Q1",
+        "embedded/left-staged/Q2",
+        "embedded/right-staged/Q1",
+        "embedded/right-staged/Q2",
+    ]
+    .map(|id| part(&prepared, id).reference.as_str());
+    let oracle_references: Vec<_> = ["embedded/left-staged/Q1", "embedded/left-staged/Q2"]
+        .iter()
+        .map(|id| part(&source_oracle, id).reference.as_str())
+        .collect();
+    assert_eq!(source_references, ["C1", "C2"]);
+    assert_eq!(
+        source_references, oracle_references,
+        "the source embed keeps its board-local allocation"
+    );
+    assert_eq!(mirror_references, ["C4", "C5"]);
+    assert_eq!(part(&prepared, "other/C3").reference, "C3");
+    assert!(
+        source_references
+            .iter()
+            .all(|reference| !mirror_references.contains(reference))
+    );
+    assert_eq!(
+        accepted, accepted_before,
+        "preparation leaves accepted state unchanged"
+    );
+    assert!(changed.iter().any(|id| id == "left"));
+    assert!(changed.iter().any(|id| id == "right"));
+
+    let (repeated, repeated_changes) = prepare_transaction(&accepted, &[], &operation)
+        .expect("reconciling the same addition is deterministic");
+    assert_eq!(repeated, prepared);
+    assert_eq!(repeated_changes, changed);
+
+    let source_move = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "embedded/left-staged/Q1".into(),
+            at: Vec2 { x: 23.0, y: 11.0 },
+        }],
+    };
+    let (source_moved, _) = prepare_transaction(&prepared, &[], &source_move)
+        .expect("a subsequent source member edit reconciles");
+    assert_eq!(
+        part(&source_moved, "embedded/left-staged/Q1").pose.at,
+        Vec2 { x: 23.0, y: 11.0 }
+    );
+    assert_eq!(
+        part(&source_moved, "embedded/right-staged/Q1").pose.at,
+        Vec2 { x: 177.0, y: 11.0 }
+    );
+    let (source_repeated, source_repeat_changes) =
+        prepare_transaction(&source_moved, &[], &source_move)
+            .expect("reconciling the same result again is idempotent");
+    assert_eq!(source_repeated, source_moved);
+    assert!(source_repeat_changes.is_empty());
+    assert_eq!(
+        [
+            "embedded/left-staged/Q1",
+            "embedded/left-staged/Q2",
+            "embedded/right-staged/Q1",
+            "embedded/right-staged/Q2"
+        ]
+        .map(|id| part(&source_repeated, id).reference.as_str()),
+        references_before
+    );
+    assert_eq!(part(&source_repeated, "other/C3").reference, "C3");
+
+    let mirror_move = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "embedded/right-staged/Q2".into(),
+            at: Vec2 { x: 177.0, y: 12.0 },
+        }],
+    };
+    let (mirror_moved, _) = prepare_transaction(&source_repeated, &[], &mirror_move)
+        .expect("a subsequent mirror member edit reconciles");
+    assert_eq!(
+        part(&mirror_moved, "embedded/right-staged/Q2").pose.at,
+        Vec2 { x: 177.0, y: 12.0 }
+    );
+    assert_eq!(
+        part(&mirror_moved, "embedded/left-staged/Q2").pose.at,
+        Vec2 { x: 23.0, y: 12.0 }
+    );
+    assert_eq!(
+        [
+            "embedded/left-staged/Q1",
+            "embedded/left-staged/Q2",
+            "embedded/right-staged/Q1",
+            "embedded/right-staged/Q2"
+        ]
+        .map(|id| part(&mirror_moved, id).reference.as_str()),
+        references_before
+    );
+    assert_eq!(part(&mirror_moved, "other/C3").reference, "C3");
+}
+
+#[test]
 fn targeted_set_mechanical_keeps_local_pair_features_on_their_instance() {
     let mut accepted = pair_document();
     accepted.hardware.as_mut().unwrap().pairs[0]
