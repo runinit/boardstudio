@@ -33,8 +33,11 @@ kernel evidence comes from the pinned FreeCAD measurements and analytic expectat
 in the fixtures. Native tests cannot prove WASM bindings, worker transfer or
 cancellation; the Rust worker tests (`python3 scripts/check.py browser`) own transport, and
 `python3 cad/scripts/test-cadrum-browser.py` runs the real WASM bindings in headless
-Chromium (result shapes, STEP import bounds and rejection, buffer ownership). Run it
-after `build-cadrum-wasm.py`.
+Chromium through ChromeDriver (result shapes, STEP import bounds and rejection,
+buffer ownership). Chrome and ChromeDriver must be installed; set `CHROME` or
+`CHROMEDRIVER` when their binaries are not on `PATH`. Run it after
+`build-cadrum-wasm.py`. Its 180-second default bounds browser execution; owned
+browser cleanup has a separate, shared four-second maximum grace period.
 
 The first build downloads target-specific OCCT 8.0.1 archives and verifies their
 SHA-256 digests before extraction. The WASM build requires Podman or Docker;
