@@ -2,6 +2,41 @@
 use super::*;
 use std::collections::BTreeMap;
 
+fn electrical_notice_id(kind: &str, identities: &[&str]) -> String {
+    let mut id = format!("preview:electrical:{kind}");
+    for identity in identities {
+        id.push_str(&format!(":{}-", identity.len()));
+        for byte in identity.as_bytes() {
+            id.push_str(&format!("{byte:02x}"));
+        }
+    }
+    id
+}
+
+fn assert_electrical_preview_notice(
+    preview: &Value,
+    kind: &str,
+    identities: &[&str],
+    message: String,
+    targets: &[&str],
+) {
+    let expected = json!({
+        "id": electrical_notice_id(kind, identities),
+        "severity": "info",
+        "scope": "pcb",
+        "message": message,
+        "targetIds": targets,
+    });
+    assert!(
+        preview["scene"]["findings"]
+            .as_array()
+            .unwrap()
+            .contains(&expected),
+        "missing exact Preview notice {expected}; findings={}",
+        preview["scene"]["findings"],
+    );
+}
+
 fn exception_operation(pair_id: &str, state: &str) -> Value {
     exception_operation_for(pair_id, "part", "right/RST", state)
 }
@@ -395,6 +430,43 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
             .unwrap()
             .contains(&json!(mirror_net_id))
     );
+    let controller_reference = find_part(&accepted, "right/U1").unwrap()["reference"]
+        .as_str()
+        .unwrap();
+    let net_name = net(&accepted, &mirror_net_id)["name"].as_str().unwrap();
+    let board_name = accepted["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|board| board["id"] == "right")
+        .unwrap()["name"]
+        .as_str()
+        .unwrap();
+    assert_electrical_preview_notice(
+        &preview,
+        "pin",
+        &[&mirror_net_id, "right/U1", "pad-1"],
+        format!(
+            "Preview removes pad pad-1 on {controller_reference} (right/U1) from net {net_name} ({mirror_net_id})."
+        ),
+        &[&mirror_net_id, "right/U1"],
+    );
+    assert_electrical_preview_notice(
+        &preview,
+        "net",
+        &[&mirror_net_id],
+        format!("Preview removes net {net_name} ({mirror_net_id})."),
+        &[&mirror_net_id],
+    );
+    assert_electrical_preview_notice(
+        &preview,
+        "registration",
+        &["right", &mirror_net_id],
+        format!(
+            "Preview removes net {net_name} ({mirror_net_id}) from board {board_name} (right)."
+        ),
+        &["right", &mirror_net_id],
+    );
     assert_eq!(
         snapshot(&mut engine),
         accepted,
@@ -622,6 +694,32 @@ fn public_local_circuit_keeps_its_corresponded_plain_net_across_private_source_o
             .unwrap()
             .contains(&json!(mirror_gnd))
     );
+    let reference = find_part(&accepted, "right/RST").unwrap()["reference"]
+        .as_str()
+        .unwrap();
+    let net_name = net(&accepted, &mirror_gnd)["name"].as_str().unwrap();
+    assert_electrical_preview_notice(
+        &preview,
+        "pin",
+        &[&mirror_gnd, "right/RST", "pad-1"],
+        format!(
+            "Preview removes pad pad-1 on {reference} (right/RST) from net {net_name} ({mirror_gnd})."
+        ),
+        &[&mirror_gnd, "right/RST"],
+    );
+    for retained_notice in [
+        electrical_notice_id("net", &[&mirror_gnd]),
+        electrical_notice_id("registration", &["right", &mirror_gnd]),
+    ] {
+        assert!(
+            preview["scene"]["findings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|finding| finding["id"] != retained_notice),
+            "Preview must not report loss of retained net {mirror_gnd}: {preview}"
+        );
+    }
     assert_eq!(
         snapshot(&mut engine),
         accepted,
