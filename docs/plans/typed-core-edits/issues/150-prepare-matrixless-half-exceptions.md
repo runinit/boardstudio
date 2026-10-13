@@ -1,6 +1,6 @@
 # 150: Prepare selective exceptions for mirrored pairs without Matrix correspondences
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [149](149-targeted-mirrored-set-mechanical.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -49,18 +49,18 @@ and its ownership, durable association, copper/pin cleanup and child-exception r
 
 ## Acceptance
 
-- [ ] Direct private tests first expose the missing matrixless exception behavior at runtime.
-- [ ] On a pair with no Matrix correspondence (physical matrices may still exist), an independent
+- [x] Direct private tests first expose the missing matrixless exception behavior at runtime.
+- [x] On a pair with no Matrix correspondence (physical matrices may still exist), an independent
       Part supports Local/Omit/Rejoin under a rotated map, including edits to the current source
       between transitions and exact identity retention.
-- [ ] EmbeddedCircuit owner exceptions preserve existing owned-reference and explicit-child rules
+- [x] EmbeddedCircuit owner exceptions preserve existing owned-reference and explicit-child rules
       without introducing matrix ownership. Local/Omitted Part exceptions for module host connectors
       preserve or clean Module references according to the selected state; Module is not treated as
       an owner of those Parts.
-- [ ] Local and Omitted states survive serde and direct reconciliation; Rejoin uses current source.
-- [ ] Ambiguous/stale selection and late validation refuse atomically; unrelated data is preserved.
-- [ ] Existing matrix-backed lifecycle regressions remain green, with no synthetic-matrix workaround.
-- [ ] Independent Standards and Spec review pass; mutation checks detect skipped state transitions,
+- [x] Local and Omitted states survive serde and direct reconciliation; Rejoin uses current source.
+- [x] Ambiguous/stale selection and late validation refuse atomically; unrelated data is preserved.
+- [x] Existing matrix-backed lifecycle regressions remain green, with no synthetic-matrix workaround.
+- [x] Independent Standards and Spec review pass; mutation checks detect skipped state transitions,
       lost durable association and unintended cleanup. Production activation remains owned by 111.
 
 ## Related
@@ -87,3 +87,22 @@ The runtime red checkpoint failed because Local prepared zero drafts instead of 
 `cargo fmt --all -- --check`; and `git diff --check`. Evidence and SHA-256 digests are in
 `/home/chris/01_Projects/ts-boardstudio2/.evidence/ticket150/`. Independent review, mutations,
 and full repository checks remain with integration owner; Status remains `claimed` pending those gates.
+
+## Outcome
+
+Private preparation is complete; production activation remains in 111. Matrixless Local/Omit/
+Rejoin reuses the existing lifecycle and forward projector with an optional exact Matrix pair.
+The explicit Local circuit-child and independent connector-reference checks passed independent
+changed-scope Standards and Spec review. Final `repo test lint` passed with all 1,821 baselined
+native tests; four intentional test additions were recorded through `check.py`. The final
+test-only connector-reference assertion passed the focused four-test suite and reviews.
+
+Seven distinct compiled mutations were killed by the relevant focused or library tests, with
+exact restoration. A shared deletion-cleanup probe survived the focused matrixless suite because
+the forward Module projector independently clears an Omitted connector; the full library probe
+killed it via the membership-compaction test. Both scoped outcomes are preserved. The active
+over-cleanup probe was killed by the new Local-reference assertion. The initial runtime red is
+recorded as a transcript; an independent empty-route mutation automatically reproduced the
+expected zero-versus-one Local-draft failure. No raw original-red command log is claimed.
+Evidence, accepted hashes and combined mutation results are in `.evidence/ticket150/` in the main
+checkout. Source commit `5a2ca4d4`; local merge and post-merge checks are next. No push.
