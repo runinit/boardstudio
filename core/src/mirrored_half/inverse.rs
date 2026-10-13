@@ -31,6 +31,7 @@
 #[path = "inverse/tests.rs"]
 mod tests;
 
+mod constraints;
 mod hosted;
 mod outline;
 
@@ -142,6 +143,9 @@ pub(super) struct Canonical {
     pub(super) matrix_additions: Vec<MatrixAddition>,
     /// Modules and circuits new to a mirror board (ticket 112).
     pub(super) hosted: hosted::Plan,
+    /// Constraint edits compiled to their live endpoint views; ticket 115 threads this through
+    /// apply and both resolutions without activating a production route in this unit.
+    pub(super) prepared_constraints: Vec<constraints::PreparedConstraintEdit>,
 }
 
 const BINDINGS_UNCHANGED: &str =
@@ -166,6 +170,7 @@ pub(super) fn canonicalize(
         additions: Vec::new(),
         matrix_additions: Vec::new(),
         hosted: hosted::Plan::default(),
+        prepared_constraints: Vec::new(),
     };
     match operation {
         Op::MoveParts { positions } => {
@@ -296,9 +301,6 @@ pub(super) fn canonicalize(
         // Ticket 114: compatibility, constraints and the final exhaustive ledger.
         Op::SetLayout { .. }
         | Op::CreateMirroredPair { .. }
-        | Op::SetConstraint { .. }
-        | Op::RemoveConstraint { .. }
-        | Op::ConvertOffsetConstraint { .. }
         | Op::SetMechanical { .. }
         | Op::SetCase { .. }
         | Op::CreateMirroredHalf { .. }
@@ -308,6 +310,13 @@ pub(super) fn canonicalize(
                 "layout, constraint, raw configuration, creation and import requests need \
                  compatibility or endpoint classification",
             ));
+        }
+        Op::SetConstraint { .. }
+        | Op::RemoveConstraint { .. }
+        | Op::ConvertOffsetConstraint { .. } => {
+            if let Some(prepared) = constraints::prepare(document, operation)? {
+                canonical.prepared_constraints.push(prepared);
+            }
         }
     }
     Ok(canonical)

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// The authored, visible identity of a framed relation endpoint.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
-pub(super) enum ConstraintEndpoint {
+pub(crate) enum ConstraintEndpoint {
     Part {
         #[serde(rename = "partId")]
         part_id: String,
@@ -27,7 +27,7 @@ pub(super) enum ConstraintEndpoint {
 /// Private wire-shape candidate; the existing global constraint ID stays attached to the record.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
-pub(super) enum FramedConstraint {
+pub(crate) enum FramedConstraint {
     Framed {
         id: String,
         source: ConstraintEndpoint,
@@ -50,6 +50,92 @@ impl ConstraintEndpoint {
             Self::Part { part_id } => part_id,
             Self::LinkedMirror { source_part_id, .. } => source_part_id,
         }
+    }
+}
+
+/// Compiles a legacy record's literal endpoint IDs into live endpoint views. Legacy records
+/// keep their wire shape; this is the private solver/adapter representation for the same ID.
+pub(crate) fn compile_legacy(
+    document: &ProjectDoc,
+    constraint: &crate::model::Constraint,
+) -> Result<FramedConstraint, String> {
+    let source = legacy_endpoint(document, constraint.id(), Side::Source, constraint.source())?;
+    let target = legacy_endpoint(document, constraint.id(), Side::Target, constraint.target())?;
+    Ok(FramedConstraint::Framed {
+        id: constraint.id().to_owned(),
+        source,
+        target,
+        relation: ConstraintRelation::from_legacy(constraint),
+    })
+}
+
+fn legacy_endpoint(
+    document: &ProjectDoc,
+    constraint_id: &str,
+    side: Side,
+    part_id: &str,
+) -> Result<ConstraintEndpoint, String> {
+    let located =
+        |message: String| format!("Constraint {constraint_id} {}: {message}", side.name());
+    let has_part = document.parts.iter().any(|part| part.id == part_id);
+    let pairs = document
+        .hardware
+        .as_ref()
+        .map(|hardware| hardware.pairs.as_slice())
+        .unwrap_or_default();
+    let mut matched = None;
+    for pair in pairs {
+        let Some(halves) = &pair.halves else {
+            continue;
+        };
+        for correspondence in halves.correspondences.iter().filter(|correspondence| {
+            correspondence.kind == MirroredItemKind::Part && correspondence.mirror_id == part_id
+        }) {
+            if matched.is_some() {
+                return Err(located(format!(
+                    "part {part_id} belongs to more than one mirrored pair"
+                )));
+            }
+            matched = Some((pair, halves, correspondence));
+        }
+    }
+    if let Some((pair, halves, correspondence)) = matched {
+        if let Some(exception) = halves.overlay_of(correspondence) {
+            return match exception.state {
+                MirroredExceptionState::Local if has_part => Ok(ConstraintEndpoint::Part {
+                    part_id: part_id.to_owned(),
+                }),
+                MirroredExceptionState::Local => Err(located(format!(
+                    "references a missing Local part {part_id}"
+                ))),
+                MirroredExceptionState::Omitted => Err(located(format!(
+                    "part {part_id} is omitted in pair {}",
+                    pair.id
+                ))),
+            };
+        }
+        if !has_part
+            || !document
+                .parts
+                .iter()
+                .any(|part| part.id == correspondence.source_id)
+        {
+            return Err(located(format!(
+                "references a missing linked endpoint {part_id}"
+            )));
+        }
+        return Ok(ConstraintEndpoint::LinkedMirror {
+            pair_id: pair.id.clone(),
+            source_part_id: correspondence.source_id.clone(),
+            mirror_part_id: part_id.to_owned(),
+        });
+    }
+    if has_part {
+        Ok(ConstraintEndpoint::Part {
+            part_id: part_id.to_owned(),
+        })
+    } else {
+        Err(located(format!("references a missing part {part_id}")))
     }
 }
 

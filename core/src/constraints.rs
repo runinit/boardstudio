@@ -4,8 +4,7 @@ use crate::model::{
     Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Part, Pose2, Position,
     ProjectDoc, Vec2,
 };
-use endpoints::{EndpointFrame, FramedConstraint, Side};
-use relation::ConstraintRelation;
+use endpoints::{EndpointFrame, Side};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod endpoints;
@@ -13,6 +12,13 @@ mod endpoints;
 mod framed_tests;
 mod relation;
 mod retune;
+
+// The mirrored-half preparation seam carries only these private compiler records across the
+// crate; no public document or operation API is widened.
+#[cfg(test)]
+pub(crate) use endpoints::ConstraintEndpoint;
+pub(crate) use endpoints::{FramedConstraint, compile_legacy};
+pub(crate) use relation::ConstraintRelation;
 
 /// The refusal for a second driving record on one authority, worded once.
 fn multiple_constraints(authority: &str) -> String {

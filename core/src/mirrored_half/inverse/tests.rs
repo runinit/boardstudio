@@ -5,7 +5,7 @@
 //! point `(a, b)` to `(100 - b, -30 - a)`. No expectation calls the production mapping.
 
 use super::*;
-use crate::model::{EditOperation, MirroredItemKind, Pose2, Vec2};
+use crate::model::{Constraint, EditOperation, MirroredItemKind, Pose2, Vec2};
 use serde_json::{Value, json};
 
 const AXIS: Pose2 = Pose2 {
@@ -173,6 +173,266 @@ fn expect_operation(document: &ProjectDoc, request: Value, expected: Value) {
 
 fn refusal(document: &ProjectDoc, request: Value) -> String {
     canonical(document, &request).expect_err("the request is refused")
+}
+
+#[test]
+fn set_constraint_prepares_one_global_record_with_two_live_mirror_views() {
+    let document = rotated_fixture();
+    let constraint = Constraint::Offset {
+        id: "constraint/durable-7".into(),
+        source_part_id: "right/U1".into(),
+        target_part_id: "matrix/right-keys/r0c0".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    };
+    let canonical = canonicalize(
+        &document,
+        &EditOperation::SetConstraint {
+            constraint: constraint.clone(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        canonical.operation,
+        EditOperation::SetConstraint { constraint }
+    );
+    assert_eq!(canonical.prepared_constraints.len(), 1);
+    let super::constraints::PreparedConstraintEdit::Upsert(
+        crate::constraints::FramedConstraint::Framed {
+            id,
+            source,
+            target,
+            relation,
+        },
+    ) = &canonical.prepared_constraints[0]
+    else {
+        panic!("SetConstraint did not prepare one framed record");
+    };
+    assert_eq!(id, "constraint/durable-7");
+    assert_eq!(
+        source,
+        &crate::constraints::ConstraintEndpoint::LinkedMirror {
+            pair_id: "pair".into(),
+            source_part_id: "left/U1".into(),
+            mirror_part_id: "right/U1".into(),
+        }
+    );
+    assert_eq!(
+        target,
+        &crate::constraints::ConstraintEndpoint::LinkedMirror {
+            pair_id: "pair".into(),
+            source_part_id: "matrix/left-keys/r0c0".into(),
+            mirror_part_id: "matrix/right-keys/r0c0".into(),
+        }
+    );
+    assert_eq!(
+        relation,
+        &crate::constraints::ConstraintRelation::Offset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        }
+    );
+}
+
+#[test]
+fn local_constraint_edit_stays_local_and_remove_keeps_the_exact_global_id() {
+    let document = rotated_fixture();
+    let constraint = Constraint::Offset {
+        id: "constraint/local-3".into(),
+        source_part_id: "right/HEADER".into(),
+        target_part_id: "right/HEADER".into(),
+        offset: Vec2 { x: -4.0, y: 9.0 },
+        rotation: -0.0,
+    };
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::SetConstraint {
+            constraint: constraint.clone(),
+        },
+    )
+    .unwrap();
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &prepared.prepared_constraints[0]
+    else {
+        panic!("the local SetConstraint must prepare its record");
+    };
+    assert_eq!(
+        record,
+        &crate::constraints::FramedConstraint::Framed {
+            id: "constraint/local-3".into(),
+            source: crate::constraints::ConstraintEndpoint::Part {
+                part_id: "right/HEADER".into(),
+            },
+            target: crate::constraints::ConstraintEndpoint::Part {
+                part_id: "right/HEADER".into(),
+            },
+            relation: crate::constraints::ConstraintRelation::Offset {
+                offset: Vec2 { x: -4.0, y: 9.0 },
+                rotation: -0.0,
+            },
+        }
+    );
+
+    let removed = canonicalize(
+        &document,
+        &EditOperation::RemoveConstraint {
+            id: "constraint/authored-on-mirror".into(),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        removed.operation,
+        EditOperation::RemoveConstraint {
+            id: "constraint/authored-on-mirror".into(),
+        }
+    );
+    assert_eq!(
+        removed.prepared_constraints,
+        [super::constraints::PreparedConstraintEdit::Remove {
+            id: "constraint/authored-on-mirror".into(),
+        }]
+    );
+}
+
+#[test]
+fn convert_offset_keeps_legacy_missing_target_precedence_for_mirrors() {
+    let mut document = rotated_fixture();
+    document.constraints.push(Constraint::Mirror {
+        id: "constraint/missing-target".into(),
+        source_part_id: "left/U1".into(),
+        target_part_id: "does-not-exist".into(),
+        axis: crate::model::MirrorAxis::Vertical,
+        coordinate: 4.0,
+    });
+    let error = canonicalize(
+        &document,
+        &EditOperation::ConvertOffsetConstraint {
+            constraint_id: "constraint/missing-target".into(),
+            to: crate::model::OffsetAxes::Part,
+        },
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("target is missing"), "{error}");
+}
+
+#[test]
+fn convert_offset_prepares_the_same_part_axes_values_as_the_legacy_operation() {
+    let mut document = rotated_fixture();
+    document.constraints.push(Constraint::Offset {
+        id: "constraint/convert-axes".into(),
+        source_part_id: "right/U1".into(),
+        target_part_id: "right/HEADER".into(),
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    });
+    let prepared = canonicalize(
+        &document,
+        &EditOperation::ConvertOffsetConstraint {
+            constraint_id: "constraint/convert-axes".into(),
+            to: crate::model::OffsetAxes::Part,
+        },
+    )
+    .unwrap();
+
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &prepared.prepared_constraints[0]
+    else {
+        panic!("ConvertOffsetConstraint must prepare its converted relation");
+    };
+    let crate::constraints::FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation: crate::constraints::ConstraintRelation::PartOffset { offset, rotation },
+    } = record
+    else {
+        panic!("the converted relation must remain a part-offset");
+    };
+    assert_eq!(id, "constraint/convert-axes");
+    assert_eq!(
+        source,
+        &crate::constraints::ConstraintEndpoint::LinkedMirror {
+            pair_id: "pair".into(),
+            source_part_id: "left/U1".into(),
+            mirror_part_id: "right/U1".into(),
+        }
+    );
+    assert_eq!(
+        target,
+        &crate::constraints::ConstraintEndpoint::Part {
+            part_id: "right/HEADER".into(),
+        }
+    );
+    assert_eq!(offset.x, -5.0);
+    assert!((offset.y - 2.0).abs() < 1e-12, "{offset:?}");
+    assert_eq!(rotation.to_bits(), 15.0_f64.to_bits());
+}
+
+#[test]
+fn set_constraint_compiles_mixed_linked_and_local_overlay_endpoints() {
+    let document = rotated_fixture();
+    let canonical = canonicalize(
+        &document,
+        &EditOperation::SetConstraint {
+            constraint: Constraint::Offset {
+                id: "constraint/mixed-local".into(),
+                source_part_id: "right/U1".into(),
+                target_part_id: "right/HEADER".into(),
+                offset: Vec2 { x: 5.0, y: -2.0 },
+                rotation: 15.0,
+            },
+        },
+    )
+    .unwrap();
+
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &canonical.prepared_constraints[0]
+    else {
+        panic!("the mixed SetConstraint must prepare one relation");
+    };
+    assert_eq!(
+        record,
+        &crate::constraints::FramedConstraint::Framed {
+            id: "constraint/mixed-local".into(),
+            source: crate::constraints::ConstraintEndpoint::LinkedMirror {
+                pair_id: "pair".into(),
+                source_part_id: "left/U1".into(),
+                mirror_part_id: "right/U1".into(),
+            },
+            target: crate::constraints::ConstraintEndpoint::Part {
+                part_id: "right/HEADER".into(),
+            },
+            relation: crate::constraints::ConstraintRelation::Offset {
+                offset: Vec2 { x: 5.0, y: -2.0 },
+                rotation: 15.0,
+            },
+        }
+    );
+}
+
+#[test]
+fn set_constraint_refuses_an_omitted_legacy_endpoint() {
+    let document = rotated_fixture();
+    let error = canonicalize(
+        &document,
+        &EditOperation::SetConstraint {
+            constraint: Constraint::Offset {
+                id: "constraint/omitted".into(),
+                source_part_id: "left/U1".into(),
+                target_part_id: "right/GONE".into(),
+                offset: Vec2 { x: 1.0, y: 2.0 },
+                rotation: 3.0,
+            },
+        },
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("omitted"), "{error}");
+    assert!(error.contains("right/GONE"), "{error}");
 }
 
 // ---- coverage ------------------------------------------------------------------------------
