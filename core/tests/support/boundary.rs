@@ -275,6 +275,109 @@ pub fn core_requests() -> Vec<Value> {
     requests
 }
 
+/// Runs the paired Preview → Undo → Redo case beside the golden transcript. Keeping it
+/// separate leaves the existing cross-runtime golden untouched until a maintainer blesses it.
+pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
+    let call = |core: &mut CoreTransport<'_>, request: Value| {
+        serde_json::from_str::<Value>(&core(&request.to_string())).expect("core reply is JSON")
+    };
+    let mut source = crate::support::synthetic_half::document();
+    for cell in source["matrices"][0]["cells"].as_array_mut().unwrap() {
+        let object = cell.as_object_mut().unwrap();
+        object.remove("assembliesLocal");
+        object.remove("definitionId");
+    }
+    let open = call(
+        &mut core,
+        json!({
+            "id":"paired-open",
+            "kind":"open",
+            "document":source
+        }),
+    );
+    assert_eq!(open["kind"], "scene", "{open}");
+    let created = call(
+        &mut core,
+        json!({
+            "id":"paired-create",
+            "kind":"edit",
+            "command":{
+                "baseRevision":open["scene"]["revision"],
+                "transactionId":"paired-create",
+                "phase":"commit",
+                "targetIds":[],
+                "operation":crate::support::synthetic_half::create_mirrored_half_operation(
+                    "boundary-pair",
+                    "right"
+                )
+            }
+        }),
+    );
+    assert_eq!(created["kind"], "scene", "{created}");
+    let before_preview = call(&mut core, json!({"id":"paired-before","kind":"snapshot"}));
+    let preview = call(
+        &mut core,
+        json!({
+            "id":"paired-preview",
+            "kind":"edit",
+            "command":{
+                "baseRevision":before_preview["document"]["revision"],
+                "transactionId":"paired-preview",
+                "phase":"preview",
+                "targetIds":["right/U1"],
+                "operation":{"kind":"move-parts","positions":[{
+                    "id":"right/U1","at":{"x":216,"y":14}
+                }]}
+            }
+        }),
+    );
+    assert_eq!(preview["kind"], "preview", "{preview}");
+    assert!(
+        preview["scene"]["changedIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "left/U1")
+    );
+    assert!(
+        preview["scene"]["changedIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|id| id == "right/U1")
+    );
+    let after_preview = call(&mut core, json!({"id":"paired-after","kind":"snapshot"}));
+    assert_eq!(after_preview["document"], before_preview["document"]);
+
+    let undo = call(&mut core, json!({"id":"paired-undo","kind":"undo"}));
+    assert_eq!(undo["kind"], "scene", "{undo}");
+    assert!(
+        undo["document"]["hardware"]
+            .get("pairs")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+    );
+    let redo = call(&mut core, json!({"id":"paired-redo","kind":"redo"}));
+    assert_eq!(redo["kind"], "scene", "{redo}");
+    assert_eq!(
+        redo["document"]["hardware"]["pairs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    json!({
+        "open":open,
+        "created":created,
+        "beforePreview":before_preview,
+        "preview":preview,
+        "afterPreview":after_preview,
+        "undo":undo,
+        "redo":redo
+    })
+}
+
 /// The board's generated envelope identity, derived by Core from the captured seed 1.
 const GENERATED: &str = "board:board:automatic:outline:1";
 /// The fixed copy `edit-generated-perimeter` created for the board (seed 12).

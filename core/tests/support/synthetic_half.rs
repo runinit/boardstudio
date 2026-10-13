@@ -96,6 +96,32 @@ pub(crate) fn document() -> Value {
     document
 }
 
+/// A public-wire `CreateMirroredHalf` request shared by the boundary and performance harnesses.
+pub(crate) fn create_mirrored_half_operation(pair_id: &str, mirror_board_id: &str) -> Value {
+    json!({
+        "kind":"create-mirrored-half",
+        "pairId":pair_id,
+        "sourceInstanceId":"left",
+        "mode":{"kind":"new-board","boardId":mirror_board_id,"instanceId":mirror_board_id},
+        "mapping":{"at":{"x":200,"y":0},"rotation":0},
+        "idRule":"board-prefix",
+        "companionMode":"literal-mirror",
+        "mountingHole":{
+            "id":"generator:ceoloide/mounting_hole_npth",
+            "name":"mounting hole npth",
+            "kind":"custom",
+            "pads":[{"id":"pad-0","number":"","at":{"x":0,"y":0},
+                "size":{"x":2.2,"y":2.2},"shape":"circle","drill":2.2,
+                "plated":false,"rotation":0}],
+            "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},
+                {"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+            "envelopeSource":{"courtyard":"generated"},
+            "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator":{"source":"ceoloide/mounting_hole_npth","version":"bundled-1","parameters":{}}
+        }
+    })
+}
+
 /// Adds small, explicitly authored construction features for projection contracts.
 pub(crate) fn with_construction_features(mut document: Value) -> Value {
     document["hardware"]["instances"][0]["mechanical"]["closureMounts"] = json!([{

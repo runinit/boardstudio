@@ -1,6 +1,11 @@
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
+use serde_json::{Value, json};
 use std::time::Instant;
+
+#[path = "support/mod.rs"]
+#[allow(dead_code)] // This standalone benchmark uses only the authored mirrored-half document.
+mod support;
 
 const SAMPLES: usize = 100;
 const PITCH_MM: f64 = 19.05;
@@ -44,6 +49,88 @@ fn definition(id: &str, pads: Vec<Pad>) -> PartDefinition {
         envelope_notice: None,
         generator: None,
     }
+}
+
+fn benchmark_request(engine: &mut CoreEngine, request: Value) -> Value {
+    let reply: Value = serde_json::from_str(&engine.request(&request.to_string())).unwrap();
+    assert_ne!(reply["kind"], "error", "{reply}");
+    reply
+}
+
+fn paired_matrix_engine() -> CoreEngine {
+    let mut engine = CoreEngine::new();
+    let source = support::synthetic_half::document();
+    let opened = benchmark_request(
+        &mut engine,
+        json!({"id":"open-paired-benchmark","kind":"open","document":source}),
+    );
+    assert_eq!(opened["kind"], "scene");
+
+    let snapshot = benchmark_request(
+        &mut engine,
+        json!({"id":"snapshot-paired-benchmark","kind":"snapshot"}),
+    );
+    let mut matrix = snapshot["document"]["matrices"][0].clone();
+    matrix["rows"] = json!(6);
+    matrix["columns"] = json!(5);
+    matrix["cells"] = Value::Array(
+        (0..6)
+            .flat_map(|row| {
+                (0..5).map(move |column| {
+                    json!({
+                        "row": row,
+                        "column": column,
+                        "enabled": true,
+                        "assemblies": [
+                            {"id":"diode","definitionId":"generator:ceoloide/diode_tht_sod123",
+                             "offset":{"x":8,"y":-2},"rotation":90,"side":"back"},
+                            {"id":"led","definitionId":"synthetic/led",
+                             "offset":{"x":-3,"y":4},"rotation":0,"side":"front"}
+                        ]
+                    })
+                })
+            })
+            .collect(),
+    );
+    let matrix_reply = benchmark_request(
+        &mut engine,
+        json!({
+            "id":"resize-benchmark-matrix",
+            "kind":"edit",
+            "command":{
+                "baseRevision":snapshot["document"]["revision"],
+                "transactionId":"resize-benchmark-matrix",
+                "phase":"commit",
+                "targetIds":["left-synthetic-keys"],
+                "operation":{"kind":"set-matrix","matrix":matrix}
+            }
+        }),
+    );
+    assert_eq!(matrix_reply["kind"], "scene");
+
+    let snapshot = benchmark_request(
+        &mut engine,
+        json!({"id":"snapshot-before-pair","kind":"snapshot"}),
+    );
+    let pair_reply = benchmark_request(
+        &mut engine,
+        json!({
+            "id":"create-paired-benchmark-half",
+            "kind":"edit",
+            "command":{
+                "baseRevision":snapshot["document"]["revision"],
+                "transactionId":"create-paired-benchmark-half",
+                "phase":"commit",
+                "targetIds":[],
+                "operation":support::synthetic_half::create_mirrored_half_operation(
+                    "paired-benchmark",
+                    "right"
+                )
+            }
+        }),
+    );
+    assert_eq!(pair_reply["kind"], "scene");
+    engine
 }
 
 #[test]
@@ -176,6 +263,48 @@ fn guided_matrix_preview() {
     samples.sort_unstable();
     println!(
         "6x5 with diode and RGB (90 parts) preview: p50={} µs, p95={} µs",
+        samples[SAMPLES / 2],
+        samples[SAMPLES * 95 / 100]
+    );
+}
+
+#[test]
+#[ignore = "Run with cargo test --release --test matrix_performance -- --ignored --nocapture"]
+fn guided_paired_matrix_preview() {
+    let mut engine = paired_matrix_engine();
+    let snapshot = benchmark_request(
+        &mut engine,
+        json!({"id":"snapshot-paired-preview","kind":"snapshot"}),
+    );
+    let revision = snapshot["document"]["revision"].as_u64().unwrap();
+    let mut samples = Vec::with_capacity(SAMPLES);
+    for index in 0..SAMPLES + 10 {
+        let start = Instant::now();
+        let reply = benchmark_request(
+            &mut engine,
+            json!({
+                "id":"paired-preview",
+                "kind":"edit",
+                "command":{
+                    "baseRevision":revision,
+                    "transactionId":"paired-drag",
+                    "phase":"preview",
+                    "targetIds":["right/U1"],
+                    "operation":{"kind":"move-parts","positions":[{
+                        "id":"right/U1",
+                        "at":{"x":224.0 - index as f64 * 0.1,"y":index as f64 * 0.05}
+                    }]}
+                }
+            }),
+        );
+        assert_eq!(reply["kind"], "preview");
+        if index >= 10 {
+            samples.push(start.elapsed().as_micros());
+        }
+    }
+    samples.sort_unstable();
+    println!(
+        "paired 6x5 with 90 matrix parts per half (diode and LED): p50={} µs, p95={} µs",
         samples[SAMPLES / 2],
         samples[SAMPLES * 95 / 100]
     );
