@@ -1,6 +1,6 @@
 # 115: Prepare inert mirrored-edit transaction composition
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [114](114-mirrored-edit-compatibility-constraints.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
