@@ -919,7 +919,7 @@ fn reconcile_pairs(
             .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
             .collect();
         for (index, (source_matrix_id, mirror_matrix_id)) in matrices.iter().enumerate() {
-            if matrix_membership_changed(accepted, document, source_matrix_id) {
+            if super::matrix_membership_changed(accepted, document, source_matrix_id) {
                 // Lifecycle preparation has already projected this matrix's changed membership.
                 // The fixed-membership reconciler owns only matrices whose membership stayed put.
                 continue;
@@ -938,20 +938,6 @@ fn reconcile_pairs(
         }
     }
     Ok(changed)
-}
-
-fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, id: &str) -> bool {
-    let before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == id)
-        .map(|matrix| &matrix.part_ids);
-    let after = after
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == id)
-        .map(|matrix| &matrix.part_ids);
-    before != after
 }
 
 /// The forward projector materializes an independent Add using the selected identities. Commit

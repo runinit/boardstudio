@@ -123,6 +123,40 @@ struct MatrixLink {
     mirror_matrix_id: String,
 }
 
+fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, matrix_id: &str) -> bool {
+    let before = before
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+        .map(|matrix| {
+            matrix
+                .part_ids
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        });
+    let after = after
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_id)
+        .map(|matrix| {
+            matrix
+                .part_ids
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        });
+    match (before, after) {
+        (Some(mut before), Some(mut after)) => {
+            before.sort_unstable();
+            after.sort_unstable();
+            before != after
+        }
+        (None, None) => false,
+        (None, Some(_)) | (Some(_), None) => true,
+    }
+}
+
 fn projection_for_matrixless_pair(
     halves: &crate::model::MirroredHalves,
     mapping: Pose2,

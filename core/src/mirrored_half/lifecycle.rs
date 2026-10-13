@@ -1479,7 +1479,7 @@ pub(super) fn prepare_edit_transition(
         .collect();
     let changed_matrices: Vec<_> = matrix_pairs
         .iter()
-        .filter(|(source, _)| matrix_membership_changed(before, post_source, source))
+        .filter(|(source, _)| super::matrix_membership_changed(before, post_source, source))
         .cloned()
         .collect();
     if !changed_matrices.is_empty() {
@@ -1941,24 +1941,6 @@ fn prepare_exception_intent(
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
     let pending = transition_exception_context(&context, kind, source_id, mirror_id, state)?;
     prepare_lifecycle_transition(before, post_source, &pending).map(|output| vec![output])
-}
-
-fn matrix_membership_changed(
-    before: &crate::model::ProjectDoc,
-    after: &crate::model::ProjectDoc,
-    matrix_id: &str,
-) -> bool {
-    let before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .map(|matrix| &matrix.part_ids);
-    let after = after
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .map(|matrix| &matrix.part_ids);
-    before != after
 }
 
 fn prepare_matrix_membership_edit(
