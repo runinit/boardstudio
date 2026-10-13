@@ -407,3 +407,7 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   native tests. Merged locally as `fb6bdbfb6` (source `1ee69ac54`); post-merge repo/test/lint
   also passes with all 1,834 native tests. 154's propagated-pose proof now passes; its local
   integration also passes; 111 activation remains open. No new policy/schema/visibility.
+
+- [156](issues/156-preserve-validated-matrix-reconciliation-states.md): preparation follow-up
+  for selected-cell tombstones across later edits and exception-aware matrix companion Open;
+  actual public 111 regressions remain visible while private fixes are verified.
