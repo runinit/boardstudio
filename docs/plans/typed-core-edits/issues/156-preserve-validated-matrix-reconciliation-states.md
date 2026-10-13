@@ -83,5 +83,7 @@ isolated 111 draft: both original public regressions now pass unchanged, while f
 failures remain visible. This does not claim full 111 or parent 19 acceptance.
 
 Evidence: main `.evidence/ticket156/` (handoff, review initial/delta1, mutation-run and honest
-summary, full-checks, native-baseline-delta and activation-proof). Local dev integration and
-post-merge checks are the next coordinator steps; nothing is pushed.
+summary, full-checks, native-baseline-delta and activation-proof). Source `2e6b16d21` is merged
+locally into dev at `96eaeabe0`; the merge tree exactly matches the reviewed source tree. Post-merge
+`check.py repo test lint` passes with all 1,843 baselined native tests executed. Logs and exact HEAD
+are recorded in `.evidence/ticket156/post-merge-checks.log` and `post-merge-checks.json`. Nothing is pushed.

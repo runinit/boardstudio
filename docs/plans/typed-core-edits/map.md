@@ -412,4 +412,5 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   continuation and legacy unassociated child Open. Both review axes accept, 230 focused tests
   pass, six meaningful compiled mutations are killed (one inert validation probe survived),
   and full repo/test/lint passes with 1,843 native tests. The original public 111 regressions
-  pass in its isolated draft. Local dev integration/postchecks remain pending; 111 stays unmerged.
+  pass in its isolated draft. Merged locally at `96eaeabe0`; post-merge repo/test/lint passes
+  with all 1,843 native tests. 111 stays unmerged.
