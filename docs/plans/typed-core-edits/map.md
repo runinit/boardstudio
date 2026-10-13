@@ -421,3 +421,7 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   repo/test/lint pass with1,847 native tests. Full authored public Splay/Placement now pass (Splay
   oracle sign corrected to existing rotation math). Isolated111 is60/62; two electrical failures
   remain.111 activation remains unmerged.
+
+- [158](issues/158-retain-local-controller-private-net-on-omit.md): claimed existing147-policy
+  correction so a surviving Local controller own pin retains its net through Omit. Linked
+  controller behavior remains unchanged; associated Local circuit projection is separate.
