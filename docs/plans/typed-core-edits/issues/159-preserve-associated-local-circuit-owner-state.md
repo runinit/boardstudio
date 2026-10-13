@@ -18,8 +18,11 @@ Ticket 19 settles ownership: one owner exception; owned circuit members inherit 
 independent joined host nets and unrelated correspondences retain their own states; explicit
 child Local/Omitted exceptions survive owner Rejoin. Preserve the complete Local owner payload,
 owned members, embedded definitions and private nets. Preserving only ports/netIds is incomplete.
-The inverse target reader currently inherits matrix owner exceptions only; test circuit-owned
-Part/Net inheritance so mirror-side Local member edits cannot mutate the source half.
+The initial target-reader inspection suggested an inverse inheritance gap, but the real
+mirror-side member MoveParts regression passes: hosted::member_state already enforces circuit
+owner state on that route, and private net targeting has its own existing owner-state handling.
+Retain those real behavior controls; change inverse production only for a demonstrated operation
+gap, not an artificial direct Links::target classification assertion.
 
 ## Scope and seam
 
@@ -47,10 +50,13 @@ public 111 proof, baselines, mutations and full acceptance checks.
 
 ## Acceptance
 
-- [ ] Compiled regressions fail before production changes for associated Local owner payload
-      overwrite and inherited child inverse mapping; retain durable owner/child correspondences.
+- [ ] A compiled regression fails before production changes for associated Local owner payload
+      overwrite; retain durable owner/child correspondences. Cover inherited child inverse
+      mapping through real operations, preserving the existing green MoveParts behavior.
 - [ ] Source edits preserve valid Local owner fields, owned member poses/properties, embedded
       definitions and private-net names/pins. Mirror-side inherited Local member edits stay local.
+      Member keycap settings and mirror-owned member pins on plain host nets follow the same
+      effective Local state; board-level settings and independent net policies stay intact.
 - [ ] Joined host nets obey their own linked/Local/Omitted state; linked neighbors still update.
       Explicit child Local/Omitted states and owner Rejoin preserve the established precedence;
       no omitted child is resurrected and no inherited child exception is synthesized.
@@ -70,3 +76,9 @@ Claimed after 158 resolved and post-merge repository/test/lint passed all 1,849 
 MAIN bookkeeping `1ecc91b7`. Detailed read-only readiness and bypass audit are in main
 `.evidence/ticket159/readiness-design.md`. The scope refinement resolves its earlier general
 validator question: this is the existing native-pair Local contract, with no new owner decision.
+
+The inherited-child inverse hypothesis was checked against an actual MoveParts operation and
+found already correct (`.evidence/ticket159/green-inverse-local.log`). The direct internal target
+classification probe was removed; it bypassed the existing hosted-state adapter and did not
+represent a product failure. This preserves the required Local behavior without unnecessary
+inverse changes. Owner-payload overwrite remains the compiled RED driving this preparation.
