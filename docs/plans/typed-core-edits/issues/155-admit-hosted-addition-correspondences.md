@@ -1,6 +1,6 @@
 # 155: Admit hosted additions into durable half correspondences
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [153](153-validate-independent-exceptions-with-matrix-owners.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
