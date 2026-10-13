@@ -1,6 +1,6 @@
 # 150: Prepare selective exceptions for mirrored pairs without Matrix correspondences
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [149](149-targeted-mirrored-set-mechanical.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
