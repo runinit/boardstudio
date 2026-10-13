@@ -1,6 +1,6 @@
 # 153: Validate independent exceptions alongside exact Matrix owners
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [152](152-reconcile-authored-matrix-cells.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
