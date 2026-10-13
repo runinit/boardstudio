@@ -414,3 +414,9 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   and full repo/test/lint passes with 1,843 native tests. The original public 111 regressions
   pass in its isolated draft. Merged locally at `96eaeabe0`; post-merge repo/test/lint passes
   with all 1,843 native tests. 111 stays unmerged.
+
+- [157](issues/157-classify-matrix-membership-by-identity.md): verified private identity membership
+  classification, awaiting local merge/postchecks. Both reviews, four mutation kills and full
+  repo/test/lint pass with1,847 native tests. Full authored public Splay/Placement now pass (Splay
+  oracle sign corrected to existing rotation math). Isolated111 is60/62; two electrical failures
+  remain.111 activation remains unmerged.
