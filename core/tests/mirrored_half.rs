@@ -41,6 +41,16 @@ fn part<'a>(document: &'a Value, id: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("part {id} is unavailable"))
 }
 
+fn constraint_by_id(document: &Value, id: &str) -> Value {
+    document["constraints"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|constraint| constraint["id"] == id)
+        .unwrap_or_else(|| panic!("constraint {id} is unavailable"))
+        .clone()
+}
+
 fn angles_match(a: f64, b: f64) -> bool {
     let turn = (a - b).rem_euclid(360.0);
     turn.min(360.0 - turn) < 1e-9
@@ -3615,6 +3625,189 @@ fn production_prepared_routes_mirror_edits_preview_and_history() {
 }
 
 #[test]
+fn production_mirror_move_retunes_constraint_chain_through_preview_and_history() {
+    let mut fixture = runtime_supported_document();
+    let mut downstream = part(&fixture, "left/TRRS").clone();
+    downstream["id"] = json!("left/J2");
+    downstream["reference"] = json!("J2");
+    downstream["pose"] = json!({"at":{"x":-14.0,"y":5.0},"rotation":0.0});
+    fixture["parts"].as_array_mut().unwrap().push(downstream);
+    fixture["boards"][0]["partIds"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("left/J2"));
+    fixture["constraints"] = json!([
+        {"kind":"offset", "id":"left-rst-u1", "sourcePartId":"left/RST",
+         "targetPartId":"left/U1", "offset":{"x":0.0,"y":-16.0}, "rotation":0.0},
+        {"kind":"offset", "id":"left-u1-j2", "sourcePartId":"left/U1",
+         "targetPartId":"left/J2", "offset":{"x":10.0,"y":5.0}, "rotation":0.0}
+    ]);
+
+    let (mut engine, source) = seed(&fixture, "left");
+    let created = create(
+        &mut engine,
+        &source,
+        "runtime-canonical-constraint-pair",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    )
+    .unwrap();
+    let accepted = created["document"].clone();
+    assert_eq!(accepted["constraints"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        constraint_by_id(&accepted, "left-rst-u1")["offset"],
+        json!({"x":0.0,"y":-16.0})
+    );
+    assert_eq!(
+        constraint_by_id(&accepted, "left-u1-j2")["offset"],
+        json!({"x":10.0,"y":5.0})
+    );
+
+    let move_from_mirror = json!({
+        "kind":"move-parts",
+        "positions":[{"id":"right/U1","at":{"x":216.0,"y":14.0}}]
+    });
+    let preview = request(
+        &mut engine,
+        json!({"id":"runtime-canonical-preview","kind":"edit","command":{
+            "baseRevision":accepted["revision"],
+            "transactionId":"runtime-canonical-preview",
+            "phase":"preview",
+            "targetIds":["right/U1"],
+            "operation":move_from_mirror
+        }}),
+    );
+    assert_eq!(preview["kind"], "preview", "{preview}");
+    let preview_transform = |id: &str| {
+        preview["scene"]["transforms"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|transform| transform["id"] == id)
+            .unwrap_or_else(|| panic!("preview transform for {id} is missing: {preview}"))
+    };
+    for (id, x, y, rotation) in [
+        ("left/U1", -16.0, 14.0, 0.0),
+        ("left/J2", -6.0, 19.0, 0.0),
+        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/J2", 206.0, 19.0, 180.0),
+    ] {
+        assert_eq!(
+            preview_transform(id)["pose"],
+            json!({"at":{"x":x,"y":y},"rotation":rotation}),
+            "literal Preview pose for {id}"
+        );
+    }
+    assert_eq!(snapshot(&mut engine), accepted, "Preview must not publish");
+
+    let committed = request(
+        &mut engine,
+        json!({"id":"runtime-canonical-commit","kind":"edit","command":{
+            "baseRevision":accepted["revision"],
+            "transactionId":"runtime-canonical-commit",
+            "phase":"commit",
+            "targetIds":["right/U1"],
+            "operation":move_from_mirror
+        }}),
+    );
+    assert_eq!(committed["kind"], "scene", "{committed}");
+    let committed_document = &committed["document"];
+    assert_eq!(
+        committed_document["revision"],
+        accepted["revision"].as_u64().unwrap() + 1
+    );
+    for (id, x, y, rotation) in [
+        ("left/U1", -16.0, 14.0, 0.0),
+        ("left/J2", -6.0, 19.0, 0.0),
+        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/J2", 206.0, 19.0, 180.0),
+    ] {
+        assert_eq!(
+            part(committed_document, id)["pose"],
+            json!({"at":{"x":x,"y":y},"rotation":rotation}),
+            "literal committed pose for {id}"
+        );
+    }
+    assert_eq!(
+        constraint_by_id(committed_document, "left-rst-u1"),
+        json!({"kind":"framed", "id":"left-rst-u1",
+            "source":{"kind":"part","partId":"left/RST"},
+            "target":{"kind":"part","partId":"left/U1"},
+            "relation":{"kind":"offset","offset":{"x":8.0,"y":-2.0},"rotation":0.0}})
+    );
+    assert_eq!(
+        constraint_by_id(committed_document, "left-u1-j2"),
+        json!({"kind":"offset", "id":"left-u1-j2", "sourcePartId":"left/U1",
+            "targetPartId":"left/J2", "offset":{"x":10.0,"y":5.0}, "rotation":0.0})
+    );
+
+    let undone = request(
+        &mut engine,
+        json!({"id":"runtime-canonical-undo","kind":"undo"}),
+    );
+    let undone_document = &undone["document"];
+    let mut expected_undo = accepted.clone();
+    expected_undo["revision"] = undone_document["revision"].clone();
+    assert_eq!(
+        undone_document, &expected_undo,
+        "Undo restores the full accepted state"
+    );
+    assert_eq!(
+        constraint_by_id(undone_document, "left-rst-u1"),
+        constraint_by_id(&accepted, "left-rst-u1")
+    );
+    assert_eq!(
+        constraint_by_id(undone_document, "left-u1-j2"),
+        constraint_by_id(&accepted, "left-u1-j2")
+    );
+    for (id, x, y, rotation) in [
+        ("left/U1", -24.0, 0.0, 0.0),
+        ("left/J2", -14.0, 5.0, 0.0),
+        ("right/U1", 224.0, 0.0, 180.0),
+        ("right/J2", 214.0, 5.0, 180.0),
+    ] {
+        assert_eq!(
+            part(undone_document, id)["pose"],
+            json!({"at":{"x":x,"y":y},"rotation":rotation}),
+            "literal Undo pose for {id}"
+        );
+    }
+
+    let redone = request(
+        &mut engine,
+        json!({"id":"runtime-canonical-redo","kind":"redo"}),
+    );
+    let redone_document = &redone["document"];
+    let mut expected_redo = committed_document.clone();
+    expected_redo["revision"] = redone_document["revision"].clone();
+    assert_eq!(
+        redone_document, &expected_redo,
+        "Redo restores the full committed state"
+    );
+    assert_eq!(
+        constraint_by_id(redone_document, "left-rst-u1"),
+        constraint_by_id(committed_document, "left-rst-u1")
+    );
+    assert_eq!(
+        constraint_by_id(redone_document, "left-u1-j2"),
+        constraint_by_id(committed_document, "left-u1-j2")
+    );
+    for (id, x, y, rotation) in [
+        ("left/U1", -16.0, 14.0, 0.0),
+        ("left/J2", -6.0, 19.0, 0.0),
+        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/J2", 206.0, 19.0, 180.0),
+    ] {
+        assert_eq!(
+            part(redone_document, id)["pose"],
+            json!({"at":{"x":x,"y":y},"rotation":rotation}),
+            "literal Redo pose for {id}"
+        );
+    }
+}
+
+#[test]
 fn production_open_repairs_native_pair_and_reports_located_finding() {
     let (mut engine, seed) = seed(&runtime_supported_document(), "left");
     let created = create(
@@ -3946,6 +4139,94 @@ fn production_prepared_refusal_keeps_document_revision_and_history_untouched() {
             .iter()
             .any(|record| record["id"] == "runtime-refusal-pair")
     );
+}
+
+#[test]
+fn production_linked_diode_move_refuses_in_preview_and_commit_without_history_loss() {
+    for target_id in [
+        "matrix/left-synthetic-keys/r0c0/diode",
+        "matrix/right-synthetic-keys/r0c0/diode",
+    ] {
+        let (mut engine, source) = seed(&runtime_supported_document(), "left");
+        let before_creation = snapshot(&mut engine);
+        let created = create(
+            &mut engine,
+            &source,
+            "runtime-linked-diode-refusal-pair",
+            "left",
+            new_board("right", "right"),
+            mapping(200.0),
+        )
+        .unwrap();
+        let accepted = created["document"].clone();
+        let target = part(&accepted, target_id);
+        let position = target["pose"]["at"].clone();
+        let requested = json!({
+            "kind":"move-parts",
+            "positions":[{"id":target_id,"at":{
+                "x":position["x"].as_f64().unwrap() + 4.0,
+                "y":position["y"].as_f64().unwrap() - 1.0
+            }}]
+        });
+        let command = |phase: &str, transaction_id: &str| {
+            json!({
+                "id":transaction_id,
+                "kind":"edit",
+                "command":{
+                    "baseRevision":accepted["revision"],
+                    "transactionId":transaction_id,
+                    "phase":phase,
+                    "targetIds":[target_id],
+                    "operation":requested
+                }
+            })
+        };
+
+        let expected_refusal =
+            "Linked matrix placements cannot retain authored or constrained geometry";
+        for (phase, transaction_id) in [
+            ("preview", "runtime-linked-diode-preview"),
+            ("commit", "runtime-linked-diode-commit"),
+        ] {
+            let refusal: Value =
+                serde_json::from_str(&engine.request(&command(phase, transaction_id).to_string()))
+                    .unwrap();
+            assert_eq!(refusal["kind"], "error", "{target_id}: {refusal}");
+            assert_eq!(
+                refusal["message"], expected_refusal,
+                "{target_id}: {refusal}"
+            );
+            assert_eq!(
+                snapshot(&mut engine),
+                accepted,
+                "{target_id} {phase} refusal must preserve the full accepted document and revision"
+            );
+        }
+
+        let undone = request(
+            &mut engine,
+            json!({"id":"runtime-linked-diode-undo","kind":"undo"}),
+        )["document"]
+            .clone();
+        let mut expected_undo = before_creation;
+        expected_undo["revision"] = undone["revision"].clone();
+        assert_eq!(
+            undone, expected_undo,
+            "{target_id}: Undo still reaches the pre-pair document after both refusals"
+        );
+
+        let redone = request(
+            &mut engine,
+            json!({"id":"runtime-linked-diode-redo","kind":"redo"}),
+        )["document"]
+            .clone();
+        let mut expected_redo = accepted;
+        expected_redo["revision"] = redone["revision"].clone();
+        assert_eq!(
+            redone, expected_redo,
+            "{target_id}: Redo still restores the accepted pair after both refusals"
+        );
+    }
 }
 
 #[test]
