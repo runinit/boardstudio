@@ -392,7 +392,7 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
 - [153](issues/153-validate-independent-exceptions-with-matrix-owners.md): resolved private
   independent exceptions alongside exact single/multiple Matrix owners; both review axes accept,
   221 focused tests and six final refined compiled mutation kills pass. Full repo/test/lint passes
-  with 1,833 native tests; local integration/post-merge verification follows. 111 remains unmerged
-  until 154 also completes.
+  with 1,833 native tests. Merged locally as `d897b057` (source `ab697e05`); post-merge
+  repo/test/lint also passes with all 1,833 native tests. 111 remains unmerged until 154 completes.
 - [154](issues/154-reserve-staged-circuit-member-references.md): reserve canonical-source staged
   references during mirror circuit planning; follows 152/153 and blocks 111.

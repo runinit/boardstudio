@@ -55,5 +55,6 @@ survivors and evidence corrections remain recorded, rather than being counted as
 
 Root `repo test lint --update-native-baseline` passes with all 1,833 native tests executed; the baseline
 adds exactly seven names. Evidence is in main `.evidence/ticket153/`, including immutable review
-snapshots, captured final greens, mutation histories and full-check logs. Local integration and
-post-merge checks follow; 111 remains an unmerged activation draft until 154 also completes.
+snapshots, captured final greens, mutation histories and full-check logs. Merged locally as
+`d897b057` (source `ab697e05`); post-merge repo/test/lint passes with all 1,833 baselined native
+tests executed. 111 remains an unmerged activation draft until 154 also completes.
