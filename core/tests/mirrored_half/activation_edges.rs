@@ -81,7 +81,17 @@ fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
     );
     let expected_configurations: BTreeMap<_, _> = ["left", "right"]
         .into_iter()
-        .map(|instance_id| (instance_id, effective(&linked, instance_id)))
+        .map(|instance_id| {
+            let mut configuration = effective(&linked, instance_id);
+            // Unlink persists the identity reservations required by materialization.
+            // This legacy fixture has no reserved pair-owned opening or vertex IDs, so
+            // the documented zero-means-unset floor initializes each counter to one.
+            configuration["nextOpeningIdentity"] = json!(1);
+            for opening in configuration["openings"].as_array_mut().unwrap() {
+                opening["nextVertexIdentity"] = json!(1);
+            }
+            (instance_id, configuration)
+        })
         .collect();
     let expected_mount_ids = BTreeSet::from(["synthetic-center-hole"]);
     for configuration in expected_configurations.values() {
@@ -138,11 +148,9 @@ fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
     assert_eq!(unlinked["kind"], "scene", "{unlinked}");
     let unlinked_document = &unlinked["document"];
     assert!(
-        !unlinked_document["hardware"]["pairs"]
+        unlinked_document["hardware"]["pairs"]
             .as_array()
-            .unwrap()
-            .iter()
-            .any(|record| record["id"] == pair_id)
+            .is_none_or(|pairs| pairs.iter().all(|record| record["id"] != pair_id))
     );
     assert_eq!(
         ["left", "right"]
@@ -563,8 +571,7 @@ fn public_local_circuit_keeps_its_corresponded_plain_net_across_private_source_o
         .unwrap()
         .iter()
         .find(|exception| {
-            exception["itemKind"] == "embedded-circuit"
-                && exception["mirrorId"] == mirror_circuit_id
+            exception["kind"] == "embedded-circuit" && exception["mirrorId"] == mirror_circuit_id
         });
     assert_eq!(
         accepted_circuit_exception.map(|exception| exception["state"].as_str()),
