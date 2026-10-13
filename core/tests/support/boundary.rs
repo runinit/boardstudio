@@ -333,7 +333,7 @@ pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
     );
     assert_eq!(preview["kind"], "preview", "{preview}");
     let preview_part_x = |id: &str| {
-        preview["document"]["parts"]
+        preview["scene"]["transforms"]
             .as_array()
             .unwrap()
             .iter()
