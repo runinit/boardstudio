@@ -41,6 +41,9 @@ mod inverse;
 #[allow(dead_code)] // Ticket 111 activates the forward matrix addition; 145 prepares it privately.
 mod matrix_addition;
 mod reconcile;
+#[allow(unused_imports)]
+// Ticket 111 will route production edit preparation through this seam.
+pub(crate) use reconcile::prepare_transaction;
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
@@ -57,6 +60,13 @@ fn matrix_owned_parts(document: &ProjectDoc, board_id: &str) -> BTreeSet<String>
         .filter(|part_id| board.part_ids.contains(part_id))
         .cloned()
         .collect()
+}
+
+fn board_for_part<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a crate::model::Board> {
+    document
+        .boards
+        .iter()
+        .find(|board| board.part_ids.iter().any(|id| id == part_id))
 }
 
 /// What every mode of the operation shares.

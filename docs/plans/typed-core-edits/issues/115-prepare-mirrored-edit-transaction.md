@@ -1,6 +1,6 @@
 # 115: Prepare inert mirrored-edit transaction composition
 
-Status: needs-info
+Status: resolved
 Type: build
 Blocked by: [114](114-mirrored-edit-compatibility-constraints.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -25,28 +25,31 @@ must reach downstream resolution too. Halves validation must inspect the final r
   duplicate its logic, widen that helper's visibility or add hardware fields to public Unlink.
 - Keep common production edit/apply routing untouched until 111. If existing transaction helpers
   prevent an inert private seam, report the exact route as needs-info before altering architecture.
-- The sole approved visibility exception is `constraints::resolve_prepared` as `pub(crate)` for this
-  inert preparation path. Keep the `constraints` module private and leave `resolve_edit` and all
-  existing production call sites unchanged.
+- Approved visibility is limited to `constraints::resolve_prepared` as `pub(crate)`, one
+  crate-only transaction-preparation entry point, and the minimum `pub(super)` bridges needed to
+  co-locate preparation with the existing private lifecycle and reconciliation kernels. Keep the
+  `constraints` module private, all existing helper visibility unchanged, and existing production
+  call sites unchanged.
 - Refusals and no-ops produce no partial accepted mutation. Existing legacy/reuse-board paths retain
   behavior; new native pairs do not acquire legacy property-bag links.
 
 ## File ownership
 
-Exclusive: private transaction preparation inside `core/src/lib.rs` or existing private child
-modules, private mirrored-half helpers, association validation in `core/src/mechanical/halves.rs`,
-and transaction-focused mirrored-half tests. Production call sites and publication/history routing
-are read-only. No new EditOperation arms, visibility widening other than the single approved
-`constraints::resolve_prepared` `pub(crate)` exception, hardware API fields or goldens.
+Exclusive: private transaction preparation inside existing private child modules, private
+mirrored-half helpers, association validation in `core/src/mechanical/halves.rs`, and
+transaction-focused mirrored-half tests. Production call sites and publication/history routing are
+read-only. No new EditOperation arms, visibility widening beyond the explicitly approved
+`constraints::resolve_prepared` `pub(crate)` entry, one crate-only transaction-preparation entry,
+and minimum `pub(super)` bridges, hardware fields or goldens.
 
 ## Test-first and acceptance
 
-- [ ] Direct prepared-draft red/green tests exercise canonical request through downstream
+- [x] Direct prepared-draft red/green tests exercise canonical request through downstream
       resolution, final reconciliation/validation and precise source/mirror/membership IDs.
-- [ ] Unrelated edits and ReplaceDocument cannot leave dangling association records.
-- [ ] Refused preparation leaves accepted bytes unchanged; source/mirror objects are not
+- [x] Unrelated edits and ReplaceDocument cannot leave dangling association records.
+- [x] Refused preparation leaves accepted bytes unchanged; source/mirror objects are not
       resolved from stale pre-apply inputs; production route remains unchanged.
-- [ ] JSON-equivalent `UnlinkHalves {pairId}` preparation follows 109's existing callable
+- [x] JSON-equivalent `UnlinkHalves {pairId}` preparation follows 109's existing callable
       mechanical edit route with internally normalized context. Nonempty new-board/reuse-board
       closure fixtures preserve effective/stored geometry and exactly-once hole memberships;
       no caller-supplied hardware field or empty-context shortcut is used.
@@ -72,7 +75,7 @@ widen other functions or types, change the `resolve_edit` signature, or edit its
 call sites. This is crate-internal access for the inert prepared transaction only; production
 activation remains with 111.
 
-## Needs-info (2026-10-12)
+## Needs-info (2026-10-12; resolved 2026-10-13)
 
 The source audit found that the existing lifecycle and forward-reconciliation helpers are private
 inside `mirrored_half::reconcile::lifecycle` and `mirrored_half::reconcile`. The transaction
@@ -81,6 +84,14 @@ kernels needs a new crate-internal preparation entry point and the minimum visib
 it; this would exceed the sole approved `resolve_prepared` exception. No source architecture was
 changed. Per this ticket's scope rule, pause implementation until the owner either approves that
 narrow coordinator seam or chooses a visibility-preserving redesign.
+
+## Owner decision (2026-10-13)
+
+The owner approved one crate-only transaction-preparation entry point and the minimum `pub(super)`
+bridges needed to co-locate composition with the private lifecycle and reconciliation kernels.
+Together with the earlier approval for `constraints::resolve_prepared` as `pub(crate)`, this resolves
+the visibility question. Existing helpers otherwise keep their current visibility, the `constraints`
+module stays private, and production edit/apply routing remains unchanged until 111.
 
 ## Inherited from 110 and 145
 
@@ -92,3 +103,18 @@ narrow coordinator seam or chooses a visibility-preserving redesign.
 - A moved linked companion translates, then forward validation refuses authored placement on a
   linked slot; surface that refusal as the existing validation error (not covered end to end by 110).
 - Parts owned by a linked embedded circuit are refused by 110; 112 translates them.
+
+## Result (2026-10-13)
+
+Added the inert `prepare_transaction` seam inside mirrored-half reconciliation. It carries the
+canonical operation through apply and both constraint-resolution passes, composes lifecycle and
+matrix membership changes with forward reconciliation, cleans removed associations, validates the
+final draft, and returns actual changed IDs. The private Unlink path uses the existing normalized
+mechanical edit route and internally derived context. Per-board case bodies stay independent;
+outline mapping follows each attached Part's rule. Production edit/apply routing and history remain
+unchanged for ticket 111.
+
+Verification: `python3 scripts/check.py quick --files ...` passed repo, lint, typecheck, native,
+and browser steps. The final mutation run killed all three mutants (canonical operation
+propagation, lifecycle-before-reconciliation ordering, and final-draft validation), with zero
+survivors or compile failures. Final Standards and Spec reviews passed.

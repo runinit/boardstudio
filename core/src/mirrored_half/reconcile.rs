@@ -17,6 +17,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[path = "lifecycle.rs"]
 mod lifecycle;
+#[allow(dead_code)] // Ticket 111 activates this prepared transaction in production.
+mod prepare;
+#[allow(unused_imports)] // The crate-only seam is intentionally dormant until ticket 111.
+pub(crate) use prepare::prepare_transaction;
 mod outlines;
 mod settings;
 // Ticket 147: keycap settings and plain nets follow their source after creation.
@@ -5309,6 +5313,9 @@ fn prepare_membership_transition_kernel(
     let mut projected = project_matrix(&source, &mirror, matrix_correspondence, context.mapping)?;
     let mut local_key_preservations = Vec::new();
     for cell in &mut projected.cells {
+        if !cell.enabled || cell.deleted {
+            continue;
+        }
         let source_key_id = format!(
             "matrix/{}/r{}c{}",
             context.source_matrix_id, cell.row, cell.column

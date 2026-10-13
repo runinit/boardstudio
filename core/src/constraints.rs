@@ -220,7 +220,7 @@ fn claim_target<'a>(
 /// Resolves the document's stored constraints together with `framed` relations in one
 /// source-first graph. Framed relations are private to this module until the persisted arm is
 /// activated; a document never supplies them, so production resolution is unchanged.
-fn resolve_prepared(
+pub(crate) fn resolve_prepared(
     doc: &mut ProjectDoc,
     positions: &[Position],
     framed: &[FramedConstraint],
