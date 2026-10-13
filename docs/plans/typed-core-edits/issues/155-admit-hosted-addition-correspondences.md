@@ -1,6 +1,6 @@
 # 155: Admit hosted additions into durable half correspondences
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [153](153-validate-independent-exceptions-with-matrix-owners.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -36,15 +36,44 @@ activation in their existing worktrees; no model/ops/runtime/config/baseline/gol
 
 ## Acceptance
 
-- [ ] Red-first private AddModule and AddCircuit probes expose missing durable links.
-- [ ] Successful staged admission commits exact selected owner/member/private-net records once;
+- [x] Red-first private AddModule and AddCircuit probes expose missing durable links.
+- [x] Successful staged admission commits exact selected owner/member/private-net records once;
       joined Net and definition identities retain existing rules; unrelated records remain unchanged.
-- [ ] Valid replay/reconciliation is idempotent; incomplete/ambiguous/conflicting/wrong-board
+- [x] Valid replay/reconciliation is idempotent; incomplete/ambiguous/conflicting/wrong-board
       maps refuse atomically using existing validation.
-- [ ] Subsequent source and mirror member/module edits use the admitted links; save/reopen
+- [x] Subsequent source and mirror member/module edits use the admitted links; save/reopen
       retains them, and supported removal does not leave stale records.
-- [ ] Independent Standards/Spec review, meaningful admission mutations and required checks pass.
+- [x] Independent Standards/Spec review, meaningful admission mutations and required checks pass.
 
 Root owns full checks/baseline/local integration. No push.155 can be verified on153's main source
 with directly selected private transition maps; it does not depend on154's allocator fix.
-After155 integrates,154's preserved prepared-path pose regression must pass before154 closes.
+After155 integrates,154's preserved prepared-path pose regression must pass before 154 closes.
+
+## Answer (2026-10-13)
+
+Private hosted AddModule/AddCircuit preparation now admits its exact selected owner, member Part
+and newly private Net identities into the existing staged pair before validation and publication.
+The existing joined-host Net record is reused exactly; definitions keep their existing namespace.
+Selected IDs also enter reference-only projection views so the first output contains correct board
+configuration references. Generic Part geometry projection is unchanged. Authenticated replay is
+idempotent, and conflicts refuse atomically. Durable links survive JSON reopen and drive later
+source/mirror edits. Supported prepared removal uses the existing lifecycle retirement owner.
+
+Two initial regressions failed for missing owner records. Final reconciliation coverage is 222 tests,
+including direct conflict/provenance sensitivity coverage. Independent Standards and Spec reviews
+accept the source and test-only delta. All eight final compiled mutations were killed with exact
+restoration. Initial survivors and the redundant independently guarded probe remain recorded.
+
+Full `repo test lint --update-native-baseline` passes with all 1,834 native tests executed. The baseline
+adds one direct-helper test and renames two retained hosted-add replay tests to describe durable
+admission; their previous coverage remains. The first full run failed because CAD tests hard-code
+the worktree's default target path while the isolated Cargo override built their driver elsewhere.
+Building the existing prepare_case example at that expected path made the full rerun pass; no
+source, configuration or gate was changed. Main evidence: `.evidence/ticket155/`.
+
+Existing boundaries are preserved: AddCircuit first-add/exact replay keeps joined-host Net metadata,
+while ordinary circuit projection retains its established source-name normalization. Direct kernel
+removal preserves pair bytes; supported transaction preparation retires the exact records. Existing
+removal may retain an empty private Net object. No new net-lifetime policy, schema, visibility or
+production activation is included. Local integration and post-merge checks remain pending; 154's
+prepared propagated-pose assertions must still pass before 154 closes.
