@@ -428,3 +428,10 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   two mutation kills and full repo/test/lint pass with1,849 native tests. Unchanged public
   controller Preview/Commit case passes;111 is61/62 with associated Local circuit projection
   remaining.111 activation stays unmerged.
+
+- [159](issues/159-preserve-associated-local-circuit-owner-state.md): candidate verified for
+  associated Local owner/member/definition/private-net preservation and inherited member
+  settings/pins, with independent joined-net states. Both review axes pass, six compiled
+  mutation kills and full repo/test/lint pass with 1,856 native tests. All 62 unchanged public
+  mirrored-half tests pass in isolated 111. Local dev merge/post-merge verification remains
+  pending; 111 still needs Preview loss visibility and full activation gates.
