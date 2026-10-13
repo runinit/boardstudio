@@ -1,4 +1,4 @@
-//! Layout's accepted-scene findings page and guarded navigation request.
+//! Layout's findings page and guarded navigation request.
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Finding, ProjectDoc, Severity};
@@ -134,7 +134,10 @@ fn LayoutFinding(
         Severity::Warning => ("Warning", "warning"),
         Severity::Info => ("Information", "info"),
     };
-    let target = keycaps_fit::finding_navigation_target(&finding, &document)
+    let preview_electrical_notice = finding.id.starts_with("preview:electrical:");
+    let target = (!preview_electrical_notice)
+        .then(|| keycaps_fit::finding_navigation_target(&finding, &document))
+        .flatten()
         .filter(|target| target_has_live_layout_destination(target, &document));
     let action_label = target.as_ref().map(|target| match target {
         FindingNavigationTarget::Outline { .. } => "Show outline",
@@ -263,6 +266,16 @@ mod tests {
         }
     }
 
+    fn preview_electrical_pin_finding() -> Finding {
+        Finding {
+            id: "preview:electrical:pin:net:part:pad-1".into(),
+            severity: Severity::Info,
+            scope: FindingScope::Pcb,
+            message: "Preview removes pad pad-1 on right-U1 (right/U1) from net OMIT_CONTROLLER (right/omit-controller-net).".into(),
+            target_ids: vec!["right/omit-controller-net".into(), "right/U1".into()],
+        }
+    }
+
     #[wasm_bindgen_test]
     fn destination_requires_the_target_to_still_live_on_its_named_board() {
         let document = document();
@@ -309,7 +322,12 @@ mod tests {
     fn findings_host() -> Element {
         let host = use_context::<Host>();
         let requests = host.requests.clone();
+        let count = keycaps_fit::presented_findings(&host.findings, &host.document).len();
         rsx! {
+            LayoutFindingsFooterButton {
+                count,
+                on_toggle: move |_| {},
+            }
             LayoutFindingsInspector {
                 open: true,
                 document: host.document.clone(),
@@ -435,5 +453,36 @@ mod tests {
             [Request { target: FindingNavigationTarget::Part { board_id, .. }, .. }] if board_id == "right"
         ));
         moved.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn preview_electrical_info_finding_is_visible_but_has_no_navigation_action() {
+        let mut accepted_document = document();
+        accepted_document.boards[1].part_ids = vec!["right/U1".into()];
+        accepted_document.parts[1].id = "right/U1".into();
+        accepted_document.parts[1].reference = "right-U1".into();
+        let preview = mount(
+            "layout-findings-preview-electrical-test-root",
+            Host {
+                document: Rc::new(accepted_document),
+                findings: vec![preview_electrical_pin_finding()],
+                requests: Rc::new(RefCell::new(Vec::new())),
+            },
+        )
+        .await;
+
+        let text = preview.text_content().unwrap_or_default();
+        assert!(text.contains("Layout findings: 1"));
+        assert!(text.contains("Information"));
+        assert!(text.contains("Preview removes pad pad-1 on right-U1 (right/U1)"));
+        assert!(text.contains("net OMIT_CONTROLLER (right/omit-controller-net)"));
+        assert!(
+            preview
+                .query_selector("button.wb-finding-action")
+                .unwrap()
+                .is_none(),
+            "a preview-only electrical notice remains passive even when its Part target is live"
+        );
+        preview.remove();
     }
 }

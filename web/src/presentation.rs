@@ -118,7 +118,8 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditOperation, Matrix, Part, PartDefinition, PartKind, PartOutline, Position, Vec2,
+    Contour, EditOperation, Finding as LayoutFinding, Matrix, Part, PartDefinition, PartKind,
+    PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -145,6 +146,62 @@ fn case_setup_context_is_current(
                 && scope.board_id == identity.board_id
                 && (!strict || scope.instance_id == identity.instance_id)
         })
+}
+
+/// Keep accepted diagnostics stable while exposing only electrical loss notices from a preview.
+fn layout_findings_for_display(
+    accepted: &[LayoutFinding],
+    preview: Option<&[LayoutFinding]>,
+) -> Vec<LayoutFinding> {
+    let mut findings = accepted.to_vec();
+    findings.extend(
+        preview
+            .into_iter()
+            .flatten()
+            .filter(|finding| finding.id.starts_with("preview:electrical:"))
+            .cloned(),
+    );
+    findings
+}
+
+#[cfg(test)]
+mod layout_findings_for_display_tests {
+    use super::*;
+    use boardstudio_core::model::{Scope as FindingScope, Severity as FindingSeverity};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn preview_adds_only_electrical_notices_and_keeps_accepted_findings() {
+        let accepted = LayoutFinding {
+            id: "accepted:layout:warning".into(),
+            severity: FindingSeverity::Warning,
+            scope: FindingScope::Layout,
+            message: "Accepted diagnostic remains visible".into(),
+            target_ids: vec!["accepted-part".into()],
+        };
+        let ordinary_preview = LayoutFinding {
+            id: "preview:layout:warning".into(),
+            severity: FindingSeverity::Warning,
+            scope: FindingScope::Layout,
+            message: "Ordinary preview diagnostic stays hidden".into(),
+            target_ids: vec!["preview-part".into()],
+        };
+        let electrical_preview = LayoutFinding {
+            id: "preview:electrical:net:1-61".into(),
+            severity: FindingSeverity::Info,
+            scope: FindingScope::Pcb,
+            message: "Electrical preview notice is visible".into(),
+            target_ids: vec!["preview-pad".into()],
+        };
+
+        assert_eq!(
+            layout_findings_for_display(
+                std::slice::from_ref(&accepted),
+                Some(&[ordinary_preview, electrical_preview.clone()]),
+            ),
+            vec![accepted, electrical_preview],
+        );
+    }
 }
 
 #[cfg(test)]
@@ -3196,6 +3253,13 @@ fn Editor() -> Element {
         .display_preview
         .clone()
         .unwrap_or_else(|| snapshot.scene.clone());
+    let findings = layout_findings_for_display(
+        &snapshot.scene.findings,
+        model
+            .display_preview
+            .as_ref()
+            .map(|preview| preview.findings.as_slice()),
+    );
     let board = document
         .boards
         .iter()
@@ -7284,7 +7348,7 @@ fn Editor() -> Element {
                 findings_page: Some(layout_findings::InspectorMount {
                     open: (layout_findings.open)(),
                     document: Rc::new(document.as_ref().clone()),
-                    findings: snapshot.scene.findings.clone(),
+                    findings: findings.clone(),
                     source: layout_findings::Source {
                         workspace: active_workspace,
                         scope: render_scope.clone(),
@@ -8039,7 +8103,7 @@ fn Editor() -> Element {
                             layout_findings::LayoutFindingsInspector {
                                 open: true,
                                 document: Rc::new(document.as_ref().clone()),
-                                findings: snapshot.scene.findings.clone(),
+                                findings: findings.clone(),
                                 source: layout_findings::Source {
                                     workspace: active_workspace,
                                     scope: render_scope.clone(),
@@ -8084,7 +8148,7 @@ fn Editor() -> Element {
                         selection_available: footer_selection_available,
                         zoom_percent,
                         findings_count: Some(keycaps_fit::presented_findings(
-                            &snapshot.scene.findings,
+                            &findings,
                             &snapshot.document,
                         ).len()),
                         on_toggle_findings: on_toggle_layout_findings,
@@ -8105,7 +8169,7 @@ fn Editor() -> Element {
                 {
                     layout_findings::LayoutFindingsFooterButton {
                         count: keycaps_fit::presented_findings(
-                            &snapshot.scene.findings,
+                            &findings,
                             &snapshot.document,
                         ).len(),
                         on_toggle: on_toggle_layout_findings,
