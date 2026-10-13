@@ -6,10 +6,14 @@
 //! Ported from `scripts/check-rust-boundaries.mjs`.
 #![allow(dead_code)]
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::support::synthetic_half;
+#[cfg(target_arch = "wasm32")]
 use boardstudio_core::migrate::CURRENT_VERSION;
 use boardstudio_core::model::ProjectDoc;
 use serde_json::{Value, json};
 
+#[cfg(target_arch = "wasm32")]
 #[path = "synthetic_half.rs"]
 mod synthetic_half;
 
