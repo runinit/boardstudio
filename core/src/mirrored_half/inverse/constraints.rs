@@ -7,7 +7,7 @@
 
 use super::Refusal;
 use crate::constraints::FramedConstraint;
-use crate::model::{Constraint, EditOperation, OffsetAxes, Pose2, Position, ProjectDoc, Vec2};
+use crate::model::{Constraint, EditOperation, OffsetAxes, Pose2, Position, ProjectDoc};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -120,31 +120,8 @@ pub(super) fn prepare(
                 // missing-ID wording and atomicity behavior.
                 return Ok(None);
             };
-            if !document
-                .parts
-                .iter()
-                .any(|part| part.id == current.source())
-            {
-                return Err(Refusal::Request(format!(
-                    "Constraint {constraint_id} source is missing"
-                )));
-            }
-            if !document
-                .parts
-                .iter()
-                .any(|part| part.id == current.target())
-            {
-                return Err(Refusal::Request(format!(
-                    "Constraint {constraint_id} target is missing"
-                )));
-            }
-            let Some(from) = current.offset_axes() else {
-                return Err(Refusal::Request(format!(
-                    "Constraint {constraint_id} is a mirror and has no offset axes"
-                )));
-            };
             let converted =
-                convert_offset_values(document, current, from, *to).map_err(Refusal::Request)?;
+                convert_offset_values(document, current, *to).map_err(Refusal::Request)?;
             if !converted.is_finite() {
                 return Err(Refusal::Request(format!(
                     "Constraint {constraint_id} has a non-finite value"
@@ -159,36 +136,25 @@ pub(super) fn prepare(
     }
 }
 
-/// Matches `constraints::convert_offset` exactly, including its use of the currently authored
-/// source pose. The result is compiled only after the stored axes have been converted.
+/// Reuses the legacy converter on a minimal document so preparation and apply share its exact
+/// validation order and offset arithmetic. Only matching endpoint parts are copied; preserving
+/// their document order keeps the legacy first-match behavior for duplicate IDs.
 fn convert_offset_values(
     document: &ProjectDoc,
     current: &Constraint,
-    from: OffsetAxes,
     to: OffsetAxes,
 ) -> Result<Constraint, String> {
-    let (Some((offset, rotation)), Some(source)) = (
-        current.offset_numbers(),
-        document
-            .parts
-            .iter()
-            .find(|part| part.id == current.source()),
-    ) else {
-        return Err(format!("Constraint {} source is missing", current.id()));
-    };
-    if from == to {
-        return Ok(current.clone());
-    }
-    let angle = match to {
-        OffsetAxes::Part => -source.pose.rotation,
-        OffsetAxes::Board => source.pose.rotation,
-    };
-    Ok(Constraint::offset(
-        to,
-        current.id().to_owned(),
-        current.source().to_owned(),
-        current.target().to_owned(),
-        crate::matrix::splay::rotate(offset, angle, Vec2::default()),
-        rotation,
-    ))
+    let mut scratch = ProjectDoc::empty("constraint-conversion", "Constraint conversion");
+    scratch.parts = document
+        .parts
+        .iter()
+        .filter(|part| part.id == current.source() || part.id == current.target())
+        .cloned()
+        .collect();
+    scratch.constraints.push(current.clone());
+    crate::constraints::convert_offset(&mut scratch, current.id(), to)?;
+    scratch
+        .constraints
+        .pop()
+        .ok_or_else(|| format!("Constraint {} disappeared during conversion", current.id()))
 }
