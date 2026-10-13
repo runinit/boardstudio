@@ -2373,6 +2373,93 @@ fn open_preparation_repairs_linked_parts_without_matrix_correspondence() {
 }
 
 #[test]
+fn open_preserves_unassociated_local_and_omitted_matrix_children() {
+    for state in [
+        crate::model::MirroredExceptionState::Local,
+        crate::model::MirroredExceptionState::Omitted,
+    ] {
+        let mut accepted = pair_document();
+        let source_id = "matrix/left-keys/r0c1/diode";
+        let mirror_id = "matrix/right-keys/r0c1/diode";
+        let original_association = accepted.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .correspondences
+            .iter()
+            .find(|association| {
+                association.kind == crate::model::MirroredItemKind::Part
+                    && association.source_id == source_id
+                    && association.mirror_id == mirror_id
+            })
+            .expect("the fixture starts with an explicit child association")
+            .clone();
+        let retained_part = part(&accepted, mirror_id).clone();
+        {
+            let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+                .halves
+                .as_mut()
+                .unwrap();
+            halves.correspondences.retain(|association| {
+                !(association.kind == crate::model::MirroredItemKind::Part
+                    && association.source_id == source_id
+                    && association.mirror_id == mirror_id)
+            });
+            halves.exceptions.push(crate::model::MirroredException {
+                kind: crate::model::MirroredItemKind::Part,
+                mirror_id: mirror_id.into(),
+                state,
+                companion_mode: original_association.companion_mode,
+                companion_tweak: original_association.companion_tweak,
+                removed_copper: None,
+            });
+        }
+        crate::mechanical::halves::validate_document(&accepted)
+            .expect("the exact matrix slot authenticates the legacy child exception");
+        let pair_before =
+            serde_json::to_vec(&accepted.hardware.as_ref().unwrap().pairs[0]).unwrap();
+
+        let (prepared, findings) = super::prepare_open(&accepted, &[])
+            .unwrap_or_else(|error| panic!("{state:?} unassociated matrix child: {error}"));
+        assert!(findings.is_empty(), "{state:?} produced {findings:?}");
+        assert_eq!(part(&prepared, mirror_id), &retained_part);
+        let prepared_pair = &prepared.hardware.as_ref().unwrap().pairs[0];
+        assert_eq!(serde_json::to_vec(prepared_pair).unwrap(), pair_before);
+        let halves = prepared_pair.halves.as_ref().unwrap();
+        assert!(!halves.correspondences.iter().any(|association| {
+            association.kind == crate::model::MirroredItemKind::Part
+                && (association.source_id == source_id || association.mirror_id == mirror_id)
+        }));
+        let exception = halves
+            .exceptions
+            .iter()
+            .find(|exception| exception.mirror_id == mirror_id)
+            .expect("Open retains the explicit legacy exception");
+        assert_eq!(exception.state, state);
+        assert_eq!(
+            exception.companion_mode,
+            original_association.companion_mode
+        );
+        assert_eq!(
+            exception.companion_tweak,
+            original_association.companion_tweak
+        );
+
+        let prepared_bytes = serde_json::to_vec(&prepared).unwrap();
+        let (reopened, second_findings) = super::prepare_open(&prepared, &[])
+            .unwrap_or_else(|error| panic!("repeated {state:?} Open failed: {error}"));
+        assert!(second_findings.is_empty());
+        assert_eq!(reopened, prepared);
+        assert_eq!(serde_json::to_vec(&reopened).unwrap(), prepared_bytes);
+        assert_eq!(part(&reopened, mirror_id), &retained_part);
+        assert_eq!(
+            serde_json::to_vec(&reopened.hardware.as_ref().unwrap().pairs[0]).unwrap(),
+            pair_before
+        );
+    }
+}
+
+#[test]
 fn open_preparation_preserves_local_and_omitted_exceptions() {
     let mut local = pair_document();
     part_mut(&mut local, "right/U1").pose.at.x = 260.0;
@@ -3047,6 +3134,157 @@ fn no_op_mirror_move_reports_no_changed_id() {
 
     assert_eq!(prepared, accepted);
     assert!(changed.is_empty());
+}
+
+#[test]
+fn open_preserves_selected_tombstones_across_later_source_and_mirror_edits() {
+    fn cell<'a>(
+        document: &'a ProjectDoc,
+        matrix_id: &str,
+        coordinate: (u32, u32),
+    ) -> &'a crate::model::MatrixCell {
+        document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .unwrap()
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == coordinate)
+            .unwrap()
+    }
+
+    fn assert_tombstone(document: &ProjectDoc) {
+        for (matrix_id, board_id) in [("left-keys", "left"), ("right-keys", "right")] {
+            let matrix = document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap();
+            let cell_id = format!("matrix/{matrix_id}/r0c0");
+            assert!(!cell(document, matrix_id, (0, 0)).enabled);
+            assert!(cell(document, matrix_id, (0, 0)).deleted);
+            assert!(!matrix.part_ids.iter().any(|id| id == &cell_id));
+            assert!(
+                !document.parts.iter().any(|part| {
+                    part.id == cell_id || part.id.starts_with(&format!("{cell_id}/"))
+                })
+            );
+            assert!(
+                !document
+                    .boards
+                    .iter()
+                    .find(|board| board.id == board_id)
+                    .unwrap()
+                    .part_ids
+                    .iter()
+                    .any(|id| id == &cell_id || id.starts_with(&format!("{cell_id}/")))
+            );
+        }
+    }
+
+    let accepted = pair_document();
+    let remove = EditOperation::RemoveSelectedMatrixCells {
+        cells: std::collections::BTreeMap::from([("left-keys".into(), vec![(0, 0)])]),
+    };
+    let (removed, _) = prepare_transaction(&accepted, &[], &remove)
+        .expect("selected-cell removal prepares paired tombstones");
+    let source_cells = removed
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .cells
+        .clone();
+    let mirror_cells = removed
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap()
+        .cells
+        .clone();
+    assert_tombstone(&removed);
+
+    let (opened, findings) = super::prepare_open(&removed, &[])
+        .expect("Open accepts a paired matrix with a selected tombstone");
+    assert!(findings.is_empty());
+    assert_tombstone(&opened);
+    assert_eq!(
+        cell(&opened, "left-keys", (0, 0)),
+        cell(&removed, "left-keys", (0, 0))
+    );
+    assert_eq!(
+        cell(&opened, "right-keys", (0, 0)),
+        cell(&removed, "right-keys", (0, 0))
+    );
+    assert_eq!(
+        opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-keys")
+            .unwrap()
+            .cells,
+        source_cells
+    );
+    assert_eq!(
+        opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "right-keys")
+            .unwrap()
+            .cells,
+        mirror_cells
+    );
+
+    let source_move = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "matrix/left-keys/r0c1".into(),
+            at: Vec2 { x: 43.0, y: 17.0 },
+        }],
+    };
+    let (source_edited, _) = prepare_transaction(&opened, &[], &source_move)
+        .expect("a source-side edit reconciles around the tombstone");
+    assert_tombstone(&source_edited);
+    let (opened_source_edit, findings) = super::prepare_open(&source_edited, &[])
+        .expect("Open preserves the tombstone after a source-side edit");
+    assert!(findings.is_empty());
+    assert_tombstone(&opened_source_edit);
+    assert_eq!(
+        cell(&opened_source_edit, "left-keys", (0, 0)),
+        cell(&removed, "left-keys", (0, 0))
+    );
+    assert_eq!(
+        cell(&opened_source_edit, "right-keys", (0, 0)),
+        cell(&removed, "right-keys", (0, 0))
+    );
+
+    let mirror_move = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "matrix/right-keys/r0c1".into(),
+            at: Vec2 { x: 71.0, y: 83.0 },
+        }],
+    };
+    let (mirror_edited, _) = prepare_transaction(&opened_source_edit, &[], &mirror_move)
+        .expect("a mirror-side edit preserves the tombstone");
+    assert_tombstone(&mirror_edited);
+    let (opened_mirror_edit, findings) = super::prepare_open(&mirror_edited, &[])
+        .expect("Open preserves the tombstone after a mirror-side edit");
+    assert!(findings.is_empty());
+    assert_tombstone(&opened_mirror_edit);
+    assert_eq!(
+        cell(&opened_mirror_edit, "left-keys", (0, 0)),
+        cell(&removed, "left-keys", (0, 0))
+    );
+    assert_eq!(
+        cell(&opened_mirror_edit, "right-keys", (0, 0)),
+        cell(&removed, "right-keys", (0, 0))
+    );
+    let before_repeat = serde_json::to_vec(&opened_mirror_edit).unwrap();
+    let (repeated, findings) =
+        super::prepare_open(&opened_mirror_edit, &[]).expect("repeated Open remains valid");
+    assert!(findings.is_empty());
+    assert_eq!(repeated, opened_mirror_edit);
+    assert_eq!(serde_json::to_vec(&repeated).unwrap(), before_repeat);
 }
 
 fn part_mut<'a>(document: &'a mut ProjectDoc, id: &str) -> &'a mut crate::model::Part {
