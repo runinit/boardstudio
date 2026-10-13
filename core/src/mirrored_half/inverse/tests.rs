@@ -208,18 +208,17 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
     // Other tickets own these; this module refuses them and says whose they are.
-    for (request, ticket) in [(json!({"kind": "remove-constraint", "id": "c"}), "114")] {
-        let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
-            panic!("{request} must be unsupported here");
-        };
-        assert_eq!(owner, ticket, "{request}");
-        assert!(!reason.is_empty(), "{request}");
-        let message = canonical(&fixture(), &request).unwrap_err();
-        assert!(
-            message.contains(ticket) && message.contains(reason),
-            "{message}"
-        );
-    }
+    let request = json!({"kind": "remove-constraint", "id": "c"});
+    let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
+        panic!("{request} must be unsupported here");
+    };
+    assert_eq!(owner, "114", "{request}");
+    assert!(!reason.is_empty(), "{request}");
+    let message = canonical(&fixture(), &request).unwrap_err();
+    assert!(
+        message.contains("114") && message.contains(reason),
+        "{message}"
+    );
     // Bindings keep their targeted-half semantics; typed mechanical edits already carry
     // their own two-way lifecycle and must not be inverse-mapped a second time.
     assert!(matches!(
