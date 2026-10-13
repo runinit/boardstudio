@@ -387,7 +387,8 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
 
 - [152](issues/152-reconcile-authored-matrix-cells.md): resolved private authored-cell/local
   companion and sparse-slot preparation; independent reviews, 214 focused tests, nine compiled
-  mutation kills and full repo/test/lint pass with 1,826 native tests. Local integration follows.
+  mutation kills and full repo/test/lint pass with 1,826 native tests. Merged locally as
+  `39f15a5e` (source `e72f7307`); post-merge repo/test/lint also passes with all 1,826 native tests.
 - [153](issues/153-validate-independent-exceptions-with-matrix-owners.md): validate independent
   exceptions alongside exact single/multiple Matrix owners; follows 152 and blocks 111.
 - [154](issues/154-reserve-staged-circuit-member-references.md): reserve canonical-source staged

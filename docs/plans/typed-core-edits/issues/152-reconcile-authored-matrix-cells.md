@@ -72,3 +72,8 @@ all 1,826 native tests, and the five new names were registered using the baselin
 Evidence is in main-checkout `.evidence/ticket152/` (gitignored). Local integration/post-merge
 verification is recorded in the handoff/map; nothing is pushed. Ticket 111 stays unpublished
 while 153/154 finish their independent preparation contracts.
+
+Local merge: `39f15a5e` (source `e72f7307`). The merged Git tree and reviewed source hashes
+match the candidate exactly; post-merge repo/test/lint passes with all 1,826 native tests.
+Two accidental duplicate task patches in the primary checkout were preserved in local recovery
+commit `7ce6b130` before integration; none was discarded or activated outside its task.
