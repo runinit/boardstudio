@@ -55,7 +55,7 @@ fn prepare_open(
             .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
             .collect();
         if matrices.is_empty() {
-            let projection = projection_for_matrixless_pair(&pair.halves, pair.mapping);
+            let projection = super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
             reconcile(&mut draft, &pair.pair_id, &projection)?;
         }
         for (source_matrix_id, mirror_matrix_id) in matrices {
@@ -117,30 +117,6 @@ fn native_pair_views(document: &ProjectDoc) -> Vec<NativePairView> {
             })
         })
         .collect()
-}
-
-fn projection_for_matrixless_pair(
-    halves: &crate::model::MirroredHalves,
-    mapping: Pose2,
-) -> Projection {
-    Projection {
-        matrix: None,
-        preserve_matrix_geometry: true,
-        source_board_id: halves.source_board_id.clone(),
-        mirror_board_id: halves.mirror_board_id.clone(),
-        mapping,
-        parts: Vec::new(),
-        independent_part_transitions: Vec::new(),
-        hosted_transitions: Vec::new(),
-        applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
-        applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
-        hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
-        locally_protected_mirror_parts: BTreeSet::new(),
-        final_owners: BTreeMap::new(),
-    }
 }
 
 fn changed_linked_mirror_targets(

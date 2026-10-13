@@ -116,6 +116,30 @@ struct MatrixLink {
     mirror_matrix_id: String,
 }
 
+fn projection_for_matrixless_pair(
+    halves: &crate::model::MirroredHalves,
+    mapping: Pose2,
+) -> Projection {
+    Projection {
+        matrix: None,
+        preserve_matrix_geometry: true,
+        source_board_id: halves.source_board_id.clone(),
+        mirror_board_id: halves.mirror_board_id.clone(),
+        mapping,
+        parts: Vec::new(),
+        independent_part_transitions: Vec::new(),
+        hosted_transitions: Vec::new(),
+        applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
+        applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
+        applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
+        hosted_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
+        hosted_omission_baselines: std::cell::RefCell::new(BTreeMap::new()),
+        outline_removal_baselines: std::cell::RefCell::new(BTreeMap::new()),
+        locally_protected_mirror_parts: BTreeSet::new(),
+        final_owners: BTreeMap::new(),
+    }
+}
+
 fn is_omitted_matrix_link(
     halves: &crate::model::MirroredHalves,
     source_matrix_id: &str,
@@ -3406,12 +3430,18 @@ enum FinalOwner {
 
 #[allow(dead_code)] // Ticket 106 prepares a private transition slice before lifecycle activation.
 #[derive(Clone, Debug, PartialEq)]
+struct MatrixPairContext {
+    source_id: String,
+    mirror_id: String,
+}
+
+#[allow(dead_code)] // Ticket 106 prepares a private transition slice before lifecycle activation.
+#[derive(Clone, Debug, PartialEq)]
 struct MembershipContext {
     pair_id: String,
     source_board_id: String,
     mirror_board_id: String,
-    source_matrix_id: String,
-    mirror_matrix_id: String,
+    matrix_pair: Option<MatrixPairContext>,
     mapping: Pose2,
     pair_right: crate::model::MirroredHalves,
     associations: Vec<TransitionAssociation>,
@@ -3419,6 +3449,13 @@ struct MembershipContext {
     pending_rejoins: BTreeMap<String, TransitionState>,
     pending_pair_transitions: BTreeMap<String, TransitionState>,
     pending_pair_baseline: Option<crate::model::MirroredHalves>,
+}
+
+fn require_matrix_pair(context: &MembershipContext) -> Result<&MatrixPairContext, String> {
+    context
+        .matrix_pair
+        .as_ref()
+        .ok_or_else(|| "Matrix membership work requires an exact Matrix correspondence".to_owned())
 }
 
 #[allow(dead_code)] // Ticket 106 prepares a private transition slice before lifecycle activation.
@@ -3494,6 +3531,8 @@ struct MembershipTransitionOutput {
 fn prepare_membership_transition_kernel(
     input: MembershipTransitionInput<'_>,
 ) -> Result<MembershipTransitionOutput, String> {
+    let matrix_pair = require_matrix_pair(input.context)?;
+
     fn pair_right<'a>(
         document: &'a ProjectDoc,
         pair_id: &str,
@@ -3825,6 +3864,8 @@ fn prepare_membership_transition_kernel(
         document: &ProjectDoc,
         context: &MembershipContext,
     ) -> Result<(), String> {
+        let matrix_pair = require_matrix_pair(context)?;
+
         for linked_layout in document
             .layouts
             .iter()
@@ -3841,7 +3882,7 @@ fn prepare_membership_transition_kernel(
                 source_layout.matrix_id.as_str(),
             ]
             .into_iter()
-            .any(|id| id == context.source_matrix_id || id == context.mirror_matrix_id)
+            .any(|id| id == matrix_pair.source_id.as_str() || id == matrix_pair.mirror_id.as_str())
             {
                 return Err("A matrix cannot use native and legacy mirror links together".into());
             }
@@ -3853,6 +3894,8 @@ fn prepare_membership_transition_kernel(
         context: &MembershipContext,
         expected_present: bool,
     ) -> Result<(), String> {
+        let matrix_pair = require_matrix_pair(context)?;
+
         let mut associations = context
             .associations
             .iter()
@@ -3885,8 +3928,8 @@ fn prepare_membership_transition_kernel(
                 "The persisted pair matrix correspondence is unavailable".to_owned()
             })?;
             if association.is_some()
-                || correspondence.source_id != context.source_matrix_id
-                || correspondence.mirror_id != context.mirror_matrix_id
+                || correspondence.source_id != matrix_pair.source_id.as_str()
+                || correspondence.mirror_id != matrix_pair.mirror_id.as_str()
             {
                 return Err(
                     "The retired matrix context disagrees with persisted provenance".into(),
@@ -3898,8 +3941,8 @@ fn prepare_membership_transition_kernel(
             .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
         let correspondence = correspondence
             .ok_or_else(|| "The pair matrix correspondence is unavailable".to_owned())?;
-        if association.source_id != context.source_matrix_id
-            || association.mirror_id != context.mirror_matrix_id
+        if association.source_id != matrix_pair.source_id.as_str()
+            || association.mirror_id != matrix_pair.mirror_id.as_str()
             || association.state != TransitionState::Linked
             || association.explicit_state
             || association.parent_source_id.is_some()
@@ -4024,29 +4067,30 @@ fn prepare_membership_transition_kernel(
         expected_mirror_members: &BTreeSet<String>,
     ) -> Result<MembershipTransitionOutput, String> {
         let input = validated.input;
+        let matrix_pair = require_matrix_pair(input.context)?;
         validate_matrix_association(input.context, !validated.already_removed)?;
         validate_matrix_association(&next_context, !validated.removes_paired_matrices)?;
         validate_association_settings(input.context)?;
         validate_association_settings(&next_context)?;
         if validated.removes_paired_matrices {
             if draft.matrices.iter().any(|matrix| {
-                matrix.id == input.context.source_matrix_id
-                    || matrix.id == input.context.mirror_matrix_id
+                matrix.id == matrix_pair.source_id.as_str()
+                    || matrix.id == matrix_pair.mirror_id.as_str()
             }) || !expected_mirror_members.is_empty()
             {
                 return Err("The emitted whole-matrix removal is incomplete".into());
             }
         } else {
-            let source = matrix_by_id(&draft, &input.context.source_matrix_id)?;
+            let source = matrix_by_id(&draft, matrix_pair.source_id.as_str())?;
             crate::matrix::valid_matrix(source, &draft)?;
-            if source_members(&draft, &input.context.source_matrix_id)?
+            if source_members(&draft, matrix_pair.source_id.as_str())?
                 != validated.post_source_members
             {
                 return Err(
                     "The emitted source matrix disagrees with its validated operation map".into(),
                 );
             }
-            let mirror = matrix_by_id(&draft, &input.context.mirror_matrix_id)?;
+            let mirror = matrix_by_id(&draft, matrix_pair.mirror_id.as_str())?;
             crate::matrix::valid_matrix(mirror, &draft)?;
             let actual_mirror_members: BTreeSet<_> = mirror.part_ids.iter().cloned().collect();
             if actual_mirror_members.len() != mirror.part_ids.len()
@@ -4088,7 +4132,7 @@ fn prepare_membership_transition_kernel(
         {
             if association.state == TransitionState::Linked {
                 let Some((row, column, child)) =
-                    matrix_identity_slot(&association.source_id, &input.context.source_matrix_id)
+                    matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())
                 else {
                     return Err(format!(
                         "The emitted linked source identity {:?} is not canonical",
@@ -4102,7 +4146,10 @@ fn prepare_membership_transition_kernel(
                 };
                 let expected_mirror = format!(
                     "matrix/{}/r{}c{}{}",
-                    input.context.mirror_matrix_id, row, column, suffix
+                    matrix_pair.mirror_id.as_str(),
+                    row,
+                    column,
+                    suffix
                 );
                 if !validated
                     .post_source_members
@@ -4130,7 +4177,7 @@ fn prepare_membership_transition_kernel(
             .filter(|association| association.kind == MirroredItemKind::Part)
         {
             let (row, column, child) =
-                matrix_identity_slot(&association.source_id, &input.context.source_matrix_id)
+                matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())
                     .ok_or_else(|| {
                         format!(
                             "The emitted Part association {:?} has no canonical source slot",
@@ -4144,7 +4191,10 @@ fn prepare_membership_transition_kernel(
             };
             let expected_mirror = format!(
                 "matrix/{}/r{}c{}{}",
-                input.context.mirror_matrix_id, row, column, suffix
+                matrix_pair.mirror_id.as_str(),
+                row,
+                column,
+                suffix
             );
             let expected_parents = if child.is_empty() {
                 (None, None)
@@ -4152,11 +4202,15 @@ fn prepare_membership_transition_kernel(
                 (
                     Some(format!(
                         "matrix/{}/r{}c{}",
-                        input.context.source_matrix_id, row, column
+                        matrix_pair.source_id.as_str(),
+                        row,
+                        column
                     )),
                     Some(format!(
                         "matrix/{}/r{}c{}",
-                        input.context.mirror_matrix_id, row, column
+                        matrix_pair.mirror_id.as_str(),
+                        row,
+                        column
                     )),
                 )
             };
@@ -4256,6 +4310,8 @@ fn prepare_membership_transition_kernel(
     fn validate_transition_input<'a>(
         input: MembershipTransitionInput<'a>,
     ) -> Result<ValidatedTransitionContext<'a>, String> {
+        let matrix_pair = require_matrix_pair(input.context)?;
+
         fn durable_pair_before_pending_transitions(
             context: &MembershipContext,
             persisted: &crate::model::MirroredHalves,
@@ -4276,7 +4332,8 @@ fn prepare_membership_transition_kernel(
 
         let context = input.context;
         let matrices_already_removed = input.valid_before.matrices.iter().all(|matrix| {
-            matrix.id != context.source_matrix_id && matrix.id != context.mirror_matrix_id
+            matrix.id != matrix_pair.source_id.as_str()
+                && matrix.id != matrix_pair.mirror_id.as_str()
         });
         if matrices_already_removed {
             validate_matrix_association(context, false)?;
@@ -4348,14 +4405,14 @@ fn prepare_membership_transition_kernel(
             crate::mechanical::halves::validate_document(input.valid_before)?;
         }
 
-        let before_source = matrix_by_id(input.valid_before, &context.source_matrix_id)?;
-        let before_mirror = matrix_by_id(input.valid_before, &context.mirror_matrix_id)?;
+        let before_source = matrix_by_id(input.valid_before, matrix_pair.source_id.as_str())?;
+        let before_mirror = matrix_by_id(input.valid_before, matrix_pair.mirror_id.as_str())?;
         let post_source = input
             .post_source
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.source_matrix_id);
-        let post_mirror = matrix_by_id(input.post_source, &context.mirror_matrix_id)?;
+            .find(|matrix| matrix.id == matrix_pair.source_id.as_str());
+        let post_mirror = matrix_by_id(input.post_source, matrix_pair.mirror_id.as_str())?;
         if before_source.board_id.as_deref() != Some(context.source_board_id.as_str())
             || post_source.is_some_and(|matrix| {
                 matrix.board_id.as_deref() != Some(context.source_board_id.as_str())
@@ -4369,14 +4426,16 @@ fn prepare_membership_transition_kernel(
             crate::matrix::valid_matrix(before_source, input.valid_before)?;
             crate::matrix::valid_matrix(before_mirror, input.valid_before)?;
         } else {
-            source_members(input.valid_before, &context.source_matrix_id)?;
-            source_members(input.valid_before, &context.mirror_matrix_id)?;
+            source_members(input.valid_before, matrix_pair.source_id.as_str())?;
+            source_members(input.valid_before, matrix_pair.mirror_id.as_str())?;
         }
-        let before_source_members = source_members(input.valid_before, &context.source_matrix_id)?;
-        let before_mirror_members = source_members(input.valid_before, &context.mirror_matrix_id)?;
+        let before_source_members =
+            source_members(input.valid_before, matrix_pair.source_id.as_str())?;
+        let before_mirror_members =
+            source_members(input.valid_before, matrix_pair.mirror_id.as_str())?;
         let post_source_members = if let Some(post_source) = post_source {
             crate::matrix::valid_matrix(post_source, input.post_source)?;
-            source_members(input.post_source, &context.source_matrix_id)?
+            source_members(input.post_source, matrix_pair.source_id.as_str())?
         } else {
             BTreeSet::new()
         };
@@ -4385,7 +4444,8 @@ fn prepare_membership_transition_kernel(
             .union(&before_mirror_members)
             .cloned()
             .collect();
-        let post_mirror_members = source_members(input.post_source, &context.mirror_matrix_id)?;
+        let post_mirror_members =
+            source_members(input.post_source, matrix_pair.mirror_id.as_str())?;
         let post_transition_members: BTreeSet<_> = post_source_members
             .union(&post_mirror_members)
             .cloned()
@@ -4512,7 +4572,7 @@ fn prepare_membership_transition_kernel(
         }
         for association in &part_associations {
             let (row, column, child) =
-                matrix_identity_slot(&association.source_id, &context.source_matrix_id)
+                matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())
                     .ok_or_else(|| {
                         format!(
                             "The associated source identity {:?} is not canonical",
@@ -4526,7 +4586,10 @@ fn prepare_membership_transition_kernel(
             };
             let expected_mirror = format!(
                 "matrix/{}/r{}c{}{}",
-                context.mirror_matrix_id, row, column, suffix
+                matrix_pair.mirror_id.as_str(),
+                row,
+                column,
+                suffix
             );
             let expected_parents = if child.is_empty() {
                 (None, None)
@@ -4534,11 +4597,15 @@ fn prepare_membership_transition_kernel(
                 (
                     Some(format!(
                         "matrix/{}/r{}c{}",
-                        context.source_matrix_id, row, column
+                        matrix_pair.source_id.as_str(),
+                        row,
+                        column
                     )),
                     Some(format!(
                         "matrix/{}/r{}c{}",
-                        context.mirror_matrix_id, row, column
+                        matrix_pair.mirror_id.as_str(),
+                        row,
+                        column
                     )),
                 )
             };
@@ -4700,8 +4767,8 @@ fn prepare_membership_transition_kernel(
                 );
             }
             let expected_mirror = new_source.as_ref().and_then(|id| {
-                id.strip_prefix(&format!("matrix/{}/", context.source_matrix_id))
-                    .map(|suffix| format!("matrix/{}/{suffix}", context.mirror_matrix_id))
+                id.strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
+                    .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()))
             });
             let mapped_mirror = input.mirror_identity_map.get(&association.mirror_id);
             match association.state {
@@ -4875,7 +4942,8 @@ fn prepare_membership_transition_kernel(
         }
         let mut transition_targets = mapped_source_ids.clone();
         for id in &mapped_source_ids {
-            if let Some((row, column, child)) = matrix_identity_slot(id, &context.source_matrix_id)
+            if let Some((row, column, child)) =
+                matrix_identity_slot(id, matrix_pair.source_id.as_str())
             {
                 let suffix = if child.is_empty() {
                     String::new()
@@ -4884,7 +4952,7 @@ fn prepare_membership_transition_kernel(
                 };
                 transition_targets.insert(format!(
                     "matrix/{}/r{row}c{column}{suffix}",
-                    context.mirror_matrix_id
+                    matrix_pair.mirror_id.as_str()
                 ));
             }
         }
@@ -4906,9 +4974,10 @@ fn prepare_membership_transition_kernel(
                         return Err(format!("The final owner board {board_id:?} is unavailable"));
                     }
                     let expected_matrix_board =
-                        if matrix_identity_slot(id, &context.source_matrix_id).is_some() {
+                        if matrix_identity_slot(id, matrix_pair.source_id.as_str()).is_some() {
                             Some(context.source_board_id.as_str())
-                        } else if matrix_identity_slot(id, &context.mirror_matrix_id).is_some() {
+                        } else if matrix_identity_slot(id, matrix_pair.mirror_id.as_str()).is_some()
+                        {
                             Some(context.mirror_board_id.as_str())
                         } else {
                             None
@@ -4956,34 +5025,40 @@ fn prepare_membership_transition_kernel(
                     addition.source_id
                 ));
             };
-            let source_slot = matrix_identity_slot(&addition.source_id, &context.source_matrix_id)
-                .ok_or_else(|| {
-                    format!(
-                        "The planned source identity {:?} is not canonical",
-                        addition.source_id
-                    )
-                })?;
-            let mirror_slot = matrix_identity_slot(&addition.mirror_id, &context.mirror_matrix_id)
-                .ok_or_else(|| {
-                    format!(
-                        "The planned mirror identity {:?} is not canonical",
-                        addition.mirror_id
-                    )
-                })?;
+            let source_slot =
+                matrix_identity_slot(&addition.source_id, matrix_pair.source_id.as_str())
+                    .ok_or_else(|| {
+                        format!(
+                            "The planned source identity {:?} is not canonical",
+                            addition.source_id
+                        )
+                    })?;
+            let mirror_slot =
+                matrix_identity_slot(&addition.mirror_id, matrix_pair.mirror_id.as_str())
+                    .ok_or_else(|| {
+                        format!(
+                            "The planned mirror identity {:?} is not canonical",
+                            addition.mirror_id
+                        )
+                    })?;
             let expected_mirror = addition
                 .source_id
-                .strip_prefix(&format!("matrix/{}/", context.source_matrix_id))
-                .map(|suffix| format!("matrix/{}/{suffix}", context.mirror_matrix_id));
+                .strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
+                .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()));
             let expected_parents = if source_slot.2.is_empty() {
                 (None, None)
             } else {
                 let source_key = format!(
                     "matrix/{}/r{}c{}",
-                    context.source_matrix_id, source_slot.0, source_slot.1
+                    matrix_pair.source_id.as_str(),
+                    source_slot.0,
+                    source_slot.1
                 );
                 let mirror_key = format!(
                     "matrix/{}/r{}c{}",
-                    context.mirror_matrix_id, mirror_slot.0, mirror_slot.1
+                    matrix_pair.mirror_id.as_str(),
+                    mirror_slot.0,
+                    mirror_slot.1
                 );
                 (Some(source_key), Some(mirror_key))
             };
@@ -5069,7 +5144,7 @@ fn prepare_membership_transition_kernel(
                 let mirror = draft
                     .matrices
                     .iter_mut()
-                    .find(|matrix| matrix.id == context.mirror_matrix_id)
+                    .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str())
                     .ok_or_else(|| {
                         "The target matrix disappeared before Local detachment".to_owned()
                     })?;
@@ -5081,7 +5156,7 @@ fn prepare_membership_transition_kernel(
                 &mut draft,
                 &[],
                 &crate::model::EditOperation::RemoveMatrix {
-                    id: context.mirror_matrix_id.clone(),
+                    id: matrix_pair.mirror_id.clone(),
                 },
             )?
         };
@@ -5197,7 +5272,7 @@ fn prepare_membership_transition_kernel(
     let mut shifted_slots = BTreeSet::new();
     for (old_id, new_id) in input.source_identity_map {
         let Some((old_row, old_column, old_suffix)) =
-            matrix_identity_slot(old_id, &context.source_matrix_id)
+            matrix_identity_slot(old_id, matrix_pair.source_id.as_str())
         else {
             return Err(format!("The source identity {old_id:?} is not canonical"));
         };
@@ -5212,7 +5287,7 @@ fn prepare_membership_transition_kernel(
             }
             Some(new_id) => {
                 let Some((new_row, new_column, new_suffix)) =
-                    matrix_identity_slot(new_id, &context.source_matrix_id)
+                    matrix_identity_slot(new_id, matrix_pair.source_id.as_str())
                 else {
                     return Err(format!(
                         "The mapped source identity {new_id:?} is not canonical"
@@ -5333,12 +5408,12 @@ fn prepare_membership_transition_kernel(
     if let Some((axis_row, removed_index)) = compaction_axis {
         crate::matrix::deletion::remove_axis(
             &mut staged,
-            &context.mirror_matrix_id,
+            matrix_pair.mirror_id.as_str(),
             removed_index,
             axis_row,
         )?;
     } else if is_trim {
-        let old_mirror = matrix_by_id(&staged, &context.mirror_matrix_id)?;
+        let old_mirror = matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?;
         let mut removed_cells: BTreeSet<_> = removed_slots
             .iter()
             .filter_map(|(row, column, suffix)| suffix.is_empty().then_some((*row, *column)))
@@ -5367,7 +5442,7 @@ fn prepare_membership_transition_kernel(
                         .is_some_and(Option::is_some)
             })
             .filter_map(|association| {
-                matrix_identity_slot(&association.mirror_id, &context.mirror_matrix_id)
+                matrix_identity_slot(&association.mirror_id, matrix_pair.mirror_id.as_str())
                     .map(|(row, column, _)| (row, column))
             })
             .collect();
@@ -5375,7 +5450,7 @@ fn prepare_membership_transition_kernel(
             let target = staged
                 .matrices
                 .iter_mut()
-                .find(|matrix| matrix.id == context.mirror_matrix_id)
+                .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str())
                 .ok_or_else(|| {
                     "The target matrix disappeared before Local detachment".to_owned()
                 })?;
@@ -5383,7 +5458,7 @@ fn prepare_membership_transition_kernel(
                 .part_ids
                 .iter()
                 .filter(|id| {
-                    matrix_identity_slot(id, &context.mirror_matrix_id).is_some_and(
+                    matrix_identity_slot(id, matrix_pair.mirror_id.as_str()).is_some_and(
                         |(row, column, _)| local_removed_cells.contains(&(row, column)),
                     )
                 })
@@ -5403,21 +5478,21 @@ fn prepare_membership_transition_kernel(
         if !removed_cells.is_empty() {
             crate::matrix::deletion::remove_cells(
                 &mut staged,
-                &context.mirror_matrix_id,
+                matrix_pair.mirror_id.as_str(),
                 &removed_cells.into_iter().collect::<Vec<_>>(),
             )?;
         }
     }
-    let source = matrix_by_id(&staged, &context.source_matrix_id)?.clone();
-    let mirror = matrix_by_id(&staged, &context.mirror_matrix_id)?.clone();
+    let source = matrix_by_id(&staged, matrix_pair.source_id.as_str())?.clone();
+    let mirror = matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?.clone();
     let matrix_correspondence = context
         .pair_right
         .correspondences
         .iter()
         .find(|association| {
             association.kind == MirroredItemKind::Matrix
-                && association.source_id == context.source_matrix_id
-                && association.mirror_id == context.mirror_matrix_id
+                && association.source_id == matrix_pair.source_id.as_str()
+                && association.mirror_id == matrix_pair.mirror_id.as_str()
         })
         .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
     let mut projected = project_matrix(&source, &mirror, matrix_correspondence, context.mapping)?;
@@ -5428,7 +5503,9 @@ fn prepare_membership_transition_kernel(
         }
         let source_key_id = format!(
             "matrix/{}/r{}c{}",
-            context.source_matrix_id, cell.row, cell.column
+            matrix_pair.source_id.as_str(),
+            cell.row,
+            cell.column
         );
         let Some(source_key) = staged.parts.iter().find(|part| part.id == source_key_id) else {
             return Err(format!(
@@ -5472,8 +5549,8 @@ fn prepare_membership_transition_kernel(
                 .and_then(Clone::clone)
                 .or_else(|| {
                     mapped_source
-                        .strip_prefix(&format!("matrix/{}/", context.source_matrix_id))
-                        .map(|suffix| format!("matrix/{}/{suffix}", context.mirror_matrix_id))
+                        .strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
+                        .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()))
                 })
                 .ok_or_else(|| {
                     "The retained Local key has no target identity mapping".to_owned()
@@ -5503,7 +5580,9 @@ fn prepare_membership_transition_kernel(
             let mirror_child_id = crate::matrix::companion_id(
                 &format!(
                     "matrix/{}/r{}c{}",
-                    context.mirror_matrix_id, cell.row, cell.column
+                    matrix_pair.mirror_id.as_str(),
+                    cell.row,
+                    cell.column
                 ),
                 &assembly.id,
             );
@@ -5765,8 +5844,8 @@ fn prepare_membership_transition_kernel(
             continue;
         };
         let mapped_mirror_default = mapped_source
-            .strip_prefix(&format!("matrix/{}/", context.source_matrix_id))
-            .map(|suffix| format!("matrix/{}/{suffix}", context.mirror_matrix_id))
+            .strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
+            .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()))
             .ok_or_else(|| "A mapped source identity is outside its matrix".to_owned())?;
         if association.state == TransitionState::Omitted {
             if input
@@ -5788,8 +5867,8 @@ fn prepare_membership_transition_kernel(
                 .and_then(|id| input.source_identity_map.get(id))
                 .and_then(Clone::clone);
             omitted.parent_mirror_id = omitted.parent_source_id.as_ref().map(|id| {
-                id.strip_prefix(&format!("matrix/{}/", context.source_matrix_id))
-                    .map(|suffix| format!("matrix/{}/{suffix}", context.mirror_matrix_id))
+                id.strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
+                    .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()))
                     .unwrap_or_else(|| id.clone())
             });
             next_associations.push(omitted);
@@ -5809,8 +5888,8 @@ fn prepare_membership_transition_kernel(
             .and_then(|id| input.source_identity_map.get(id))
             .and_then(Clone::clone);
         relocated.parent_mirror_id = relocated.parent_source_id.as_ref().map(|id| {
-            id.strip_prefix(&format!("matrix/{}/", context.source_matrix_id))
-                .map(|suffix| format!("matrix/{}/{suffix}", context.mirror_matrix_id))
+            id.strip_prefix(&format!("matrix/{}/", matrix_pair.source_id.as_str()))
+                .map(|suffix| format!("matrix/{}/{suffix}", matrix_pair.mirror_id.as_str()))
                 .unwrap_or_else(|| id.clone())
         });
         if relocated != *association {
@@ -5853,6 +5932,9 @@ fn prepare_membership_transition_kernel(
 fn prepare_membership_transition(
     input: MembershipTransitionInput<'_>,
 ) -> Result<MembershipTransitionOutput, String> {
+    if input.context.matrix_pair.is_none() {
+        return Err("Matrix membership transition requires an exact Matrix correspondence".into());
+    }
     let mut output = prepare_membership_transition_kernel(input)?;
     // The membership kernel retains detached Local geometry. Once its source is explicitly
     // deleted, the durable lifecycle also retires that geometry's former association.
@@ -12264,8 +12346,10 @@ mod tests {
             pair_id: pair.id.clone(),
             source_board_id: halves.source_board_id.clone(),
             mirror_board_id: halves.mirror_board_id.clone(),
-            source_matrix_id: "source-matrix".into(),
-            mirror_matrix_id: "mirror-matrix".into(),
+            matrix_pair: Some(super::MatrixPairContext {
+                source_id: "source-matrix".into(),
+                mirror_id: "mirror-matrix".into(),
+            }),
             mapping: pair.mapping,
             pair_right: halves.clone(),
             associations: halves
@@ -12373,14 +12457,14 @@ mod tests {
         let source_member = before
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.source_matrix_id)
+            .find(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
             .unwrap()
             .part_ids[0]
             .clone();
         let mirror_member = before
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.mirror_matrix_id)
+            .find(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str())
             .unwrap()
             .part_ids[0]
             .clone();
@@ -12388,7 +12472,13 @@ mod tests {
             id: "source-layout".into(),
             name: "Source matrix layout".into(),
             board_id: context.source_board_id.clone(),
-            matrix_id: context.source_matrix_id.clone(),
+            matrix_id: context
+                .matrix_pair
+                .as_ref()
+                .unwrap()
+                .source_id
+                .as_str()
+                .to_owned(),
             part_ids: vec![source_member],
             mirror_link: None,
         };
@@ -12396,7 +12486,13 @@ mod tests {
             id: "mirror-layout".into(),
             name: "Target matrix layout".into(),
             board_id: context.mirror_board_id.clone(),
-            matrix_id: context.mirror_matrix_id.clone(),
+            matrix_id: context
+                .matrix_pair
+                .as_ref()
+                .unwrap()
+                .mirror_id
+                .as_str()
+                .to_owned(),
             part_ids: vec![mirror_member],
             mirror_link: None,
         };
@@ -12425,8 +12521,14 @@ mod tests {
             .unwrap()
             .outline_ids
             .push("unrelated-layout-envelope".into());
-        let source_net_id = format!("matrix/{}/net/empty", context.source_matrix_id);
-        let mirror_net_id = format!("matrix/{}/net/empty", context.mirror_matrix_id);
+        let source_net_id = format!(
+            "matrix/{}/net/empty",
+            context.matrix_pair.as_ref().unwrap().source_id.as_str()
+        );
+        let mirror_net_id = format!(
+            "matrix/{}/net/empty",
+            context.matrix_pair.as_ref().unwrap().mirror_id.as_str()
+        );
         for (board_id, net_id) in [
             (context.source_board_id.as_str(), source_net_id.as_str()),
             (context.mirror_board_id.as_str(), mirror_net_id.as_str()),
@@ -12452,22 +12554,32 @@ mod tests {
             &mut post_source,
             &[],
             &EditOperation::RemoveMatrix {
-                id: context.source_matrix_id.clone(),
+                id: context
+                    .matrix_pair
+                    .as_ref()
+                    .unwrap()
+                    .source_id
+                    .as_str()
+                    .to_owned(),
             },
         )
         .expect("the ordinary source RemoveMatrix operation succeeds");
-        assert!(source_changed.contains(&context.source_matrix_id));
+        assert!(
+            source_changed
+                .iter()
+                .any(|id| id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
+        );
         assert!(
             !post_source
                 .matrices
                 .iter()
-                .any(|matrix| matrix.id == context.source_matrix_id)
+                .any(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
         );
 
         let source_members: BTreeSet<_> = before
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.source_matrix_id)
+            .find(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
             .expect("the source matrix exists in the pre-edit baseline")
             .part_ids
             .iter()
@@ -12476,7 +12588,7 @@ mod tests {
         let mirror_members: BTreeSet<_> = before
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.mirror_matrix_id)
+            .find(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str())
             .expect("the mirror matrix exists in the pre-edit baseline")
             .part_ids
             .iter()
@@ -12522,7 +12634,7 @@ mod tests {
             !post_source
                 .matrices
                 .iter()
-                .any(|matrix| matrix.id == context.source_matrix_id)
+                .any(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
         );
 
         let output = prepare_membership_transition_kernel(MembershipTransitionInput {
@@ -12543,14 +12655,14 @@ mod tests {
                 .draft
                 .matrices
                 .iter()
-                .any(|matrix| matrix.id == context.source_matrix_id)
+                .any(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
         );
         assert!(
             !output
                 .draft
                 .matrices
                 .iter()
-                .any(|matrix| matrix.id == context.mirror_matrix_id)
+                .any(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str())
         );
         assert!(
             output
@@ -12627,7 +12739,8 @@ mod tests {
         assert!(
             output
                 .changed_document_ids
-                .contains(&context.mirror_matrix_id)
+                .iter()
+                .any(|id| id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str())
         );
         assert!(
             output
@@ -12642,7 +12755,13 @@ mod tests {
             .iter()
             .cloned()
             .chain([
-                context.mirror_matrix_id.clone(),
+                context
+                    .matrix_pair
+                    .as_ref()
+                    .unwrap()
+                    .mirror_id
+                    .as_str()
+                    .to_owned(),
                 "mirror-layout".into(),
                 mirror_net_id.clone(),
                 context.mirror_board_id.clone(),
@@ -12661,8 +12780,8 @@ mod tests {
                 .all(|id| !output.changed_document_ids.contains(id))
         );
         assert!(output.context.associations.iter().all(|association| {
-            association.source_id != context.source_matrix_id
-                && association.mirror_id != context.mirror_matrix_id
+            association.source_id != context.matrix_pair.as_ref().unwrap().source_id.as_str()
+                && association.mirror_id != context.matrix_pair.as_ref().unwrap().mirror_id.as_str()
                 && !source_members.contains(&association.source_id)
                 && !mirror_members.contains(&association.mirror_id)
         }));
@@ -12695,7 +12814,7 @@ mod tests {
         let source_members: BTreeSet<_> = before
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.source_matrix_id)
+            .find(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().source_id.as_str())
             .unwrap()
             .part_ids
             .iter()
@@ -12704,7 +12823,7 @@ mod tests {
         let mirror_members: BTreeSet<_> = before
             .matrices
             .iter()
-            .find(|matrix| matrix.id == context.mirror_matrix_id)
+            .find(|matrix| matrix.id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str())
             .unwrap()
             .part_ids
             .iter()
@@ -12773,7 +12892,13 @@ mod tests {
             &mut post_source,
             &[],
             &EditOperation::RemoveMatrix {
-                id: context.source_matrix_id.clone(),
+                id: context
+                    .matrix_pair
+                    .as_ref()
+                    .unwrap()
+                    .source_id
+                    .as_str()
+                    .to_owned(),
             },
         )
         .expect("the source operation removes its matrix through Core");
@@ -12826,14 +12951,9 @@ mod tests {
         })
         .expect("a Local mirror identity survives paired matrix retirement");
 
-        assert!(
-            !output
-                .draft
-                .matrices
-                .iter()
-                .any(|matrix| matrix.id == context.source_matrix_id
-                    || matrix.id == context.mirror_matrix_id)
-        );
+        assert!(!output.draft.matrices.iter().any(|matrix| matrix.id
+            == context.matrix_pair.as_ref().unwrap().source_id.as_str()
+            || matrix.id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str()));
         assert!(
             !output
                 .draft
@@ -12905,7 +13025,8 @@ mod tests {
         assert!(
             output
                 .changed_document_ids
-                .contains(&context.mirror_matrix_id)
+                .iter()
+                .any(|id| id == context.matrix_pair.as_ref().unwrap().mirror_id.as_str())
         );
         assert!(!output.changed_document_ids.contains(&local_mirror_id));
         assert!(!output.changed_document_ids.contains(&local_child_mirror_id));
@@ -13283,8 +13404,10 @@ mod tests {
             pair_id: pair.id.clone(),
             source_board_id: halves.source_board_id.clone(),
             mirror_board_id: halves.mirror_board_id.clone(),
-            source_matrix_id: "source-matrix".into(),
-            mirror_matrix_id: "mirror-matrix".into(),
+            matrix_pair: Some(super::MatrixPairContext {
+                source_id: "source-matrix".into(),
+                mirror_id: "mirror-matrix".into(),
+            }),
             mapping: pair.mapping,
             pair_right: halves.clone(),
             associations,

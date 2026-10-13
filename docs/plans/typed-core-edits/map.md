@@ -129,9 +129,12 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   is resolved and merged as `dc9a2960`; its post-merge `repo`, `test`, and `lint` passed with all
   1,785 native tests, and its three mutation checks were killed. Ticket 149 is resolved and
   merged as `ebbca129`: post-merge `repo test lint` passes with all 1,817 native tests, and its
-  14 compiled mutations were killed. The next serial Core slice is [150](issues/150-prepare-matrixless-half-exceptions.md), 111 and
-  [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md). Ticket 150 closes the source-verified
-  selective-exception gap for pairs without a Matrix correspondence before activation.
+  14 compiled mutations were killed. [150](issues/150-prepare-matrixless-half-exceptions.md)
+  is resolved on its local branch: matrixless selective exceptions are reviewed; final
+  `repo test lint` passed with all 1,821 native tests, and seven distinct compiled mutations were
+  killed in the relevant scopes with exact restoration. Local merge/post-merge checks follow.
+  The next serial Core slices are 111 and
+  [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md).
   Ticket 149's optional target and single new crate-only mechanical configuration entry point
   are approved. Core children stay serial; the user approved isolated
   A/F streams with exact
