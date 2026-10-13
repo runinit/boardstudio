@@ -15,7 +15,7 @@ made on the mirror.
 - `halves::reconcile(doc, changed)` after `apply` (`core/src/lib.rs`) and on Open; inverse-map
   an edit that targets a mirror item to its source (as `move_linked_component` does,
   `core/src/matrix/layout.rs:542`).
-- `SetHalfException {pairId, kind, mirrorId, state: local|omitted|linked}` for Make local,
+- `SetHalfException {pairId, itemKind, mirrorId, state: local|omitted|linked}` for Make local,
   Omit and Rejoin; `UnlinkHalves {pairId}` leaves the mirror as plain independent data.
   Removing a source item removes its mirror.
 - User-confirmed selective exceptions apply to individual screens/encoders and other independent parts, and to diode/LED companions under their ownership rules. Normal linked edits propagate; explicit MakeLocal keeps the selected visible part independently editable, Omit remains durably absent without resurrection, and Rejoin derives from the current source. Keep the rest of the pair linked and clean only targeted owned references. Users need not Unlink the whole pair for one-off changes/removals. Companion placement-mode controls in40 remain companion-only and do not restrict general part exceptions.
@@ -105,3 +105,11 @@ Unlink materializes effective linked mechanical data through the existing pair-d
 policy, removes the relationship, and preserves stored board data and visible placement.
 See 109 for representation/compatibility tests and source evidence. These are technical
 contracts, not permission to change heading/tweak semantics pending the separate ticket 40 decision.
+
+## Wire clarification (2026-10-13)
+
+The serialized SetHalfException payload uses `itemKind` to select the mirrored item type.
+`EditOperation` already reserves JSON `kind` as its operation discriminator; Rust retains the
+`kind: MirroredItemKind` field with a serde rename. This representation preserves the agreed
+item/state behavior and avoids two meanings for one JSON key. `HalfExceptionState` represents
+Local/Omitted/Linked edit intent; the durable exception overlay still stores only Local/Omitted.

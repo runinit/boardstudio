@@ -196,3 +196,8 @@ exact operation/Framed data shapes and compiler inventory; runtime wiring starts
 readiness handoff. No intermediate production activation is merged. These assignments add no
 visibility beyond the inherited serialized model/read-only facade and approved Open entry point.
 New preparation/policy needs must be reported rather than hidden in activation.
+
+Model readiness: SetHalfException's Rust item field remains `kind: MirroredItemKind`, but its
+wire key is `itemKind` because JSON `kind` is already the EditOperation discriminator. Its
+`HalfExceptionState` accepts Local/Omitted/Linked without adding Linked to stored exception
+overlays. This is a serialization clarification of the agreed vocabulary, not a new behavior.
