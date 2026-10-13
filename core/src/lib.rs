@@ -497,6 +497,34 @@ impl CoreEngine {
         {
             return self.preview_edit(id, command);
         }
+        let prepared_mechanical_contours = if prepared_route
+            && command.phase == EditPhase::Commit
+            && matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. })
+        {
+            Some(geometry::board_contours(&self.document, &self.outline_cache).0)
+        } else {
+            None
+        };
+        if let (Some(board_contours), EditOperation::ApplyMechanicalEdit { edit }) =
+            (&prepared_mechanical_contours, &command.operation)
+            && matches!(
+                mechanical::evaluate_edit(&self.document, board_contours, edit),
+                Ok(mechanical::MechanicalEditDisposition::Unchanged)
+            )
+        {
+            return self.scene(
+                id,
+                SceneInput {
+                    transaction: &command.transaction_id,
+                    changed: vec![],
+                    document: &self.document,
+                    contours: &self.contours,
+                    geom_findings: &self.findings,
+                    cache: &self.outline_cache,
+                    kind: SceneKind::Committed,
+                },
+            );
+        }
         let next;
         let changed;
         if prepared_route {
@@ -509,8 +537,13 @@ impl CoreEngine {
                         ..
                     }
             ) {
-                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
-                &accepted_contours
+                if let Some(board_contours) = &prepared_mechanical_contours {
+                    board_contours
+                } else {
+                    accepted_contours =
+                        geometry::board_contours(&self.document, &self.outline_cache).0;
+                    &accepted_contours
+                }
             } else {
                 &[]
             };
