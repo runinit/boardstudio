@@ -396,3 +396,7 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   repo/test/lint also passes with all 1,833 native tests. 111 remains unmerged until 154 completes.
 - [154](issues/154-reserve-staged-circuit-member-references.md): reserve canonical-source staged
   references during mirror circuit planning; follows 152/153 and blocks 111.
+
+- [155](issues/155-admit-hosted-addition-correspondences.md): private durable admission of
+  selected hosted Module/Circuit/member/private-Net links. Source-audited missing admission
+  blocks154's propagated-pose proof and111 activation; no new policy/schema/visibility.

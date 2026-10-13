@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md)
+Blocked by: [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md), [155](155-admit-hosted-addition-correspondences.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Related: [146](146-mirror-side-circuit-embeds-land-as-typed.md), [111](111-integrate-mirrored-half-reconciliation.md)
 
