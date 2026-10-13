@@ -38,7 +38,8 @@ Exclusive: bounded call-site/dispatch/vocabulary edits in `core/src/lib.rs` and
 in established mirrored-half test files. The inherited 139 framed-constraint persistence and
 v5→v6 migration below are part of this activation; no additional storage/schema migration,
 new subsystem implementation, preview backup engine, performance harness, golden edits or
-additional visibility changes beyond the inherited serialized-model interface specified below.
+additional visibility changes beyond the inherited serialized-model interface and the explicitly
+approved Open entry point specified below.
 Root assigns any additional path before editing.
 
 Root assignment (2026-10-13 readiness audit): the existing approved inherited work also owns
@@ -167,3 +168,13 @@ not activation acceptance.
 If resolving either pending evidence item requires a new ownership, net-lifetime or preview rule,
 stop 111 activation and delegate that bounded preparation; do not add the rule inside activation.
 These notes record follow-up evidence only and complete no acceptance item.
+
+## Approved Open entry point (2026-10-13)
+
+The owner approved making the existing `mirrored_half::reconcile::prepare::prepare_open`
+`pub(crate)` and re-exporting it through the existing private `reconcile` and `mirrored_half`
+modules. This three-line bridge lets production Open consume 116's verified source-authoritative
+draft and located repair findings. It does not grant visibility changes to other helpers or
+modules, and Open remains separate from edit-transaction canonicalization. The reviewable
+proposal is recorded in `.evidence/ticket111/open-seam-proposal.patch`; 111 applies the bridge
+with its coherent production activation after 150 is verified.
