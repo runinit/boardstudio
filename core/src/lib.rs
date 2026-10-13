@@ -738,7 +738,8 @@ impl CoreEngine {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
         };
-        let (cache, contours, findings) = outlines(&draft, None, &changed);
+        let (cache, contours, mut findings) = outlines(&draft, None, &changed);
+        findings.extend(preview_electrical_loss_findings(&self.document, &draft));
         self.scene(
             id,
             SceneInput {
@@ -1869,7 +1870,6 @@ fn changed_ids(a: &ProjectDoc, b: &ProjectDoc) -> Vec<String> {
     ids.into_iter().collect()
 }
 
-#[cfg(test)]
 fn preview_electrical_loss_findings(accepted: &ProjectDoc, staged: &ProjectDoc) -> Vec<Finding> {
     let mut accepted_nets: BTreeMap<&str, &str> = BTreeMap::new();
     let mut accepted_pins = BTreeSet::new();
@@ -1983,7 +1983,6 @@ fn preview_electrical_loss_findings(accepted: &ProjectDoc, staged: &ProjectDoc) 
     findings.into_values().collect()
 }
 
-#[cfg(test)]
 fn preview_electrical_notice_id(kind: &str, identity: &[&str]) -> String {
     let mut id = format!("preview:electrical:{kind}");
     for component in identity {
