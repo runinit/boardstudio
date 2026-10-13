@@ -32,12 +32,13 @@ pub(super) mod tests;
 use super::inverse::MatrixAddition;
 use super::{
     GENERATED_CLOSURE_PREFIX, ModuleMirror, SYMMETRIC_DEFINITIONS, corresponds, derive, mint,
-    mirror_id, mirror_module, mirror_net_name, mirror_reference, substitute_token, taken_ids,
+    mirror_id, mirror_module, mirror_net_name, mirror_reference, remap_wiring_key,
+    substitute_token, taken_ids,
 };
 use crate::matrix::layout;
 use crate::model::{
     Layout, Matrix, MirroredCompanionMode, MirroredCompanionTweak, MirroredCorrespondence,
-    MirroredExceptionState, MirroredHalves, MirroredItemKind, Net, Pin, Pose2, ProjectDoc,
+    MirroredHalves, MirroredItemKind, Net, Pin, Pose2, ProjectDoc,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -126,7 +127,6 @@ pub(super) fn mirror_added_matrix(
     addition: &MatrixAddition,
 ) -> Result<MirroredMatrix, String> {
     let facts = pair_facts(document, addition)?;
-    refuse_unreceptive_board_pair(&facts.halves)?;
     for id in [&addition.source_id, &addition.mirror_id] {
         if layout::partner(document, id).is_some() {
             return Err(format!(
@@ -154,6 +154,7 @@ pub(super) fn mirror_added_matrix(
     crate::matrix::set_matrix(&mut draft, &reflected)?;
     check_generated_members(&draft, addition, source, &plan)?;
     copy_member_attributes(&mut draft, &plan.pairs)?;
+    extend_electrical_configuration(&mut draft, document, addition, &facts.halves, &plan.pairs)?;
 
     // Correspondences: the matrix, then each member pair in plan order.
     let mut added = vec![corresponds(
@@ -198,28 +199,136 @@ pub(super) fn mirror_added_matrix(
     })
 }
 
-/// The electrical-board correspondence stands for the mirror half as a whole. A Local or Omitted
-/// overlay means the mirror half was detached from its source, so a new matrix has nowhere to be
-/// reflected onto.
-fn refuse_unreceptive_board_pair(halves: &MirroredHalves) -> Result<(), String> {
-    for correspondence in halves
-        .correspondences
+/// Adds only the electrical functions that name this matrix's new members. Electrical-board
+/// exceptions are overlays on the board correspondence: a Local board keeps its authored setup,
+/// and an Omitted board receives no source-derived setup.
+fn extend_electrical_configuration(
+    draft: &mut ProjectDoc,
+    source_document: &ProjectDoc,
+    addition: &MatrixAddition,
+    halves: &MirroredHalves,
+    member_pairs: &[(String, String)],
+) -> Result<(), String> {
+    let Some(board_link) = halves.correspondences.iter().find(|item| {
+        item.kind == MirroredItemKind::ElectricalBoard
+            && item.source_id == addition.source_board_id
+            && item.mirror_id == addition.mirror_board_id
+    }) else {
+        return Ok(());
+    };
+    if halves.overlay_of(board_link).is_some() {
+        return Ok(());
+    }
+    let source = source_document.hardware.as_ref().and_then(|hardware| {
+        hardware
+            .boards
+            .iter()
+            .find(|board| board.board_id == addition.source_board_id)
+    });
+    let Some(source) = source else {
+        return Ok(());
+    };
+    let mirror = draft
+        .hardware
+        .as_ref()
+        .ok_or("Physical instances are unavailable")?;
+    let Some(mirror) = mirror
+        .boards
         .iter()
-        .filter(|item| item.kind == MirroredItemKind::ElectricalBoard)
-    {
-        if let Some(overlay) = halves.overlay_of(correspondence) {
-            let state = match overlay.state {
-                MirroredExceptionState::Local => "local",
-                MirroredExceptionState::Omitted => "omitted",
-            };
+        .find(|board| board.board_id == addition.mirror_board_id)
+    else {
+        return Ok(());
+    };
+    let controller_id = mirror.controller_part_id.clone();
+    let mut assignments = mirror.assignments.clone();
+    let mut locks = mirror.locks.clone();
+    let renames: BTreeMap<String, String> = member_pairs.iter().cloned().collect();
+    let map_function = |function: &str| remap_wiring_key(function, &renames);
+
+    for (function, pin) in &source.assignments {
+        let mapped = map_function(function);
+        if mapped == *function {
+            continue;
+        }
+        if !controller_has_pin(draft, controller_id.as_deref(), pin) {
             return Err(format!(
-                "The board pair {:?} to {:?} is {state} on its mirror half and cannot receive a \
-                 mirrored matrix; rejoin it first",
-                correspondence.source_id, correspondence.mirror_id
+                "The mirror controller {:?} has no pin {pin:?} for matrix assignment {function:?}",
+                controller_id
             ));
         }
+        if let Some(existing) = assignments.get(&mapped)
+            && existing != pin
+        {
+            return Err(format!(
+                "The mirror assignment {mapped:?} for matrix function {function:?} already uses \
+                 pin {existing:?}, not {pin:?}"
+            ));
+        }
+        assignments.insert(mapped, pin.clone());
     }
+    for (function, pin) in &source.locks {
+        let mapped = map_function(function);
+        if mapped == *function {
+            continue;
+        }
+        if !controller_has_pin(draft, controller_id.as_deref(), pin) {
+            return Err(format!(
+                "The mirror controller {:?} has no pin {pin:?} for matrix lock {function:?}",
+                controller_id
+            ));
+        }
+        if let Some(existing) = locks.get(&mapped)
+            && existing != pin
+        {
+            return Err(format!(
+                "The mirror lock {mapped:?} for matrix function {function:?} already uses \
+                 pin {existing:?}, not {pin:?}"
+            ));
+        }
+        locks.insert(mapped, pin.clone());
+    }
+    let target = draft
+        .hardware
+        .as_mut()
+        .expect("the mirror board configuration was read from hardware")
+        .boards
+        .iter_mut()
+        .find(|board| board.board_id == addition.mirror_board_id)
+        .expect("the mirror board configuration remains present");
+    target.assignments = assignments;
+    target.locks = locks;
     Ok(())
+}
+
+/// Assignment values name a terminal or pad on the mirror board's controller. The electrical
+/// planner accepts terminal names that resolve to one of the definition's physical pads.
+fn controller_has_pin(document: &ProjectDoc, controller_id: Option<&str>, pin: &str) -> bool {
+    let Some(controller) =
+        controller_id.and_then(|id| document.parts.iter().find(|part| part.id == id))
+    else {
+        return false;
+    };
+    let Some(definition) = document
+        .definitions
+        .iter()
+        .find(|item| item.id == controller.definition_id)
+    else {
+        return false;
+    };
+    let pad_ids = definition.terminals.get(pin).cloned().unwrap_or_else(|| {
+        definition
+            .pads
+            .iter()
+            .filter(|pad| pad.id == pin)
+            .map(|pad| pad.id.clone())
+            .collect()
+    });
+    pad_ids.into_iter().any(|id| {
+        definition
+            .pads
+            .iter()
+            .any(|pad| pad.id == id && (pad.plated != Some(false) || pad.drill.is_none()))
+    })
 }
 
 /// The pair's default placement for a new companion.

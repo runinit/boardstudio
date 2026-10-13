@@ -44,7 +44,11 @@ pub(in crate::mirrored_half) fn source_half() -> ProjectDoc {
         {"id": STABILISER, "name": "Stabiliser", "kind": "passive",
          "courtyard": [{"x":-3,"y":-1},{"x":3,"y":-1},{"x":3,"y":1},{"x":-3,"y":1}], "pads": []},
         {"id": "synthetic/controller", "name": "Controller", "kind": "controller",
-         "courtyard": [{"x":-5,"y":-4},{"x":5,"y":-4},{"x":5,"y":4},{"x":-5,"y":4}], "pads": []}
+         "courtyard": [{"x":-5,"y":-4},{"x":5,"y":-4},{"x":5,"y":4},{"x":-5,"y":4}],
+         "pads": [
+            {"id":"P1","number":"P1","at":{"x":0,"y":0},"size":{"x":1,"y":1},"shape":"circle"},
+            {"id":"P2","number":"P2","at":{"x":2,"y":0},"size":{"x":1,"y":1},"shape":"circle"}
+         ]}
     ]);
     let parts = json!([
         {"id": "left/U1", "definitionId": "synthetic/controller", "reference": "U1",
@@ -411,12 +415,185 @@ fn a_matrix_already_named_by_a_correspondence_is_refused() {
 }
 
 #[test]
-fn a_board_pair_whose_electrical_board_is_local_or_omitted_cannot_receive_it() {
+fn added_matrix_electrical_functions_follow_the_new_member_correspondences() {
+    let matrix_request = new_matrix("left-thumbs", "left", (10.0, 120.0), 2);
+    let (addition, mut next) = plan(&pair_document(), &matrix_request);
+    let source = next
+        .hardware
+        .as_mut()
+        .unwrap()
+        .boards
+        .iter_mut()
+        .find(|board| board.board_id == "left")
+        .unwrap();
+    source
+        .assignments
+        .insert("matrix/left-thumbs/r0c0/row".into(), "P1".into());
+    source
+        .locks
+        .insert("matrix/left-thumbs/r0c1/column".into(), "P2".into());
+    source
+        .assignments
+        .insert("unrelated/function".into(), "P1".into());
+    source.locks.insert("unrelated/lock".into(), "P2".into());
+    let mirror_config = next
+        .hardware
+        .as_mut()
+        .unwrap()
+        .boards
+        .iter_mut()
+        .find(|board| board.board_id == "right")
+        .unwrap();
+    mirror_config
+        .assignments
+        .insert("mirror-only/function".into(), "P2".into());
+    mirror_config
+        .locks
+        .insert("mirror-only/lock".into(), "P1".into());
+    let mirror_before = next
+        .hardware
+        .as_ref()
+        .unwrap()
+        .boards
+        .iter()
+        .find(|board| board.board_id == "right")
+        .unwrap()
+        .clone();
+
+    // Independent oracle: when this exact matrix and wiring exist before pair creation, the
+    // established CreateMirroredHalf path maps these assignments and locks to the same functions.
+    let mut source_before_creation = source_half();
+    crate::apply(&mut source_before_creation, &[], &op(matrix_request)).unwrap();
+    let source_config = source_before_creation
+        .hardware
+        .as_mut()
+        .unwrap()
+        .boards
+        .iter_mut()
+        .find(|board| board.board_id == "left")
+        .unwrap();
+    source_config
+        .assignments
+        .insert("matrix/left-thumbs/r0c0/row".into(), "P1".into());
+    source_config
+        .assignments
+        .insert("unrelated/function".into(), "P1".into());
+    source_config
+        .locks
+        .insert("matrix/left-thumbs/r0c1/column".into(), "P2".into());
+    source_config
+        .locks
+        .insert("unrelated/lock".into(), "P2".into());
+    let expected = create_from(
+        source_before_creation,
+        json!({"at": {"x": 200, "y": 0}, "rotation": 0}),
+        "literal-mirror",
+        None,
+    );
+
+    let document = mirror_added_matrix(&next, &addition).unwrap().draft;
+    let mirror = document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .boards
+        .iter()
+        .find(|board| board.board_id == "right")
+        .unwrap();
+    assert_eq!(
+        mirror
+            .assignments
+            .get("matrix/right-thumbs/r0c0/row")
+            .map(String::as_str),
+        Some("P1")
+    );
+    assert_eq!(
+        mirror
+            .locks
+            .get("matrix/right-thumbs/r0c1/column")
+            .map(String::as_str),
+        Some("P2")
+    );
+    assert_eq!(
+        mirror.assignments.get("unrelated/function"),
+        mirror_before.assignments.get("unrelated/function")
+    );
+    assert_eq!(
+        mirror.locks.get("unrelated/lock"),
+        mirror_before.locks.get("unrelated/lock")
+    );
+    assert!(!mirror.assignments.contains_key("unrelated/function"));
+    assert!(!mirror.locks.contains_key("unrelated/lock"));
+    let matrix_wiring = |values: &BTreeMap<String, String>| {
+        values
+            .iter()
+            .filter(|(function, _)| function.starts_with("matrix/right-thumbs/"))
+            .map(|(function, pin)| (function.clone(), pin.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
+    let expected_mirror = expected
+        .hardware
+        .as_ref()
+        .unwrap()
+        .boards
+        .iter()
+        .find(|board| board.board_id == "right")
+        .unwrap();
+    assert_eq!(
+        matrix_wiring(&mirror.assignments),
+        matrix_wiring(&expected_mirror.assignments),
+        "added assignments match CreateMirroredHalf"
+    );
+    assert_eq!(
+        matrix_wiring(&mirror.locks),
+        matrix_wiring(&expected_mirror.locks),
+        "added locks match CreateMirroredHalf"
+    );
+}
+
+#[test]
+fn local_electrical_board_keeps_its_setup_and_omitted_gets_none() {
     for state in ["local", "omitted"] {
         let (addition, mut next) = plan(
             &pair_document(),
             &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
         );
+        let source = next
+            .hardware
+            .as_mut()
+            .unwrap()
+            .boards
+            .iter_mut()
+            .find(|board| board.board_id == "left")
+            .unwrap();
+        source
+            .assignments
+            .insert("matrix/left-thumbs/r0c0/row".into(), "P1".into());
+        source
+            .locks
+            .insert("matrix/left-thumbs/r0c0/row".into(), "P1".into());
+        let mirror_before = if state == "local" {
+            let mirror = next
+                .hardware
+                .as_mut()
+                .unwrap()
+                .boards
+                .iter_mut()
+                .find(|board| board.board_id == "right")
+                .unwrap();
+            mirror
+                .assignments
+                .insert("local/custom".into(), "P2".into());
+            mirror.locks.insert("local/custom".into(), "P2".into());
+            Some(mirror.clone())
+        } else {
+            next.hardware
+                .as_mut()
+                .unwrap()
+                .boards
+                .retain(|board| board.board_id != "right");
+            None
+        };
         next.hardware.as_mut().unwrap().pairs[0]
             .halves
             .as_mut()
@@ -428,8 +605,55 @@ fn a_board_pair_whose_electrical_board_is_local_or_omitted_cannot_receive_it() {
                 )
                 .unwrap(),
             );
+
+        let document = mirror_added_matrix(&next, &addition).unwrap().draft;
+        let mirror = document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .boards
+            .iter()
+            .find(|board| board.board_id == "right");
+        match (state, mirror, mirror_before) {
+            ("local", Some(mirror), Some(before)) => {
+                assert_eq!(
+                    mirror, &before,
+                    "{state} electrical configuration is preserved"
+                );
+            }
+            ("omitted", None, None) => {}
+            _ => panic!("unexpected electrical-board state for {state}"),
+        }
+    }
+}
+
+#[test]
+fn a_new_matrix_assignment_without_a_mirror_controller_pin_is_refused_by_identity() {
+    for lock in [false, true] {
+        let (addition, mut next) = plan(
+            &pair_document(),
+            &new_matrix("left-thumbs", "left", (10.0, 120.0), 2),
+        );
+        let source = next
+            .hardware
+            .as_mut()
+            .unwrap()
+            .boards
+            .iter_mut()
+            .find(|board| board.board_id == "left")
+            .unwrap();
+        if lock {
+            source
+                .locks
+                .insert("matrix/left-thumbs/r0c0/row".into(), "MISSING".into());
+        } else {
+            source
+                .assignments
+                .insert("matrix/left-thumbs/r0c0/row".into(), "MISSING".into());
+        }
         let message = refusal(&next, &addition);
-        assert!(message.contains(state), "{message}");
+        assert!(message.contains("matrix/left-thumbs/r0c0/row"), "{message}");
+        assert!(message.contains("MISSING"), "{message}");
     }
 }
 
