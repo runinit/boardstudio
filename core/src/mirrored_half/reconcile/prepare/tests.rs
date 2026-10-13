@@ -1633,6 +1633,93 @@ fn open_preparation_repairs_linked_parts_without_matrix_correspondence() {
 }
 
 #[test]
+fn open_preserves_unassociated_local_and_omitted_matrix_children() {
+    for state in [
+        crate::model::MirroredExceptionState::Local,
+        crate::model::MirroredExceptionState::Omitted,
+    ] {
+        let mut accepted = pair_document();
+        let source_id = "matrix/left-keys/r0c1/diode";
+        let mirror_id = "matrix/right-keys/r0c1/diode";
+        let original_association = accepted.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .correspondences
+            .iter()
+            .find(|association| {
+                association.kind == crate::model::MirroredItemKind::Part
+                    && association.source_id == source_id
+                    && association.mirror_id == mirror_id
+            })
+            .expect("the fixture starts with an explicit child association")
+            .clone();
+        let retained_part = part(&accepted, mirror_id).clone();
+        {
+            let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+                .halves
+                .as_mut()
+                .unwrap();
+            halves.correspondences.retain(|association| {
+                !(association.kind == crate::model::MirroredItemKind::Part
+                    && association.source_id == source_id
+                    && association.mirror_id == mirror_id)
+            });
+            halves.exceptions.push(crate::model::MirroredException {
+                kind: crate::model::MirroredItemKind::Part,
+                mirror_id: mirror_id.into(),
+                state,
+                companion_mode: original_association.companion_mode,
+                companion_tweak: original_association.companion_tweak,
+                removed_copper: None,
+            });
+        }
+        crate::mechanical::halves::validate_document(&accepted)
+            .expect("the exact matrix slot authenticates the legacy child exception");
+        let pair_before =
+            serde_json::to_vec(&accepted.hardware.as_ref().unwrap().pairs[0]).unwrap();
+
+        let (prepared, findings) = super::prepare_open(&accepted, &[])
+            .unwrap_or_else(|error| panic!("{state:?} unassociated matrix child: {error}"));
+        assert!(findings.is_empty(), "{state:?} produced {findings:?}");
+        assert_eq!(part(&prepared, mirror_id), &retained_part);
+        let prepared_pair = &prepared.hardware.as_ref().unwrap().pairs[0];
+        assert_eq!(serde_json::to_vec(prepared_pair).unwrap(), pair_before);
+        let halves = prepared_pair.halves.as_ref().unwrap();
+        assert!(!halves.correspondences.iter().any(|association| {
+            association.kind == crate::model::MirroredItemKind::Part
+                && (association.source_id == source_id || association.mirror_id == mirror_id)
+        }));
+        let exception = halves
+            .exceptions
+            .iter()
+            .find(|exception| exception.mirror_id == mirror_id)
+            .expect("Open retains the explicit legacy exception");
+        assert_eq!(exception.state, state);
+        assert_eq!(
+            exception.companion_mode,
+            original_association.companion_mode
+        );
+        assert_eq!(
+            exception.companion_tweak,
+            original_association.companion_tweak
+        );
+
+        let prepared_bytes = serde_json::to_vec(&prepared).unwrap();
+        let (reopened, second_findings) = super::prepare_open(&prepared, &[])
+            .unwrap_or_else(|error| panic!("repeated {state:?} Open failed: {error}"));
+        assert!(second_findings.is_empty());
+        assert_eq!(reopened, prepared);
+        assert_eq!(serde_json::to_vec(&reopened).unwrap(), prepared_bytes);
+        assert_eq!(part(&reopened, mirror_id), &retained_part);
+        assert_eq!(
+            serde_json::to_vec(&reopened.hardware.as_ref().unwrap().pairs[0]).unwrap(),
+            pair_before
+        );
+    }
+}
+
+#[test]
 fn open_preparation_preserves_local_and_omitted_exceptions() {
     let mut local = pair_document();
     part_mut(&mut local, "right/U1").pose.at.x = 260.0;
