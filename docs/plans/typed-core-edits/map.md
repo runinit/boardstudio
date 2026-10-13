@@ -381,6 +381,6 @@ permitted list.
 
 Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b2 integrated9d6439eeb9 after fresh SolMEDIUM PASS, two intendedRED sensitivity probes and exact-restored47GREEN. Full106/19 remains open; next coherent topology/removal completion precedes139 preparation. Evidence: ticket106 Outcome and ticket106-independent-parts-layouts/independent-medium/independent-assessment.md.
 
-- [151](issues/151-explicit-mirror-only-part-placement.md): owner decision on explicit mirror-only
-  placement (recommended dedicated AddMirrorOnlyPart versus optional AddPart intent), then
-  bounded preparation before 109b. Ordinary AddPart remains linked; 111 continues independently.
+- [151](issues/151-explicit-mirror-only-part-placement.md): owner approved dedicated
+  AddMirrorOnlyPart and explicit “Only this half” placement; bounded preparation follows 111 and
+  precedes 109b. Ordinary AddPart remains linked; 111 continues independently.

@@ -1,7 +1,7 @@
 # 151: Provide explicit mirror-only Part placement before replacement pin resolution
 
-Status: ready-for-human
-Type: design
+Status: ready-for-agent
+Type: build
 Blocked by: [111](111-integrate-mirrored-half-reconciliation.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Related: [109b](109b-mirror-only-replacement-parts-auto-pins.md)
@@ -35,9 +35,19 @@ the dedicated operation keeps the two ownership contracts distinct.
 
 ## Decision and implementation boundary
 
-Owner operation-shape/placement-choice decision pending. The complete comparison, suggested
-Rust/wire shape and affected-path inventory are in main-checkout ignored evidence
-`.evidence/ticket109b/mirror-only-placement-proposal.md`. After the decision and 111 integration,
-root assigns a bounded implementation lease and required checks/reviews. Do not add this family
+The owner approved the dedicated `AddMirrorOnlyPart` command and explicit “Only this half”
+placement choice on 2026-10-13. The complete comparison, suggested Rust/wire shape and affected-path
+inventory are in main-checkout ignored evidence `.evidence/ticket109b/mirror-only-placement-proposal.md`.
+After 111 integration, root assigns a bounded implementation lease and required checks/reviews. Do not add this family
 inside 111's activation or alter its default AddPart behavior. 109b waits on this preparation;
 111 can continue independently.
+
+## Accepted operation shape
+
+`AddMirrorOnlyPart { part: Part, boardId: String, definition?: PartDefinition, layoutId?: String }`.
+A supplied definition is added when absent, reused when identical, and refused on a conflicting
+ID. A selected layout must belong to the named mirror board. The operation registers the new
+Part on that board and its appropriate existing outline/layout memberships atomically. It
+creates no source Part or correspondence/exception. All placement and pin changes use one
+prepared draft, Preview and history route. Keep existing AddPart behavior; the earlier presence
+of Omit does not change its meaning. Private helpers and the resolver stay private.
