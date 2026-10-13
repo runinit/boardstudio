@@ -49,6 +49,13 @@ fn host() -> Element {
     use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);
     use_context_provider(|| version);
+    let runtime = use_context::<Rc<Runtime>>();
+    use_hook(move || {
+        runtime.subscribe(Rc::new(move || {
+            let mut version = version;
+            version += 1;
+        }))
+    });
     let created = use_signal(|| None::<SetupGuideRequest>);
     use_context_provider(|| created);
     let objects_open = use_signal(|| true);
@@ -190,7 +197,8 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
     }]);
 
     let document: ProjectDoc = serde_json::from_value(fixture["document"].clone()).unwrap();
-    let operation = serde_json::from_value(fixture["operation"].clone()).unwrap();
+    let operation: boardstudio_core::model::EditOperation =
+        serde_json::from_value(fixture["operation"].clone()).unwrap();
     let target_ids: Vec<String> = fixture["targetIds"]
         .as_array()
         .unwrap()
@@ -236,8 +244,8 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
     runtime.submit(Event::PreviewEdit {
         operation_id: runtime.operation(),
         transaction_id: transaction_id.into(),
-        target_ids,
-        operation,
+        target_ids: target_ids.clone(),
+        operation: operation.clone(),
     });
     support::run_pending(&runtime).await;
     wait_until("Core Preview reaches the active Editor scene", || {
@@ -325,6 +333,10 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         transaction_id: transaction_id.into(),
     });
     support::run_pending(&runtime).await;
+    assert!(
+        runtime.model().display_preview.is_none(),
+        "ClearPreview releases the Session preview before rendering"
+    );
     wait_until(
         "clearing Preview removes its rows and restores the empty count",
         || {
@@ -340,6 +352,57 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
     assert!(runtime.model().display_preview.is_none());
     assert!(finding_row_containing(&root, &net_notice).is_none());
     assert!(finding_row_containing(&root, &registration_notice).is_none());
+
+    runtime.submit(Event::PreviewEdit {
+        operation_id: runtime.operation(),
+        transaction_id: "ticket160-browser-cancel-preview".into(),
+        target_ids,
+        operation,
+    });
+    support::run_pending(&runtime).await;
+    wait_until(
+        "a second Preview displays the loss notices before cancellation",
+        || {
+            finding_row_containing(&root, &pin_notice).is_some()
+                && finding_row_containing(&root, &net_notice).is_some()
+                && finding_row_containing(&root, &registration_notice).is_some()
+        },
+    )
+    .await;
+    let controller = accepted_document
+        .parts
+        .iter()
+        .find(|part| part.id == "right/U1")
+        .unwrap();
+    runtime.submit(Event::GestureBegin {
+        operation_id: runtime.operation(),
+        pointer_id: 160,
+        target_ids: vec![controller.id.clone()],
+        transaction_id: "ticket160-browser-cancel".into(),
+        start: vec![boardstudio_core::model::Position {
+            id: controller.id.clone(),
+            at: controller.pose.at,
+        }],
+        pitch: boardstudio_core::model::Vec2 { x: 19.0, y: 19.0 },
+        snap_fraction: 0.0,
+        geometry_snap: false,
+        gap: None,
+        alt: true,
+    });
+    assert!(runtime.model().display_preview.is_some());
+    runtime.submit(Event::GestureCancel { pointer_id: 160 });
+    support::run_pending(&runtime).await;
+    wait_until("gesture cancellation removes every Preview notice", || {
+        runtime.model().display_preview.is_none()
+            && finding_row_containing(&root, &pin_notice).is_none()
+            && finding_row_containing(&root, &net_notice).is_none()
+            && finding_row_containing(&root, &registration_notice).is_none()
+            && root
+                .text_content()
+                .unwrap_or_default()
+                .contains("Layout findings: 0")
+    })
+    .await;
     assert_eq!(
         runtime.model().accepted.as_ref().unwrap().document,
         accepted_document
