@@ -1,6 +1,6 @@
 # 116: Prepare inert Open repair and warning derivation
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [115](115-prepare-mirrored-edit-transaction.md)
 Parent: [19](19-reconcile-mirrored-halves.md)

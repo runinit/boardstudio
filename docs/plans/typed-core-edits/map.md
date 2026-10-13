@@ -118,13 +118,13 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
 - 19 is split into independently reviewed tickets 105–117. The dependency chain starts with
   [105](issues/105-mirrored-half-derivation-kernel.md), ends with atomic activation in
   [111](issues/111-integrate-mirrored-half-reconciliation.md), and preserves the parent's original acceptance.
-  [114](issues/114-mirrored-edit-compatibility-constraints.md) is resolved after 113 and 139; raw
-  `SetMechanical` remains explicitly unsupported and blocks parent 19 until its compatibility
-  contract is specified. [115](issues/115-prepare-mirrored-edit-transaction.md) is `needs-info`:
-  only `constraints::resolve_prepared` is approved as `pub(crate)`, and the existing private
-  lifecycle/reconciliation path needs another crate-internal entry seam. Tickets 116 and 117 remain
-  serially held behind 115. Core children stay serial; the user approved isolated A/F streams with
-  exact file/API leases. Every command/check remains globally sequential; activation and timing stay
+  [114](issues/114-mirrored-edit-compatibility-constraints.md) is resolved after 113 and 139. On
+  2026-10-13 the owner chose to design support for raw `SetMechanical`; that compatibility work
+  remains a separate parent-19 blocker and must not expand ticket 111. [115](issues/115-prepare-mirrored-edit-transaction.md)
+  is resolved and merged as `78ec73f0`; post-merge `repo`, `test`, and `lint` passed. Ticket
+  [116](issues/116-prepare-mirrored-open-repair.md) is now the next serial Core slice, followed by
+  117 and 111. Core children stay serial; the user approved isolated A/F streams with exact
+  file/API leases. Every command/check remains globally sequential; activation and timing stay
   exclusive.
 - [105](issues/105-mirrored-half-derivation-kernel.md) is resolved and integrated: private value-only part and companion
   derivation accepts existing identities and per-item settings; creation retains allocation and insertion. Fresh verification
