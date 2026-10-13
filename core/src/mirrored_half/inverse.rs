@@ -32,6 +32,7 @@
 mod tests;
 
 mod hosted;
+mod outline;
 
 use crate::matrix::column_rotation;
 use crate::matrix::splay::rotate as rotate_about;
@@ -291,12 +292,7 @@ pub(super) fn canonicalize(
         | Op::SelectOutline { .. }
         | Op::RenameOutline { .. }
         | Op::RemoveOutline { .. }
-        | Op::ApplyOutlineEdit { .. } => {
-            return Err(unsupported(
-                "113",
-                "outline requests transform reviewed geometry, seeds and identities together",
-            ));
-        }
+        | Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
         // Ticket 114: compatibility, constraints and the final exhaustive ledger.
         Op::SetLayout { .. }
         | Op::CreateMirroredPair { .. }

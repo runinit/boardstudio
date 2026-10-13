@@ -197,15 +197,18 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
         json!({"kind": "remove-matrix-column", "matrixId": "m", "column": 0}),
         json!({"kind": "move-parts", "positions": []}),
         json!({"kind": "remove-parts", "ids": []}),
+        json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "outline", "points": [], "operation": "add"}}),
+        json!({"kind": "copy-outline", "boardId": "b", "versionId": "version-2", "name": "Copy"}),
+        json!({"kind": "select-outline", "boardId": "b"}),
+        json!({"kind": "rename-outline", "boardId": "b", "versionId": "version", "name": "Renamed"}),
+        json!({"kind": "remove-outline", "boardId": "b", "versionId": "version"}),
+        json!({"kind": "apply-outline-edit", "edit": {"target": {"kind": "board", "boardId": "b"}, "change": "activate", "seed": 1}}),
     ];
     for request in translated {
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
     // Other tickets own these; this module refuses them and says whose they are.
-    for (request, ticket) in [
-        (json!({"kind": "remove-constraint", "id": "c"}), "114"),
-        (json!({"kind": "select-outline", "boardId": "b"}), "113"),
-    ] {
+    for (request, ticket) in [(json!({"kind": "remove-constraint", "id": "c"}), "114")] {
         let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
             panic!("{request} must be unsupported here");
         };
@@ -238,6 +241,732 @@ fn deliberately_unchanged_and_delegated_requests_run_as_written() {
         json!({"kind": "apply-mechanical-edit", "edit": {"target": {"kind": "instance", "instanceId": "left"}, "change": "enable"}}),
     ] {
         expect_operation(&fixture(), request.clone(), request);
+    }
+}
+
+#[test]
+fn set_outline_on_a_linked_mirror_maps_feature_geometry_and_identity_back_to_source() {
+    let mut document = fixture();
+    document.boards[0].outline_ids.push("left/cutout".into());
+    document.boards[1].outline_ids.push("right/cutout".into());
+    document.outline.extend([
+        serde_json::from_value(
+            json!({"kind": "polygon", "id": "left/cutout", "anchorPartId": null,
+            "points": [{"x": 190, "y": 4}, {"x": 195, "y": 4}, {"x": 195, "y": 8}],
+            "operation": "subtract"}),
+        )
+        .unwrap(),
+        serde_json::from_value(
+            json!({"kind": "polygon", "id": "right/cutout", "anchorPartId": null,
+            "points": [{"x": 5, "y": 8}, {"x": 5, "y": 4}, {"x": 10, "y": 4}],
+            "operation": "subtract"}),
+        )
+        .unwrap(),
+    ]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(serde_json::from_value(corr("outline", "left/cutout", "right/cutout")).unwrap());
+    let request = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/cutout",
+        "anchorPartId": null, "points": [{"x": 3, "y": 9}, {"x": 3, "y": 6}, {"x": 7, "y": 6}],
+        "operation": "subtract"}});
+    let translated =
+        canonical(&document, &request).expect("a linked mirror outline edit translates");
+    assert_eq!(translated.coverage, Coverage::Translated);
+    assert_close(
+        &serde_json::to_value(translated.operation).unwrap(),
+        &json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "left/cutout",
+            "points": [{"x": 193, "y": 6}, {"x": 197, "y": 6}, {"x": 197, "y": 9}],
+            "operation": "subtract"}}),
+        "operation",
+    );
+}
+
+#[test]
+fn every_outline_change_arm_is_classified_and_keeps_the_targeted_scalar_or_lifecycle_value() {
+    let changes = [
+        json!({"set-margin": {"margin": 3.0}}),
+        json!({"set-corners": {"corners": "fillet"}}),
+        json!({"set-size": {"size": 4.0}}),
+        json!({"set-bridge-width": {"bridge_width": 5.0}}),
+        json!({"set-repair-enabled": {"enabled": false}}),
+        json!({"set-maximum-gap-span": {"value": 6.0}}),
+        json!({"set-minimum-connection-width": {"value": 1.5}}),
+        json!({"set-edge-clearance": {"value": 0.25}}),
+        json!({"set-protected-gap": {"gap_id": "right/gap", "points": []}}),
+        json!({"remove-protected-gap": {"gap_id": "right/gap"}}),
+        json!({"add-feature": {"feature": {"kind": "polygon", "id": "right/new", "points": [], "operation": "add"}}}),
+        json!({"set-feature": {"feature": {"kind": "polygon", "id": "right/old", "points": [], "operation": "add"}}}),
+        json!({"remove-feature": {"feature_id": "right/old"}}),
+        json!({"add-connection": {"connection": {"id": "right/connection", "width": 2.0, "points": []}}}),
+        json!({"remove-connection": {"connection_id": "right/connection"}}),
+        json!({"create-generated": {"margin": 2.0, "settings": {}, "part_ids": ["right/U1"]}}),
+        json!({"create-linked-refinement": {"version_id": "right-version", "name": "Linked"}}),
+        json!({"copy": {"version_id": "right-version", "name": "Fixed"}}),
+        json!({"freeze": {"name": "Frozen"}}),
+        json!({"edit-generated-perimeter": {"contour": 2, "points": []}}),
+        json!({"edit-feature-perimeter": {"feature_id": "right/old", "points": []}}),
+        json!("activate"),
+        json!({"rename": {"name": "Renamed"}}),
+        json!("delete"),
+    ];
+    assert_eq!(changes.len(), 24);
+    for change in changes {
+        let is_linked_refinement = change.get("create-linked-refinement").is_some();
+        let request = json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "right"}, "change": change,
+            "seed": 77, "reviewed": null
+        }});
+        let result = canonical(&fixture(), &request).expect("every outline change is classified");
+        assert_eq!(result.coverage, Coverage::Translated);
+        let result = serde_json::to_value(result.operation).unwrap();
+        assert_eq!(result["edit"]["target"]["boardId"], "left");
+        assert_eq!(
+            result["edit"]["seed"], 77,
+            "captured allocation seed is preserved"
+        );
+        if is_linked_refinement {
+            assert_eq!(
+                result["edit"]["change"]["create-linked-refinement"]["version_id"],
+                "left-version"
+            );
+        }
+    }
+}
+
+#[test]
+fn rotated_outline_controls_anchors_reviews_and_identity_are_inverse_mapped_together() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("outline-version", "left-version", "right-version"))
+                .unwrap(),
+            serde_json::from_value(corr("outline", "left/feature", "right/feature")).unwrap(),
+        ]);
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "version", "boardId": "right", "versionId": "right-version"},
+        "change": {"set-feature": {"feature": {"kind": "part-envelope", "id": "right/feature",
+            "partIds": ["right/U1", "matrix/right-keys/r0c0", "right/FREE"], "margin": 2.0, "operation": "add",
+            "connections": [{"id": "right/connection", "width": 2.0, "points": [
+                {"at": {"x": 80, "y": -25}, "partId": null},
+                {"at": {"x": 4, "y": 5}, "partId": "right/U1"}]}]}}},
+        "seed": 4, "reviewed": [{"points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}], "hole": false}]
+    }});
+    let translated = canonical(&document, &request).expect("rotated reviewed outline translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(value["edit"]["target"]["boardId"], "left");
+    assert_eq!(value["edit"]["target"]["versionId"], "left-version");
+    assert_eq!(
+        value["edit"]["change"]["set-feature"]["feature"]["id"],
+        "left/feature"
+    );
+    assert_eq!(
+        value["edit"]["change"]["set-feature"]["feature"]["partIds"],
+        json!(["left/U1", "matrix/left-keys/r0c0", "right/FREE"])
+    );
+    assert_close(
+        &value["edit"]["change"]["set-feature"]["feature"]["connections"][0]["points"][0]["at"],
+        &json!({"x": -5.0, "y": 20.0}),
+        "world control",
+    );
+    assert_eq!(
+        value["edit"]["change"]["set-feature"]["feature"]["connections"][0]["points"][1]["at"],
+        json!({"x": 4.0, "y": -5.0})
+    );
+    assert_eq!(
+        value["edit"]["change"]["set-feature"]["feature"]["connections"][0]["points"][1]["partId"],
+        "left/U1"
+    );
+    assert_close(
+        &value["edit"]["reviewed"][0]["points"][0],
+        &json!({"x": -12.0, "y": 35.0}),
+        "review first",
+    );
+    assert_close(
+        &value["edit"]["reviewed"][0]["points"][2],
+        &json!({"x": -5.0, "y": 20.0}),
+        "review last",
+    );
+}
+
+#[test]
+fn an_anchor_in_another_matrix_uses_its_own_matrix_frame_rule() {
+    let mut document = fixture();
+    let source_id = "matrix/left-other/r0c0";
+    let mirror_id = "matrix/right-other/r0c0";
+    let mut source_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .clone();
+    source_matrix.id = "left-other".into();
+    source_matrix.part_ids = vec![source_id.into()];
+    let mut mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap()
+        .clone();
+    mirror_matrix.id = "right-other".into();
+    mirror_matrix.part_ids = vec![mirror_id.into()];
+    for (old_id, new_id, board_id) in [
+        ("matrix/left-keys/r0c0", source_id, "left"),
+        ("matrix/right-keys/r0c0", mirror_id, "right"),
+    ] {
+        let mut new_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == old_id)
+            .unwrap()
+            .clone();
+        new_part.id = new_id.into();
+        document.parts.push(new_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(new_id.into());
+    }
+    document.matrices.extend([source_matrix, mirror_matrix]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("matrix", "left-other", "right-other")).unwrap(),
+            serde_json::from_value(corr(
+                "part",
+                "matrix/left-other/r0c0",
+                "matrix/right-other/r0c0",
+            ))
+            .unwrap(),
+        ]);
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"add-feature": {"feature": {"kind": "polygon",
+            "id": "right/new", "anchorPartId": "matrix/right-other/r0c0",
+            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+            "operation": "add"}}},
+        "seed": 13
+    }});
+
+    let translated = canonical(&document, &request).expect("the linked anchor translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["id"],
+        "left/new"
+    );
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["anchorPartId"],
+        "matrix/left-other/r0c0"
+    );
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["points"],
+        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
+    );
+}
+
+#[test]
+fn a_matrix_shaped_anchor_without_matrix_membership_uses_full_heading_rule() {
+    let mut document = fixture();
+    let source_id = "matrix/left-loose/r0c0";
+    let mirror_id = "matrix/right-loose/r0c0";
+    for (old_id, new_id, board_id) in [
+        ("matrix/left-keys/r0c0", source_id, "left"),
+        ("matrix/right-keys/r0c0", mirror_id, "right"),
+    ] {
+        let mut new_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == old_id)
+            .unwrap()
+            .clone();
+        new_part.id = new_id.into();
+        document.parts.push(new_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(new_id.into());
+    }
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(serde_json::from_value(corr("part", source_id, mirror_id)).unwrap());
+
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"add-feature": {"feature": {"kind": "polygon",
+            "id": "right/new", "anchorPartId": mirror_id,
+            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+            "operation": "add"}}},
+        "seed": 17
+    }});
+    let translated = canonical(&document, &request).expect("the linked anchor translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["points"],
+        json!([{"x": 12.0, "y": -14.0}, {"x": 8.0, "y": -10.0}, {"x": 4.0, "y": -6.0}])
+    );
+}
+
+#[test]
+fn legacy_matrix_membership_without_board_id_uses_matrix_frame_rule() {
+    let mut document = fixture();
+    let source_id = "matrix/left-legacy/r0c0";
+    let mirror_id = "matrix/right-legacy/r0c0";
+    let mut source_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .clone();
+    source_matrix.id = "left-legacy".into();
+    source_matrix.board_id = None;
+    source_matrix.part_ids = vec![source_id.into()];
+    let mut mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap()
+        .clone();
+    mirror_matrix.id = "right-legacy".into();
+    mirror_matrix.board_id = None;
+    mirror_matrix.part_ids = vec![mirror_id.into()];
+    for (old_id, new_id, board_id) in [
+        ("matrix/left-keys/r0c0", source_id, "left"),
+        ("matrix/right-keys/r0c0", mirror_id, "right"),
+    ] {
+        let mut new_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == old_id)
+            .unwrap()
+            .clone();
+        new_part.id = new_id.into();
+        document.parts.push(new_part);
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(new_id.into());
+    }
+    document.matrices.extend([source_matrix, mirror_matrix]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("matrix", "left-legacy", "right-legacy")).unwrap(),
+            serde_json::from_value(corr("part", source_id, mirror_id)).unwrap(),
+        ]);
+
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"add-feature": {"feature": {"kind": "polygon",
+            "id": "right/legacy-anchor", "anchorPartId": mirror_id,
+            "points": [{"x": 4, "y": 6}, {"x": 8, "y": 10}, {"x": 12, "y": 14}],
+            "operation": "add"}}},
+        "seed": 18
+    }});
+    let translated = canonical(&document, &request).expect("the linked anchor translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_eq!(
+        value["edit"]["change"]["add-feature"]["feature"]["points"],
+        json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
+    );
+}
+
+#[test]
+fn outline_local_exception_runs_as_written_and_omission_is_refused() {
+    let mut document = fixture();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("outline", "left/local", "right/local")).unwrap(),
+            serde_json::from_value(corr("outline", "left/omitted", "right/omitted")).unwrap(),
+        ]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .extend([
+            serde_json::from_value(
+                json!({"kind": "outline", "mirrorId": "right/local", "state": "local"}),
+            )
+            .unwrap(),
+            serde_json::from_value(
+                json!({"kind": "outline", "mirrorId": "right/omitted", "state": "omitted"}),
+            )
+            .unwrap(),
+        ]);
+    let local = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/local", "points": [], "operation": "add"}});
+    expect_operation(&document, local.clone(), local);
+    let omitted = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/omitted", "points": [], "operation": "add"}});
+    assert!(refusal(&document, omitted).contains("omitted"));
+}
+
+#[test]
+fn legacy_outline_version_commands_map_linked_versions_and_keep_their_other_inputs() {
+    let mut document = rotated_fixture();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("outline-version", "left-fixed", "right-fixed")).unwrap(),
+            serde_json::from_value(corr("outline-version", "left-linked", "right-linked")).unwrap(),
+        ]);
+    let cases = [
+        (
+            json!({"kind": "select-outline", "boardId": "right", "versionId": "right-fixed"}),
+            json!({"kind": "select-outline", "boardId": "left", "versionId": "left-fixed"}),
+        ),
+        (
+            json!({"kind": "rename-outline", "boardId": "right", "versionId": "right-linked", "name": "Name"}),
+            json!({"kind": "rename-outline", "boardId": "left", "versionId": "left-linked", "name": "Name"}),
+        ),
+        (
+            json!({"kind": "remove-outline", "boardId": "right", "versionId": "right-fixed"}),
+            json!({"kind": "remove-outline", "boardId": "left", "versionId": "left-fixed"}),
+        ),
+        (
+            json!({"kind": "copy-outline", "boardId": "right", "versionId": "right-new", "name": "Copy",
+            "edit": {"contour": 1, "points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}]},
+            "feature": {"kind": "polygon", "id": "right/feature", "points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}], "operation": "subtract"}}),
+            json!({"kind": "copy-outline", "boardId": "left", "versionId": "left-new", "name": "Copy",
+            "edit": {"contour": 1, "points": [{"x": -12, "y": 35}, {"x": -10, "y": 30}, {"x": -5, "y": 20}]},
+            "feature": {"kind": "polygon", "id": "left/feature", "points": [{"x": -12, "y": 35}, {"x": -10, "y": 30}, {"x": -5, "y": 20}], "operation": "subtract"}}),
+        ),
+    ];
+    for (request, expected) in cases {
+        expect_operation(&document, request, expected);
+    }
+}
+
+#[test]
+fn local_outline_versions_stay_local_while_omitted_versions_refuse_edits() {
+    let mut document = fixture();
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend([
+            serde_json::from_value(corr("outline-version", "left-local", "right-local")).unwrap(),
+            serde_json::from_value(corr("outline-version", "left-omitted", "right-omitted"))
+                .unwrap(),
+        ]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .extend([
+            serde_json::from_value(
+                json!({"kind": "outline-version", "mirrorId": "right-local", "state": "local"}),
+            )
+            .unwrap(),
+            serde_json::from_value(
+                json!({"kind": "outline-version", "mirrorId": "right-omitted", "state": "omitted"}),
+            )
+            .unwrap(),
+        ]);
+    let local = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "version", "boardId": "right", "versionId": "right-local"},
+        "change": "activate", "seed": 2
+    }});
+    expect_operation(&document, local.clone(), local);
+    let omitted = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "version", "boardId": "right", "versionId": "right-omitted"},
+        "change": "activate", "seed": 2
+    }});
+    assert!(refusal(&document, omitted).contains("omitted"));
+}
+
+#[test]
+fn a_forward_projected_reviewed_contour_returns_exactly_to_its_source_shape() {
+    let document = rotated_fixture();
+    let source = vec![
+        Vec2 {
+            x: 1.23456789,
+            y: -3.45678901,
+        },
+        Vec2 {
+            x: 7.65432109,
+            y: 8.76543210,
+        },
+        Vec2 {
+            x: -9.87654321,
+            y: 2.34567891,
+        },
+    ];
+    let mirror: Vec<_> = source
+        .iter()
+        .rev()
+        .map(|point| crate::mechanical::pair::forward(ROTATED, *point))
+        .collect();
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"edit-generated-perimeter": {"contour": 0, "points": mirror}},
+        "seed": 9,
+        "reviewed": [{"points": mirror, "hole": false}]
+    }});
+    let translated = canonical(&document, &request).expect("the reviewed contour translates");
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_close(
+        &value["edit"]["reviewed"][0]["points"],
+        &serde_json::to_value(source).unwrap(),
+        "reviewed round trip",
+    );
+}
+
+#[test]
+fn current_projected_review_keeps_exact_source_coordinates_while_stale_review_stays_stale() {
+    let mut document = rotated_fixture();
+    document.boards[0].outline_ids.push("left/boundary".into());
+    document.boards[1].outline_ids.push("right/boundary".into());
+    let source_points = [
+        Vec2 {
+            x: 1.23456789,
+            y: -3.45678901,
+        },
+        Vec2 {
+            x: 7.65432109,
+            y: 8.76543210,
+        },
+        Vec2 {
+            x: -9.87654321,
+            y: 2.34567891,
+        },
+    ];
+    let mirror_points: Vec<_> = source_points
+        .iter()
+        .rev()
+        .map(|point| crate::mechanical::pair::forward(ROTATED, *point))
+        .collect();
+    document.outline.extend([
+        serde_json::from_value(json!({"kind": "polygon", "id": "left/boundary",
+            "points": source_points, "operation": "add"}))
+        .unwrap(),
+        serde_json::from_value(json!({"kind": "polygon", "id": "right/boundary",
+            "points": mirror_points, "operation": "add"}))
+        .unwrap(),
+    ]);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(serde_json::from_value(corr("outline", "left/boundary", "right/boundary")).unwrap());
+    let (cache, _, _) = crate::geometry::outlines(&document, None, &[]);
+    let source_review =
+        crate::geometry::generated_source(&document, &cache, &document.boards[0]).source;
+    let mirror_review =
+        crate::geometry::generated_source(&document, &cache, &document.boards[1]).source;
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"}, "change": {"add-feature": {"feature": {
+            "kind": "polygon", "id": "right/added", "points": [
+                {"x": 8, "y": 9}, {"x": 10, "y": 12}, {"x": 14, "y": 9}], "operation": "add"}}},
+        "seed": 11, "reviewed": mirror_review
+    }});
+    let translated = canonical(&document, &request).unwrap();
+    let EditOperation::ApplyOutlineEdit { edit } = translated.operation else {
+        panic!("the operation remains a typed outline edit")
+    };
+    assert_eq!(
+        edit.reviewed.as_ref().unwrap(),
+        &source_review,
+        "inverse mapping preserves the exact current source review"
+    );
+    assert_eq!(
+        crate::outline_edit::evaluate(&document, &edit).unwrap(),
+        crate::outline_edit::OutlineEditDisposition::Changed
+    );
+
+    let mut relevant_change = document.clone();
+    let Some(crate::model::OutlineFeature::Polygon { points, .. }) = relevant_change
+        .outline
+        .iter_mut()
+        .find(|feature| feature.id() == "left/boundary")
+    else {
+        panic!("the reviewed source feature remains present")
+    };
+    points[0].x += 1.0;
+    assert_eq!(
+        crate::outline_edit::evaluate(&relevant_change, &edit).unwrap(),
+        crate::outline_edit::OutlineEditDisposition::Retire,
+        "a changed reviewed source retires the edit"
+    );
+
+    let mut unrelated_change = document.clone();
+    unrelated_change.boards[1].name.push_str(" (renamed)");
+    assert_eq!(
+        crate::outline_edit::evaluate(&unrelated_change, &edit).unwrap(),
+        crate::outline_edit::OutlineEditDisposition::Changed,
+        "an unrelated board rename preserves the review"
+    );
+
+    let mut stale = request;
+    stale["edit"]["reviewed"][0]["points"][0]["x"] = json!(12345.0);
+    let translated = canonical(&document, &stale).unwrap();
+    let value = serde_json::to_value(translated.operation).unwrap();
+    assert_ne!(
+        value["edit"]["reviewed"],
+        serde_json::to_value(source_review).unwrap()
+    );
+}
+
+#[test]
+fn apply_outline_edit_translates_fixed_and_linked_version_reviews() {
+    let mut document = rotated_fixture();
+    let mut versions = Vec::new();
+    let mut source_versions = Vec::new();
+    let mut mirror_versions = Vec::new();
+    for (ownership, source_points) in [
+        (
+            "fixed",
+            [
+                Vec2 { x: 1.25, y: -3.5 },
+                Vec2 { x: 7.75, y: 8.5 },
+                Vec2 { x: -9.5, y: 2.25 },
+            ],
+        ),
+        (
+            "linked",
+            [
+                Vec2 { x: 21.5, y: 3.25 },
+                Vec2 { x: 29.75, y: 9.0 },
+                Vec2 { x: 16.25, y: 12.5 },
+            ],
+        ),
+    ] {
+        let mirror_points: Vec<_> = source_points
+            .iter()
+            .rev()
+            .map(|point| crate::mechanical::pair::forward(ROTATED, *point))
+            .collect();
+        let source_id = format!("left-version-{ownership}");
+        let mirror_id = format!("right-version-{ownership}");
+        let source_feature_id = format!("left/{ownership}-outline");
+        let mirror_feature_id = format!("right/{ownership}-outline");
+        document.boards[0]
+            .outline_ids
+            .push(source_feature_id.clone());
+        document.boards[1]
+            .outline_ids
+            .push(mirror_feature_id.clone());
+        let source_feature = json!({"kind": "polygon", "id": source_feature_id,
+            "points": source_points, "operation": "add"});
+        let mirror_feature = json!({"kind": "polygon", "id": mirror_feature_id,
+            "points": mirror_points, "operation": "add"});
+        document.outline.extend(
+            [source_feature.clone(), mirror_feature.clone()]
+                .map(|feature| serde_json::from_value(feature).unwrap()),
+        );
+        versions.push((source_id.clone(), mirror_id.clone()));
+        source_versions.push(json!({"id": source_id, "name": ownership,
+            "ownership": ownership, "source": {"revision": 0},
+            "geometry": {"features": [source_feature], "settings": {}, "expectedRegions": 1}}));
+        mirror_versions.push(json!({"id": mirror_id, "name": ownership,
+            "ownership": ownership, "source": {"revision": 0},
+            "geometry": {"features": [mirror_feature], "settings": {}, "expectedRegions": 1}}));
+    }
+    document.board_outlines = vec![
+        serde_json::from_value(
+            json!({"boardId": "left", "activeVersionId": "left-version-fixed",
+            "versions": source_versions}),
+        )
+        .unwrap(),
+        serde_json::from_value(
+            json!({"boardId": "right", "activeVersionId": "right-version-fixed",
+            "versions": mirror_versions}),
+        )
+        .unwrap(),
+    ];
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .extend(versions.iter().map(|(source, mirror)| {
+            serde_json::from_value(corr("outline-version", source, mirror)).unwrap()
+        }));
+    let (cache, _, _) = crate::geometry::outlines(&document, None, &[]);
+
+    for (ownership, (source_version, mirror_version)) in
+        ["fixed", "linked"].into_iter().zip(versions)
+    {
+        let source_geometry = &document
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == "left")
+            .unwrap()
+            .versions
+            .iter()
+            .find(|version| version.id == source_version)
+            .unwrap()
+            .geometry;
+        let mirror_geometry = &document
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == "right")
+            .unwrap()
+            .versions
+            .iter()
+            .find(|version| version.id == mirror_version)
+            .unwrap()
+            .geometry;
+        let source_review =
+            crate::geometry::feature_source_contours(&document, &cache, &source_geometry.features);
+        let mirror_review =
+            crate::geometry::feature_source_contours(&document, &cache, &mirror_geometry.features);
+        let request = json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "version", "boardId": "right", "versionId": mirror_version},
+            "change": {"set-margin": {"margin": 3.0}}, "seed": 5,
+            "reviewed": mirror_review
+        }});
+        let translated = canonical(&document, &request)
+            .unwrap_or_else(|error| panic!("the {ownership} version edit translates: {error}"));
+        let value = serde_json::to_value(translated.operation).unwrap();
+        assert_eq!(value["edit"]["target"]["boardId"], "left");
+        assert_eq!(value["edit"]["target"]["versionId"], source_version);
+        assert_close(
+            &value["edit"]["reviewed"],
+            &serde_json::to_value(&source_review).unwrap(),
+            &format!("{ownership} version review"),
+        );
+
+        let mut stale = request;
+        stale["edit"]["reviewed"][0]["points"][0]["x"] = json!(54321.0);
+        let translated = canonical(&document, &stale).unwrap();
+        let value = serde_json::to_value(translated.operation).unwrap();
+        assert_ne!(
+            value["edit"]["reviewed"],
+            serde_json::to_value(&source_review).unwrap()
+        );
     }
 }
 

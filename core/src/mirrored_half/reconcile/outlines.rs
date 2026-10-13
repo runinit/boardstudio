@@ -246,6 +246,7 @@ fn map_snapshot(
     associations: &BTreeMap<String, String>,
     part_associations: &BTreeMap<String, String>,
     matrix_associations: &BTreeMap<String, String>,
+    matrix_owned_parts: &BTreeSet<String>,
 ) -> crate::model::OutlineSnapshot {
     let identity = |id: &str| {
         mapped_identity(
@@ -261,8 +262,7 @@ fn map_snapshot(
             .cloned()
             .unwrap_or_else(|| id.to_owned())
     };
-    let full_rule_part =
-        |id: &str| !id.starts_with(&format!("matrix/{}/", projection.source_matrix_id));
+    let full_rule_part = |id: &str| !matrix_owned_parts.contains(id);
     let renames = super::super::Renames {
         identity: &identity,
         part: &part,
@@ -280,9 +280,9 @@ fn map_feature(
     mapping: crate::model::Pose2,
     source_board: &str,
     mirror_board: &str,
-    source_matrix: &str,
     associations: &BTreeMap<String, String>,
     part_associations: &BTreeMap<String, String>,
+    matrix_owned_parts: &BTreeSet<String>,
 ) -> OutlineFeature {
     let identity = |id: &str| mapped_identity(source_board, mirror_board, id, associations);
     let part = |id: &str| {
@@ -291,7 +291,7 @@ fn map_feature(
             .cloned()
             .unwrap_or_else(|| id.to_owned())
     };
-    let full_rule_part = |id: &str| !id.starts_with(&format!("matrix/{source_matrix}/"));
+    let full_rule_part = |id: &str| !matrix_owned_parts.contains(id);
     let renames = super::super::Renames {
         identity: &identity,
         part: &part,
@@ -381,6 +381,7 @@ pub(super) fn reconcile(
         .iter()
         .find(|board| board.id == projection.source_board_id)
         .ok_or_else(|| "The selected source board is unavailable".to_owned())?;
+    let matrix_owned_parts = super::super::matrix_owned_parts(document, &source_board.id);
     for outline_id in &source_board.outline_ids {
         if !outline_map.contains_key(outline_id) && !retired_outline_ids.contains(outline_id) {
             return Err(format!(
@@ -434,9 +435,9 @@ pub(super) fn reconcile(
             projection.mapping,
             &projection.source_board_id,
             &projection.mirror_board_id,
-            &projection.source_matrix_id,
             &outline_map,
             &part_map,
+            &matrix_owned_parts,
         );
         let target = staged
             .outline
@@ -535,6 +536,7 @@ pub(super) fn reconcile(
                     &outline_map,
                     &part_map,
                     &matrix_map,
+                    &matrix_owned_parts,
                 ),
                 ownership: source_version.ownership,
             };
