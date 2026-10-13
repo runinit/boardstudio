@@ -30,6 +30,7 @@ fn key_relative_pose(document: &ProjectDoc, key_id: &str, companion_id: &str) ->
 
 fn associated_local_circuit_document() -> ProjectDoc {
     let mut document = pair_document();
+    document.format_version = crate::migrate::CURRENT_VERSION;
     document.module_definitions.push(
         serde_json::from_value(json!({
             "id": "local-circuit-module",
