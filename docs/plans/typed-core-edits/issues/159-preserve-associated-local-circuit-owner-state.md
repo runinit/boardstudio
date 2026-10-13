@@ -1,6 +1,6 @@
 # 159: Preserve associated Local circuit owner data and inherited child state
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [158](158-retain-local-controller-private-net-on-omit.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -67,7 +67,7 @@ public 111 proof, baselines, mutations and full acceptance checks.
       and ReplaceDocument with all source matrices skipped by membership classification.
 - [x] The original public 111 Local circuit ReplaceDocument/Omit test passes unchanged; the
       accepted host-net binding is asserted before testing Omit lifetime.
-- [ ] Independent Standards/Spec review, meaningful compiled mutations, affected/full checks,
+- [x] Independent Standards/Spec review, meaningful compiled mutations, affected/full checks,
       native baseline additions, local merge and post-merge verification pass. No push.
 
 ## Comments
@@ -112,7 +112,7 @@ Candidate source `38c17157` and clarified ticket `cf8e8a6e` are integrated into 
 `81bb93c7`. The original activation-edge test file remains byte-identical, and all 62 public
 mirrored-half tests pass, including the accepted Local circuit binding before Omit. This does
 not accept full activation: Preview loss visibility, final runtime gates and parent 19 remain
-open. Local dev merge and post-merge verification are still pending.
+open. Local dev merge and post-merge verification are complete.
 
 Evidence: main `.evidence/ticket159/`, including RED/GREEN logs, final-source reviews and
 manifest, mutation-run, full-checks, native-baseline-delta and activation-proof. No push.
@@ -123,3 +123,13 @@ fixture was updated to use `crate::migrate::CURRENT_VERSION`. Its first activate
 the old fixture version before reaching the intended malformed-closure assertion. This
 one-line fixture correction preserves the assertion and changes no production behavior;
 original public 111 assertions remain unchanged. The initial refusal log is retained.
+
+
+## Answer
+
+Resolved: source `10fc4048` merged locally into `dev` at `1a1f0fbb`; both have tree
+`3ad5fe5c2f628bbbbb985689879b24d3ac2c4c42`. Post-merge example build and repository/test/lint
+checks pass, with all 1,856 baselined native tests executed. Exact commands, targets and refs
+are in `.evidence/ticket159/post-merge-checks.json` and its logs. Both source and final
+metadata review axes pass. Original public 111 is 62/62 and activated private preparation is
+67/67; 111 activation and parent 19 remain unaccepted. No push.
