@@ -1,6 +1,6 @@
 # 154: Reserve staged source circuit references during mirror planning
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md), [155](155-admit-hosted-addition-correspondences.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -26,12 +26,38 @@ Keep production routing and member-pose activation wiring in 111.
 
 ## Acceptance
 
-- [ ] Prepared embed regression first fails at the staged source/mirror reference collision.
-- [ ] Source reference stays unchanged; selected mirror references avoid existing document and
+- [x] Prepared embed regression first fails at the staged source/mirror reference collision.
+- [x] Source reference stays unchanged; selected mirror references avoid existing document and
       staged source conflicts, using the existing allocator; IDs and references stay stable.
-- [ ] Cover an unrelated-board reference collision, several circuit members, repeated
+- [x] Cover an unrelated-board reference collision, several circuit members, repeated
       reconciliation and subsequent edits from either half; no unrelated Part is renamed.
-- [ ] Independent Standards/Spec review, meaningful reservation mutations and required checks
+- [x] Independent Standards/Spec review, meaningful reservation mutations and required checks
       pass; no helper visibility, schema or production route changes.
 
 Root owns full checks/baseline/integration. This closes missing full-composition evidence from146.
+
+## Answer (2026-10-13)
+
+Mirror circuit planning reuses the actual canonical source embed on a private scratch draft,
+reserves all prior document references and every staged source member reference, then uses the
+existing target allocator. Source naming stays board-scoped, existing Parts are not renamed,
+and the global forward uniqueness validator is unchanged. Canonical application reuses that
+same source operation. Several members and unrelated-board references are covered explicitly.
+
+The inverse and prepared regressions first failed at the expected staged C1 collision. Source
+members keep C1/C2, an unrelated board keeps C3, and mirror members receive C4/C5. The old
+standalone-versus-paired reference oracle was corrected explicitly, retaining its ID, definition
+and net assertions; the original failure is preserved. A new propagated-pose assertion then
+exposed missing durable hosted admission, independently fixed and integrated by 155. With 155
+present, source Q1(23,11) derives mirror Q1(177,11), and mirror Q2(177,12) derives source Q2(23,12),
+with identities and references stable across repeat reconciliation.
+
+Independent Standards and Spec reviews accept the original scope and pose-only delta; the
+pose-coverage finding is closed. Focused inverse hosted 31 and reconciliation 223 tests pass.
+The broader mirrored-half baseline passes 369 tests; all four compiled reservation/canonical-op
+mutations were killed with exact restoration. Full repo/test/lint passes with all 1,836 native
+tests executed; the baseline adds exactly two names. Main evidence: `.evidence/ticket154/`.
+
+No helper visibility, naming policy, schema or production route changed. 111's member-pose and
+production activation wiring remains separate. Local integration and post-merge checks are
+pending before 111 resumes.
