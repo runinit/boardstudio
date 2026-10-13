@@ -428,3 +428,8 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   two mutation kills and full repo/test/lint pass with1,849 native tests. Unchanged public
   controller Preview/Commit case passes;111 is61/62 with associated Local circuit projection
   remaining.111 activation stays unmerged.
+
+- [159](issues/159-preserve-associated-local-circuit-owner-state.md): claimed associated Local
+  circuit ownership correction across private target mapping, projection and scoped validation.
+  Preserve inherited members/private data, explicit child exceptions and independently owned
+  joined host nets. Original public 111 circuit test remains required; activation stays unmerged.
