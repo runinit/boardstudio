@@ -1130,6 +1130,7 @@ enum PreviewBackup {
         definition_len: usize,
         parts: Vec<Part>,
         matrices: Vec<Matrix>,
+        layouts: Vec<Layout>,
         nets: Vec<Net>,
         outline: Vec<OutlineFeature>,
         boards: Vec<Board>,
@@ -1158,19 +1159,26 @@ impl PreviewBackup {
                     break;
                 }
             }
-            return Self::Parts(
-                doc.parts
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, part)| affected.contains(&part.id))
-                    .map(|(index, part)| (index, part.pose, part.properties.clone()))
-                    .collect(),
-            );
+            // Settling a constrained key can rewrite its matrix and regenerate members.
+            let reaches_matrix_key = affected
+                .iter()
+                .any(|id| id.starts_with("matrix/") && layout::is_matrix_key(doc, id));
+            if !reaches_matrix_key {
+                return Self::Parts(
+                    doc.parts
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, part)| affected.contains(&part.id))
+                        .map(|(index, part)| (index, part.pose, part.properties.clone()))
+                        .collect(),
+                );
+            }
         }
         Self::Matrix {
             definition_len: doc.definitions.len(),
             parts: doc.parts.clone(),
             matrices: doc.matrices.clone(),
+            layouts: doc.layouts.clone(),
             nets: doc.nets.clone(),
             outline: doc.outline.clone(),
             boards: doc.boards.clone(),
@@ -1190,6 +1198,7 @@ impl PreviewBackup {
                 definition_len,
                 parts,
                 matrices,
+                layouts,
                 nets,
                 outline,
                 boards,
@@ -1198,12 +1207,133 @@ impl PreviewBackup {
                 doc.definitions.truncate(definition_len);
                 doc.parts = parts;
                 doc.matrices = matrices;
+                doc.layouts = layouts;
                 doc.nets = nets;
                 doc.outline = outline;
                 doc.boards = boards;
                 doc.constraints = constraints;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod preview_backup_tests {
+    use super::*;
+
+    fn part(id: &str) -> Part {
+        Part {
+            keycap: None,
+            outline: None,
+            id: id.into(),
+            definition_id: "switch".into(),
+            reference: id.into(),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        }
+    }
+
+    fn matrix() -> Matrix {
+        Matrix {
+            id: "main".into(),
+            name: None,
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.0, y: 19.0 },
+            origin: Vec2::default(),
+            definition_id: "switch".into(),
+            part_ids: vec!["matrix/main/r0c0".into()],
+            board_id: None,
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_offsets: vec![],
+            column_offsets: vec![],
+            column_staggers: vec![],
+            column_splays: vec![],
+            column_origins: vec![],
+            cells: vec![MatrixCell {
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: true,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }],
+        }
+    }
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("preview-backup", "Preview backup");
+        document.parts = vec![part("anchor"), part("matrix/main/r0c0")];
+        document.matrices.push(matrix());
+        document.layouts.push(Layout {
+            id: "layout:main".into(),
+            name: "Main".into(),
+            board_id: "board:main".into(),
+            matrix_id: "main".into(),
+            part_ids: vec!["layout-component".into()],
+            mirror_link: None,
+        });
+        document.constraints.push(Constraint::Offset {
+            id: "key-anchor".into(),
+            source_part_id: "anchor".into(),
+            target_part_id: "matrix/main/r0c0".into(),
+            offset: Vec2::default(),
+            rotation: 0.0,
+        });
+        document
+    }
+
+    #[test]
+    fn matrix_reaching_preview_restores_layout_membership() {
+        let mut document = document();
+        let accepted_layouts = document.layouts.clone();
+        let backup = PreviewBackup::capture(
+            &document,
+            &EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: "anchor".into(),
+                    at: Vec2 { x: 3.0, y: 4.0 },
+                }],
+            },
+        );
+        assert!(matches!(&backup, PreviewBackup::Matrix { .. }));
+
+        document.layouts[0]
+            .part_ids
+            .push("adopted-during-preview".into());
+        backup.restore(&mut document);
+
+        assert_eq!(document.layouts, accepted_layouts);
+    }
+
+    #[test]
+    fn unrelated_part_move_keeps_the_parts_only_backup() {
+        let mut document = document();
+        document.constraints.clear();
+        let backup = PreviewBackup::capture(
+            &document,
+            &EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: "anchor".into(),
+                    at: Vec2 { x: 3.0, y: 4.0 },
+                }],
+            },
+        );
+
+        assert!(matches!(&backup, PreviewBackup::Parts(_)));
     }
 }
 

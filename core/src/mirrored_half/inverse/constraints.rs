@@ -146,12 +146,7 @@ pub(super) fn normalize_command(
     operation: &EditOperation,
 ) -> Result<EditOperation, String> {
     let EditOperation::SetConstraint {
-        constraint:
-            constraint @ Constraint::Framed {
-                source: _,
-                target: _,
-                ..
-            },
+        constraint: constraint @ Constraint::Framed { .. },
     } = operation
     else {
         return Ok(operation.clone());

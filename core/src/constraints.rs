@@ -130,10 +130,8 @@ pub(crate) fn driving_constraint<'a>(
             }
             _ => endpoints::authoritative_part(doc, constraint.target()) == authority,
         };
-        if owns_authority {
-            if driving.replace(constraint).is_some() {
-                return Err(multiple_constraints(&authority));
-            }
+        if owns_authority && driving.replace(constraint).is_some() {
+            return Err(multiple_constraints(&authority));
         }
     }
     Ok(driving)
