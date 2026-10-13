@@ -332,16 +332,28 @@ pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
         }),
     );
     assert_eq!(preview["kind"], "preview", "{preview}");
-    // Production paired-preview routing remains deferred to ticket 111. This additive boundary
-    // case captures the current preview transport and accepted-document isolation; linked draft
-    // projection is exercised directly through the inert prepared transaction in unit tests.
-    assert!(
-        preview["scene"]["changedIds"]
+    let preview_part_x = |id: &str| {
+        preview["document"]["parts"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|id| id == "right/U1")
-    );
+            .find(|part| part["id"] == id)
+            .unwrap_or_else(|| panic!("preview Part {id} is missing"))["pose"]["at"]["x"]
+            .as_f64()
+            .unwrap()
+    };
+    assert_eq!(preview_part_x("left/U1"), -16.0);
+    assert_eq!(preview_part_x("right/U1"), 216.0);
+    for id in ["left/U1", "right/U1"] {
+        assert!(
+            preview["scene"]["changedIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|changed| changed == id),
+            "paired preview omitted {id}"
+        );
+    }
     let after_preview = call(&mut core, json!({"id":"paired-after","kind":"snapshot"}));
     assert_eq!(after_preview["document"], before_preview["document"]);
 

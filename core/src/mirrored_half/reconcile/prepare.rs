@@ -22,7 +22,7 @@ mod tests;
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
 /// whose ReplaceDocument behavior intentionally preserves replacement geometry.
-fn prepare_open(
+pub(crate) fn prepare_open(
     accepted: &ProjectDoc,
     _board_contours: &[BoardContours],
 ) -> Result<(ProjectDoc, Vec<Finding>), String> {
@@ -32,12 +32,9 @@ fn prepare_open(
     }
     crate::script::apply_scripts(&mut draft)?;
     crate::matrix::layout::resolve(&mut draft)?;
-    crate::constraints::resolve(&mut draft)?;
-    crate::matrix::layout::sync_components(&mut draft)?;
-    crate::constraints::resolve(&mut draft)?;
-    crate::matrix::layout::sync_components(&mut draft)?;
-    crate::generators::document_error(&draft)?;
 
+    // Repair only independently linked Parts that can be derived from an existing source before
+    // strict Framed endpoint binding checks whether the visible mirror ID is present.
     let pair_views = native_pair_views(&draft);
     for pair in &pair_views {
         seed_missing_independent_parts(&mut draft, &pair.halves, pair.mapping)?;
@@ -45,6 +42,12 @@ fn prepare_open(
     // Seeding accepts only the narrowly recoverable independent-Part absence. All other
     // malformed, ambiguous, Local/Omitted or unsupported missing records remain strict refusals.
     crate::mechanical::halves::validate_document(&draft)?;
+
+    crate::constraints::resolve(&mut draft)?;
+    crate::matrix::layout::sync_components(&mut draft)?;
+    crate::constraints::resolve(&mut draft)?;
+    crate::matrix::layout::sync_components(&mut draft)?;
+    crate::generators::document_error(&draft)?;
 
     for pair in pair_views.iter().cloned() {
         let matrices: Vec<_> = pair
@@ -449,6 +452,13 @@ pub(crate) fn prepare_transaction(
         inverse::canonicalize(accepted, operation).map_err(|refusal| refusal.to_string())?;
     let mut draft = accepted.clone();
     let mut changed = apply_canonical(&mut draft, accepted, board_contours, &canonical)?;
+    let lifecycle_before_resolution = matches!(
+        canonical.operation,
+        EditOperation::SetMechanical {
+            configuration: None,
+            target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
+        }
+    );
 
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
@@ -456,12 +466,18 @@ pub(crate) fn prepare_transaction(
     crate::electrical::preserve_handoff(accepted, &mut draft);
     crate::matrix::layout::validate(&draft)?;
 
+    if lifecycle_before_resolution {
+        changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
+    }
+
     let positions = operation_positions(&canonical.operation);
     let mut framed = initial_framed_constraints(&canonical);
     changed.extend(resolve_with_frames(&mut draft, positions, &framed)?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
-    changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
+    if !lifecycle_before_resolution {
+        changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
+    }
 
     for addition in &canonical.matrix_additions {
         let mirrored =
@@ -471,6 +487,7 @@ pub(crate) fn prepare_transaction(
     }
 
     framed = bind_deferred_constraints(&draft, &canonical, &framed)?;
+    persist_retuned_constraints(accepted, &mut draft, &canonical, &framed)?;
     changed.extend(resolve_with_frames(&mut draft, positions, &framed)?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
@@ -508,6 +525,120 @@ fn validate_prepared_draft(
             draft,
         )?;
     }
+    validate_constraint_postcondition(draft)?;
+    Ok(())
+}
+
+/// Stores only an actual MoveParts retune. Merely compiling an untouched legacy record for the
+/// private solver must not upgrade its wire shape or create a history change.
+fn persist_retuned_constraints(
+    accepted: &ProjectDoc,
+    draft: &mut ProjectDoc,
+    canonical: &Canonical,
+    framed: &[FramedConstraint],
+) -> Result<(), String> {
+    if !matches!(canonical.operation, EditOperation::MoveParts { .. }) {
+        return Ok(());
+    }
+    let retuned_ids: BTreeSet<_> = canonical
+        .prepared_constraints
+        .iter()
+        .filter_map(|edit| match edit {
+            PreparedConstraintEdit::Upsert(record) => Some(record_id(record).to_owned()),
+            PreparedConstraintEdit::DeferredTargetRetune(intent) => {
+                Some(record_id(&intent.record).to_owned())
+            }
+            PreparedConstraintEdit::Remove { .. } => None,
+        })
+        .collect();
+    for record in framed {
+        let id = record_id(record);
+        if !retuned_ids.contains(id) {
+            continue;
+        }
+        let Some(stored) = accepted.constraints.iter().find(|item| item.id() == id) else {
+            continue;
+        };
+        let original = crate::constraints::compile_legacy(accepted, stored)?;
+        if framed_records_equivalent(&original, record) {
+            continue;
+        }
+        let mut matches = draft.constraints.iter_mut().filter(|item| item.id() == id);
+        let Some(slot) = matches.next() else {
+            return Err(format!(
+                "Prepared constraint {id:?} is unavailable for persistence"
+            ));
+        };
+        if matches.next().is_some() {
+            return Err(format!(
+                "Prepared constraint {id:?} is ambiguous for persistence"
+            ));
+        }
+        *slot = constraint_from_framed(record);
+    }
+    Ok(())
+}
+
+fn constraint_from_framed(record: &FramedConstraint) -> crate::model::Constraint {
+    let FramedConstraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = record;
+    crate::model::Constraint::Framed {
+        id: id.clone(),
+        source: source.clone(),
+        target: target.clone(),
+        relation: relation.clone(),
+    }
+}
+
+fn framed_records_equivalent(left: &FramedConstraint, right: &FramedConstraint) -> bool {
+    left == right
+}
+
+fn validate_constraint_postcondition(draft: &ProjectDoc) -> Result<(), String> {
+    if draft.constraints.is_empty() {
+        return Ok(());
+    }
+    const POSE_TOLERANCE: f64 = 1e-9;
+    let framed = draft
+        .constraints
+        .iter()
+        .map(|constraint| crate::constraints::compile_legacy(draft, constraint))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut checked = draft.clone();
+    resolve_with_frames(&mut checked, &[], &framed)?;
+    for original in &draft.parts {
+        let mut matches = checked.parts.iter().filter(|part| part.id == original.id);
+        let Some(solved) = matches.next() else {
+            return Err(format!(
+                "Prepared constraint postcondition lost part {:?}",
+                original.id
+            ));
+        };
+        if matches.next().is_some() {
+            return Err(format!(
+                "Prepared constraint postcondition found ambiguous part {:?}",
+                original.id
+            ));
+        }
+        if (solved.pose.at.x - original.pose.at.x).abs() >= POSE_TOLERANCE
+            || (solved.pose.at.y - original.pose.at.y).abs() >= POSE_TOLERANCE
+            || (solved.pose.rotation - original.pose.rotation).abs() >= POSE_TOLERANCE
+        {
+            let constraint_id = crate::constraints::driving_constraint(draft, &original.id)
+                .ok()
+                .flatten()
+                .map(|constraint| format!(" for constraint {:?}", constraint.id()))
+                .unwrap_or_default();
+            return Err(format!(
+                "Prepared constraint postcondition would move part {:?}{constraint_id}",
+                original.id,
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -520,6 +651,7 @@ fn prepare_lifecycle_pairs(
         canonical.operation,
         EditOperation::ApplyMechanicalEdit { .. }
             | EditOperation::SetMechanical {
+                configuration: Some(_),
                 target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
                 ..
             }
@@ -529,6 +661,27 @@ fn prepare_lifecycle_pairs(
     ) {
         return Ok(Vec::new());
     }
+    if let EditOperation::SetHalfException { pair_id, .. }
+    | EditOperation::UnlinkHalves { pair_id } = &canonical.operation
+    {
+        let matches: Vec<_> = accepted
+            .hardware
+            .as_ref()
+            .into_iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter(|pair| pair.id == *pair_id && pair.halves.is_some())
+            .collect();
+        if matches.len() != 1 {
+            return Err("The exact lifecycle pair is unavailable or ambiguous".into());
+        }
+    }
+    let pair_removed_by_operation = matches!(
+        &canonical.operation,
+        EditOperation::SetMechanical {
+            configuration: None,
+            target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
+        }
+    );
     let pair_ids: Vec<_> = accepted
         .hardware
         .as_ref()
@@ -539,21 +692,22 @@ fn prepare_lifecycle_pairs(
         .collect();
     let mut changed = Vec::new();
     for pair_id in pair_ids {
-        if !document
-            .hardware
-            .as_ref()
-            .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
+        if !pair_removed_by_operation
+            && !document
+                .hardware
+                .as_ref()
+                .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
         {
             continue;
         }
-        for output in super::lifecycle::prepare_edit_transition(
+        if let Some(prepared) = super::lifecycle::prepare_edit_transition(
             accepted,
             document,
             &pair_id,
             &canonical.operation,
         )? {
-            changed.extend(output.changed_document_ids);
-            *document = output.draft;
+            changed.extend(prepared.changed_document_ids);
+            *document = prepared.draft;
         }
     }
     Ok(changed)
@@ -565,6 +719,12 @@ fn apply_canonical(
     board_contours: &[BoardContours],
     canonical: &Canonical,
 ) -> Result<Vec<String>, String> {
+    if matches!(
+        canonical.operation,
+        EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. }
+    ) {
+        return Ok(Vec::new());
+    }
     if let EditOperation::ApplyMechanicalEdit { edit } = &canonical.operation
         && let crate::mechanical::MechanicalChange::UnlinkMirrorPair { instance_id } = &edit.change
     {
@@ -583,7 +743,20 @@ fn apply_canonical(
             configuration.as_deref().cloned(),
         );
     }
-    crate::apply(draft, board_contours, &canonical.operation)
+    let changed = crate::apply(draft, board_contours, &canonical.operation)?;
+    for addition in &canonical.hosted.circuits {
+        for (member_id, pose) in &addition.member_poses {
+            let member = draft
+                .parts
+                .iter_mut()
+                .find(|part| part.id == *member_id)
+                .ok_or_else(|| {
+                    format!("The embedded circuit member {member_id:?} is unavailable")
+                })?;
+            member.pose = *pose;
+        }
+    }
+    Ok(changed)
 }
 
 fn pair_for_instance(document: &ProjectDoc, instance_id: &str) -> Result<String, String> {
@@ -1066,6 +1239,7 @@ fn transitions_for(
                 member_references: addition.member_references.clone(),
                 definition_ids: addition.definition_ids.clone(),
                 net_ids: addition.net_ids.clone(),
+                member_poses: addition.member_poses.clone(),
             });
         }
     }

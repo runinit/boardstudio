@@ -225,46 +225,23 @@ impl CoreEngine {
                 Ok(package) => CoreReply::FirmwareGenerated { id, package },
                 Err(message) => self.error(id, &message),
             },
-            CoreRequest::Open { id, mut document } => {
+            CoreRequest::Open { id, document } => {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
                 }
                 if document.format_version != migrate::CURRENT_VERSION {
                     return self.error(id, "Document must be migrated before it is opened");
                 }
-                if let Some(map) = &document.keymap
-                    && let Err(message) = keymap::validate(map)
-                {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = script::apply_scripts(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = layout::resolve(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = constraints::resolve(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = layout::sync_components(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = constraints::resolve(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = layout::sync_components(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = generators::document_error(&document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = mechanical::halves::validate_document(&document) {
-                    return self.error(id, &message);
-                }
+                let (document, repaired_findings) =
+                    match mirrored_half::prepare_open(&document, &[]) {
+                        Ok(prepared) => prepared,
+                        Err(message) => return self.error(id, &message),
+                    };
                 self.document = document;
                 self.undo.clear();
                 self.redo.clear();
                 self.recompute();
+                self.findings.extend(repaired_findings);
                 self.scene(
                     id,
                     SceneInput {
@@ -505,6 +482,10 @@ impl CoreEngine {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
+        let prepared_route = uses_prepared_transaction(&self.document, &command.operation);
+        if command.phase == EditPhase::Preview && prepared_route {
+            return self.preview_prepared_edit(id, command);
+        }
         if command.phase == EditPhase::Preview
             && matches!(
                 &command.operation,
@@ -516,57 +497,95 @@ impl CoreEngine {
         {
             return self.preview_edit(id, command);
         }
-        let mut next = self.document.clone();
-        // Mechanical edits resolve against the accepted outline projection the user
-        // sees, not a stale or re-derived one, so the accepted cache supplies it.
-        let accepted_contours;
-        let board_contours: &[BoardContours] =
-            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+        let next;
+        let changed;
+        if prepared_route {
+            let accepted_contours;
+            let board_contours: &[BoardContours] = if matches!(
+                command.operation,
+                EditOperation::ApplyMechanicalEdit { .. }
+                    | EditOperation::SetMechanical {
+                        target: Some(mechanical::MechanicalTarget::Instance { .. }),
+                        ..
+                    }
+            ) {
                 accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
                 &accepted_contours
             } else {
                 &[]
             };
-        let changed = match apply(&mut next, board_contours, &command.operation) {
-            Ok(changed) => changed,
-            Err(message) => return self.error(id, &message),
-        };
-        if let Some(map) = &next.keymap
-            && let Err(message) = keymap::validate(map)
-        {
-            return self.error(id, &message);
-        }
-        let mut changed = changed;
-        electrical::preserve_handoff(&self.document, &mut next);
-        if let Err(message) = layout::validate(&next) {
-            return self.error(id, &message);
-        }
-        match constraints::resolve_edit(&mut next, &command.operation) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        match layout::sync_components(&mut next) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        match constraints::resolve_edit(&mut next, &command.operation) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        match layout::sync_components(&mut next) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        outline_controls::detach_removed(&self.document.parts, &mut next);
-        changed.extend(prune_removed_components(&self.document.parts, &mut next));
-        changed.sort();
-        changed.dedup();
-        // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
-        if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
-            && let Err(message) =
-                generators::introduced_error(&generators::parameter_problems(&self.document), &next)
-        {
-            return self.error(id, &message);
+            match mirrored_half::prepare_transaction(
+                &self.document,
+                board_contours,
+                &command.operation,
+            ) {
+                Ok((draft, prepared_changed)) => {
+                    next = draft;
+                    changed = prepared_changed;
+                }
+                Err(message) => return self.error(id, &message),
+            }
+        } else {
+            let mut raw_next = self.document.clone();
+            // Mechanical edits resolve against the accepted outline projection the user
+            // sees, not a stale or re-derived one, so the accepted cache supplies it.
+            let accepted_contours;
+            let board_contours: &[BoardContours] =
+                if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                    accepted_contours =
+                        geometry::board_contours(&self.document, &self.outline_cache).0;
+                    &accepted_contours
+                } else {
+                    &[]
+                };
+            let raw_changed = match apply(&mut raw_next, board_contours, &command.operation) {
+                Ok(changed) => changed,
+                Err(message) => return self.error(id, &message),
+            };
+            if let Some(map) = &raw_next.keymap
+                && let Err(message) = keymap::validate(map)
+            {
+                return self.error(id, &message);
+            }
+            let mut raw_changed = raw_changed;
+            electrical::preserve_handoff(&self.document, &mut raw_next);
+            if let Err(message) = layout::validate(&raw_next) {
+                return self.error(id, &message);
+            }
+            match constraints::resolve_edit(&mut raw_next, &command.operation) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            match layout::sync_components(&mut raw_next) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            match constraints::resolve_edit(&mut raw_next, &command.operation) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            match layout::sync_components(&mut raw_next) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            outline_controls::detach_removed(&self.document.parts, &mut raw_next);
+            raw_changed.extend(prune_removed_components(
+                &self.document.parts,
+                &mut raw_next,
+            ));
+            raw_changed.sort();
+            raw_changed.dedup();
+            // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
+            if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
+                && let Err(message) = generators::introduced_error(
+                    &generators::parameter_problems(&self.document),
+                    &raw_next,
+                )
+            {
+                return self.error(id, &message);
+            }
+            next = raw_next;
+            changed = raw_changed;
         }
         // A committed mechanical edit that reports nothing changed is a no-op: return
         // the current committed scene without a revision bump, an undo entry or a redo
@@ -591,7 +610,7 @@ impl CoreEngine {
                 },
             );
         }
-        let (cache, contours, findings) = if affects_outline(&command.operation) {
+        let (cache, contours, findings) = if prepared_route || affects_outline(&command.operation) {
             let previous = if matches!(command.operation, EditOperation::MoveParts { .. }) {
                 Some(&self.outline_cache)
             } else {
@@ -659,6 +678,44 @@ impl CoreEngine {
                 geom_findings: &self.findings,
                 cache: &self.outline_cache,
                 kind: SceneKind::Committed,
+            },
+        )
+    }
+
+    fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
+        let accepted_contours;
+        let board_contours: &[BoardContours] = if matches!(
+            command.operation,
+            EditOperation::ApplyMechanicalEdit { .. }
+                | EditOperation::SetMechanical {
+                    target: Some(mechanical::MechanicalTarget::Instance { .. }),
+                    ..
+                }
+        ) {
+            accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+            &accepted_contours
+        } else {
+            &[]
+        };
+        let (draft, changed) = match mirrored_half::prepare_transaction(
+            &self.document,
+            board_contours,
+            &command.operation,
+        ) {
+            Ok(prepared) => prepared,
+            Err(message) => return self.error(id, &message),
+        };
+        let (cache, contours, findings) = outlines(&draft, None, &changed);
+        self.scene(
+            id,
+            SceneInput {
+                transaction: &command.transaction_id,
+                changed,
+                document: &draft,
+                contours: &contours,
+                geom_findings: &findings,
+                cache: &cache,
+                kind: SceneKind::Preview,
             },
         )
     }
@@ -1114,6 +1171,27 @@ impl PreviewBackup {
             }
         }
     }
+}
+
+fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -> bool {
+    if matches!(
+        operation,
+        EditOperation::SetHalfException { .. }
+            | EditOperation::UnlinkHalves { .. }
+            | EditOperation::SetMechanical {
+                target: Some(mechanical::MechanicalTarget::Instance { .. }),
+                ..
+            }
+    ) {
+        return true;
+    }
+    document.hardware.as_ref().is_some_and(|hardware| {
+        hardware.pairs.iter().any(|pair| {
+            pair.halves
+                .as_ref()
+                .is_some_and(|halves| halves.source_board_id != halves.mirror_board_id)
+        })
+    })
 }
 
 fn affects_outline(op: &EditOperation) -> bool {
@@ -1716,6 +1794,9 @@ fn apply(
             crate::mechanical::edit::apply(doc, board_contours, edit)
         }
         EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
+        EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. } => {
+            Err("Mirrored-half lifecycle edits require prepared transaction dispatch".into())
+        }
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());

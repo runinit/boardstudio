@@ -194,11 +194,7 @@ fn carry_authored_companions(
             }
             for assembly in &cell.assemblies {
                 let id = format!("{key_id}/{}", assembly.id);
-                if doc
-                    .constraints
-                    .iter()
-                    .any(|constraint| constraint.target() == id)
-                {
+                if doc.constraint_driving_part(&id).ok().flatten().is_some() {
                     continue;
                 }
                 let authored = doc

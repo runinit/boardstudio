@@ -471,8 +471,8 @@ fn an_unknown_constraint_kind_is_refused_as_an_older_build_would_refuse_part_off
 }
 
 #[test]
-fn the_part_offset_kind_does_not_bump_the_format_version() {
-    assert_eq!(boardstudio_core::migrate::CURRENT_VERSION, 5);
+fn the_part_offset_kind_is_persisted_under_the_current_format_version() {
+    assert_eq!(boardstudio_core::migrate::CURRENT_VERSION, 6);
 }
 
 #[test]
@@ -597,7 +597,9 @@ fn dragging_a_held_companion_keeps_the_exact_stored_rotation_of_either_kind() {
                 Constraint::Offset { rotation, .. } | Constraint::PartOffset { rotation, .. } => {
                     rotation.to_bits()
                 }
-                Constraint::Mirror { .. } => panic!("the constraint became a mirror"),
+                Constraint::Mirror { .. } | Constraint::Framed { .. } => {
+                    panic!("the constraint changed relation kind")
+                }
             };
             assert_eq!(kept(&before), stored.to_bits(), "{axes:?} precondition");
             let start = part(&before, HELD).pose.at;

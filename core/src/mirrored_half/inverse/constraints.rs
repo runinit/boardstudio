@@ -7,7 +7,9 @@
 
 use super::Refusal;
 use crate::constraints::FramedConstraint;
-use crate::model::{Constraint, EditOperation, OffsetAxes, Pose2, Position, ProjectDoc};
+use crate::model::{
+    Constraint, ConstraintEndpoint, EditOperation, OffsetAxes, Pose2, Position, ProjectDoc,
+};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -134,6 +136,73 @@ pub(super) fn prepare(
         }
         _ => Ok(None),
     }
+}
+
+/// Normalizes only a newly authored Framed command. Loaded records keep their exact explicit
+/// binding so stale or inconsistent endpoints continue to refuse in the shared solver.
+pub(super) fn normalize_command(
+    document: &ProjectDoc,
+    links: &super::Links<'_>,
+    operation: &EditOperation,
+) -> Result<EditOperation, String> {
+    let EditOperation::SetConstraint {
+        constraint:
+            constraint @ Constraint::Framed {
+                source: _,
+                target: _,
+                ..
+            },
+    } = operation
+    else {
+        return Ok(operation.clone());
+    };
+    let Constraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = constraint
+    else {
+        unreachable!("the SetConstraint match selected a Framed constraint");
+    };
+    let source = normalize_command_endpoint(document, links, source)?;
+    let target = normalize_command_endpoint(document, links, target)?;
+    Ok(EditOperation::SetConstraint {
+        constraint: Constraint::Framed {
+            id: id.clone(),
+            source,
+            target,
+            relation: relation.clone(),
+        },
+    })
+}
+
+fn normalize_command_endpoint(
+    document: &ProjectDoc,
+    links: &super::Links<'_>,
+    endpoint: &ConstraintEndpoint,
+) -> Result<ConstraintEndpoint, String> {
+    let ConstraintEndpoint::Part { part_id } = endpoint else {
+        return Ok(endpoint.clone());
+    };
+    let Some(link) = links.linked_part(part_id)? else {
+        return Ok(endpoint.clone());
+    };
+    let pair_id = link.pair.pair_id;
+    let source_part_id = &link.correspondence.source_id;
+    let mirror_part_id = &link.correspondence.mirror_id;
+    if !document.parts.iter().any(|part| part.id == *source_part_id)
+        || !document.parts.iter().any(|part| part.id == *mirror_part_id)
+    {
+        return Err(format!(
+            "Constraint Part endpoint {part_id:?} has an unavailable linked binding"
+        ));
+    }
+    Ok(ConstraintEndpoint::LinkedMirror {
+        pair_id: pair_id.to_owned(),
+        source_part_id: source_part_id.clone(),
+        mirror_part_id: mirror_part_id.clone(),
+    })
 }
 
 /// Reuses the legacy converter on a minimal document so preparation and apply share its exact

@@ -379,11 +379,11 @@ fn prepare_existing_half(
                     .into(),
             );
         }
-        if source.part_ids.iter().any(|part_id| {
-            next.constraints
-                .iter()
-                .any(|constraint| constraint.target() == part_id)
-        }) {
+        if source
+            .part_ids
+            .iter()
+            .any(|part_id| next.constraint_driving_part(part_id) != Ok(None))
+        {
             return Err("Remove key placement constraints before linking this layout.".into());
         }
         let existing = next

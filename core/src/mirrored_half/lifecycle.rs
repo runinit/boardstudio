@@ -8,14 +8,10 @@ mod tests;
 
 use super::{MembershipContext, TransitionState};
 use crate::constraints::{ConstraintEndpoint, FramedConstraint};
-use crate::model::{MirroredExceptionState, MirroredItemKind};
+use crate::model::{Constraint, HalfExceptionState, MirroredExceptionState, MirroredItemKind};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    not(test),
-    expect(dead_code) // Ticket 115 supplies effects from the validated prepared lifecycle transition.
-)]
 enum ConstraintLifecycleEffect {
     MakeLocal {
         pair_id: String,
@@ -44,10 +40,6 @@ struct ConstraintLifecycleDelta {
 /// Prepares endpoint edits after the owning lifecycle kernel has validated the exact transition
 /// and removal closure. Records are compiled against the pre-transition document; removed IDs
 /// are visible Part IDs from that same validated closure, never canonical aliases.
-#[cfg_attr(
-    not(test),
-    expect(dead_code) // Ticket 115 composes these inert endpoint edits into the prepared transaction.
-)]
 fn prepare_constraint_lifecycle_delta(
     records: &[FramedConstraint],
     effects: &[ConstraintLifecycleEffect],
@@ -1236,7 +1228,151 @@ pub(super) fn prepare_edit_transition(
     post_source: &crate::model::ProjectDoc,
     pair_id: &str,
     operation: &crate::model::EditOperation,
-) -> Result<Vec<super::MembershipTransitionOutput>, String> {
+) -> Result<Option<super::PreparedLifecycleDraft>, String> {
+    use crate::model::EditOperation;
+
+    if let EditOperation::SetHalfException {
+        pair_id: requested_pair_id,
+        kind,
+        mirror_id,
+        state,
+    } = operation
+    {
+        if requested_pair_id != pair_id {
+            return Ok(None);
+        }
+        let hardware = before
+            .hardware
+            .as_ref()
+            .ok_or("Lifecycle hardware is unavailable")?;
+        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
+        let pair = pairs
+            .next()
+            .ok_or("The exact lifecycle pair is unavailable")?;
+        if pairs.next().is_some() {
+            return Err("The exact lifecycle pair is ambiguous".into());
+        }
+        let halves = pair
+            .halves
+            .as_ref()
+            .ok_or("The exact lifecycle pair has no halves record")?;
+        let mut selected = halves
+            .correspondences
+            .iter()
+            .filter(|association| association.kind == *kind && association.mirror_id == *mirror_id);
+        let association = selected
+            .next()
+            .ok_or("The exact lifecycle association is unavailable")?;
+        if selected.next().is_some() {
+            return Err("The exact lifecycle association is ambiguous".into());
+        }
+        let matrix_pair =
+            matrix_pair_for_association(before, halves, *kind, &association.source_id, mirror_id)?;
+        let context = lifecycle_context(before, pair_id, matrix_pair)?;
+        let prior_state = context
+            .associations
+            .iter()
+            .find(|item| {
+                item.kind == *kind
+                    && item.source_id == association.source_id
+                    && item.mirror_id == *mirror_id
+            })
+            .ok_or("The exact lifecycle association is unavailable")?
+            .state;
+        let requested_state = match state {
+            HalfExceptionState::Local => TransitionState::Local,
+            HalfExceptionState::Omitted => TransitionState::Omitted,
+            HalfExceptionState::Linked => TransitionState::Linked,
+        };
+        let pending = transition_exception_context(
+            &context,
+            *kind,
+            &association.source_id,
+            mirror_id,
+            requested_state,
+        )?;
+        let output = prepare_lifecycle_transition(before, post_source, &pending)?;
+        let mut effects = Vec::new();
+        if prior_state != requested_state {
+            match requested_state {
+                TransitionState::Local => effects.push(ConstraintLifecycleEffect::MakeLocal {
+                    pair_id: pair_id.to_owned(),
+                    source_part_id: association.source_id.clone(),
+                    mirror_part_id: mirror_id.clone(),
+                }),
+                TransitionState::Omitted => {
+                    effects.push(ConstraintLifecycleEffect::RemoveVisibleParts {
+                        part_ids: removed_part_ids(before, &output.draft),
+                    })
+                }
+                TransitionState::Linked => effects.push(ConstraintLifecycleEffect::Rejoin {
+                    pair_id: pair_id.to_owned(),
+                    source_part_id: association.source_id.clone(),
+                    mirror_part_id: mirror_id.clone(),
+                }),
+            }
+        }
+        return prepare_lifecycle_output(before, output, &effects).map(Some);
+    }
+
+    if let EditOperation::SetMechanical {
+        configuration: None,
+        target: Some(crate::mechanical::MechanicalTarget::Instance { instance_id }),
+    } = operation
+    {
+        let hardware = before
+            .hardware
+            .as_ref()
+            .ok_or("Physical instances are unavailable")?;
+        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
+        let Some(pair) = pairs.next() else {
+            return Ok(None);
+        };
+        if pairs.next().is_some() {
+            return Err("The exact lifecycle pair is ambiguous".into());
+        }
+        if !pair.members.iter().any(|member| member == instance_id) || pair.halves.is_none() {
+            return Ok(None);
+        }
+
+        let records = lifecycle_constraint_records(before)?;
+        let delta = prepare_constraint_lifecycle_delta(
+            &records,
+            &[ConstraintLifecycleEffect::Unlink {
+                pair_id: pair.id.clone(),
+            }],
+        )?;
+        let mut draft = post_source.clone();
+        apply_constraint_lifecycle_delta(&mut draft, delta);
+        return Ok(Some(super::PreparedLifecycleDraft {
+            draft,
+            changed_document_ids: Vec::new(),
+        }));
+    }
+
+    if let EditOperation::UnlinkHalves {
+        pair_id: requested_pair_id,
+    } = operation
+    {
+        if requested_pair_id != pair_id {
+            return Ok(None);
+        }
+        let records = lifecycle_constraint_records(before)?;
+        let delta = prepare_constraint_lifecycle_delta(
+            &records,
+            &[ConstraintLifecycleEffect::Unlink {
+                pair_id: pair_id.to_owned(),
+            }],
+        )?;
+        let mut draft = post_source.clone();
+        let changed_document_ids = crate::mechanical::halves::unlink_pair(&mut draft, pair_id)?;
+        apply_constraint_lifecycle_delta(&mut draft, delta);
+        return Ok(Some(super::PreparedLifecycleDraft {
+            draft,
+            changed_document_ids,
+        }));
+    }
+
     let hardware = before
         .hardware
         .as_ref()
@@ -1249,7 +1385,7 @@ pub(super) fn prepare_edit_transition(
         return Err("The exact lifecycle pair is ambiguous".into());
     }
     let Some(halves) = &pair.halves else {
-        return Ok(Vec::new());
+        return Ok(None);
     };
     let matrix_pairs: Vec<_> = halves
         .correspondences
@@ -1281,20 +1417,166 @@ pub(super) fn prepare_edit_transition(
             draft = output.draft.clone();
             outputs.push(output);
         }
-        return Ok(outputs);
+        let mut draft = post_source.clone();
+        let mut changed_document_ids = Vec::new();
+        for output in outputs {
+            let removed = removed_part_ids(before, &output.draft);
+            let prepared = prepare_lifecycle_output(
+                before,
+                output,
+                &[ConstraintLifecycleEffect::RemoveVisibleParts { part_ids: removed }],
+            )?;
+            changed_document_ids.extend(prepared.changed_document_ids);
+            draft = prepared.draft;
+        }
+        return Ok(Some(super::PreparedLifecycleDraft {
+            draft,
+            changed_document_ids,
+        }));
     }
-    let Some((source_matrix_id, mirror_matrix_id)) = matrix_pairs.into_iter().next() else {
-        return Ok(Vec::new());
-    };
-    let context = lifecycle_context(
+    let matrix_pair = matrix_pairs
+        .into_iter()
+        .next()
+        .map(|(source_id, mirror_id)| super::MatrixPairContext {
+            source_id,
+            mirror_id,
+        });
+    let context = lifecycle_context(before, pair_id, matrix_pair)?;
+    let output = prepare_lifecycle_transition(before, post_source, &context)?;
+    let removed = removed_part_ids(before, &output.draft);
+    prepare_lifecycle_output(
         before,
-        pair_id,
-        Some(super::MatrixPairContext {
-            source_id: source_matrix_id,
-            mirror_id: mirror_matrix_id,
-        }),
-    )?;
-    prepare_lifecycle_transition(before, post_source, &context).map(|output| vec![output])
+        output,
+        &[ConstraintLifecycleEffect::RemoveVisibleParts { part_ids: removed }],
+    )
+    .map(Some)
+}
+
+fn matrix_pair_for_association(
+    document: &crate::model::ProjectDoc,
+    halves: &crate::model::MirroredHalves,
+    kind: MirroredItemKind,
+    source_id: &str,
+    mirror_id: &str,
+) -> Result<Option<super::MatrixPairContext>, String> {
+    if kind == MirroredItemKind::Matrix {
+        return Ok(Some(super::MatrixPairContext {
+            source_id: source_id.to_owned(),
+            mirror_id: mirror_id.to_owned(),
+        }));
+    }
+    if kind != MirroredItemKind::Part {
+        return Ok(None);
+    }
+    let mut matching = halves
+        .correspondences
+        .iter()
+        .filter(|matrix| matrix.kind == MirroredItemKind::Matrix)
+        .filter_map(|matrix| {
+            let source_suffix = source_id.strip_prefix(&format!("matrix/{}/", matrix.source_id))?;
+            let mirror_suffix = mirror_id.strip_prefix(&format!("matrix/{}/", matrix.mirror_id))?;
+            (source_suffix == mirror_suffix).then(|| super::MatrixPairContext {
+                source_id: matrix.source_id.clone(),
+                mirror_id: matrix.mirror_id.clone(),
+            })
+        });
+    let first = matching.next();
+    if matching.next().is_some() {
+        return Err("The exact lifecycle Matrix association is ambiguous".into());
+    }
+    if first.is_none()
+        && document.matrices.iter().any(|matrix| {
+            matrix
+                .part_ids
+                .iter()
+                .any(|part_id| part_id == source_id || part_id == mirror_id)
+        })
+    {
+        return Err("A matrix-owned Part has no exact Matrix correspondence".into());
+    }
+    Ok(first)
+}
+
+fn removed_part_ids(
+    before: &crate::model::ProjectDoc,
+    after: &crate::model::ProjectDoc,
+) -> BTreeSet<String> {
+    let retained: BTreeSet<_> = after.parts.iter().map(|part| part.id.as_str()).collect();
+    before
+        .parts
+        .iter()
+        .filter(|part| !retained.contains(part.id.as_str()))
+        .map(|part| part.id.clone())
+        .collect()
+}
+
+fn lifecycle_constraint_records(
+    document: &crate::model::ProjectDoc,
+) -> Result<Vec<FramedConstraint>, String> {
+    document
+        .constraints
+        .iter()
+        .map(|constraint| match constraint {
+            Constraint::Framed {
+                id,
+                source,
+                target,
+                relation,
+            } => Ok(FramedConstraint::Framed {
+                id: id.clone(),
+                source: source.clone(),
+                target: target.clone(),
+                relation: relation.clone(),
+            }),
+            _ => crate::constraints::compile_legacy(document, constraint),
+        })
+        .collect()
+}
+
+fn apply_constraint_lifecycle_delta(
+    document: &mut crate::model::ProjectDoc,
+    delta: ConstraintLifecycleDelta,
+) {
+    document
+        .constraints
+        .retain(|constraint| !delta.removals.iter().any(|id| constraint.id() == id));
+    for record in delta.upserts {
+        let FramedConstraint::Framed {
+            id,
+            source,
+            target,
+            relation,
+        } = record;
+        let constraint = Constraint::Framed {
+            id,
+            source,
+            target,
+            relation,
+        };
+        if let Some(existing) = document
+            .constraints
+            .iter_mut()
+            .find(|existing| existing.id() == constraint.id())
+        {
+            *existing = constraint;
+        } else {
+            document.constraints.push(constraint);
+        }
+    }
+}
+
+fn prepare_lifecycle_output(
+    before: &crate::model::ProjectDoc,
+    mut output: super::MembershipTransitionOutput,
+    effects: &[ConstraintLifecycleEffect],
+) -> Result<super::PreparedLifecycleDraft, String> {
+    let records = lifecycle_constraint_records(before)?;
+    let delta = prepare_constraint_lifecycle_delta(&records, effects)?;
+    apply_constraint_lifecycle_delta(&mut output.draft, delta);
+    Ok(super::PreparedLifecycleDraft {
+        draft: output.draft,
+        changed_document_ids: output.changed_document_ids,
+    })
 }
 
 fn lifecycle_context(

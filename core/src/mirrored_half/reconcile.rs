@@ -21,7 +21,7 @@ mod lifecycle;
 #[allow(dead_code)] // Ticket 111 activates this prepared transaction in production.
 mod prepare;
 #[allow(unused_imports)] // The crate-only seam is intentionally dormant until ticket 111.
-pub(crate) use prepare::prepare_transaction;
+pub(crate) use prepare::{prepare_open, prepare_transaction};
 mod outlines;
 mod settings;
 // Ticket 147: keycap settings and plain nets follow their source after creation.
@@ -53,7 +53,7 @@ enum IndependentPartTransition {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)] // Ticket 107 prepares hosted item operations before activation in 111.
 enum HostedTransition {
     AddModule {
@@ -71,11 +71,18 @@ enum HostedTransition {
         member_references: BTreeMap<String, String>,
         definition_ids: BTreeMap<String, String>,
         net_ids: BTreeMap<String, String>,
+        member_poses: BTreeMap<String, Pose2>,
     },
     RemoveCircuit {
         source_id: String,
         mirror_id: String,
     },
+}
+
+/// The narrow result consumed by the transaction coordinator after lifecycle validation.
+pub(super) struct PreparedLifecycleDraft {
+    pub(super) draft: ProjectDoc,
+    pub(super) changed_document_ids: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -250,6 +257,7 @@ struct HostedCircuitAddProvenance {
     member_references: BTreeMap<String, String>,
     definition_ids: BTreeMap<String, String>,
     net_ids: BTreeMap<String, String>,
+    member_poses: BTreeMap<String, Pose2>,
     first_output: ProjectDoc,
 }
 
@@ -2485,6 +2493,7 @@ fn reconcile(
             member_references,
             definition_ids,
             net_ids,
+            member_poses,
         } = transition
         else {
             continue;
@@ -2505,6 +2514,7 @@ fn reconcile(
                 || prior.member_references != *member_references
                 || prior.definition_ids != *definition_ids
                 || prior.net_ids != *net_ids
+                || prior.member_poses != *member_poses
             {
                 return Err(format!(
                     "The circuit addition {source_id:?} changed its selected maps after first output"
@@ -3335,6 +3345,7 @@ fn reconcile(
             member_references,
             definition_ids,
             net_ids,
+            member_poses,
         } = transition
         else {
             continue;
@@ -3347,6 +3358,7 @@ fn reconcile(
                 member_references: member_references.clone(),
                 definition_ids: definition_ids.clone(),
                 net_ids: net_ids.clone(),
+                member_poses: member_poses.clone(),
                 first_output: first_output.clone(),
             });
     }
@@ -6802,6 +6814,7 @@ mod tests {
                 ),
                 ("host-source-net".into(), "host-mirror-net".into()),
             ]),
+            member_poses: BTreeMap::new(),
         }];
         let pair_before = pair_state_bytes(&document);
 
@@ -6854,6 +6867,7 @@ mod tests {
                 ),
                 ("host-source-net".into(), "host-mirror-net".into()),
             ]),
+            member_poses: BTreeMap::new(),
         }];
         let stale_before = stale.clone();
         assert!(reconcile(&mut stale, "pair-source-mirror", &stale_projection).is_err());
@@ -6955,6 +6969,7 @@ mod tests {
                     ),
                     ("host-source-net".into(), "host-mirror-net".into()),
                 ]),
+                member_poses: BTreeMap::new(),
             }];
             (document, projection)
         }
@@ -8092,6 +8107,7 @@ mod tests {
                 ),
                 ("host-source-net".into(), "host-mirror-net".into()),
             ]),
+            member_poses: BTreeMap::new(),
         }];
         let pair_before_add = pair_state_bytes(&document);
 
@@ -8118,6 +8134,7 @@ mod tests {
                 ),
                 ("host-source-net".into(), "host-mirror-net".into()),
             ]),
+            member_poses: BTreeMap::new(),
         }];
         assert!(
             reconcile(&mut document, "pair-source-mirror", &projection).is_err(),
@@ -8149,6 +8166,7 @@ mod tests {
                 ),
                 ("host-source-net".into(), "host-mirror-net".into()),
             ]),
+            member_poses: BTreeMap::new(),
         }];
 
         reconcile(&mut document, "pair-source-mirror", &projection)

@@ -1,7 +1,8 @@
 //! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, EditOperation, OffsetAxes, Part, PartOutline, Position, ProjectDoc, Vec2,
+    Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation, OffsetAxes, Part,
+    PartOutline, Position, ProjectDoc, Vec2,
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
@@ -51,12 +52,14 @@ fn position_ineligible_reason(
     if part.locked == Some(true) {
         return Some("This part is locked.");
     }
-    let drives = document.constraints.iter().any(|constraint| {
-        constraint.target() == part_id
-            && board_of(document, board_id)
-                .is_some_and(|board| board.part_ids.iter().any(|id| id == constraint.source()))
-    });
-    drives.then_some("This part is driven by a relationship.")
+    if board_of(document, board_id).is_none() {
+        return Some("The board is unavailable.");
+    }
+    match document.constraint_driving_part(part_id) {
+        Ok(Some(_)) => Some("This part is driven by a relationship."),
+        Ok(None) => None,
+        Err(_) => Some("The saved placement relationship could not be verified."),
+    }
 }
 
 /// Resolve a position edit: set one axis of the anchor part and translate the rest of
@@ -235,48 +238,139 @@ pub fn constraint_resolver(
             let Some(board) = board_of(document, &board_id) else {
                 return Resolution::Retire("The board no longer exists.".into());
             };
+            let existing = match document.constraint_driving_part(&part_id) {
+                Ok(existing) => existing,
+                Err(_) => {
+                    return Resolution::Retire(
+                        "The saved placement relationship could not be verified.".into(),
+                    );
+                }
+            };
+            let source_is_existing_endpoint = existing.is_some_and(|constraint| match constraint {
+                Constraint::Framed { source, .. } => match source {
+                    ConstraintEndpoint::Part { part_id } => part_id == &source_part_id,
+                    ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => {
+                        mirror_part_id == &source_part_id
+                    }
+                },
+                _ => false,
+            });
             if source_part_id == part_id
-                || !board.part_ids.iter().any(|id| id == &source_part_id)
+                || (!source_is_existing_endpoint
+                    && !board.part_ids.iter().any(|id| id == &source_part_id))
                 || part_of(document, &source_part_id).is_none()
             {
                 return Resolution::Retire(
                     "The constraint source is no longer available on this board.".into(),
                 );
             }
-            let existing_id = document
-                .constraints
-                .iter()
-                .find(|constraint| {
-                    constraint.target() == part_id
-                        && board.part_ids.iter().any(|id| id == constraint.source())
-                })
-                .map(|constraint| constraint.id().to_owned());
-            let constraint_id =
-                existing_id.unwrap_or_else(|| format!("layout-component-constraint-{id_seed}"));
-            let constraint = match &values {
-                LayoutConstraintValues::Offset { offset, rotation } => Constraint::offset(
-                    OffsetAxes::Board,
-                    constraint_id,
-                    source_part_id.clone(),
-                    part_id.clone(),
-                    *offset,
-                    *rotation,
-                ),
-                LayoutConstraintValues::PartOffset { offset, rotation } => Constraint::offset(
-                    OffsetAxes::Part,
-                    constraint_id,
-                    source_part_id.clone(),
-                    part_id.clone(),
-                    *offset,
-                    *rotation,
-                ),
-                LayoutConstraintValues::Mirror { axis, coordinate } => Constraint::Mirror {
-                    id: constraint_id,
-                    source_part_id: source_part_id.clone(),
-                    target_part_id: part_id.clone(),
-                    axis: axis.clone(),
-                    coordinate: *coordinate,
+            let constraint_id = existing
+                .map(|constraint| constraint.id().to_owned())
+                .unwrap_or_else(|| format!("layout-component-constraint-{id_seed}"));
+            let framed_endpoints = existing.and_then(|constraint| match constraint {
+                Constraint::Framed { source, target, .. } => Some((source.clone(), target.clone())),
+                _ => None,
+            });
+            let typed_relation = match &values {
+                LayoutConstraintValues::Framed { relation } => relation.clone(),
+                LayoutConstraintValues::Offset { offset, rotation } => ConstraintRelation::Offset {
+                    offset: *offset,
+                    rotation: *rotation,
                 },
+                LayoutConstraintValues::PartOffset { offset, rotation } => {
+                    ConstraintRelation::PartOffset {
+                        offset: *offset,
+                        rotation: *rotation,
+                    }
+                }
+                LayoutConstraintValues::Mirror { axis, coordinate } => match axis {
+                    boardstudio_core::model::MirrorAxis::Vertical => {
+                        ConstraintRelation::MirrorLine {
+                            at: Vec2 {
+                                x: *coordinate,
+                                y: 0.0,
+                            },
+                            angle: 90.0,
+                        }
+                    }
+                    boardstudio_core::model::MirrorAxis::Horizontal => {
+                        ConstraintRelation::MirrorLine {
+                            at: Vec2 {
+                                x: 0.0,
+                                y: *coordinate,
+                            },
+                            angle: 0.0,
+                        }
+                    }
+                },
+            };
+            let constraint = if matches!(&values, LayoutConstraintValues::Framed { .. })
+                || framed_endpoints.is_some()
+            {
+                let (source, target) = framed_endpoints
+                    .map(|(source, target)| {
+                        let source_visible_id = match &source {
+                            ConstraintEndpoint::Part { part_id } => part_id.as_str(),
+                            ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => {
+                                mirror_part_id.as_str()
+                            }
+                        };
+                        let source = if source_visible_id == source_part_id {
+                            source
+                        } else {
+                            ConstraintEndpoint::Part {
+                                part_id: source_part_id.clone(),
+                            }
+                        };
+                        (source, target)
+                    })
+                    .unwrap_or_else(|| {
+                        (
+                            ConstraintEndpoint::Part {
+                                part_id: source_part_id.clone(),
+                            },
+                            ConstraintEndpoint::Part {
+                                part_id: part_id.clone(),
+                            },
+                        )
+                    });
+                Constraint::Framed {
+                    id: constraint_id,
+                    source,
+                    target,
+                    relation: typed_relation,
+                }
+            } else {
+                match &values {
+                    LayoutConstraintValues::Offset { offset, rotation } => Constraint::offset(
+                        OffsetAxes::Board,
+                        constraint_id,
+                        source_part_id.clone(),
+                        part_id.clone(),
+                        *offset,
+                        *rotation,
+                    ),
+                    LayoutConstraintValues::PartOffset { offset, rotation } => Constraint::offset(
+                        OffsetAxes::Part,
+                        constraint_id,
+                        source_part_id.clone(),
+                        part_id.clone(),
+                        *offset,
+                        *rotation,
+                    ),
+                    LayoutConstraintValues::Mirror { axis, coordinate } => Constraint::Mirror {
+                        id: constraint_id,
+                        source_part_id: source_part_id.clone(),
+                        target_part_id: part_id.clone(),
+                        axis: axis.clone(),
+                        coordinate: *coordinate,
+                    },
+                    LayoutConstraintValues::Framed { .. } => {
+                        return Resolution::Retire(
+                            "The typed relationship could not be created.".into(),
+                        );
+                    }
+                }
             };
             if document.constraints.contains(&constraint) {
                 return Resolution::Unchanged;
@@ -301,11 +395,59 @@ pub fn offset_axes_resolver(
         "layout-inspector-offset-axes",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            let Some(constraint) = document.constraints.iter().find(|constraint| {
-                constraint.id() == constraint_id && constraint.target() == part_id
-            }) else {
-                return Resolution::Retire("The constraint no longer drives this part.".into());
+            let constraint = match document.constraint_driving_part(&part_id) {
+                Ok(Some(constraint)) if constraint.id() == constraint_id => constraint,
+                Ok(_) => {
+                    return Resolution::Retire("The constraint no longer drives this part.".into());
+                }
+                Err(_) => {
+                    return Resolution::Retire(
+                        "The saved placement relationship could not be verified.".into(),
+                    );
+                }
             };
+            if let Constraint::Framed {
+                id,
+                source,
+                target,
+                relation,
+            } = constraint
+            {
+                let (offset, rotation) = match relation {
+                    ConstraintRelation::Offset { offset, rotation } if to == OffsetAxes::Board => {
+                        (*offset, *rotation)
+                    }
+                    ConstraintRelation::Offset { offset, rotation } => (*offset, *rotation),
+                    ConstraintRelation::PartOffset { offset, rotation }
+                        if to == OffsetAxes::Part =>
+                    {
+                        (*offset, *rotation)
+                    }
+                    ConstraintRelation::PartOffset { offset, rotation } => (*offset, *rotation),
+                    ConstraintRelation::MirrorLine { .. } => {
+                        return Resolution::Retire("A mirror line has no offset axes.".into());
+                    }
+                };
+                let relation = match to {
+                    OffsetAxes::Board => ConstraintRelation::Offset { offset, rotation },
+                    OffsetAxes::Part => ConstraintRelation::PartOffset { offset, rotation },
+                };
+                let replacement = Constraint::Framed {
+                    id: id.clone(),
+                    source: source.clone(),
+                    target: target.clone(),
+                    relation,
+                };
+                if replacement == *constraint {
+                    return Resolution::Unchanged;
+                }
+                return commit(
+                    EditOperation::SetConstraint {
+                        constraint: replacement,
+                    },
+                    vec![constraint_id.clone(), part_id.clone()],
+                );
+            }
             match constraint.offset_axes() {
                 Some(axes) if axes == to => return Resolution::Unchanged,
                 Some(_) => {}
@@ -333,10 +475,14 @@ pub fn remove_constraint_resolver(part_id: String, constraint_id: String) -> Edi
             if part_of(document, &part_id).is_none() {
                 return Resolution::Retire("The selected part no longer exists.".into());
             }
-            if !document.constraints.iter().any(|constraint| {
-                constraint.id() == constraint_id && constraint.target() == part_id
-            }) {
-                return Resolution::Retire("The relationship no longer exists.".into());
+            match document.constraint_driving_part(&part_id) {
+                Ok(Some(constraint)) if constraint.id() == constraint_id => {}
+                Ok(_) => return Resolution::Retire("The relationship no longer exists.".into()),
+                Err(_) => {
+                    return Resolution::Retire(
+                        "The saved placement relationship could not be verified.".into(),
+                    );
+                }
             }
             commit(
                 EditOperation::RemoveConstraint {

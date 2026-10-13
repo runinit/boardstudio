@@ -372,7 +372,7 @@ mod tests {
     use serde_json::json;
 
     fn document(hashes: &[String]) -> String {
-        json!({"format":"boardstudio/v2","formatVersion":5,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
+        json!({"format":"boardstudio/v2","formatVersion":6,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
     }
 
     fn pack_project(json: String, files: &[(String, Vec<u8>)], limits: Limits) -> ArchiveResult {
@@ -410,7 +410,7 @@ mod tests {
             panic!("expected project")
         };
         let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(project["formatVersion"], 5);
+        assert_eq!(project["formatVersion"], 6);
         assert_eq!(
             project["definitions"][0]["id"],
             "generator:ceoloide/switch_mx"
@@ -459,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn version_5_mirrored_halves_cross_the_archive_boundary_unchanged() {
+    fn version_5_mirrored_halves_migrate_without_rewriting_their_payload() {
         let json = json!({
             "format": "boardstudio/v2", "formatVersion": 5, "parts": [], "boards": [], "assets": [],
             "hardware": { "pairs": [{
@@ -481,10 +481,43 @@ mod tests {
         let ArchiveReply::Unpacked { project_json, .. } = reply else {
             panic!("expected project")
         };
+        let mut expected: serde_json::Value = serde_json::from_str(&json).unwrap();
+        expected["formatVersion"] = json!(6);
         assert_eq!(
-            project_json, json,
-            "a version 5 project keeps its mirrored halves"
+            serde_json::from_str::<serde_json::Value>(&project_json).unwrap(),
+            expected
         );
+    }
+
+    #[test]
+    fn framed_endpoint_relations_cross_the_archive_boundary_without_reinterpretation() {
+        let json = json!({
+            "format": "boardstudio/v2", "formatVersion": 6,
+            "constraints": [
+                {"kind":"framed", "id":"c/offset",
+                 "source":{"kind":"part", "partId":"left/source"},
+                 "target":{"kind":"linked-mirror", "pairId":"pair", "sourcePartId":"left/target", "mirrorPartId":"right/target"},
+                 "relation":{"kind":"offset", "offset":{"x":5.0,"y":-2.0},"rotation":15.0}},
+                {"kind":"framed", "id":"c/part-offset",
+                 "source":{"kind":"linked-mirror", "pairId":"pair", "sourcePartId":"left/source", "mirrorPartId":"right/source"},
+                 "target":{"kind":"part", "partId":"local/target"},
+                 "relation":{"kind":"part-offset", "offset":{"x":-3.0,"y":8.0},"rotation":-22.0}},
+                {"kind":"framed", "id":"c/mirror-line",
+                 "source":{"kind":"part", "partId":"local/source"},
+                 "target":{"kind":"part", "partId":"local/target-2"},
+                 "relation":{"kind":"mirror-line", "at":{"x":2.25,"y":-5.5},"angle":37.0}}
+            ],
+            "parts": [], "boards": [], "assets": []
+        })
+        .to_string();
+        let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
+
+        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
+
+        let ArchiveReply::Unpacked { project_json, .. } = reply else {
+            panic!("expected project")
+        };
+        assert_eq!(project_json, json);
     }
 
     #[test]

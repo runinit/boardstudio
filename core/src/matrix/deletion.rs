@@ -8,6 +8,29 @@ type PartChanges = BTreeMap<String, Option<String>>;
 fn remapped(id: &str, changes: &PartChanges) -> Option<String> {
     changes.get(id).cloned().unwrap_or_else(|| Some(id.into()))
 }
+fn remap_constraint_endpoint(
+    endpoint: &mut ConstraintEndpoint,
+    changes: &PartChanges,
+) -> Option<()> {
+    match endpoint {
+        ConstraintEndpoint::Part { part_id } => {
+            *part_id = remapped(part_id, changes)?;
+        }
+        ConstraintEndpoint::LinkedMirror {
+            source_part_id,
+            mirror_part_id,
+            ..
+        } => {
+            // Deletion follows the authored visible identity. A removed authority alone does
+            // not discard a record whose visible endpoint still exists.
+            *mirror_part_id = remapped(mirror_part_id, changes)?;
+            if let Some(next_source) = remapped(source_part_id, changes) {
+                *source_part_id = next_source;
+            }
+        }
+    }
+    Some(())
+}
 fn remap_ids(ids: &mut Vec<String>, changes: &PartChanges) {
     *ids = ids.iter().filter_map(|id| remapped(id, changes)).collect();
 }
@@ -126,32 +149,36 @@ fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) -> Vec<String> {
             }
         }
     }
-    doc.constraints.retain_mut(|constraint| {
-        let (source, target) = match constraint {
-            Constraint::Offset {
-                source_part_id,
-                target_part_id,
-                ..
-            }
-            | Constraint::PartOffset {
-                source_part_id,
-                target_part_id,
-                ..
-            }
-            | Constraint::Mirror {
-                source_part_id,
-                target_part_id,
-                ..
-            } => (source_part_id, target_part_id),
-        };
-        let (Some(next_source), Some(next_target)) =
-            (remapped(source, changes), remapped(target, changes))
-        else {
-            return false;
-        };
-        *source = next_source;
-        *target = next_target;
-        true
+    doc.constraints.retain_mut(|constraint| match constraint {
+        Constraint::Offset {
+            source_part_id,
+            target_part_id,
+            ..
+        }
+        | Constraint::PartOffset {
+            source_part_id,
+            target_part_id,
+            ..
+        }
+        | Constraint::Mirror {
+            source_part_id,
+            target_part_id,
+            ..
+        } => {
+            let (Some(next_source), Some(next_target)) = (
+                remapped(source_part_id, changes),
+                remapped(target_part_id, changes),
+            ) else {
+                return false;
+            };
+            *source_part_id = next_source;
+            *target_part_id = next_target;
+            true
+        }
+        Constraint::Framed { source, target, .. } => {
+            remap_constraint_endpoint(source, changes).is_some()
+                && remap_constraint_endpoint(target, changes).is_some()
+        }
     });
     for net in &mut doc.nets {
         net.pins.retain_mut(|pin| {
@@ -515,4 +542,55 @@ pub(crate) fn edit_selected_cells(
         }
     }
     Ok(changed)
+}
+
+#[cfg(test)]
+mod framed_constraint_deletion_tests {
+    use super::*;
+
+    fn part(id: &str) -> Part {
+        Part {
+            id: id.into(),
+            definition_id: "key".into(),
+            reference: id.into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            keycap: None,
+            outline: None,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        }
+    }
+
+    #[test]
+    fn framed_constraint_survives_authority_removal_until_its_visible_endpoint_is_removed() {
+        let mut doc = ProjectDoc::empty("doc", "Doc");
+        doc.parts = vec![part("source"), part("mirror"), part("local")];
+        doc.constraints.push(Constraint::Framed {
+            id: "c".into(),
+            source: ConstraintEndpoint::LinkedMirror {
+                pair_id: "pair".into(),
+                source_part_id: "source".into(),
+                mirror_part_id: "mirror".into(),
+            },
+            target: ConstraintEndpoint::Part {
+                part_id: "local".into(),
+            },
+            relation: ConstraintRelation::Offset {
+                offset: Vec2 { x: 1.0, y: 2.0 },
+                rotation: 0.0,
+            },
+        });
+
+        remap_parts(&mut doc, &BTreeMap::from([("source".into(), None)]));
+        assert_eq!(doc.constraints.len(), 1);
+        assert_eq!(doc.constraints[0].source(), "mirror");
+
+        remap_parts(&mut doc, &BTreeMap::from([("mirror".into(), None)]));
+        assert!(doc.constraints.is_empty());
+    }
 }

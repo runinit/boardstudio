@@ -734,6 +734,34 @@ pub struct Script {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ConstraintEndpoint {
+    Part {
+        #[serde(rename = "partId")]
+        part_id: String,
+    },
+    LinkedMirror {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        #[serde(rename = "sourcePartId")]
+        source_part_id: String,
+        #[serde(rename = "mirrorPartId")]
+        mirror_part_id: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ConstraintRelation {
+    /// `offset` is a vector along the board's axes, added to the source position.
+    Offset { offset: Vec2, rotation: f64 },
+    /// `offset` runs along the source's own axes (ADR-0011).
+    PartOffset { offset: Vec2, rotation: f64 },
+    /// Reflection across a line with a point on it and its tangent direction in degrees.
+    MirrorLine { at: Vec2, angle: f64 },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Constraint {
     Offset {
         id: String,
@@ -763,6 +791,12 @@ pub enum Constraint {
         target_part_id: String,
         axis: MirrorAxis,
         coordinate: f64,
+    },
+    Framed {
+        id: String,
+        source: ConstraintEndpoint,
+        target: ConstraintEndpoint,
+        relation: ConstraintRelation,
     },
 }
 impl Constraint {
@@ -795,7 +829,10 @@ impl Constraint {
     }
     pub fn id(&self) -> &str {
         match self {
-            Self::Offset { id, .. } | Self::PartOffset { id, .. } | Self::Mirror { id, .. } => id,
+            Self::Offset { id, .. }
+            | Self::PartOffset { id, .. }
+            | Self::Mirror { id, .. }
+            | Self::Framed { id, .. } => id,
         }
     }
     pub fn source(&self) -> &str {
@@ -803,6 +840,10 @@ impl Constraint {
             Self::Offset { source_part_id, .. }
             | Self::PartOffset { source_part_id, .. }
             | Self::Mirror { source_part_id, .. } => source_part_id,
+            Self::Framed { source, .. } => match source {
+                ConstraintEndpoint::Part { part_id } => part_id,
+                ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => mirror_part_id,
+            },
         }
     }
     pub fn target(&self) -> &str {
@@ -810,18 +851,41 @@ impl Constraint {
             Self::Offset { target_part_id, .. }
             | Self::PartOffset { target_part_id, .. }
             | Self::Mirror { target_part_id, .. } => target_part_id,
+            Self::Framed { target, .. } => match target {
+                ConstraintEndpoint::Part { part_id } => part_id,
+                ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => mirror_part_id,
+            },
         }
     }
     /// Whether this reflects across a coordinate rather than offsetting.
     pub fn is_mirror(&self) -> bool {
-        matches!(self, Self::Mirror { .. })
+        matches!(
+            self,
+            Self::Mirror { .. }
+                | Self::Framed {
+                    relation: ConstraintRelation::MirrorLine { .. },
+                    ..
+                }
+        )
     }
     /// The axes an offset constraint runs along, or `None` for a mirror.
     pub fn offset_axes(&self) -> Option<OffsetAxes> {
         match self {
             Self::Offset { .. } => Some(OffsetAxes::Board),
             Self::PartOffset { .. } => Some(OffsetAxes::Part),
-            Self::Mirror { .. } => None,
+            Self::Framed {
+                relation: ConstraintRelation::Offset { .. },
+                ..
+            } => Some(OffsetAxes::Board),
+            Self::Framed {
+                relation: ConstraintRelation::PartOffset { .. },
+                ..
+            } => Some(OffsetAxes::Part),
+            Self::Mirror { .. }
+            | Self::Framed {
+                relation: ConstraintRelation::MirrorLine { .. },
+                ..
+            } => None,
         }
     }
     /// The offset and turn an offset constraint stores, whichever axes they run along, or
@@ -833,8 +897,20 @@ impl Constraint {
             }
             | Self::PartOffset {
                 offset, rotation, ..
+            }
+            | Self::Framed {
+                relation: ConstraintRelation::Offset { offset, rotation },
+                ..
+            }
+            | Self::Framed {
+                relation: ConstraintRelation::PartOffset { offset, rotation },
+                ..
             } => Some((*offset, *rotation)),
-            Self::Mirror { .. } => None,
+            Self::Mirror { .. }
+            | Self::Framed {
+                relation: ConstraintRelation::MirrorLine { .. },
+                ..
+            } => None,
         }
     }
     /// Whether every stored number is finite.
@@ -847,6 +923,20 @@ impl Constraint {
                 offset, rotation, ..
             } => offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite(),
             Self::Mirror { coordinate, .. } => coordinate.is_finite(),
+            Self::Framed { relation, .. } => relation.is_finite(),
+        }
+    }
+}
+
+impl ConstraintRelation {
+    fn is_finite(&self) -> bool {
+        match self {
+            Self::Offset { offset, rotation } | Self::PartOffset { offset, rotation } => {
+                offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite()
+            }
+            Self::MirrorLine { at, angle } => {
+                at.x.is_finite() && at.y.is_finite() && angle.is_finite()
+            }
         }
     }
 }
@@ -956,6 +1046,14 @@ fn legacy_format_version() -> u32 {
 }
 
 impl ProjectDoc {
+    /// Finds the constraint that drives this part through its effective mirror authority.
+    ///
+    /// A part and its linked mirror resolve to the same driving constraint. Multiple records
+    /// on that authority return a located error instead of selecting one.
+    pub fn constraint_driving_part(&self, part_id: &str) -> Result<Option<&Constraint>, String> {
+        crate::constraints::driving_constraint(self, part_id)
+    }
+
     pub fn empty(id: &str, name: &str) -> Self {
         Self {
             module_definitions: vec![],
@@ -1306,6 +1404,15 @@ pub enum MirroredIdRule {
 pub enum MirroredExceptionState {
     Local,
     Omitted,
+}
+
+/// Requested exception state for a half. `Linked` removes any stored exception overlay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HalfExceptionState {
+    Local,
+    Omitted,
+    Linked,
 }
 
 /// The rigid map from the first member's Case frame to the second's.
@@ -1694,6 +1801,20 @@ pub enum EditOperation {
             skip_serializing_if = "Option::is_none"
         )]
         mounting_hole: Option<Box<PartDefinition>>,
+    },
+    SetHalfException {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        // EditOperation is internally tagged by `kind`, so the item category uses itemKind.
+        #[serde(rename = "itemKind")]
+        kind: MirroredItemKind,
+        #[serde(rename = "mirrorId")]
+        mirror_id: String,
+        state: HalfExceptionState,
+    },
+    UnlinkHalves {
+        #[serde(rename = "pairId")]
+        pair_id: String,
     },
     SetLayout {
         layout: Layout,

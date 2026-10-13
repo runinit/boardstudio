@@ -165,6 +165,7 @@ fn ConstraintRow(
         ConstraintKind::Offset => "Offset",
         ConstraintKind::PartOffset => "Part offset",
         ConstraintKind::Mirror => "Mirror",
+        ConstraintKind::MirrorLine => "Mirror line",
     };
     rsx! {
         li { class: "m1-relations-row", "data-relation-constraint": "{constraint.id}",

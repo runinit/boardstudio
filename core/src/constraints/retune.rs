@@ -21,7 +21,6 @@ pub(super) struct Retuned {
 /// `requested_heading` is the full requested visible heading when the operation supplies one;
 /// `None` leaves the stored turn untouched, bit for bit. A reflecting relation has nothing to
 /// retune and refuses, as a dragged mirror target already does.
-#[cfg_attr(not(test), expect(dead_code))] // The operation seam that calls it lands with 110/115.
 pub(super) fn retune_target(
     relation: &ConstraintRelation,
     source_authority: Pose2,

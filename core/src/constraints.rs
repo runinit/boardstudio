@@ -1,8 +1,10 @@
 use crate::matrix::layout::AssemblyPlacement;
 use crate::matrix::splay::rotate;
+#[cfg(test)]
+use crate::model::MirrorAxis;
 use crate::model::{
-    Constraint, EditOperation, MatrixCompanionMode, MirrorAxis, OffsetAxes, Part, Pose2, Position,
-    ProjectDoc, Vec2,
+    Constraint, EditOperation, MatrixCompanionMode, OffsetAxes, Part, Pose2, Position, ProjectDoc,
+    Vec2,
 };
 use endpoints::{EndpointFrame, Side};
 use std::collections::{BTreeMap, BTreeSet};
@@ -106,26 +108,35 @@ fn multiple_constraints(authority: &str) -> String {
 /// a part and its live mirror have one authority, so one driving record. Pure: nothing is
 /// solved. More than one record on an authority is a located error rather than a pick.
 ///
-/// This is the activation-time contract: it already counts two stored records on one authority
-/// (one naming the source, one naming its visible mirror) as a conflict, which the production
-/// solver does not refuse until format 6 activates canonical conflicts (design, "Format
-/// version and migration"). `a_stored_pair_on_one_authority_is_a_lookup_error_the_solver_accepts`
-/// pins the difference so a caller does not read the lookup as what the solver enforces.
-#[cfg_attr(not(test), expect(dead_code))] // The operation seam that calls it lands with 114/115.
+/// Stored records keep their visible endpoint IDs, while the ownership compiler resolves their
+/// current views and the solver orders them by authoritative target. Multiple records on one
+/// authority are a located error rather than a pick.
 pub(crate) fn driving_constraint<'a>(
     doc: &'a ProjectDoc,
     part_id: &str,
 ) -> Result<Option<&'a Constraint>, String> {
     let authority = endpoints::authoritative_part(doc, part_id).to_owned();
-    let mut driving = doc
-        .constraints
-        .iter()
-        .filter(|constraint| endpoints::authoritative_part(doc, constraint.target()) == authority);
-    let first = driving.next();
-    if driving.next().is_some() {
-        return Err(multiple_constraints(&authority));
+    let mut driving = None;
+    for constraint in &doc.constraints {
+        let owns_authority = match constraint {
+            Constraint::Framed {
+                id, source, target, ..
+            } => {
+                // Stored framed endpoints are authored bindings. Validate them against the live
+                // correspondence instead of silently inferring a replacement from visible IDs.
+                endpoints::resolve_endpoint(doc, id, Side::Source, source)?;
+                let resolved_target = endpoints::resolve_endpoint(doc, id, Side::Target, target)?;
+                resolved_target.authoritative_id == authority
+            }
+            _ => endpoints::authoritative_part(doc, constraint.target()) == authority,
+        };
+        if owns_authority {
+            if driving.replace(constraint).is_some() {
+                return Err(multiple_constraints(&authority));
+            }
+        }
     }
-    Ok(first)
+    Ok(driving)
 }
 
 pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
@@ -152,9 +163,7 @@ fn resolve_with_positions(
 
 /// A record the solver evaluates for one authoritative target part.
 enum Driver<'a> {
-    /// A stored Offset, PartOffset or Mirror, evaluated with its exact legacy arithmetic.
-    Legacy(&'a Constraint),
-    /// A framed relation bound to the live document.
+    /// A stored or prepared relation bound to the live document.
     Framed(Framed<'a>),
 }
 
@@ -171,7 +180,6 @@ struct Framed<'a> {
 impl Driver<'_> {
     fn source_authority(&self) -> &str {
         match self {
-            Self::Legacy(constraint) => constraint.source(),
             Self::Framed(framed) => &framed.source_authority,
         }
     }
@@ -185,7 +193,6 @@ impl Driver<'_> {
         current: Pose2,
     ) -> Result<Pose2, String> {
         match self {
-            Self::Legacy(constraint) => Ok(constraint_pose(constraint, source)),
             Self::Framed(framed) => endpoints::solve_target(
                 source,
                 framed.source_frame.with_key(owners[0]),
@@ -217,9 +224,7 @@ fn claim_target<'a>(
     Ok(())
 }
 
-/// Resolves the document's stored constraints together with `framed` relations in one
-/// source-first graph. Framed relations are private to this module until the persisted arm is
-/// activated; a document never supplies them, so production resolution is unchanged.
+/// Resolves stored and prepared relations in one source-first graph.
 pub(crate) fn resolve_prepared(
     doc: &mut ProjectDoc,
     positions: &[Position],
@@ -232,27 +237,25 @@ pub(crate) fn resolve_prepared(
         .collect();
     let mut by_target: BTreeMap<String, Driver> = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    for constraint in &doc.constraints {
-        claim_id(&mut ids, constraint.id())?;
-        if !parts.contains_key(constraint.source()) || !parts.contains_key(constraint.target()) {
-            return Err(format!(
-                "Constraint {} references a missing part",
-                constraint.id()
-            ));
-        }
-        claim_target(
-            &mut by_target,
-            constraint.target(),
-            Driver::Legacy(constraint),
-        )?;
-        if !constraint.is_finite() {
-            return Err(format!(
-                "Constraint {} has a non-finite value",
-                constraint.id()
-            ));
-        }
-    }
-    for record in framed {
+    let stored: Vec<_> = doc
+        .constraints
+        .iter()
+        .map(|constraint| match constraint {
+            Constraint::Framed {
+                id,
+                source,
+                target,
+                relation,
+            } => Ok(FramedConstraint::Framed {
+                id: id.clone(),
+                source: source.clone(),
+                target: target.clone(),
+                relation: relation.clone(),
+            }),
+            _ => endpoints::compile_legacy(doc, constraint),
+        })
+        .collect::<Result<_, _>>()?;
+    for record in stored.iter().chain(framed) {
         let FramedConstraint::Framed {
             id,
             source,
@@ -265,16 +268,7 @@ pub(crate) fn resolve_prepared(
         relation
             .validate()
             .map_err(|_| format!("Constraint {id} has a non-finite value"))?;
-        // A stored record that names the visible mirror of this authority drives it too.
-        let authority = &target.authoritative_id;
-        if doc.constraints.iter().any(|stored| {
-            stored.target() != authority
-                && endpoints::authoritative_part(doc, stored.target()) == authority
-        }) {
-            return Err(multiple_constraints(authority));
-        }
-        // Authorities are what the graph orders: two visible targets of one authority, or a
-        // visible source that is its own target's authority, are one part.
+        // Legacy and framed records share the same ownership compiler and authority graph.
         let driver = Driver::Framed(Framed {
             id,
             source_authority: source.authoritative_id,
@@ -324,6 +318,19 @@ pub(crate) fn resolve_prepared(
     Ok(changed)
 }
 
+fn follow_pose(source: Pose2, local: Pose2) -> Pose2 {
+    let (sin, cos) = source.rotation.to_radians().sin_cos();
+    Pose2 {
+        at: Vec2 {
+            x: source.at.x + local.at.x * cos - local.at.y * sin,
+            y: source.at.y + local.at.x * sin + local.at.y * cos,
+        },
+        rotation: source.rotation + local.rotation,
+    }
+}
+
+/// The pre-Framed arithmetic retained as the exact oracle for stored legacy documents.
+#[cfg(test)]
 fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
     match constraint {
         Constraint::Offset {
@@ -337,13 +344,13 @@ fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
         },
         Constraint::PartOffset {
             offset, rotation, ..
-        } => {
-            let local = Pose2 {
+        } => follow_pose(
+            source,
+            Pose2 {
                 at: *offset,
                 rotation: *rotation,
-            };
-            follow_pose(source, local)
-        }
+            },
+        ),
         Constraint::Mirror {
             axis, coordinate, ..
         } => Pose2 {
@@ -357,23 +364,12 @@ fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
                     y: 2.0 * coordinate - source.at.y,
                 },
             },
-            // Pose2 records direction only; reflection chirality is not represented.
             rotation: match axis {
                 MirrorAxis::Vertical => 180.0 - source.rotation,
                 MirrorAxis::Horizontal => -source.rotation,
             },
         },
-    }
-}
-
-fn follow_pose(source: Pose2, local: Pose2) -> Pose2 {
-    let (sin, cos) = source.rotation.to_radians().sin_cos();
-    Pose2 {
-        at: Vec2 {
-            x: source.at.x + local.at.x * cos - local.at.y * sin,
-            y: source.at.y + local.at.x * sin + local.at.y * cos,
-        },
-        rotation: source.rotation + local.rotation,
+        Constraint::Framed { .. } => unreachable!("the oracle only accepts legacy records"),
     }
 }
 
@@ -428,6 +424,15 @@ pub(crate) fn retune_offset(
             rotate(delta, -source.rotation, Vec2::default()),
         ),
         Constraint::Mirror { .. } => return Ok(Retune::Mirror),
+        Constraint::Framed { relation, .. } => match relation {
+            ConstraintRelation::Offset { offset, rotation } => (offset, rotation, delta),
+            ConstraintRelation::PartOffset { offset, rotation } => (
+                offset,
+                rotation,
+                rotate(delta, -source.rotation, Vec2::default()),
+            ),
+            ConstraintRelation::MirrorLine { .. } => return Ok(Retune::Mirror),
+        },
     };
     offset.x += step.x;
     offset.y += step.y;
@@ -463,23 +468,32 @@ pub(crate) fn convert_offset(
         ));
     };
     if from != to {
-        let (id, source_part_id, target_part_id) = (
-            current.id().to_owned(),
-            current.source().to_owned(),
-            current.target().to_owned(),
-        );
+        let id = current.id().to_owned();
         let into_axes = match to {
             OffsetAxes::Part => -source.rotation,
             OffsetAxes::Board => source.rotation,
         };
-        doc.constraints[index] = Constraint::offset(
-            to,
-            id,
-            source_part_id,
-            target_part_id,
-            rotate(offset, into_axes, Vec2::default()),
-            rotation,
-        );
+        let offset = rotate(offset, into_axes, Vec2::default());
+        let replacement = match current {
+            Constraint::Framed { source, target, .. } => Constraint::Framed {
+                id,
+                source: source.clone(),
+                target: target.clone(),
+                relation: match to {
+                    OffsetAxes::Board => ConstraintRelation::Offset { offset, rotation },
+                    OffsetAxes::Part => ConstraintRelation::PartOffset { offset, rotation },
+                },
+            },
+            _ => Constraint::offset(
+                to,
+                id,
+                current.source().to_owned(),
+                current.target().to_owned(),
+                offset,
+                rotation,
+            ),
+        };
+        doc.constraints[index] = replacement;
     }
     Ok(vec![constraint_id.into()])
 }
@@ -507,21 +521,20 @@ fn drive(
         visiting,
     )?;
     let mut owners = [None, None];
-    if let Driver::Framed(framed) = driver {
-        for (slot, owner) in [&framed.source_owner, &framed.target_owner]
-            .into_iter()
-            .enumerate()
-        {
-            if let Some(owner) = owner {
-                owners[slot] = Some(pose(
-                    owner,
-                    parts,
-                    constraints,
-                    assemblies,
-                    resolved,
-                    visiting,
-                )?);
-            }
+    let Driver::Framed(framed) = driver;
+    for (slot, owner) in [&framed.source_owner, &framed.target_owner]
+        .into_iter()
+        .enumerate()
+    {
+        if let Some(owner) = owner {
+            owners[slot] = Some(pose(
+                owner,
+                parts,
+                constraints,
+                assemblies,
+                resolved,
+                visiting,
+            )?);
         }
     }
     driver.evaluate(source, owners, current)

@@ -43,7 +43,7 @@ mod matrix_addition;
 mod reconcile;
 #[allow(unused_imports)]
 // Ticket 111 will route production edit preparation through this seam.
-pub(crate) use reconcile::prepare_transaction;
+pub(crate) use reconcile::{prepare_open, prepare_transaction};
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
