@@ -7,8 +7,188 @@
 mod tests;
 
 use super::{MembershipContext, TransitionState};
+use crate::constraints::{ConstraintEndpoint, FramedConstraint};
 use crate::model::{MirroredExceptionState, MirroredItemKind};
 use std::collections::BTreeSet;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    not(test),
+    expect(dead_code) // Ticket 115 supplies effects from the validated prepared lifecycle transition.
+)]
+enum ConstraintLifecycleEffect {
+    MakeLocal {
+        pair_id: String,
+        source_part_id: String,
+        mirror_part_id: String,
+    },
+    RemoveVisibleParts {
+        part_ids: BTreeSet<String>,
+    },
+    Rejoin {
+        pair_id: String,
+        source_part_id: String,
+        mirror_part_id: String,
+    },
+    Unlink {
+        pair_id: String,
+    },
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct ConstraintLifecycleDelta {
+    upserts: Vec<FramedConstraint>,
+    removals: Vec<String>,
+}
+
+/// Prepares endpoint edits after the owning lifecycle kernel has validated the exact transition
+/// and removal closure. Records are compiled against the pre-transition document; removed IDs
+/// are visible Part IDs from that same validated closure, never canonical aliases.
+#[cfg_attr(
+    not(test),
+    expect(dead_code) // Ticket 115 composes these inert endpoint edits into the prepared transaction.
+)]
+fn prepare_constraint_lifecycle_delta(
+    records: &[FramedConstraint],
+    effects: &[ConstraintLifecycleEffect],
+) -> Result<ConstraintLifecycleDelta, String> {
+    let mut seen_ids = BTreeSet::new();
+    let mut upserts = std::collections::BTreeMap::new();
+    let mut removals = BTreeSet::new();
+
+    for record in records {
+        let FramedConstraint::Framed {
+            id,
+            source: original_source,
+            target: original_target,
+            relation,
+        } = record;
+        if !seen_ids.insert(id.as_str()) {
+            return Err(format!(
+                "Constraint {id} appears more than once in lifecycle preparation"
+            ));
+        }
+
+        let removed = effects.iter().any(|effect| {
+            let ConstraintLifecycleEffect::RemoveVisibleParts { part_ids } = effect else {
+                return false;
+            };
+            part_ids.contains(visible_part_id(original_source))
+                || part_ids.contains(visible_part_id(original_target))
+        });
+        if removed {
+            removals.insert(id.clone());
+            continue;
+        }
+
+        let mut source = original_source.clone();
+        let mut target = original_target.clone();
+        let mut retire_on_rejoin = false;
+        for effect in effects {
+            match effect {
+                ConstraintLifecycleEffect::MakeLocal {
+                    pair_id,
+                    source_part_id,
+                    mirror_part_id,
+                } => {
+                    localize_endpoint(&mut source, pair_id, source_part_id, mirror_part_id);
+                    localize_endpoint(&mut target, pair_id, source_part_id, mirror_part_id);
+                }
+                ConstraintLifecycleEffect::RemoveVisibleParts { .. } => {}
+                ConstraintLifecycleEffect::Rejoin {
+                    pair_id,
+                    source_part_id,
+                    mirror_part_id,
+                } => {
+                    if matches!(&target, ConstraintEndpoint::Part { part_id } if part_id == mirror_part_id)
+                    {
+                        retire_on_rejoin = true;
+                        break;
+                    }
+                    if matches!(&source, ConstraintEndpoint::Part { part_id } if part_id == mirror_part_id)
+                    {
+                        source = linked_endpoint(pair_id, source_part_id, mirror_part_id);
+                    }
+                }
+                ConstraintLifecycleEffect::Unlink { pair_id } => {
+                    unlink_endpoint(&mut source, pair_id);
+                    unlink_endpoint(&mut target, pair_id);
+                }
+            }
+        }
+        if retire_on_rejoin {
+            removals.insert(id.clone());
+        } else if source != *original_source || target != *original_target {
+            upserts.insert(
+                id.clone(),
+                FramedConstraint::Framed {
+                    id: id.clone(),
+                    source,
+                    target,
+                    relation: relation.clone(),
+                },
+            );
+        }
+    }
+
+    Ok(ConstraintLifecycleDelta {
+        upserts: upserts.into_values().collect(),
+        removals: removals.into_iter().collect(),
+    })
+}
+
+fn visible_part_id(endpoint: &ConstraintEndpoint) -> &str {
+    match endpoint {
+        ConstraintEndpoint::Part { part_id } => part_id,
+        ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => mirror_part_id,
+    }
+}
+
+fn localize_endpoint(
+    endpoint: &mut ConstraintEndpoint,
+    pair_id: &str,
+    source_part_id: &str,
+    mirror_part_id: &str,
+) {
+    if matches!(endpoint, ConstraintEndpoint::LinkedMirror {
+        pair_id: actual_pair_id,
+        source_part_id: actual_source_part_id,
+        mirror_part_id: actual_mirror_part_id,
+    } if actual_pair_id == pair_id
+        && actual_source_part_id == source_part_id
+        && actual_mirror_part_id == mirror_part_id)
+    {
+        *endpoint = ConstraintEndpoint::Part {
+            part_id: mirror_part_id.to_owned(),
+        };
+    }
+}
+
+fn linked_endpoint(
+    pair_id: &str,
+    source_part_id: &str,
+    mirror_part_id: &str,
+) -> ConstraintEndpoint {
+    ConstraintEndpoint::LinkedMirror {
+        pair_id: pair_id.to_owned(),
+        source_part_id: source_part_id.to_owned(),
+        mirror_part_id: mirror_part_id.to_owned(),
+    }
+}
+
+fn unlink_endpoint(endpoint: &mut ConstraintEndpoint, pair_id: &str) {
+    if let ConstraintEndpoint::LinkedMirror {
+        pair_id: actual_pair_id,
+        mirror_part_id,
+        ..
+    } = endpoint
+        && actual_pair_id == pair_id
+    {
+        *endpoint = ConstraintEndpoint::Part {
+            part_id: mirror_part_id.clone(),
+        };
+    }
+}
 
 /// The state the pair stores for an association. Its correspondence is its identity in every
 /// state; a Local or Omitted overlay on that correspondence is the only thing that differs.
