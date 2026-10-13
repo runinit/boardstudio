@@ -1,6 +1,6 @@
 # 152: Reconcile authored per-cell matrix data and implicit active slots
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [150](150-prepare-matrixless-half-exceptions.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -36,16 +36,39 @@ and helper visibility unchanged; 111 remains an unmerged activation draft.
 
 ## Acceptance
 
-- [ ] Direct regression fails at the representation/membership guard before the fix.
-- [ ] Default cells, explicit default/alternate definition IDs, variant values and None/false/true
+- [x] Direct regression fails at the representation/membership guard before the fix.
+- [x] Default cells, explicit default/alternate definition IDs, variant values and None/false/true
       local-assembly flags preserve their authored meaning and exact stored fields.
-- [ ] Source-only and independent target-local companions coexist with linked primary keys;
+- [x] Source-only and independent target-local companions coexist with linked primary keys;
       existing linked companion modes/tweaks and child Local/Omitted rules remain unchanged.
-- [ ] Implicit active slots normalize without lost authored fields or invented/dropped IDs;
+- [x] Implicit active slots normalize without lost authored fields or invented/dropped IDs;
       disabled/deleted or ambiguous ownership remains an atomic located refusal.
-- [ ] Repeated reconciliation and prepared Open/edit are stable, including the unchanged modern
+- [x] Repeated reconciliation and prepared Open/edit are stable, including the unchanged modern
       synthetic fixture used by 111; source data and unrelated matrices/pairs remain correct.
-- [ ] Independent Standards/Spec review, meaningful mutations and affected/full checks pass.
+- [x] Independent Standards/Spec review, meaningful mutations and affected/full checks pass.
 
 No activation is included. Root owns baseline/golden updates, full checks, integration and graph
 refresh. Source changes are serial with 153 on these shared private paths.
+
+## Answer
+
+The private fixed-membership view now preserves authored cell definitions, variants and explicit
+local-assembly flags. Independent local companions retain their own hardware and membership;
+linked keys and existing companion modes/exceptions continue through the shared materializer.
+Only implicit active cells are filled with materializer defaults, retaining complete authored
+source records and source order. Both halves normalize sparse inputs and repeated reconciliation
+reports no changes. No production route, schema or helper visibility changed.
+
+The original representation/sparse regressions failed behaviorally before the fix. Independent
+Standards and Spec reviews accepted the frozen change and subsequent coverage/lint-only deltas.
+The final focused reconciliation suite passes 214 tests, including generated alternate-definition
+parts, distinct target-local hardware, and the unchanged modern synthetic fixture through private
+Open/transaction-preview preparation with accepted-document isolation.
+
+Nine compiled mutation probes were killed with exact restoration and no survivors or compile
+failures. Those probes used the reviewed behavior snapshot before three equivalent lint cleanups;
+the final delta has both-axis review and full verification. `check.py repo test lint` passes with
+all 1,826 native tests, and the five new names were registered using the baseline command.
+Evidence is in main-checkout `.evidence/ticket152/` (gitignored). Local integration/post-merge
+verification is recorded in the handoff/map; nothing is pushed. Ticket 111 stays unpublished
+while 153/154 finish their independent preparation contracts.

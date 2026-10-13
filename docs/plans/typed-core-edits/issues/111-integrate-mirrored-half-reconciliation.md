@@ -182,8 +182,33 @@ with its coherent production activation after 150 is verified.
 ## Production-seam preparation blockers (2026-10-13)
 
 The isolated 111 activation branch has model/persistence and runtime drafts, with paired preview/
-history and Open repair green on a supported fixture. The ordinary authored fixture exposes152;
-independent exceptions expose153; full circuit composition exposes154. Those are independently
-verified preparation fixes, not extra kernel/policy work hidden inside activation. Keep the111
-draft unmerged while these serial blockers are resolved. Existing local-companion policy is
-already settled by18/31/106/145; no additional owner decision is needed.
+history and Open repair green on a supported fixture. The ordinary authored fixture exposes 152;
+independent exceptions expose 153; full circuit composition exposes 154. Resolve and independently
+verify those preparation fixes before activating 111. Keep the 111 draft unmerged while these
+serial blockers are resolved. Existing local-companion policy is already settled by
+18/31/106/145; no additional owner decision is needed.
+
+## Inherited 139 browser adapter lease (2026-10-13)
+
+The source audit confirms that the browser still has legacy-only exhaustive matches and literal
+driving-target lookups. Complete accepted 139 Unit E with the persisted model in this activation.
+Root assigns `web/src/presentation/layout_component_edits.rs`,
+`web/src/presentation/inspector/layout_component_inspector.rs`,
+`web/src/presentation/layout_matrix_relations.rs` for relation-kind rendering,
+`web/src/presentation.rs`,
+`web/crates/layout/src/matrix_relations.rs`, `web/crates/layout/src/objects/layout_align_controller.rs`,
+and `web/crates/layout/src/objects/existing_half.rs`, plus their established tests in
+`web/src/presentation/layout_component_inspector_tests.rs`,
+`web/src/presentation/layout_remainder_tests.rs`, and
+`web/crates/layout/src/matrix_relations/tests.rs`. Reuse the approved read-only document facade
+and serialized endpoint/relation types; keep ownership compilation private in Core. Preserve
+stable constraint IDs, visible endpoint labels, legacy form behavior, and the existing inspector
+design. No extra public helper, schema, UI redesign, or visibility grant is included. Regression,
+independent review, native/WASM/browser and final integration gates remain required.
+
+Root also assigns `core/src/mirrored_half/inverse/constraints.rs` and its established private
+tests for inherited command-time endpoint normalization. Final retune persistence and narrow
+Open seed ordering compose the already approved preparation/model contract. Preserve explicit
+loaded Framed bindings, untouched legacy JSON, and no-op history; do not invent recovery rules.
+Root also assigns `core/src/constraints/retune.rs` solely to remove the obsolete dead-code
+expectation once the existing helper is used in production; no visibility change is included.

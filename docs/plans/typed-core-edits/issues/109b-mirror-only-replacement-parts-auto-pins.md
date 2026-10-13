@@ -43,7 +43,8 @@ Rejoin notice are 109's. This ticket does not change them.
 - [ ] Undo of the placement restores the previous assignments exactly.
 - [ ] Preview and history behavior follow 111's activation; there is no second assignment path.
 
-Production activation, Save/Open and operation dispatch belong to 111. Do not widen the
+Use 111's activated prepared transaction, Save/Open and history routes, and 151's explicit
+placement command. Keep automatic assignment in that same transaction. Do not widen the
 visibility of the electrical resolver.
 
 ## Placement readiness (2026-10-13)
