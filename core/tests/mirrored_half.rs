@@ -3587,13 +3587,18 @@ fn production_prepared_routes_mirror_edits_preview_and_history() {
         224.0
     );
 
-    let second_undo = request(&mut engine, json!({"id":"runtime-second-undo","kind":"undo"}));
+    let second_undo = request(
+        &mut engine,
+        json!({"id":"runtime-second-undo","kind":"undo"}),
+    );
     assert_eq!(
-        second_undo["document"]["hardware"]["pairs"],
-        original["hardware"]["pairs"],
+        second_undo["document"]["hardware"]["pairs"], original["hardware"]["pairs"],
         "one prepared commit must publish exactly one history snapshot"
     );
-    let first_redo = request(&mut engine, json!({"id":"runtime-first-redo","kind":"redo"}));
+    let first_redo = request(
+        &mut engine,
+        json!({"id":"runtime-first-redo","kind":"redo"}),
+    );
     assert_eq!(
         pair(&first_redo["document"], "runtime-pair")["id"],
         "runtime-pair"
@@ -3696,19 +3701,16 @@ fn production_prepared_circuit_addition_preserves_member_frames_and_bidirectiona
         let typed_member = &definition["circuit"]["parts"][0];
         let typed_member_id = typed_member["id"].as_str().unwrap();
         let typed_member_reference = typed_member["reference"].as_str().unwrap();
-        let member_candidates: Vec<_> = pairs_of_kind(
-            document,
-            &format!("runtime-circuit-{side}"),
-            "part",
-        )
-        .into_iter()
-        .filter(|(source_id, mirror_id)| {
-            source_id.starts_with(&format!("embedded/{}/", circuit_pair.0))
-                && source_id.rsplit('/').next() == Some(typed_member_id)
-                && part(document, source_id)["reference"] == typed_member_reference
-                && mirror_id.starts_with("embedded/right/runtime-circuit/")
-        })
-        .collect();
+        let member_candidates: Vec<_> =
+            pairs_of_kind(document, &format!("runtime-circuit-{side}"), "part")
+                .into_iter()
+                .filter(|(source_id, mirror_id)| {
+                    source_id.starts_with(&format!("embedded/{}/", circuit_pair.0))
+                        && source_id.rsplit('/').next() == Some(typed_member_id)
+                        && part(document, source_id)["reference"] == typed_member_reference
+                        && mirror_id.starts_with("embedded/right/runtime-circuit/")
+                })
+                .collect();
         assert_eq!(
             member_candidates.len(),
             1,
@@ -3718,8 +3720,7 @@ fn production_prepared_circuit_addition_preserves_member_frames_and_bidirectiona
         let source_member = part(document, &member_pair.0);
         let mirror_member = part(document, &member_pair.1);
         assert_eq!(
-            typed_member["side"],
-            "back",
+            typed_member["side"], "back",
             "the fixture exercises an already-Back member"
         );
         assert_eq!(typed_member["pose"]["rotation"], 359.0);
@@ -3863,9 +3864,13 @@ fn production_prepared_routes_commit_exceptions_and_nonempty_unlink_atomically()
         }}),
     );
     assert_eq!(unlinked["kind"], "scene", "{unlinked}");
-    assert!(!unlinked["document"]["hardware"]["pairs"]
-        .as_array()
-        .is_some_and(|pairs| pairs.iter().any(|record| record["id"] == "runtime-lifecycle-pair")));
+    assert!(
+        !unlinked["document"]["hardware"]["pairs"]
+            .as_array()
+            .is_some_and(|pairs| pairs
+                .iter()
+                .any(|record| record["id"] == "runtime-lifecycle-pair"))
+    );
 
     let undone = request(
         &mut engine,
@@ -3879,9 +3884,13 @@ fn production_prepared_routes_commit_exceptions_and_nonempty_unlink_atomically()
         &mut engine,
         json!({"id":"runtime-unlink-redo","kind":"redo"}),
     );
-    assert!(!redone["document"]["hardware"]["pairs"]
-        .as_array()
-        .is_some_and(|pairs| pairs.iter().any(|record| record["id"] == "runtime-lifecycle-pair")));
+    assert!(
+        !redone["document"]["hardware"]["pairs"]
+            .as_array()
+            .is_some_and(|pairs| pairs
+                .iter()
+                .any(|record| record["id"] == "runtime-lifecycle-pair"))
+    );
 }
 
 #[test]
@@ -3896,7 +3905,10 @@ fn production_prepared_refusal_keeps_document_revision_and_history_untouched() {
         mapping(200.0),
     )
     .unwrap();
-    let undone_creation = request(&mut engine, json!({"id":"runtime-refusal-undo-first","kind":"undo"}));
+    let undone_creation = request(
+        &mut engine,
+        json!({"id":"runtime-refusal-undo-first","kind":"undo"}),
+    );
     assert_eq!(undone_creation["document"]["hardware"], seed["hardware"]);
     let before = undone_creation["document"].clone();
     let refused: Value = serde_json::from_str(
@@ -3923,12 +3935,17 @@ fn production_prepared_refusal_keeps_document_revision_and_history_untouched() {
     assert_eq!(after_refusal["revision"], before["revision"]);
     assert_eq!(after_refusal, before, "a prepared refusal must not publish");
 
-    let redone = request(&mut engine, json!({"id":"runtime-refusal-redo","kind":"redo"}));
-    assert!(redone["document"]["hardware"]["pairs"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|record| record["id"] == "runtime-refusal-pair"));
+    let redone = request(
+        &mut engine,
+        json!({"id":"runtime-refusal-redo","kind":"redo"}),
+    );
+    assert!(
+        redone["document"]["hardware"]["pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|record| record["id"] == "runtime-refusal-pair")
+    );
 }
 
 #[test]
@@ -3955,9 +3972,18 @@ fn production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_ins
                 }
             }}),
         );
-        assert_eq!(configured["kind"], "scene", "disabled={initially_disabled}: {configured}");
-        assert_eq!(instance(&configured["document"], "left")["mechanical"]["wallThickness"], 3.0);
-        assert_eq!(configured["document"]["revision"], before["revision"].as_u64().unwrap() + 1);
+        assert_eq!(
+            configured["kind"], "scene",
+            "disabled={initially_disabled}: {configured}"
+        );
+        assert_eq!(
+            instance(&configured["document"], "left")["mechanical"]["wallThickness"],
+            3.0
+        );
+        assert_eq!(
+            configured["document"]["revision"],
+            before["revision"].as_u64().unwrap() + 1
+        );
     }
 }
 
@@ -3988,9 +4014,10 @@ fn production_matrix_membership_transition_updates_pair_context_for_later_source
         }}),
     );
     assert_eq!(removed["kind"], "scene", "{removed}");
-    let correspondences = pair(&removed["document"], "runtime-membership-pair")["halves"]["correspondences"]
-        .as_array()
-        .unwrap();
+    let correspondences =
+        pair(&removed["document"], "runtime-membership-pair")["halves"]["correspondences"]
+            .as_array()
+            .unwrap();
     assert!(correspondences.iter().all(|record| {
         record["sourceId"] != "matrix/left-synthetic-keys/r0c0"
             && record["mirrorId"] != "matrix/right-synthetic-keys/r0c0"
@@ -4112,8 +4139,8 @@ fn production_paired_previews_project_all_matrix_edit_families_without_publishin
                 .iter()
                 .find(|transform| transform["id"] == id)
                 .unwrap_or_else(|| {
-                panic!("{family}: missing preview transform for {id}: {preview}")
-            })
+                    panic!("{family}: missing preview transform for {id}: {preview}")
+                })
         };
         let source_pose = &transform(source_id)["pose"];
         let mirror_pose = &transform(mirror_id)["pose"];
@@ -4188,8 +4215,16 @@ fn assert_authored_companion_preview(
             transform["pose"]["at"]["y"].as_f64().unwrap(),
         )
     };
-    assert_point(preview_pose(source_id), expected_source, "authored source preview pose");
-    assert_point(preview_pose(mirror_id), expected_mirror, "authored mirror preview pose");
+    assert_point(
+        preview_pose(source_id),
+        expected_source,
+        "authored source preview pose",
+    );
+    assert_point(
+        preview_pose(mirror_id),
+        expected_mirror,
+        "authored mirror preview pose",
+    );
 }
 
 #[test]
@@ -4288,7 +4323,10 @@ fn production_paired_noop_commit_preserves_revision_history_and_redo() {
         }}),
     );
     assert_eq!(committed["kind"], "scene", "{committed}");
-    let undone = request(&mut engine, json!({"id":"runtime-noop-history-undo","kind":"undo"}));
+    let undone = request(
+        &mut engine,
+        json!({"id":"runtime-noop-history-undo","kind":"undo"}),
+    );
     assert_eq!(
         part(&undone["document"], "left/U1")["pose"]["at"],
         json!({"x":-24.0,"y":0.0})
@@ -4314,9 +4352,16 @@ fn production_paired_noop_commit_preserves_revision_history_and_redo() {
     );
     assert_eq!(noop["kind"], "scene", "{noop}");
     assert_eq!(noop["document"]["revision"], before_noop["revision"]);
-    assert_eq!(snapshot(&mut engine), before_noop, "no-op must leave document and history position unchanged");
+    assert_eq!(
+        snapshot(&mut engine),
+        before_noop,
+        "no-op must leave document and history position unchanged"
+    );
 
-    let redone = request(&mut engine, json!({"id":"runtime-noop-history-redo","kind":"redo"}));
+    let redone = request(
+        &mut engine,
+        json!({"id":"runtime-noop-history-redo","kind":"redo"}),
+    );
     assert_eq!(redone["kind"], "scene", "{redone}");
     assert_eq!(
         part(&redone["document"], "left/U1")["pose"]["at"],

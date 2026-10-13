@@ -119,8 +119,9 @@ fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
     assert!(
         pair(&rejoined["document"], pair_id)["halves"]["exceptions"]
             .as_array()
-            .unwrap()
-            .is_empty()
+            .is_none_or(|exceptions| exceptions.is_empty()),
+        "Rejoin should clear the exception; absent and empty are both valid: {}",
+        pair(&rejoined["document"], pair_id)["halves"]["exceptions"]
     );
     let before_unlink = rejoined["document"].clone();
 
@@ -345,12 +346,27 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
     assert_eq!(local_omit["kind"], "scene", "{local_omit}");
     let accepted = local_omit["document"].clone();
     assert!(find_part(&accepted, "right/RST").is_none());
+    let accepted_mirror_net = accepted["nets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|net| net["id"] == mirror_net_id);
     assert!(
-        net(&accepted, &mirror_net_id)["pins"]
+        accepted_mirror_net.is_some_and(|net| {
+            net["pins"].as_array().is_some_and(|pins| {
+                pins.iter()
+                    .any(|pin| pin["partId"] == "right/U1" && pin["padId"] == "pad-1")
+            })
+        }),
+        "Omit should retain the Local controller's mirror pin on {mirror_net_id}; \
+         nets={:?}; exceptions={}",
+        accepted["nets"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|pin| pin["partId"] == "right/U1" && pin["padId"] == "pad-1")
+            .map(|net| net["id"].clone())
+            .collect::<Vec<_>>(),
+        pair(&accepted, pair_id)["halves"]["exceptions"]
     );
 
     let rejoin_controller = exception_operation_for(pair_id, "part", "right/U1", "linked");
@@ -536,6 +552,41 @@ fn public_local_circuit_keeps_its_corresponded_plain_net_across_private_source_o
     );
     assert_eq!(seeded["kind"], "scene", "{seeded}");
     let accepted = seeded["document"].clone();
+    let accepted_circuit = accepted["embeddedCircuits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|circuit| circuit["id"] == mirror_circuit_id)
+        .expect("accepted ReplaceDocument retains the Local mirror circuit");
+    let accepted_circuit_exception = pair(&accepted, pair_id)["halves"]["exceptions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|exception| {
+            exception["itemKind"] == "embedded-circuit"
+                && exception["mirrorId"] == mirror_circuit_id
+        });
+    assert_eq!(
+        accepted_circuit_exception.map(|exception| exception["state"].as_str()),
+        Some(Some("local")),
+        "accepted circuit {mirror_circuit_id} must remain Local before Omit; exception={:?}",
+        pair(&accepted, pair_id)["halves"]["exceptions"]
+    );
+    assert_eq!(
+        accepted_circuit["ports"]["gnd"], mirror_gnd,
+        "accepted Local circuit {mirror_circuit_id} must retain its mirror host-net port; \
+         ports={}; netIds={}",
+        accepted_circuit["ports"], accepted_circuit["netIds"]
+    );
+    assert!(
+        accepted_circuit["netIds"]
+            .as_array()
+            .is_some_and(|net_ids| net_ids.contains(&json!(mirror_gnd))),
+        "accepted Local circuit {mirror_circuit_id} must retain net {mirror_gnd}; \
+         ports={}; netIds={}",
+        accepted_circuit["ports"],
+        accepted_circuit["netIds"]
+    );
     assert_eq!(
         net(&accepted, "left/gnd")["pins"],
         json!([{"partId":"left/RST","padId":"pad-1"}]),
@@ -587,7 +638,27 @@ fn public_local_circuit_keeps_its_corresponded_plain_net_across_private_source_o
             .as_array()
             .unwrap()
             .iter()
-            .any(|net| net["id"] == mirror_gnd)
+            .any(|net| net["id"] == mirror_gnd),
+        "Omit removed net {mirror_gnd} despite Local circuit reference: circuits={:?}; \
+         exceptions={}; registered_nets={:?}",
+        committed["document"]["embeddedCircuits"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|circuit| circuit["id"] == mirror_circuit_id)
+            .map(|circuit| json!({
+                "id": circuit["id"],
+                "ports": circuit["ports"],
+                "netIds": circuit["netIds"],
+            }))
+            .collect::<Vec<_>>(),
+        pair(&committed["document"], pair_id)["halves"]["exceptions"],
+        committed["document"]["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|board| board["id"] == "right")
+            .map(|board| board["netIds"].clone())
     );
     assert!(
         net(&committed["document"], &mirror_gnd)["pins"]
