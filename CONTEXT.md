@@ -93,6 +93,11 @@ pinned by the user; it remains eligible for automatic placement repair.
 A support whose position the user has committed or explicitly pinned; automatic
 placement repair preserves it until the user moves or resets it.
 
+**Mirror-only Part**:
+A Part belonging to the mirror half without a corresponding source Part. A Local Part retains
+its source relationship and an exception; a mirror-only Part has no such relationship.
+_Avoid_: Local Part (when there is no source Part)
+
 ### Mechanical relationships
 
 **Board**:

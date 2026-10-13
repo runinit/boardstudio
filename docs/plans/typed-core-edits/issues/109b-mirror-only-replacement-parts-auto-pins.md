@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: [109](109-mirrored-half-exceptions-unlink.md), [111](111-integrate-mirrored-half-reconciliation.md)
+Blocked by: [109](109-mirrored-half-exceptions-unlink.md), [111](111-integrate-mirrored-half-reconciliation.md), [151](151-explicit-mirror-only-part-placement.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
 
@@ -43,5 +43,13 @@ Rejoin notice are 109's. This ticket does not change them.
 - [ ] Undo of the placement restores the previous assignments exactly.
 - [ ] Preview and history behavior follow 111's activation; there is no second assignment path.
 
-Production activation, Save/Open and operation dispatch belong to 111. Do not widen the
+Use 111's activated prepared transaction, Save/Open and history routes, and 151's explicit
+placement command. Keep automatic assignment in that same transaction. Do not widen the
 visibility of the electrical resolver.
+
+## Placement readiness (2026-10-13)
+
+[151](151-explicit-mirror-only-part-placement.md) separates explicit mirror-only placement
+from this ticket's existing pin-assignment contract. Normal mirror-side AddPart currently creates
+a source Part, so pin verification must use the accepted explicit placement route once 151
+settles it. This does not block 111 or authorize a new operation family inside activation.

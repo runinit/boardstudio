@@ -5,6 +5,9 @@ use crate::model::{
 };
 use serde_json::json;
 
+#[path = "../../../../tests/support/synthetic_half.rs"]
+mod synthetic_half_fixture;
+
 fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
     document.parts.iter().find(|part| part.id == id).unwrap()
 }
@@ -998,6 +1001,193 @@ fn open_preparation_repairs_linked_geometry_and_reports_a_located_warning() {
         .expect("the repaired document is a valid second Open input");
     assert_eq!(reopened, prepared);
     assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_and_prepared_matrix_edits_preserve_explicit_cell_data() {
+    let mut accepted = pair_document();
+    let mut source_matrix = accepted
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .clone();
+    source_matrix.cells[0].definition_id = Some(source_matrix.definition_id.clone());
+    source_matrix.cells[0].variant = Some("open-authored-variant".into());
+    source_matrix.cells[0].assemblies_local = Some(false);
+    crate::matrix::set_matrix(&mut accepted, &source_matrix)
+        .expect("the ordinary source matrix materializes authored cell fields");
+
+    let (opened, findings) = super::prepare_open(&accepted, &[])
+        .expect("source-authoritative Open accepts authored cell fields");
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&"right-keys".to_owned()));
+    assert_eq!(
+        opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-keys")
+            .unwrap(),
+        &source_matrix,
+        "a complete authored source matrix remains unchanged during Open"
+    );
+    let open_mirror = opened
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap();
+    assert_eq!(
+        open_mirror.cells[0].definition_id,
+        source_matrix.cells[0].definition_id
+    );
+    assert_eq!(
+        open_mirror.cells[0].variant.as_deref(),
+        Some("open-authored-variant")
+    );
+    assert_eq!(open_mirror.cells[0].assemblies_local, Some(false));
+    assert_eq!(
+        part(&opened, "matrix/right-keys/r0c0")
+            .properties
+            .as_ref()
+            .and_then(|properties| properties.get("variant")),
+        Some(&serde_json::json!("open-authored-variant"))
+    );
+
+    source_matrix.cells[0].variant = Some("edit-authored-variant".into());
+    let (edited, _) = prepare_transaction(
+        &opened,
+        &[],
+        &EditOperation::SetMatrix {
+            matrix: source_matrix.clone(),
+            definitions: None,
+        },
+    )
+    .expect("prepared SetMatrix keeps the explicit per-cell override");
+    let edit_mirror = edited
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap();
+    assert_eq!(
+        edit_mirror.cells[0].definition_id,
+        source_matrix.cells[0].definition_id
+    );
+    assert_eq!(
+        edit_mirror.cells[0].variant.as_deref(),
+        Some("edit-authored-variant")
+    );
+    assert_eq!(edit_mirror.cells[0].assemblies_local, Some(false));
+    assert_eq!(
+        part(&edited, "matrix/right-keys/r0c0")
+            .properties
+            .as_ref()
+            .and_then(|properties| properties.get("variant")),
+        Some(&serde_json::json!("edit-authored-variant"))
+    );
+}
+
+#[test]
+fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
+    // This exercises the private preparation contract on the unchanged ticket-111 fixture.
+    // It does not assert that CoreEngine's public Open or edit lifecycle has been activated.
+    let source_json = synthetic_half_fixture::document();
+    let original_cells: Vec<crate::model::MatrixCell> =
+        serde_json::from_value(source_json["matrices"][0]["cells"].clone()).unwrap();
+    let mut accepted: ProjectDoc = serde_json::from_value(source_json).unwrap();
+    let create: EditOperation = serde_json::from_value(
+        synthetic_half_fixture::create_mirrored_half_operation("pair-modern", "right"),
+    )
+    .unwrap();
+    crate::apply(&mut accepted, &[], &create).expect("the unchanged modern fixture pairs");
+    let original_source_cells = accepted
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-synthetic-keys")
+        .unwrap()
+        .cells
+        .clone();
+    assert_eq!(
+        original_source_cells, original_cells,
+        "the shared fixture's authored cell fields are used as-is"
+    );
+
+    let (opened, _) = super::prepare_open(&accepted, &[])
+        .expect("private Open preparation accepts modern local cell records");
+    let matrix_cells_before: Vec<_> = ["left-synthetic-keys", "right-synthetic-keys"]
+        .into_iter()
+        .map(|matrix_id| {
+            opened
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap()
+                .cells
+                .clone()
+        })
+        .collect();
+    assert_eq!(
+        opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-synthetic-keys")
+            .unwrap()
+            .cells,
+        original_source_cells,
+        "private Open leaves complete source cells unchanged"
+    );
+    for matrix_id in ["left-synthetic-keys", "right-synthetic-keys"] {
+        let matrix = opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .unwrap();
+        for cell in &matrix.cells {
+            assert_eq!(
+                cell.definition_id.as_deref(),
+                Some("generator:ceoloide/switch_mx")
+            );
+            assert_eq!(cell.assemblies_local, Some(true));
+            assert_eq!(cell.assemblies.len(), 2);
+        }
+    }
+
+    let operation = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "right/U1".into(),
+            at: Vec2 { x: 216.0, y: 14.0 },
+        }],
+    };
+    let engine = crate::CoreEngine {
+        document: opened.clone(),
+        ..crate::CoreEngine::default()
+    };
+    let accepted_before_preview = engine.document.clone();
+    let (preview, _) = prepare_preview(&engine, &operation)
+        .expect("private preview preparation keeps modern local cells");
+    assert_eq!(
+        engine.document, accepted_before_preview,
+        "preview is isolated"
+    );
+    assert_eq!(
+        preview
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-synthetic-keys")
+            .unwrap()
+            .cells,
+        matrix_cells_before[0],
+        "prepared preview preserves the source's modern cell records"
+    );
+    assert_eq!(
+        preview
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "right-synthetic-keys")
+            .unwrap()
+            .cells,
+        matrix_cells_before[1],
+        "prepared preview preserves the target's local cell records"
+    );
 }
 
 #[test]
