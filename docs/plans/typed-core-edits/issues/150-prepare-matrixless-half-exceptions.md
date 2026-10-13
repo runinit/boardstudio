@@ -68,3 +68,22 @@ and its ownership, durable association, copper/pin cleanup and child-exception r
 - [109](109-mirrored-half-exceptions-unlink.md) owns the verified lifecycle policy and kernel.
 - [111](111-integrate-mirrored-half-reconciliation.md) consumes this preparation before activation.
 - [116](116-prepare-mirrored-open-repair.md) demonstrates matrixless Open support.
+
+## Comments
+
+2026-10-13: Private matrixless exception preparation is implemented and frozen for integration.
+The checked context carries either the exact Matrix correspondence or `None`; matrix-only
+membership work refuses missing context with a recoverable error, while generic lifecycle
+preparation keeps matrixless independent and hosted ownership on the existing transition kernels.
+The private intent helper covers independent Parts and applicable EmbeddedCircuit owners without
+changing production visibility or operation vocabulary. Physical matrices remain untouched when
+the pair has no Matrix correspondence. The tests cover Local/Omit/Rejoin, current-source edits,
+serde and repeat reconciliation, module connector cleanup, stale/ambiguous selection, matrix-owned
+Part refusal, and late atomic refusal.
+
+The runtime red checkpoint failed because Local prepared zero drafts instead of one. Final checks:
+`cargo check -p boardstudio_core --tests`; `cargo test -p boardstudio_core --lib matrixless_`
+(4 passed); `cargo test -p boardstudio_core --lib mirrored_half::reconcile::` (209 passed);
+`cargo fmt --all -- --check`; and `git diff --check`. Evidence and SHA-256 digests are in
+`/home/chris/01_Projects/ts-boardstudio2/.evidence/ticket150/`. Independent review, mutations,
+and full repository checks remain with integration owner; Status remains `claimed` pending those gates.
