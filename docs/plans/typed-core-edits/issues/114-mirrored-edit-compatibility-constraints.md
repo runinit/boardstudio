@@ -1,6 +1,6 @@
 # 114: Classify compatibility and constraint translation
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [113](113-inverse-map-reviewed-outline-edits.md), [139](139-generalized-mirrored-constraint-model.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -32,6 +32,26 @@ The user chose support through a separately scoped model extension; [139](139-ge
 `SetLayout`, `CreateMirroredPair`;
 `ApplyMechanicalEdit`, `SetMechanical`, `SetCase`; `EditKeymap`, `SetKeyBinding`;
 `CreateMirroredHalf`, `ReplaceDocument`. Check every 40-variant entry in 110 has an owner.
+
+Compatibility dispositions from the current-source audit and owner decision:
+
+| Operation | Disposition | Required behavior / boundary |
+| --- | --- | --- |
+| `SetConstraint` | Translate | Compile visible legacy endpoints into live private endpoint frames; retain one global ID and authored relation values. |
+| `RemoveConstraint` | Delegate | Remove the exact existing global ID, including when the selected target is its linked view. |
+| `ConvertOffsetConstraint` | Translate | Convert using the authored source pose and preserve legacy validation order and ID. |
+| `SetLayout` | Translate or preserve | Map native correspondence-owned layouts to their source; preserve legacy-only layout behavior and refuse overlapping link systems. |
+| `CreateMirroredPair` | Deliberately unchanged | Keep the explicit same-board legacy-link creation and its existing validation. |
+| `ApplyMechanicalEdit` | Delegate | Reuse the typed mechanical pair lifecycle once; do not duplicate it in the mirror adapter. |
+| `SetMechanical` | Unsupported with reason | Whole raw configurations are replaced atomically and carry board geometry/references; no safe field-wise compatibility rule exists yet. This remains a parent-19 blocker. |
+| `SetCase` | Deliberately unchanged | The owner chose independent per-board case bodies; editing one board's body must not synthesize or replace the other board's body. |
+| `EditKeymap`, `SetKeyBinding` | Deliberately unchanged | Preserve the operation on its targeted half, per ADR-0010's keymap exclusion. |
+| `CreateMirroredHalf` | Deliberately unchanged | Preserve explicit creation IDs, labels, maps, validation and atomic creation; do not create a second pair from an inverse edit. |
+| `ReplaceDocument` | Delegate | Keep source-authoritative Open/Replace repair with ticket 116; do not infer half intent from the snapshot diff. |
+
+These classifications are not completion claims. Each translated/delegated family still needs its
+listed behavior in the canonical adapter or established route; `SetMechanical` remains unsupported
+until its raw compatibility contract is specified.
 
 - Delegate typed mechanical pair semantics once. Raw whole configurations require explicit
   compatibility classification; they are not generic point-map requests.
@@ -90,6 +110,24 @@ and both resolver calls remain 115-owned. No product question is open. The curre
 is exhaustively classified in `inverse::canonicalize`; the runtime ledger test is intentionally a
 sample, so the documented ledger and exhaustive dispatch are the completeness evidence.
 
+The owner confirmed that custom case bodies are independent per board. A mirror-side `SetCase`
+therefore updates only its target board's authored case; it does not synthesize or overwrite the
+other board's case. The compatibility ledger should classify `SetCase` as deliberately unchanged.
+`SetMechanical` remains explicitly unsupported while raw whole-configuration compatibility is
+unestablished; do not count that family as complete for parent 19 until its behavior is specified.
+The owner also approved crate-only access for the mirrored-half adapter to reuse target retuning.
+Keep `retune_target` private and expose only a narrow `pub(crate)` wrapper from `constraints.rs`;
+this does not authorize a public API or production routing.
+
+The reviewed constraint-preparation checkpoint is committed locally as
+`b7c9f25047426fa8694db9342a8ff0c892e65b06` on `typed-core-edits/114-mirrored-compatibility`
+(following `90c9b2275`). It prepares Set/Remove/Convert and MoveParts target retunes in the private
+sidecar. Red-first tests and focused coverage, Core Clippy, formatting, repository/ticket checks,
+and `git diff --check` pass. Standards and spec reviews found no remaining defect in this checkpoint.
+The sidecar is inert: 115 still owns owner-pose binding, deferred retune application, and transaction
+propagation through apply and both resolver calls; 117 owns the layout drag paths. Ticket 114 remains
+open for the other compatibility families and lifecycle endpoint rewrites.
+
 Exclusive first-unit lease on `typed-core-edits/114-mirrored-compatibility`:
 `core/src/mirrored_half/inverse.rs`, new `core/src/mirrored_half/inverse/constraints.rs` and its
 module-local tests, `core/src/constraints.rs`, and `core/src/constraints/{endpoints,relation,retune}.rs`
@@ -101,3 +139,28 @@ transaction needs them; these remain non-public and are not a production route. 
 `core/src/mechanical/edit.rs`, migration, web adapters or goldens in this unit. Root will grant any
 additional shared-path lease after reviewing the first stable handoff. Production activation and
 persisted schema remain with 111; transaction composition remains with 115.
+
+## Closure evidence (2026-10-12)
+
+- [x] Root-reviewed constraint/compatibility design is recorded, with representability limits.
+  The accepted 139 design and this ticket's ledger cover framed endpoints, slanted axes and the
+  unsupported raw whole-configuration `SetMechanical` boundary.
+- [x] Every remaining variant has an explicit translated, delegated, unchanged, or unsupported
+  disposition in the exhaustive `inverse::canonicalize` dispatch. `SetMechanical` remains refused
+  with a concrete reason and remains a parent-19 blocker until its raw compatibility contract is
+  specified.
+- [x] The private adapter has red/green coverage for endpoint and axis translation, native/legacy
+  layout conflict, ADR-0010 binding pass-through, raw `SetMechanical` refusal, and delegation of
+  `ReplaceDocument` repair to 116. Independent mutation checks killed the constraint-conversion,
+  legacy-layout-ownership and binding-pass-through mutants.
+- [x] `canonicalize` remains unconnected to production edit routing; no independent legacy data is
+  linked implicitly. Activation and the persisted framed-constraint arm remain owned by 111.
+
+The ticket 114 source diff from `00acba4c3a215254e34b695892ff9366e0a85fab` through
+`76b0ec06bd9d371d9a9a7e516bcffcf073043bbe` received final independent Spec and Standards reviews;
+both reported no findings. The final `SetMechanical` refusal-reason follow-up also received fresh
+reviews on the same axes with no findings. `python3 scripts/check.py repo test lint` passed at the
+merged source snapshot. The baseline refresh added 35 test names using
+`python3 scripts/check.py test --update-native-baseline`; that command passed with 1,748 native
+tests recorded. Detailed mutation hashes and focused run evidence are in the ignored
+`.evidence/ticket114/README.md`.

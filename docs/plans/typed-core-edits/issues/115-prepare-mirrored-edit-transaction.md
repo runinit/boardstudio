@@ -22,9 +22,12 @@ must reach downstream resolution too. Halves validation must inspect the final r
   clean removed associations, validate, and compute actual changed IDs.
 - Include exception/Unlink helper composition only through 109's source-verified callable route
   and internally derived context. Do not call a private mechanical dissolution helper directly,
-  duplicate its logic, widen visibility or add hardware fields to public Unlink.
+  duplicate its logic, widen that helper's visibility or add hardware fields to public Unlink.
 - Keep common production edit/apply routing untouched until 111. If existing transaction helpers
   prevent an inert private seam, report the exact route as needs-info before altering architecture.
+- The sole approved visibility exception is `constraints::resolve_prepared` as `pub(crate)` for this
+  inert preparation path. Keep the `constraints` module private and leave `resolve_edit` and all
+  existing production call sites unchanged.
 - Refusals and no-ops produce no partial accepted mutation. Existing legacy/reuse-board paths retain
   behavior; new native pairs do not acquire legacy property-bag links.
 
@@ -33,7 +36,8 @@ must reach downstream resolution too. Halves validation must inspect the final r
 Exclusive: private transaction preparation inside `core/src/lib.rs` or existing private child
 modules, private mirrored-half helpers, association validation in `core/src/mechanical/halves.rs`,
 and transaction-focused mirrored-half tests. Production call sites and publication/history routing
-are read-only. No new EditOperation arms, visibility widening, hardware API fields or goldens.
+are read-only. No new EditOperation arms, visibility widening other than the single approved
+`constraints::resolve_prepared` `pub(crate)` exception, hardware API fields or goldens.
 
 ## Test-first and acceptance
 
@@ -56,8 +60,17 @@ final validation separately. History/Open/preview are deliberately owned by 116/
 criteria: the canonical operation must reach `apply` and both `resolve_edit` calls with framed
 constraints in play, and a refusal must leave document, revision and history untouched. The
 resolver to call is `resolve_prepared` in `core/src/constraints.rs`: it is a private fn today and
-needs a `pub(crate)` widening when 115 starts (framed records are supplied privately until 111), and the locked/conflicting-movement refusal fixture (design.md:278) belongs
-here, where movement can be expressed.
+needs a `pub(crate)` widening for 115 (framed records are supplied privately until 111), and the
+locked/conflicting-movement refusal fixture (design.md:278) belongs here, where movement can be
+expressed.
+
+## Owner decision (2026-10-12)
+
+The owner approved exactly one visibility change for this ticket: make
+`constraints::resolve_prepared` `pub(crate)`. Keep the parent `constraints` module private; do not
+widen other functions or types, change the `resolve_edit` signature, or edit its existing production
+call sites. This is crate-internal access for the inert prepared transaction only; production
+activation remains with 111.
 
 ## Inherited from 110 and 145
 
