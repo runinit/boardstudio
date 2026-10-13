@@ -430,7 +430,10 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   controller Preview/Commit case passes;111 is61/62 with associated Local circuit projection
   remaining.111 activation stays unmerged.
 
-- [159](issues/159-preserve-associated-local-circuit-owner-state.md): claimed associated Local
-  circuit ownership correction across private target mapping, projection and scoped validation.
-  Preserve inherited members/private data, explicit child exceptions and independently owned
-  joined host nets. Original public 111 circuit test remains required; activation stays unmerged.
+- [159](issues/159-preserve-associated-local-circuit-owner-state.md): resolved preparation for
+  associated Local owner/member/definition/private-net preservation and inherited member
+  settings/pins, with independent joined-net states. Both review axes pass, six compiled
+  mutation kills and full repo/test/lint pass with 1,856 native tests. All 62 unchanged public
+  mirrored-half tests pass in isolated 111. Source `10fc4048` merged locally at `1a1f0fbb`
+  with identical trees; post-merge repo/test/lint passes with all 1,856 native tests.
+  111 still needs Preview loss visibility and full activation gates.
