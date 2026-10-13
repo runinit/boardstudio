@@ -150,8 +150,15 @@ pub(super) struct Canonical {
 
 const BINDINGS_UNCHANGED: &str =
     "bindings are never reflected; the edit keeps its targeted-half semantics (ADR-0010)";
+const CASE_BODIES_UNCHANGED: &str = "case bodies are independently authored per board";
 const MECHANICAL_DELEGATED: &str = "the typed mechanical lifecycle already edits both halves of a pair; inverting it again would \
      apply it twice";
+const PAIR_CREATION_DELEGATED: &str =
+    "CreateMirroredPair creates both linked layouts in one Core operation";
+const HALF_CREATION_DELEGATED: &str =
+    "CreateMirroredHalf derives both halves through the Core mirror lifecycle";
+const REPLACE_DOCUMENT_DELEGATED: &str =
+    "ticket 116 owns source-authoritative Open and ReplaceDocument repair";
 
 fn unsupported(owner: &'static str, reason: &'static str) -> Refusal {
     Refusal::Unsupported(Coverage::Unsupported { owner, reason })
@@ -282,6 +289,21 @@ pub(super) fn canonicalize(
         Op::ApplyMechanicalEdit { .. } => {
             canonical.coverage = Coverage::Delegated(MECHANICAL_DELEGATED);
         }
+        // Case bodies are authored independently on each board; preserve the targeted board.
+        Op::SetCase { .. } => {
+            canonical.coverage = Coverage::DeliberatelyUnchanged(CASE_BODIES_UNCHANGED);
+        }
+        // These operations create or replace both sides as one Core lifecycle. Do not inverse-map
+        // their already paired effects; Open/Replace repair is owned by ticket 116.
+        Op::CreateMirroredPair { .. } => {
+            canonical.coverage = Coverage::Delegated(PAIR_CREATION_DELEGATED);
+        }
+        Op::CreateMirroredHalf { .. } => {
+            canonical.coverage = Coverage::Delegated(HALF_CREATION_DELEGATED);
+        }
+        Op::ReplaceDocument { .. } => {
+            canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
+        }
         // Ticket 112: hosted, electrical, keycap and shared-definition families.
         Op::SetModuleDefinition { .. }
         | Op::SetMountedModule { .. }
@@ -304,16 +326,11 @@ pub(super) fn canonicalize(
         | Op::RemoveOutline { .. }
         | Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
         // Ticket 114: compatibility, constraints and the final exhaustive ledger.
-        Op::SetLayout { .. }
-        | Op::CreateMirroredPair { .. }
-        | Op::SetMechanical { .. }
-        | Op::SetCase { .. }
-        | Op::CreateMirroredHalf { .. }
-        | Op::ReplaceDocument { .. } => {
+        Op::SetLayout { .. } | Op::SetMechanical { .. } => {
             return Err(unsupported(
                 "114",
-                "layout, constraint, raw configuration, creation and import requests need \
-                 compatibility or endpoint classification",
+                "layout ownership and raw mechanical configuration compatibility remain \
+                 unclassified",
             ));
         }
         Op::SetConstraint { .. }

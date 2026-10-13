@@ -987,8 +987,9 @@ fn the_ledger_names_this_slice_and_what_becomes_of_every_other_sampled_family() 
     for request in translated {
         assert_eq!(owned(request.clone()), Coverage::Translated, "{request}");
     }
-    // Other tickets own these; this module refuses them and says whose they are.
-    let request = json!({"kind": "remove-constraint", "id": "c"});
+    // SetLayout remains unclassified for this slice; removed constraints are now prepared.
+    let request = json!({"kind":"set-layout","layout":{"id":"l","name":"L",
+        "boardId":"b","matrixId":"m","partIds":[]}});
     let Coverage::Unsupported { owner, reason } = owned(request.clone()) else {
         panic!("{request} must be unsupported here");
     };
@@ -1020,6 +1021,115 @@ fn deliberately_unchanged_and_delegated_requests_run_as_written() {
         json!({"kind": "apply-mechanical-edit", "edit": {"target": {"kind": "instance", "instanceId": "left"}, "change": "enable"}}),
     ] {
         expect_operation(&fixture(), request.clone(), request);
+    }
+}
+
+#[test]
+fn independent_case_bodies_and_adr_excluded_bindings_keep_targeted_semantics() {
+    let document = fixture();
+    let case = op(json!({"kind":"set-case","body":{"id":"right/shell",
+        "name":"Right shell","boardId":"right","kind":"tray","thickness":2.0,
+        "clearance":0.2}}));
+    let case_result = canonicalize(&document, &case).unwrap();
+    assert_eq!(
+        case_result.coverage,
+        Coverage::DeliberatelyUnchanged("case bodies are independently authored per board")
+    );
+    assert_eq!(case_result.operation, case);
+
+    for binding in [
+        op(json!({"kind":"set-key-binding","boardId":"right","keyId":"right/U1","binding":"A"})),
+        op(
+            json!({"kind":"edit-keymap","change":{"kind":"add-layer","id":"right-layer","name":"Right"}}),
+        ),
+    ] {
+        let result = canonicalize(&document, &binding).unwrap();
+        assert_eq!(
+            result.coverage,
+            Coverage::DeliberatelyUnchanged(
+                "bindings are never reflected; the edit keeps its targeted-half semantics (ADR-0010)"
+            )
+        );
+        assert_eq!(result.operation, binding);
+    }
+}
+
+#[test]
+fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_through() {
+    let document = fixture();
+    let operations = [
+        (
+            op(json!({"kind":"create-mirrored-pair",
+                "left":{"id":"left-layout","name":"Left","boardId":"left",
+                    "matrixId":"left-matrix","partIds":[]},
+                "right":{"id":"right-layout","name":"Right","boardId":"left",
+                    "matrixId":"right-matrix","partIds":[],
+                    "mirrorLink":{"sourceId":"left-layout","axisX":100.0}},
+                "matrix":{"id":"left-matrix","rows":0,"columns":0,
+                    "pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},
+                    "definitionId":"switch","partIds":[],"boardId":"left"}})),
+            Coverage::Delegated(
+                "CreateMirroredPair creates both linked layouts in one Core operation",
+            ),
+        ),
+        (
+            op(
+                json!({"kind":"apply-mechanical-edit","edit":{"target":{"kind":"instance",
+                "instanceId":"left"},"change":"enable"}}),
+            ),
+            Coverage::Delegated(
+                "the typed mechanical lifecycle already edits both halves of a pair; inverting it again would apply it twice",
+            ),
+        ),
+        (
+            op(json!({"kind":"create-mirrored-half","pairId":"new-pair",
+                "sourceInstanceId":"left",
+                "mode":{"kind":"new-board","boardId":"right-new","instanceId":"right-instance"},
+                "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
+                "idRule":"board-prefix","companionMode":"literal-mirror"})),
+            Coverage::Delegated(
+                "CreateMirroredHalf derives both halves through the Core mirror lifecycle",
+            ),
+        ),
+        (
+            EditOperation::ReplaceDocument {
+                document: Box::new(ProjectDoc::empty("replacement", "Replacement")),
+            },
+            Coverage::Delegated(
+                "ticket 116 owns source-authoritative Open and ReplaceDocument repair",
+            ),
+        ),
+    ];
+    for (operation, expected_coverage) in operations {
+        let result = canonicalize(&document, &operation).unwrap();
+        assert_eq!(result.coverage, expected_coverage);
+        assert_eq!(result.operation, operation);
+    }
+}
+
+#[test]
+fn set_layout_and_raw_set_mechanical_remain_refused() {
+    let document = fixture();
+    for operation in [
+        EditOperation::SetLayout {
+            layout: serde_json::from_value(json!({"id":"right-layout","name":"Right",
+                "boardId":"right","matrixId":"right-matrix","partIds":[]}))
+            .unwrap(),
+        },
+        EditOperation::SetMechanical {
+            configuration: None,
+        },
+    ] {
+        assert!(
+            matches!(
+                canonicalize(&document, &operation),
+                Err(Refusal::Unsupported(Coverage::Unsupported {
+                    owner: "114",
+                    ..
+                }))
+            ),
+            "{operation:?} must remain refused while its semantics are unclassified"
+        );
     }
 }
 
