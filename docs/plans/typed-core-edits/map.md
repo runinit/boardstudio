@@ -437,3 +437,9 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   mirrored-half tests pass in isolated 111. Source `10fc4048` merged locally at `1a1f0fbb`
   with identical trees; post-merge repo/test/lint passes with all 1,856 native tests.
   111 still needs Preview loss visibility and full activation gates.
+
+
+- [160](issues/160-show-paired-preview-electrical-loss.md): claimed bounded preparation for
+  exact pin/net/registration loss notices through existing transient Info Findings, passive
+  UI rows and clear/stale ownership controls. Root must prove actual rendered Preview delivery
+  in isolated 111 before accepting this work; no new model/visibility/lifecycle policy.

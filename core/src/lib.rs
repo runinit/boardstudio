@@ -1870,6 +1870,261 @@ fn changed_ids(a: &ProjectDoc, b: &ProjectDoc) -> Vec<String> {
 }
 
 #[cfg(test)]
+fn preview_electrical_loss_findings(accepted: &ProjectDoc, staged: &ProjectDoc) -> Vec<Finding> {
+    let mut accepted_nets: BTreeMap<&str, &str> = BTreeMap::new();
+    let mut accepted_pins = BTreeSet::new();
+    for net in &accepted.nets {
+        accepted_nets
+            .entry(&net.id)
+            .and_modify(|name| *name = (*name).min(&net.name))
+            .or_insert(&net.name);
+        for pin in &net.pins {
+            accepted_pins.insert((net.id.as_str(), pin.part_id.as_str(), pin.pad_id.as_str()));
+        }
+    }
+
+    let staged_nets: BTreeSet<_> = staged.nets.iter().map(|net| net.id.as_str()).collect();
+    let staged_pins: BTreeSet<_> = staged
+        .nets
+        .iter()
+        .flat_map(|net| {
+            net.pins
+                .iter()
+                .map(move |pin| (net.id.as_str(), pin.part_id.as_str(), pin.pad_id.as_str()))
+        })
+        .collect();
+    let parts: BTreeMap<&str, &str> =
+        accepted
+            .parts
+            .iter()
+            .fold(BTreeMap::new(), |mut parts, part| {
+                parts
+                    .entry(&part.id)
+                    .and_modify(|reference| *reference = (*reference).min(&part.reference))
+                    .or_insert(&part.reference);
+                parts
+            });
+    let boards: BTreeMap<&str, &str> =
+        accepted
+            .boards
+            .iter()
+            .fold(BTreeMap::new(), |mut boards, board| {
+                boards
+                    .entry(&board.id)
+                    .and_modify(|name| *name = (*name).min(&board.name))
+                    .or_insert(&board.name);
+                boards
+            });
+    let staged_registrations: BTreeSet<_> = staged
+        .boards
+        .iter()
+        .flat_map(|board| {
+            board
+                .net_ids
+                .iter()
+                .map(move |net_id| (board.id.as_str(), net_id.as_str()))
+        })
+        .collect();
+
+    let mut findings = BTreeMap::new();
+    for (net_id, part_id, pad_id) in accepted_pins.difference(&staged_pins) {
+        let net_name = accepted_nets.get(net_id).copied().unwrap_or(net_id);
+        let reference = parts.get(part_id).copied().unwrap_or(part_id);
+        let finding = Finding {
+            id: preview_electrical_notice_id("pin", &[net_id, part_id, pad_id]),
+            severity: Severity::Info,
+            scope: Scope::Pcb,
+            message: format!(
+                "Preview removes pad {pad_id} on {reference} ({part_id}) from net {net_name} ({net_id})."
+            ),
+            target_ids: vec![(*net_id).to_string(), (*part_id).to_string()],
+        };
+        findings.insert(finding.id.clone(), finding);
+    }
+
+    for (net_id, net_name) in &accepted_nets {
+        if !staged_nets.contains(net_id) {
+            let finding = Finding {
+                id: preview_electrical_notice_id("net", &[net_id]),
+                severity: Severity::Info,
+                scope: Scope::Pcb,
+                message: format!("Preview removes net {net_name} ({net_id})."),
+                target_ids: vec![(*net_id).to_string()],
+            };
+            findings.insert(finding.id.clone(), finding);
+        }
+    }
+
+    let accepted_registrations: BTreeSet<_> = accepted
+        .boards
+        .iter()
+        .flat_map(|board| {
+            board
+                .net_ids
+                .iter()
+                .map(move |net_id| (board.id.as_str(), net_id.as_str()))
+        })
+        .collect();
+    for (board_id, net_id) in accepted_registrations.difference(&staged_registrations) {
+        let board_name = boards.get(board_id).copied().unwrap_or(board_id);
+        let net_name = accepted_nets.get(net_id).copied().unwrap_or(net_id);
+        let finding = Finding {
+            id: preview_electrical_notice_id("registration", &[board_id, net_id]),
+            severity: Severity::Info,
+            scope: Scope::Pcb,
+            message: format!(
+                "Preview removes net {net_name} ({net_id}) from board {board_name} ({board_id})."
+            ),
+            target_ids: vec![(*board_id).to_string(), (*net_id).to_string()],
+        };
+        findings.insert(finding.id.clone(), finding);
+    }
+
+    findings.into_values().collect()
+}
+
+#[cfg(test)]
+fn preview_electrical_notice_id(kind: &str, identity: &[&str]) -> String {
+    let mut id = format!("preview:electrical:{kind}");
+    for component in identity {
+        id.push(':');
+        id.push_str(&component.len().to_string());
+        id.push('-');
+        for byte in component.as_bytes() {
+            use std::fmt::Write as _;
+            write!(id, "{byte:02x}").expect("writing to a string cannot fail");
+        }
+    }
+    id
+}
+
+#[cfg(test)]
+mod preview_electrical_loss_tests {
+    use super::*;
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("project", "Test");
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: "part:one".into(),
+            definition_id: "definition".into(),
+            reference: "U1".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.nets.push(Net {
+            id: "net:one".into(),
+            name: "CTRL".into(),
+            pins: vec![
+                Pin {
+                    part_id: "part:one".into(),
+                    pad_id: "pad:1".into(),
+                },
+                Pin {
+                    part_id: "part:one".into(),
+                    pad_id: "pad-2".into(),
+                },
+            ],
+        });
+        document.boards.push(Board {
+            id: "board:one".into(),
+            name: "Right".into(),
+            outline_ids: vec![],
+            part_ids: vec!["part:one".into()],
+            net_ids: vec!["net:one".into()],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document
+    }
+
+    #[test]
+    fn whole_net_removal_reports_each_distinct_pin_net_and_registration() {
+        let accepted = document();
+        let mut staged = accepted.clone();
+        staged.nets.clear();
+        staged.boards[0].net_ids.clear();
+
+        let findings = preview_electrical_loss_findings(&accepted, &staged);
+
+        assert_eq!(findings.len(), 4);
+        let messages: BTreeSet<_> = findings
+            .iter()
+            .map(|finding| finding.message.as_str())
+            .collect();
+        assert!(
+            messages
+                .contains("Preview removes pad pad:1 on U1 (part:one) from net CTRL (net:one).")
+        );
+        assert!(
+            messages
+                .contains("Preview removes pad pad-2 on U1 (part:one) from net CTRL (net:one).")
+        );
+        assert!(messages.contains("Preview removes net CTRL (net:one)."));
+        assert!(
+            messages.contains("Preview removes net CTRL (net:one) from board Right (board:one).")
+        );
+        assert!(findings.iter().all(|finding| {
+            finding.id.starts_with("preview:electrical:")
+                && finding.severity == Severity::Info
+                && finding.scope == Scope::Pcb
+        }));
+        assert_eq!(
+            findings,
+            preview_electrical_loss_findings(&accepted, &staged)
+        );
+    }
+
+    #[test]
+    fn retained_net_and_board_registration_report_only_the_removed_pin() {
+        let accepted = document();
+        let mut staged = accepted.clone();
+        staged.nets[0].pins.retain(|pin| pin.pad_id != "pad:1");
+
+        let findings = preview_electrical_loss_findings(&accepted, &staged);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(
+            findings[0].message,
+            "Preview removes pad pad:1 on U1 (part:one) from net CTRL (net:one)."
+        );
+        assert!(preview_electrical_loss_findings(&accepted, &accepted).is_empty());
+    }
+
+    #[test]
+    fn repeated_identities_are_deduplicated_and_notice_ids_are_collision_safe() {
+        let mut accepted = document();
+        let repeated_pin = accepted.nets[0].pins[0].clone();
+        accepted.nets[0].pins.push(repeated_pin);
+        accepted.boards[0].net_ids.push("net:one".into());
+        let mut staged = accepted.clone();
+        staged.nets.clear();
+        staged.boards[0].net_ids.clear();
+
+        let findings = preview_electrical_loss_findings(&accepted, &staged);
+        let ids: BTreeSet<_> = findings.iter().map(|finding| finding.id.as_str()).collect();
+        assert_eq!(findings.len(), 4);
+        assert_eq!(ids.len(), findings.len());
+        assert_ne!(
+            preview_electrical_notice_id("pin", &["a:b", "c"]),
+            preview_electrical_notice_id("pin", &["a", "b:c"])
+        );
+        assert_ne!(
+            preview_electrical_notice_id("pin", &["é", "pad"]),
+            preview_electrical_notice_id("pin", &["e", "\u{301}pad"])
+        );
+    }
+}
+
+#[cfg(test)]
 mod matrix_protocol_tests {
     use super::*;
     use serde_json::json;
