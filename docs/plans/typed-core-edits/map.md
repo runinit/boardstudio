@@ -123,9 +123,11 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
   `MechanicalTarget` on the existing operation; [149](issues/149-targeted-mirrored-set-mechanical.md)
   records the implementation and remains a parent-19 blocker without widening ticket 111.
   [115](issues/115-prepare-mirrored-edit-transaction.md)
-  is resolved and merged as `78ec73f0`; post-merge `repo`, `test`, and `lint` passed. Ticket
-  [116](issues/116-prepare-mirrored-open-repair.md) is now the next serial Core slice, followed by
-  117, 149 and 111. Core children stay serial; the user approved isolated A/F streams with exact
+  is resolved and merged as `78ec73f0`. [116](issues/116-prepare-mirrored-open-repair.md) is
+  resolved and merged as `1ad134f79`; its post-merge `repo`, `test`, and `lint` passed, all 1,776
+  baselined native tests ran, and its three mutation checks were killed. Ticket 117 is the active
+  serial Core slice, followed by 149 and 111. Core children stay serial; the user approved isolated
+  A/F streams with exact
   file/API leases. Every command/check remains globally sequential; activation and timing stay
   exclusive.
 - [105](issues/105-mirrored-half-derivation-kernel.md) is resolved and integrated: private value-only part and companion

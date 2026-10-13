@@ -1,6 +1,6 @@
 # 117: Prepare preview isolation, history and performance evidence
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [116](116-prepare-mirrored-open-repair.md)
 Parent: [19](19-reconcile-mirrored-halves.md)

@@ -1,6 +1,6 @@
 # 116: Prepare inert Open repair and warning derivation
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [115](115-prepare-mirrored-edit-transaction.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -39,14 +39,28 @@ No production Open branch change, visibility widening or generated fixture edit.
 
 ## Test-first and acceptance
 
-- [ ] Direct prepared-Open red/green cases cover altered linked mirror geometry, a missing
+- [x] Direct prepared-Open red/green cases cover altered linked mirror geometry, a missing
       independently corresponded Part within the recovery boundary above, ordinary saved data,
       local/omitted exceptions and malformed association refusal.
-- [ ] Existing matrixless pairs still repair linked non-matrix data, and an absent Omitted Matrix
+- [x] Existing matrixless pairs still repair linked non-matrix data, and an absent Omitted Matrix
       remains absent through preparation.
-- [ ] Repair reports a located warning and stable second preparation; unrelated local/ADR-excluded
+- [x] Repair reports a located warning and stable second preparation; unrelated local/ADR-excluded
       data remains unchanged and the accepted input is not mutated on failure.
-- [ ] Existing legacy/unpaired/reuse-board behavior is preserved; runtime Open is still unchanged.
+- [x] Existing legacy/unpaired/reuse-board behavior is preserved; runtime Open is still unchanged.
 
 Independent verifier: disable repair, pre-overwrite warning detection and local/omitted protection
 separately; assert meaningful failures. Actual save/reopen and native/WASM transcript are final gates.
+
+## Outcome
+
+Merged into `dev` as `1ad134f79` (implementation commit `9504de2d`). Open preparation remains
+private and production Open routing is unchanged. Recovery is limited to missing independent Parts
+with unique stored identity, source ownership and derived reference; one expected-board registration
+is accepted without duplication, while repeated and misplaced registrations are refused.
+
+The Standards and Spec reviews passed with no remaining findings. Focused preparation tests passed
+(26); the full core library suite passed (693 passed, 3 ignored). Post-merge `repo`, `test` and `lint`
+passed, with all 1,776 baselined native tests executed. The independent verifier killed 3/3 mutants:
+repair disabled, warning detection disabled, and Local/Omitted protection disabled; exact restoration
+was confirmed. Evidence is in `.evidence/ticket116/`. Production save/reopen and native/WASM transcript
+remain part of 111 and parent-19 acceptance.
