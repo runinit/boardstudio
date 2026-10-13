@@ -209,5 +209,7 @@ rerun before being counted. Final source hashes match the independently reviewed
 
 Evidence (gitignored, main checkout): `.evidence/ticket149/final-review-results.md`,
 `full-checks-final.log`, `connected149-mutation-summary.json`, individual mutation logs and
-red/green traces under `disabled-instance/`. Local merge and post-merge checks follow; nothing
-is pushed. Parent 19 remains open for 150, 111, 109b and full activated acceptance.
+red/green traces under `disabled-instance/`. Source `02afbc7d` is merged into local `dev` as
+`ebbca129`; post-merge `repo test lint` passed with all 1,817 baselined native tests executed
+(`post-merge-checks.log`). Nothing is pushed. Parent 19 remains open for 150, 111, 109b and full
+activated acceptance.

@@ -38,11 +38,13 @@ Exclusive: bounded call-site/dispatch/vocabulary edits in `core/src/lib.rs` and
 in established mirrored-half test files. The inherited 139 framed-constraint persistence and
 v5→v6 migration below are part of this activation; no additional storage/schema migration,
 new subsystem implementation, preview backup engine, performance harness, golden edits or
-visibility changes. Root assigns any additional path before editing.
+additional visibility changes beyond the inherited serialized-model interface specified below.
+Root assigns any additional path before editing.
 
 Root assignment (2026-10-13 readiness audit): the existing approved inherited work also owns
 `core/src/constraints.rs`, `core/src/constraints/framed_tests.rs`,
-`core/src/constraints/relation.rs`, `core/src/matrix/deletion.rs`, `core/src/migrate.rs`,
+`core/src/constraints/relation.rs`, `core/src/constraints/endpoints.rs`,
+`core/src/matrix/deletion.rs`, `core/src/migrate.rs`,
 `core/src/archive.rs`, `core/tests/part_offset_constraint.rs`, and
 `web/crates/host/src/host/storage_lifetime_tests.rs` for exhaustive framed handling, arithmetic
 pins, migration and current-version/round-trip coverage. Existing private operation wiring owns
@@ -50,6 +52,15 @@ pins, migration and current-version/round-trip coverage. Existing private operat
 `core/src/mirrored_half/reconcile/prepare.rs` for exception dispatch and circuit `member_poses`.
 This assigns paths for already specified requirements; it adds no new visibility grant or
 derivation policy. Inspect any additional exhaustive-match errors before expanding ownership.
+
+The accepted 139 design explicitly keeps names private unless they are fields of the serialized
+model, and explicitly authorizes the read-only `ProjectDoc::constraint_driving_part` facade.
+Persisting `Constraint::Framed` therefore includes publishing its `ConstraintEndpoint` and
+`ConstraintRelation` data types through `model`; this is the inherited model interface, not a
+new helper visibility grant. Keep the compiled `FramedConstraint` candidate, private constraints
+module, compiler/solver records and domain helpers private. These exact paths/interfaces are
+assigned here so activation does not invent an additional permission gate for already approved
+139 work; any further helper visibility widening still requires the owner's approval.
 
 ## Test-first and acceptance
 
