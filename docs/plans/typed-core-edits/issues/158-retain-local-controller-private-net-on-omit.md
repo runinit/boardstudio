@@ -1,6 +1,6 @@
 # 158: Retain a Local controller own-pin net through Omit
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [157](157-classify-matrix-membership-by-identity.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -37,7 +37,7 @@ projection is a distinct subsequent preparation ticket, not part of this predica
       reference continues retaining its net. Malformed ownership is still refused atomically.
 - [x] The original public111 Local-controller Preview/Commit test passes unchanged, including
       accepted Preview isolation and existing Rejoin pin-loss assertions.
-- [ ] Independent Standards/Spec review, meaningful compiled mutations, affected/full checks and
+- [x] Independent Standards/Spec review, meaningful compiled mutations, affected/full checks and
       native-baseline additions pass; root performs local merge and post-merge checks. No push.
 
 ## Comments
@@ -45,7 +45,7 @@ projection is a distinct subsequent preparation ticket, not part of this predica
 Claimed after157 fully integrated and post-merge repo/test/lint passed1847 native tests; dev
 bookkeeping e03a3be0. Root owns integration/baseline/fullchecks. No human policy decision pending.
 
-### Candidate verification
+## Answer
 
 The existing private omission guard now counts a surviving mirror-controller pin as use when
 that controller's Part association is Local. Linked controller exclusion, source-private-net
@@ -70,5 +70,7 @@ source-authoritative controller Rejoin pin loss. Full public111 is61/62; the ass
 circuit payload projection failure remains open for separate159 preparation.
 
 Evidence: main `.evidence/ticket158/` (review, private RED, root-focused-checks, mutation-run,
-full-checks, native-baseline-delta and activation-proof). Local dev merge/post-merge checks
-remain pending, so158 stays claimed.111 activation and parent19 remain open. No push.
+full-checks, native-baseline-delta and activation-proof). Source `614e3aa3` merged locally into
+`dev` at `2cb402e2`, with identical candidate and merge trees. Post-merge repository, test and
+lint checks pass with all 1,849 baselined native tests executed; exact HEAD and commands are in
+`post-merge-checks.json/log`. Ticket 111 activation and parent 19 remain open. No push.

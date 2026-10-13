@@ -422,8 +422,9 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   oracle sign corrected to existing rotation math). Isolated111 is60/62; two electrical failures
   remain.111 activation remains unmerged.
 
-- [158](issues/158-retain-local-controller-private-net-on-omit.md): verified existing147-policy
-  Local-controller net-retention correction, awaiting local merge/postchecks. Both reviews,
+- [158](issues/158-retain-local-controller-private-net-on-omit.md): resolved existing 147-policy
+  Local-controller net-retention correction, merged locally at `2cb402e2`; post-merge repository,
+  test and lint checks pass with 1,849 native tests. Both reviews,
   two mutation kills and full repo/test/lint pass with1,849 native tests. Unchanged public
   controller Preview/Commit case passes;111 is61/62 with associated Local circuit projection
   remaining.111 activation stays unmerged.
