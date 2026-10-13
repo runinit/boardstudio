@@ -778,12 +778,14 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     let (cache, contours, findings) = crate::geometry::outlines(&prepared, None, &changed);
     let publication = engine.publish_prepared_edit(
         "unlink-prepared".into(),
-        "unlink-prepared".into(),
-        prepared,
-        changed,
-        cache,
-        contours,
-        findings,
+        crate::PreparedEdit {
+            transaction: "unlink-prepared".into(),
+            document: prepared,
+            changed,
+            cache,
+            contours,
+            findings,
+        },
     );
     assert!(matches!(publication, crate::model::CoreReply::Scene { .. }));
     assert_eq!(engine.undo.len(), 1);

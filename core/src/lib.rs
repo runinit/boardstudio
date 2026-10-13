@@ -621,25 +621,26 @@ impl CoreEngine {
         }
         self.publish_prepared_edit(
             id,
-            command.transaction_id,
-            next,
+            PreparedEdit {
+                transaction: command.transaction_id,
+                document: next,
+                changed,
+                cache,
+                contours,
+                findings,
+            },
+        )
+    }
+
+    fn publish_prepared_edit(&mut self, id: String, prepared: PreparedEdit) -> CoreReply {
+        let PreparedEdit {
+            transaction,
+            document: mut next,
             changed,
             cache,
             contours,
             findings,
-        )
-    }
-
-    fn publish_prepared_edit(
-        &mut self,
-        id: String,
-        transaction: String,
-        mut next: ProjectDoc,
-        changed: Vec<String>,
-        cache: OutlineCache,
-        contours: Vec<Contour>,
-        findings: Vec<Finding>,
-    ) -> CoreReply {
+        } = prepared;
         next.revision = self.document.revision + 1;
         outline_versions::refresh_recovery(&mut next, &cache);
         self.undo.push(self.document.clone());
@@ -1001,6 +1002,16 @@ enum History {
     Undo,
     Redo,
 }
+
+struct PreparedEdit {
+    transaction: String,
+    document: ProjectDoc,
+    changed: Vec<String>,
+    cache: OutlineCache,
+    contours: Vec<Contour>,
+    findings: Vec<Finding>,
+}
+
 enum SceneKind {
     Preview,
     Committed,
