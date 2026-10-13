@@ -384,3 +384,27 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
 - [151](issues/151-explicit-mirror-only-part-placement.md): owner approved dedicated
   AddMirrorOnlyPart and explicit “Only this half” placement; bounded preparation follows 111 and
   precedes 109b. Ordinary AddPart remains linked; 111 continues independently.
+
+
+- [152](issues/152-reconcile-authored-matrix-cells.md): resolved private authored-cell/local
+  companion and sparse-slot preparation; independent reviews, 214 focused tests, nine compiled
+  mutation kills and full repo/test/lint pass with 1,826 native tests. Merged locally as
+  `39f15a5e` (source `e72f7307`); post-merge repo/test/lint also passes with all 1,826 native tests.
+- [153](issues/153-validate-independent-exceptions-with-matrix-owners.md): resolved private
+  independent exceptions alongside exact single/multiple Matrix owners; both review axes accept,
+  221 focused tests and six final refined compiled mutation kills pass. Full repo/test/lint passes
+  with 1,833 native tests. Merged locally as `d897b057` (source `ab697e05`); post-merge
+  repo/test/lint also passes with all 1,833 native tests. 111 activation remains unmerged.
+- [154](issues/154-reserve-staged-circuit-member-references.md): resolved source/staged reference
+  reservation using existing allocators. Both review axes accept, 31 hosted/223 reconciliation
+  tests and four compiled mutation kills pass; full repo/test/lint passes with all 1,836 native
+  tests. 155's durable links make the preserved bidirectional pose assertions pass. Merged locally
+  as `08b469b59` (source `395fcd97`); post-merge repo/test/lint also passes with all 1,836 native
+  tests. 111 activation remains unmerged.
+
+- [155](issues/155-admit-hosted-addition-correspondences.md): resolved private durable admission
+  of selected hosted Module/Circuit/member/private-Net links. Both review axes accept, 222 focused
+  tests and eight final compiled mutation kills pass; full repo/test/lint passes with all 1,834
+  native tests. Merged locally as `fb6bdbfb6` (source `1ee69ac54`); post-merge repo/test/lint
+  also passes with all 1,834 native tests. 154's propagated-pose proof now passes; its local
+  integration also passes; 111 activation remains open. No new policy/schema/visibility.

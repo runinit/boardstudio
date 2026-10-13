@@ -282,6 +282,71 @@ fn effective(
     }
 }
 
+fn matrix_cell_child_has_exact_membership(
+    document: &crate::model::ProjectDoc,
+    context: &MembershipContext,
+    owner: &super::TransitionAssociation,
+    association: &super::TransitionAssociation,
+    require_target_membership: bool,
+) -> bool {
+    let matching_owners = context
+        .pair_right
+        .correspondences
+        .iter()
+        .filter(|record| record.kind == MirroredItemKind::Matrix)
+        .filter(|record| {
+            let mut source_matrices = document
+                .matrices
+                .iter()
+                .filter(|matrix| matrix.id == record.source_id);
+            let Some(source_matrix) = source_matrices.next() else {
+                return false;
+            };
+            if source_matrices.next().is_some()
+                || source_matrix.board_id.as_deref() != Some(context.source_board_id.as_str())
+                || !source_matrix.part_ids.contains(&owner.source_id)
+                || !source_matrix.part_ids.contains(&association.source_id)
+            {
+                return false;
+            }
+
+            let mut mirror_matrices = document
+                .matrices
+                .iter()
+                .filter(|matrix| matrix.id == record.mirror_id);
+            let mirror_matrix = mirror_matrices.next();
+            if mirror_matrices.next().is_some() {
+                return false;
+            }
+            if require_target_membership
+                && !mirror_matrix.is_some_and(|matrix| {
+                    matrix.board_id.as_deref() == Some(context.mirror_board_id.as_str())
+                        && matrix.part_ids.contains(&owner.mirror_id)
+                        && matrix.part_ids.contains(&association.mirror_id)
+                })
+            {
+                return false;
+            }
+
+            source_matrix.cells.iter().any(|cell| {
+                let source_key =
+                    format!("matrix/{}/r{}c{}", source_matrix.id, cell.row, cell.column);
+                let mirror_key =
+                    format!("matrix/{}/r{}c{}", record.mirror_id, cell.row, cell.column);
+                source_key == owner.source_id
+                    && mirror_key == owner.mirror_id
+                    && cell.assemblies.iter().any(|assembly| {
+                        association.source_id
+                            == crate::matrix::companion_id(&source_key, &assembly.id)
+                            && association.mirror_id
+                                == crate::matrix::companion_id(&mirror_key, &assembly.id)
+                    })
+            })
+        })
+        .count();
+    matching_owners == 1
+}
+
 fn validate_lifecycle_context(
     document: &crate::model::ProjectDoc,
     context: &MembershipContext,
@@ -289,6 +354,35 @@ fn validate_lifecycle_context(
     let mut sources = BTreeSet::new();
     let mut mirrors = BTreeSet::new();
     let mut expected_rejoins = std::collections::BTreeMap::new();
+    for source_id in context.pending_pair_transitions.keys() {
+        let mut selected = context
+            .associations
+            .iter()
+            .filter(|association| association.source_id == *source_id);
+        let association = selected
+            .next()
+            .ok_or("A selected lifecycle owner lacks its exact association")?;
+        if selected.next().is_some() {
+            return Err("A selected lifecycle owner is ambiguous".into());
+        }
+        if association.kind == MirroredItemKind::Part {
+            let actual_owner = matrix_pair_for_association(
+                document,
+                &context.pair_right,
+                association.kind,
+                &association.source_id,
+                &association.mirror_id,
+            )?;
+            if actual_owner
+                .as_ref()
+                .is_some_and(|owner| context.matrix_pair.as_ref() != Some(owner))
+            {
+                return Err(
+                    "The selected lifecycle Matrix owner disagrees with actual ownership".into(),
+                );
+            }
+        }
+    }
     for association in &context.associations {
         if !sources.insert((
             format!("{:?}", association.kind),
@@ -336,25 +430,13 @@ fn validate_lifecycle_context(
                     })
                 }
                 (MirroredItemKind::Part, MirroredItemKind::Part) => {
-                    document.matrices.iter().any(|matrix| {
-                        matrix.board_id.as_deref() == Some(context.source_board_id.as_str())
-                            && matrix.part_ids.contains(&owner.source_id)
-                            && matrix.part_ids.contains(&association.source_id)
-                            && matrix.cells.iter().any(|cell| {
-                                let key =
-                                    format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column);
-                                key == owner.source_id
-                                    && cell.assemblies.iter().any(|assembly| {
-                                        association.source_id
-                                            == crate::matrix::companion_id(&key, &assembly.id)
-                                            && association.mirror_id
-                                                == crate::matrix::companion_id(
-                                                    &owner.mirror_id,
-                                                    &assembly.id,
-                                                )
-                                    })
-                            })
-                    })
+                    matrix_cell_child_has_exact_membership(
+                        document,
+                        context,
+                        owner,
+                        association,
+                        false,
+                    )
                 }
                 (
                     MirroredItemKind::EmbeddedCircuit,
@@ -393,16 +475,18 @@ fn validate_lifecycle_context(
                         _ => c.net_ids.contains(&association.mirror_id),
                     })
                     .unwrap_or(false),
-                MirroredItemKind::Matrix => document.matrices.iter().any(|m| {
-                    m.id == owner.mirror_id && m.part_ids.contains(&association.mirror_id)
+                MirroredItemKind::Matrix => document.matrices.iter().any(|matrix| {
+                    matrix.id == owner.mirror_id
+                        && matrix.board_id.as_deref() == Some(context.mirror_board_id.as_str())
+                        && matrix.part_ids.contains(&association.mirror_id)
                 }),
-                MirroredItemKind::Part => context.matrix_pair.as_ref().is_some_and(|matrix_pair| {
-                    document.matrices.iter().any(|m| {
-                        m.id == matrix_pair.mirror_id
-                            && m.part_ids.contains(&owner.mirror_id)
-                            && m.part_ids.contains(&association.mirror_id)
-                    })
-                }),
+                MirroredItemKind::Part => matrix_cell_child_has_exact_membership(
+                    document,
+                    context,
+                    owner,
+                    association,
+                    true,
+                ),
                 _ => false,
             };
             let mut omitted_owner = false;
@@ -1452,51 +1536,6 @@ pub(super) fn prepare_edit_transition(
     .map(Some)
 }
 
-fn matrix_pair_for_association(
-    document: &crate::model::ProjectDoc,
-    halves: &crate::model::MirroredHalves,
-    kind: MirroredItemKind,
-    source_id: &str,
-    mirror_id: &str,
-) -> Result<Option<super::MatrixPairContext>, String> {
-    if kind == MirroredItemKind::Matrix {
-        return Ok(Some(super::MatrixPairContext {
-            source_id: source_id.to_owned(),
-            mirror_id: mirror_id.to_owned(),
-        }));
-    }
-    if kind != MirroredItemKind::Part {
-        return Ok(None);
-    }
-    let mut matching = halves
-        .correspondences
-        .iter()
-        .filter(|matrix| matrix.kind == MirroredItemKind::Matrix)
-        .filter_map(|matrix| {
-            let source_suffix = source_id.strip_prefix(&format!("matrix/{}/", matrix.source_id))?;
-            let mirror_suffix = mirror_id.strip_prefix(&format!("matrix/{}/", matrix.mirror_id))?;
-            (source_suffix == mirror_suffix).then(|| super::MatrixPairContext {
-                source_id: matrix.source_id.clone(),
-                mirror_id: matrix.mirror_id.clone(),
-            })
-        });
-    let first = matching.next();
-    if matching.next().is_some() {
-        return Err("The exact lifecycle Matrix association is ambiguous".into());
-    }
-    if first.is_none()
-        && document.matrices.iter().any(|matrix| {
-            matrix
-                .part_ids
-                .iter()
-                .any(|part_id| part_id == source_id || part_id == mirror_id)
-        })
-    {
-        return Err("A matrix-owned Part has no exact Matrix correspondence".into());
-    }
-    Ok(first)
-}
-
 fn removed_part_ids(
     before: &crate::model::ProjectDoc,
     after: &crate::model::ProjectDoc,
@@ -1764,6 +1803,113 @@ fn lifecycle_context(
     Ok(context)
 }
 
+fn matrix_pair_for_association(
+    document: &crate::model::ProjectDoc,
+    halves: &crate::model::MirroredHalves,
+    kind: crate::model::MirroredItemKind,
+    source_id: &str,
+    mirror_id: &str,
+) -> Result<Option<super::MatrixPairContext>, String> {
+    if kind == MirroredItemKind::Matrix {
+        return Ok(Some(super::MatrixPairContext {
+            source_id: source_id.to_owned(),
+            mirror_id: mirror_id.to_owned(),
+        }));
+    }
+    if kind != crate::model::MirroredItemKind::Part {
+        return Ok(None);
+    }
+
+    let matrix_pairs: Vec<_> = halves
+        .correspondences
+        .iter()
+        .filter(|record| record.kind == MirroredItemKind::Matrix)
+        .filter_map(|record| {
+            let (row, column, suffix) = super::matrix_identity_slot(source_id, &record.source_id)?;
+            let mirror_member = if suffix.is_empty() {
+                format!("matrix/{}/r{row}c{column}", record.mirror_id)
+            } else {
+                format!("matrix/{}/r{row}c{column}/{suffix}", record.mirror_id)
+            };
+            (mirror_member == mirror_id).then(|| super::MatrixPairContext {
+                source_id: record.source_id.clone(),
+                mirror_id: record.mirror_id.clone(),
+            })
+        })
+        .collect();
+    let source_matrix_memberships: Vec<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.part_ids.iter().any(|id| id == source_id))
+        .collect();
+    let mirror_matrix_memberships: Vec<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.part_ids.iter().any(|id| id == mirror_id))
+        .collect();
+    if matrix_pairs.is_empty() {
+        if source_matrix_memberships.is_empty() && mirror_matrix_memberships.is_empty() {
+            return Ok(None);
+        }
+        return Err("A matrix-owned Part lacks its exact durable Matrix correspondence".into());
+    }
+    let [matrix_pair] = matrix_pairs.as_slice() else {
+        return Err("A matrix-owned Part has an ambiguous durable Matrix owner".into());
+    };
+    let source_board_id = &halves.source_board_id;
+    let mirror_board_id = &halves.mirror_board_id;
+    let mut source_matrices = document
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.id == matrix_pair.source_id);
+    let source_matrix = source_matrices
+        .next()
+        .ok_or("The exact source Matrix owner is unavailable")?;
+    if source_matrices.next().is_some()
+        || source_matrix.board_id.as_deref() != Some(source_board_id.as_str())
+        || !source_matrix.part_ids.contains(&source_id.to_owned())
+        || source_matrix_memberships.len() != 1
+        || source_matrix_memberships[0].id != source_matrix.id
+    {
+        return Err("The source Part does not have exact Matrix membership".into());
+    }
+    let mut mirror_matrices = document
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.id == matrix_pair.mirror_id);
+    let mirror_matrix = mirror_matrices.next();
+    if mirror_matrices.next().is_some() {
+        return Err("The exact mirror Matrix owner is ambiguous".into());
+    }
+    let omitted_owner = halves.exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Matrix
+            && exception.mirror_id == matrix_pair.mirror_id
+            && exception.state == MirroredExceptionState::Omitted
+            && halves.overlay_source(exception) == Some(matrix_pair.source_id.as_str())
+    });
+    let omitted_part = halves.exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Part
+            && exception.mirror_id == mirror_id
+            && exception.state == MirroredExceptionState::Omitted
+            && halves.overlay_source(exception) == Some(source_id)
+    });
+    if let Some(mirror_matrix) = mirror_matrix {
+        if mirror_matrix.board_id.as_deref() != Some(mirror_board_id.as_str())
+            || mirror_matrix_memberships
+                .iter()
+                .any(|matrix| matrix.id != mirror_matrix.id)
+            || (!mirror_matrix.part_ids.iter().any(|id| id == mirror_id)
+                && !omitted_owner
+                && !omitted_part)
+        {
+            return Err("The mirror Part lacks actual membership in its exact Matrix".into());
+        }
+    } else if !omitted_owner {
+        return Err("The exact mirror Matrix owner is unavailable".into());
+    }
+    Ok(Some(matrix_pair.clone()))
+}
+
 // Ticket 150's private intent-to-draft route. Kept inside lifecycle so ticket 111 can compose
 // it from the existing edit adapter without adding a callable seam.
 #[allow(dead_code)]
@@ -1776,8 +1922,6 @@ fn prepare_exception_intent(
     mirror_id: &str,
     state: TransitionState,
 ) -> Result<Vec<super::MembershipTransitionOutput>, String> {
-    use crate::model::MirroredItemKind;
-
     let hardware = before
         .hardware
         .as_ref()
@@ -1793,26 +1937,8 @@ fn prepare_exception_intent(
         .halves
         .as_ref()
         .ok_or("The exact lifecycle pair has no halves record")?;
-    if halves
-        .correspondences
-        .iter()
-        .any(|record| record.kind == MirroredItemKind::Matrix)
-    {
-        return Err(
-            "Matrix-backed exception intents use the selected Matrix lifecycle path".into(),
-        );
-    }
-    let context = lifecycle_context(before, pair_id, None)?;
-    if kind == MirroredItemKind::Part
-        && before.matrices.iter().any(|matrix| {
-            matrix
-                .part_ids
-                .iter()
-                .any(|id| id == source_id || id == mirror_id)
-        })
-    {
-        return Err("A matrix-owned Part has no exact Matrix correspondence".into());
-    }
+    let matrix_pair = matrix_pair_for_association(before, halves, kind, source_id, mirror_id)?;
+    let context = lifecycle_context(before, pair_id, matrix_pair)?;
     let pending = transition_exception_context(&context, kind, source_id, mirror_id, state)?;
     prepare_lifecycle_transition(before, post_source, &pending).map(|output| vec![output])
 }

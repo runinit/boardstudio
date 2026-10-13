@@ -281,6 +281,7 @@ struct MatrixStage {
 }
 
 struct FixedMembershipView {
+    normalized_source_matrix: Matrix,
     incoming_matrix: Matrix,
     retained_cells: Vec<RetainedCell>,
     omitted_parts: BTreeSet<String>,
@@ -296,6 +297,63 @@ fn build_fixed_membership_view(
 ) -> Result<FixedMembershipView, String> {
     type Slot = (u32, u32);
     type SlotIds = std::collections::BTreeMap<Slot, String>;
+
+    fn fill_implicit_active_cells(matrix: &Matrix) -> Result<Matrix, String> {
+        if matrix.rows == 0 || matrix.columns == 0 {
+            return Err("The reconciliation matrix has empty dimensions".into());
+        }
+        let count = matrix
+            .rows
+            .checked_mul(matrix.columns)
+            .ok_or_else(|| "The reconciliation matrix dimensions overflow".to_owned())?;
+        let mut coordinates = BTreeSet::new();
+        for cell in &matrix.cells {
+            if !cell.enabled
+                || cell.deleted
+                || cell.row >= matrix.rows
+                || cell.column >= matrix.columns
+            {
+                return Err(
+                    "The reconciliation matrix does not have fixed active membership".into(),
+                );
+            }
+            if !coordinates.insert((cell.row, cell.column)) {
+                return Err("The reconciliation matrix contains aliased cells".into());
+            }
+        }
+        let mut normalized = matrix.clone();
+        for row in 0..matrix.rows {
+            for column in 0..matrix.columns {
+                if coordinates.insert((row, column)) {
+                    normalized.cells.push(crate::model::MatrixCell {
+                        deleted: false,
+                        row,
+                        column,
+                        enabled: true,
+                        definition_id: None,
+                        variant: None,
+                        offset: None,
+                        rotation: None,
+                        assemblies: vec![],
+                        assemblies_local: None,
+                    });
+                }
+            }
+        }
+        if coordinates.len() != count as usize {
+            return Err("The reconciliation matrix has incomplete active membership".into());
+        }
+        Ok(normalized)
+    }
+
+    // Missing coordinates use the same empty active-cell defaults as matrix materialization.
+    // Existing disabled/deleted cells are rejected above rather than implicitly reactivated.
+    let source = fill_implicit_active_cells(source)?;
+    let mirror = fill_implicit_active_cells(mirror)?;
+    let mut projected = fill_implicit_active_cells(projected)?;
+    // Projection order is derived data; keep it canonical so filling a sparse source does not
+    // cause a one-time cell-vector reorder on the next reconciliation.
+    projected.cells.sort_by_key(|cell| (cell.row, cell.column));
     let mut adjusted_projected = projected.clone();
 
     fn point_is_finite(point: Vec2) -> bool {
@@ -377,21 +435,16 @@ fn build_fixed_membership_view(
     {
         return Err("The source and mirror matrices do not have matching fixed dimensions".into());
     }
-    let source_slots = canonical_slots(source)?;
-    let mirror_slots = canonical_slots(mirror)?;
-    let projected_slots = canonical_slots(projected)?;
+    let source_slots = canonical_slots(&source)?;
+    let mirror_slots = canonical_slots(&mirror)?;
+    let projected_slots = canonical_slots(&projected)?;
     if source_slots.keys().ne(mirror_slots.keys()) || source_slots.keys().ne(projected_slots.keys())
     {
         return Err("The source and mirror matrices do not have matching active slots".into());
     }
-    let source_members = canonical_members(source, &source_slots)?;
-    let mirror_members = canonical_members(mirror, &mirror_slots)?;
-    let projected_members = canonical_members(projected, &projected_slots)?;
-    if source_members.len() != mirror_members.len()
-        || source_members.len() != projected_members.len()
-    {
-        return Err("The source and mirror matrices do not have matching fixed members".into());
-    }
+    let source_members = canonical_members(&source, &source_slots)?;
+    let mirror_members = canonical_members(&mirror, &mirror_slots)?;
+    canonical_members(&projected, &projected_slots)?;
 
     let mut linked_slots = std::collections::BTreeMap::<Slot, String>::new();
     let mut linked_source_ids = std::collections::BTreeSet::new();
@@ -613,6 +666,12 @@ fn build_fixed_membership_view(
             .iter()
             .find(|cell| (cell.row, cell.column) == *slot)
             .ok_or_else(|| "A projected matrix cell is unavailable".to_owned())?;
+        if source_cell.assemblies_local == Some(true) || mirror_cell.assemblies_local == Some(true)
+        {
+            // Local assembly lists have no cross-half identity. The key stays linked, while
+            // each half's materialized companions remain under that cell's own ownership.
+            continue;
+        }
         let source_assemblies: std::collections::BTreeMap<_, _> = source_cell
             .assemblies
             .iter()
@@ -789,10 +848,30 @@ fn build_fixed_membership_view(
         }
     }
 
-    if source.cells.iter().chain(&mirror.cells).any(|cell| {
-        cell.definition_id.is_some() || cell.variant.is_some() || cell.assemblies_local.is_some()
-    }) {
-        return Err("The reconciliation matrix uses an unsupported cell representation".into());
+    for (row, column) in source_slots.keys() {
+        let source_cell = source
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (*row, *column))
+            .ok_or_else(|| "A source matrix cell is unavailable".to_owned())?;
+        let mirror_cell = mirror
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (*row, *column))
+            .ok_or_else(|| "A mirror matrix cell is unavailable".to_owned())?;
+        let projected_cell = adjusted_projected
+            .cells
+            .iter_mut()
+            .find(|cell| (cell.row, cell.column) == (*row, *column))
+            .ok_or_else(|| "A projected matrix cell is unavailable".to_owned())?;
+        if mirror_cell.assemblies_local != Some(true) {
+            projected_cell.definition_id = source_cell.definition_id.clone();
+            projected_cell.variant = source_cell.variant.clone();
+            if source_cell.assemblies_local != Some(true) {
+                // Reflection normalizes false to None; retain the authored distinction.
+                projected_cell.assemblies_local = source_cell.assemblies_local;
+            }
+        }
     }
     let finite_matrix = |matrix: &Matrix| {
         point_is_finite(matrix.origin)
@@ -813,7 +892,7 @@ fn build_fixed_membership_view(
                 cell.offset.is_none_or(point_is_finite) && cell.rotation.is_none_or(f64::is_finite)
             })
     };
-    if !finite_matrix(source) || !finite_matrix(mirror) || !finite_matrix(&adjusted_projected) {
+    if !finite_matrix(&source) || !finite_matrix(&mirror) || !finite_matrix(&adjusted_projected) {
         return Err("The reconciliation matrix geometry contains non-finite values".into());
     }
 
@@ -1032,24 +1111,28 @@ fn build_fixed_membership_view(
             .iter()
             .find(|source_cell| (source_cell.row, source_cell.column) == (row, column))
             .ok_or_else(|| "The source matrix cell is unavailable".to_owned())?;
-        for assembly in &mut cell.assemblies {
-            let source_assembly = source_cell
-                .assemblies
-                .iter()
-                .find(|source_assembly| source_assembly.id == assembly.id)
-                .ok_or_else(|| "The retained source assembly is unavailable".to_owned())?;
-            *assembly = mirror
-                .cells
-                .iter()
-                .find(|mirror_cell| (mirror_cell.row, mirror_cell.column) == (row, column))
-                .and_then(|mirror_cell| {
-                    mirror_cell
-                        .assemblies
-                        .iter()
-                        .find(|mirror_assembly| mirror_assembly.id == source_assembly.id)
-                })
-                .ok_or_else(|| "The retained mirror assembly is unavailable".to_owned())?
-                .clone();
+        let mirror_cell = mirror
+            .cells
+            .iter()
+            .find(|mirror_cell| (mirror_cell.row, mirror_cell.column) == (row, column))
+            .ok_or_else(|| "The mirror matrix cell is unavailable".to_owned())?;
+        if source_cell.assemblies_local == Some(true) || mirror_cell.assemblies_local == Some(true)
+        {
+            cell.assemblies = mirror_cell.assemblies.clone();
+        } else {
+            for assembly in &mut cell.assemblies {
+                let source_assembly = source_cell
+                    .assemblies
+                    .iter()
+                    .find(|source_assembly| source_assembly.id == assembly.id)
+                    .ok_or_else(|| "The retained source assembly is unavailable".to_owned())?;
+                *assembly = mirror_cell
+                    .assemblies
+                    .iter()
+                    .find(|mirror_assembly| mirror_assembly.id == source_assembly.id)
+                    .ok_or_else(|| "The retained mirror assembly is unavailable".to_owned())?
+                    .clone();
+            }
         }
         let mut member_ids = vec![id.clone()];
         member_ids.extend(
@@ -1075,10 +1158,45 @@ fn build_fixed_membership_view(
             .retain(|id| !retained.member_ids.contains(id));
     }
     Ok(FixedMembershipView {
+        normalized_source_matrix: source,
         incoming_matrix,
         retained_cells,
         omitted_parts,
     })
+}
+
+fn stage_hosted_correspondence(
+    document: &mut ProjectDoc,
+    pair_id: &str,
+    allow_existing: bool,
+    correspondence: MirroredCorrespondence,
+) -> Result<(), String> {
+    let halves = document
+        .hardware
+        .as_mut()
+        .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == pair_id))
+        .and_then(|pair| pair.halves.as_mut())
+        .ok_or_else(|| format!("The staged pair {pair_id:?} has no halves context"))?;
+    let existing = halves.correspondences.iter().find(|existing| {
+        existing.kind == correspondence.kind
+            && (existing.source_id == correspondence.source_id
+                || existing.mirror_id == correspondence.mirror_id)
+    });
+    match existing {
+        Some(existing) if existing == &correspondence && allow_existing => Ok(()),
+        Some(existing) if existing == &correspondence => Err(format!(
+            "The selected hosted {:?} correspondence already exists without private replay provenance",
+            correspondence.kind
+        )),
+        Some(_) => Err(format!(
+            "The selected hosted {:?} correspondence conflicts with an existing identity",
+            correspondence.kind
+        )),
+        None => {
+            halves.correspondences.push(correspondence);
+            Ok(())
+        }
+    }
 }
 
 #[allow(dead_code)] // Ticket 111 activates this private seam after the reconciliation slices are verified.
@@ -1635,6 +1753,7 @@ fn reconcile(
 
         let view = if exact_matrix_exception.is_some() || projection.preserve_matrix_geometry {
             FixedMembershipView {
+                normalized_source_matrix: source_matrix.clone(),
                 incoming_matrix: mirror_matrix.clone(),
                 retained_cells: Vec::new(),
                 omitted_parts: BTreeSet::new(),
@@ -1655,6 +1774,7 @@ fn reconcile(
 
         // Keep both retained parts out of the incoming pass and the previous ownership
         // view, so the destructive setter cannot remove their parts or references.
+        let normalized_source_matrix = view.normalized_source_matrix;
         let incoming_matrix = view.incoming_matrix;
         let mut staged = document.clone();
         if exact_matrix_exception.is_none() && !projection.preserve_matrix_geometry {
@@ -1673,6 +1793,9 @@ fn reconcile(
             staged_old_matrix
                 .part_ids
                 .retain(|id| !retained_ids.contains(id));
+            if normalized_source_matrix.cells.len() != source_matrix.cells.len() {
+                crate::matrix::set_matrix(&mut staged, &normalized_source_matrix)?;
+            }
             crate::matrix::set_matrix(&mut staged, &incoming_matrix)?;
 
             {
@@ -2212,7 +2335,7 @@ fn reconcile(
         })
         .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
         .collect();
-    let reference_part_targets: BTreeMap<_, _> = halves
+    let mut reference_part_targets: BTreeMap<_, _> = halves
         .correspondences
         .iter()
         .filter(|association| {
@@ -2241,7 +2364,7 @@ fn reconcile(
         })
         .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
         .collect();
-    let reference_net_targets: BTreeMap<_, _> = halves
+    let mut reference_net_targets: BTreeMap<_, _> = halves
         .correspondences
         .iter()
         .filter(|association| {
@@ -2251,10 +2374,80 @@ fn reconcile(
         })
         .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
         .collect();
+    let compose_reference_target = |targets: &mut BTreeMap<String, String>,
+                                    source_id: &str,
+                                    mirror_id: &str,
+                                    kind: MirroredItemKind|
+     -> Result<(), String> {
+        if targets.iter().any(|(existing_source, existing_mirror)| {
+            existing_source != source_id && existing_mirror == mirror_id
+        }) {
+            return Err(format!(
+                "The selected hosted {kind:?} reference target {mirror_id:?} is already in use"
+            ));
+        }
+        match targets.get(source_id) {
+            Some(existing) if existing == mirror_id => Ok(()),
+            Some(_) => Err(format!(
+                "The selected hosted {kind:?} reference conflicts with an existing identity"
+            )),
+            None => {
+                targets.insert(source_id.to_owned(), mirror_id.to_owned());
+                Ok(())
+            }
+        }
+    };
+    for transition in &projection.hosted_transitions {
+        if let HostedTransition::AddCircuit {
+            member_ids,
+            net_ids,
+            ..
+        } = transition
+        {
+            for (source_id, mirror_id) in member_ids {
+                compose_reference_target(
+                    &mut reference_part_targets,
+                    source_id,
+                    mirror_id,
+                    MirroredItemKind::Part,
+                )?;
+            }
+            for (source_id, mirror_id) in net_ids {
+                compose_reference_target(
+                    &mut reference_net_targets,
+                    source_id,
+                    mirror_id,
+                    MirroredItemKind::Net,
+                )?;
+            }
+        }
+    }
+    let replayed_circuit_additions: BTreeSet<_> = projection
+        .hosted_transitions
+        .iter()
+        .filter_map(|transition| match transition {
+            HostedTransition::AddCircuit {
+                source_id,
+                mirror_id,
+                ..
+            } if projection
+                .applied_hosted_circuit_additions
+                .borrow()
+                .contains_key(&("circuit".to_owned(), source_id.clone(), mirror_id.clone())) =>
+            {
+                Some((source_id.clone(), mirror_id.clone()))
+            }
+            _ => None,
+        })
+        .collect();
     let circuit_pairs: Vec<_> = halves
         .correspondences
         .iter()
-        .filter(|association| association.kind == MirroredItemKind::EmbeddedCircuit)
+        .filter(|association| {
+            association.kind == MirroredItemKind::EmbeddedCircuit
+                && !replayed_circuit_additions
+                    .contains(&(association.source_id.clone(), association.mirror_id.clone()))
+        })
         .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
         .collect();
     for (source_id, mirror_id) in circuit_pairs {
@@ -3021,13 +3214,24 @@ fn reconcile(
             source_id,
             mirror_id,
         } = transition
-            && module_targets
-                .insert(source_id.clone(), mirror_id.clone())
-                .is_some()
         {
-            return Err(format!(
-                "The module addition {source_id:?} already has a correspondence"
-            ));
+            match module_targets.get(source_id) {
+                Some(existing)
+                    if existing == mirror_id
+                        && projection.applied_hosted_operations.borrow().contains(&(
+                            "module".to_owned(),
+                            source_id.clone(),
+                            mirror_id.clone(),
+                        )) => {}
+                Some(_) => {
+                    return Err(format!(
+                        "The module addition {source_id:?} already has a correspondence"
+                    ));
+                }
+                None => {
+                    module_targets.insert(source_id.clone(), mirror_id.clone());
+                }
+            }
         }
     }
     let unique_module_targets: BTreeSet<_> = module_targets.values().collect();
@@ -3237,6 +3441,91 @@ fn reconcile(
     }
     settings::project(document, &mut staged, halves)?;
     outlines::reconcile(&mut staged, pair_id, projection)?;
+
+    for transition in &projection.hosted_transitions {
+        match transition {
+            HostedTransition::AddModule {
+                source_id,
+                mirror_id,
+            } => stage_hosted_correspondence(
+                &mut staged,
+                pair_id,
+                projection.applied_hosted_operations.borrow().contains(&(
+                    "module".to_owned(),
+                    source_id.clone(),
+                    mirror_id.clone(),
+                )),
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Module,
+                    source_id: source_id.clone(),
+                    mirror_id: mirror_id.clone(),
+                },
+            )?,
+            HostedTransition::AddCircuit {
+                source_id,
+                mirror_id,
+                member_ids,
+                net_ids,
+                ..
+            } => {
+                let replay_key = ("circuit".to_owned(), source_id.clone(), mirror_id.clone());
+                let has_replay_provenance = projection
+                    .applied_hosted_circuit_additions
+                    .borrow()
+                    .contains_key(&replay_key);
+                stage_hosted_correspondence(
+                    &mut staged,
+                    pair_id,
+                    has_replay_provenance,
+                    MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: MirroredItemKind::EmbeddedCircuit,
+                        source_id: source_id.clone(),
+                        mirror_id: mirror_id.clone(),
+                    },
+                )?;
+                for (source_member_id, mirror_member_id) in member_ids {
+                    stage_hosted_correspondence(
+                        &mut staged,
+                        pair_id,
+                        has_replay_provenance,
+                        MirroredCorrespondence {
+                            companion_mode: None,
+                            companion_tweak: None,
+                            kind: MirroredItemKind::Part,
+                            source_id: source_member_id.clone(),
+                            mirror_id: mirror_member_id.clone(),
+                        },
+                    )?;
+                }
+                for (source_net_id, mirror_net_id) in net_ids {
+                    let is_joined_host_net = halves.correspondences.iter().any(|association| {
+                        association.kind == MirroredItemKind::Net
+                            && association.source_id == *source_net_id
+                            && association.mirror_id == *mirror_net_id
+                    });
+                    if !is_joined_host_net {
+                        stage_hosted_correspondence(
+                            &mut staged,
+                            pair_id,
+                            has_replay_provenance,
+                            MirroredCorrespondence {
+                                companion_mode: None,
+                                companion_tweak: None,
+                                kind: MirroredItemKind::Net,
+                                source_id: source_net_id.clone(),
+                                mirror_id: mirror_net_id.clone(),
+                            },
+                        )?;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 
     let mut validated_draft = staged.clone();
     let pair = validated_draft
@@ -3908,22 +4197,23 @@ fn prepare_membership_transition_kernel(
     ) -> Result<(), String> {
         let matrix_pair = require_matrix_pair(context)?;
 
-        let mut associations = context
-            .associations
-            .iter()
-            .filter(|association| association.kind == MirroredItemKind::Matrix);
+        let mut associations = context.associations.iter().filter(|association| {
+            association.kind == MirroredItemKind::Matrix
+                && association.source_id == matrix_pair.source_id
+                && association.mirror_id == matrix_pair.mirror_id
+        });
         let association = associations.next();
         if associations.next().is_some() {
-            return Err("The transition matrix association is ambiguous".into());
+            return Err("The selected transition matrix association is ambiguous".into());
         }
-        let mut correspondences = context
-            .pair_right
-            .correspondences
-            .iter()
-            .filter(|record| record.kind == MirroredItemKind::Matrix);
+        let mut correspondences = context.pair_right.correspondences.iter().filter(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == matrix_pair.source_id
+                && record.mirror_id == matrix_pair.mirror_id
+        });
         let correspondence = correspondences.next();
         if correspondences.next().is_some() {
-            return Err("The transition matrix association is ambiguous".into());
+            return Err("The selected transition matrix association is ambiguous".into());
         }
         if !expected_present {
             if association.is_none()
@@ -6699,7 +6989,106 @@ mod tests {
     }
 
     #[test]
-    fn hosted_add_module_replays_from_its_full_output_without_pair_writes() {
+    fn stage_hosted_correspondence_refuses_conflicts_and_requires_replay_provenance() {
+        let (mut document, _) = hosted_electrical_fixture().unwrap();
+        let existing = MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Module,
+            source_id: "source-module".into(),
+            mirror_id: "mirror-module".into(),
+        };
+        let before = document.clone();
+
+        let same_source_conflict = MirroredCorrespondence {
+            mirror_id: "mirror-module-other".into(),
+            ..existing.clone()
+        };
+        assert!(
+            super::stage_hosted_correspondence(
+                &mut document,
+                "pair-source-mirror",
+                false,
+                same_source_conflict,
+            )
+            .is_err()
+        );
+        assert_eq!(document, before);
+
+        let same_mirror_conflict = MirroredCorrespondence {
+            source_id: "source-module-other".into(),
+            ..existing.clone()
+        };
+        assert!(
+            super::stage_hosted_correspondence(
+                &mut document,
+                "pair-source-mirror",
+                false,
+                same_mirror_conflict,
+            )
+            .is_err()
+        );
+        assert_eq!(document, before);
+
+        assert!(
+            super::stage_hosted_correspondence(
+                &mut document,
+                "pair-source-mirror",
+                false,
+                existing.clone(),
+            )
+            .is_err()
+        );
+        assert_eq!(document, before);
+        super::stage_hosted_correspondence(
+            &mut document,
+            "pair-source-mirror",
+            true,
+            existing.clone(),
+        )
+        .expect("private replay provenance admits the exact existing identity");
+        assert_eq!(document, before);
+
+        let fresh = MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Module,
+            source_id: "source-module-added".into(),
+            mirror_id: "mirror-module-added".into(),
+        };
+        super::stage_hosted_correspondence(
+            &mut document,
+            "pair-source-mirror",
+            false,
+            fresh.clone(),
+        )
+        .expect("a fresh selected identity is staged without replay provenance");
+        let halves = document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            halves
+                .correspondences
+                .iter()
+                .filter(|association| **association == fresh)
+                .count(),
+            1
+        );
+        assert_eq!(
+            halves.correspondences.len(),
+            before.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .correspondences
+                .len()
+                + 1
+        );
+    }
+
+    #[test]
+    fn hosted_add_module_admits_its_pair_record_and_replays_idempotently() {
         let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
         document
             .modules
@@ -6720,6 +7109,23 @@ mod tests {
         let pair_before = pair_state_bytes(&document);
 
         reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        let halves = document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            halves
+                .correspondences
+                .iter()
+                .filter(|association| {
+                    association.kind == MirroredItemKind::Module
+                        && association.source_id == "source-module"
+                        && association.mirror_id == "mirror-module-added"
+                })
+                .count(),
+            1,
+            "the selected hosted module identity becomes a durable pair record"
+        );
         let first_document = document.clone();
         let first_context = projection.applied_hosted_operations.borrow().clone();
         let first_circuit_context = projection.applied_hosted_circuit_additions.borrow().clone();
@@ -6746,7 +7152,7 @@ mod tests {
                 "mirror-module-added".into()
             )])
         );
-        assert_eq!(pair_state_bytes(&document), pair_before);
+        assert_ne!(pair_state_bytes(&document), pair_before);
 
         let (mut stale, mut stale_projection) = hosted_electrical_fixture().unwrap();
         stale_projection.hosted_transitions = vec![HostedTransition::AddModule {
@@ -6759,7 +7165,7 @@ mod tests {
     }
 
     #[test]
-    fn hosted_add_circuit_replays_from_its_full_output_without_pair_writes() {
+    fn hosted_add_circuit_admits_selected_pair_records_and_replays_idempotently() {
         let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
         document
             .embedded_circuits
@@ -6767,6 +7173,13 @@ mod tests {
         document
             .parts
             .retain(|part| part.id != "embedded/mirror-circuit/U1");
+        document
+            .nets
+            .iter_mut()
+            .find(|net| net.id == "host-mirror-net")
+            .unwrap()
+            .pins
+            .retain(|pin| pin.part_id != "embedded/mirror-circuit/U1");
         document
             .definitions
             .retain(|definition| definition.id != "embedded/mirror-circuit/definition/u");
@@ -6819,7 +7232,59 @@ mod tests {
         let pair_before = pair_state_bytes(&document);
 
         reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        let halves = document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        for (kind, source_id, mirror_id) in [
+            (
+                MirroredItemKind::EmbeddedCircuit,
+                "source-circuit",
+                "mirror-circuit-added",
+            ),
+            (
+                MirroredItemKind::Part,
+                "embedded/source-circuit/U1",
+                "embedded/mirror-circuit-added/U1",
+            ),
+            (
+                MirroredItemKind::Net,
+                "embedded/source-circuit/N$1",
+                "embedded/mirror-circuit-added/N$1",
+            ),
+            (MirroredItemKind::Net, "host-source-net", "host-mirror-net"),
+        ] {
+            assert_eq!(
+                halves
+                    .correspondences
+                    .iter()
+                    .filter(|association| {
+                        association.kind == kind
+                            && association.source_id == source_id
+                            && association.mirror_id == mirror_id
+                    })
+                    .count(),
+                1,
+                "selected hosted circuit identities become durable exactly once: {kind:?} {source_id:?} -> {mirror_id:?}"
+            );
+        }
+        assert_eq!(
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == "embedded/mirror-circuit-added/U1")
+                .unwrap()
+                .definition_id,
+            "embedded/mirror-circuit-added/definition/u",
+            "member definition identity stays in the existing namespace map"
+        );
         let first_document = document.clone();
+        let first_joined_net = document
+            .nets
+            .iter()
+            .find(|net| net.id == "host-mirror-net")
+            .unwrap()
+            .clone();
         let first_context = projection.applied_hosted_operations.borrow().clone();
         let first_circuit_context = projection.applied_hosted_circuit_additions.borrow().clone();
         let repeated = reconcile(&mut document, "pair-source-mirror", &projection);
@@ -6827,7 +7292,16 @@ mod tests {
             repeated.is_ok(),
             "the same hosted circuit addition must accept its own full output"
         );
-        assert!(repeated.unwrap().is_empty());
+        let repeated_changes = repeated.unwrap();
+        let repeated_joined_net = document
+            .nets
+            .iter()
+            .find(|net| net.id == "host-mirror-net")
+            .unwrap();
+        assert!(
+            repeated_changes.is_empty(),
+            "authenticated AddCircuit replay must be idempotent: {repeated_changes:?}; before={first_joined_net:?}, after={repeated_joined_net:?}"
+        );
         assert_eq!(document, first_document);
         assert_eq!(
             *projection.applied_hosted_operations.borrow(),
@@ -6845,7 +7319,124 @@ mod tests {
                 "mirror-circuit-added".into()
             )])
         );
-        assert_eq!(pair_state_bytes(&document), pair_before);
+        assert_ne!(pair_state_bytes(&document), pair_before);
+
+        // The first AddCircuit path appends the member pin to the existing joined host net.
+        // Once the addition is admitted, ordinary circuit projection owns subsequent updates and
+        // applies its established source-net metadata normalization.
+        let first_added_joined_name = first_joined_net.name.clone();
+        projection.hosted_transitions.clear();
+        projection.applied_hosted_operations.borrow_mut().clear();
+        projection
+            .applied_hosted_circuit_additions
+            .borrow_mut()
+            .clear();
+        let source_member = document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "embedded/source-circuit/U1")
+            .unwrap();
+        source_member.pose.at.x += 2.0;
+        document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "embedded/mirror-circuit-added/U1")
+            .unwrap()
+            .reference = "MIRROR-LOCAL9".into();
+        let after_addition_edit = reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the admitted member maps participate in ordinary projection");
+        assert!(after_addition_edit.contains(&"embedded/mirror-circuit-added/U1".to_owned()));
+        let projected_member = document
+            .parts
+            .iter()
+            .find(|part| part.id == "embedded/mirror-circuit-added/U1")
+            .unwrap();
+        assert_ne!(
+            projected_member.pose,
+            first_document
+                .parts
+                .iter()
+                .find(|part| part.id == "embedded/mirror-circuit-added/U1")
+                .unwrap()
+                .pose
+        );
+        assert_eq!(projected_member.reference, "MIRROR-LOCAL9");
+        let ordinary_joined_name = document
+            .nets
+            .iter()
+            .find(|net| net.id == "host-mirror-net")
+            .unwrap()
+            .name
+            .clone();
+        assert_eq!(ordinary_joined_name, "HOST");
+        assert_ne!(ordinary_joined_name, first_added_joined_name);
+
+        let normalized_document = document.clone();
+        let normalized_repeat = reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the ordinary circuit projection remains idempotent after normalization");
+        assert!(normalized_repeat.is_empty());
+        assert_eq!(document, normalized_document);
+
+        let serialized = serde_json::to_vec(&document).unwrap();
+        let mut reopened: ProjectDoc = serde_json::from_slice(&serialized).unwrap();
+        let reopened_repeat = reconcile(&mut reopened, "pair-source-mirror", &projection)
+            .expect("durable hosted correspondences survive save/open");
+        assert!(reopened_repeat.is_empty());
+        assert_eq!(reopened, normalized_document);
+
+        let mut removal_input = reopened.clone();
+        removal_input
+            .constraints
+            .retain(|constraint| constraint.id() != "retained-second-key-offset");
+        let (removed, _) = super::prepare::prepare_transaction(
+            &removal_input,
+            &[],
+            &crate::model::EditOperation::RemoveEmbeddedCircuit {
+                id: "source-circuit".into(),
+            },
+        )
+        .expect("the supported source transaction removes an admitted circuit");
+        let removed_halves = removed.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        assert!(!removed_halves.correspondences.iter().any(|association| {
+            matches!(
+                association.kind,
+                MirroredItemKind::EmbeddedCircuit | MirroredItemKind::Part | MirroredItemKind::Net
+            ) && (association.source_id == "source-circuit"
+                || association
+                    .source_id
+                    .starts_with("embedded/source-circuit/"))
+                && (association.mirror_id == "mirror-circuit-added"
+                    || association
+                        .mirror_id
+                        .starts_with("embedded/mirror-circuit-added/"))
+        }));
+        assert!(removed_halves.correspondences.iter().any(|association| {
+            association.kind == MirroredItemKind::Net
+                && association.source_id == "host-source-net"
+                && association.mirror_id == "host-mirror-net"
+        }));
+        assert!(
+            !removed
+                .embedded_circuits
+                .iter()
+                .any(|circuit| circuit.id == "mirror-circuit-added")
+        );
+        assert!(
+            !removed
+                .parts
+                .iter()
+                .any(|part| part.id == "embedded/mirror-circuit-added/U1")
+        );
+        if let Some(retained_private_net) = removed
+            .nets
+            .iter()
+            .find(|net| net.id == "embedded/mirror-circuit-added/N$1")
+        {
+            assert!(retained_private_net.pins.is_empty());
+        }
 
         let (mut stale, mut stale_projection) = hosted_electrical_fixture().unwrap();
         stale_projection.hosted_transitions = vec![HostedTransition::AddCircuit {
@@ -8029,7 +8620,20 @@ mod tests {
 
         reconcile(&mut document, "pair-source-mirror", &projection)
             .expect("the caller selects the new module identity explicitly");
-        assert_eq!(pair_state_bytes(&document), pair_before);
+        assert_ne!(pair_state_bytes(&document), pair_before);
+        assert!(
+            document.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .correspondences
+                .iter()
+                .any(|association| {
+                    association.kind == MirroredItemKind::Module
+                        && association.source_id == "source-module"
+                        && association.mirror_id == "mirror-module-added"
+                })
+        );
         assert!(projection.applied_hosted_operations.borrow().contains(&(
             "module".into(),
             "source-module".into(),
@@ -8046,6 +8650,69 @@ mod tests {
             mirror.connection.as_ref().unwrap().host_connector_part_id,
             "matrix/mirror-matrix/r0c0"
         );
+
+        let original_mirror_pose = mirror.at;
+        projection.hosted_transitions.clear();
+        projection.applied_hosted_operations.borrow_mut().clear();
+        projection
+            .applied_hosted_circuit_additions
+            .borrow_mut()
+            .clear();
+        let source_module = document
+            .modules
+            .iter_mut()
+            .find(|module| module.id == "source-module")
+            .unwrap();
+        source_module.at.x += 5.0;
+        source_module.gap = 0.75;
+        source_module.connection.as_mut().unwrap().bus_id = "updated-bus".into();
+        document
+            .modules
+            .iter_mut()
+            .find(|module| module.id == "mirror-module-added")
+            .unwrap()
+            .connection
+            .as_mut()
+            .unwrap()
+            .bus_id = "mirror-local-edit".into();
+
+        let changes = reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("the durable module correspondence supports later source and mirror edits");
+        assert!(changes.contains(&"mirror-module-added".to_owned()));
+        let projected = document
+            .modules
+            .iter()
+            .find(|module| module.id == "mirror-module-added")
+            .unwrap();
+        assert_ne!(projected.at, original_mirror_pose);
+        assert_eq!(projected.gap, 0.75);
+        assert_eq!(
+            projected.connection.as_ref().unwrap().bus_id,
+            "mirror-board/updated-bus"
+        );
+        assert_eq!(
+            projected
+                .connection
+                .as_ref()
+                .unwrap()
+                .host_connector_part_id,
+            "matrix/mirror-matrix/r0c0"
+        );
+        let normalized = document.clone();
+        assert!(
+            reconcile(&mut document, "pair-source-mirror", &projection)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(document, normalized);
+        let serialized = serde_json::to_vec(&document).unwrap();
+        let mut reopened: ProjectDoc = serde_json::from_slice(&serialized).unwrap();
+        assert!(
+            reconcile(&mut reopened, "pair-source-mirror", &projection)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(reopened, normalized);
     }
 
     #[test]
@@ -8171,7 +8838,34 @@ mod tests {
 
         reconcile(&mut document, "pair-source-mirror", &projection)
             .expect("the caller supplies a complete one-to-one circuit identity map");
-        assert_eq!(pair_state_bytes(&document), pair_before_add);
+        assert_ne!(pair_state_bytes(&document), pair_before_add);
+        let admitted = document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        for (kind, source_id, mirror_id) in [
+            (
+                MirroredItemKind::EmbeddedCircuit,
+                "source-circuit",
+                "mirror-circuit",
+            ),
+            (
+                MirroredItemKind::Part,
+                "embedded/source-circuit/U1",
+                "embedded/mirror-circuit/U1",
+            ),
+            (
+                MirroredItemKind::Net,
+                "embedded/source-circuit/N$1",
+                "embedded/mirror-circuit/N$1",
+            ),
+        ] {
+            assert!(admitted.correspondences.iter().any(|association| {
+                association.kind == kind
+                    && association.source_id == source_id
+                    && association.mirror_id == mirror_id
+            }));
+        }
         assert!(projection.applied_hosted_operations.borrow().contains(&(
             "circuit".into(),
             "source-circuit".into(),
@@ -9586,6 +10280,425 @@ mod tests {
     }
 
     #[test]
+    fn fixed_membership_view_preserves_authored_cell_defaults_and_variants() {
+        let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
+        let matrix_default = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .definition_id
+            .clone();
+        let mut alternate_definition = document.definitions[0].clone();
+        alternate_definition.id = "alternate-switch".into();
+        document.definitions.push(alternate_definition);
+        {
+            let source_matrix = document
+                .matrices
+                .iter_mut()
+                .find(|matrix| matrix.id == "source-matrix")
+                .unwrap();
+            let cell = source_matrix
+                .cells
+                .iter_mut()
+                .find(|cell| (cell.row, cell.column) == (0, 1))
+                .unwrap();
+            // The definition override is redundant today but remains an authored per-cell
+            // choice if the matrix default changes later.
+            cell.definition_id = Some(matrix_default.clone());
+            cell.variant = Some("preset/authored-red".into());
+            cell.assemblies_local = Some(false);
+            source_matrix
+                .cells
+                .iter_mut()
+                .find(|cell| (cell.row, cell.column) == (0, 2))
+                .unwrap()
+                .definition_id = Some("alternate-switch".into());
+        }
+        let source_matrix = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .clone();
+        crate::matrix::set_matrix(&mut document, &source_matrix)
+            .expect("the source materializes its explicit and alternate definitions");
+
+        let halves = document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        let source = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap();
+        let mirror = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap();
+        let correspondence = halves
+            .correspondences
+            .iter()
+            .find(|association| association.kind == MirroredItemKind::Matrix)
+            .unwrap();
+        let projected =
+            super::project_matrix(source, mirror, correspondence, projection.mapping).unwrap();
+        let view = super::build_fixed_membership_view(
+            &document,
+            halves,
+            source,
+            mirror,
+            &projected,
+            &projection,
+        )
+        .expect("authored cell fields are valid reconciliation input");
+
+        let cell = view
+            .incoming_matrix
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 1))
+            .unwrap();
+        assert_eq!(cell.definition_id.as_deref(), Some(matrix_default.as_str()));
+        assert_eq!(cell.variant.as_deref(), Some("preset/authored-red"));
+        assert_eq!(cell.assemblies_local, Some(false));
+        let alternate = view
+            .incoming_matrix
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 2))
+            .unwrap();
+        assert_eq!(alternate.definition_id.as_deref(), Some("alternate-switch"));
+
+        let source_before_reconcile = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .clone();
+        super::reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("authored cell definitions materialize through reconciliation");
+        assert_eq!(
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "source-matrix")
+                .unwrap(),
+            &source_before_reconcile,
+            "reconciliation preserves the complete authored source matrix"
+        );
+        for (matrix_id, coordinate, expected) in [
+            ("source-matrix", (0, 1), matrix_default.as_str()),
+            ("mirror-matrix", (0, 1), matrix_default.as_str()),
+            ("source-matrix", (0, 2), "alternate-switch"),
+            ("mirror-matrix", (0, 2), "alternate-switch"),
+        ] {
+            let key_id = crate::matrix::member_id(matrix_id, coordinate.0, coordinate.1);
+            let key = document
+                .parts
+                .iter()
+                .find(|part| part.id == key_id)
+                .unwrap_or_else(|| panic!("generated key {key_id} exists"));
+            assert_eq!(key.definition_id, expected, "{key_id}");
+        }
+    }
+
+    #[test]
+    fn fixed_membership_view_fills_only_missing_active_cells_with_defaults() {
+        let (mut document, projection) = fixed_geometry_fixture().unwrap();
+        for matrix_id in ["source-matrix", "mirror-matrix"] {
+            document
+                .matrices
+                .iter_mut()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap()
+                .cells
+                .retain(|cell| (cell.row, cell.column) != (0, 1));
+        }
+
+        let halves = document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        let source = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap();
+        let mirror = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap();
+        let correspondence = halves
+            .correspondences
+            .iter()
+            .find(|association| association.kind == MirroredItemKind::Matrix)
+            .unwrap();
+        let projected =
+            super::project_matrix(source, mirror, correspondence, projection.mapping).unwrap();
+        let view = super::build_fixed_membership_view(
+            &document,
+            halves,
+            source,
+            mirror,
+            &projected,
+            &projection,
+        )
+        .expect("an absent active cell uses the matrix materializer defaults");
+
+        let normalized_source_cell = view
+            .normalized_source_matrix
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 1))
+            .unwrap();
+        assert!(normalized_source_cell.enabled);
+        assert!(!normalized_source_cell.deleted);
+        assert_eq!(normalized_source_cell.definition_id, None);
+        assert_eq!(view.normalized_source_matrix.cells.len(), 6);
+
+        let cell = view
+            .incoming_matrix
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 1))
+            .unwrap();
+        assert!(cell.enabled);
+        assert!(!cell.deleted);
+        assert_eq!(cell.definition_id, None);
+        assert_eq!(cell.variant, None);
+        assert_eq!(cell.offset, None);
+        assert_eq!(cell.rotation, None);
+        assert!(cell.assemblies.is_empty());
+        assert_eq!(cell.assemblies_local, None);
+        assert_eq!(view.incoming_matrix.cells.len(), 6);
+
+        super::reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("both halves materialize the missing active cell");
+        let first = document.clone();
+        for matrix_id in ["source-matrix", "mirror-matrix"] {
+            let matrix = document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap();
+            assert_eq!(matrix.cells.len(), 6);
+            let filled = matrix
+                .cells
+                .iter()
+                .find(|cell| (cell.row, cell.column) == (0, 1))
+                .unwrap();
+            assert!(filled.enabled);
+            assert!(!filled.deleted);
+            assert_eq!(filled.definition_id, None);
+            assert_eq!(filled.variant, None);
+            assert_eq!(filled.assemblies_local, None);
+        }
+        let repeated = super::reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("repeated sparse reconciliation is stable");
+        assert_eq!(document, first);
+        assert!(
+            repeated.is_empty(),
+            "repeated reconciliation reported {repeated:?}"
+        );
+    }
+
+    #[test]
+    fn source_and_mirror_local_assemblies_have_no_correspondence_and_survive_reconcile() {
+        let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
+        let mut target_definition = document.definitions[0].clone();
+        target_definition.id = "target-local-switch".into();
+        document.definitions.push(target_definition);
+        for matrix_id in ["source-matrix", "mirror-matrix"] {
+            let cell = document
+                .matrices
+                .iter_mut()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap()
+                .cells
+                .iter_mut()
+                .find(|cell| (cell.row, cell.column) == (0, 0))
+                .unwrap();
+            cell.assemblies_local = Some(true);
+            cell.variant = Some(if matrix_id == "source-matrix" {
+                "source-local-variant".into()
+            } else {
+                "target-local-variant".into()
+            });
+            if matrix_id == "mirror-matrix" {
+                cell.definition_id = Some("target-local-switch".into());
+            }
+        }
+        let mut source_matrix = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .clone();
+        source_matrix.cells[0].assemblies.push(MatrixAssembly {
+            id: "source-only".into(),
+            definition_id: "diode".into(),
+            offset: Vec2 { x: 9.0, y: 1.0 },
+            rotation: Some(0.0),
+            side: Some(Side::Back),
+        });
+        crate::matrix::set_matrix(&mut document, &source_matrix).unwrap();
+        let target_matrix = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap()
+            .clone();
+        crate::matrix::set_matrix(&mut document, &target_matrix).unwrap();
+        let mut projection = projection;
+        projection.final_owners.insert(
+            "matrix/source-matrix/r0c0/source-only".into(),
+            "source-board".into(),
+        );
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .retain(|association| {
+                association.source_id != "matrix/source-matrix/r0c0/diode"
+                    && association.mirror_id != "matrix/mirror-matrix/r0c0/diode"
+            });
+        let mirror_assembly = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap()
+            .cells[0]
+            .assemblies[0]
+            .clone();
+        let target_cell = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap()
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 0))
+            .unwrap()
+            .clone();
+        let source_assemblies = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .cells[0]
+            .assemblies
+            .clone();
+        let mirror_part = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c0/diode")
+            .unwrap()
+            .clone();
+
+        reconcile(&mut document, "pair-source-mirror", &projection)
+            .expect("independent local companion lists do not need pair associations");
+
+        assert_eq!(
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "source-matrix")
+                .unwrap()
+                .cells[0]
+                .assemblies,
+            source_assemblies
+        );
+        let source_cell = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "source-matrix")
+            .unwrap()
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 0))
+            .unwrap();
+        assert_eq!(source_cell.definition_id, None);
+        assert_eq!(source_cell.variant.as_deref(), Some("source-local-variant"));
+        let source_key = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/source-matrix/r0c0")
+            .unwrap();
+        assert_eq!(source_key.definition_id, "switch");
+        assert_eq!(
+            source_key
+                .properties
+                .as_ref()
+                .and_then(|properties| properties.get("variant")),
+            Some(&serde_json::json!("source-local-variant"))
+        );
+        assert_eq!(
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "mirror-matrix")
+                .unwrap()
+                .cells[0]
+                .assemblies[0],
+            mirror_assembly
+        );
+        let mirrored_cell = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "mirror-matrix")
+            .unwrap()
+            .cells
+            .iter()
+            .find(|cell| (cell.row, cell.column) == (0, 0))
+            .unwrap();
+        assert_eq!(mirrored_cell.definition_id, target_cell.definition_id);
+        assert_eq!(mirrored_cell.variant, target_cell.variant);
+        assert_eq!(mirrored_cell.assemblies_local, target_cell.assemblies_local);
+        assert_eq!(mirrored_cell.assemblies, target_cell.assemblies);
+        assert_eq!(
+            mirrored_cell.definition_id.as_deref(),
+            Some("target-local-switch")
+        );
+        assert_eq!(
+            mirrored_cell.variant.as_deref(),
+            Some("target-local-variant")
+        );
+        let target_key = document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/mirror-matrix/r0c0")
+            .unwrap();
+        assert_eq!(target_key.definition_id, "target-local-switch");
+        assert_eq!(
+            target_key
+                .properties
+                .as_ref()
+                .and_then(|properties| properties.get("variant")),
+            Some(&serde_json::json!("target-local-variant"))
+        );
+        assert_eq!(
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == mirror_part.id)
+                .unwrap(),
+            &mirror_part
+        );
+        let after_first = document.clone();
+        assert!(
+            reconcile(&mut document, "pair-source-mirror", &projection)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(document, after_first);
+    }
+
+    #[test]
     fn fixed_membership_assembly_rejections_are_atomic() {
         fn assert_rejected(mut document: ProjectDoc, projection: &Projection, reason: &str) {
             let before = serde_json::to_value(&document).unwrap();
@@ -9794,16 +10907,6 @@ mod tests {
             .offset
             .x = f64::NAN;
         assert_rejected(document, &projection, "Matrix assembly is invalid");
-
-        let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
-        document
-            .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap()
-            .cells[0]
-            .assemblies_local = Some(true);
-        assert_rejected(document, &projection, "unsupported cell representation");
 
         let (mut document, projection) = fixed_membership_assembly_fixture(90.0).unwrap();
         let association = document.hardware.as_mut().unwrap().pairs[0]
@@ -10241,16 +11344,6 @@ mod tests {
             .unwrap()
             .column_splays = vec![f64::MAX, f64::MAX, 0.0];
         assert_rejected(document, &projection, "non-finite splay geometry");
-
-        let (mut document, projection) = fixed_geometry_fixture().unwrap();
-        document
-            .matrices
-            .iter_mut()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap()
-            .cells[0]
-            .variant = Some("unsupported-variant".into());
-        assert_rejected(document, &projection, "unsupported cell representation");
 
         let (mut document, projection) = fixed_geometry_fixture().unwrap();
         document.hardware.as_mut().unwrap().pairs[0]

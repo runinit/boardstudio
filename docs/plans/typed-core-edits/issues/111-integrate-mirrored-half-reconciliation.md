@@ -2,7 +2,7 @@
 
 Status: claimed
 Type: build
-Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md), [149](149-targeted-mirrored-set-mechanical.md), [150](150-prepare-matrixless-half-exceptions.md)
+Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md), [149](149-targeted-mirrored-set-mechanical.md), [150](150-prepare-matrixless-half-exceptions.md), [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md), [154](154-reserve-staged-circuit-member-references.md), [155](155-admit-hosted-addition-correspondences.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
 Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
 
@@ -206,6 +206,15 @@ Compiler inventory assigned `core/tests/support/synthetic_half.rs` and `core/tes
 to the model writer only for their current-document fixture version stamps; these now use
 `migrate::CURRENT_VERSION`. Preserve intentionally old migration inputs and private-kernel
 fixtures unless an affected check demonstrates a current-format requirement.
+
+## Production-seam preparation blockers (2026-10-13)
+
+The isolated 111 activation branch has model/persistence and runtime drafts, with paired preview/
+history and Open repair green on a supported fixture. The ordinary authored fixture exposes 152;
+independent exceptions expose 153; full circuit composition exposes 154. Resolve and independently
+verify those preparation fixes before activating 111. Keep the 111 draft unmerged while these
+serial blockers are resolved. Existing local-companion policy is already settled by
+18/31/106/145; no additional owner decision is needed.
 
 ## Inherited 139 browser adapter lease (2026-10-13)
 

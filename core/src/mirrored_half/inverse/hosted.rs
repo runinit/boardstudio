@@ -764,26 +764,41 @@ fn embed_circuit(
         source_joins.insert(port.clone(), source_net);
     }
 
+    let source_embed_pose = source_pose(pair.mapping, pose.at, pose.rotation);
+    // Stage the source embed through its ordinary board-local allocator, then reserve those
+    // exact references before selecting mirror references for the document-wide validator.
+    let source_operation = EditOperation::EmbedModuleCircuit {
+        id: source_id.clone(),
+        definition: definition.clone(),
+        host_board_id: pair.halves.source_board_id.clone(),
+        pose: source_embed_pose,
+        side: side.clone(),
+        joins: source_joins,
+    };
+    let mut staged_source = links.document.clone();
+    crate::apply(&mut staged_source, &[], &source_operation)?;
+
     let (source_prefix, mirror_prefix) =
         (format!("embedded/{source_id}/"), format!("embedded/{id}/"));
     let mut member_ids = BTreeMap::new();
     let mut member_references = BTreeMap::new();
     let mut used_references: BTreeSet<String> = links
         .document
-        .boards
+        .parts
         .iter()
-        .find(|board| board.id == pair.halves.mirror_board_id)
-        .into_iter()
-        .flat_map(|board| board.part_ids.iter())
-        .filter_map(|part_id| {
-            links
-                .document
-                .parts
-                .iter()
-                .find(|part| &part.id == part_id)
-                .map(|part| part.reference.clone())
-        })
+        .map(|part| part.reference.clone())
         .collect();
+    for member in &circuit.parts {
+        let source_member = format!("{source_prefix}{}", member.id);
+        let staged_reference = staged_source
+            .parts
+            .iter()
+            .find(|part| part.id == source_member)
+            .ok_or_else(|| format!("the source circuit is missing member {source_member:?}"))?
+            .reference
+            .clone();
+        used_references.insert(staged_reference);
+    }
     for member in &circuit.parts {
         let source_member = format!("{source_prefix}{}", member.id);
         member_references.insert(
@@ -846,15 +861,7 @@ fn embed_circuit(
         })
         .collect();
 
-    let at = source_pose(pair.mapping, pose.at, pose.rotation);
-    canonical.operation = EditOperation::EmbedModuleCircuit {
-        id: source_id.clone(),
-        definition: definition.clone(),
-        host_board_id: pair.halves.source_board_id.clone(),
-        pose: at,
-        side: side.clone(),
-        joins: source_joins,
-    };
+    canonical.operation = source_operation;
     canonical.hosted.circuits.push(CircuitAddition {
         source_id,
         mirror_id: id.to_owned(),

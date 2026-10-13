@@ -647,7 +647,8 @@ fn a_circuit_embedded_on_the_mirror_board_is_a_source_embed_with_a_planned_map()
     let plan = &result.hosted.circuits[0];
     assert_eq!(plan.source_id, "left-extra");
     assert_eq!(plan.mirror_id, "right-extra");
-    // The plan's references are what executing the mirror embed allocates on the mirror board.
+    // Standalone mirror embedding uses its board-local allocator. The reconciled plan uses a
+    // document-wide set plus the staged source references, so these allocations intentionally differ.
     let mut mirror_run = document.clone();
     crate::modules::embed(
         &mut mirror_run,
@@ -670,8 +671,15 @@ fn a_circuit_embedded_on_the_mirror_board_is_a_source_embed_with_a_planned_map()
             .iter()
             .find(|part| &part.id == mirror_member)
             .expect("the mirror embed creates the planned member");
-        assert_eq!(&created.reference, &plan.member_references[source_member]);
+        let standalone_reference = if source_member.ends_with("/U1") {
+            "U"
+        } else {
+            "U1"
+        };
+        assert_eq!(created.reference, standalone_reference);
     }
+    assert_eq!(plan.member_references["embedded/left-extra/U1"], "U3");
+    assert_eq!(plan.member_references["embedded/left-extra/U2"], "U4");
     assert_eq!(plan.member_ids.len(), 2);
     assert_eq!(
         plan.member_ids["embedded/left-extra/U1"],
@@ -697,6 +705,64 @@ fn a_circuit_embedded_on_the_mirror_board_is_a_source_embed_with_a_planned_map()
     mirror_nets.sort();
     created_nets.sort();
     assert_eq!(mirror_nets, created_nets);
+}
+
+#[test]
+fn mirror_circuit_references_reserve_unrelated_board_parts_and_all_members() {
+    let mut document = fixture();
+    let mut unrelated_board = document.boards[0].clone();
+    unrelated_board.id = "other".into();
+    unrelated_board.name = "Other".into();
+    unrelated_board.net_ids.clear();
+    unrelated_board.part_ids = vec!["other/C3".into()];
+    document.boards.push(unrelated_board);
+
+    let mut unrelated_part = document.parts[0].clone();
+    unrelated_part.id = "other/C3".into();
+    unrelated_part.reference = "C3".into();
+    document.parts.push(unrelated_part);
+
+    let mut definition = circuit_definition();
+    for member in definition["circuit"]["parts"].as_array_mut().unwrap() {
+        member["reference"] = json!("C1");
+    }
+    let request = EditOperation::EmbedModuleCircuit {
+        id: "right-extra".into(),
+        definition: serde_json::from_value(definition).unwrap(),
+        host_board_id: "right".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 180.0, y: 7.0 },
+            rotation: 100.0,
+        },
+        side: crate::model::Side::Back,
+        joins: Default::default(),
+    };
+
+    let result = canonicalize(&document, &request).expect("the embed is accepted");
+    let plan = &result.hosted.circuits[0];
+    let references: Vec<_> = plan.member_references.values().cloned().collect();
+    assert_eq!(references, ["C4", "C5"]);
+    assert_eq!(
+        document
+            .parts
+            .iter()
+            .find(|part| part.id == "other/C3")
+            .unwrap()
+            .reference,
+        "C3",
+        "reference planning leaves unrelated board parts unchanged"
+    );
+    assert_eq!(plan.member_ids.len(), 2, "every member gets a planned id");
+    assert_eq!(
+        plan.member_references.len(),
+        2,
+        "every member gets a planned reference"
+    );
+    assert!(
+        references
+            .iter()
+            .all(|reference| reference != "C1" && reference != "C2" && reference != "C3")
+    );
 }
 
 #[test]

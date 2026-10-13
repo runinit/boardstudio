@@ -6,6 +6,9 @@ use crate::model::{
 };
 use serde_json::json;
 
+#[path = "../../../../tests/support/synthetic_half.rs"]
+mod synthetic_half_fixture;
+
 fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
     document.parts.iter().find(|part| part.id == id).unwrap()
 }
@@ -411,6 +414,163 @@ fn targeted_set_mechanical_from_source_updates_the_pair_as_one_prepared_edit() {
         2.0,
         "preparation leaves the accepted document unchanged"
     );
+}
+
+#[test]
+fn prepared_mirror_circuit_embed_reserves_staged_source_references() {
+    let mut accepted = pair_document();
+    let mut unrelated_board = accepted.boards[0].clone();
+    unrelated_board.id = "other".into();
+    unrelated_board.name = "Other".into();
+    unrelated_board.outline_ids.clear();
+    unrelated_board.net_ids.clear();
+    unrelated_board.part_ids = vec!["other/C3".into()];
+    accepted.boards.push(unrelated_board);
+    let mut unrelated_part = accepted.parts[0].clone();
+    unrelated_part.id = "other/C3".into();
+    unrelated_part.reference = "C3".into();
+    accepted.parts.push(unrelated_part);
+    let accepted_before = accepted.clone();
+    let definition: crate::modules::ModuleDefinition = serde_json::from_value(json!({
+        "id": "staged-circuit-definition", "name": "Staged Circuit", "family": "f", "variant": "v",
+        "source": {"repository": "https://example.invalid/c", "revision": "r",
+                   "path": "c.kicad_pcb", "license": "MIT"},
+        "board": {"contours": []}, "mounts": [], "volumes": [], "openings": [], "models": [],
+        "gates": [], "interfaces": [],
+        "electrical": {"protocol": "pass-through", "requiredSignals": [], "logicVoltage": 3.3},
+        "constituents": [],
+        "circuit": {
+            "definitions": [{"id": "cd", "name": "CD", "kind": "custom", "courtyard": [], "pads": []}],
+            "parts": [
+                {"id": "Q1", "definitionId": "cd", "reference": "C1", "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"},
+                {"id": "Q2", "definitionId": "cd", "reference": "C1", "pose": {"at": {"x": 2, "y": 0}, "rotation": 0}, "side": "front"}
+            ],
+            "nets": [], "ports": {}, "adaptations": []
+        }
+    })).expect("the circuit definition is valid");
+    let operation = EditOperation::EmbedModuleCircuit {
+        id: "right-staged".into(),
+        definition,
+        host_board_id: "right".into(),
+        pose: crate::model::Pose2 {
+            at: Vec2 { x: 180.0, y: 7.0 },
+            rotation: 0.0,
+        },
+        side: crate::model::Side::Front,
+        joins: Default::default(),
+    };
+    let canonical = crate::mirrored_half::inverse::canonicalize(&accepted, &operation)
+        .expect("the mirror embed has a canonical source operation");
+    let mut source_oracle = accepted.clone();
+    crate::apply(&mut source_oracle, &[], &canonical.operation)
+        .expect("the ordinary source embed succeeds");
+
+    let (prepared, changed) = prepare_transaction(&accepted, &[], &operation)
+        .expect("the prepared mirror embed reserves references staged by the source embed");
+
+    let source_references: Vec<_> = ["embedded/left-staged/Q1", "embedded/left-staged/Q2"]
+        .iter()
+        .map(|id| part(&prepared, id).reference.as_str())
+        .collect();
+    let mirror_references: Vec<_> = ["embedded/right-staged/Q1", "embedded/right-staged/Q2"]
+        .iter()
+        .map(|id| part(&prepared, id).reference.as_str())
+        .collect();
+    let references_before = [
+        "embedded/left-staged/Q1",
+        "embedded/left-staged/Q2",
+        "embedded/right-staged/Q1",
+        "embedded/right-staged/Q2",
+    ]
+    .map(|id| part(&prepared, id).reference.as_str());
+    let oracle_references: Vec<_> = ["embedded/left-staged/Q1", "embedded/left-staged/Q2"]
+        .iter()
+        .map(|id| part(&source_oracle, id).reference.as_str())
+        .collect();
+    assert_eq!(source_references, ["C1", "C2"]);
+    assert_eq!(
+        source_references, oracle_references,
+        "the source embed keeps its board-local allocation"
+    );
+    assert_eq!(mirror_references, ["C4", "C5"]);
+    assert_eq!(part(&prepared, "other/C3").reference, "C3");
+    assert!(
+        source_references
+            .iter()
+            .all(|reference| !mirror_references.contains(reference))
+    );
+    assert_eq!(
+        accepted, accepted_before,
+        "preparation leaves accepted state unchanged"
+    );
+    assert!(changed.iter().any(|id| id == "left"));
+    assert!(changed.iter().any(|id| id == "right"));
+
+    let (repeated, repeated_changes) = prepare_transaction(&accepted, &[], &operation)
+        .expect("reconciling the same addition is deterministic");
+    assert_eq!(repeated, prepared);
+    assert_eq!(repeated_changes, changed);
+
+    let source_move = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "embedded/left-staged/Q1".into(),
+            at: Vec2 { x: 23.0, y: 11.0 },
+        }],
+    };
+    let (source_moved, _) = prepare_transaction(&prepared, &[], &source_move)
+        .expect("a subsequent source member edit reconciles");
+    assert_eq!(
+        part(&source_moved, "embedded/left-staged/Q1").pose.at,
+        Vec2 { x: 23.0, y: 11.0 }
+    );
+    assert_eq!(
+        part(&source_moved, "embedded/right-staged/Q1").pose.at,
+        Vec2 { x: 177.0, y: 11.0 }
+    );
+    let (source_repeated, source_repeat_changes) =
+        prepare_transaction(&source_moved, &[], &source_move)
+            .expect("reconciling the same result again is idempotent");
+    assert_eq!(source_repeated, source_moved);
+    assert!(source_repeat_changes.is_empty());
+    assert_eq!(
+        [
+            "embedded/left-staged/Q1",
+            "embedded/left-staged/Q2",
+            "embedded/right-staged/Q1",
+            "embedded/right-staged/Q2"
+        ]
+        .map(|id| part(&source_repeated, id).reference.as_str()),
+        references_before
+    );
+    assert_eq!(part(&source_repeated, "other/C3").reference, "C3");
+
+    let mirror_move = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "embedded/right-staged/Q2".into(),
+            at: Vec2 { x: 177.0, y: 12.0 },
+        }],
+    };
+    let (mirror_moved, _) = prepare_transaction(&source_repeated, &[], &mirror_move)
+        .expect("a subsequent mirror member edit reconciles");
+    assert_eq!(
+        part(&mirror_moved, "embedded/right-staged/Q2").pose.at,
+        Vec2 { x: 177.0, y: 12.0 }
+    );
+    assert_eq!(
+        part(&mirror_moved, "embedded/left-staged/Q2").pose.at,
+        Vec2 { x: 23.0, y: 12.0 }
+    );
+    assert_eq!(
+        [
+            "embedded/left-staged/Q1",
+            "embedded/left-staged/Q2",
+            "embedded/right-staged/Q1",
+            "embedded/right-staged/Q2"
+        ]
+        .map(|id| part(&mirror_moved, id).reference.as_str()),
+        references_before
+    );
+    assert_eq!(part(&mirror_moved, "other/C3").reference, "C3");
 }
 
 #[test]
@@ -1299,6 +1459,193 @@ fn open_preparation_repairs_linked_geometry_and_reports_a_located_warning() {
         .expect("the repaired document is a valid second Open input");
     assert_eq!(reopened, prepared);
     assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_and_prepared_matrix_edits_preserve_explicit_cell_data() {
+    let mut accepted = pair_document();
+    let mut source_matrix = accepted
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-keys")
+        .unwrap()
+        .clone();
+    source_matrix.cells[0].definition_id = Some(source_matrix.definition_id.clone());
+    source_matrix.cells[0].variant = Some("open-authored-variant".into());
+    source_matrix.cells[0].assemblies_local = Some(false);
+    crate::matrix::set_matrix(&mut accepted, &source_matrix)
+        .expect("the ordinary source matrix materializes authored cell fields");
+
+    let (opened, findings) = super::prepare_open(&accepted, &[])
+        .expect("source-authoritative Open accepts authored cell fields");
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&"right-keys".to_owned()));
+    assert_eq!(
+        opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-keys")
+            .unwrap(),
+        &source_matrix,
+        "a complete authored source matrix remains unchanged during Open"
+    );
+    let open_mirror = opened
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap();
+    assert_eq!(
+        open_mirror.cells[0].definition_id,
+        source_matrix.cells[0].definition_id
+    );
+    assert_eq!(
+        open_mirror.cells[0].variant.as_deref(),
+        Some("open-authored-variant")
+    );
+    assert_eq!(open_mirror.cells[0].assemblies_local, Some(false));
+    assert_eq!(
+        part(&opened, "matrix/right-keys/r0c0")
+            .properties
+            .as_ref()
+            .and_then(|properties| properties.get("variant")),
+        Some(&serde_json::json!("open-authored-variant"))
+    );
+
+    source_matrix.cells[0].variant = Some("edit-authored-variant".into());
+    let (edited, _) = prepare_transaction(
+        &opened,
+        &[],
+        &EditOperation::SetMatrix {
+            matrix: source_matrix.clone(),
+            definitions: None,
+        },
+    )
+    .expect("prepared SetMatrix keeps the explicit per-cell override");
+    let edit_mirror = edited
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "right-keys")
+        .unwrap();
+    assert_eq!(
+        edit_mirror.cells[0].definition_id,
+        source_matrix.cells[0].definition_id
+    );
+    assert_eq!(
+        edit_mirror.cells[0].variant.as_deref(),
+        Some("edit-authored-variant")
+    );
+    assert_eq!(edit_mirror.cells[0].assemblies_local, Some(false));
+    assert_eq!(
+        part(&edited, "matrix/right-keys/r0c0")
+            .properties
+            .as_ref()
+            .and_then(|properties| properties.get("variant")),
+        Some(&serde_json::json!("edit-authored-variant"))
+    );
+}
+
+#[test]
+fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
+    // This exercises the private preparation contract on the unchanged ticket-111 fixture.
+    // It does not assert that CoreEngine's public Open or edit lifecycle has been activated.
+    let source_json = synthetic_half_fixture::document();
+    let original_cells: Vec<crate::model::MatrixCell> =
+        serde_json::from_value(source_json["matrices"][0]["cells"].clone()).unwrap();
+    let mut accepted: ProjectDoc = serde_json::from_value(source_json).unwrap();
+    let create: EditOperation = serde_json::from_value(
+        synthetic_half_fixture::create_mirrored_half_operation("pair-modern", "right"),
+    )
+    .unwrap();
+    crate::apply(&mut accepted, &[], &create).expect("the unchanged modern fixture pairs");
+    let original_source_cells = accepted
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "left-synthetic-keys")
+        .unwrap()
+        .cells
+        .clone();
+    assert_eq!(
+        original_source_cells, original_cells,
+        "the shared fixture's authored cell fields are used as-is"
+    );
+
+    let (opened, _) = super::prepare_open(&accepted, &[])
+        .expect("private Open preparation accepts modern local cell records");
+    let matrix_cells_before: Vec<_> = ["left-synthetic-keys", "right-synthetic-keys"]
+        .into_iter()
+        .map(|matrix_id| {
+            opened
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .unwrap()
+                .cells
+                .clone()
+        })
+        .collect();
+    assert_eq!(
+        opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-synthetic-keys")
+            .unwrap()
+            .cells,
+        original_source_cells,
+        "private Open leaves complete source cells unchanged"
+    );
+    for matrix_id in ["left-synthetic-keys", "right-synthetic-keys"] {
+        let matrix = opened
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .unwrap();
+        for cell in &matrix.cells {
+            assert_eq!(
+                cell.definition_id.as_deref(),
+                Some("generator:ceoloide/switch_mx")
+            );
+            assert_eq!(cell.assemblies_local, Some(true));
+            assert_eq!(cell.assemblies.len(), 2);
+        }
+    }
+
+    let operation = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "right/U1".into(),
+            at: Vec2 { x: 216.0, y: 14.0 },
+        }],
+    };
+    let engine = crate::CoreEngine {
+        document: opened.clone(),
+        ..crate::CoreEngine::default()
+    };
+    let accepted_before_preview = engine.document.clone();
+    let (preview, _) = prepare_preview(&engine, &operation)
+        .expect("private preview preparation keeps modern local cells");
+    assert_eq!(
+        engine.document, accepted_before_preview,
+        "preview is isolated"
+    );
+    assert_eq!(
+        preview
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "left-synthetic-keys")
+            .unwrap()
+            .cells,
+        matrix_cells_before[0],
+        "prepared preview preserves the source's modern cell records"
+    );
+    assert_eq!(
+        preview
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "right-synthetic-keys")
+            .unwrap()
+            .cells,
+        matrix_cells_before[1],
+        "prepared preview preserves the target's local cell records"
+    );
 }
 
 #[test]
