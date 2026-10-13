@@ -1,6 +1,6 @@
 # 113: Inverse-map outline and reviewed-geometry edits
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [112](112-inverse-map-hosted-electrical-edits.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -45,3 +45,13 @@ operation schema change, production route or generated golden edit.
 
 Independent verifier: mutate reviewed-contour conversion, winding/anchor mapping and lifecycle
 identity translation separately. A missing lifecycle family blocks resolution, not parent scope.
+
+
+## Comments
+
+- Implemented on branch `typed-core-edits/113-inverse-map-outline` from `62e7d85d1`, in private `mirrored_half::inverse::outline` plus the established inverse tests. No production route, outline implementation, payload or visibility was changed.
+- All six top-level outline operations are classified. Every one of the 24 `OutlineChange` variants has an explicit match arm: scalar settings and names/seed remain authored values; feature, connection, gap, control, part/matrix reference, world/anchored geometry, winding and reviewed contour inputs are mapped; lifecycle operations keep their existing operation and settlement semantics. Explicit IDs are reversed by stored correspondence or whole-board-token mapping. Local targets execute as written; omitted targets refuse.
+- Exact review equality exposed floating point drift for a rotated map (`inverse(forward(point))` differed by a few ulps). The private adapter now substitutes the exact current source contours only when the submitted review exactly equals the current mirror projection. A stale review is still inverse-mapped and remains stale. Settlement implementation and equality semantics were not changed.
+- Red/green: the initial linked `SetOutline` test failed on the ticket-113 refusal, then passed after translation. Final focused suite: `cargo test -p boardstudio_core mirrored_half::inverse::tests:: --lib` — 50 passed, 0 failed.
+- Mutation evidence: `.evidence/ticket113-mutations-final/results.json` — reviewed-contour normalization, polygon winding, anchored control handedness and created-version identity mutations all killed; 0 survived, 0 compile failures, every source file restored exactly.
+- Independent review and integration remain outstanding; acceptance boxes and status remain open/claimed for the coordinator.
