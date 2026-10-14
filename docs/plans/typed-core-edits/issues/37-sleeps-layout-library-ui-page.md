@@ -327,3 +327,8 @@ waits on their observed Runtime operation outcomes. The ui-shared WASM suite pas
 with `wasm-pack test --headless --chrome web/crates/ui-shared --lib -- --nocapture`; this is not a
 comparable before/after measurement against the older full-browser run. Formatting and diff checks
 passed. The file's remaining bare render yields and the other #37 suites remain open.
+
+Three consecutive full `python3 scripts/check.py browser` runs passed on the current tree. The latest
+two each completed in 118.8 s; each included 15 CAD browser checks and 96 page WASM tests with zero
+failures. This satisfies the repetition count only; the remaining conversion, mutation, baseline,
+and acceptance work above is still open.
