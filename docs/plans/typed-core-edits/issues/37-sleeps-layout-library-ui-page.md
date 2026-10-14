@@ -340,3 +340,9 @@ Three consecutive full `python3 scripts/check.py browser` runs passed on the cur
 two each completed in 118.8 s; each included 15 CAD browser checks and 96 page WASM tests with zero
 failures. This satisfies the repetition count only; the remaining conversion, mutation, baseline,
 and acceptance work above is still open.
+
+## Progress (2026-10-14, keymap workspace state)
+
+The keymap workspace state test now waits for its controls and selected-layer label instead of
+sleeping. The filtered wasm test passed (1/1), with `cargo fmt --all --check` and `git diff --check`
+passing. Remaining #37 suites and acceptance evidence stay open.
