@@ -176,6 +176,7 @@ impl SetupWorkspaceState {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod workspace_state_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -221,14 +222,25 @@ mod workspace_state_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        let stage_button = document
-            .get_element_by_id("setup-state-stage")
+        wait_until("setup guide controls render", || {
+            root.query_selector("#setup-state-stage")
+                .is_ok_and(|button| button.is_some())
+        })
+        .await;
+        let stage_button = root
+            .query_selector("#setup-state-stage")
+            .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         stage_button.click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("setup guide stage updates", || {
+            root.query_selector("#setup-state-status")
+                .ok()
+                .flatten()
+                .is_some_and(|status| status.text_content().as_deref() == Some("Layout:true"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("setup-state-status")
@@ -237,13 +249,19 @@ mod workspace_state_tests {
                 .as_deref(),
             Some("Layout:true")
         );
-        document
-            .get_element_by_id("setup-state-dismiss")
+        root.query_selector("#setup-state-dismiss")
+            .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("setup guide dismissal updates its state", || {
+            root.query_selector("#setup-state-status")
+                .ok()
+                .flatten()
+                .is_some_and(|status| status.text_content().as_deref() == Some("Layout:false"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("setup-state-status")

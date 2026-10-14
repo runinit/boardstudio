@@ -346,3 +346,9 @@ and acceptance work above is still open.
 The keymap workspace state test now waits for its controls and selected-layer label instead of
 sleeping. The filtered wasm test passed (1/1), with `cargo fmt --all --check` and `git diff --check`
 passing. Remaining #37 suites and acceptance evidence stay open.
+
+## Progress (2026-10-14, setup workspace state)
+
+The setup workspace state test now waits for its controls, stage update, and dismissal state rather
+than using three fixed delays. Its filtered wasm test passed (1/1), with `cargo fmt --all --check`
+and `git diff --check` passing. Remaining #37 suites and acceptance evidence stay open.
