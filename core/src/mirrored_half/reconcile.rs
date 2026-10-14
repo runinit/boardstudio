@@ -11,8 +11,8 @@
 //! - `mod tests` at the bottom; outline tests in reconcile/outlines/tests.rs.
 
 use crate::model::{
-    Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind, Part,
-    Pose2, ProjectDoc, Vec2,
+    Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind,
+    OutlineFeature, Part, Pose2, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -2619,13 +2619,12 @@ fn reconcile(
             *staged_target = projected;
         } else {
             staged.parts.push(projected);
-            staged
+            let target_board = staged
                 .boards
                 .iter_mut()
                 .find(|board| board.id == halves.mirror_board_id)
-                .ok_or_else(|| "The independent target board is unavailable".to_owned())?
-                .part_ids
-                .push(mirror_id.clone());
+                .ok_or_else(|| "The independent target board is unavailable".to_owned())?;
+            target_board.part_ids.push(mirror_id.clone());
         }
         independent_part_targets.insert(source_id.clone(), mirror_id.clone());
     }
@@ -3839,6 +3838,36 @@ fn reconcile(
     }
     settings::project(document, &mut staged, halves)?;
     outlines::reconcile(&mut staged, pair_id, projection)?;
+    let target_outline_ids = staged
+        .boards
+        .iter()
+        .find(|board| board.id == halves.mirror_board_id)
+        .ok_or_else(|| "The selected mirror board is unavailable".to_owned())?
+        .outline_ids
+        .clone();
+    for transition in &projection.independent_part_transitions {
+        let IndependentPartTransition::Add {
+            source_id,
+            mirror_id,
+            ..
+        } = transition
+        else {
+            continue;
+        };
+        for feature in &mut staged.outline {
+            if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature
+                && target_outline_ids.contains(id)
+            {
+                for member in part_ids.iter_mut() {
+                    if member == source_id {
+                        *member = mirror_id.clone();
+                    }
+                }
+                let mut seen = BTreeSet::new();
+                part_ids.retain(|member| seen.insert(member.clone()));
+            }
+        }
+    }
 
     for transition in &projection.hosted_transitions {
         match transition {

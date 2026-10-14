@@ -239,6 +239,85 @@ pub fn placement_label(definition: &boardstudio_core::model::PartDefinition) -> 
     preferred_label(definition)
 }
 
+fn has_unique_mirror_board_pair(document: &ProjectDoc, board_id: &str) -> bool {
+    let Some(hardware) = document.hardware.as_ref() else {
+        return false;
+    };
+    let mut matches = hardware.pairs.iter().filter(|pair| {
+        pair.halves
+            .as_ref()
+            .is_some_and(|halves| halves.mirror_board_id == board_id)
+    });
+    let Some(pair) = matches.next() else {
+        return false;
+    };
+    if matches.next().is_some() {
+        return false;
+    }
+    let Some(halves) = pair.halves.as_ref() else {
+        return false;
+    };
+    halves.source_board_id != halves.mirror_board_id
+        && [
+            halves.source_board_id.as_str(),
+            halves.mirror_board_id.as_str(),
+        ]
+        .into_iter()
+        .all(|id| {
+            document
+                .boards
+                .iter()
+                .filter(|board| board.id == id)
+                .count()
+                == 1
+        })
+}
+
+#[component]
+fn AddObjectChoice(
+    definition_id: String,
+    kind: boardstudio_core::model::PartKind,
+    label: String,
+    mirror_only_available: bool,
+    on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
+) -> Element {
+    let linked_definition_id = definition_id.clone();
+    let linked_kind = kind.clone();
+    let mirror_definition_id = definition_id.clone();
+    let mirror_kind = kind.clone();
+    rsx! {
+        div { role: "group", "aria-label": "Add {label}",
+            button {
+                key: "{definition_id}",
+                class: "m1-parts-catalogue-choice",
+                r#type: "button",
+                "aria-label": "Add {label}",
+                onclick: move |_| on_place.call(
+                    super::part_placement::ComponentPlacementAction::AddObject {
+                        definition_id: linked_definition_id.clone(),
+                        kind: linked_kind.clone(),
+                    }
+                ),
+                "{label}"
+            }
+            if mirror_only_available {
+                button {
+                    class: "m1-parts-catalogue-choice m1-mirror-only-choice",
+                    r#type: "button",
+                    "aria-label": "Add {label} to this half only",
+                    onclick: move |_| on_place.call(
+                        super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
+                            definition_id: mirror_definition_id.clone(),
+                            kind: mirror_kind.clone(),
+                        }
+                    ),
+                    "Only this half"
+                }
+            }
+        }
+    }
+}
+
 #[component]
 pub fn AddObjectComponentChooser(
     snapshot: AcceptedSnapshot,
@@ -251,6 +330,8 @@ pub fn AddObjectComponentChooser(
     let catalogue = use_catalogue(&snapshot, &scope);
     let mut selection_generation = use_context::<PartsSelectionGeneration>().0;
     let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
+    let mirror_only_available =
+        board_id.is_some_and(|board_id| has_unique_mirror_board_pair(&snapshot.document, board_id));
     let layouts = snapshot
         .document
         .layouts
@@ -276,20 +357,13 @@ pub fn AddObjectComponentChooser(
                                 { let definition_id = entry.definition.id.clone();
                                   let kind = entry.definition.kind.clone();
                                   let label = preferred_label(&entry.definition);
-                                  rsx! {
-                                    button {
-                                        key: "{definition_id}",
-                                        class: "m1-parts-catalogue-choice",
-                                        r#type: "button",
-                                        onclick: move |_| on_place.call(
-                                            super::part_placement::ComponentPlacementAction::AddObject {
-                                                definition_id: definition_id.clone(),
-                                                kind: kind.clone(),
-                                            }
-                                        ),
-                                        "{label}"
-                                    }
-                                  }
+                                  rsx! { AddObjectChoice {
+                                      definition_id,
+                                      kind,
+                                      label: label.to_string(),
+                                      mirror_only_available,
+                                      on_place,
+                                  } }
                                 }
                             }
                         }
@@ -307,20 +381,13 @@ pub fn AddObjectComponentChooser(
                             { let definition_id = entry.definition.id.clone();
                               let kind = entry.definition.kind.clone();
                               let label = preferred_label(&entry.definition);
-                              rsx! {
-                                button {
-                                    key: "{definition_id}",
-                                    class: "m1-parts-catalogue-choice",
-                                    r#type: "button",
-                                    onclick: move |_| on_place.call(
-                                        super::part_placement::ComponentPlacementAction::AddObject {
-                                            definition_id: definition_id.clone(),
-                                            kind: kind.clone(),
-                                        }
-                                    ),
-                                    "{label}"
-                                }
-                              }
+                              rsx! { AddObjectChoice {
+                                  definition_id,
+                                  kind,
+                                  label: label.to_string(),
+                                  mirror_only_available,
+                                  on_place,
+                              } }
                             }
                         }
                     }

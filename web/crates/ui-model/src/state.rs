@@ -194,6 +194,10 @@ pub enum ComponentPlacementAction {
         definition_id: String,
         kind: boardstudio_core::model::PartKind,
     },
+    AddMirrorOnlyObject {
+        definition_id: String,
+        kind: boardstudio_core::model::PartKind,
+    },
     AddSourceObject {
         module_definition_id: String,
         definition: boardstudio_core::model::PartDefinition,

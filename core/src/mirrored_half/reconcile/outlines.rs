@@ -1,7 +1,9 @@
 //! Private outline inputs and projections for the unactivated forward kernel.
 
 use super::Projection;
-use crate::model::{MirroredItemKind, OutlineFeature, OutlineVersion, ProjectDoc};
+use crate::model::{
+    MirroredExceptionState, MirroredItemKind, OutlineFeature, OutlineVersion, ProjectDoc,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -308,7 +310,93 @@ fn is_local(document: &ProjectDoc, mirror_id: &str, kind: MirroredItemKind) -> b
         .flat_map(|hardware| &hardware.pairs)
         .filter_map(|pair| pair.halves.as_ref())
         .flat_map(|halves| &halves.exceptions)
-        .any(|exception| exception.kind == kind && exception.mirror_id == mirror_id)
+        .any(|exception| {
+            exception.kind == kind
+                && exception.mirror_id == mirror_id
+                && exception.state == MirroredExceptionState::Local
+        })
+}
+
+fn target_part_is_independent(document: &ProjectDoc, mirror_board_id: &str, part_id: &str) -> bool {
+    if part_id.starts_with("case-closure/") || part_id.starts_with("embedded/") {
+        return false;
+    }
+    if !document.parts.iter().any(|part| part.id == part_id) {
+        return false;
+    }
+    if document
+        .parts
+        .iter()
+        .filter(|candidate| candidate.id == part_id)
+        .count()
+        != 1
+        || super::unique_board_owner(document, part_id, "outline member").ok()
+            != Some(mirror_board_id)
+    {
+        return false;
+    }
+    if document
+        .matrices
+        .iter()
+        .any(|matrix| matrix.part_ids.iter().any(|id| id == part_id))
+        || document
+            .embedded_circuits
+            .iter()
+            .any(|circuit| circuit.part_ids.iter().any(|id| id == part_id))
+        || document.modules.iter().any(|module| {
+            module
+                .connection
+                .as_ref()
+                .is_some_and(|connection| connection.host_connector_part_id == part_id)
+        })
+    {
+        return false;
+    }
+    let associations: Vec<_> = document
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.pairs)
+        .filter_map(|pair| pair.halves.as_ref())
+        .flat_map(|halves| &halves.correspondences)
+        .filter(|association| {
+            association.kind == MirroredItemKind::Part && association.mirror_id == part_id
+        })
+        .collect();
+    associations.is_empty()
+        || (associations.len() == 1 && is_local(document, part_id, MirroredItemKind::Part))
+}
+
+fn retain_target_envelope_members(
+    document: &mut ProjectDoc,
+    mirror_board_id: &str,
+    prior_members: &BTreeMap<String, Vec<String>>,
+    changed: &mut BTreeSet<String>,
+) {
+    let eligible: BTreeSet<_> = prior_members
+        .values()
+        .flatten()
+        .filter(|part_id| target_part_is_independent(document, mirror_board_id, part_id))
+        .cloned()
+        .collect();
+    for feature in &mut document.outline {
+        let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature else {
+            continue;
+        };
+        let Some(prior) = prior_members.get(id) else {
+            continue;
+        };
+        let mut seen: BTreeSet<_> = part_ids.iter().cloned().collect();
+        let before = part_ids.len();
+        for part_id in prior {
+            if eligible.contains(part_id) && seen.insert(part_id.clone()) {
+                part_ids.push(part_id.clone());
+            }
+        }
+        if part_ids.len() != before {
+            changed.insert(id.clone());
+        }
+    }
 }
 
 /// Project the source board's established outline correspondences into a candidate document.
@@ -365,6 +453,27 @@ pub(super) fn reconcile(
         .iter()
         .filter(|association| association.kind == MirroredItemKind::Matrix)
         .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
+        .collect();
+    let target_outline_ids: BTreeSet<_> = document
+        .boards
+        .iter()
+        .find(|board| board.id == projection.mirror_board_id)
+        .ok_or_else(|| "The selected target board is unavailable".to_owned())?
+        .outline_ids
+        .iter()
+        .cloned()
+        .collect();
+    let prior_target_envelope_members: BTreeMap<_, _> = document
+        .outline
+        .iter()
+        .filter_map(|feature| match feature {
+            OutlineFeature::PartEnvelope { id, part_ids, .. }
+                if target_outline_ids.contains(id) =>
+            {
+                Some((id.clone(), part_ids.clone()))
+            }
+            _ => None,
+        })
         .collect();
     let retired_outline_ids: BTreeSet<_> = retired
         .iter()
@@ -454,6 +563,12 @@ pub(super) fn reconcile(
             changed.insert(association.mirror_id);
         }
     }
+    retain_target_envelope_members(
+        &mut staged,
+        &projection.mirror_board_id,
+        &prior_target_envelope_members,
+        &mut changed,
+    );
 
     if !retired_outline_ids.is_empty() {
         let target_board = staged

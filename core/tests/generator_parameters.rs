@@ -85,6 +85,8 @@ fn add_part(part: Part) -> EditOperation {
     EditOperation::AddPart {
         part,
         board_id: None,
+        definition: None,
+        layout_id: None,
     }
 }
 

@@ -76,6 +76,15 @@ pub struct PlacementOwner {
     pub layout_id: Option<String>,
     pub at: Vec2,
     workflow: PlacementWorkflow,
+    intent: PlacementIntent,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum PlacementIntent {
+    #[default]
+    Existing,
+    LinkedCatalogueDefault,
+    MirrorOnly,
 }
 
 struct PlacementCapture {
@@ -85,6 +94,7 @@ struct PlacementCapture {
     definition_id: String,
     kind: PartKind,
     workflow: PlacementWorkflow,
+    intent: PlacementIntent,
     source_workspace: &'static str,
     layout_id: Option<String>,
     at: Vec2,
@@ -103,6 +113,7 @@ impl PlacementOwner {
             definition_id,
             kind,
             workflow,
+            intent,
             source_workspace,
             layout_id,
             at,
@@ -134,6 +145,7 @@ impl PlacementOwner {
             layout_id,
             at,
             workflow,
+            intent,
         })
     }
 
@@ -197,15 +209,17 @@ fn placement_resolver(
     definition: PartDefinition,
     part: Part,
     layout_id: Option<String>,
+    intent: PlacementIntent,
 ) -> EditResolver {
     EditResolver::new(
         "layout-component-placement",
-        move |accepted: &AcceptedSnapshot| match placement_operation(
+        move |accepted: &AcceptedSnapshot| match placement_operation_for_intent(
             &accepted.document,
             &board_id,
             &definition,
             &part,
             layout_id.as_deref(),
+            intent,
         ) {
             Ok(operation) => Resolution::submit(vec![part.id.clone()], operation),
             Err(message) => Resolution::Retire(message),
@@ -534,7 +548,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                   kind: PartKind,
                   workflow: PlacementWorkflow,
                   apply_to_key: bool,
-                  source_definition: Option<(String, PartDefinition)>| {
+                  source_definition: Option<(String, PartDefinition)>,
+                  intent: PlacementIntent| {
                 let source_workspace = workspace();
                 if match workflow {
                     PlacementWorkflow::WiringController | PlacementWorkflow::PcbController => {
@@ -764,6 +779,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         definition_id: definition_id.clone(),
                         kind: kind.clone(),
                         workflow,
+                        intent,
                         source_workspace,
                         layout_id,
                         at,
@@ -942,7 +958,14 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             {
                 return;
             }
-            start.borrow_mut()(definition_id, PartKind::Controller, workflow, false, None);
+            start.borrow_mut()(
+                definition_id,
+                PartKind::Controller,
+                workflow,
+                false,
+                None,
+                PlacementIntent::Existing,
+            );
         }
     };
     let controller_back =
@@ -968,6 +991,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         move |action: ComponentPlacementAction| {
             let expected_workspace = match action {
                 ComponentPlacementAction::AddObject { .. }
+                | ComponentPlacementAction::AddMirrorOnlyObject { .. }
                 | ComponentPlacementAction::AddSourceObject { .. } => {
                     let Some(owner) = action_owner
                         .as_ref()
@@ -1000,6 +1024,18 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     PlacementWorkflow::GeneralComponent,
                     false,
                     None,
+                    PlacementIntent::LinkedCatalogueDefault,
+                ),
+                ComponentPlacementAction::AddMirrorOnlyObject {
+                    definition_id,
+                    kind,
+                } => start.borrow_mut()(
+                    definition_id,
+                    kind,
+                    PlacementWorkflow::GeneralComponent,
+                    false,
+                    None,
+                    PlacementIntent::MirrorOnly,
                 ),
                 ComponentPlacementAction::AddSourceObject {
                     module_definition_id,
@@ -1010,6 +1046,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     PlacementWorkflow::GeneralComponent,
                     false,
                     Some((module_definition_id, definition)),
+                    PlacementIntent::Existing,
                 ),
                 ComponentPlacementAction::PartsInspector {
                     definition_id,
@@ -1020,6 +1057,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     PlacementWorkflow::GeneralComponent,
                     true,
                     None,
+                    PlacementIntent::Existing,
                 ),
             }
         }
@@ -1139,6 +1177,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     placement.pending.definition.clone(),
                     placement.pending.part.clone(),
                     owner.layout_id.clone(),
+                    owner.intent,
                 ),
             );
             // The helper disables this canvas-owning one-shot until settlement.
@@ -1623,6 +1662,93 @@ pub fn placement_operation(
     })
 }
 
+fn unique_native_pair_for_board<'a>(
+    document: &'a ProjectDoc,
+    board_id: &str,
+    mirror_only: bool,
+) -> Result<Option<&'a boardstudio_core::model::MechanicalMirrorPair>, String> {
+    let Some(hardware) = document.hardware.as_ref() else {
+        return Ok(None);
+    };
+    let mut matching_pairs = hardware.pairs.iter().filter(|pair| {
+        pair.halves.as_ref().is_some_and(|halves| {
+            if mirror_only {
+                halves.mirror_board_id == board_id
+            } else {
+                halves.source_board_id == board_id || halves.mirror_board_id == board_id
+            }
+        })
+    });
+    let Some(pair) = matching_pairs.next() else {
+        return Ok(None);
+    };
+    if matching_pairs.next().is_some() {
+        return Err("The selected board has ambiguous mirrored-half ownership.".into());
+    }
+    let Some(halves) = pair.halves.as_ref() else {
+        return Ok(None);
+    };
+    if halves.source_board_id == halves.mirror_board_id {
+        return Err("The mirrored halves do not identify distinct boards.".into());
+    }
+    if [
+        halves.source_board_id.as_str(),
+        halves.mirror_board_id.as_str(),
+    ]
+    .into_iter()
+    .any(|id| {
+        document
+            .boards
+            .iter()
+            .filter(|board| board.id == id)
+            .count()
+            != 1
+    }) {
+        return Err("The selected pair no longer owns unique board records.".into());
+    }
+    Ok(Some(pair))
+}
+
+fn placement_operation_for_intent(
+    accepted: &ProjectDoc,
+    board_id: &str,
+    definition: &PartDefinition,
+    part: &Part,
+    layout_id: Option<&str>,
+    intent: PlacementIntent,
+) -> Result<EditOperation, String> {
+    match intent {
+        PlacementIntent::Existing => {
+            placement_operation(accepted, board_id, definition, part, layout_id)
+        }
+        PlacementIntent::LinkedCatalogueDefault => {
+            match unique_native_pair_for_board(accepted, board_id, false)? {
+                Some(_) => {}
+                None => {
+                    return placement_operation(accepted, board_id, definition, part, layout_id);
+                }
+            }
+            Ok(EditOperation::AddPart {
+                part: part.clone(),
+                board_id: Some(board_id.to_owned()),
+                definition: Some(definition.clone()),
+                layout_id: layout_id.map(str::to_owned),
+            })
+        }
+        PlacementIntent::MirrorOnly => {
+            if unique_native_pair_for_board(accepted, board_id, true)?.is_none() {
+                return Err("The selected board is no longer the unique mirror half.".into());
+            }
+            Ok(EditOperation::AddMirrorOnlyPart {
+                part: part.clone(),
+                board_id: board_id.to_owned(),
+                definition: Some(definition.clone()),
+                layout_id: layout_id.map(str::to_owned),
+            })
+        }
+    }
+}
+
 pub fn selected_key_component_operation(
     accepted: &ProjectDoc,
     scope: &Scope,
@@ -1840,6 +1966,68 @@ mod tests {
         document
     }
 
+    fn mirrored_fixture() -> ProjectDoc {
+        let mut document = fixture();
+        document.outline.clear();
+        document.boards[0].outline_ids.clear();
+        document
+            .definitions
+            .push(passive_definition("catalog:previous-part"));
+        let previous_part = part("catalog:previous-part", "part-previous", "J0");
+        document.boards[0].part_ids.push(previous_part.id.clone());
+        document.parts.push(previous_part);
+        document.boards.push(Board {
+            id: "board-mirror".into(),
+            name: "Mirror".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.hardware = Some(
+            serde_json::from_value(serde_json::json!({
+                "topology": "split",
+                "transport": "wired",
+                "instances": [
+                    {
+                        "id": "instance-main", "name": "Main", "boardId": "board-main",
+                        "half": "left", "role": "central", "flipped": false,
+                        "controllerPartId": null, "mechanical": null
+                    },
+                    {
+                        "id": "instance-mirror", "name": "Mirror", "boardId": "board-mirror",
+                        "half": "right", "role": "central", "flipped": false,
+                        "controllerPartId": null, "mechanical": null
+                    }
+                ],
+                "boards": [],
+                "pairs": [{
+                    "id": "pair-main-mirror",
+                    "members": ["instance-main", "instance-mirror"],
+                    "constructionSource": "instance-main",
+                    "mapping": {"at": {"x": 200.0, "y": 0.0}, "rotation": 0.0},
+                    "construction": {
+                        "method": "printed", "mount": "rigid",
+                        "integratedPlateFrame": false, "plateThickness": 1.5,
+                        "plateFoamThickness": 0.0, "bottomFoamThickness": 0.0,
+                        "bottomThickness": 2.0, "plateToPcb": 3.5,
+                        "wallThickness": 2.0, "clearance": 0.2
+                    },
+                    "halves": {
+                        "sourceBoardId": "board-main",
+                        "mirrorBoardId": "board-mirror",
+                        "correspondences": [{"kind": "part", "sourceId": "part-previous", "mirrorId": "part-previous-mirror"}],
+                        "exceptions": [{"kind": "part", "mirrorId": "part-previous-mirror", "state": "omitted"}]
+                    }
+                }]
+            }))
+            .unwrap(),
+        );
+        document
+    }
+
     fn matrix_fixture() -> boardstudio_core::model::Matrix {
         serde_json::from_value(serde_json::json!({
             "id": "matrix-main",
@@ -2003,19 +2191,31 @@ mod tests {
     }
 
     async fn hook_mounted() -> (HookProbe, VirtualDom) {
+        hook_mounted_with_document(fixture()).await
+    }
+
+    async fn hook_mounted_with_document(document: ProjectDoc) -> (HookProbe, VirtualDom) {
         let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::open_document(&runtime, fixture()).await;
-        assert_eq!(runtime.model().lifecycle, Lifecycle::Ready);
+        let expected_board_count = document.boards.len();
+        crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+        let model = runtime.model();
         assert_eq!(
-            runtime
-                .model()
+            model.lifecycle,
+            Lifecycle::Ready,
+            "open fixture must be accepted; last error: {:?}",
+            model.last_error
+        );
+        assert_eq!(
+            model
                 .accepted
                 .as_ref()
                 .expect("open fixture is accepted")
                 .document
                 .boards
                 .len(),
-            1
+            expected_board_count,
+            "opened fixture must preserve its boards; last error: {:?}",
+            model.last_error
         );
         let probe = HookProbe {
             runtime,
@@ -2239,6 +2439,133 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn paired_catalogue_default_flows_through_owner_commit_and_creates_linked_parts() {
+        let (probe, mut dom) = hook_mounted_with_document(mirrored_fixture()).await;
+        let mut guide = *probe.guide.borrow().as_ref().unwrap();
+        guide.set(None);
+        flush_hook(&mut dom);
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::AddObject {
+                definition_id: "catalog:paired-reset".into(),
+                kind: PartKind::Passive,
+            });
+        resolve_loader(&probe, Ok(passive_definition("catalog:paired-reset")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let active = probe.latest.borrow().as_ref().unwrap().clone();
+        let outcome = observe_next_operation(&probe);
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        run_pending_runtime(&probe).await;
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = probe.runtime.model().accepted.unwrap();
+        let source_part = accepted
+            .document
+            .parts
+            .iter()
+            .find(|part| part.definition_id == "catalog:paired-reset")
+            .expect("the catalogue request creates the source part");
+        let association = accepted.document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .correspondences
+            .iter()
+            .find(|association| {
+                association.kind == boardstudio_core::model::MirroredItemKind::Part
+                    && association.source_id == source_part.id
+            })
+            .expect("the ordinary Add Object action creates one correspondence");
+        let mirror_part = accepted
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == association.mirror_id)
+            .expect("the linked mirror part exists");
+        assert_eq!(mirror_part.definition_id, source_part.definition_id);
+        assert!(
+            accepted.document.boards[0]
+                .part_ids
+                .contains(&source_part.id)
+        );
+        assert!(
+            accepted.document.boards[1]
+                .part_ids
+                .contains(&mirror_part.id)
+        );
+        assert_eq!(accepted.document.parts.len(), 3);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mirror_only_action_flows_through_owner_commit_without_changing_source() {
+        let (probe, mut dom) = hook_mounted_with_document(mirrored_fixture()).await;
+        let mut guide = *probe.guide.borrow().as_ref().unwrap();
+        guide.set(None);
+        probe.runtime.submit(Event::Navigate {
+            operation_id: probe.runtime.operation(),
+            board_id: "board-mirror".into(),
+            instance_id: None,
+        });
+        run_pending_runtime(&probe).await;
+        flush_hook(&mut dom);
+        assert_eq!(probe.runtime.scope().unwrap().board_id, "board-mirror");
+
+        probe
+            .latest
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .on_place_component
+            .call(ComponentPlacementAction::AddMirrorOnlyObject {
+                definition_id: "catalog:mirror-reset".into(),
+                kind: PartKind::Passive,
+            });
+        resolve_loader(&probe, Ok(passive_definition("catalog:mirror-reset")));
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+        let active = probe.latest.borrow().as_ref().unwrap().clone();
+        let outcome = observe_next_operation(&probe);
+        active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
+        run_pending_runtime(&probe).await;
+        let_hook_tasks_run().await;
+        flush_hook(&mut dom);
+
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = probe.runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.parts.len(), 2);
+        assert_eq!(accepted.document.parts[0].id, "part-previous");
+        assert_eq!(
+            accepted.document.parts[1].definition_id,
+            "catalog:mirror-reset"
+        );
+        assert_eq!(accepted.document.boards[0].part_ids, vec!["part-previous"]);
+        assert_eq!(
+            accepted.document.boards[1].part_ids,
+            vec![accepted.document.parts[1].id.clone()]
+        );
+        let halves = accepted.document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap();
+        assert_eq!(halves.correspondences.len(), 1);
+        assert_eq!(halves.correspondences[0].source_id, "part-previous");
+        assert_eq!(halves.correspondences[0].mirror_id, "part-previous-mirror");
+        assert_eq!(
+            halves.exceptions.len(),
+            1,
+            "the pre-existing Omit stays stored"
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     async fn parts_inspector_action_applies_selected_key_through_production_edit_handler() {
         let (probe, mut dom) = hook_mounted().await;
         let mut document = accepted_document(&probe);
@@ -2407,7 +2734,7 @@ mod tests {
         let mut refreshed = accepted_document(&probe);
         refreshed.name.push_str(" refreshed");
         replace_accepted_document(&probe, refreshed).await;
-        retained.call(ComponentPlacementAction::AddObject {
+        retained.call(ComponentPlacementAction::AddMirrorOnlyObject {
             definition_id: "imported:stale-owner".into(),
             kind: PartKind::Passive,
         });
@@ -3206,6 +3533,126 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
+    fn catalogue_placement_emits_typed_linked_and_mirror_only_operations_only_for_pair_intents() {
+        let mut accepted = mirrored_fixture();
+        accepted.layouts = vec![
+            boardstudio_core::model::Layout {
+                id: "layout-main".into(),
+                name: "Main".into(),
+                board_id: "board-main".into(),
+                matrix_id: "matrix-main".into(),
+                part_ids: vec![],
+                mirror_link: None,
+            },
+            boardstudio_core::model::Layout {
+                id: "layout-mirror".into(),
+                name: "Mirror".into(),
+                board_id: "board-mirror".into(),
+                matrix_id: "matrix-mirror".into(),
+                part_ids: vec![],
+                mirror_link: None,
+            },
+        ];
+        let definition = passive_definition("catalog:linked-part");
+        let placed = part(&definition.id, "part-new", "J1");
+
+        for (board_id, layout_id) in [
+            ("board-main", "layout-main"),
+            ("board-mirror", "layout-mirror"),
+        ] {
+            let operation = placement_operation_for_intent(
+                &accepted,
+                board_id,
+                &definition,
+                &placed,
+                Some(layout_id),
+                PlacementIntent::LinkedCatalogueDefault,
+            )
+            .unwrap();
+            assert_eq!(
+                operation,
+                EditOperation::AddPart {
+                    part: placed.clone(),
+                    board_id: Some(board_id.into()),
+                    definition: Some(definition.clone()),
+                    layout_id: Some(layout_id.into()),
+                }
+            );
+        }
+
+        assert_eq!(
+            placement_operation_for_intent(
+                &accepted,
+                "board-mirror",
+                &definition,
+                &placed,
+                Some("layout-mirror"),
+                PlacementIntent::MirrorOnly,
+            )
+            .unwrap(),
+            EditOperation::AddMirrorOnlyPart {
+                part: placed.clone(),
+                board_id: "board-mirror".into(),
+                definition: Some(definition.clone()),
+                layout_id: Some("layout-mirror".into()),
+            }
+        );
+
+        assert!(matches!(
+            placement_operation_for_intent(
+                &fixture(),
+                "board-main",
+                &definition,
+                &placed,
+                None,
+                PlacementIntent::LinkedCatalogueDefault,
+            ),
+            Ok(EditOperation::ReplaceDocument { .. })
+        ));
+        assert!(matches!(
+            placement_operation_for_intent(
+                &accepted,
+                "board-main",
+                &definition,
+                &placed,
+                None,
+                PlacementIntent::MirrorOnly,
+            ),
+            Err(_)
+        ));
+        let mut ambiguous = accepted.clone();
+        let duplicate_pair = ambiguous.hardware.as_ref().unwrap().pairs[0].clone();
+        ambiguous
+            .hardware
+            .as_mut()
+            .unwrap()
+            .pairs
+            .push(duplicate_pair);
+        assert!(matches!(
+            placement_operation_for_intent(
+                &ambiguous,
+                "board-mirror",
+                &definition,
+                &placed,
+                None,
+                PlacementIntent::LinkedCatalogueDefault,
+            ),
+            Err(_)
+        ));
+        assert!(matches!(
+            placement_operation_for_intent(
+                &accepted,
+                "board-main",
+                &definition,
+                &placed,
+                None,
+                PlacementIntent::Existing,
+            ),
+            Ok(EditOperation::ReplaceDocument { .. })
+        ));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
     fn selected_key_application_uses_set_matrix_and_preserves_other_cell_fields() {
         let mut accepted = fixture();
         accepted.matrices.push(boardstudio_core::model::Matrix {
@@ -3674,6 +4121,7 @@ mod tests {
                 definition_id: "catalog:controller".into(),
                 kind: PartKind::Controller,
                 workflow: PlacementWorkflow::WiringController,
+                intent: PlacementIntent::Existing,
                 source_workspace: "Parts",
                 layout_id: None,
                 at: Vec2 { x: 3.0, y: 9.0 },

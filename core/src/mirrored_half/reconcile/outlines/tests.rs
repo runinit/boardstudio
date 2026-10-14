@@ -520,7 +520,12 @@ fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
         .collect();
 
     for (old_id, new_id) in source_matrix.part_ids.iter().zip(&source_thumb.part_ids) {
-        let mut part = document.parts.iter().find(|part| part.id == *old_id).unwrap().clone();
+        let mut part = document
+            .parts
+            .iter()
+            .find(|part| part.id == *old_id)
+            .unwrap()
+            .clone();
         part.id.clone_from(new_id);
         part.reference = format!("THUMB-{}", part.reference);
         document.parts.push(part);
@@ -533,7 +538,12 @@ fn a_cross_matrix_anchor_uses_its_own_matrix_frame_rule() {
             .push(new_id.clone());
     }
     for (old_id, new_id) in mirror_matrix.part_ids.iter().zip(&mirror_thumb.part_ids) {
-        let mut part = document.parts.iter().find(|part| part.id == *old_id).unwrap().clone();
+        let mut part = document
+            .parts
+            .iter()
+            .find(|part| part.id == *old_id)
+            .unwrap()
+            .clone();
         part.id.clone_from(new_id);
         part.reference = format!("THUMB-{}", part.reference);
         document.parts.push(part);
@@ -737,6 +747,165 @@ fn outline_projection_never_copies_generated_case_closure_members() {
         .expect("mapped source envelope");
     assert_eq!(envelope, &["matrix/mirror-matrix/r0c1"]);
     assert!(!envelope.iter().any(|id| id.starts_with("case-closure/")));
+}
+
+#[test]
+fn outline_projection_retains_independent_target_envelope_members_stably() {
+    let (mut document, projection) = outline_fixture();
+    let make_part = |id: &str, reference: &str| {
+        let mut part = document.parts[0].clone();
+        part.id = id.into();
+        part.reference = reference.into();
+        part
+    };
+    let target_only = make_part("mirror-board/independent", "MI1");
+    let local_source = make_part("source-board/local", "LS1");
+    let local_target = make_part("mirror-board/local", "LT1");
+    let hosted = make_part("mirror-board/hosted", "HOST1");
+    let foreign = make_part("source-board/foreign", "FOREIGN1");
+    let duplicate = make_part("mirror-board/duplicate", "DUP1");
+    document.parts.extend([
+        target_only.clone(),
+        local_source.clone(),
+        local_target.clone(),
+        hosted.clone(),
+        foreign.clone(),
+        duplicate.clone(),
+    ]);
+    document
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "mirror-board")
+        .unwrap()
+        .part_ids
+        .extend([
+            target_only.id.clone(),
+            local_target.id.clone(),
+            hosted.id.clone(),
+            duplicate.id.clone(),
+        ]);
+    document
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "source-board")
+        .unwrap()
+        .part_ids
+        .extend([local_source.id.clone(), foreign.id.clone()]);
+    document
+        .embedded_circuits
+        .push(crate::modules::EmbeddedCircuit {
+            id: "mirror-board/embedded-circuit".into(),
+            definition_id: "embedded-fixture".into(),
+            host_board_id: "mirror-board".into(),
+            part_ids: vec![hosted.id.clone()],
+            net_ids: vec![],
+            ports: Default::default(),
+        });
+
+    let source_envelope = OutlineFeature::PartEnvelope {
+        connections: vec![],
+        settings: Default::default(),
+        id: "source-board/envelope".into(),
+        part_ids: vec!["matrix/source-matrix/r0c1".into()],
+        margin: 1.75,
+        operation: Operation::Add,
+    };
+    document.outline.push(source_envelope.clone());
+    document.outline.push(OutlineFeature::PartEnvelope {
+        connections: vec![],
+        settings: Default::default(),
+        id: "mirror-board/envelope".into(),
+        part_ids: vec![
+            "matrix/mirror-matrix/r0c1",
+            target_only.id.as_str(),
+            target_only.id.as_str(),
+            local_target.id.as_str(),
+            hosted.id.as_str(),
+            foreign.id.as_str(),
+            duplicate.id.as_str(),
+            "stale/missing",
+            "case-closure/generated",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect(),
+        margin: 1.75,
+        operation: Operation::Add,
+    });
+    for (board_id, outline_id) in [
+        ("source-board", "source-board/envelope"),
+        ("mirror-board", "mirror-board/envelope"),
+    ] {
+        document
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .outline_ids
+            .push(outline_id.into());
+    }
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences.extend([
+        MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Part,
+            source_id: local_source.id,
+            mirror_id: local_target.id.clone(),
+        },
+        MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Outline,
+            source_id: "source-board/envelope".into(),
+            mirror_id: "mirror-board/envelope".into(),
+        },
+    ]);
+    halves.exceptions.push(crate::model::MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        mirror_id: local_target.id.clone(),
+        state: crate::model::MirroredExceptionState::Local,
+        removed_copper: None,
+    });
+
+    reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+        .expect("the independent target Part is a valid target envelope member");
+    let target_envelope = || {
+        document
+            .outline
+            .iter()
+            .find_map(|feature| match feature {
+                OutlineFeature::PartEnvelope { id, part_ids, .. }
+                    if id == "mirror-board/envelope" =>
+                {
+                    Some(part_ids.clone())
+                }
+                _ => None,
+            })
+            .unwrap()
+    };
+    assert_eq!(
+        target_envelope(),
+        vec![
+            "matrix/mirror-matrix/r0c1",
+            target_only.id.as_str(),
+            local_target.id.as_str(),
+            duplicate.id.as_str(),
+        ],
+        "source members project first, then unique independent, Local, and duplicate-listed members; stale, foreign, generated, and embedded members are omitted"
+    );
+    let first = document.clone();
+    assert!(
+        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+            .expect("repeat projection retains target membership")
+            .is_empty()
+    );
+    assert_eq!(document, first, "reconciliation is stable");
 }
 
 #[test]
@@ -1118,9 +1287,11 @@ fn changed_source_outline_bridge_keeps_assembly_references_consistent() {
 
     let first_output = document.clone();
     let first_context = projection_state(&projection);
-    assert!(reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-        .expect("changed assembly reference repeat")
-        .is_empty());
+    assert!(
+        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+            .expect("changed assembly reference repeat")
+            .is_empty()
+    );
     assert_eq!(document, first_output);
     assert_eq!(projection_state(&projection), first_context);
 }
@@ -1533,9 +1704,11 @@ fn clearing_source_active_version_preserves_a_local_target_selection() {
     assert_eq!(pair_state_bytes(&document), pair_before);
     let first_output = document.clone();
     let first_context = projection_state(&projection);
-    assert!(reconcile_candidate(&mut document, "pair-source-mirror", &projection)
-        .expect("local selection repeat")
-        .is_empty());
+    assert!(
+        reconcile_candidate(&mut document, "pair-source-mirror", &projection)
+            .expect("local selection repeat")
+            .is_empty()
+    );
     assert_eq!(document, first_output);
     assert_eq!(projection_state(&projection), first_context);
 }

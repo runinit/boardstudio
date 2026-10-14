@@ -112,6 +112,7 @@ pub(super) struct PartAddition {
     pub(super) mirror_id: String,
     pub(super) mirror_definition_id: String,
     pub(super) mirror_reference: String,
+    pub(super) mirror_layout_id: Option<String>,
 }
 
 /// A matrix new to a paired board, planned as a linked pair. This layer supplies the identities
@@ -197,11 +198,26 @@ pub(super) fn canonicalize(
             canonical.prepared_constraints =
                 constraints::prepare_move_parts(document, positions).map_err(Refusal::Request)?;
         }
-        Op::AddPart { part, board_id } => {
-            if let Some((source, addition)) = links.add_part(part, board_id.as_deref())? {
+        Op::AddPart {
+            part,
+            board_id,
+            definition,
+            layout_id,
+        } => {
+            if let Some((source, addition)) = links.add_part(
+                part,
+                board_id.as_deref(),
+                definition.as_ref(),
+                layout_id.as_deref(),
+            )? {
                 canonical.operation = source;
                 canonical.additions.push(addition);
             }
+        }
+        Op::AddMirrorOnlyPart { .. } => {
+            canonical.coverage = Coverage::DeliberatelyUnchanged(
+                "explicit mirror-only placement is target-owned and prepared atomically",
+            );
         }
         Op::RemoveParts { ids } => {
             canonical.operation = Op::RemoveParts {
@@ -884,6 +900,8 @@ impl<'a> Links<'a> {
         &self,
         part: &Part,
         board_id: Option<&str>,
+        definition: Option<&crate::model::PartDefinition>,
+        layout_id: Option<&str>,
     ) -> Result<Option<(EditOperation, PartAddition)>, String> {
         let board = board_id
             .map(str::to_owned)
@@ -891,15 +909,59 @@ impl<'a> Links<'a> {
         let Some(board) = board else {
             return Ok(None);
         };
-        let Some(pair) = self
-            .pairs
-            .iter()
-            .find(|pair| pair.halves.mirror_board_id == board)
-        else {
+        let Some(pair) = self.pairs.iter().find(|pair| {
+            pair.halves.source_board_id == board || pair.halves.mirror_board_id == board
+        }) else {
             return Ok(None);
         };
+        if self
+            .pairs
+            .iter()
+            .filter(|candidate| {
+                candidate.halves.source_board_id == board
+                    || candidate.halves.mirror_board_id == board
+            })
+            .count()
+            != 1
+        {
+            return Err(format!(
+                "Target board {board:?} belongs to more than one native mirrored pair"
+            ));
+        }
+        if board == pair.halves.source_board_id {
+            let mirror_id = unique_generated_part_id(
+                self.document,
+                &pair.halves.source_board_id,
+                &pair.halves.mirror_board_id,
+                &part.id,
+            );
+            let mirror_reference = unique_generated_reference(self.document, &part.reference);
+            let selected_layout = layout_id.map(|id| unique_layout(self, id)).transpose()?;
+            if selected_layout.is_some_and(|layout| layout.board_id != board) {
+                return Err(format!(
+                    "Selected layout does not belong to source board {board:?}"
+                ));
+            }
+            return Ok(Some((
+                EditOperation::AddPart {
+                    part: part.clone(),
+                    board_id: Some(board),
+                    definition: definition.cloned(),
+                    layout_id: layout_id.map(str::to_owned),
+                },
+                PartAddition {
+                    source_id: part.id.clone(),
+                    mirror_id,
+                    mirror_definition_id: definition.map_or_else(
+                        || part.definition_id.clone(),
+                        |definition| definition.id.clone(),
+                    ),
+                    mirror_reference,
+                    mirror_layout_id: None,
+                },
+            )));
+        }
         let source_board = pair.halves.source_board_id.clone();
-
         let mut taken: BTreeSet<&str> = self
             .document
             .parts
@@ -933,6 +995,8 @@ impl<'a> Links<'a> {
             index += 1;
         }
 
+        let (source_layout_id, mirror_layout_id) =
+            translate_layout_id(self, pair, layout_id, &board)?;
         let mut source = part.clone();
         source.id = source_id.clone();
         source.reference = reference;
@@ -947,12 +1011,15 @@ impl<'a> Links<'a> {
             EditOperation::AddPart {
                 part: source,
                 board_id: Some(source_board),
+                definition: definition.cloned(),
+                layout_id: source_layout_id,
             },
             PartAddition {
                 source_id,
                 mirror_id: part.id.clone(),
                 mirror_definition_id: part.definition_id.clone(),
                 mirror_reference: part.reference.clone(),
+                mirror_layout_id,
             },
         )))
     }
@@ -976,6 +1043,121 @@ impl<'a> Links<'a> {
         let mut seen = BTreeSet::new();
         out.retain(|id| seen.insert(id.clone()));
         Ok(out)
+    }
+}
+
+fn unique_generated_part_id(
+    document: &ProjectDoc,
+    source_board: &str,
+    mirror_board: &str,
+    requested_id: &str,
+) -> String {
+    let base = super::mirror_id(source_board, mirror_board, requested_id);
+    let taken: BTreeSet<_> = document.parts.iter().map(|part| part.id.as_str()).collect();
+    let mut candidate = base.clone();
+    let mut suffix = 2;
+    while taken.contains(candidate.as_str()) || candidate == requested_id {
+        candidate = format!("{base}-{suffix}");
+        suffix += 1;
+    }
+    candidate
+}
+
+fn unique_generated_reference(document: &ProjectDoc, requested: &str) -> String {
+    let mut taken: BTreeSet<_> = document
+        .parts
+        .iter()
+        .map(|part| part.reference.as_str())
+        .collect();
+    taken.insert(requested);
+    let mut candidate = requested.to_owned();
+    let mut suffix = 2;
+    while taken.contains(candidate.as_str()) {
+        candidate = format!("{requested}-{suffix}");
+        suffix += 1;
+    }
+    candidate
+}
+
+fn unique_layout<'a>(links: &'a Links<'_>, id: &str) -> Result<&'a crate::model::Layout, String> {
+    let mut layouts = links
+        .document
+        .layouts
+        .iter()
+        .filter(|layout| layout.id == id);
+    let layout = layouts
+        .next()
+        .ok_or_else(|| format!("Layout {id:?} is unavailable"))?;
+    if layouts.next().is_some() {
+        return Err(format!("Layout {id:?} is ambiguous"));
+    }
+    Ok(layout)
+}
+
+fn translate_layout_id(
+    links: &Links<'_>,
+    pair: &PairView<'_>,
+    requested_id: Option<&str>,
+    target_board_id: &str,
+) -> Result<(Option<String>, Option<String>), String> {
+    let Some(requested_id) = requested_id else {
+        return Ok((None, None));
+    };
+    let target = unique_layout(links, requested_id)?;
+    if target.board_id != target_board_id {
+        return Err(format!(
+            "Layout {requested_id:?} does not belong to target board {target_board_id:?}"
+        ));
+    }
+    let mut matrices = links
+        .document
+        .matrices
+        .iter()
+        .filter(|matrix| matrix.id == target.matrix_id);
+    let matrix = matrices.next();
+    if matrix.is_none_or(|matrix| matrix.board_id.as_deref() != Some(target_board_id))
+        || matrices.next().is_some()
+    {
+        return Err(format!(
+            "Layout {requested_id:?} has inconsistent matrix ownership"
+        ));
+    }
+    let mut matches = pair
+        .halves
+        .correspondences
+        .iter()
+        .filter(|item| item.kind == MirroredItemKind::Layout && item.mirror_id == requested_id);
+    let Some(correspondence) = matches.next() else {
+        return Ok((None, Some(requested_id.to_owned())));
+    };
+    if matches.next().is_some() {
+        return Err(format!(
+            "Layout {requested_id:?} has ambiguous native correspondence"
+        ));
+    }
+    match pair
+        .halves
+        .overlay_of(correspondence)
+        .map(|exception| exception.state)
+    {
+        Some(MirroredExceptionState::Local) => Ok((None, Some(requested_id.to_owned()))),
+        Some(MirroredExceptionState::Omitted) => Err(format!(
+            "Layout {requested_id:?} is omitted on the mirror half"
+        )),
+        None => {
+            let source = unique_layout(links, &correspondence.source_id)?;
+            let matrix_links = pair.halves.correspondences.iter().filter(|item| {
+                item.kind == MirroredItemKind::Matrix
+                    && item.source_id == source.matrix_id
+                    && item.mirror_id == target.matrix_id
+            });
+            if source.board_id != pair.halves.source_board_id || matrix_links.count() != 1 {
+                return Err(format!(
+                    "Layout {requested_id:?} has inconsistent source ownership"
+                ));
+            }
+            Ok((Some(source.id.clone()), None))
+        }
     }
 }
 

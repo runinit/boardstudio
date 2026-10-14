@@ -2901,6 +2901,36 @@ fn open_preparation_preserves_unpaired_legacy_data_and_refuses_ambiguous_associa
 }
 
 #[test]
+fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
+    let mut accepted = pair_document();
+    let mut second_pair = accepted.hardware.as_ref().unwrap().pairs[0].clone();
+    second_pair.id = "ambiguous-pair".into();
+    accepted.hardware.as_mut().unwrap().pairs.push(second_pair);
+    let before = serde_json::to_vec(&accepted).unwrap();
+    let halves = accepted.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap();
+    let mut part = accepted.parts[0].clone();
+    part.id = "right/ambiguous-target-addition".into();
+    part.reference = "AMB1".into();
+    let operation = EditOperation::AddMirrorOnlyPart {
+        part,
+        board_id: halves.mirror_board_id.clone(),
+        definition: None,
+        layout_id: None,
+    };
+    let canonical = crate::mirrored_half::inverse::canonicalize(&accepted, &operation)
+        .expect("the Add request canonicalizes before target selection");
+    let mut draft = accepted.clone();
+    let refusal = super::apply_canonical(&mut draft, &accepted, &[], &canonical)
+        .expect_err("two pairs with this target board are ambiguous");
+    assert!(refusal.contains("matched 2 pairs"), "{refusal}");
+    assert_eq!(draft, accepted, "the private prepared stage is atomic");
+    assert_eq!(serde_json::to_vec(&accepted).unwrap(), before);
+}
+
+#[test]
 fn open_preparation_refuses_missing_part_identity_and_reference_collisions() {
     let mut id_collision = pair_document();
     id_collision.parts.retain(|part| part.id != "right/U1");
@@ -3142,6 +3172,8 @@ fn independent_add_on_the_mirror_board_creates_one_native_correspondence() {
     let operation = EditOperation::AddPart {
         part: added,
         board_id: Some("right".into()),
+        definition: None,
+        layout_id: None,
     };
 
     let (prepared, changed) = prepare_transaction(&accepted, &[], &operation)

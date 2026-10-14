@@ -493,6 +493,10 @@ pub(crate) fn prepare_transaction(
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
     changed.extend(reconcile_pairs(accepted, &mut draft, &canonical)?);
+    changed.extend(add_target_layout_memberships(
+        &mut draft,
+        &canonical.additions,
+    )?);
     changed.extend(record_independent_additions(
         &mut draft,
         &canonical.additions,
@@ -511,6 +515,43 @@ pub(crate) fn prepare_transaction(
     actual_ids.sort();
     actual_ids.dedup();
     Ok((draft, actual_ids))
+}
+
+fn add_target_layout_memberships(
+    document: &mut ProjectDoc,
+    additions: &[inverse::PartAddition],
+) -> Result<Vec<String>, String> {
+    let mut changed = Vec::new();
+    for addition in additions {
+        let Some(layout_id) = &addition.mirror_layout_id else {
+            continue;
+        };
+        let mirror_board_id = super::super::board_for_part(document, &addition.mirror_id)
+            .ok_or_else(|| format!("Mirror Part {:?} has no board owner", addition.mirror_id))?
+            .id
+            .clone();
+        let mut layouts = document
+            .layouts
+            .iter_mut()
+            .filter(|layout| layout.id == *layout_id);
+        let layout = layouts
+            .next()
+            .ok_or_else(|| format!("Target layout {layout_id:?} is unavailable"))?;
+        if layouts.next().is_some() || layout.board_id != mirror_board_id {
+            return Err(format!(
+                "Target layout {layout_id:?} has ambiguous or inconsistent ownership"
+            ));
+        }
+        if layout.part_ids.contains(&addition.mirror_id) {
+            return Err(format!(
+                "Target layout {layout_id:?} already contains Part {:?}",
+                addition.mirror_id
+            ));
+        }
+        layout.part_ids.push(addition.mirror_id.clone());
+        changed.push(layout_id.clone());
+    }
+    Ok(changed)
 }
 
 fn validate_prepared_draft(
@@ -650,7 +691,9 @@ fn prepare_lifecycle_pairs(
 ) -> Result<Vec<String>, String> {
     if matches!(
         canonical.operation,
-        EditOperation::ApplyMechanicalEdit { .. }
+        EditOperation::AddPart { .. }
+            | EditOperation::AddMirrorOnlyPart { .. }
+            | EditOperation::ApplyMechanicalEdit { .. }
             | EditOperation::SetMechanical {
                 configuration: Some(_),
                 target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
@@ -720,6 +763,30 @@ fn apply_canonical(
     board_contours: &[BoardContours],
     canonical: &Canonical,
 ) -> Result<Vec<String>, String> {
+    if let EditOperation::AddMirrorOnlyPart { board_id, part, .. } = &canonical.operation {
+        if id_exists_outside_parts(accepted, &part.id) {
+            return Err(format!(
+                "Mirror-only placement Part ID {:?} conflicts with another document identity",
+                part.id
+            ));
+        }
+        let pairs = accepted
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter(|pair| {
+                pair.halves.as_ref().is_some_and(|halves| {
+                    halves.mirror_board_id == *board_id && halves.source_board_id != *board_id
+                })
+            })
+            .collect::<Vec<_>>();
+        if pairs.len() != 1 {
+            return Err(format!(
+                "Mirror-only placement requires one exact native mirror board; {board_id:?} matched {} pairs",
+                pairs.len()
+            ));
+        }
+    }
     if matches!(
         canonical.operation,
         EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. }
@@ -920,6 +987,27 @@ fn reconcile_pairs(
             .filter(|association| association.kind == MirroredItemKind::Matrix)
             .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
             .collect();
+        if matrices.is_empty() {
+            if matches!(
+                canonical.operation,
+                EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. }
+            ) {
+                let mut projection =
+                    super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
+                projection.independent_part_transitions = transitions_for(
+                    accepted,
+                    document,
+                    canonical,
+                    &pair.halves,
+                    &pair.halves.source_board_id,
+                    &pair.halves.mirror_board_id,
+                    false,
+                )?
+                .0;
+                changed.extend(reconcile(document, &pair.pair_id, &projection)?);
+            }
+            continue;
+        }
         for (index, (source_matrix_id, mirror_matrix_id)) in matrices.iter().enumerate() {
             if super::matrix_membership_changed(accepted, document, source_matrix_id) {
                 // Lifecycle preparation has already projected this matrix's changed membership.
@@ -1091,19 +1179,40 @@ fn projection_for(
         }
     }
     let (independent_part_transitions, hosted_transitions, hosted_removal_baselines) =
-        if include_transitions {
-            let canonical = canonical.ok_or("Edit projection requires canonical intent")?;
-            transitions_for(
+        match canonical {
+            Some(canonical) => transitions_for(
                 accepted,
                 document,
                 canonical,
                 halves,
                 &source_board_id,
                 &mirror_board_id,
-            )?
-        } else {
-            (Vec::new(), Vec::new(), BTreeMap::new())
+                include_transitions,
+            )?,
+            None if !include_transitions => (Vec::new(), Vec::new(), BTreeMap::new()),
+            None => return Err("Edit projection requires canonical intent".into()),
         };
+    let applied_independent_additions = if include_transitions {
+        BTreeSet::new()
+    } else {
+        independent_part_transitions
+            .iter()
+            .filter_map(|transition| match transition {
+                IndependentPartTransition::Add {
+                    source_id,
+                    mirror_id,
+                    mirror_definition_id,
+                    mirror_reference,
+                } => Some((
+                    source_id.clone(),
+                    mirror_id.clone(),
+                    mirror_definition_id.clone(),
+                    mirror_reference.clone(),
+                )),
+                IndependentPartTransition::Remove { .. } => None,
+            })
+            .collect()
+    };
     Ok(Projection {
         matrix: Some(super::MatrixLink {
             source_matrix_id: source_matrix_id.to_owned(),
@@ -1116,7 +1225,7 @@ fn projection_for(
         parts,
         independent_part_transitions,
         hosted_transitions,
-        applied_independent_additions: std::cell::RefCell::new(BTreeSet::new()),
+        applied_independent_additions: std::cell::RefCell::new(applied_independent_additions),
         applied_hosted_operations: std::cell::RefCell::new(BTreeSet::new()),
         applied_hosted_circuit_additions: std::cell::RefCell::new(BTreeMap::new()),
         hosted_removal_baselines: std::cell::RefCell::new(hosted_removal_baselines),
@@ -1165,6 +1274,7 @@ fn transitions_for(
     halves: &crate::model::MirroredHalves,
     source_board_id: &str,
     mirror_board_id: &str,
+    include_removals_and_hosted: bool,
 ) -> Result<
     (
         Vec<IndependentPartTransition>,
@@ -1186,7 +1296,8 @@ fn transitions_for(
             });
         }
     }
-    if let EditOperation::RemoveParts { ids } = &canonical.operation {
+    if include_removals_and_hosted && let EditOperation::RemoveParts { ids } = &canonical.operation
+    {
         for source_id in ids {
             if let Some(association) = halves.correspondences.iter().find(|association| {
                 association.kind == MirroredItemKind::Part && association.source_id == *source_id
@@ -1200,6 +1311,11 @@ fn transitions_for(
     }
 
     let mut hosted = Vec::new();
+    let mut removal_baselines = BTreeMap::new();
+    if !include_removals_and_hosted {
+        return Ok((parts, hosted, removal_baselines));
+    }
+
     for addition in &canonical.hosted.modules {
         let owner = document
             .modules
@@ -1231,7 +1347,6 @@ fn transitions_for(
             });
         }
     }
-    let mut removal_baselines = BTreeMap::new();
     match &canonical.operation {
         EditOperation::RemoveMountedModule { id } => {
             if let Some(association) = hosted_association(halves, MirroredItemKind::Module, id)
