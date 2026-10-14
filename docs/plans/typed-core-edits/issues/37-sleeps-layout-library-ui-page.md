@@ -576,3 +576,6 @@ suite passed 70/70 in 14.69 s. Other Parts waits and ticket-wide verification re
 The pure queued-rotary profile test also replaces its post-release 30 ms delay and unbounded gate
 wait with bounded waits for both operation outcomes and the Undo state. Its focused browser test
 passed; mounted module-profile editor waits remain to be converted.
+
+After these Parts changes, `wasm-pack test --headless --chrome web/crates/parts --locked --lib`
+passed all 70 tests in 14.67 s.
