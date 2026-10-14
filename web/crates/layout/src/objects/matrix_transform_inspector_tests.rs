@@ -9,6 +9,7 @@ use boardstudio_core::model::{
     Board, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
     Side, Vec2,
 };
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
@@ -684,7 +685,10 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
         )
         .unwrap();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    wait_until("the remaining key accepts its local X edit", || {
+        accepted_cell(&probe, 0).offset.map(|offset| offset.x) == Some(5.0)
+    })
+    .await;
     assert_eq!(
         accepted_cell(&probe, 0).offset.map(|offset| offset.x),
         Some(5.0),
