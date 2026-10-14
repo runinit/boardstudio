@@ -439,6 +439,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -482,6 +483,7 @@ mod workspace_state_tests {
             LayoutInspectorTab::Properties => "Properties",
             LayoutInspectorTab::Relations => "Relations",
         };
+        let selection_present = selected_context().is_some();
         rsx! {
             button { id: "layout-state-relations", onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations), "Relations" }
             button { id: "layout-state-select", onclick: move |_| {
@@ -498,19 +500,19 @@ mod workspace_state_tests {
             button { id: "layout-state-switch", onclick: move |_| workspace.set("Keycaps"), "Switch workspace" }
             output { id: "layout-state-tab", "{inspector_tab_label}" }
             output { id: "layout-state-selection-kind", "{selection_kind_label}" }
+            output { id: "layout-state-selection-present", "{selection_present}" }
             output { id: "layout-state-pending", "{pending_pick().is_some()}" }
             output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
         }
     }
 
-    async fn click(document: &web_sys::Document, id: &str) {
+    fn click(document: &web_sys::Document, id: &str) {
         document
             .get_element_by_id(id)
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
     }
 
     #[wasm_bindgen_test]
@@ -523,9 +525,20 @@ mod workspace_state_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("Layout workspace state controls mount", || {
+            root.query_selector("#layout-state-relations")
+                .is_ok_and(|button| button.is_some())
+        })
+        .await;
 
-        click(&document, "layout-state-relations").await;
+        click(&document, "layout-state-relations");
+        wait_until("the Relations tab becomes selected", || {
+            root.query_selector("#layout-state-tab")
+                .ok()
+                .flatten()
+                .is_some_and(|tab| tab.text_content().as_deref() == Some("Relations"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("layout-state-tab")
@@ -534,7 +547,14 @@ mod workspace_state_tests {
                 .as_deref(),
             Some("Relations")
         );
-        click(&document, "layout-state-select").await;
+        click(&document, "layout-state-select");
+        wait_until("Layout selection state becomes present", || {
+            root.query_selector("#layout-state-selection-present")
+                .ok()
+                .flatten()
+                .is_some_and(|selected| selected.text_content().as_deref() == Some("true"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("layout-state-tab")
@@ -551,8 +571,22 @@ mod workspace_state_tests {
                 .as_deref(),
             Some("Matrix")
         );
-        click(&document, "layout-state-arm-pick").await;
-        click(&document, "layout-state-enter-3d").await;
+        click(&document, "layout-state-arm-pick");
+        wait_until("the origin pick becomes armed", || {
+            root.query_selector("#layout-state-pending")
+                .ok()
+                .flatten()
+                .is_some_and(|pending| pending.text_content().as_deref() == Some("true"))
+        })
+        .await;
+        click(&document, "layout-state-enter-3d");
+        wait_until("entering 3D clears the origin pick", || {
+            root.query_selector("#layout-state-pending")
+                .ok()
+                .flatten()
+                .is_some_and(|pending| pending.text_content().as_deref() == Some("false"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("layout-state-pending")
@@ -561,8 +595,22 @@ mod workspace_state_tests {
                 .as_deref(),
             Some("false")
         );
-        click(&document, "layout-state-tool").await;
-        click(&document, "layout-state-switch").await;
+        click(&document, "layout-state-tool");
+        wait_until("the transform tool becomes active", || {
+            root.query_selector("#layout-state-tool-active")
+                .ok()
+                .flatten()
+                .is_some_and(|active| active.text_content().as_deref() == Some("true"))
+        })
+        .await;
+        click(&document, "layout-state-switch");
+        wait_until("leaving Layout clears the transform tool", || {
+            root.query_selector("#layout-state-tool-active")
+                .ok()
+                .flatten()
+                .is_some_and(|active| active.text_content().as_deref() == Some("false"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("layout-state-tool-active")

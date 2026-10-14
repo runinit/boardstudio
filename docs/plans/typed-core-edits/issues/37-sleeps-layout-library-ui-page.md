@@ -133,8 +133,7 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
   (40 ms x3), `layout_viewer.rs` (30 ms and 10 ms loop), `matrix_edit_test_support.rs` and the `*_pending`
   helpers (10 ms loops).
 - Page binary (current, 2026-10-14): remaining waits are `layout_component_inspector_tests.rs` (59 calls to
-  `settle_component_inspector`, plus its pending-edit drains), `layout_workspace.rs` (2 waits in the
-  workspace-state helper), `layout_key_selection_actions/tests.rs` (4 waits: two fixed post-action delays,
+  `settle_component_inspector`, plus its pending-edit drains), `layout_key_selection_actions/tests.rs` (4 waits: two fixed post-action delays,
   one shared refresh delay, and the full Editor mount), `layout_remainder_tests.rs` (4 fixed waits outside
   its converted settlement loop), and `case_workspace.rs` (9 x 100 ms in the isolated launch). Fixed waits
   are removed from `inspector.rs`, `zmk_firmware_export.rs`, `keycaps_workspace_tests.rs`,
@@ -368,11 +367,11 @@ The mounted module selection test now waits for its selector and the accepted mo
 and preview activation values instead of sleeping. Its filtered wasm test passed (1/1), with
 formatting and diff checks clean. Remaining #37 suites and acceptance evidence stay open.
 
-## Progress (2026-10-14, Layout workspace regression waits)
+## Progress (2026-10-14, Layout workspace waits)
 
-The origin-pick and relationship Escape regression tests now wait for their rendered state changes
-instead of sleeping. All three filtered Layout workspace wasm modules passed (3 tests), with format
-and diff checks clean. Other Layout workspace state waits and broader #37 acceptance remain open.
+The workspace-state test and origin-pick/relationship Escape regressions now wait for their
+rendered state changes instead of sleeping. All three filtered Layout workspace wasm modules passed
+(3 tests), with format and diff checks clean. No fixed delays remain in this file.
 
 ## Progress (2026-10-14, Keycaps Inspector state)
 
