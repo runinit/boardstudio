@@ -204,7 +204,7 @@ mod tests {
     use crate::runtime::firmware_export_test_support as runtime_test;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
-    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use std::cell::RefCell;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
@@ -302,10 +302,6 @@ mod tests {
         }
     }
 
-    async fn browser_tick() {
-        gloo_timers::future::TimeoutFuture::new(25).await;
-    }
-
     #[wasm_bindgen_test]
     async fn mounted_export_panel_dispatches_failure_alert_and_successful_retry_from_same_row() {
         let (runtime, accepted, scope) = runtime_test::fixture().await;
@@ -364,9 +360,18 @@ mod tests {
             .unwrap();
         assert_eq!(button.text_content().as_deref(), Some("Export"));
         button.click();
-        browser_tick().await;
-
-        let effects = runtime_test::take_effects(&runtime);
+        let mut effects = None;
+        wait_until_step("the ZMK export action dispatches", async || {
+            let pending = runtime_test::take_effects(&runtime);
+            if pending.is_empty() {
+                false
+            } else {
+                effects = Some(pending);
+                true
+            }
+        })
+        .await;
+        let effects = effects.expect("the export action dispatches effects");
         assert_eq!(
             effects
                 .iter()
@@ -379,7 +384,11 @@ mod tests {
             "the mounted hook invokes the existing firmware export operation"
         );
         runtime_test::run_effects(&runtime, effects).await;
-        browser_tick().await;
+        wait_until("firmware generation failure renders its alert", || {
+            root.query_selector("[role='alert']")
+                .is_ok_and(|alert| alert.is_some())
+        })
+        .await;
 
         let alert = root
             .query_selector("[role='alert']")
@@ -405,11 +414,34 @@ mod tests {
         );
 
         button.click();
-        browser_tick().await;
-        assert!(root.query_selector("[role='alert']").unwrap().is_none());
-        let retry_effects = runtime_test::take_effects(&runtime);
-        runtime_test::run_effects(&runtime, retry_effects).await;
-        browser_tick().await;
+        wait_until("retry clears the firmware export alert", || {
+            root.query_selector("[role='alert']")
+                .is_ok_and(|alert| alert.is_none())
+        })
+        .await;
+        let mut retry_effects = None;
+        wait_until_step("the firmware retry dispatches", async || {
+            let pending = runtime_test::take_effects(&runtime);
+            if pending.is_empty() {
+                false
+            } else {
+                retry_effects = Some(pending);
+                true
+            }
+        })
+        .await;
+        runtime_test::run_effects(
+            &runtime,
+            retry_effects.expect("the retry dispatches effects"),
+        )
+        .await;
+        wait_until("successful firmware retry renders its status", || {
+            root.query_selector("[role='status']")
+                .ok()
+                .flatten()
+                .is_some_and(|status| status.text_content().as_deref() == Some("Saved locally."))
+        })
+        .await;
 
         let status = root.query_selector("[role='status']").unwrap().unwrap();
         assert_eq!(status.text_content().as_deref(), Some("Saved locally."));
@@ -431,7 +463,16 @@ mod tests {
             runtime.electrical_preview_executor_epoch(),
             false,
         ));
-        browser_tick().await;
+        wait_until(
+            "the unavailable ZMK export control renders disabled",
+            || {
+                root.query_selector("button[aria-label='Export ZMK firmware']")
+                    .ok()
+                    .flatten()
+                    .is_some_and(|button| button.has_attribute("disabled"))
+            },
+        )
+        .await;
         let button = root
             .query_selector("button[aria-label='Export ZMK firmware']")
             .unwrap()
@@ -449,7 +490,6 @@ mod tests {
             Some("Review the layout and resolve controller wiring in PCB.")
         );
         button.click();
-        browser_tick().await;
         assert!(runtime_test::take_effects(&runtime).is_empty());
         assert!(!runtime_test::has_artifacts(&runtime));
         root.remove();
