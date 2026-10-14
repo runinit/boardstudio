@@ -2,7 +2,7 @@
 use crate::presentation::layout_workspace::LayoutInspectorTab;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
-    Constraint, ConstraintRelation, MirrorAxis, OffsetAxes, PartOutline, Vec2,
+    Constraint, ConstraintRelation, HalfExceptionState, MirrorAxis, OffsetAxes, PartOutline, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -76,6 +76,14 @@ pub struct LayoutComponentInspectorProjection {
     pub board_parts: Vec<BoardPartChoice>,
     pub active_constraint: Option<Constraint>,
     pub relationship_summary: String,
+    pub mirrored_half: Option<MirroredHalfProjection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MirroredHalfProjection {
+    pub pair_id: String,
+    pub mirror_id: String,
+    pub state: HalfExceptionState,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -263,6 +271,12 @@ pub enum LayoutComponentInspectorAction {
     NavigateElectrical {
         owner: LayoutComponentInspectorOwner,
     },
+    SetMirroredHalfState {
+        owner: LayoutComponentInspectorOwner,
+        pair_id: String,
+        mirror_id: String,
+        state: HalfExceptionState,
+    },
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -281,6 +295,7 @@ pub struct LayoutComponentInspectorProps {
     pub(in crate::presentation) layout_pending: Signal<bool>,
     pub(in crate::presentation) constraint_pending: Signal<bool>,
     pub(in crate::presentation) remove_pending: Signal<bool>,
+    pub(in crate::presentation) mirrored_half_pending: Signal<bool>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
 }
 
@@ -653,6 +668,25 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         super::super::layout_component_edits::InspectorField::RemoveConstraint,
         props.remove_pending,
     );
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::MirroredHalfState,
+        props.mirrored_half_pending,
+    );
+    let mirrored_half_action = |state| {
+        let mirrored_half = projection.mirrored_half.clone();
+        let owner = latest_capture;
+        let action = props.on_action;
+        move |_| {
+            if let Some(mirrored_half) = mirrored_half.as_ref() {
+                action.call(LayoutComponentInspectorAction::SetMirroredHalfState {
+                    owner: owner(),
+                    pair_id: mirrored_half.pair_id.clone(),
+                    mirror_id: mirrored_half.mirror_id.clone(),
+                    state,
+                });
+            }
+        }
+    };
 
     let initial_position = projection.position;
     let initial_outline = projection.outline.clone();
@@ -1132,6 +1166,41 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 } else {
                     p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
                     if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
+                }
+                if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
+                    details { class: "m1-layout-component-mirror-state",
+                        summary { span { "Mirrored half" } small {
+                            match mirrored_half.state {
+                                HalfExceptionState::Linked => "Linked",
+                                HalfExceptionState::Local => "Local",
+                                HalfExceptionState::Omitted => "Omitted",
+                            }
+                        } }
+                        div { class: "m1-layout-component-fields",
+                            p { "This part's state on the mirrored half." }
+                            button {
+                                id: "component-inspector-mirrored-half-local",
+                                r#type: "button",
+                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Local,
+                                onclick: mirrored_half_action(HalfExceptionState::Local),
+                                "Make local"
+                            }
+                            button {
+                                id: "component-inspector-mirrored-half-omit",
+                                r#type: "button",
+                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Omitted,
+                                onclick: mirrored_half_action(HalfExceptionState::Omitted),
+                                "Omit"
+                            }
+                            button {
+                                id: "component-inspector-mirrored-half-rejoin",
+                                r#type: "button",
+                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Linked,
+                                onclick: mirrored_half_action(HalfExceptionState::Linked),
+                                "Rejoin"
+                            }
+                        }
+                    }
                 }
                 if !group_selection && !projection.layouts.is_empty() {
                     label { class: "m1-layout-component-layout", "Layout"

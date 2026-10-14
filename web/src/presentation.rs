@@ -118,8 +118,9 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditOperation, Finding as LayoutFinding, Matrix, Part, PartDefinition, PartKind,
-    PartOutline, Position, Vec2,
+    Contour, EditOperation, Finding as LayoutFinding, HalfExceptionState, Matrix,
+    MirroredExceptionState, MirroredItemKind, Part, PartDefinition, PartKind, PartOutline,
+    Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1329,8 +1330,8 @@ fn layout_component_inspector_projection(
     let selected = selected?;
     let objects::TreeContext::Component {
         part_id: Some(part_id),
-        matrix_id: None,
-        assembly_id: None,
+        matrix_id,
+        assembly_id,
         ..
     } = &selected.context
     else {
@@ -1339,14 +1340,16 @@ fn layout_component_inspector_projection(
     if model.selected_part_ids.is_empty()
         || model.selected_part_ids.first() != Some(part_id)
         || !selection::context_is_current(model, &selected.scope, &selected.context)
-        || objects::component_context_for_finding_part(model, part_id).as_ref()
-            != Some(&selected.context)
     {
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
     let document = &snapshot.document;
     let part = document.parts.iter().find(|part| part.id == *part_id)?;
+    let mirrored_half = mirrored_half_projection(document, part_id);
+    if matrix_id.is_some() && assembly_id.is_some() && mirrored_half.is_none() {
+        return None;
+    }
     let definition = document
         .definitions
         .iter()
@@ -1455,7 +1458,43 @@ fn layout_component_inspector_projection(
         board_parts,
         active_constraint,
         relationship_summary,
+        mirrored_half,
     })
+}
+
+fn mirrored_half_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part_id: &str,
+) -> Option<inspector::MirroredHalfProjection> {
+    let hardware = document.hardware.as_ref()?;
+    for pair in &hardware.pairs {
+        let Some(halves) = pair.halves.as_ref() else {
+            continue;
+        };
+        let Some(link) = halves.correspondences.iter().find(|link| {
+            link.kind == MirroredItemKind::Part
+                && (link.source_id == part_id || link.mirror_id == part_id)
+        }) else {
+            continue;
+        };
+        let state = halves
+            .exceptions
+            .iter()
+            .find(|exception| {
+                exception.kind == MirroredItemKind::Part && exception.mirror_id == link.mirror_id
+            })
+            .map(|exception| match exception.state {
+                MirroredExceptionState::Local => HalfExceptionState::Local,
+                MirroredExceptionState::Omitted => HalfExceptionState::Omitted,
+            })
+            .unwrap_or(HalfExceptionState::Linked);
+        return Some(inspector::MirroredHalfProjection {
+            pair_id: pair.id.clone(),
+            mirror_id: link.mirror_id.clone(),
+            state,
+        });
+    }
+    None
 }
 
 /// Resolve a Relations reference against the live accepted document. A component opens
@@ -1609,14 +1648,20 @@ fn layout_component_inspector_owner_key(
     let selected = selected?;
     let objects::TreeContext::Component {
         part_id: Some(part_id),
-        matrix_id: None,
-        assembly_id: None,
+        matrix_id,
+        assembly_id,
         ..
     } = &selected.context
     else {
         return None;
     };
-    model.accepted.as_ref()?;
+    let snapshot = model.accepted.as_ref()?;
+    if matrix_id.is_some()
+        && assembly_id.is_some()
+        && mirrored_half_projection(&snapshot.document, part_id).is_none()
+    {
+        return None;
+    }
     Some(inspector::LayoutComponentInspectorOwnerKey {
         scope: Some(selected.scope.clone()),
         workspace,
@@ -1658,8 +1703,6 @@ fn layout_component_inspector_owner_is_current(
             &selected.context,
             objects::TreeContext::Component {
                 part_id: Some(part_id),
-                matrix_id: None,
-                assembly_id: None,
                 ..
             } if part_id == &owner.part_id
         )
@@ -1688,6 +1731,7 @@ fn submit_layout_component_edit(
         layout_component_edits::InspectorField::RemoveConstraint => {
             "layout-inspector-remove-constraint"
         }
+        layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
     };
     if field.is_field() {
         helper.begin_field(
@@ -1720,7 +1764,8 @@ fn dispatch_layout_component_inspector_action(
         | inspector::LayoutComponentInspectorAction::SetConstraint { owner, .. }
         | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
         | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
-        | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner } => owner,
+        | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner }
+        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. } => owner,
     };
     if !layout_component_inspector_owner_is_current(
         runtime,
@@ -1886,6 +1931,20 @@ fn dispatch_layout_component_inspector_action(
         inspector::LayoutComponentInspectorAction::NavigateElectrical { .. } => {
             workspace.set("PCB");
             inspect_open.set(true);
+        }
+        inspector::LayoutComponentInspectorAction::SetMirroredHalfState {
+            owner: _,
+            pair_id,
+            mirror_id,
+            state,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::MirroredHalfState,
+                layout_component_edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
+                None,
+            );
         }
     }
 }
@@ -7067,6 +7126,7 @@ fn Editor() -> Element {
         component_inspector_layout_pending,
         component_inspector_constraint_pending,
         component_inspector_remove_pending,
+        component_inspector_mirrored_half_pending,
     ) = layout_state.component_inspector_pending_controls();
     let on_component_inspector_action = EventHandler::new({
         let runtime = runtime.clone();
@@ -7297,6 +7357,7 @@ fn Editor() -> Element {
                 component_inspector_layout_pending,
                 component_inspector_constraint_pending,
                 component_inspector_remove_pending,
+                component_inspector_mirrored_half_pending,
                 on_component_inspector_action,
                 matrix_inspector,
                 key_size,

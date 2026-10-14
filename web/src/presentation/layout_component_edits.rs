@@ -1,8 +1,8 @@
 //! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation, OffsetAxes, Part,
-    PartOutline, Position, ProjectDoc, Vec2,
+    Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation, HalfExceptionState,
+    MirroredItemKind, OffsetAxes, Part, PartOutline, Position, ProjectDoc, Vec2,
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
@@ -16,6 +16,7 @@ pub(super) enum InspectorField {
     Layout,
     Constraint,
     RemoveConstraint,
+    MirroredHalfState,
 }
 
 impl InspectorField {
@@ -489,6 +490,64 @@ pub fn remove_constraint_resolver(part_id: String, constraint_id: String) -> Edi
                     id: constraint_id.clone(),
                 },
                 vec![constraint_id.clone(), part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Resolve a linked part's exception against the accepted mirrored-half record.
+pub fn mirrored_half_state_resolver(
+    pair_id: String,
+    mirror_id: String,
+    state: HalfExceptionState,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-mirrored-half-state",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(pair) = accepted
+                .document
+                .hardware
+                .as_ref()
+                .and_then(|hardware| hardware.pairs.iter().find(|pair| pair.id == pair_id))
+            else {
+                return Resolution::Retire("The mirrored pair no longer exists.".into());
+            };
+            let Some(halves) = pair.halves.as_ref() else {
+                return Resolution::Retire("The mirrored pair no longer links items.".into());
+            };
+            if !halves
+                .correspondences
+                .iter()
+                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
+            {
+                return Resolution::Retire("The linked part no longer exists.".into());
+            }
+            let current = halves
+                .exceptions
+                .iter()
+                .find(|exception| {
+                    exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
+                })
+                .map(|exception| match exception.state {
+                    boardstudio_core::model::MirroredExceptionState::Local => {
+                        HalfExceptionState::Local
+                    }
+                    boardstudio_core::model::MirroredExceptionState::Omitted => {
+                        HalfExceptionState::Omitted
+                    }
+                })
+                .unwrap_or(HalfExceptionState::Linked);
+            if current == state {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![pair_id.clone(), mirror_id.clone()],
+                EditOperation::SetHalfException {
+                    pair_id: pair_id.clone(),
+                    kind: MirroredItemKind::Part,
+                    mirror_id: mirror_id.clone(),
+                    state,
+                },
             )
         },
     )

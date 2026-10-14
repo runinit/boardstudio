@@ -59,6 +59,7 @@ pub(super) struct InspectorInput {
     pub(super) component_inspector_layout_pending: Signal<bool>,
     pub(super) component_inspector_constraint_pending: Signal<bool>,
     pub(super) component_inspector_remove_pending: Signal<bool>,
+    pub(super) component_inspector_mirrored_half_pending: Signal<bool>,
     pub(super) on_component_inspector_action:
         EventHandler<super::inspector::LayoutComponentInspectorAction>,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
@@ -124,6 +125,7 @@ pub(super) struct LayoutWorkspaceState {
     component_inspector_layout_pending: Signal<bool>,
     component_inspector_constraint_pending: Signal<bool>,
     component_inspector_remove_pending: Signal<bool>,
+    component_inspector_mirrored_half_pending: Signal<bool>,
 }
 
 pub(super) fn use_layout_workspace_state(
@@ -154,6 +156,7 @@ pub(super) fn use_layout_workspace_state(
         component_inspector_layout_pending: use_signal(|| false),
         component_inspector_constraint_pending: use_signal(|| false),
         component_inspector_remove_pending: use_signal(|| false),
+        component_inspector_mirrored_half_pending: use_signal(|| false),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
@@ -224,11 +227,12 @@ impl LayoutWorkspaceState {
     }
     pub(super) fn component_inspector_pending_controls(
         self,
-    ) -> (Signal<bool>, Signal<bool>, Signal<bool>) {
+    ) -> (Signal<bool>, Signal<bool>, Signal<bool>, Signal<bool>) {
         (
             self.component_inspector_layout_pending,
             self.component_inspector_constraint_pending,
             self.component_inspector_remove_pending,
+            self.component_inspector_mirrored_half_pending,
         )
     }
 
@@ -703,6 +707,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                         layout_pending: input.component_inspector_layout_pending,
                         constraint_pending: input.component_inspector_constraint_pending,
                         remove_pending: input.component_inspector_remove_pending,
+                        mirrored_half_pending: input.component_inspector_mirrored_half_pending,
                         on_action: input.on_component_inspector_action,
                     }
                 } else if input.show_position_inspector { super::inspector::Inspector {} }

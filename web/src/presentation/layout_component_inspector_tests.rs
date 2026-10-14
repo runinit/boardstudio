@@ -1,6 +1,6 @@
 use super::inspector::{
     ComponentPositionAxis, LayoutComponentInspector, LayoutComponentInspectorAction,
-    LayoutComponentInspectorLifetime, LayoutComponentInspectorProjection,
+    LayoutComponentInspectorLifetime, LayoutComponentInspectorProjection, MirroredHalfProjection,
 };
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
@@ -450,11 +450,41 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
 
     let projection = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
         .expect("the selected authoritative part projects");
+    let half = projection
+        .mirrored_half
+        .as_ref()
+        .expect("linked half projects");
+    assert_eq!(half.pair_id, "pair/A");
+    assert_eq!(half.mirror_id, "source-part");
+    assert_eq!(
+        half.state,
+        boardstudio_core::model::HalfExceptionState::Linked,
+        "the source-side Inspector projects the linked mirror state"
+    );
     assert_eq!(
         projection.active_constraint,
         Some(expected_constraint.clone()),
         "inspector projection follows authority through the linked-mirror target"
     );
+    let local_edit = layout_component_edits::mirrored_half_state_resolver(
+        "pair/A".into(),
+        "source-part".into(),
+        boardstudio_core::model::HalfExceptionState::Local,
+    )
+    .resolve(model.accepted.as_ref().unwrap());
+    let boardstudio_application::Resolution::Submit(local_command) = local_edit else {
+        panic!("a linked item resolves to one typed Local edit");
+    };
+    assert_eq!(local_command.target_ids, ["pair/A", "source-part"]);
+    assert!(matches!(
+        local_command.operation,
+        boardstudio_core::model::EditOperation::SetHalfException {
+            pair_id,
+            kind: boardstudio_core::model::MirroredItemKind::Part,
+            mirror_id,
+            state: boardstudio_core::model::HalfExceptionState::Local,
+        } if pair_id == "pair/A" && mirror_id == "source-part"
+    ));
 
     let mut mirror_model = model.clone();
     mirror_model.active_board_id = "mirror-board".into();
@@ -467,10 +497,56 @@ fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linke
     let mirror_projection =
         layout_component_inspector_projection(&mirror_model, Some(&mirror_selected), 8, 3)
             .expect("the linked counterpart projects");
+    let mirror_half = mirror_projection
+        .mirrored_half
+        .as_ref()
+        .expect("the linked counterpart projects its half state");
+    assert_eq!(mirror_half.pair_id, "pair/A");
+    assert_eq!(mirror_half.mirror_id, "source-part");
+    assert_eq!(
+        mirror_half.state,
+        boardstudio_core::model::HalfExceptionState::Linked,
+        "selecting either half presents the same normalized mirror-item state"
+    );
     assert_eq!(
         mirror_projection.active_constraint,
         Some(expected_constraint.clone()),
         "selecting the mirror half resolves the same durable relation"
+    );
+
+    let mut local_model = model.clone();
+    Arc::make_mut(
+        &mut local_model
+            .accepted
+            .as_mut()
+            .expect("fixture snapshot")
+            .document,
+    )
+    .hardware
+    .as_mut()
+    .unwrap()
+    .pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(boardstudio_core::model::MirroredException {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: boardstudio_core::model::MirroredItemKind::Part,
+            mirror_id: "source-part".into(),
+            state: boardstudio_core::model::MirroredExceptionState::Local,
+            removed_copper: None,
+        });
+    assert_eq!(
+        mirrored_half_projection(
+            &local_model.accepted.as_ref().unwrap().document,
+            "selected-part"
+        )
+        .unwrap()
+        .state,
+        boardstudio_core::model::HalfExceptionState::Local,
+        "local state projects independently of linked constraint resolution"
     );
 
     let mut stale_model = model.clone();
@@ -504,6 +580,8 @@ struct MountedProbe {
     pending_edits:
         std::rc::Rc<RefCell<Option<Signal<layout_component_edits::LayoutComponentInspectorEdits>>>>,
     render_generation: std::rc::Rc<RefCell<Option<Signal<u64>>>>,
+    mirrored_half_override: std::rc::Rc<RefCell<Option<MirroredHalfProjection>>>,
+    last_action: std::rc::Rc<RefCell<Option<LayoutComponentInspectorAction>>>,
     root_id: &'static str,
 }
 
@@ -628,6 +706,7 @@ fn mounted_component_inspector_host() -> Element {
     let layout_pending = use_signal(|| false);
     let constraint_pending = use_signal(|| false);
     let remove_pending = use_signal(|| false);
+    let mirrored_half_pending = use_signal(|| false);
     let runtime = probe.runtime.clone();
     let model = runtime.model();
     let next_context = probe
@@ -651,19 +730,27 @@ fn mounted_component_inspector_host() -> Element {
     let owner_key =
         layout_component_inspector_owner_key(&model, workspace(), next_context.as_ref());
     let generation = lifetime.update(owner_key);
-    let projection = layout_component_inspector_projection(
+    let mut projection = layout_component_inspector_projection(
         &model,
         next_context.as_ref(),
         generation,
         scope_generation(),
     );
+    if let (Some(projection), Some(mirrored_half)) = (
+        projection.as_mut(),
+        probe.mirrored_half_override.borrow().clone(),
+    ) {
+        projection.mirrored_half = Some(mirrored_half);
+    }
     let layout_owner = current_layout_owner(&runtime, workspace, &adapter);
     let action_runtime = runtime.clone();
     let action_adapter = adapter.clone();
     let action_lifetime = lifetime.clone();
     let action_workspace = workspace;
     let action_pending_edits = pending_edits;
-    let action_handler = EventHandler::new(move |action| {
+    let last_action = probe.last_action.clone();
+    let action_handler = EventHandler::new(move |action: LayoutComponentInspectorAction| {
+        *last_action.borrow_mut() = Some(action.clone());
         dispatch_layout_component_inspector_action(
             &action_runtime,
             &action_adapter,
@@ -691,7 +778,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-toggle-view", onclick: move |_| show_component.set(!show_component()), "Toggle Inspector view" }
         if let Some(projection) = projection {
             if show_component() {
-                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, on_action: action_handler }
+                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
             }
         }
     }
@@ -850,6 +937,8 @@ async fn mounted_runtime_probe(
         action: std::rc::Rc::default(),
         pending_edits: std::rc::Rc::default(),
         render_generation: std::rc::Rc::default(),
+        mirrored_half_override: std::rc::Rc::default(),
+        last_action: std::rc::Rc::default(),
         root_id,
     };
     let document_element = web_sys::window().unwrap().document().unwrap();
@@ -899,6 +988,42 @@ fn click_component_inspector(root_id: &str, selector: &str) {
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_action() {
+    let (probe, root) = mounted_probe("layout-component-mirrored-half-action-test-root").await;
+    settle_component_inspector().await;
+    *probe.mirrored_half_override.borrow_mut() = Some(MirroredHalfProjection {
+        pair_id: "pair/A".into(),
+        mirror_id: "mirror-part".into(),
+        state: boardstudio_core::model::HalfExceptionState::Linked,
+    });
+    probe.refresh();
+    settle_component_inspector().await;
+
+    let document = web_sys::window().unwrap().document().unwrap();
+    let section = document
+        .query_selector(&format!(
+            "#{} .m1-layout-component-mirror-state",
+            probe.root_id
+        ))
+        .unwrap()
+        .expect("the mirrored-half disclosure mounts");
+    assert!(section.text_content().unwrap().contains("Linked"));
+    click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
+    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-local");
+
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetMirroredHalfState {
+            pair_id,
+            mirror_id,
+            state: boardstudio_core::model::HalfExceptionState::Local,
+            ..
+        }) if pair_id == "pair/A" && mirror_id == "mirror-part"
+    ));
+    root.remove();
 }
 
 /// The position of a fixture part in the accepted document.
@@ -2743,7 +2868,7 @@ mod matrix_relations_panel {
             "Layout",
         );
         let (x, y, margin, error) = state.component_inspector_drafts();
-        let (layout_pending, constraint_pending, remove_pending) =
+        let (layout_pending, constraint_pending, remove_pending, mirrored_half_pending) =
             state.component_inspector_pending_controls();
         let (x_failure, y_failure, margin_failure) = state.component_inspector_field_failures();
         let select_runtime = runtime.clone();
@@ -2767,6 +2892,7 @@ mod matrix_relations_panel {
                 component_inspector_layout_pending: layout_pending,
                 component_inspector_constraint_pending: constraint_pending,
                 component_inspector_remove_pending: remove_pending,
+                component_inspector_mirrored_half_pending: mirrored_half_pending,
                 on_component_inspector_action: EventHandler::new(|_| {}),
                 matrix_inspector,
                 key_size,

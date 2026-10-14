@@ -12,7 +12,7 @@ pub(super) use layout_component_inspector::{
     BoardPartChoice, ComponentPositionAxis, LayoutChoice, LayoutComponentInspector,
     LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
     LayoutComponentInspectorOwner, LayoutComponentInspectorOwnerKey,
-    LayoutComponentInspectorProjection, LayoutConstraintValues,
+    LayoutComponentInspectorProjection, LayoutConstraintValues, MirroredHalfProjection,
 };
 
 #[derive(Clone)]
