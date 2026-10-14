@@ -406,3 +406,9 @@ formatting and diff checks are clean. No fixed delays remain in this file's posi
 test 29.1, browser 117.3); all 97 page WASM tests passed. This is one current-tree full browser
 pass. It does not complete the required three consecutive browser runs or the remaining wait audit,
 mutation checks, and before/after suite evidence.
+
+## Progress (2026-10-14, post-ZMK full gate)
+
+`python3 scripts/check.py` passed all steps in 206.6 s (repo 0.4, tooling 3.8, lint 3.6, build 48.8,
+test 28.7, browser 121.2); all 97 page WASM tests passed. This is one current-tree full browser
+pass. The remaining wait audit, mutation checks, three-run requirement, and baseline evidence remain.
