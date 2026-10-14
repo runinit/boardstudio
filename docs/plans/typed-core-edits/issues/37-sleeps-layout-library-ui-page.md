@@ -370,3 +370,9 @@ formatting and diff checks clean. Remaining #37 suites and acceptance evidence s
 The origin-pick and relationship Escape regression tests now wait for their rendered state changes
 instead of sleeping. All three filtered Layout workspace wasm modules passed (3 tests), with format
 and diff checks clean. Other Layout workspace state waits and broader #37 acceptance remain open.
+
+## Progress (2026-10-14, Keycaps Inspector state)
+
+Converted the Keycaps Inspector's fixed settle calls to bounded waits on its assigned count,
+selected-key disclosure, and selection updates. The filtered wasm tests passed (2/2), with format
+and diff checks clean. Remaining #37 suites and acceptance evidence stay open.

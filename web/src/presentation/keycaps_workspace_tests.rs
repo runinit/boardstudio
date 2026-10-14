@@ -1,6 +1,7 @@
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::{KeycapBoardSettings, Pose2, Vec2};
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 use web_sys::{Element as DomElement, Event, HtmlElement};
@@ -113,7 +114,11 @@ fn mounted_inspector() -> Element {
 #[wasm_bindgen_test]
 async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
     let root = mount_inspector();
-    settle().await;
+    wait_until("the Keycaps header renders", || {
+        element(".m1-keycaps-inspector-assigned-count")
+            .is_ok_and(|count| count.text_content().as_deref() == Some("0/2 assigned"))
+    })
+    .await;
 
     assert_eq!(
         element(".m1-keycaps-inspector-header h2")
@@ -135,7 +140,11 @@ async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
         .dyn_into::<HtmlElement>()
         .unwrap()
         .click();
-    settle().await;
+    wait_until("the accepted binding count updates", || {
+        element(".m1-keycaps-inspector-assigned-count")
+            .is_ok_and(|count| count.text_content().as_deref() == Some("1/2 assigned"))
+    })
+    .await;
 
     assert_eq!(
         element(".m1-keycaps-inspector-assigned-count")
@@ -151,7 +160,11 @@ async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
 #[wasm_bindgen_test]
 async fn selected_key_disclosure_tracks_selection_without_resetting_user_state() {
     let root = mount_inspector();
-    settle().await;
+    wait_until("the selected key disclosure renders", || {
+        element("details.m1-keycaps-selected-key summary")
+            .is_ok_and(|label| label.text_content().as_deref() == Some("A1 · key"))
+    })
+    .await;
 
     let disclosure = element("details.m1-keycaps-selected-key").unwrap();
     assert!(is_open(&disclosure), "the Selected key section starts open");
@@ -169,11 +182,18 @@ async fn selected_key_disclosure_tracks_selection_without_resetting_user_state()
     );
 
     summary(&disclosure).click();
-    settle().await;
+    wait_until("the selected key disclosure collapses", || {
+        element("details.m1-keycaps-selected-key").is_ok_and(|section| !is_open(&section))
+    })
+    .await;
     assert!(!is_open(&disclosure), "the user can collapse the section");
 
     select_key("key-b");
-    settle().await;
+    wait_until("selecting B2 updates the disclosure", || {
+        element("details.m1-keycaps-selected-key summary")
+            .is_ok_and(|label| label.text_content().as_deref() == Some("B2 · key"))
+    })
+    .await;
     let updated = element("details.m1-keycaps-selected-key").unwrap();
     assert_eq!(
         summary(&updated).text_content().as_deref(),
@@ -187,7 +207,11 @@ async fn selected_key_disclosure_tracks_selection_without_resetting_user_state()
     assert!(element("input[aria-label='Keycap color for B2']").is_ok());
 
     select_key("");
-    settle().await;
+    wait_until("clearing key selection updates the disclosure", || {
+        element("details.m1-keycaps-selected-key summary")
+            .is_ok_and(|label| label.text_content().as_deref() == Some("Select a key"))
+    })
+    .await;
     let empty = element("details.m1-keycaps-selected-key").unwrap();
     assert_eq!(
         summary(&empty).text_content().as_deref(),
@@ -196,12 +220,19 @@ async fn selected_key_disclosure_tracks_selection_without_resetting_user_state()
     assert!(!is_open(&empty));
 
     summary(&empty).click();
-    settle().await;
+    wait_until("the empty key disclosure opens", || {
+        element("details.m1-keycaps-selected-key").is_ok_and(|section| is_open(&section))
+    })
+    .await;
     assert!(is_open(
         &element("details.m1-keycaps-selected-key").unwrap()
     ));
     select_key("key-a");
-    settle().await;
+    wait_until("selecting A1 updates the disclosure", || {
+        element("details.m1-keycaps-selected-key summary")
+            .is_ok_and(|label| label.text_content().as_deref() == Some("A1 · key"))
+    })
+    .await;
     let reopened = element("details.m1-keycaps-selected-key").unwrap();
     assert_eq!(
         summary(&reopened).text_content().as_deref(),
@@ -234,10 +265,6 @@ fn select_key(id: &str) {
     select
         .dispatch_event(&Event::new_with_event_init_dict("change", &init).unwrap())
         .unwrap();
-}
-
-async fn settle() {
-    gloo_timers::future::TimeoutFuture::new(40).await;
 }
 
 fn element(selector: &str) -> Result<DomElement, JsValue> {
