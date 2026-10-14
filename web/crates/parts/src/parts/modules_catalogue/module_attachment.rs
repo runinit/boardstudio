@@ -561,6 +561,7 @@ mod mounted_settlement_tests {
     use super::*;
     use boardstudio_core::model::{Board, ProjectDoc};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use std::cell::RefCell;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -610,8 +611,12 @@ mod mounted_settlement_tests {
         }
     }
 
-    async fn tick() {
-        gloo_timers::future::TimeoutFuture::new(30).await;
+    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+        wait_until_step(what, async || {
+            support::run_pending(runtime).await;
+            done()
+        })
+        .await;
     }
 
     #[wasm_bindgen_test]
@@ -650,7 +655,12 @@ mod mounted_settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("module attachment control mounts", || {
+            root.query_selector(".m1-module-attach button")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         let attach: web_sys::HtmlElement = root
             .query_selector(".m1-module-attach button")
             .unwrap()
@@ -659,18 +669,26 @@ mod mounted_settlement_tests {
             .unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         attach.click();
-        tick().await;
+        wait_until("module attachment is admitted", || {
+            attach.has_attribute("disabled")
+        })
+        .await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("module attachment enters Core", entered)
+            .await
+            .unwrap();
         assert!(attach.has_attribute("disabled"));
         assert!(
             probe.navigations.borrow().is_empty(),
             "navigation waits for landing"
         );
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "module attachment lands and navigates", || {
+            runtime.model().accepted.unwrap().document.modules.len() == 1
+                && probe.navigations.borrow().len() == 1
+                && !attach.has_attribute("disabled")
+        })
+        .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.modules.len(), 1);
         assert_eq!(
@@ -688,20 +706,39 @@ mod mounted_settlement_tests {
 
         let (entered, release) = support::gate_next_core_reply(&runtime);
         attach.click();
-        tick().await;
+        wait_until("second module attachment is admitted", || {
+            attach.has_attribute("disabled")
+        })
+        .await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("second module attachment enters Core", entered)
+            .await
+            .unwrap();
         root.query_selector("#depart-attachment-owner")
             .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        tick().await;
+        wait_until("departed module attachment owner retires", || {
+            !attach.has_attribute("disabled")
+        })
+        .await;
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(
+            &runtime,
+            "departed module attachment settles silently",
+            || {
+                runtime.model().accepted.unwrap().document.modules.len() == 2
+                    && probe.navigations.borrow().len() == 1
+                    && !root
+                        .text_content()
+                        .unwrap()
+                        .contains("controlled attachment failure")
+                    && !attach.has_attribute("disabled")
+            },
+        )
+        .await;
         assert_eq!(
             probe.navigations.borrow().len(),
             1,
@@ -722,12 +759,21 @@ mod mounted_settlement_tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        tick().await;
+        wait_until("module attachment owner returns", || {
+            root.query_selector(".m1-module-attach button")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         support::fail_next_core_reply(&runtime, "controlled attachment failure");
         attach.click();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "module attachment failure is shown", || {
+            root.text_content()
+                .unwrap()
+                .contains("controlled attachment failure")
+                && !attach.has_attribute("disabled")
+        })
+        .await;
         assert!(
             root.text_content()
                 .unwrap()

@@ -565,3 +565,10 @@ The production Save fit profile action was then renamed temporarily with
 `scripts/mutation-check.py`; the mounted editor test failed at its named 5,000 ms wait, and the
 tool restored the production file byte-for-byte (`restored_exact: true`). Evidence is in ignored
 `.evidence/ticket37-mutation-results/parts-mechanical-save-action-missing.log` and `results.json`.
+
+## Progress (2026-10-14, Parts module-attachment waits)
+
+The mounted attachment workflow now waits for its rendered control, admission, Core gate, accepted
+module and navigation, silent owner retirement, and failure alert. The fixed ticks around attach,
+departure, landing and failure are removed. Its focused mounted test passed, then the full Parts
+suite passed 70/70 in 14.69 s. Other Parts waits and ticket-wide verification remain open.
