@@ -314,3 +314,10 @@ Converted four additional 60 ms settles in the same mounted test: disable, re-en
 now wait for the matching accepted enabled state. Commit `ce5c397c`; the exact mounted test passed
 again (1 passed), with format and diff checks clean. Five settle waits in this test are now replaced
 by state waits across the two commits; the rest of #37 remains open.
+
+Converted `macro_controller.rs`'s 15-cycle settle helper to bounded state waits for accepted values,
+Undo, and inline failures. The keymap WASM suite passed all 40 tests (`wasm-pack test --headless
+--chrome web/crates/keymap --lib`, 1.95 s reported by the test harness); test declarations are
+unchanged. `cargo fmt --all --check` and `git diff --check` passed. The remaining direct 40 ms
+render yields in this file are under the ticket's per-suite one-second stopping threshold; other
+keymap helper files and the broader #37 acceptance gates remain open.
