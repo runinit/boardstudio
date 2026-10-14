@@ -746,6 +746,7 @@ mod mounted_tests {
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::{JsCast, JsValue};
@@ -791,7 +792,10 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until("footprint import control mounts", || {
+            root.query_selector("input[type=file]").unwrap().is_some()
+        })
+        .await;
         let input = root
             .query_selector("input[type=file]")
             .unwrap()
@@ -817,20 +821,11 @@ mod mounted_tests {
         input
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
             .unwrap();
-        let mut held = false;
-        for _ in 0..100 {
+        wait_until_step("footprint import reaches persistence", async || {
             support::drive_pending(&runtime);
-            gloo_timers::future::TimeoutFuture::new(20).await;
-            if entered.try_recv().unwrap().is_some() {
-                held = true;
-                break;
-            }
-        }
-        assert!(
-            held,
-            "import reached persistence: {}",
-            root.text_content().unwrap_or_default()
-        );
+            entered.try_recv().unwrap().is_some()
+        })
+        .await;
         assert!(input.disabled());
         assert!(probe.borrow().as_ref().unwrap()().is_none());
         assert_eq!(
@@ -838,9 +833,11 @@ mod mounted_tests {
             0
         );
         release.send(()).unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        support::run_pending(&runtime).await;
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until_step("footprint import is accepted and selected", async || {
+            support::run_pending(&runtime).await;
+            probe.borrow().as_ref().unwrap()().is_some()
+        })
+        .await;
         let selected = probe.borrow().as_ref().unwrap()().unwrap();
         assert_eq!(selected.0, runtime.scope());
         assert_eq!(

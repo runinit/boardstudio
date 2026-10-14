@@ -490,3 +490,7 @@ has been run after this change.
 ## Progress (2026-10-14, Parts new-component settlement)
 
 Replaced the four 30 ms delays in `parts_new_component::mounted_tests::create_selects_only_after_the_exact_ticket_lands` with bounded waits for the action mount, Core entry, and accepted selection. The focused test passed, and `wasm-pack test --headless --chrome web/crates/parts --locked --lib` passed all 70 tests in 16.44 s with unchanged test names. This is a focused cleanup only; the remaining Parts and PCB waits, mutation checks, name-list comparison, and browser-run acceptance gates remain open.
+
+## Progress (2026-10-14, Parts import and creation waits)
+
+The mounted Parts import-selection test now waits for control mount, persistence entry, and the accepted selection instead of fixed sleeps and a 100-iteration timer loop. Together with the new-component selection conversion, the full Parts WASM suite passed **70/70** in **16.30 s**; the focused import and creation tests also passed. The suite's test names and count are unchanged. Remaining Parts waits and the ticket-wide mutation, name-diff and repeated-browser gates are still open.
