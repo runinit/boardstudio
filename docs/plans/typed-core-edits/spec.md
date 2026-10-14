@@ -57,8 +57,11 @@ an error; unrelated missing kinds remain subject to existing document validation
 geometry and Local target data remain owned by the replacement payload.
 
 [Ticket 19](issues/19-reconcile-mirrored-halves.md) reuses the verified lifecycle classifier.
-The owner approved parent-module-only access to `retire_replacement_records` on 2026-10-14;
-no public or crate-wide API is added.
+The owner approved the minimum visibility needed for helper reuse on 2026-10-14.
+`retire_replacement_records` is parent-module-only. The existing circuit reference allocator
+moves to its parent `modules` module with crate-only access so circuit creation and mirrored
+planning share one allocation policy; the `circuit` module stays private. Matrix identities
+use the existing `matrix::member_id` helper. No external public API is added.
 
 ## Out of scope
 

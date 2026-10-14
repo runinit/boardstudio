@@ -1,21 +1,6 @@
 use super::*;
 use std::collections::BTreeSet;
 
-fn allocate_reference(source: &str, used: &mut BTreeSet<String>) -> String {
-    if !source.is_empty() && used.insert(source.to_owned()) {
-        return source.to_owned();
-    }
-    let prefix = source.trim_end_matches(|c: char| c.is_ascii_digit());
-    let prefix = if prefix.is_empty() { "U" } else { prefix };
-    for index in 1.. {
-        let candidate = format!("{prefix}{index}");
-        if used.insert(candidate.clone()) {
-            return candidate;
-        }
-    }
-    unreachable!("A finite circuit cannot exhaust component references")
-}
-
 pub(crate) fn embed(
     doc: &mut ProjectDoc,
     id: &str,

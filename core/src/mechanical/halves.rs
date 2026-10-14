@@ -127,7 +127,6 @@ pub(crate) fn private_net_is_absent_with(
 /// lifecycle, discovering its normalized clearance template only when Unlink is requested.
 /// The source member and pair are resolved before dispatch so a malformed or ambiguous record
 /// cannot redirect the operation to another pair.
-#[allow(dead_code)] // Production lifecycle dispatch is enabled in ticket 111.
 pub(crate) fn unlink_pair(document: &mut ProjectDoc, pair_id: &str) -> Result<Vec<String>, String> {
     validate_document(document)?;
     let hardware = document
@@ -361,7 +360,7 @@ fn omitted_parent_owns_missing_matrix_child(
             && matrix.cells.iter().any(|cell| {
                 !cell.deleted
                     && cell.enabled
-                    && format!("matrix/{}/r{}c{}", matrix.id, cell.row, cell.column) == parent_id
+                    && crate::matrix::member_id(&matrix.id, cell.row, cell.column) == parent_id
                     && cell
                         .assemblies
                         .iter()
@@ -374,7 +373,7 @@ fn omitted_parent_owns_missing_matrix_child(
         .filter(|cell| {
             cell.deleted
                 && !cell.enabled
-                && format!("matrix/{}/r{}c{}", mirror_matrix.id, cell.row, cell.column)
+                && crate::matrix::member_id(&mirror_matrix.id, cell.row, cell.column)
                     == mirror_parent_id
                 && cell.row < mirror_matrix.rows
                 && cell.column < mirror_matrix.columns
@@ -495,7 +494,7 @@ fn omitted_owner_owns_missing_item(
                                 && m.part_ids.contains(&correspondence.source_id)
                                 && m.cells.iter().any(|cell| {
                                     let key =
-                                        format!("matrix/{}/r{}c{}", m.id, cell.row, cell.column);
+                                        crate::matrix::member_id(&m.id, cell.row, cell.column);
                                     cell.enabled
                                         && !cell.deleted
                                         && (key == correspondence.source_id
