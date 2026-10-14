@@ -12,6 +12,7 @@ use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, OffsetAxes, Part, Pose2, ProjectDoc,
     Side, Vec2,
 };
+use boardstudio_web_ui_shared::test_wait::wait_until_step;
 use std::rc::Rc;
 use wasm_bindgen_test::*;
 
@@ -80,13 +81,11 @@ fn position(runtime: &Rc<Runtime>, id: &str) -> Option<Vec2> {
 }
 
 async fn settle(runtime: &Rc<Runtime>, ticket: &EditTicket) {
-    for _ in 0..100 {
+    wait_until_step("the Layout edit settles", async || {
         support::run_pending(runtime).await;
-        if !ticket.is_pending() {
-            return;
-        }
-        gloo_timers::future::TimeoutFuture::new(10).await;
-    }
+        !ticket.is_pending()
+    })
+    .await;
 }
 
 async fn undo(runtime: &Rc<Runtime>) {

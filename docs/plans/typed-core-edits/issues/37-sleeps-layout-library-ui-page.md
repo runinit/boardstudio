@@ -376,3 +376,9 @@ and diff checks clean. Other Layout workspace state waits and broader #37 accept
 Converted the Keycaps Inspector's fixed settle calls to bounded waits on its assigned count,
 selected-key disclosure, and selection updates. The filtered wasm tests passed (2/2), with format
 and diff checks clean. Remaining #37 suites and acceptance evidence stay open.
+
+## Progress (2026-10-14, Layout edit settlement)
+
+Replaced `layout_remainder_tests.rs`'s 100-iteration polling loop, which could silently return while an
+edit was still pending, with the shared bounded `wait_until_step` helper. All 10 tests in that module
+passed; formatting and diff checks are clean. Remaining #37 suites and acceptance evidence stay open.
