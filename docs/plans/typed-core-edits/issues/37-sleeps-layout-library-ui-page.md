@@ -503,3 +503,14 @@ After the Parts new-component and footprint-import wait conversions, three conse
 ## Progress (2026-10-14, current full repository gate)
 
 After the Parts wait changes and the three consecutive browser passes, `python3 scripts/check.py` passed all steps in **202.4 s** (repo 0.4, tooling 3.8, lint 4.2, build 53.9, test 29.2, browser 110.8). The native suite ran 1,976 baselined tests plus 6 additions; the browser step passed. The wait-site audit, remaining high-gain Parts/PCB conversions, mutation checks, and test-name diff are not complete, so #37 remains open.
+
+## Progress (2026-10-14, matrix transform Inspector waits)
+
+Replaced all 50 fixed 60 ms settles in `matrix_transform_inspector_tests.rs` with a bounded wait
+that requests a render through the test host's existing version signal and observes its render
+counter. The 17 mounted matrix-transform tests passed. The configured Layout browser checks also
+passed: 169 tests with `setup_guide` skipped, then the isolated desktop setup-guide test (1 test).
+An unsplit crate run failed only the setup-guide viewport-composition test, which the repository
+already runs separately; the configured split passed both portions. Formatting and diff checks
+passed. Remaining #37 wait audit, mutation checks, test-name comparison, and three current-tree
+browser gates are still open.

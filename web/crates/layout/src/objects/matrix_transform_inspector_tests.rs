@@ -11,7 +11,10 @@ use boardstudio_core::model::{
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 use web_sys::{Event as DomEvent, HtmlInputElement};
@@ -27,11 +30,13 @@ struct Probe {
     selected_context: Rc<RefCell<Option<Signal<Option<ScopedTreeContext>>>>>,
     adapter: Rc<RefCell<Option<crate::presentation::selection::SelectionAdapter>>>,
     mount: Rc<RefCell<Option<MatrixTransformInspectorMount>>>,
+    render_count: Rc<Cell<u64>>,
 }
 
 #[component]
 fn matrix_transform_host() -> Element {
     let probe = use_context::<Probe>();
+    probe.render_count.set(probe.render_count.get() + 1);
     let version = use_signal(|| 0u64);
     *probe.version.borrow_mut() = Some(version);
     let selected_context = use_signal(|| Some(probe.selected.clone()));
@@ -342,6 +347,7 @@ async fn mount_selection_probe(
         selected_context: Rc::default(),
         adapter: Rc::default(),
         mount: Rc::default(),
+        render_count: Rc::default(),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -387,7 +393,7 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
     )
     .await;
     let selected = probe.selected.clone();
-    settle().await;
+    settle(&probe).await;
     let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let hit_context = TreeContext::Key {
         matrix_id: "matrix".into(),
@@ -415,7 +421,7 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         },
     )
     .expect("live canvas key hit submits additive selection");
-    settle().await;
+    settle(&probe).await;
 
     let selection = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(
@@ -469,7 +475,7 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
     enabled
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
         .unwrap();
-    settle().await;
+    settle(&probe).await;
     support::run_pending(&probe.runtime).await;
     wait_until("the selected keys accept their disabled state", || {
         probe
@@ -496,7 +502,7 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
     let enabled = root
         .query_selector("input[aria-label='Key enabled']")
         .unwrap()
@@ -593,7 +599,7 @@ async fn additive_mixed_component_selection_keeps_first_part_group_context() {
     )
     .await;
     let selected = probe.selected.clone();
-    settle().await;
+    settle(&probe).await;
     let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let part_context = TreeContext::Component {
         part_id: Some("standalone-part".into()),
@@ -612,7 +618,7 @@ async fn additive_mixed_component_selection_keeps_first_part_group_context() {
         Vec::new(),
     )
     .expect("live canvas key hit submits additive selection");
-    settle().await;
+    settle(&probe).await;
 
     let selection = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(
@@ -645,7 +651,7 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
         &["matrix/matrix/r0c0"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let ctrl_click = |column: u32| {
         let document = web_sys::window().unwrap().document().unwrap();
         let target = document
@@ -672,14 +678,14 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
     };
 
     ctrl_click(1);
-    settle().await;
+    settle(&probe).await;
     ctrl_click(2);
-    settle().await;
+    settle(&probe).await;
 
     // Removing C leaves A and B selected; C is still a live key, so the Inspector
     // must be re-anchored to a member that remains selected.
     ctrl_click(2);
-    settle().await;
+    settle(&probe).await;
     let selected_context = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(
         matches!(
@@ -699,7 +705,7 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
     // Removing B leaves A. Keep the key-specific Inspector and verify its edit
     // command changes A's cell rather than the deselected B cell.
     ctrl_click(1);
-    settle().await;
+    settle(&probe).await;
     let selected_context = *probe.selected_context.borrow().as_ref().unwrap();
     assert!(
         matches!(
@@ -754,8 +760,24 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
     root.remove();
 }
 
-async fn settle() {
-    gloo_timers::future::TimeoutFuture::new(60).await;
+async fn settle(probe: &Probe) {
+    wait_until("matrix transform Inspector mounts", || {
+        probe.version.borrow().is_some()
+    })
+    .await;
+    let before = probe.render_count.get();
+    let mut version = probe
+        .version
+        .borrow()
+        .as_ref()
+        .copied()
+        .expect("Editor version signal");
+    version += 1;
+    wait_until(
+        "matrix transform Inspector renders the current state",
+        || probe.render_count.get() > before,
+    )
+    .await;
 }
 
 #[wasm_bindgen_test]
@@ -769,7 +791,7 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
         &["key-part"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let retained = probe.mount.borrow().as_ref().unwrap().clone();
     let projection = retained.projection.as_ref().unwrap();
     let button = root.query_selector_all("button").unwrap();
@@ -789,7 +811,7 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
     button.click();
     support::drive_pending(&probe.runtime);
     entered.await.expect("the reset reaches Core");
-    settle().await;
+    settle(&probe).await;
     let disabled_while_pending = button.has_attribute("disabled");
     assert!(
         !input.disabled(),
@@ -842,7 +864,7 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
         ) {
             break;
         }
-        settle().await;
+        settle(&probe).await;
     }
     assert!(
         matches!(
@@ -854,7 +876,7 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
 
     assert!(
         disabled_while_pending,
@@ -892,7 +914,7 @@ async fn failed_numeric_edit_keeps_a_newer_typed_draft() {
         &["key-part"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
 
     let input = root
         .query_selector("input[aria-label='Local X']")
@@ -924,7 +946,7 @@ async fn failed_numeric_edit_keeps_a_newer_typed_draft() {
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
 
     assert_eq!(
         input.value(),
@@ -950,7 +972,7 @@ async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() 
         &["key-part"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
 
     let input = root
         .query_selector("input[aria-label='Local X']")
@@ -976,7 +998,7 @@ async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() 
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
     assert_eq!(
         input.value(),
         "0",
@@ -1002,7 +1024,7 @@ async fn hidden_transform_inspector_retires_a_held_failure_before_remount() {
         &["key-part"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
 
     let input = root
         .query_selector("input[aria-label='Local X']")
@@ -1028,11 +1050,11 @@ async fn hidden_transform_inspector_retires_a_held_failure_before_remount() {
     // inspector-mounted marker must retire the request even though the selected key stays.
     let mut selected_signal = probe.selected_context.borrow().as_ref().unwrap().clone();
     selected_signal.set(None);
-    settle().await;
+    settle(&probe).await;
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     selected_signal.set(Some(probe.selected.clone()));
-    settle().await;
+    settle(&probe).await;
 
     assert!(
         root.query_selector("[role='alert']").unwrap().is_none(),
@@ -1053,7 +1075,7 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
     )
     .await;
     let document = web_sys::window().unwrap().document().unwrap();
-    settle().await;
+    settle(&probe).await;
 
     let selector = document
         .query_selector(&format!(
@@ -1096,7 +1118,7 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
         .unwrap();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     assert!(
         accepted_cell(&probe, 0)
             .assemblies
@@ -1118,7 +1140,7 @@ async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_t
         &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let delete = root.query_selector_all("button").unwrap();
     let delete = (0..delete.length())
         .filter_map(|index| delete.item(index))
@@ -1128,7 +1150,7 @@ async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_t
         .unwrap();
     delete.click();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     let model = probe.runtime.model();
     let scene = &model.accepted.as_ref().unwrap().scene;
     assert!(
@@ -1143,7 +1165,7 @@ async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_t
         operation_id: probe.runtime.operation(),
     });
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     assert_eq!(
         probe.runtime.model().accepted.unwrap().scene.matrix_scenes[0]
             .cells
@@ -1164,7 +1186,7 @@ async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reinde
         &["matrix/matrix/r0c0"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let (entered, release) = support::gate_next_core_reply(&probe.runtime);
     let removal = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
         &probe.runtime,
@@ -1206,7 +1228,7 @@ async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reinde
         .unwrap();
     release.send(()).expect("release removal");
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     assert!(matches!(
         removal.settlement(true),
         boardstudio_web_runtime::edit_ticket::Settlement::Landed { .. }
@@ -1229,7 +1251,7 @@ async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_c
         &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let disabled = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
         &probe.runtime,
         "disable-one-test",
@@ -1254,7 +1276,7 @@ async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_c
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
     let enabled = root
         .query_selector("input[aria-label='Key enabled']")
         .unwrap()
@@ -1272,7 +1294,7 @@ async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_c
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
         .unwrap();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     assert!(
         probe.runtime.model().accepted.unwrap().document.matrices[0]
             .cells
@@ -1306,7 +1328,7 @@ async fn row_and_column_delete_controls_submit_structural_removal() {
         let (probe, root) =
             mount_selection_probe("matrix-transform-axis-delete-test", document, context, &[])
                 .await;
-        settle().await;
+        settle(&probe).await;
         let buttons = root.query_selector_all("button").unwrap();
         let button = (0..buttons.length())
             .filter_map(|index| buttons.item(index))
@@ -1317,7 +1339,7 @@ async fn row_and_column_delete_controls_submit_structural_removal() {
         button.click();
         button.click();
         support::run_pending(&probe.runtime).await;
-        settle().await;
+        settle(&probe).await;
         let accepted = probe.runtime.model().accepted.unwrap();
         if let Some(columns) = remaining_columns {
             assert_eq!(
@@ -1351,7 +1373,7 @@ async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selecti
         &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let event = web_sys::EventInit::new();
     event.set_bubbles(true);
     let enabled = root
@@ -1368,7 +1390,7 @@ async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selecti
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
     let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     crate::presentation::selection::submit_context(
         &probe.runtime,
@@ -1379,7 +1401,7 @@ async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selecti
             mode: SelectionMode::Replace,
         },
     );
-    settle().await;
+    settle(&probe).await;
     let enabled = root
         .query_selector("input[aria-label='Key enabled']")
         .unwrap()
@@ -1391,7 +1413,7 @@ async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selecti
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
         .unwrap();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     assert!(
         !accepted_cell(&probe, 0).enabled,
         "reselected single key cannot revive the old bulk target"
@@ -1449,18 +1471,18 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
         &[],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     // The fixture's key poses were never laid out by Core; the first edit syncs them, so
     // measure the second change from that synced state.
     set_numeric_field(&root, "Stagger", "1");
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     let before = second_column_y(&probe.runtime);
     let revision = probe.runtime.model().accepted.unwrap().document.revision;
 
     set_numeric_field(&root, "Stagger", "4");
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
 
     let accepted = probe.runtime.model().accepted.unwrap();
     assert_eq!(
@@ -1488,7 +1510,7 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
         operation_id: probe.runtime.operation(),
     });
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     let undone = probe.runtime.model().accepted.unwrap();
     assert_eq!(
         undone.document.matrices[0].column_staggers.first().copied(),
@@ -1502,14 +1524,14 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
 #[wasm_bindgen_test]
 async fn the_column_context_label_is_one_based() {
     let (document, _) = two_key_fixture(false);
-    let (_probe, root) = mount_selection_probe(
+    let (probe, root) = mount_selection_probe(
         "matrix-transform-column-label-test",
         document,
         column_context(0),
         &[],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let label = root
         .query_selector(".m1-matrix-field-context")
         .unwrap()
@@ -1542,14 +1564,14 @@ fn field_number(root: &web_sys::Element, label: &str) -> f64 {
 async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_step() {
     // No offset Y: no action.
     let (document, _) = two_key_fixture(false);
-    let (_probe, root) = mount_selection_probe(
+    let (probe, root) = mount_selection_probe(
         "matrix-transform-convert-hidden-test",
         document,
         column_context(0),
         &[],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     assert!(button_named(&root, "Convert to stagger").is_none());
     root.remove();
 
@@ -1562,13 +1584,13 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
         &[],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let button = button_named(&root, "Convert to stagger").expect("the action is mounted");
     assert!(!button.has_attribute("disabled"));
     let revision = probe.runtime.model().accepted.unwrap().document.revision;
     button.click();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
 
     let accepted = probe.runtime.model().accepted.unwrap();
     let matrix = &accepted.document.matrices[0];
@@ -1583,7 +1605,7 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
     let mut version = probe.version.borrow().expect("Editor version signal");
     let next = version.peek().saturating_add(1);
     version.set(next);
-    settle().await;
+    settle(&probe).await;
     assert_eq!(field_number(&root, "Stagger"), -9.525);
     assert_eq!(field_number(&root, "Offset Y"), 0.0);
     assert!(
@@ -1595,7 +1617,7 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
         operation_id: probe.runtime.operation(),
     });
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    settle(&probe).await;
     let undone = probe.runtime.model().accepted.unwrap();
     assert_eq!(undone.document.matrices[0].column_offsets[0].y, -9.525);
     assert!(
@@ -1619,7 +1641,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
         &[],
     )
     .await;
-    settle().await;
+    settle(&probe).await;
     let button = button_named(&root, "Convert to stagger").expect("the action is mounted");
     assert!(
         button.has_attribute("disabled"),
