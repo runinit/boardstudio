@@ -73,3 +73,13 @@ browser` at this ticket's acceptance scope.
 ## Progress (2026-10-14, current repository gate)
 
 The current `python3 scripts/check.py` gate passed all steps in 202.4 s, including repo checks, lint, build, native tests, and browser tests. This verifies the current partial implementation; full Editor-owned selection integration and its acceptance tests are still missing, so #41 remains open. The explicit `python3 scripts/check.py typecheck` step also passed in 5.7 s.
+
+## Progress (2026-10-14, full Editor selection owner)
+
+Added a mounted browser test that opens a synthetic mirrored switch/LED pair in Core, mounts the
+real `Editor`, supplies a key selection using the Editor's current runtime scope, applies Duplicate
+position through the rendered disclosure control, and verifies Core state and Undo. The test
+exposed that Editor startup changes the active hardware instance, so the selection must use the
+post-mount scope. All 8 `layout_key_selection_actions` browser tests passed, including this case.
+The earlier full repository gate and typecheck remain the broad verification; complete selection-
+kind integration, three repeated current-tree browser gates, and required reviews still need closure.
