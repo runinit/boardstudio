@@ -382,3 +382,11 @@ and diff checks clean. Remaining #37 suites and acceptance evidence stay open.
 Replaced `layout_remainder_tests.rs`'s 100-iteration polling loop, which could silently return while an
 edit was still pending, with the shared bounded `wait_until_step` helper. All 10 tests in that module
 passed; formatting and diff checks are clean. Remaining #37 suites and acceptance evidence stay open.
+
+## Progress (2026-10-14, cross-matrix key actions)
+
+Replaced the mounted action toolbar's initial 40 ms render delay with a bounded wait for the
+selected-key action control, and the post-disable delay with a wait for Enable to render. The
+filtered action module passed 7/7 tests. Two later 40 ms waits remain around Enable/Delete acceptance:
+replacing Delete's delay with direct accepted-state polling timed out, so the correct completion
+signal still needs investigation. Formatting and diff checks pass; #37 remains open.

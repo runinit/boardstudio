@@ -7,6 +7,7 @@ use crate::presentation::{
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::*;
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -203,7 +204,11 @@ async fn mount() -> (Probe, web_sys::Element) {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    gloo_timers::future::TimeoutFuture::new(40).await;
+    wait_until("the selected key actions mount", || {
+        root.query_selector("button[aria-label='Disable selected keys']")
+            .is_ok_and(|button| button.is_some())
+    })
+    .await;
     (probe, root)
 }
 
@@ -217,7 +222,11 @@ async fn cross_matrix_selection_has_atomic_enable_disable_and_delete() {
     disable.dyn_into::<web_sys::HtmlElement>().unwrap().click();
     support::run_pending(&probe.runtime).await;
     probe.version.borrow().unwrap().set(1);
-    gloo_timers::future::TimeoutFuture::new(40).await;
+    wait_until("enabling the selected keys becomes available", || {
+        root.query_selector("button[aria-label='Enable selected keys']")
+            .is_ok_and(|button| button.is_some())
+    })
+    .await;
     let model = probe.runtime.model();
     assert!(
         model
