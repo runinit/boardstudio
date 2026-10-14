@@ -68,3 +68,8 @@ stays unchanged. A separate mounted check confirms mixed modes and tweaks render
 39 passed. Formatting passed. These tests use the mounted control with an in-process Runtime/Core
 host; full Editor selection-owner integration remains open, as does running `repo lint typecheck
 browser` at this ticket's acceptance scope.
+
+
+## Progress (2026-10-14, current repository gate)
+
+The current `python3 scripts/check.py` gate passed all steps in 202.4 s, including repo checks, lint, build, native tests, and browser tests. This verifies the current partial implementation; full Editor-owned selection integration and its acceptance tests are still missing, so #41 remains open.

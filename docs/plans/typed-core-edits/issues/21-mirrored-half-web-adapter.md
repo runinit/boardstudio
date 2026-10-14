@@ -1,6 +1,6 @@
 # 21: Mirrored-half web adapter
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [19](19-reconcile-mirrored-halves.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
@@ -109,3 +109,8 @@ Rejoin through the edit path, Core removes the Local exception, and one Undo res
 Inspector module passed (`python3 scripts/run-wasm-tests.py --files
 web/src/presentation/layout_component_inspector_tests.rs`, 40 tests); `cargo fmt --all --check` and
 `git diff --check` passed. Full Editor selection-owner integration remains open under ticket 41.
+
+
+## Answer
+
+The typed mirrored-half adapter is complete. Physical setup submits atomic `CreateMirroredHalf` values and labels; mounted Runtime/Core coverage proves split creation and one-step Undo, while mounted Layout coverage proves Omit, Make local, Rejoin, and Undo from either half. All three acceptance items above are checked. The current full `python3 scripts/check.py` gate passed on 2026-10-14 in 202.4 s; the separate reused-PCB end-to-end workflow and review requirements belong to dependent ticket 22, and full Editor companion-placement selection ownership remains in ticket 41.

@@ -68,3 +68,8 @@ After the ui-shared test-wait changes, `python3 scripts/check.py` passed all ste
 (repo 0.4, tooling 4.0, lint 4.6, build 54.3, test 31.7, browser 112.3); all 97 page WASM tests
 passed. This refreshes the repository gate; the synthetic reused-PCB workflow and required reviews
 remain outstanding.
+
+
+## Progress (2026-10-14, current-tree full gate)
+
+`python3 scripts/check.py` passed all steps in **202.4 s** (repo 0.4, tooling 3.8, lint 4.2, build 53.9, test 29.2, browser 110.8). It executed all 1,976 baselined native tests plus 6 additional tests, 15 CAD browser checks, and 97 selected presentation/case tests. The reused-PCB mounted create/edit/exception/Undo/Redo/save-reopen workflow and Standards, Spec, and plan-wide reviews are still outstanding; acceptance remains open.

@@ -498,3 +498,8 @@ The mounted Parts import-selection test now waits for control mount, persistence
 ## Progress (2026-10-14, consecutive current-tree browser gates)
 
 After the Parts new-component and footprint-import wait conversions, three consecutive `python3 scripts/check.py browser` runs passed: **130.1 s**, **110.6 s**, and **111.0 s**. Each included 15 CAD browser checks and 97 selected presentation/case tests with zero failures. Raw logs for runs 2 and 3 are in ignored `.evidence/ticket37-browser/`; run 1's aggregate result was captured directly in the terminal. This meets the repeated-browser gate for the current tree, but not #37's remaining conversion, mutation, or test-name audit requirements.
+
+
+## Progress (2026-10-14, current full repository gate)
+
+After the Parts wait changes and the three consecutive browser passes, `python3 scripts/check.py` passed all steps in **202.4 s** (repo 0.4, tooling 3.8, lint 4.2, build 53.9, test 29.2, browser 110.8). The native suite ran 1,976 baselined tests plus 6 additions; the browser step passed. The wait-site audit, remaining high-gain Parts/PCB conversions, mutation checks, and test-name diff are not complete, so #37 remains open.
