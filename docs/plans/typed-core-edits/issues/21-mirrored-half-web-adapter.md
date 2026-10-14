@@ -77,3 +77,15 @@ passed all 33 tests, including a mounted disclosure/action test and typed resolv
 The visible control follows the native disclosure pattern already specified in `DESIGN.md`; no
 design change was needed. Full physical-setup create/edit/local/undo and accepted Core action
 coverage remain outstanding, so acceptance stays open.
+
+## Progress (2026-10-14, physical-setup browser coverage)
+
+The repository already contains `a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step`
+in `web/crates/pcb/src/pcb_physical_setup/tests.rs`. It exercises the mounted physical-setup
+controller against Runtime/Core and proves split creation establishes the pair in one Undo step.
+I ran the crate-level WASM suite directly (`cargo test -p boardstudio-web-pcb --target
+wasm32-unknown-unknown pcb_physical_setup::tests::`): 8 passed. This suite is not selected by
+`scripts/run-wasm-tests.py`, which runs the web binary's presentation modules.
+
+This closes the physical-setup create/Undo evidence gap. End-to-end Layout exception editing from
+both halves, exception Undo, and accepted Core action coverage remain open; acceptance stays open.
