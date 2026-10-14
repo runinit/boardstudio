@@ -457,3 +457,8 @@ generation, and ticket/Core progress uses bounded state waits instead of 10 ms l
 ui-shared command passed all 34 tests in 1.13 s. The four remaining canvas-navigation and panel-scroll
 delays account for less than one second in this suite, below the ticket's per-suite stopping threshold;
 they are intentionally retained. A full repository gate has not yet been rerun after these changes.
+
+`python3 scripts/check.py browser` passed after the ui-shared changes in **134.5 s**; the page
+runner executed all 97 selected tests with no failures. This is the first full browser pass after
+these changes. The recorded 195.1 s `check.py` gate predates the ui-shared conversion, so #22's full
+gate must be refreshed before closing.
