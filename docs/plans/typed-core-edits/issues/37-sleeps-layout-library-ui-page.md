@@ -494,3 +494,7 @@ Replaced the four 30 ms delays in `parts_new_component::mounted_tests::create_se
 ## Progress (2026-10-14, Parts import and creation waits)
 
 The mounted Parts import-selection test now waits for control mount, persistence entry, and the accepted selection instead of fixed sleeps and a 100-iteration timer loop. Together with the new-component selection conversion, the full Parts WASM suite passed **70/70** in **16.30 s**; the focused import and creation tests also passed. The suite's test names and count are unchanged. Remaining Parts waits and the ticket-wide mutation, name-diff and repeated-browser gates are still open.
+
+## Progress (2026-10-14, consecutive current-tree browser gates)
+
+After the Parts new-component and footprint-import wait conversions, three consecutive `python3 scripts/check.py browser` runs passed: **130.1 s**, **110.6 s**, and **111.0 s**. Each included 15 CAD browser checks and 97 selected presentation/case tests with zero failures. Raw logs for runs 2 and 3 are in ignored `.evidence/ticket37-browser/`; run 1's aggregate result was captured directly in the terminal. This meets the repeated-browser gate for the current tree, but not #37's remaining conversion, mutation, or test-name audit requirements.
