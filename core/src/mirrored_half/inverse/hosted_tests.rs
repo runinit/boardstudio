@@ -787,7 +787,69 @@ fn circuit_embeds_on_the_source_board_run_as_written_and_unjoinable_hosts_refuse
     let source = json!({"kind": "embed-module-circuit", "id": "left-extra",
         "definition": circuit_definition(), "hostBoardId": "left",
         "pose": {"at": {"x": 1, "y": 2}, "rotation": 0}, "side": "front", "joins": {}});
-    unchanged(&fixture(), source);
+    let source_result = run(&fixture(), &source).expect("source-authored circuit is planned");
+    assert_close(
+        &serde_json::to_value(&source_result.operation).unwrap(),
+        &source,
+        "source-authored operation remains written as authored",
+    );
+    let source_plan = &source_result.hosted.circuits[0];
+    assert_eq!(source_plan.source_id, "left-extra");
+    assert_eq!(source_plan.mirror_id, "right-extra");
+    assert_eq!(source_plan.member_ids.len(), 2);
+    assert_eq!(
+        source_plan.member_ids["embedded/left-extra/U1"],
+        "embedded/right-extra/U1"
+    );
+    assert_eq!(
+        source_plan.member_ids["embedded/left-extra/U2"],
+        "embedded/right-extra/U2"
+    );
+    assert_eq!(
+        source_plan.definition_ids["embedded/left-extra/definition/cd"],
+        "embedded/right-extra/definition/cd"
+    );
+    assert_eq!(
+        source_plan.net_ids["embedded/left-extra/SIG"],
+        "embedded/right-extra/SIG"
+    );
+    assert_eq!(
+        source_plan.net_ids["embedded/left-extra/N1"],
+        "embedded/right-extra/N1"
+    );
+    assert!(
+        source_plan.member_poses.is_empty(),
+        "source-authored member poses remain as written"
+    );
+    let mut joined_source = source.clone();
+    joined_source["joins"] = json!({"signal": "net-left"});
+    let joined_result =
+        run(&fixture(), &joined_source).expect("a joined source net reuses its exact counterpart");
+    assert_eq!(
+        joined_result.hosted.circuits[0].net_ids["net-left"],
+        "net-right"
+    );
+
+    let mut unjoinable_source = source.clone();
+    unjoinable_source["joins"] = json!({"signal": "net-right"});
+    let message = run(&fixture(), &unjoinable_source)
+        .expect_err("a source circuit cannot join a mirror-only net")
+        .to_string();
+    assert!(
+        message.contains("net-right") && message.contains("no mirror"),
+        "{message}"
+    );
+
+    for (state, label) in [
+        (MirroredExceptionState::Local, "local"),
+        (MirroredExceptionState::Omitted, "omitted"),
+    ] {
+        let message = run(&with_exception("net", "net-right", state), &joined_source)
+            .expect_err("source circuits cannot join a Local or Omitted counterpart")
+            .to_string();
+        assert!(message.contains(label), "{message}");
+    }
+
     let mut mirror = json!({"kind": "embed-module-circuit", "id": "right-extra",
         "definition": circuit_definition(), "hostBoardId": "right",
         "pose": {"at": {"x": 1, "y": 2}, "rotation": 0}, "side": "front",

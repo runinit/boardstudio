@@ -620,15 +620,18 @@ impl CoreEngine {
             next = raw_next;
             changed = raw_changed;
         }
-        // A committed mechanical edit that reports nothing changed is a no-op: return
-        // the current committed scene without a revision bump, an undo entry or a redo
-        // clear. The no-op policy of every other operation is unchanged.
-        if changed.is_empty()
-            && command.phase == EditPhase::Commit
-            && matches!(
-                command.operation,
-                EditOperation::ApplyMechanicalEdit { .. } | EditOperation::ApplyOutlineEdit { .. }
-            )
+        // Prepared edits can change document-level fields that have no entity ID. Use the
+        // typed document as the no-op oracle rather than treating an empty changed-ID list as
+        // proof that nothing changed. Preserve the legacy changed-ID policy outside this route.
+        if command.phase == EditPhase::Commit
+            && ((prepared_route && next == self.document)
+                || (!prepared_route
+                    && changed.is_empty()
+                    && matches!(
+                        command.operation,
+                        EditOperation::ApplyMechanicalEdit { .. }
+                            | EditOperation::ApplyOutlineEdit { .. }
+                    )))
         {
             return self.scene(
                 id,

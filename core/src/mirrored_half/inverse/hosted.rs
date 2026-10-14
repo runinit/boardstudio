@@ -673,9 +673,23 @@ fn embed_circuit(
     joins: &BTreeMap<String, String>,
     canonical: &mut Canonical,
 ) -> Result<(), String> {
-    let Some(pair) = pair_for_mirror_board(links, host_board_id)? else {
+    // Hosted additions need a plan from either authoring half. A board may participate in
+    // several pairs, so select one unambiguous pair before deriving any counterpart identity.
+    let mut matches = links.pairs.iter().filter(|pair| {
+        (pair.halves.mirror_board_id == host_board_id
+            && pair.halves.source_board_id != host_board_id)
+            || (pair.halves.source_board_id == host_board_id
+                && pair.halves.mirror_board_id != host_board_id)
+    });
+    let Some(pair) = matches.next() else {
         return Ok(());
     };
+    if matches.next().is_some() {
+        return Err(format!(
+            "{host_board_id:?} belongs to more than one native mirrored pair"
+        ));
+    }
+    let mirror_authored = pair.halves.mirror_board_id == host_board_id;
     // An existing identity is the operation's own refusal; a source without a circuit too.
     let Some(circuit) = definition.circuit.as_ref() else {
         return Ok(());
@@ -736,37 +750,84 @@ fn embed_circuit(
             "The circuit namespace \"embedded/{id}/\" is already in use"
         ));
     }
-    let candidate = super::super::mirror_id(
-        &pair.halves.mirror_board_id,
-        &pair.halves.source_board_id,
-        id,
-    );
-    let mut source_id = candidate.clone();
-    let mut index = 2;
-    while source_id == id || named(&source_id) || namespace_used(&source_id) {
-        source_id = format!("{candidate}-{index}");
-        index += 1;
-    }
+    let (source_id, mirror_id) = if mirror_authored {
+        let candidate = super::super::mirror_id(
+            &pair.halves.mirror_board_id,
+            &pair.halves.source_board_id,
+            id,
+        );
+        let mut source_id = candidate.clone();
+        let mut index = 2;
+        while source_id == id || named(&source_id) || namespace_used(&source_id) {
+            source_id = format!("{candidate}-{index}");
+            index += 1;
+        }
+        (source_id, id.to_owned())
+    } else {
+        let candidate = super::super::mirror_id(
+            &pair.halves.source_board_id,
+            &pair.halves.mirror_board_id,
+            id,
+        );
+        let mut mirror_id = candidate.clone();
+        let mut index = 2;
+        while mirror_id == id || named(&mirror_id) || namespace_used(&mirror_id) {
+            mirror_id = format!("{candidate}-{index}");
+            index += 1;
+        }
+        (id.to_owned(), mirror_id)
+    };
 
-    // Joined host nets: the mirror host net a port joins is the source circuit's joined net's
-    // mirror, so each join follows a Net correspondence.
+    // Reuse an existing joined host-Net correspondence. Mirror-authored joins follow it;
+    // source-authored joins find the unique mirror spelling in this same pair.
     let mut source_joins = BTreeMap::new();
     let mut joined_pairs: BTreeMap<String, (String, String)> = BTreeMap::new();
-    for (port, mirror_net) in joins {
-        let source_net = followed(
-            links,
-            MirroredItemKind::Net,
-            mirror_net,
-            &format!("circuit {id}"),
-            "joined host net",
-        )?;
+    for (port, authored_net) in joins {
+        let (source_net, mirror_net) = if mirror_authored {
+            let source_net = followed(
+                links,
+                MirroredItemKind::Net,
+                authored_net,
+                &format!("circuit {id}"),
+                "joined host net",
+            )?;
+            (source_net, authored_net.clone())
+        } else {
+            let mut correspondences = pair.halves.correspondences.iter().filter(|item| {
+                item.kind == MirroredItemKind::Net && item.source_id == *authored_net
+            });
+            let Some(correspondence) = correspondences.next() else {
+                return Err(format!(
+                    "circuit {id:?} names joined source net {authored_net:?}, which has no mirror"
+                ));
+            };
+            if correspondences.next().is_some() {
+                return Err(format!(
+                    "source net {authored_net:?} has more than one mirror correspondence"
+                ));
+            }
+            if let Some(exception) = pair.halves.overlay_of(correspondence) {
+                let state = match exception.state {
+                    crate::model::MirroredExceptionState::Local => "local",
+                    crate::model::MirroredExceptionState::Omitted => "omitted",
+                };
+                return Err(format!(
+                    "source net {authored_net:?} has a {state} mirror exception and cannot be joined"
+                ));
+            }
+            (authored_net.clone(), correspondence.mirror_id.clone())
+        };
         if let Some(local) = circuit.ports.get(port) {
-            joined_pairs.insert(local.clone(), (source_net.clone(), mirror_net.clone()));
+            joined_pairs.insert(local.clone(), (source_net.clone(), mirror_net));
         }
         source_joins.insert(port.clone(), source_net);
     }
 
-    let source_embed_pose = source_pose(pair.mapping, pose.at, pose.rotation);
+    let source_embed_pose = if mirror_authored {
+        source_pose(pair.mapping, pose.at, pose.rotation)
+    } else {
+        pose
+    };
     // Stage the source embed through its ordinary board-local allocator, then reserve those
     // exact references before selecting mirror references for the document-wide validator.
     let source_operation = EditOperation::EmbedModuleCircuit {
@@ -780,8 +841,10 @@ fn embed_circuit(
     let mut staged_source = links.document.clone();
     crate::apply(&mut staged_source, &[], &source_operation)?;
 
-    let (source_prefix, mirror_prefix) =
-        (format!("embedded/{source_id}/"), format!("embedded/{id}/"));
+    let (source_prefix, mirror_prefix) = (
+        format!("embedded/{source_id}/"),
+        format!("embedded/{mirror_id}/"),
+    );
     let mut member_ids = BTreeMap::new();
     let mut member_references = BTreeMap::new();
     let mut used_references: BTreeSet<String> = links
@@ -835,38 +898,44 @@ fn embed_circuit(
     // exactly when the source member sits at the inverse image of its typed world pose. Typed
     // poses are what `modules::embed` gives the members on the mirror board: the back side
     // negates the member's x and heading (and flips its side, which the source embed repeats).
-    let back = *side == Side::Back;
-    let (sin, cos) = pose.rotation.to_radians().sin_cos();
-    let member_poses = circuit
-        .parts
-        .iter()
-        .map(|member| {
-            let x = if back {
-                -member.pose.at.x
-            } else {
-                member.pose.at.x
-            };
-            let typed_at = Vec2 {
-                x: pose.at.x + x * cos - member.pose.at.y * sin,
-                y: pose.at.y + x * sin + member.pose.at.y * cos,
-            };
-            let typed_rotation = pose.rotation
-                + if back {
-                    -member.pose.rotation
+    let member_poses = if mirror_authored {
+        let back = *side == Side::Back;
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
+        circuit
+            .parts
+            .iter()
+            .map(|member| {
+                let x = if back {
+                    -member.pose.at.x
                 } else {
-                    member.pose.rotation
+                    member.pose.at.x
                 };
-            (
-                format!("{source_prefix}{}", member.id),
-                source_pose(pair.mapping, typed_at, typed_rotation),
-            )
-        })
-        .collect();
+                let typed_at = Vec2 {
+                    x: pose.at.x + x * cos - member.pose.at.y * sin,
+                    y: pose.at.y + x * sin + member.pose.at.y * cos,
+                };
+                let typed_rotation = pose.rotation
+                    + if back {
+                        -member.pose.rotation
+                    } else {
+                        member.pose.rotation
+                    };
+                (
+                    format!("{source_prefix}{}", member.id),
+                    source_pose(pair.mapping, typed_at, typed_rotation),
+                )
+            })
+            .collect()
+    } else {
+        BTreeMap::new()
+    };
 
-    canonical.operation = source_operation;
+    if mirror_authored {
+        canonical.operation = source_operation;
+    }
     canonical.hosted.circuits.push(CircuitAddition {
         source_id,
-        mirror_id: id.to_owned(),
+        mirror_id,
         member_ids,
         member_references,
         definition_ids,

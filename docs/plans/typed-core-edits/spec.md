@@ -47,6 +47,19 @@ existing fixed outlines do not gain links. Stale reviewed targets retire, malfor
 input errors, and located geometric findings block only affected exports while keeping
 saving/editing available. Implementation is sliced into tickets 11-15.
 
+## Approved mirrored replacement cleanup
+
+For native mirrored pairs, `ReplaceDocument` retires exact carried correspondences and
+exception overlays when the replacement removes their source objects through the existing
+typed lifecycle rules. Cleanup covers all retained pairs atomically, including Matrix,
+Part, EmbeddedCircuit, Net and Layout records. Incomplete source ownership closure remains
+an error; unrelated missing kinds remain subject to existing document validation. Replacement
+geometry and Local target data remain owned by the replacement payload.
+
+[Ticket 19](issues/19-reconcile-mirrored-halves.md) reuses the verified lifecycle classifier.
+The owner approved parent-module-only access to `retire_replacement_records` on 2026-10-14;
+no public or crate-wide API is added.
+
 ## Out of scope
 
 - Enforcing the import-and-recovery restriction (needs every bulk action classified).

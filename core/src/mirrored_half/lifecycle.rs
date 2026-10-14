@@ -1543,6 +1543,132 @@ pub(super) fn prepare_edit_transition(
     .map(Some)
 }
 
+/// Retires only exact, carried lifecycle rows whose typed source object was removed by a
+/// replacement. The replacement payload remains the sole owner of geometry and target-local data.
+pub(super) fn retire_replacement_records(
+    accepted: &crate::model::ProjectDoc,
+    replacement: &mut crate::model::ProjectDoc,
+) -> Result<(), String> {
+    use crate::model::{MirroredCorrespondence, MirroredException};
+
+    #[derive(Clone)]
+    struct Retirement {
+        pair_id: String,
+        row: MirroredCorrespondence,
+        exception: Option<MirroredException>,
+    }
+
+    crate::mechanical::halves::validate_document(accepted)?;
+    let accepted_hardware = accepted
+        .hardware
+        .as_ref()
+        .ok_or("Lifecycle hardware is unavailable")?;
+    let mut retirements = Vec::new();
+    for accepted_pair in &accepted_hardware.pairs {
+        let Some(accepted_halves) = accepted_pair.halves.as_ref() else {
+            continue;
+        };
+        let Some(replacement_pair) = replacement.hardware.as_ref().and_then(|hardware| {
+            hardware
+                .pairs
+                .iter()
+                .find(|pair| pair.id == accepted_pair.id)
+        }) else {
+            continue;
+        };
+        let Some(replacement_halves) = replacement_pair.halves.as_ref() else {
+            continue;
+        };
+        if replacement_pair.members != accepted_pair.members
+            || replacement_pair.mapping != accepted_pair.mapping
+            || replacement_halves.source_board_id != accepted_halves.source_board_id
+            || replacement_halves.mirror_board_id != accepted_halves.mirror_board_id
+        {
+            continue;
+        }
+        let context = lifecycle_context(accepted, &accepted_pair.id, None)?;
+        validate_lifecycle_context(accepted, &context)?;
+        let typed_retirements = classify_source_retirements(accepted, replacement, &context, true)?;
+        for retired in typed_retirements {
+            let Some(row) = accepted_halves.correspondences.iter().find(|row| {
+                row.kind == retired.kind
+                    && row.source_id == retired.source_id
+                    && row.mirror_id == retired.mirror_id
+            }) else {
+                continue;
+            };
+            let carried_rows: Vec<_> = replacement_halves
+                .correspondences
+                .iter()
+                .filter(|candidate| {
+                    candidate.kind == row.kind
+                        && candidate.source_id == row.source_id
+                        && candidate.mirror_id == row.mirror_id
+                })
+                .collect();
+            match carried_rows.as_slice() {
+                [] => continue,
+                [carried] if *carried == row => {}
+                [_] => continue,
+                _ => return Err("ReplaceDocument duplicates a mirrored retirement row".into()),
+            }
+            let accepted_exception = accepted_halves.exceptions.iter().find(|exception| {
+                exception.kind == row.kind && exception.mirror_id == row.mirror_id
+            });
+            let replacement_exceptions: Vec<_> = replacement_halves
+                .exceptions
+                .iter()
+                .filter(|exception| {
+                    exception.kind == row.kind && exception.mirror_id == row.mirror_id
+                })
+                .collect();
+            let exception = match replacement_exceptions.as_slice() {
+                [] => None,
+                [candidate] if Some(*candidate) == accepted_exception => Some((*candidate).clone()),
+                [_] => continue,
+                _ => {
+                    return Err("ReplaceDocument duplicates a mirrored retirement exception".into());
+                }
+            };
+            retirements.push(Retirement {
+                pair_id: accepted_pair.id.clone(),
+                row: row.clone(),
+                exception,
+            });
+        }
+    }
+
+    for retirement in retirements {
+        let pair = replacement
+            .hardware
+            .as_mut()
+            .and_then(|hardware| {
+                hardware
+                    .pairs
+                    .iter_mut()
+                    .find(|pair| pair.id == retirement.pair_id)
+            })
+            .ok_or("A planned lifecycle retirement pair disappeared")?;
+        let halves = pair
+            .halves
+            .as_mut()
+            .ok_or("A planned lifecycle retirement pair lost its halves metadata")?;
+        halves.correspondences.retain(|row| {
+            !(row.kind == retirement.row.kind
+                && row.source_id == retirement.row.source_id
+                && row.mirror_id == retirement.row.mirror_id
+                && row == &retirement.row)
+        });
+        if let Some(exception) = retirement.exception {
+            halves
+                .exceptions
+                .retain(|candidate| candidate != &exception);
+        }
+    }
+    crate::mechanical::halves::validate_document(replacement)?;
+    Ok(())
+}
+
 fn removed_part_ids(
     before: &crate::model::ProjectDoc,
     after: &crate::model::ProjectDoc,
@@ -2036,6 +2162,62 @@ fn prepare_matrix_membership_edit(
     let mut filtered_post_source = source_operation.clone();
     filter_other_matrix_parts(&mut filtered_before, selected)?;
     filter_other_matrix_parts(&mut filtered_post_source, selected)?;
+
+    // Matrix removal uses the membership kernel, which only projects Part rows. Retire the
+    // exact linked Layout rows whose source endpoint this operation removed before projecting
+    // that selected matrix slice; their mirror Layout remains in the draft as ordinary geometry.
+    let retired_layouts: Vec<_> = selected
+        .associations
+        .iter()
+        .filter(|association| {
+            association.kind == MirroredItemKind::Layout
+                && !source_operation
+                    .layouts
+                    .iter()
+                    .any(|layout| layout.id == association.source_id)
+        })
+        .cloned()
+        .collect();
+    fn remove_retired_layout_rows(
+        document: &mut crate::model::ProjectDoc,
+        pair_id: &str,
+        retired: &[super::TransitionAssociation],
+    ) -> Result<(), String> {
+        if retired.is_empty() {
+            return Ok(());
+        }
+        let pair = document
+            .hardware
+            .as_mut()
+            .ok_or("Transition hardware is unavailable")?
+            .pairs
+            .iter_mut()
+            .find(|pair| pair.id == pair_id)
+            .ok_or("The exact transition pair is unavailable")?;
+        let halves = pair
+            .halves
+            .as_mut()
+            .ok_or("The exact transition pair has no halves record")?;
+        halves.correspondences.retain(|record| {
+            !retired.iter().any(|association| {
+                record.kind == association.kind
+                    && record.source_id == association.source_id
+                    && record.mirror_id == association.mirror_id
+            })
+        });
+        halves.exceptions.retain(|exception| {
+            !retired.iter().any(|association| {
+                exception.kind == association.kind && exception.mirror_id == association.mirror_id
+            })
+        });
+        Ok(())
+    }
+    remove_retired_layout_rows(&mut filtered_before, &selected.pair_id, &retired_layouts)?;
+    remove_retired_layout_rows(
+        &mut filtered_post_source,
+        &selected.pair_id,
+        &retired_layouts,
+    )?;
     let filtered_context = lifecycle_context(
         &filtered_before,
         &selected.pair_id,
@@ -2329,7 +2511,11 @@ fn prepare_matrix_membership_edit(
                 association,
                 matrix_pair.source_id.as_str(),
                 matrix_pair.mirror_id.as_str(),
-            )
+            ) && !retired_layouts.iter().any(|retired| {
+                association.kind == retired.kind
+                    && association.source_id == retired.source_id
+                    && association.mirror_id == retired.mirror_id
+            })
         })
     {
         if !output_halves.correspondences.iter().any(|current| {
@@ -2340,11 +2526,12 @@ fn prepare_matrix_membership_edit(
             output_halves.correspondences.push(association.clone());
         }
     }
-    for exception in original_halves
-        .exceptions
-        .iter()
-        .filter(|exception| !selected_matrix_exception(exception, matrix_pair.mirror_id.as_str()))
-    {
+    for exception in original_halves.exceptions.iter().filter(|exception| {
+        !selected_matrix_exception(exception, matrix_pair.mirror_id.as_str())
+            && !retired_layouts.iter().any(|retired| {
+                exception.kind == retired.kind && exception.mirror_id == retired.mirror_id
+            })
+    }) {
         if !output_halves.exceptions.iter().any(|current| {
             current.kind == exception.kind && current.mirror_id == exception.mirror_id
         }) {
@@ -2352,6 +2539,156 @@ fn prepare_matrix_membership_edit(
         }
     }
     Ok(output)
+}
+
+/// Classifies only source associations the lifecycle can retire and performs their existing
+/// typed owner-closure checks. Projection callers may consume this plan without copying geometry.
+fn classify_source_retirements(
+    before: &crate::model::ProjectDoc,
+    post_source: &crate::model::ProjectDoc,
+    context: &MembershipContext,
+    include_unselected_matrices: bool,
+) -> Result<Vec<super::TransitionAssociation>, String> {
+    use crate::model::MirroredItemKind;
+
+    let mut retired = Vec::new();
+    for owner in context.associations.iter().filter(|association| {
+        association.kind == MirroredItemKind::Matrix
+            && (context.matrix_pair.as_ref().is_some_and(|matrix_pair| {
+                association.source_id == matrix_pair.source_id
+                    && association.mirror_id == matrix_pair.mirror_id
+            }) || (include_unselected_matrices && context.matrix_pair.is_none()))
+    }) {
+        if post_source
+            .matrices
+            .iter()
+            .any(|matrix| matrix.id == owner.source_id)
+        {
+            continue;
+        }
+        if context
+            .pending_pair_transitions
+            .contains_key(&owner.source_id)
+        {
+            return Err(
+                "A selected lifecycle Matrix source was removed before its transition".into(),
+            );
+        }
+        if before
+            .matrices
+            .iter()
+            .filter(|matrix| matrix.id == owner.source_id)
+            .flat_map(|matrix| matrix.part_ids.iter())
+            .any(|id| {
+                post_source.parts.iter().any(|part| part.id == *id)
+                    || post_source
+                        .boards
+                        .iter()
+                        .any(|board| board.part_ids.contains(id))
+            })
+        {
+            return Err("Source Matrix removal has an incomplete ownership closure".into());
+        }
+        retired.push(owner.clone());
+    }
+    for association in context
+        .associations
+        .iter()
+        .filter(|association| association.kind == MirroredItemKind::Part)
+    {
+        if post_source
+            .parts
+            .iter()
+            .any(|part| part.id == association.source_id)
+        {
+            continue;
+        }
+        if context
+            .pending_pair_transitions
+            .contains_key(&association.source_id)
+        {
+            return Err("A selected lifecycle source was removed before its transition".into());
+        }
+        if post_source.boards.iter().any(|board| {
+            board
+                .part_ids
+                .iter()
+                .any(|part_id| part_id == &association.source_id)
+        }) || post_source.matrices.iter().any(|matrix| {
+            matrix
+                .part_ids
+                .iter()
+                .any(|part_id| part_id == &association.source_id)
+        }) || post_source.embedded_circuits.iter().any(|circuit| {
+            circuit
+                .part_ids
+                .iter()
+                .any(|part_id| part_id == &association.source_id)
+        }) {
+            return Err(format!(
+                "Source Part removal for {:?} has an incomplete ownership closure",
+                association.source_id
+            ));
+        }
+        retired.push(association.clone());
+    }
+    for association in context.associations.iter().filter(|association| {
+        matches!(
+            association.kind,
+            MirroredItemKind::EmbeddedCircuit | MirroredItemKind::Net | MirroredItemKind::Layout
+        )
+    }) {
+        let present = match association.kind {
+            MirroredItemKind::EmbeddedCircuit => post_source
+                .embedded_circuits
+                .iter()
+                .any(|circuit| circuit.id == association.source_id),
+            MirroredItemKind::Net => post_source
+                .nets
+                .iter()
+                .any(|net| net.id == association.source_id),
+            MirroredItemKind::Layout => post_source
+                .layouts
+                .iter()
+                .any(|layout| layout.id == association.source_id),
+            _ => unreachable!(),
+        };
+        if present {
+            continue;
+        }
+        if context
+            .pending_pair_transitions
+            .contains_key(&association.source_id)
+        {
+            return Err("A selected lifecycle source was removed before its transition".into());
+        }
+        if association.kind == MirroredItemKind::EmbeddedCircuit
+            && before
+                .embedded_circuits
+                .iter()
+                .filter(|circuit| circuit.id == association.source_id)
+                .flat_map(|circuit| circuit.part_ids.iter())
+                .any(|id| {
+                    post_source.parts.iter().any(|part| part.id == *id)
+                        || post_source
+                            .boards
+                            .iter()
+                            .any(|board| board.part_ids.contains(id))
+                })
+        {
+            return Err("Source circuit removal has an incomplete ownership closure".into());
+        }
+        if association.kind == MirroredItemKind::Net
+            && post_source
+                .boards
+                .iter()
+                .any(|board| board.net_ids.contains(&association.source_id))
+        {
+            return Err("A removed source net retains a board registration".into());
+        }
+        retired.push(association.clone());
+    }
+    Ok(retired)
 }
 
 #[allow(dead_code)] // Ticket 115 composes the private lifecycle kernel through its adapter.
@@ -2430,7 +2767,7 @@ fn prepare_lifecycle_transition(
         })
         .unwrap_or_default();
     let mut removed = BTreeSet::new();
-    let mut retired = Vec::new();
+    let retired = classify_source_retirements(before, post_source, context, false)?;
     let mut additions = Vec::new();
     for owner in context.associations.iter().filter(|a| {
         a.kind == MirroredItemKind::EmbeddedCircuit
@@ -2498,32 +2835,6 @@ fn prepare_lifecycle_transition(
             .iter()
             .any(|matrix| matrix.id == matrix_pair.source_id)
     });
-    if source_matrix_removed
-        && let Some(owner) = matrix_owner
-        && let Some(matrix_pair) = context.matrix_pair.as_ref()
-    {
-        if context
-            .pending_pair_transitions
-            .contains_key(&owner.source_id)
-        {
-            return Err(
-                "A selected lifecycle Matrix source was removed before its transition".into(),
-            );
-        }
-        if before
-            .matrices
-            .iter()
-            .filter(|m| m.id == matrix_pair.source_id)
-            .flat_map(|m| m.part_ids.iter())
-            .any(|id| {
-                post_source.parts.iter().any(|p| p.id == *id)
-                    || post_source.boards.iter().any(|b| b.part_ids.contains(id))
-            })
-        {
-            return Err("Source Matrix removal has an incomplete ownership closure".into());
-        }
-        retired.push(owner.clone());
-    }
     if let (Some(_owner), Some(matrix_pair)) = (
         matrix_owner.filter(|owner| {
             owner.state == TransitionState::Omitted
@@ -2668,16 +2979,9 @@ fn prepare_lifecycle_transition(
             .iter()
             .any(|part| part.id == association.source_id)
         {
-            if context
-                .pending_pair_transitions
-                .contains_key(&association.source_id)
-            {
-                return Err("A selected lifecycle source was removed before its transition".into());
-            }
             if association.state != TransitionState::Local {
                 removed.insert(association.mirror_id.clone());
             }
-            retired.push(association.clone());
             continue;
         }
         let matrix_owned = matrix_members.contains(&association.source_id)
@@ -2799,57 +3103,6 @@ fn prepare_lifecycle_transition(
             })
         {
             return Err("Omitted circuit ownership leaves an owned net in use; preserve that net explicitly first".into());
-        }
-    }
-    for association in context.associations.iter().filter(|a| {
-        matches!(
-            a.kind,
-            MirroredItemKind::EmbeddedCircuit | MirroredItemKind::Net | MirroredItemKind::Layout
-        )
-    }) {
-        let present = match association.kind {
-            MirroredItemKind::EmbeddedCircuit => post_source
-                .embedded_circuits
-                .iter()
-                .any(|c| c.id == association.source_id),
-            MirroredItemKind::Net => post_source
-                .nets
-                .iter()
-                .any(|n| n.id == association.source_id),
-            _ => post_source
-                .layouts
-                .iter()
-                .any(|l| l.id == association.source_id),
-        };
-        if !present {
-            if context
-                .pending_pair_transitions
-                .contains_key(&association.source_id)
-            {
-                return Err("A selected lifecycle source was removed before its transition".into());
-            }
-            if association.kind == MirroredItemKind::EmbeddedCircuit
-                && before
-                    .embedded_circuits
-                    .iter()
-                    .filter(|c| c.id == association.source_id)
-                    .flat_map(|c| c.part_ids.iter())
-                    .any(|id| {
-                        post_source.parts.iter().any(|p| p.id == *id)
-                            || post_source.boards.iter().any(|b| b.part_ids.contains(id))
-                    })
-            {
-                return Err("Source circuit removal has an incomplete ownership closure".into());
-            }
-            if association.kind == MirroredItemKind::Net
-                && post_source
-                    .boards
-                    .iter()
-                    .any(|b| b.net_ids.contains(&association.source_id))
-            {
-                return Err("A removed source net retains a board registration".into());
-            }
-            retired.push(association.clone());
         }
     }
     project_lifecycle_matrix(&mut draft, context, &additions)?;
