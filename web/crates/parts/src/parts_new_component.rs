@@ -573,6 +573,7 @@ mod mounted_tests {
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -618,7 +619,10 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until("new component action mounts", || {
+            root.query_selector("button").unwrap().is_some()
+        })
+        .await;
         let button = root
             .query_selector("button")
             .unwrap()
@@ -627,15 +631,18 @@ mod mounted_tests {
             .unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         button.click();
-        gloo_timers::future::TimeoutFuture::new(30).await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("new component request reaches Core", entered)
+            .await
+            .unwrap();
         assert!(button.has_attribute("disabled"));
         assert!(probe.borrow().as_ref().unwrap()().is_none());
         release.send(()).unwrap();
-        gloo_timers::future::TimeoutFuture::new(30).await;
-        support::run_pending(&runtime).await;
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until_step("new component is accepted and selected", async || {
+            support::run_pending(&runtime).await;
+            probe.borrow().as_ref().unwrap()().is_some()
+        })
+        .await;
         let selected = probe.borrow().as_ref().unwrap()().unwrap();
         assert_eq!(selected.0, runtime.scope());
         assert!(

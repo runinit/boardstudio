@@ -486,3 +486,7 @@ case test list remains the same size. The 17 waits in `mounted_settlement_tests`
 second and remain below the suite cutoff. The three negative-only `settle_fields` waits remain
 because they need an idle signal or sentinel edit. Formatting and diff checks pass; no full gate
 has been run after this change.
+
+## Progress (2026-10-14, Parts new-component settlement)
+
+Replaced the four 30 ms delays in `parts_new_component::mounted_tests::create_selects_only_after_the_exact_ticket_lands` with bounded waits for the action mount, Core entry, and accepted selection. The focused test passed, and `wasm-pack test --headless --chrome web/crates/parts --locked --lib` passed all 70 tests in 16.44 s with unchanged test names. This is a focused cleanup only; the remaining Parts and PCB waits, mutation checks, name-list comparison, and browser-run acceptance gates remain open.
