@@ -132,11 +132,14 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
   `part_placement.rs` (16 and 20 ms), `board_inspector.rs` (50 ms and 10 ms loops), `layout_findings.rs`
   (40 ms x3), `layout_viewer.rs` (30 ms and 10 ms loop), `matrix_edit_test_support.rs` and the `*_pending`
   helpers (10 ms loops).
-- Page binary: `layout_component_inspector_tests.rs` (47 sites at 40 ms, through `settle_component_inspector`
-  and `accept_pending`; about 2 s, the largest), `zmk_firmware_export.rs` (9, 25 ms), `keycaps_workspace_tests.rs`
-  (9, 40 ms), `inspector.rs` (8, 50/20/10 ms), `layout_workspace.rs` (7, 40 ms), `layout_key_selection_actions/tests.rs`
-  (6, 40 and 80 ms), `layout_remainder_tests.rs` (5, 10 and 50 ms), `setup_workspace.rs` (3), `keycaps_workspace.rs`
-  (3), `parts_workspace.rs` (2), `keymap_workspace.rs` (2), `case_workspace.rs` (9 x 100 ms, the isolated launch).
+- Page binary (current, 2026-10-14): remaining waits are `layout_component_inspector_tests.rs` (59 calls to
+  `settle_component_inspector`, plus its pending-edit drains), `zmk_firmware_export.rs` (6 action/retry or
+  unavailable-row ticks), `layout_workspace.rs` (2 waits in the workspace-state helper),
+  `layout_key_selection_actions/tests.rs` (4 waits: two fixed post-action delays, one shared refresh delay,
+  and the full Editor mount), `layout_remainder_tests.rs` (4 fixed waits outside its converted settlement loop),
+  and `case_workspace.rs` (9 x 100 ms in the isolated launch). The fixed waits are removed from
+  `inspector.rs`, `keycaps_workspace_tests.rs`, `setup_workspace.rs`, `keycaps_workspace.rs`,
+  `parts_workspace.rs`, and `keymap_workspace.rs`.
 - ui-shared: `pending_edit_helpers.rs` (26 `settle` calls, each 12 x (drain + 30 ms); 47 bare `rendered().await`),
   `geometry_scripts.rs` (10 ms loops), `canvas_navigation.rs` (20 ms x2), `panels_scroll_tests.rs` (80 ms, 40 ms).
 - keymap: `macro_controller.rs` (40 ms `rendered`/`settle`, 10 sites), `macro_editor.rs` (40 ms, 4), `panel.rs` (40 ms).
@@ -150,8 +153,8 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
 ## Progress (2026-10-14, ZMK export page waits)
 
 Replaced the fixed mount delays in `zmk_firmware_export.rs` with bounded waits for the rendered
-workspace headings and export rows. The remaining ticks in that file surround dispatched actions
-whose next observable effects are handled by the test host; they remain unchanged in this slice.
+workspace headings and export rows. Six remaining ticks in that file are in the failure/retry workflow and unavailable-row checks;
+their completion conditions need a separate migration.
 `python3 scripts/run-wasm-tests.py --files web/src/presentation/zmk_firmware_export.rs` passed all
 5 tests; `cargo fmt --all --check` and `git diff --check` passed. Ticket acceptance remains open.
 
