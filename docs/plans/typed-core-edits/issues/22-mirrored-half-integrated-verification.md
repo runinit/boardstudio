@@ -30,3 +30,10 @@ build 106.3, test 37.3, browser 119.1). This includes the native/WASM boundary t
 15 CAD browser checks, and 96 page WASM tests. The synthetic linked-half mounted workflow with a
 reused PCB, save/reopen, and the required Standards, Spec, and plan-wide reviews have not been run.
 Ticket 22 remains open.
+
+## Progress (2026-10-14, full gate after Rejoin coverage)
+
+`python3 scripts/check.py` passed on the current tree in 202.3 s (repo 0.4, tooling 3.9, lint 3.6,
+build 46.6, test 28.3, browser 119.5). This run includes 97 presentation and case-workspace WASM
+tests. The reused-PCB save/reopen workflow and required reviews remain outstanding; acceptance stays
+open.
