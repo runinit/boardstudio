@@ -295,19 +295,30 @@ fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
 /// accepted document untouched, and the same committed transition makes the loss observable.
 #[test]
 fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin() {
-    let mut source = runtime_supported_document();
+    let mut source = crate::support::replacement_electrical::supported_source_document();
+    for cell in source["matrices"][0]["cells"].as_array_mut().unwrap() {
+        let object = cell.as_object_mut().unwrap();
+        object.remove("definitionId");
+        object.remove("variant");
+        object.remove("assembliesLocal");
+    }
+    source["hardware"]["boards"][0]["locks"] = json!({"row/0":"P10"});
+    source["hardware"]["boards"][0]["assignments"] = json!({"row/0":"P10"});
     source["definitions"]
         .as_array_mut()
         .unwrap()
         .iter_mut()
-        .find(|definition| definition["id"] == "synthetic/controller")
-        .unwrap()["pads"] = json!([{
-        "id":"pad-1",
-        "number":"1",
-        "at":{"x":0.0,"y":0.0},
-        "size":{"x":1.0,"y":1.0},
-        "shape":"circle"
-    }]);
+        .find(|definition| definition["id"] == "generator:ceoloide/mcu_nice_nano")
+        .unwrap()["pads"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "id":"pad-1",
+            "number":"1",
+            "at":{"x":0.0,"y":0.0},
+            "size":{"x":1.0,"y":1.0},
+            "shape":"circle"
+        }));
     source["nets"].as_array_mut().unwrap().push(json!({
         "id":"left/omit-controller-net",
         "name":"OMIT_CONTROLLER",
@@ -329,6 +340,18 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
     .unwrap();
     let pair_id = "activation-private-net-pair";
     let created_document = &created["document"];
+    let assert_wiring = |document: &Value, board_id: &str, controller_id: &str, pin: &str| {
+        let board = document["hardware"]["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|board| board["boardId"] == board_id)
+            .unwrap();
+        assert_eq!(board["controllerPartId"], controller_id);
+        assert_eq!(board["locks"]["row/0"], pin);
+        assert_eq!(board["assignments"]["row/0"], pin);
+    };
+    assert_wiring(created_document, "right", "right/U1", "P10");
     let mirror_net_id =
         net_correspondence(created_document, pair_id, "left/omit-controller-net").to_owned();
     let localized = request(
@@ -343,6 +366,7 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
     );
     assert_eq!(localized["kind"], "scene", "{localized}");
     let mut accepted_with_local_controller = localized["document"].clone();
+    assert_wiring(&accepted_with_local_controller, "right", "right/U1", "P10");
     let mirror_net = accepted_with_local_controller["nets"]
         .as_array_mut()
         .unwrap()
@@ -353,9 +377,18 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
         "partId":"right/U1",
         "padId":"pad-1"
     }));
+    for board in accepted_with_local_controller["hardware"]["boards"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if board["boardId"] == "left" {
+            board["locks"]["row/0"] = json!("P14");
+            board["assignments"]["row/0"] = json!("P14");
+        }
+    }
 
-    // Seed a pin on a Local controller: ReplaceDocument's paired reconciliation retains its
-    // owned data, whereas it repairs away a mirror-authored pin while the controller is linked.
+    // Seed a pin on a Local controller: ReplaceDocument projects the current source mapping while
+    // retaining Local-owned data; the linked Rejoin below repairs away the mirror-authored pin.
     let seeded = request(
         &mut engine,
         json!({"id":"activation-seed-mirror-pin","kind":"edit","command":{
@@ -368,6 +401,8 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
     );
     assert_eq!(seeded["kind"], "scene", "{seeded}");
     accepted_with_local_controller = seeded["document"].clone();
+    assert_wiring(&accepted_with_local_controller, "left", "left/U1", "P14");
+    assert_wiring(&accepted_with_local_controller, "right", "right/U1", "P14");
     assert!(
         net(&accepted_with_local_controller, &mirror_net_id)["pins"]
             .as_array()
@@ -389,6 +424,7 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
     assert_eq!(local_omit["kind"], "scene", "{local_omit}");
     let accepted = local_omit["document"].clone();
     assert!(find_part(&accepted, "right/RST").is_none());
+    assert_wiring(&accepted, "right", "right/U1", "P14");
     let accepted_mirror_net = accepted["nets"]
         .as_array()
         .unwrap()
@@ -472,6 +508,7 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
         accepted,
         "Preview must not publish the pin loss"
     );
+    assert_wiring(&accepted, "right", "right/U1", "P14");
 
     let committed = request(
         &mut engine,
@@ -484,6 +521,7 @@ fn public_paired_preview_and_commit_expose_local_controller_pin_loss_on_rejoin()
         }}),
     );
     assert_eq!(committed["kind"], "scene", "{committed}");
+    assert_wiring(&committed["document"], "right", "right/U1", "P14");
     assert!(
         committed["scene"]["findings"]
             .as_array()

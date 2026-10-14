@@ -2,7 +2,9 @@ use super::super::{
     BaselineKind, FinalOwner, MembershipContext, MembershipTransitionInput, PlannedAddition,
     TransitionAssociation, TransitionState, prepare_membership_transition,
 };
-use super::{ConstraintLifecycleEffect, prepare_constraint_lifecycle_delta};
+use super::{
+    ConstraintLifecycleEffect, prepare_constraint_lifecycle_delta, retire_replacement_records,
+};
 use crate::constraints::{ConstraintEndpoint, ConstraintRelation, FramedConstraint};
 use crate::mirrored_half::{
     MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence, MechanicalTarget,
@@ -6514,5 +6516,269 @@ fn an_overlay_with_saved_copper_round_trips_and_a_legacy_exception_is_not_linked
         halves.correspondences.len(),
         1,
         "and no correspondence is invented for it"
+    );
+}
+fn replacement_retirement_fixture() -> ProjectDoc {
+    use crate::model::MirroredItemKind as Kind;
+
+    let mut document = valid_omitted_document();
+    let halves = document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    let mut rows = vec![(Kind::Part, "source-part", "mirror-part")];
+    for (kind, source_id, mirror_id) in [
+        (Kind::Matrix, "source-matrix", "mirror-matrix"),
+        (Kind::Layout, "source-layout", "mirror-layout"),
+        (Kind::Net, "source-net", "mirror-net"),
+        (Kind::EmbeddedCircuit, "source-circuit", "mirror-circuit"),
+    ] {
+        rows.push((kind, source_id, mirror_id));
+    }
+    halves.correspondences = rows
+        .iter()
+        .map(|(kind, source_id, mirror_id)| MirroredCorrespondence {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: *kind,
+            source_id: (*source_id).into(),
+            mirror_id: (*mirror_id).into(),
+        })
+        .collect();
+    halves.exceptions = rows
+        .iter()
+        .map(|(kind, _, mirror_id)| MirroredException {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: *kind,
+            mirror_id: (*mirror_id).into(),
+            state: MirroredExceptionState::Omitted,
+            removed_copper: None,
+        })
+        .collect();
+    document.matrices.push(
+        serde_json::from_value(json!({
+            "id":"source-matrix","name":"Source","rows":1,"columns":1,
+            "pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},
+            "definitionId":"test-footprint","partIds":[],"boardId":"source-board"
+        }))
+        .unwrap(),
+    );
+    document.layouts.push(
+        serde_json::from_value(json!({
+            "id":"source-layout","name":"Source","boardId":"source-board",
+            "matrixId":"source-matrix","partIds":[]
+        }))
+        .unwrap(),
+    );
+    document.nets.push(Net {
+        id: "source-net".into(),
+        name: "Source net".into(),
+        pins: Vec::new(),
+    });
+    document.boards[0].net_ids.push("source-net".into());
+    document.embedded_circuits.push(
+        serde_json::from_value(json!({
+            "id":"source-circuit","definitionId":"test-circuit",
+            "hostBoardId":"source-board","partIds":[],"netIds":[],"ports":{}
+        }))
+        .unwrap(),
+    );
+    document
+}
+
+fn remove_replacement_retirement_sources(mut replacement: ProjectDoc) -> ProjectDoc {
+    replacement.parts.retain(|part| part.id != "source-part");
+    replacement.boards[0]
+        .part_ids
+        .retain(|part_id| part_id != "source-part");
+    replacement
+        .matrices
+        .retain(|matrix| matrix.id != "source-matrix");
+    replacement
+        .layouts
+        .retain(|layout| layout.id != "source-layout");
+    replacement.nets.retain(|net| net.id != "source-net");
+    replacement.boards[0]
+        .net_ids
+        .retain(|net_id| net_id != "source-net");
+    replacement
+        .embedded_circuits
+        .retain(|circuit| circuit.id != "source-circuit");
+    replacement
+}
+
+#[test]
+fn replacement_batch_retires_typed_part_matrix_layout_net_and_circuit_rows() {
+    let accepted = replacement_retirement_fixture();
+    crate::mechanical::halves::validate_document(&accepted).unwrap();
+    let mut replacement = remove_replacement_retirement_sources(accepted.clone());
+
+    retire_replacement_records(&accepted, &mut replacement).unwrap();
+
+    let halves = replacement.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap();
+    assert!(halves.correspondences.is_empty());
+    assert!(halves.exceptions.is_empty());
+    assert!(crate::mechanical::halves::validate_document(&replacement).is_ok());
+}
+
+#[test]
+fn replacement_batch_keeps_local_target_geometry_byte_for_byte() {
+    let mut accepted = valid_omitted_document();
+    let mirror = part("mirror-part");
+    accepted.parts.push(mirror.clone());
+    accepted.boards[1].part_ids.push("mirror-part".into());
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.exceptions[0].state = MirroredExceptionState::Local;
+    assert!(crate::mechanical::halves::validate_document(&accepted).is_ok());
+    let mut replacement = accepted.clone();
+    replacement.parts.retain(|part| part.id != "source-part");
+    replacement.boards[0]
+        .part_ids
+        .retain(|part_id| part_id != "source-part");
+
+    retire_replacement_records(&accepted, &mut replacement).unwrap();
+
+    assert_eq!(
+        replacement
+            .parts
+            .iter()
+            .find(|part| part.id == "mirror-part"),
+        Some(&mirror)
+    );
+    assert!(
+        replacement.boards[1]
+            .part_ids
+            .iter()
+            .any(|id| id == "mirror-part")
+    );
+    let halves = replacement.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap();
+    assert!(halves.correspondences.is_empty());
+    assert!(halves.exceptions.is_empty());
+}
+
+#[test]
+fn replacement_batch_retires_exact_record_with_unrelated_halves_metadata_change() {
+    let accepted = valid_omitted_document();
+    let mut replacement = accepted.clone();
+    replacement.parts.retain(|part| part.id != "source-part");
+    replacement.boards[0]
+        .part_ids
+        .retain(|part_id| part_id != "source-part");
+    let halves = replacement.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.companion_mode = MirroredCompanionMode::DuplicatePosition;
+
+    retire_replacement_records(&accepted, &mut replacement).unwrap();
+
+    let halves = replacement.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap();
+    assert!(halves.correspondences.is_empty());
+    assert!(halves.exceptions.is_empty());
+    assert_eq!(
+        halves.companion_mode,
+        MirroredCompanionMode::DuplicatePosition
+    );
+}
+
+#[test]
+fn replacement_batch_refuses_incomplete_matrix_owned_part_closure_atomically() {
+    let mut accepted = valid_omitted_document();
+    accepted.matrices.push(
+        serde_json::from_value(json!({
+            "id":"owner-matrix","rows":1,"columns":1,
+            "pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},
+            "definitionId":"test-footprint","partIds":["source-part"],"boardId":"source-board"
+        }))
+        .unwrap(),
+    );
+    let mut replacement = accepted.clone();
+    replacement.parts.retain(|part| part.id != "source-part");
+    replacement.boards[0]
+        .part_ids
+        .retain(|part_id| part_id != "source-part");
+    let halves_before = replacement.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap()
+        .clone();
+
+    let refusal = retire_replacement_records(&accepted, &mut replacement).unwrap_err();
+
+    assert!(
+        refusal.contains("incomplete ownership closure"),
+        "{refusal}"
+    );
+    assert_eq!(
+        replacement.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap(),
+        &halves_before,
+        "a refused batch does not partially retire any metadata"
+    );
+}
+
+#[test]
+fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
+    use crate::model::MirroredItemKind;
+
+    let mut accepted = valid_omitted_document();
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences[0].kind = MirroredItemKind::Outline;
+    halves.correspondences[0].source_id = "source-outline".into();
+    halves.correspondences[0].mirror_id = "mirror-outline".into();
+    halves.exceptions[0].kind = MirroredItemKind::Outline;
+    halves.exceptions[0].mirror_id = "mirror-outline".into();
+    accepted.boards[0].outline_ids.push("source-outline".into());
+    accepted.outline.push(
+        serde_json::from_value(json!({
+            "kind":"rect","id":"source-outline","center":{"x":0.0,"y":0.0},
+            "size":{"x":10.0,"y":10.0},"radius":0.0,"operation":"add"
+        }))
+        .unwrap(),
+    );
+    assert!(crate::mechanical::halves::validate_document(&accepted).is_ok());
+    let mut replacement = accepted.clone();
+    replacement
+        .outline
+        .retain(|outline| outline.id() != "source-outline");
+    replacement.boards[0]
+        .outline_ids
+        .retain(|outline_id| outline_id != "source-outline");
+    let halves_before = replacement.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap()
+        .clone();
+
+    let refusal = retire_replacement_records(&accepted, &mut replacement).unwrap_err();
+
+    assert!(
+        refusal.contains("names outline"),
+        "existing halves validation owns unsupported-kind refusal: {refusal}"
+    );
+    assert_eq!(
+        replacement.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .as_ref()
+            .unwrap(),
+        &halves_before
     );
 }

@@ -1,6 +1,18 @@
 //! `CreateMirroredHalf` (ticket 18) through Core's request surface using a small authored input.
 #[path = "mirrored_half/activation_edges.rs"]
 mod activation_edges;
+#[path = "mirrored_half/circuit_child_acceptance.rs"]
+mod circuit_child_acceptance;
+#[path = "mirrored_half/edit_family_acceptance.rs"]
+mod edit_family_acceptance;
+#[path = "mirrored_half/matrix_acceptance.rs"]
+mod matrix_acceptance;
+#[path = "mirrored_half/noop_acceptance.rs"]
+mod noop_acceptance;
+#[path = "mirrored_half/open_acceptance.rs"]
+mod open_acceptance;
+#[path = "mirrored_half/parent_acceptance.rs"]
+mod parent_acceptance;
 #[path = "mirrored_half/replacement_pins.rs"]
 mod replacement_pins;
 

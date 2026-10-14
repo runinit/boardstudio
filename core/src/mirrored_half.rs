@@ -1447,7 +1447,8 @@ fn new_board(
         vias: vec![],
     });
 
-    // Fixed outline features the board references.
+    // Stage mapped outlines until matrix placement finishes so `set_matrix` cannot expand authored envelopes.
+    let mut mirrored_outlines = Vec::new();
     for outline in &source_board.outline_ids {
         let feature = doc
             .outline
@@ -1461,7 +1462,7 @@ fn new_board(
                 "Board outline {outline:?} was renamed unexpectedly."
             ));
         }
-        doc.outline.push(mirrored);
+        mirrored_outlines.push(mirrored);
         correspondences.push(corresponds(
             MirroredItemKind::Outline,
             outline,
@@ -1550,6 +1551,7 @@ fn new_board(
             placed.generator_parameters = source_part.generator_parameters.clone();
         }
     }
+    doc.outline.extend(mirrored_outlines);
 
     // A circuit's component definitions are copied under its mirror namespace. The content is the
     // source's, with only the ids the namespace gives changed (a profile names its own definition).

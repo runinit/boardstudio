@@ -50,6 +50,7 @@ pub(crate) fn prepare_open(
     crate::matrix::layout::sync_components(&mut draft)?;
     crate::generators::document_error(&draft)?;
 
+    restore_local_matrix_companion_parts(accepted, &mut draft, &[])?;
     for pair in pair_views.iter().cloned() {
         let matrices: Vec<_> = pair
             .halves
@@ -449,8 +450,11 @@ pub(crate) fn prepare_transaction(
     operation: &EditOperation,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
-    let canonical =
+    let mut canonical =
         inverse::canonicalize(accepted, operation).map_err(|refusal| refusal.to_string())?;
+    if let EditOperation::ReplaceDocument { document } = &mut canonical.operation {
+        super::lifecycle::retire_replacement_records(accepted, document)?;
+    }
     let mut draft = accepted.clone();
     let mut changed = apply_canonical(&mut draft, accepted, board_contours, &canonical)?;
     let lifecycle_before_resolution = matches!(
@@ -492,6 +496,15 @@ pub(crate) fn prepare_transaction(
     changed.extend(resolve_with_frames(&mut draft, positions, &framed)?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
+    let local_parts_baseline = match &canonical.operation {
+        EditOperation::ReplaceDocument { document } => document.as_ref(),
+        _ => accepted,
+    };
+    changed.extend(restore_local_matrix_companion_parts(
+        local_parts_baseline,
+        &mut draft,
+        operation_positions(&canonical.operation),
+    )?);
     changed.extend(reconcile_pairs(accepted, &mut draft, &canonical)?);
     changed.extend(add_target_layout_memberships(
         &mut draft,
@@ -1091,6 +1104,88 @@ fn resolve_with_frames(
     let resolved = crate::constraints::resolve_prepared(document, positions, framed);
     document.constraints = stored;
     resolved
+}
+
+/// Restore Local companion source data after generic matrix sync rematerializes it.
+/// Reconciliation consumes this pose and rebases the target cell assembly in the same pass.
+fn restore_local_matrix_companion_parts(
+    accepted: &ProjectDoc,
+    document: &mut ProjectDoc,
+    positions: &[Position],
+) -> Result<Vec<String>, String> {
+    let mut changed = BTreeSet::new();
+    let Some(hardware) = &accepted.hardware else {
+        return Ok(Vec::new());
+    };
+    for pair in &hardware.pairs {
+        let Some(halves) = &pair.halves else {
+            continue;
+        };
+        for link in halves.correspondences.iter().filter(|item| {
+            item.kind == MirroredItemKind::Matrix && halves.overlay_of(item).is_none()
+        }) {
+            let source = matrix_by_id(accepted, &link.source_id)?;
+            let Some(mirror) = accepted
+                .matrices
+                .iter()
+                .find(|item| item.id == link.mirror_id)
+            else {
+                continue;
+            };
+            for cell in source
+                .cells
+                .iter()
+                .filter(|cell| cell.enabled && !cell.deleted)
+            {
+                let source_key = crate::matrix::member_id(&source.id, cell.row, cell.column);
+                let mirror_key = crate::matrix::member_id(&mirror.id, cell.row, cell.column);
+                if halves.correspondences.iter().any(|association| {
+                    association.kind == MirroredItemKind::Part
+                        && association.source_id == source_key
+                        && association.mirror_id == mirror_key
+                        && halves.overlay_of(association).is_some()
+                }) {
+                    continue;
+                }
+                for assembly in &cell.assemblies {
+                    let source_id = crate::matrix::companion_id(&source_key, &assembly.id);
+                    let mirror_id = crate::matrix::companion_id(&mirror_key, &assembly.id);
+                    let Some(association) = halves.correspondences.iter().find(|association| {
+                        association.kind == MirroredItemKind::Part
+                            && association.source_id == source_id
+                            && association.mirror_id == mirror_id
+                    }) else {
+                        continue;
+                    };
+                    if !halves
+                        .overlay_of(association)
+                        .is_some_and(|exception| exception.state == MirroredExceptionState::Local)
+                    {
+                        continue;
+                    }
+                    let Some(saved) = accepted.parts.iter().find(|part| part.id == mirror_id)
+                    else {
+                        continue;
+                    };
+                    let Some(current) = document.parts.iter_mut().find(|part| part.id == mirror_id)
+                    else {
+                        continue;
+                    };
+                    let mut desired = saved.clone();
+                    if let Some(position) =
+                        positions.iter().find(|position| position.id == mirror_id)
+                    {
+                        desired.pose.at = position.at;
+                    }
+                    if *current != desired {
+                        *current = desired;
+                        changed.insert(mirror_id);
+                    }
+                }
+            }
+        }
+    }
+    Ok(changed.into_iter().collect())
 }
 
 fn reconcile_pairs(
