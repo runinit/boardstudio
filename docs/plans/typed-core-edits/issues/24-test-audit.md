@@ -1,6 +1,6 @@
 # 24: Audit the tests after the typed-edit, matrix and mirrored-half changes
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -73,6 +73,14 @@ mutation check for each.
 The user approved everything the audit proposed, including the section 7 speed changes. Phase 2 is split into
 tickets [33](33-test-speed-rust.md), [34](34-test-speed-browser.md) and [35](35-test-maintenance-cuts.md); this ticket resolves when 35 closes
 the audit. The recipe-reflection tests (audit R1) stay until ticket 23.
+
+## Scope reconciliation (2026-10-14)
+
+The later instruction to remove built-in-board work from scope defers D8; the earlier approval does
+not authorize changing those baselines now. D5/D7 are committed as `84930356`; D6's helper is absent
+from this checkout. The test-maintenance audit remains open until the fixed-wait work in [37](37-sleeps-layout-library-ui-page.md)
+and exact-duplicate review in [38](38-merge-duplicate-browser-tests.md) are complete. No M2/M3 tests
+have been removed or merged yet.
 
 ## Comments
 

@@ -1,6 +1,6 @@
 # 41: Inspector controls for the companion placement mode
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [40](40-set-companion-placement-operation.md), [21](21-mirrored-half-web-adapter.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-stabilisers-fallbacks-and-editing-the-mode-2026-10-10)
@@ -35,3 +35,7 @@ mirror rule and do not gain placement-mode controls.
 ## Verification
 
 `repo lint typecheck browser`; mounted tests use the shared `wait_until` helper.
+
+## User decision (2026-10-14)
+
+Present the control in a named disclosure section, **Companion placement**.
