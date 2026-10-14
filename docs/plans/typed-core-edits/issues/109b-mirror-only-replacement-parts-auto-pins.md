@@ -1,6 +1,6 @@
 # 109b: Mirror-only replacement parts receive pins automatically
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [109](109-mirrored-half-exceptions-unlink.md), [111](111-integrate-mirrored-half-reconciliation.md), [151](151-explicit-mirror-only-part-placement.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
