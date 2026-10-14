@@ -1,8 +1,9 @@
 //! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation, HalfExceptionState,
-    MirroredItemKind, OffsetAxes, Part, PartOutline, Position, ProjectDoc, Vec2,
+    CompanionPlacementTarget, Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation,
+    HalfExceptionState, MirroredCompanionMode, MirroredCompanionTweak, MirroredItemKind,
+    OffsetAxes, Part, PartOutline, Position, ProjectDoc, Vec2,
 };
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
@@ -17,6 +18,7 @@ pub(super) enum InspectorField {
     Constraint,
     RemoveConstraint,
     MirroredHalfState,
+    CompanionPlacement,
 }
 
 impl InspectorField {
@@ -547,6 +549,64 @@ pub fn mirrored_half_state_resolver(
                     kind: MirroredItemKind::Part,
                     mirror_id: mirror_id.clone(),
                     state,
+                },
+            )
+        },
+    )
+}
+
+pub fn companion_placement_resolver(
+    pair_id: String,
+    targets: Vec<CompanionPlacementTarget>,
+    mode: MirroredCompanionMode,
+    tweak: Option<MirroredCompanionTweak>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-companion-placement",
+        move |accepted: &AcceptedSnapshot| {
+            let pairs: Vec<_> = accepted
+                .document
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .filter(|pair| pair.id == pair_id)
+                .collect();
+            let [pair] = pairs.as_slice() else {
+                return Resolution::Retire("The mirrored pair is unavailable or ambiguous.".into());
+            };
+            if pair.halves.is_none() {
+                return Resolution::Retire(
+                    "The mirrored pair no longer links matrix items.".into(),
+                );
+            }
+            if targets.is_empty() {
+                return Resolution::Retire(
+                    "No companion placement targets remain selected.".into(),
+                );
+            }
+            let mut target_ids = vec![pair_id.clone()];
+            for target in &targets {
+                let id = match target {
+                    CompanionPlacementTarget::Pair => None,
+                    CompanionPlacementTarget::Item { mirror_id, .. } => Some(mirror_id),
+                    CompanionPlacementTarget::Row { matrix_id, .. }
+                    | CompanionPlacementTarget::Column { matrix_id, .. }
+                    | CompanionPlacementTarget::Matrix { matrix_id } => Some(matrix_id),
+                };
+                if let Some(id) = id
+                    && !target_ids.contains(id)
+                {
+                    target_ids.push(id.clone());
+                }
+            }
+            Resolution::submit(
+                target_ids,
+                EditOperation::SetCompanionPlacement {
+                    pair_id: pair_id.clone(),
+                    targets: targets.clone(),
+                    mode,
+                    tweak,
                 },
             )
         },

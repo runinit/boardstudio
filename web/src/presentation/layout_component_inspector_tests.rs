@@ -131,6 +131,258 @@ fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
     (model, selected)
 }
 
+#[wasm_bindgen_test]
+fn companion_placement_projection_normalizes_layout_selections() {
+    use serde_json::json;
+
+    let (mut model, selected) = fixture();
+    let document = Arc::make_mut(&mut model.accepted.as_mut().expect("fixture snapshot").document);
+    let source_key_id = "matrix/component-matrix/r0c0";
+    let source_companion_id = format!("{source_key_id}/led");
+    let mirror_companion_id = "matrix/paired-matrix/r0c0/led";
+    document.matrices.push(Matrix {
+        id: "component-matrix".into(),
+        name: Some("Keys".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "component-definition".into(),
+        part_ids: vec![],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_offsets: vec![],
+        column_offsets: vec![],
+        column_staggers: vec![],
+        column_splays: vec![],
+        column_origins: vec![],
+        cells: vec![MatrixCell {
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("component-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    document.boards[0].part_ids.push(source_key_id.into());
+    document.boards[0]
+        .part_ids
+        .push(source_companion_id.clone());
+    document.matrices[0].part_ids = vec![source_key_id.into(), source_companion_id.clone()];
+    document.matrices[0].cells[0].assemblies.push(
+        serde_json::from_value(json!({
+            "id": "led", "definitionId": "component-definition",
+            "offset": {"x": 1.0, "y": 2.0}
+        }))
+        .expect("fixture companion assembly"),
+    );
+    let mut source_key = document.parts[0].clone();
+    source_key.id = source_key_id.into();
+    document.parts.push(source_key.clone());
+    let mut source_companion = source_key;
+    source_companion.id = source_companion_id.clone();
+    document.parts.push(source_companion);
+    document.hardware = Some(
+        serde_json::from_value(json!({
+            "instances": [
+                {"id":"source-instance","name":"Source","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":null,"mechanical":null},
+                {"id":"mirror-instance","name":"Mirror","boardId":"mirror-board","half":"right","role":"secondary","flipped":true,"controllerPartId":null,"mechanical":null}
+            ],
+            "pairs": [{
+                "id":"pair/A","members":["source-instance","mirror-instance"],
+                "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
+                "construction":{"method":"printed","mount":"tray","integratedPlateFrame":false,"plateThickness":1.5,"plateFoamThickness":0.0,"bottomFoamThickness":0.0,"bottomThickness":1.5,"plateToPcb":5.0,"wallThickness":2.0,"clearance":0.2},
+                "constructionSource":"source-instance",
+                "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
+                    {"kind":"matrix","sourceId":"component-matrix","mirrorId":"paired-matrix"},
+                    {"kind":"part","sourceId":source_companion_id,"mirrorId":mirror_companion_id}
+                ]}
+            }]
+        }))
+        .expect("fixture linked pair"),
+    );
+    let second_source_id = format!("{source_key_id}/led2");
+    document.matrices[0].part_ids.push(second_source_id.clone());
+    document.matrices[0].cells[0].assemblies.push(
+        serde_json::from_value(json!({
+            "id": "led2", "definitionId": "component-definition",
+            "offset": {"x": -1.0, "y": 2.0}
+        }))
+        .expect("second fixture companion assembly"),
+    );
+    document.boards[0].part_ids.push(second_source_id.clone());
+    let mut second_source = document
+        .parts
+        .iter()
+        .find(|part| part.id == source_companion_id)
+        .expect("first source companion")
+        .clone();
+    second_source.id = second_source_id.clone();
+    document.parts.push(second_source);
+    document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences
+        .push(boardstudio_core::model::MirroredCorrespondence {
+            companion_mode: Some(boardstudio_core::model::MirroredCompanionMode::DuplicatePosition),
+            companion_tweak: None,
+            kind: boardstudio_core::model::MirroredItemKind::Part,
+            source_id: second_source_id.clone(),
+            mirror_id: "matrix/paired-matrix/r0c0/led2".into(),
+        });
+    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
+    let scene = Arc::make_mut(&mut snapshot.scene);
+    scene.matrix_scenes.push(MatrixScene {
+        matrix_id: "component-matrix".into(),
+        cells: vec![MatrixSceneCell {
+            row: 0,
+            column: 0,
+            enabled: true,
+            member_id: Some(source_key_id.into()),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+        }],
+        columns: vec![],
+        companions: vec![],
+    });
+    scene.matrix_scenes[0].companions.push(
+        serde_json::from_value(json!({
+            "assemblyId":"led", "partId":source_companion_id,
+            "keyId":source_key_id, "mode":"follows",
+            "pose":{"at":{"x":1.0,"y":2.0},"rotation":0.0}
+        }))
+        .expect("fixture companion scene"),
+    );
+
+    let cases = [
+        (
+            objects::TreeContext::Matrix {
+                matrix_id: "component-matrix".into(),
+            },
+            vec![boardstudio_core::model::CompanionPlacementTarget::Matrix {
+                matrix_id: "component-matrix".into(),
+            }],
+        ),
+        (
+            objects::TreeContext::Row {
+                matrix_id: "component-matrix".into(),
+                row: 0,
+            },
+            vec![boardstudio_core::model::CompanionPlacementTarget::Row {
+                matrix_id: "component-matrix".into(),
+                row: 0,
+            }],
+        ),
+        (
+            objects::TreeContext::Column {
+                matrix_id: "component-matrix".into(),
+                column: 0,
+            },
+            vec![boardstudio_core::model::CompanionPlacementTarget::Column {
+                matrix_id: "component-matrix".into(),
+                column: 0,
+            }],
+        ),
+        (
+            objects::TreeContext::Key {
+                matrix_id: "component-matrix".into(),
+                row: 0,
+                column: 0,
+            },
+            vec![
+                boardstudio_core::model::CompanionPlacementTarget::Item {
+                    item_kind: boardstudio_core::model::MirroredItemKind::Part,
+                    mirror_id: mirror_companion_id.into(),
+                },
+                boardstudio_core::model::CompanionPlacementTarget::Item {
+                    item_kind: boardstudio_core::model::MirroredItemKind::Part,
+                    mirror_id: "matrix/paired-matrix/r0c0/led2".into(),
+                },
+            ],
+        ),
+        (
+            objects::TreeContext::Component {
+                part_id: Some(source_companion_id.clone()),
+                matrix_id: Some("component-matrix".into()),
+                row: Some(0),
+                column: Some(0),
+                assembly_id: Some("led".into()),
+            },
+            vec![
+                boardstudio_core::model::CompanionPlacementTarget::Item {
+                    item_kind: boardstudio_core::model::MirroredItemKind::Part,
+                    mirror_id: mirror_companion_id.into(),
+                },
+                boardstudio_core::model::CompanionPlacementTarget::Item {
+                    item_kind: boardstudio_core::model::MirroredItemKind::Part,
+                    mirror_id: "matrix/paired-matrix/r0c0/led2".into(),
+                },
+            ],
+        ),
+    ];
+    for (context, expected) in cases {
+        let scoped = objects::ScopedTreeContext {
+            scope: selected.scope.clone(),
+            context,
+        };
+        let projection = companion_placement_projection(&model, Some(&scoped), 7, 3)
+            .expect("eligible Layout selection projects companion placement");
+        assert_eq!(projection.pair_id, "pair/A");
+        assert_eq!(projection.targets, expected);
+        assert!(!projection.targets.iter().any(|target| matches!(
+            target,
+            boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
+                if mirror_id.contains("controller")
+        )));
+    }
+
+    model.selected_part_ids = vec![
+        source_companion_id.clone(),
+        second_source_id,
+        "selected-part".into(),
+    ];
+    let scoped = objects::ScopedTreeContext {
+        scope: selected.scope,
+        context: objects::TreeContext::Component {
+            part_id: Some("matrix/component-matrix/r0c0/led".into()),
+            matrix_id: Some("component-matrix".into()),
+            row: Some(0),
+            column: Some(0),
+            assembly_id: Some("led".into()),
+        },
+    };
+    let projection = companion_placement_projection(&model, Some(&scoped), 7, 3)
+        .expect("selected companion component projects");
+    assert_eq!(
+        projection.targets.len(),
+        2,
+        "only selected linked companions project"
+    );
+    assert!(projection.mixed_mode);
+    assert!(projection.mode.is_none());
+    assert!(projection.targets.iter().any(|target| matches!(
+        target,
+        boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
+            if mirror_id == mirror_companion_id
+    )));
+    assert!(projection.targets.iter().any(|target| matches!(
+        target,
+        boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
+            if mirror_id == "matrix/paired-matrix/r0c0/led2"
+    )));
+}
+
 fn matrix_primary_fixture() -> (ReadModel, objects::ScopedTreeContext) {
     let (mut model, selected) = fixture();
     let snapshot = model.accepted.as_mut().expect("fixture snapshot");
@@ -2870,6 +3122,8 @@ mod matrix_relations_panel {
         let (x, y, margin, error) = state.component_inspector_drafts();
         let (layout_pending, constraint_pending, remove_pending, mirrored_half_pending) =
             state.component_inspector_pending_controls();
+        let (companion_pending, companion_error, companion_edits) =
+            state.companion_placement_controls();
         let (x_failure, y_failure, margin_failure) = state.component_inspector_field_failures();
         let select_runtime = runtime.clone();
         let select_adapter = adapter.clone();
@@ -2893,6 +3147,11 @@ mod matrix_relations_panel {
                 component_inspector_constraint_pending: constraint_pending,
                 component_inspector_remove_pending: remove_pending,
                 component_inspector_mirrored_half_pending: mirrored_half_pending,
+                companion_placement: None,
+                companion_placement_pending: companion_pending,
+                companion_placement_error: companion_error,
+                companion_placement_edits: companion_edits,
+                on_companion_placement_action: EventHandler::new(|_| {}),
                 on_component_inspector_action: EventHandler::new(|_| {}),
                 matrix_inspector,
                 key_size,
@@ -3301,4 +3560,174 @@ mod matrix_relations_panel {
         );
         root.remove();
     }
+}
+
+fn companion_click(root: &web_sys::Element, selector: &str) {
+    root.query_selector(selector)
+        .unwrap()
+        .expect(selector)
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+}
+
+fn companion_placement_component_host() -> Element {
+    let projection = use_context::<inspector::CompanionPlacementProjection>();
+    let actions = use_context::<Rc<RefCell<Option<inspector::CompanionPlacementAction>>>>();
+    let pending = use_signal(|| false);
+    let error = use_signal(|| Some("Core refused this edit.".to_owned()));
+    let pending_edits = use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    rsx! {
+        inspector::CompanionPlacementInspector {
+            projection,
+            pending,
+            error,
+            pending_edits,
+            on_apply: EventHandler::new(move |action| *actions.borrow_mut() = Some(action)),
+        }
+    }
+}
+
+fn companion_placement_component_projection(
+    disabled_reason: Option<&'static str>,
+) -> inspector::CompanionPlacementProjection {
+    let scope = Scope {
+        session_epoch: SessionEpoch(5),
+        document_id: "companion-placement-doc".into(),
+        board_id: "board".into(),
+        instance_id: None,
+    };
+    inspector::CompanionPlacementProjection {
+        owner: inspector::CompanionPlacementOwner {
+            scope: scope.clone(),
+            context: objects::ScopedTreeContext {
+                scope,
+                context: objects::TreeContext::Component {
+                    part_id: Some("matrix/source/r0c0/led".into()),
+                    matrix_id: Some("source".into()),
+                    row: Some(0),
+                    column: Some(0),
+                    assembly_id: Some("led".into()),
+                },
+            },
+            selected_part_ids: vec!["matrix/source/r0c0/led".into()],
+            snapshot_token: SnapshotToken(13),
+            revision: 9,
+            context_generation: 7,
+            scope_generation: 7,
+        },
+        pair_id: "pair/A".into(),
+        targets: if disabled_reason.is_some() {
+            vec![]
+        } else {
+            vec![boardstudio_core::model::CompanionPlacementTarget::Item {
+                item_kind: boardstudio_core::model::MirroredItemKind::Part,
+                mirror_id: "matrix/mirror/r0c0/led".into(),
+            }]
+        },
+        mode: Some(boardstudio_core::model::MirroredCompanionMode::LiteralMirror),
+        mixed_mode: false,
+        tweak: None,
+        mixed_tweak: false,
+        disabled_reason,
+    }
+}
+
+#[wasm_bindgen_test]
+async fn companion_placement_disclosure_submits_typed_targets_and_shows_refusal() {
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    let projection = companion_placement_component_projection(None);
+    let actions = Rc::new(RefCell::new(None::<inspector::CompanionPlacementAction>));
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(companion_placement_component_host);
+    dom.provide_root_context(projection);
+    dom.provide_root_context(actions.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the companion placement disclosure mounts", || {
+        root.query_selector_all("details.m1-layout-companion-placement summary")
+            .unwrap()
+            .length()
+            == 1
+    })
+    .await;
+    assert_eq!(
+        root.query_selector_all("details.m1-layout-companion-placement summary")
+            .unwrap()
+            .length(),
+        1
+    );
+    assert_eq!(
+        root.query_selector_all("[role='alert']").unwrap().length(),
+        1
+    );
+    companion_click(&root, "details.m1-layout-companion-placement summary");
+    companion_click(&root, ".m1-layout-companion-placement-default input");
+    companion_click(&root, "button");
+    wait_until("the typed companion edit is emitted", || {
+        actions.borrow().is_some()
+    })
+    .await;
+    let action = actions
+        .borrow()
+        .clone()
+        .expect("the edit action was emitted");
+    assert_eq!(action.pair_id, "pair/A");
+    assert!(
+        action
+            .targets
+            .contains(&boardstudio_core::model::CompanionPlacementTarget::Pair)
+    );
+    assert!(
+        action
+            .targets
+            .contains(&boardstudio_core::model::CompanionPlacementTarget::Item {
+                item_kind: boardstudio_core::model::MirroredItemKind::Part,
+                mirror_id: "matrix/mirror/r0c0/led".into(),
+            })
+    );
+    assert_eq!(
+        action.mode,
+        boardstudio_core::model::MirroredCompanionMode::LiteralMirror
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn stabiliser_companion_placement_shows_a_disabled_mode_and_core_reason() {
+    let projection = companion_placement_component_projection(Some(
+        "Stabilisers keep their mirrored-X position and unchanged heading in every mode.",
+    ));
+    let actions = Rc::new(RefCell::new(None::<inspector::CompanionPlacementAction>));
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(companion_placement_component_host);
+    dom.provide_root_context(projection);
+    dom.provide_root_context(actions);
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    wait_until("the stabiliser placement reason mounts", || {
+        root.query_selector("select").unwrap().is_some()
+    })
+    .await;
+    let mode = root
+        .query_selector("select")
+        .unwrap()
+        .expect("disabled mode control");
+    assert!(mode.has_attribute("disabled"));
+    assert!(
+        root.text_content()
+            .unwrap()
+            .contains("Stabilisers keep their mirrored-X position")
+    );
+    assert_eq!(root.query_selector_all("button").unwrap().length(), 0);
+    root.remove();
 }

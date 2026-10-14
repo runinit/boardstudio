@@ -60,6 +60,13 @@ pub(super) struct InspectorInput {
     pub(super) component_inspector_constraint_pending: Signal<bool>,
     pub(super) component_inspector_remove_pending: Signal<bool>,
     pub(super) component_inspector_mirrored_half_pending: Signal<bool>,
+    pub(super) companion_placement: Option<super::inspector::CompanionPlacementProjection>,
+    pub(super) companion_placement_pending: Signal<bool>,
+    pub(super) companion_placement_error: Signal<Option<String>>,
+    pub(super) companion_placement_edits:
+        Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
+    pub(super) on_companion_placement_action:
+        EventHandler<super::inspector::CompanionPlacementAction>,
     pub(super) on_component_inspector_action:
         EventHandler<super::inspector::LayoutComponentInspectorAction>,
     pub(super) matrix_inspector: objects::MatrixInspectorMount,
@@ -126,6 +133,9 @@ pub(super) struct LayoutWorkspaceState {
     component_inspector_constraint_pending: Signal<bool>,
     component_inspector_remove_pending: Signal<bool>,
     component_inspector_mirrored_half_pending: Signal<bool>,
+    companion_placement_pending: Signal<bool>,
+    companion_placement_error: Signal<Option<String>>,
+    companion_placement_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
 }
 
 pub(super) fn use_layout_workspace_state(
@@ -157,6 +167,11 @@ pub(super) fn use_layout_workspace_state(
         component_inspector_constraint_pending: use_signal(|| false),
         component_inspector_remove_pending: use_signal(|| false),
         component_inspector_mirrored_half_pending: use_signal(|| false),
+        companion_placement_pending: use_signal(|| false),
+        companion_placement_error: use_signal(|| None),
+        companion_placement_edits: use_signal(
+            super::layout_component_edits::LayoutComponentInspectorEdits::default,
+        ),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
@@ -233,6 +248,20 @@ impl LayoutWorkspaceState {
             self.component_inspector_constraint_pending,
             self.component_inspector_remove_pending,
             self.component_inspector_mirrored_half_pending,
+        )
+    }
+
+    pub(super) fn companion_placement_controls(
+        self,
+    ) -> (
+        Signal<bool>,
+        Signal<Option<String>>,
+        Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
+    ) {
+        (
+            self.companion_placement_pending,
+            self.companion_placement_error,
+            self.companion_placement_edits,
         )
     }
 
@@ -711,6 +740,15 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                         on_action: input.on_component_inspector_action,
                     }
                 } else if input.show_position_inspector { super::inspector::Inspector {} }
+            }
+            if let Some(projection) = input.companion_placement {
+                super::inspector::CompanionPlacementInspector {
+                    projection,
+                    pending: input.companion_placement_pending,
+                    error: input.companion_placement_error,
+                    pending_edits: input.companion_placement_edits,
+                    on_apply: input.on_companion_placement_action,
+                }
             }
             if let Some(projection) = input.matrix_inspector.projection.clone() {
                 objects::MatrixInspector {
