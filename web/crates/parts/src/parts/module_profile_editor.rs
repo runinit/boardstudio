@@ -741,13 +741,9 @@ mod settlement_tests {
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
-    use boardstudio_web_ui_shared::test_wait::{wait_until_future, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
-
-    async fn tick() {
-        gloo_timers::future::TimeoutFuture::new(30).await;
-    }
 
     fn mounted_host() -> Element {
         let runtime = use_context::<Rc<Runtime>>();
@@ -782,6 +778,19 @@ mod settlement_tests {
             .unwrap();
     }
 
+    fn accepted_steps(runtime: &Runtime) -> Option<u16> {
+        runtime
+            .model()
+            .accepted?
+            .document
+            .module_definitions
+            .first()?
+            .electrical
+            .rotary_profile
+            .as_ref()?
+            .steps
+    }
+
     #[wasm_bindgen_test]
     async fn mounted_rotary_save_preserves_newer_baseline_typing_and_resumes_history_projection() {
         let runtime = support::new_runtime();
@@ -801,7 +810,12 @@ mod settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("rotary profile input mounts", || {
+            root.query_selector("input[aria-label='Rotary pulses per rotation']")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         let pulses: web_sys::HtmlInputElement = root
             .query_selector("input[aria-label='Rotary pulses per rotation']")
             .unwrap()
@@ -815,18 +829,27 @@ mod settlement_tests {
             .dyn_into()
             .unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first = support::observe_next(&runtime);
         type_value(&pulses, "24");
-        tick().await;
         save.click();
-        tick().await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("rotary save enters Core", entered)
+            .await
+            .unwrap();
         type_value(&pulses, "20");
-        tick().await;
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        wait_until_step(
+            "rotary save lands with newer typing preserved",
+            async || {
+                support::run_pending(&runtime).await;
+                matches!(
+                    *first.borrow(),
+                    Some(boardstudio_application::TerminalOutcome::Completed)
+                ) && accepted_steps(&runtime) == Some(24)
+                    && pulses.value() == "20"
+            },
+        )
+        .await;
         assert_eq!(
             runtime
                 .model()
@@ -846,10 +869,16 @@ mod settlement_tests {
             "20",
             "newer typing that returns to the original accepted value survives landing"
         );
+        let second = support::observe_next(&runtime);
         save.click();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        wait_until_step("newer rotary draft saves", async || {
+            support::run_pending(&runtime).await;
+            matches!(
+                *second.borrow(),
+                Some(boardstudio_application::TerminalOutcome::Completed)
+            ) && accepted_steps(&runtime) == Some(20)
+        })
+        .await;
         assert_eq!(
             runtime
                 .model()
@@ -867,14 +896,20 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        wait_until_step("rotary draft follows Undo", async || {
+            support::run_pending(&runtime).await;
+            accepted_steps(&runtime) == Some(24) && pulses.value() == "24"
+        })
+        .await;
         assert_eq!(pulses.value(), "24", "a clean rotary draft follows Undo");
         runtime.submit(boardstudio_application::Event::Redo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        wait_until_step("rotary draft follows Redo", async || {
+            support::run_pending(&runtime).await;
+            accepted_steps(&runtime) == Some(20) && pulses.value() == "20"
+        })
+        .await;
         assert_eq!(pulses.value(), "20", "a clean rotary draft follows Redo");
 
         let (entered, release) = support::gate_next_core_reply(&runtime);
@@ -896,18 +931,23 @@ mod settlement_tests {
             }),
         );
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("rotary failure blocker enters Core", entered)
+            .await
+            .unwrap();
         support::fail_next_core_reply(&runtime, "controlled rotary failure");
         type_value(&pulses, "24");
-        tick().await;
         save.click();
-        tick().await;
         type_value(&pulses, "26");
-        tick().await;
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        wait_until_step("older rotary failure preserves newer typing", async || {
+            support::run_pending(&runtime).await;
+            pulses.value() == "26"
+                && root
+                    .text_content()
+                    .unwrap()
+                    .contains("controlled rotary failure")
+        })
+        .await;
         assert_eq!(
             pulses.value(),
             "26",

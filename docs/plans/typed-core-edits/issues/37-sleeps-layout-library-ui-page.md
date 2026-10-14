@@ -579,3 +579,9 @@ passed; mounted module-profile editor waits remain to be converted.
 
 After these Parts changes, `wasm-pack test --headless --chrome web/crates/parts --locked --lib`
 passed all 70 tests in 14.67 s.
+
+The mounted module-profile workflow now uses bounded waits for its rotary input, Core gate,
+accepted save results, and Undo/Redo projections; the corresponding 30 ms sleeps are gone from
+`module_profile_editor.rs`. The focused workflow passed, and the full Parts suite passed 70/70 in
+14.23 s on the current tree. Remaining Parts waits, production-action mutation coverage, name-list
+comparison, and the ticket-wide repeated/full gates remain open.
