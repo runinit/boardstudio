@@ -9,6 +9,7 @@ use boardstudio_core::model::{
     MatrixCell, MatrixScene, MatrixSceneCell, PartDefinition, PartKind, PartOutline, Pose2,
     ProjectDoc, Readiness, SceneDelta, Side,
 };
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::cell::RefCell;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
@@ -1035,6 +1036,7 @@ fn mounted_component_inspector_host() -> Element {
                 LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
             }
         }
+        output { class: "m1-layout-component-test-generation", "{render_generation()}" }
     }
 }
 
@@ -1271,8 +1273,45 @@ async fn mounted_group_probe(root_id: &'static str) -> (MountedProbe, web_sys::E
     mounted_runtime_probe(root_id, |_| {}, &["selected-part", "source-part"]).await
 }
 
-async fn settle_component_inspector() {
-    gloo_timers::future::TimeoutFuture::new(40).await;
+async fn settle_component_inspector(root_id: &str, mut generation: Signal<u64>) {
+    generation += 1;
+    let expected = generation.peek().to_string();
+    wait_until(
+        "the mounted component Inspector reflects its render generation",
+        || {
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .query_selector(&format!(
+                    "#{} .m1-layout-component-test-generation",
+                    root_id
+                ))
+                .ok()
+                .flatten()
+                .is_some_and(|label| label.text_content().as_deref() == Some(expected.as_str()))
+        },
+    )
+    .await;
+}
+
+async fn settle_mounted_component_inspector(probe: &MountedProbe) {
+    wait_until("the mounted component Inspector host renders", || {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(&format!(
+                "#{} .m1-layout-component-test-generation",
+                probe.root_id
+            ))
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let generation =
+        { (*probe.render_generation.borrow()).expect("mounted render-generation signal") };
+    settle_component_inspector(probe.root_id, generation).await;
 }
 
 fn click_component_inspector(root_id: &str, selector: &str) {
@@ -1658,7 +1697,7 @@ fn accepted_revision(probe: &MountedProbe) -> u64 {
 async fn accept_pending(probe: &MountedProbe) {
     crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
     probe.refresh();
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
 }
 
 #[wasm_bindgen_test]
@@ -1762,7 +1801,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
         &["matrix/component-paired-matrix/r0c0"],
     )
     .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         *probe
             .selection_kind
@@ -1788,7 +1827,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
     );
 
     click_component_inspector(probe.root_id, "#component-inspector-select-component");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe
             .projection
@@ -1826,11 +1865,11 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_production_handler_rejects_selection_aba_and_unmount() {
     let (probe, root) = mounted_probe("layout-component-inspector-aba-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let old_projection = probe.projection.borrow().clone().unwrap();
     let old_action = *probe.action.borrow().as_ref().unwrap();
     click_component_inspector(probe.root_id, "#component-inspector-select-source");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(*probe.selected_part.borrow(), Some("source-part".into()));
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().reference,
@@ -1838,7 +1877,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
         "component selection changes must rerender the mounted Inspector"
     );
     click_component_inspector(probe.root_id, "#component-inspector-select-original");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_ne!(
         old_projection.owner.context_generation,
         probe
@@ -1886,7 +1925,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
     let stale = probe.projection.borrow().clone().unwrap();
     let stale_action = *probe.action.borrow().as_ref().unwrap();
     click_component_inspector(probe.root_id, "#component-inspector-clear");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let cleared = accepted_position(&probe, "selected-part");
     stale_action.call(LayoutComponentInspectorAction::SetPosition {
         owner: stale.owner,
@@ -1906,9 +1945,9 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
 #[wasm_bindgen_test]
 async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted_value() {
     let (probe, root) = mounted_probe("layout-component-inspector-margin-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert!(
         web_sys::window()
             .unwrap()
@@ -2013,7 +2052,7 @@ async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted
 async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur_uses_latest_owner()
 {
     let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     let input = |label: &str| {
         document
@@ -2035,7 +2074,7 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
 
     click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
     click_component_inspector(probe.root_id, ".m1-layout-component-constraint summary");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let x = input("X mm");
     type_value(&x, "7.25");
 
@@ -2050,7 +2089,7 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
     // Advance accepted state without changing focus. Driving a control here would blur and
     // submit the draft before the unrelated acceptance being tested.
     let accepted_revision = probe.accept_unrelated_revision().await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
         accepted_revision
@@ -2104,10 +2143,10 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
 #[wasm_bindgen_test]
 async fn mounted_component_margin_enter_uses_latest_accepted_document() {
     let (probe, root) = mounted_probe("layout-component-inspector-margin-refresh-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let margin = document
         .query_selector(&format!(
             "#{} input[aria-label='Part edge margin']",
@@ -2126,7 +2165,7 @@ async fn mounted_component_margin_enter_uses_latest_accepted_document() {
         .unwrap();
 
     probe.accept_unrelated_revision().await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         margin.value(),
         "5.5",
@@ -2188,12 +2227,12 @@ async fn mounted_component_margin_enter_uses_latest_accepted_document() {
 #[wasm_bindgen_test]
 async fn mounted_component_relations_tab_survives_unrelated_acceptance() {
     let (probe, root) = mounted_probe("layout-component-inspector-tab-refresh-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let revision = probe.accept_unrelated_revision().await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
         revision
@@ -2217,7 +2256,7 @@ async fn mounted_component_relations_tab_survives_unrelated_acceptance() {
 #[wasm_bindgen_test]
 async fn mounted_component_inspector_uses_constraint_and_navigation_copy() {
     let (probe, root) = mounted_probe("layout-component-inspector-copy-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
 
     let constraint_type = document
@@ -2249,7 +2288,7 @@ async fn mounted_component_inspector_uses_constraint_and_navigation_copy() {
     );
 
     click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let navigation = document
         .query_selector(&format!(
             "#{} .m1-layout-component-inspector button:not([role='tab'])",
@@ -2265,7 +2304,7 @@ async fn mounted_component_inspector_uses_constraint_and_navigation_copy() {
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         document
             .query_selector(&format!(
@@ -2330,9 +2369,23 @@ async fn matrix_to_key_selection_resets_relations_tab_to_properties() {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    settle_component_inspector().await;
+    wait_until("the Inspector tabs mount", || {
+        document
+            .query_selector("#matrix-context-tabs-test-root [role='tab']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     click_component_inspector(root.id().as_str(), "#matrix-context-tabs-select-relations");
-    settle_component_inspector().await;
+    wait_until("Relations becomes the selected Inspector tab", || {
+        document
+            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
+            .unwrap()
+            .and_then(|tab| tab.text_content())
+            .as_deref()
+            == Some("Relations")
+    })
+    .await;
     assert_eq!(
         document
             .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
@@ -2343,7 +2396,15 @@ async fn matrix_to_key_selection_resets_relations_tab_to_properties() {
         Some("Relations"),
     );
     click_component_inspector(root.id().as_str(), "#matrix-context-tabs-select-key");
-    settle_component_inspector().await;
+    wait_until("Properties is restored for the Key selection", || {
+        document
+            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
+            .unwrap()
+            .and_then(|tab| tab.text_content())
+            .as_deref()
+            == Some("Properties")
+    })
+    .await;
     assert_eq!(
         document
             .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
@@ -2397,7 +2458,7 @@ fn try_commit_position(input: &web_sys::HtmlInputElement, value: &str) {
 #[wasm_bindgen_test]
 async fn mounted_editable_component_position_commits_so_the_unavailable_cases_are_not_vacuous() {
     let (probe, root) = mounted_probe("layout-component-position-editable-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let x = position_input(probe.root_id, "X mm");
     assert!(!x.disabled(), "an unlocked, undriven component edits X");
     try_commit_position(&x, "42");
@@ -2426,7 +2487,7 @@ async fn mounted_rapid_xy_enter_and_focus_change_submit_one_edit_per_axis() {
             };
         })
         .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let initial_revision = accepted_revision(&probe);
     let x = position_input(probe.root_id, "X mm");
     let y = position_input(probe.root_id, "Y mm");
@@ -2488,7 +2549,7 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
         },
     )
     .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let x = position_input(probe.root_id, "X mm");
     let y = position_input(probe.root_id, "Y mm");
     let bubbling = web_sys::EventInit::new();
@@ -2551,7 +2612,7 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 #[wasm_bindgen_test]
 async fn mounted_position_landing_preserves_a_newer_unsubmitted_draft() {
     let (probe, root) = mounted_probe("layout-component-position-newer-draft-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
     let x = position_input(probe.root_id, "X mm");
@@ -2589,7 +2650,7 @@ async fn mounted_position_landing_preserves_a_newer_unsubmitted_draft() {
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
     let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
     let x = position_input(probe.root_id, "X mm");
@@ -2610,7 +2671,7 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
     entered.await.expect("the position edit reached Core");
 
     click_component_inspector(probe.root_id, "#component-inspector-toggle-view");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert!(
         web_sys::window()
             .unwrap()
@@ -2626,7 +2687,7 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
     );
     assert_eq!(*probe.selected_part.borrow(), Some("selected-part".into()));
     click_component_inspector(probe.root_id, "#component-inspector-toggle-view");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     release
         .send(())
         .expect("release the held position result after remount");
@@ -2639,7 +2700,7 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
 #[wasm_bindgen_test]
 async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
     let (probe, root) = mounted_probe("layout-component-position-save-failure-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     crate::runtime::project_name_test_support::fail_next_persist(
         &probe.runtime,
         "injected durable write failure",
@@ -2664,7 +2725,7 @@ async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
         Vec2 { x: 4.0, y: 3.0 },
         "a failed save must not move the part"
     );
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         x.value(),
         "4.00",
@@ -2689,7 +2750,7 @@ async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
 #[wasm_bindgen_test]
 async fn queued_y_edit_waits_for_recovery_after_x_save_failure() {
     let (probe, root) = mounted_probe("layout-component-queued-edit-recovery-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     crate::runtime::project_name_test_support::fail_next_persist(
         &probe.runtime,
         "injected X write failure",
@@ -2737,12 +2798,10 @@ async fn queued_y_edit_waits_for_recovery_after_x_save_failure() {
     release.send(()).expect("release the held X reply");
     // The held X reply resumes a spawned task. Refresh this manually driven host
     // only after that task has published the queued Y edit's terminal outcome.
-    for _ in 0..100 {
-        if y_outcome.borrow().is_some() {
-            break;
-        }
-        gloo_timers::future::TimeoutFuture::new(1).await;
-    }
+    wait_until("the queued Y edit reaches a terminal outcome", || {
+        y_outcome.borrow().is_some()
+    })
+    .await;
     assert_eq!(
         *y_outcome.borrow(),
         Some(boardstudio_application::TerminalOutcome::BlockedByRecovery(
@@ -2786,7 +2845,7 @@ async fn queued_y_edit_waits_for_recovery_after_x_save_failure() {
 #[wasm_bindgen_test]
 async fn successful_y_landing_preserves_an_earlier_x_resolver_failure() {
     let (probe, root) = mounted_probe("layout-component-independent-field-errors-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let x = position_input(probe.root_id, "X mm");
     let y = position_input(probe.root_id, "Y mm");
     let bubbling = web_sys::EventInit::new();
@@ -2818,7 +2877,7 @@ async fn successful_y_landing_preserves_an_earlier_x_resolver_failure() {
     );
     crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
     probe.refresh();
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.runtime.model().lifecycle,
         boardstudio_application::Lifecycle::Ready,
@@ -2875,7 +2934,7 @@ async fn successful_y_landing_preserves_an_earlier_x_resolver_failure() {
 #[wasm_bindgen_test]
 async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
     let (probe, root) = mounted_probe("layout-component-position-retire-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     // Hold the lock edit's Core reply so the position edit queues behind it.
     let (entered, release) =
         crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
@@ -2927,9 +2986,9 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
     release.send(()).expect("release the held lock edit");
     // The parked task drives the lock edit and the queued position edit to completion
     // on its own; only afterwards does a forced rerender settle the ticket.
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     probe.refresh();
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert!(
         accepted_position(&probe, "selected-part") == Vec2 { x: 4.0, y: 3.0 },
         "a retired edit moves nothing"
@@ -2968,7 +3027,7 @@ async fn mounted_component_position_untouched_blur_and_escape_cancel_submit_no_e
         },
     )
     .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let initial_revision = accepted_revision(&probe);
     let x = position_input(probe.root_id, "X mm");
     let y = position_input(probe.root_id, "Y mm");
@@ -3015,7 +3074,7 @@ async fn mounted_component_position_untouched_blur_and_escape_cancel_submit_no_e
 #[wasm_bindgen_test]
 async fn mounted_group_position_blur_moves_all_selected_parts_from_first_anchor() {
     let (probe, root) = mounted_group_probe("layout-component-group-position-test-root").await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let document = web_sys::window().unwrap().document().unwrap();
     assert_eq!(
         document
@@ -3058,7 +3117,7 @@ async fn mounted_locked_component_presents_xy_unavailable_and_suppresses_commit(
                 .locked = Some(true);
         })
         .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert!(probe.projection.borrow().as_ref().unwrap().locked);
     let initial_revision = accepted_revision(&probe);
     for (label, value) in [("X mm", "50"), ("Y mm", "60")] {
@@ -3096,7 +3155,7 @@ async fn mounted_driven_component_presents_xy_unavailable_and_suppresses_commit(
             });
         })
         .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let projection = probe.projection.borrow().clone().unwrap();
     assert!(!projection.locked, "the part itself is not locked");
     assert!(projection.active_constraint.is_some(), "the part is driven");
@@ -3207,7 +3266,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
         });
     })
     .await;
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     let order: Vec<(String, bool)> = probe
         .projection
         .borrow()
@@ -3238,7 +3297,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     // A selection change to a part without a constraint: its first other part is the
     // selected-part, which is not a key, so the default is board axes and zeros.
     click_component_inspector(root_id, "#component-inspector-select-source");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
         ("0".into(), "board".into(), "selected-part".into()),
@@ -3247,7 +3306,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
 
     // Back to the constrained part: its saved kind, source and numbers again.
     click_component_inspector(root_id, "#component-inspector-select-original");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
         ("1".into(), "part".into(), KEY.into()),
@@ -3278,14 +3337,14 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     // The reset: an unconstrained part's unsaved axes choice goes back to the default when
     // Properties is shown again.
     click_component_inspector(root_id, "#component-inspector-select-source");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     choose_offset_axes_in_form(root_id, "part");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(offset_form(root_id).1, "part", "the unsaved choice shows");
     click_component_inspector(root_id, "button[role='tab']:nth-child(2)");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     click_component_inspector(root_id, "button[role='tab']:nth-child(1)");
-    settle_component_inspector().await;
+    settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
         ("0".into(), "board".into(), "selected-part".into()),
@@ -3299,7 +3358,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
 mod matrix_relations_panel {
     use super::super::layout_workspace;
     use super::super::*;
-    use super::{click_component_inspector, settle_component_inspector};
+    use super::{click_component_inspector, settle_component_inspector, wait_until};
     use boardstudio_application::{Event, Session};
     use boardstudio_core::CoreEngine;
     use boardstudio_core::model::{
@@ -3316,6 +3375,7 @@ mod matrix_relations_panel {
     struct RelationsProbe {
         runtime: Rc<crate::runtime::Runtime>,
         root_id: &'static str,
+        render_generation: Rc<RefCell<Option<Signal<u64>>>>,
         version: Rc<RefCell<Option<Signal<u64>>>>,
         selected: Rc<RefCell<Option<Signal<Option<objects::ScopedTreeContext>>>>>,
         adapter: Rc<RefCell<Option<SelectionAdapter>>>,
@@ -3352,13 +3412,32 @@ mod matrix_relations_panel {
             version += 1;
         }
 
+        async fn settle(&self) {
+            wait_until("the mounted relations Inspector host renders", || {
+                web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .query_selector(&format!(
+                        "#{} .m1-layout-component-test-generation",
+                        self.root_id
+                    ))
+                    .unwrap()
+                    .is_some()
+            })
+            .await;
+            let generation =
+                { (*self.render_generation.borrow()).expect("mounted render-generation signal") };
+            settle_component_inspector(self.root_id, generation).await;
+        }
+
         /// Drive every pending effect, re-render the host and let effects settle.
         async fn land(&self) {
             crate::runtime::project_name_test_support::run_pending(&self.runtime).await;
-            settle_component_inspector().await;
+            self.settle().await;
             crate::runtime::project_name_test_support::run_pending(&self.runtime).await;
             self.bump();
-            settle_component_inspector().await;
+            self.settle().await;
         }
 
         fn text(&self) -> String {
@@ -3388,7 +3467,7 @@ mod matrix_relations_panel {
 
         async fn open_relations_tab(&self) {
             self.click(".m1-layout-component-tabs button:nth-child(2)");
-            settle_component_inspector().await;
+            self.settle().await;
         }
 
         fn matrix(&self) -> boardstudio_core::model::Matrix {
@@ -3408,6 +3487,9 @@ mod matrix_relations_panel {
     #[component]
     fn relations_host() -> Element {
         let probe = use_context::<RelationsProbe>();
+        let render_generation = use_signal(|| 0u64);
+        let _ = render_generation();
+        *probe.render_generation.borrow_mut() = Some(render_generation);
         let version = use_signal(|| 0u64);
         *probe.version.borrow_mut() = Some(version);
         let _ = version();
@@ -3525,6 +3607,7 @@ mod matrix_relations_panel {
                 board_inspector_mount: board_inspector,
                 findings_page: None,
             })}
+            output { class: "m1-layout-component-test-generation", "{render_generation()}" }
         }
     }
 
@@ -3604,6 +3687,7 @@ mod matrix_relations_panel {
         let probe = RelationsProbe {
             runtime: support,
             root_id,
+            render_generation: Rc::default(),
             version: Rc::default(),
             selected: Rc::default(),
             adapter: Rc::default(),
@@ -3618,7 +3702,7 @@ mod matrix_relations_panel {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        settle_component_inspector().await;
+        probe.settle().await;
         (probe, root)
     }
 
@@ -3902,7 +3986,7 @@ mod matrix_relations_panel {
         );
 
         probe.bump();
-        settle_component_inspector().await;
+        probe.settle().await;
         assert!(
             !probe.exists(source),
             "the removed key's row is gone: {}",

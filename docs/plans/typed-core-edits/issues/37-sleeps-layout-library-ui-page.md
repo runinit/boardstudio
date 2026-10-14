@@ -430,3 +430,12 @@ pass. The remaining wait audit, mutation checks, three-run requirement, and base
 Replaced the two fixed waits in `mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_action`
 with bounded checks for the mounted component Inspector and linked disclosure. The file's focused wasm
 modules passed 40/40 tests; formatting and diff checks passed. Remaining Inspector test waits stay open.
+
+## Progress (2026-10-14, component Inspector waits)
+
+Replaced the remaining 56 fixed Inspector settles and the 1 ms queued-edit polling loop in
+`layout_component_inspector_tests.rs` with bounded render-generation and accepted-outcome waits. The
+matrix-relations fixture now waits for its host to mount before driving the same render-generation
+gate. The focused file run passed all 40 tests; `cargo fmt --all -- --check`, `git diff --check`,
+and a search for fixed `TimeoutFuture`/settle calls in the file passed. The broader #37 wait audit,
+mutation checks, three consecutive browser runs, and before/after suite evidence remain outstanding.
