@@ -44,6 +44,16 @@ React, its deployment handoff and rollback tooling are retired. Version 1 projec
 projects save locally and round-trip through `.boardstudio` exports. Existing user files are never erased by
 build or cleanup commands.
 
+## Local project safety
+
+If another tab saves the same keyboard, a conflicting save stops and keeps your pending
+edits. Download those edits before choosing to reload the saved version. Unreadable saved
+projects appear separately, with raw-data download and confirmed deletion actions.
+
+Undo keeps the latest 100 committed edits. Project imports are limited to 128 MiB.
+Unused imported assets are reclaimed at a later safe startup, after other editors close.
+Cleanup is deferred when browser coordination is unavailable or any saved project is unreadable.
+
 ## Checks
 
 Two commands, by purpose:

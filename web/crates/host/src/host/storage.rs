@@ -1,9 +1,16 @@
+mod startup;
 use crate::persistence_contract::{sha256_bytes, validate_exact_json_integers};
 use boardstudio_core::model::ProjectDoc;
 use futures_channel::oneshot;
 use js_sys::{Array, Reflect, Uint8Array};
 use serde::Serialize;
-use std::{cell::RefCell, collections::BTreeSet, fmt, rc::Rc};
+pub use startup::StorageSession;
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    rc::Rc,
+};
 use wasm_bindgen::{JsCast, JsValue, prelude::*};
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{
@@ -14,6 +21,62 @@ use web_sys::{
 const PROJECT_STORE: &str = "projects";
 const ASSET_STORE: &str = "assets";
 const ACTIVE_PROJECT_KEY: &str = "boardstudio-m1-active-project";
+const CONFLICT: &str =
+    "This keyboard was changed or deleted in another tab. Your pending edits have been preserved.";
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StorageToken(String);
+
+impl StorageToken {
+    pub fn for_document(document: &ProjectDoc) -> Result<Self, PersistError> {
+        let value =
+            serde_json::to_value(document).map_err(|error| PersistError(error.to_string()))?;
+        validate_exact_json_integers(&value).map_err(PersistError)?;
+        let stored = value
+            .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+            .map_err(js_decode_error)?;
+        Self::from_stored(stored)
+    }
+
+    fn from_stored(value: JsValue) -> Result<Self, PersistError> {
+        // IndexedDB stores JS numbers: 2.0 becomes 2, and -0.0 becomes 0 on JSON decode.
+        Self::from_value(serde_wasm_bindgen::from_value(value).map_err(js_decode_error)?)
+    }
+
+    fn from_value(mut value: serde_json::Value) -> Result<Self, PersistError> {
+        value.sort_all_objects();
+        let bytes = serde_json::to_vec(&value).map_err(|error| PersistError(error.to_string()))?;
+        Ok(Self(sha256_bytes(&bytes)))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SavedProject {
+    pub document: ProjectDoc,
+    pub token: StorageToken,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SaveError {
+    Conflict,
+    Storage(String),
+}
+
+impl fmt::Display for SaveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Conflict => f.write_str(CONFLICT),
+            Self::Storage(message) => f.write_str(message),
+        }
+    }
+}
+
+impl From<PersistError> for SaveError {
+    fn from(error: PersistError) -> Self {
+        Self::Storage(error.0)
+    }
+}
+
 type RequestHandlers = Vec<Closure<dyn FnMut(Event)>>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -33,9 +96,24 @@ pub struct AssetBytes {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct ProjectListing {
+    pub documents: Vec<ProjectDoc>,
+    pub unreadable: Vec<UnreadableProject>,
+}
+
+#[derive(Clone, Debug)]
+pub struct UnreadableProject {
+    pub key: JsValue,
+    pub label: String,
+    pub error: String,
+    pub token: Option<StorageToken>,
+}
+
 #[derive(Clone, Debug)]
 pub struct BrowserStore {
     database_name: String,
+    observed: Rc<RefCell<BTreeMap<String, StorageToken>>>,
 }
 
 impl BrowserStore {
@@ -46,7 +124,10 @@ impl BrowserStore {
                 "M1 storage requires a database separate from the React reference".into(),
             ));
         }
-        Ok(Self { database_name })
+        Ok(Self {
+            database_name,
+            observed: Rc::default(),
+        })
     }
 
     pub fn scoped(scope: &str) -> Result<Self, PersistError> {
@@ -67,29 +148,64 @@ impl BrowserStore {
         document: &ProjectDoc,
         assets: &std::collections::BTreeMap<String, Vec<u8>>,
     ) -> Result<(), PersistError> {
+        let expected = self.observed.borrow().get(&document.id).cloned();
+        self.save_document_expected(document, assets, expected.as_ref())
+            .await
+            .map(|_| ())
+            .map_err(|error| PersistError(error.to_string()))
+    }
+
+    pub async fn save_document_expected(
+        &self,
+        document: &ProjectDoc,
+        assets: &BTreeMap<String, Vec<u8>>,
+        expected: Option<&StorageToken>,
+    ) -> Result<StorageToken, SaveError> {
+        self.save_assets_expected(
+            document,
+            assets
+                .iter()
+                .map(|(sha256, bytes)| AssetBytes {
+                    sha256: sha256.clone(),
+                    bytes: bytes.clone(),
+                })
+                .collect(),
+            expected,
+            false,
+        )
+        .await
+    }
+
+    async fn save_assets_expected(
+        &self,
+        document: &ProjectDoc,
+        assets: Vec<AssetBytes>,
+        expected: Option<&StorageToken>,
+        force_abort: bool,
+    ) -> Result<StorageToken, SaveError> {
         let json = serde_json::to_value(document)
-            .map_err(|error| PersistError(format!("could not encode project document: {error}")))?;
-        validate_exact_json_integers(&json).map_err(PersistError)?;
+            .map_err(|error| SaveError::Storage(error.to_string()))?;
+        validate_exact_json_integers(&json).map_err(SaveError::Storage)?;
         let js_document = json
             .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
-            .map_err(|error| {
-                PersistError(format!("project is not IndexedDB-compatible: {error}"))
-            })?;
-        let project_id = document.id.clone();
-        let required_assets = document
-            .assets
-            .iter()
-            .map(|asset| asset.sha256.clone())
-            .collect();
-        let new_assets = assets
-            .iter()
-            .map(|(sha256, bytes)| AssetBytes {
-                sha256: sha256.clone(),
-                bytes: bytes.clone(),
-            })
-            .collect();
-        self.persist_project(project_id, js_document, required_assets, new_assets, false)
-            .await
+            .map_err(|error| SaveError::Storage(error.to_string()))?;
+        let token = StorageToken::from_stored(js_document.clone())?;
+        self.persist_project(
+            js_document,
+            document
+                .assets
+                .iter()
+                .map(|asset| asset.sha256.clone())
+                .collect(),
+            assets,
+            force_abort,
+            expected.cloned(),
+        )
+        .await?;
+        self.observed
+            .borrow_mut()
+            .insert(document.id.clone(), token.clone());
+        Ok(token)
     }
 
     pub async fn save_document_with_assets(
@@ -97,22 +213,11 @@ impl BrowserStore {
         document: &ProjectDoc,
         assets: Vec<AssetBytes>,
     ) -> Result<(), PersistError> {
-        let json = serde_json::to_value(document)
-            .map_err(|error| PersistError(format!("could not encode project document: {error}")))?;
-        validate_exact_json_integers(&json).map_err(PersistError)?;
-        let js_document = json
-            .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
-            .map_err(|error| {
-                PersistError(format!("project is not IndexedDB-compatible: {error}"))
-            })?;
-        let project_id = document.id.clone();
-        let required_assets = document
-            .assets
-            .iter()
-            .map(|asset| asset.sha256.clone())
-            .collect();
-        self.persist_project(project_id, js_document, required_assets, assets, false)
+        let expected = self.observed.borrow().get(&document.id).cloned();
+        self.save_assets_expected(document, assets, expected.as_ref(), false)
             .await
+            .map(|_| ())
+            .map_err(|error| PersistError(error.to_string()))
     }
 
     #[cfg(feature = "test-harness")]
@@ -121,37 +226,21 @@ impl BrowserStore {
         document: &ProjectDoc,
         assets: Vec<AssetBytes>,
     ) -> Result<(), PersistError> {
-        let json = serde_json::to_value(document)
-            .map_err(|error| PersistError(format!("could not encode project document: {error}")))?;
-        validate_exact_json_integers(&json).map_err(PersistError)?;
-        let js_document = json
-            .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
-            .map_err(|error| {
-                PersistError(format!("project is not IndexedDB-compatible: {error}"))
-            })?;
-        let required_assets = document
-            .assets
-            .iter()
-            .map(|asset| asset.sha256.clone())
-            .collect();
-        self.persist_project(
-            document.id.clone(),
-            js_document,
-            required_assets,
-            assets,
-            true,
-        )
-        .await
+        let expected = self.observed.borrow().get(&document.id).cloned();
+        self.save_assets_expected(document, assets, expected.as_ref(), true)
+            .await
+            .map(|_| ())
+            .map_err(|error| PersistError(error.to_string()))
     }
 
     async fn persist_project(
         &self,
-        project_id: String,
         document: JsValue,
         required_assets: Vec<String>,
         new_assets: Vec<AssetBytes>,
         force_abort: bool,
-    ) -> Result<(), PersistError> {
+        expected: Option<StorageToken>,
+    ) -> Result<(), SaveError> {
         let database_name = self.database_name.clone();
         let active_key = self.active_key();
         let (sender, receiver) = oneshot::channel();
@@ -159,65 +248,173 @@ impl BrowserStore {
             let result = persist_project(
                 &database_name,
                 &active_key,
-                project_id,
                 document,
                 required_assets,
                 new_assets,
                 force_abort,
+                expected,
             )
             .await;
             let _ = sender.send(result);
         });
         receiver
             .await
-            .map_err(|_| PersistError("save completion task was abandoned".into()))?
+            .map_err(|_| SaveError::Storage("save completion task was abandoned".into()))?
     }
 
-    /// Load a saved project, migrating an older stored shape to the current one. A migrated
-    /// project is written back immediately so nothing past this boundary sees the old shape.
+    /// Decode migrations in memory; persistence is always guarded by the original token.
     pub async fn load_document(
         &self,
         project_id: String,
     ) -> Result<Option<ProjectDoc>, PersistError> {
+        let saved = self.load_document_with_token(project_id).await?;
+        if let Some(saved) = &saved {
+            self.observed
+                .borrow_mut()
+                .insert(saved.document.id.clone(), saved.token.clone());
+        }
+        Ok(saved.map(|saved| saved.document))
+    }
+
+    pub async fn load_document_with_token(
+        &self,
+        project_id: String,
+    ) -> Result<Option<SavedProject>, PersistError> {
         let database_name = self.database_name.clone();
         let (sender, receiver) = oneshot::channel();
         spawn_local(async move {
             let result = load_value(&database_name, PROJECT_STORE, project_id)
                 .await
-                .and_then(|value| value.map(decode_document).transpose());
-            let _ = sender.send(result);
-        });
-        let loaded = receiver
-            .await
-            .map_err(|_| PersistError("project load task was abandoned".into()))??;
-        let Some((document, migrated)) = loaded else {
-            return Ok(None);
-        };
-        if migrated {
-            // Best effort: the migrated project is returned either way, and the next
-            // save persists it if this write fails.
-            let _ = self.save_document(&document, &Default::default()).await;
-        }
-        Ok(Some(document))
-    }
-
-    pub async fn list_documents(&self) -> Result<Vec<ProjectDoc>, PersistError> {
-        let database_name = self.database_name.clone();
-        let (sender, receiver) = oneshot::channel();
-        spawn_local(async move {
-            let result = list_values(&database_name, PROJECT_STORE)
-                .await
-                .and_then(|values| {
-                    values
-                        .into_iter()
-                        .map(|value| decode_document(value).map(|(document, _)| document))
-                        .collect()
+                .and_then(|value| {
+                    value
+                        .map(|value| {
+                            let json = serde_wasm_bindgen::from_value(value.clone())
+                                .map_err(js_decode_error)?;
+                            let token = StorageToken::from_value(json)?;
+                            let (document, _) = decode_document(value)?;
+                            Ok(SavedProject { document, token })
+                        })
+                        .transpose()
                 });
             let _ = sender.send(result);
         });
         receiver
             .await
+            .map_err(|_| PersistError("project load task was abandoned".into()))?
+    }
+
+    pub async fn list_documents(&self) -> Result<Vec<ProjectDoc>, PersistError> {
+        Ok(self.list_projects().await?.documents)
+    }
+
+    pub async fn list_projects(&self) -> Result<ProjectListing, PersistError> {
+        let database_name = self.database_name.clone();
+        let observed = self.observed.clone();
+        let (sender, receiver) = oneshot::channel();
+        spawn_local(async move {
+            let result = list_project_values(&database_name).await.map(|records| {
+                let mut listing = ProjectListing::default();
+                for (key, value) in records {
+                    match decode_document(value.clone()) {
+                        Ok((document, _)) => {
+                            if let Ok(json) = serde_wasm_bindgen::from_value(value)
+                                && let Ok(token) = StorageToken::from_value(json)
+                            {
+                                observed.borrow_mut().insert(document.id.clone(), token);
+                            }
+                            listing.documents.push(document);
+                        }
+                        Err(error) => {
+                            let token = serde_wasm_bindgen::from_value(value)
+                                .ok()
+                                .and_then(|value| StorageToken::from_value(value).ok());
+                            let label = key.as_string().unwrap_or_else(|| format!("{key:?}"));
+                            listing.unreadable.push(UnreadableProject {
+                                key,
+                                label,
+                                error: error.0,
+                                token,
+                            });
+                        }
+                    }
+                }
+                listing
+            });
+            let _ = sender.send(result);
+        });
+        receiver
+            .await
             .map_err(|_| PersistError("project list task was abandoned".into()))?
+    }
+
+    /// Export the raw representation without trying to migrate it.
+    pub async fn raw_project(
+        &self,
+        key: &JsValue,
+    ) -> Result<Option<(String, StorageToken)>, PersistError> {
+        let store = self.clone();
+        let key = key.clone();
+        let (sender, receiver) = oneshot::channel();
+        spawn_local(async move {
+            let _ = sender.send(store.raw_project_inner(&key).await);
+        });
+        receiver
+            .await
+            .map_err(|_| PersistError("raw project load task was abandoned".into()))?
+    }
+
+    async fn raw_project_inner(
+        &self,
+        key: &JsValue,
+    ) -> Result<Option<(String, StorageToken)>, PersistError> {
+        let database = open_database(&self.database_name).await?;
+        let transaction = database
+            .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readonly)
+            .map_err(js_error)?;
+        let completion = transaction_completion(&transaction, Rc::default());
+        let request = transaction
+            .object_store(PROJECT_STORE)
+            .map_err(js_error)?
+            .get(key)
+            .map_err(js_error)?;
+        let result = request_result(request).await;
+        let committed = completion.await;
+        database.close();
+        committed?;
+        let value = result?;
+        if value.is_undefined() {
+            return Ok(None);
+        }
+        let json: serde_json::Value =
+            serde_wasm_bindgen::from_value(value).map_err(js_decode_error)?;
+        let token = StorageToken::from_value(json.clone())?;
+        Ok(Some((
+            serde_json::to_string_pretty(&json).map_err(|error| PersistError(error.to_string()))?,
+            token,
+        )))
+    }
+
+    pub async fn delete_unreadable(&self, record: &UnreadableProject) -> Result<(), PersistError> {
+        let expected = record.token.as_ref().ok_or_else(|| {
+            PersistError("This record cannot be safely compared; it was kept.".into())
+        })?;
+        let database_name = self.database_name.clone();
+        let key = record.key.clone();
+        let expected = expected.clone();
+        let (sender, receiver) = oneshot::channel();
+        let observed = self.observed.clone();
+        spawn_local(async move {
+            let result = delete_record(&database_name, &key, Some(expected)).await;
+            if result.is_ok()
+                && let Some(id) = key.as_string()
+            {
+                observed.borrow_mut().remove(&id);
+            }
+            let _ = sender.send(result);
+        });
+        receiver
+            .await
+            .map_err(|_| PersistError("unreadable project delete task was abandoned".into()))?
     }
 
     pub async fn save_asset(&self, asset: AssetBytes) -> Result<(), PersistError> {
@@ -265,11 +462,27 @@ impl BrowserStore {
     }
 
     pub async fn delete_project(&self, project_id: String) -> Result<(), PersistError> {
+        let expected = self.observed.borrow().get(&project_id).cloned();
+        self.delete_project_expected(project_id, expected.as_ref())
+            .await
+    }
+
+    pub async fn delete_project_expected(
+        &self,
+        project_id: String,
+        expected: Option<&StorageToken>,
+    ) -> Result<(), PersistError> {
         let database_name = self.database_name.clone();
         let active_key = self.active_key();
+        let expected = expected.cloned();
         let (sender, receiver) = oneshot::channel();
+        let observed = self.observed.clone();
         spawn_local(async move {
-            let result = delete_project_inner(&database_name, &active_key, &project_id).await;
+            let result =
+                delete_project_inner(&database_name, &active_key, &project_id, expected).await;
+            if result.is_ok() {
+                observed.borrow_mut().remove(&project_id);
+            }
             let _ = sender.send(result);
         });
         receiver
@@ -288,6 +501,10 @@ impl BrowserStore {
             .unwrap_or_else(|| fallback.to_owned()))
     }
 
+    pub fn observed_token(&self, id: &str) -> Option<StorageToken> {
+        self.observed.borrow().get(id).cloned()
+    }
+
     fn active_key(&self) -> String {
         format!("{ACTIVE_PROJECT_KEY}:{}", self.database_name)
     }
@@ -296,21 +513,16 @@ impl BrowserStore {
 async fn persist_project(
     database_name: &str,
     active_key: &str,
-    project_id: String,
     document: JsValue,
     required_assets: Vec<String>,
     new_assets: Vec<AssetBytes>,
     force_abort: bool,
-) -> Result<(), PersistError> {
-    let document_id = Reflect::get(&document, &"id".into())
+    expected: Option<StorageToken>,
+) -> Result<(), SaveError> {
+    let project_id = Reflect::get(&document, &"id".into())
         .map_err(js_error)?
         .as_string()
         .ok_or_else(|| PersistError("project document has no string id".into()))?;
-    if document_id != project_id {
-        return Err(PersistError(
-            "project id does not match document object".into(),
-        ));
-    }
     for asset in &new_assets {
         verify_asset(asset)?;
     }
@@ -327,12 +539,41 @@ async fn persist_project(
         .transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)
         .map_err(js_error)?;
     let missing_asset = Rc::new(RefCell::new(None::<String>));
+    let conflict = Rc::new(std::cell::Cell::new(false));
     let completion = transaction_completion(&transaction, missing_asset.clone());
 
     let operation = (|| -> Result<RequestHandlers, PersistError> {
         let projects = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
         let assets = transaction.object_store(ASSET_STORE).map_err(js_error)?;
-        projects.put(&document).map_err(js_error)?;
+        let request = projects
+            .get(&JsValue::from_str(&project_id))
+            .map_err(js_error)?;
+        let check = request.clone();
+        let failed = missing_asset.clone();
+        let tx = transaction.clone();
+        let stale = conflict.clone();
+        let on_success = Closure::<dyn FnMut(Event)>::new(move |_| {
+            let result = (|| {
+                let stored = check.result().map_err(js_error)?;
+                let token = if stored.is_undefined() {
+                    None
+                } else {
+                    let json = serde_wasm_bindgen::from_value(stored).map_err(js_decode_error)?;
+                    Some(StorageToken::from_value(json)?)
+                };
+                if token != expected {
+                    stale.set(true);
+                    return Err(PersistError(CONFLICT.into()));
+                }
+                projects.put(&document).map_err(js_error)?;
+                Ok(())
+            })();
+            if let Err(error) = result {
+                *failed.borrow_mut() = Some(error.0);
+                let _ = tx.abort();
+            }
+        });
+        request.set_onsuccess(Some(on_success.as_ref().unchecked_ref()));
 
         for asset in &new_assets {
             let value = Uint8Array::from(asset.bytes.as_slice());
@@ -341,7 +582,7 @@ async fn persist_project(
                 .map_err(js_error)?;
         }
 
-        let mut checks = Vec::new();
+        let mut checks = vec![on_success];
         for hash in refs.difference(&incoming) {
             let request = assets.get(&JsValue::from_str(hash)).map_err(js_error)?;
             let failed = missing_asset.clone();
@@ -373,7 +614,7 @@ async fn persist_project(
         Err(error) => {
             let _ = transaction.abort();
             database.close();
-            return Err(error);
+            return Err(error.into());
         }
     };
     if force_abort {
@@ -383,8 +624,13 @@ async fn persist_project(
     let result = completion.await;
     let _ = checks;
     database.close();
+    if conflict.get() {
+        return Err(SaveError::Conflict);
+    }
     result?;
-    if let Some(storage) = window()?.local_storage().map_err(js_error)? {
+    if let Ok(window) = window()
+        && let Ok(Some(storage)) = window.local_storage()
+    {
         let _ = storage.set_item(active_key, &project_id);
     }
     Ok(())
@@ -410,24 +656,60 @@ async fn delete_project_inner(
     database_name: &str,
     active_key: &str,
     project_id: &str,
+    expected: Option<StorageToken>,
+) -> Result<(), PersistError> {
+    delete_record(database_name, &JsValue::from_str(project_id), expected).await?;
+    if let Ok(window) = window()
+        && let Ok(Some(storage)) = window.local_storage()
+        && storage.get_item(active_key).ok().flatten().as_deref() == Some(project_id)
+    {
+        let _ = storage.remove_item(active_key);
+    }
+    Ok(())
+}
+
+async fn delete_record(
+    database_name: &str,
+    key: &JsValue,
+    expected: Option<StorageToken>,
 ) -> Result<(), PersistError> {
     let database = open_database(database_name).await?;
     let transaction = database
         .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
         .map_err(js_error)?;
-    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
+    let failure = Rc::new(RefCell::new(None));
+    let completion = transaction_completion(&transaction, failure.clone());
     let store = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
-    store
-        .delete(&JsValue::from_str(project_id))
-        .map_err(js_error)?;
+    let key = key.clone();
+    let request = store.get(&key).map_err(js_error)?;
+    let check = request.clone();
+    let tx = transaction.clone();
+    let on_success = Closure::<dyn FnMut(Event)>::new(move |_| {
+        let result = (|| {
+            let value = check.result().map_err(js_error)?;
+            let token = if value.is_undefined() {
+                None
+            } else {
+                Some(StorageToken::from_value(
+                    serde_wasm_bindgen::from_value(value).map_err(js_decode_error)?,
+                )?)
+            };
+            if token != expected {
+                return Err(PersistError(CONFLICT.into()));
+            }
+            store.delete(&key).map_err(js_error)?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            *failure.borrow_mut() = Some(error.0);
+            let _ = tx.abort();
+        }
+    });
+    request.set_onsuccess(Some(on_success.as_ref().unchecked_ref()));
     let result = completion.await;
     database.close();
     result?;
-    if let Some(storage) = window()?.local_storage().map_err(js_error)?
-        && storage.get_item(active_key).map_err(js_error)?.as_deref() == Some(project_id)
-    {
-        let _ = storage.remove_item(active_key);
-    }
+    drop(on_success);
     Ok(())
 }
 
@@ -465,20 +747,24 @@ async fn load_value(
     Ok((!value.is_undefined()).then_some(value))
 }
 
-async fn list_values(database_name: &str, store_name: &str) -> Result<Vec<JsValue>, PersistError> {
+async fn list_project_values(database_name: &str) -> Result<Vec<(JsValue, JsValue)>, PersistError> {
     let database = open_database(database_name).await?;
     let transaction = database
-        .transaction_with_str_and_mode(store_name, IdbTransactionMode::Readonly)
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readonly)
         .map_err(js_error)?;
-    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
-    let store = transaction.object_store(store_name).map_err(js_error)?;
-    let request = store.get_all().map_err(js_error)?;
-    let value = request_result(request).await;
+    let completion = transaction_completion(&transaction, Rc::default());
+    let store = transaction.object_store(PROJECT_STORE).map_err(js_error)?;
+    let keys = request_result(store.get_all_keys().map_err(js_error)?);
+    let values = request_result(store.get_all().map_err(js_error)?);
+    let keys = keys.await;
+    let values = values.await;
     let committed = completion.await;
     database.close();
-    let value = value?;
     committed?;
-    Ok(Array::from(&value).iter().collect())
+    Ok(Array::from(&keys?)
+        .iter()
+        .zip(Array::from(&values?).iter())
+        .collect())
 }
 
 async fn open_database(name: &str) -> Result<IdbDatabase, PersistError> {
@@ -676,3 +962,7 @@ fn js_error(value: JsValue) -> PersistError {
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "storage_lifetime_tests.rs"]
 mod lifetime_tests;
+
+fn js_decode_error(error: serde_wasm_bindgen::Error) -> PersistError {
+    PersistError(error.to_string())
+}

@@ -708,6 +708,10 @@ impl CoreEngine {
         } = prepared;
         next.revision = self.document.revision + 1;
         outline_versions::refresh_recovery(&mut next, &cache);
+        // Keep the latest 100 committed edits without retaining an unbounded document history.
+        if self.undo.len() == 100 {
+            self.undo.remove(0);
+        }
         self.undo.push(self.document.clone());
         self.redo.clear();
         self.document = next;

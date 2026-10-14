@@ -28,7 +28,9 @@ pub use boardstudio_web_host::host::CoreExecutor;
 fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
     Rc::as_ptr(core) as *const () as usize
 }
-use boardstudio_web_host::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::host::{
+    BrowserStore, CoreWorker, SaveError, SavedProject, StorageSession, StorageToken,
+};
 use boardstudio_web_host::{
     cad_jobs::{
         CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
@@ -38,6 +40,7 @@ use boardstudio_web_host::{
     cad_worker::CadWorker,
 };
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
@@ -210,7 +213,8 @@ pub trait DocumentPersistence {
         &'a self,
         document: &'a ProjectDoc,
         assets: &'a BTreeMap<String, Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>>;
+        expected: Option<&'a StorageToken>,
+    ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>>;
 }
 
 impl DocumentPersistence for BrowserStore {
@@ -218,11 +222,10 @@ impl DocumentPersistence for BrowserStore {
         &'a self,
         document: &'a ProjectDoc,
         assets: &'a BTreeMap<String, Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>> {
+        expected: Option<&'a StorageToken>,
+    ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>> {
         Box::pin(async move {
-            BrowserStore::save_document(self, document, assets)
-                .await
-                .map_err(|error| error.to_string())
+            BrowserStore::save_document_expected(self, document, assets, expected).await
         })
     }
 }
@@ -266,6 +269,11 @@ pub struct Runtime {
     core_executor_factory: RefCell<Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
+    storage_session: RefCell<Option<StorageSession>>,
+    storage_initializing: Cell<bool>,
+    saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
+    pending_document: RefCell<Option<Arc<ProjectDoc>>>,
+    save_conflict: Cell<bool>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
@@ -344,6 +352,11 @@ impl Runtime {
             core_executor_factory: RefCell::new(core_executor_factory),
             persistence: RefCell::new(Rc::new(store.clone())),
             store,
+            storage_session: RefCell::default(),
+            storage_initializing: Cell::new(restore_active_project),
+            saved_tokens: RefCell::default(),
+            pending_document: RefCell::default(),
+            save_conflict: Cell::new(false),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
@@ -384,10 +397,27 @@ impl Runtime {
             #[cfg(any(test, feature = "test-support"))]
             held_effects: RefCell::new(Vec::new()),
         });
-        // Reserve the startup open identity synchronously, before any explicit
-        // open action can supersede restoration of the last durable project.
+        // Storage cleanup finishes before any editor, import, or restored history can use assets.
         if restore_active_project {
-            runtime.restore_active_project();
+            let weak = Rc::downgrade(&runtime);
+            let store = runtime.store.clone();
+            spawn_local(async move {
+                let result = store.start_session().await;
+                if let Some(runtime) = weak.upgrade() {
+                    match result {
+                        Ok((lease, cleanup_error)) => {
+                            *runtime.storage_session.borrow_mut() = lease;
+                            runtime.storage_initializing.set(false);
+                            runtime.restore_active_project();
+                            if let Some(error) = cleanup_error {
+                                runtime.report(format!("Unused model cleanup was deferred; saved keyboards were kept: {error}"));
+                            }
+                            runtime.changed();
+                        }
+                        Err(error) => runtime.report(format!("Storage could not be initialized safely. Reload this page to retry. {error}")),
+                    }
+                }
+            });
         }
         // Test servers do not serve the release service worker, so registering it only races
         // a 404 report against whatever status the test is observing.
@@ -788,6 +818,9 @@ impl Runtime {
         self: &Rc<Self>,
         allow_project_deletion: bool,
     ) -> Result<(String, crate::operation_outcomes::OutcomeSlot), String> {
+        if self.storage_initializing.get() {
+            return Err("Storage is still initializing; try again shortly.".into());
+        }
         if self.project_deletion_pending.get() && !allow_project_deletion {
             return Err("A saved keyboard deletion is in progress.".into());
         }
@@ -832,6 +865,10 @@ impl Runtime {
     }
 
     pub async fn delete_saved_project(self: &Rc<Self>, project_id: String) -> Result<(), String> {
+        if self.model().lifecycle == Lifecycle::RecoveryRequired && !self.confirm_discard_pending()
+        {
+            return Err("Pending edits were kept; no keyboard was deleted.".into());
+        }
         let lease = self.begin_project_deletion()?;
         self.supersede_pending_opens_for_deletion()?;
         let initial = if self.model().lifecycle == Lifecycle::RecoveryRequired {
@@ -841,6 +878,11 @@ impl Runtime {
         };
 
         let deleting_active = initial.document.id == project_id;
+        let expected_delete = if deleting_active {
+            self.saved_tokens.borrow().get(&project_id).cloned()
+        } else {
+            self.store.observed_token(&project_id)
+        };
         let expected_current = if deleting_active {
             let mut remaining = self
                 .store
@@ -858,7 +900,7 @@ impl Runtime {
                 let replacement_id = first.id.clone();
                 let replacement = self
                     .store
-                    .load_document(replacement_id.clone())
+                    .load_document_with_token(replacement_id.clone())
                     .await
                     .map_err(|error| format!("Could not open the next saved keyboard: {error}"))?
                     .ok_or_else(|| {
@@ -866,6 +908,7 @@ impl Runtime {
                             .to_owned()
                     })?;
                 self.ensure_delete_owner(&initial)?;
+                let replacement = self.remember_saved(replacement);
                 match self
                     .open_project_for_deletion(replacement, replacement_id)
                     .await
@@ -925,9 +968,10 @@ impl Runtime {
         }
 
         self.store
-            .delete_project(project_id)
+            .delete_project_expected(project_id.clone(), expected_delete.as_ref())
             .await
             .map_err(|error| format!("This keyboard could not be deleted. Try again. {error}"))?;
+        self.saved_tokens.borrow_mut().remove(&project_id);
         drop(lease);
         Ok(())
     }
@@ -1021,7 +1065,7 @@ impl Runtime {
         })?;
         let document = self
             .store
-            .load_document(accepted.document.id.clone())
+            .load_document_with_token(accepted.document.id.clone())
             .await
             .map_err(|error| format!("Could not restore the current saved keyboard: {error}"))?
             .ok_or_else(|| {
@@ -1034,6 +1078,7 @@ impl Runtime {
         if current.document.id != accepted.document.id || current.token != accepted.token {
             return Err("The active keyboard changed during deletion recovery.".into());
         }
+        let document = self.remember_saved(document);
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
         let sequence = self.open_sequence.get();
@@ -1766,14 +1811,27 @@ impl Runtime {
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
                 let persistence = self.persistence.borrow().clone();
-                let result = match persistence.save_document(&document, &assets).await {
-                    Ok(()) => {
+                *self.pending_document.borrow_mut() = Some(document.clone());
+                let expected = self.saved_tokens.borrow().get(&document.id).cloned();
+                let result = match persistence
+                    .save_document(&document, &assets, expected.as_ref())
+                    .await
+                {
+                    Ok(token) => {
+                        self.saved_tokens
+                            .borrow_mut()
+                            .insert(document.id.clone(), token);
+                        self.pending_document.borrow_mut().take();
+                        self.save_conflict.set(false);
                         for asset in &document.assets {
                             self.assets.borrow_mut().remove(&asset.sha256);
                         }
                         SaveResult::Committed
                     }
-                    Err(error) => SaveResult::Aborted(error),
+                    Err(error) => {
+                        self.save_conflict.set(error == SaveError::Conflict);
+                        SaveResult::Aborted(error.to_string())
+                    }
                 };
                 self.complete(Completion::Persist {
                     save_attempt_id,
@@ -5724,6 +5782,9 @@ impl Runtime {
         }
     }
     fn begin_open(&self) -> Result<u64, String> {
+        if self.storage_initializing.get() {
+            return Err("Storage is still initializing; try again shortly.".into());
+        }
         if self.project_deletion_pending.get() {
             return Err("A saved keyboard deletion is in progress.".into());
         }
@@ -5736,6 +5797,10 @@ impl Runtime {
         Ok(sequence)
     }
     pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
+        if file.size() > boardstudio_core::archive::MAX_PROJECT_ARCHIVE_BYTES as f64 {
+            self.report("Project archive exceeds the 128 MiB size limit.");
+            return;
+        }
         let sequence = match self.begin_open() {
             Ok(sequence) => sequence,
             Err(error) => {
@@ -5820,6 +5885,10 @@ impl Runtime {
         Ok(())
     }
     pub fn open_saved(self: &Rc<Self>, id: String) {
+        if self.model().lifecycle == Lifecycle::RecoveryRequired && !self.confirm_discard_pending()
+        {
+            return;
+        }
         let sequence = match self.begin_open() {
             Ok(sequence) => sequence,
             Err(error) => {
@@ -5835,7 +5904,7 @@ impl Runtime {
             .and_then(|adapters| adapters.take_open_observer());
         let this = self.clone();
         spawn_local(async move {
-            let loaded = this.store.load_document(id).await;
+            let loaded = this.store.load_document_with_token(id).await;
             #[cfg(any(test, feature = "test-support"))]
             {
                 let adapters = this.in_process_adapters.borrow().clone();
@@ -5844,7 +5913,8 @@ impl Runtime {
                 }
             }
             match loaded {
-                Ok(Some(document)) if this.open_sequence.get() == sequence => {
+                Ok(Some(saved)) if this.open_sequence.get() == sequence => {
+                    let document = this.remember_saved(saved);
                     let operation_id = this.operation();
                     if this.model().lifecycle == Lifecycle::RecoveryRequired {
                         this.submit(Event::RecoverWithDocument {
@@ -5901,13 +5971,14 @@ impl Runtime {
         let sequence = self.begin_open()?;
         let document = self
             .store
-            .load_document(id.clone())
+            .load_document_with_token(id.clone())
             .await
             .map_err(|error| format!("Could not load the saved original project: {error}"))?
             .ok_or_else(|| "The saved original project is no longer available.".to_owned())?;
         if self.open_sequence.get() != sequence || !still_expected(self) {
             return Err("A newer project open superseded recovery of the original project.".into());
         }
+        let document = self.remember_saved(document);
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
         if self.model().lifecycle == Lifecycle::RecoveryRequired {
@@ -5925,8 +5996,100 @@ impl Runtime {
             .await
     }
 
+    fn remember_saved(&self, saved: SavedProject) -> ProjectDoc {
+        self.saved_tokens
+            .borrow_mut()
+            .insert(saved.document.id.clone(), saved.token);
+        saved.document
+    }
+
+    pub fn has_save_conflict(&self) -> bool {
+        self.save_conflict.get()
+    }
+
+    pub fn download_raw_project(self: &Rc<Self>, key: JsValue) {
+        let this = self.clone();
+        spawn_local(async move {
+            let result = match this.store.raw_project(&key).await {
+                Ok(Some((json, _))) => deliver(
+                    json.as_bytes(),
+                    "boardstudio-unreadable-project.json",
+                    Some("application/json"),
+                ),
+                Ok(None) => Err("The saved record is no longer available.".into()),
+                Err(error) => Err(error.to_string()),
+            };
+            if let Err(error) = result {
+                this.report(format!("Raw saved data could not be downloaded: {error}"));
+            }
+        });
+    }
+
+    pub fn download_pending_edits(self: &Rc<Self>) {
+        let this = self.clone();
+        spawn_local(async move {
+            let result = this.pending_archive().await.and_then(|(document, bytes)| {
+                deliver(
+                    &bytes,
+                    &archive_filename(&format!("{}-pending", document.name)),
+                    None,
+                )
+            });
+            if let Err(error) = result {
+                this.report(format!("Pending edits could not be downloaded: {error}"));
+            }
+        });
+    }
+
+    async fn pending_archive(&self) -> Result<(Arc<ProjectDoc>, Vec<u8>), String> {
+        let document = self
+            .pending_document
+            .borrow()
+            .clone()
+            .ok_or("There are no pending edits to download.")?;
+        let guard = || {
+            if self.model().lifecycle == Lifecycle::RecoveryRequired
+                && self
+                    .pending_document
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|pending| Arc::ptr_eq(pending, &document))
+            {
+                Ok(())
+            } else {
+                Err("Pending edits changed during export; download them again.".into())
+            }
+        };
+        let bytes = self.pack_document(&document, true, guard).await?;
+        guard()?;
+        Ok((document, bytes))
+    }
+
+    fn confirm_discard_pending(&self) -> bool {
+        self.pending_document.borrow().is_none() || web_sys::window().and_then(|window| window.confirm_with_message(
+            "Discard your pending edits and reload the saved keyboard? Download your pending edits first if you want to keep them."
+        ).ok()).unwrap_or(false)
+    }
+
+    pub fn has_pending_edits(&self) -> bool {
+        self.pending_document.borrow().is_some()
+    }
+
     pub fn recover_saved(self: &Rc<Self>) {
-        let Some(accepted) = self.model().accepted else {
+        if !self.confirm_discard_pending() {
+            return;
+        }
+        let accepted_token = self.model().accepted.map(|accepted| accepted.token);
+        let pending = self.pending_document.borrow().clone();
+        let project_id = pending
+            .as_ref()
+            .map(|document| document.id.clone())
+            .or_else(|| {
+                self.model()
+                    .accepted
+                    .map(|accepted| accepted.document.id.clone())
+            });
+        let Some(project_id) = project_id else {
             self.report("No durable document exists to recover; reopen an explicit saved copy.");
             return;
         };
@@ -5937,15 +6100,18 @@ impl Runtime {
                 this.report(format!("Recovery executor unavailable: {error}"));
                 return;
             }
-            match this.store.load_document(accepted.document.id.clone()).await {
-                Ok(Some(document))
-                    if this
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|s| s.token == accepted.token)
-                        && this.model().lifecycle == Lifecycle::RecoveryRequired =>
+            match this.store.load_document_with_token(project_id).await {
+                Ok(Some(saved))
+                    if this.model().lifecycle == Lifecycle::RecoveryRequired
+                        && this.model().accepted.map(|accepted| accepted.token)
+                            == accepted_token
+                        && match (this.pending_document.borrow().as_ref(), pending.as_ref()) {
+                            (Some(current), Some(expected)) => Arc::ptr_eq(current, expected),
+                            (None, None) => true,
+                            _ => false,
+                        } =>
                 {
+                    let document = this.remember_saved(saved);
                     this.submit(Event::RecoverWithDocument {
                         operation_id: this.operation(),
                         document,
@@ -5972,8 +6138,17 @@ impl Runtime {
                 Err("Archive export was cancelled or superseded.".to_owned())
             }
         };
+        self.pack_document(snapshot.document.as_ref(), embed_used_models, guard)
+            .await
+    }
+
+    async fn pack_document(
+        &self,
+        document: &ProjectDoc,
+        embed_used_models: bool,
+        guard: impl Fn() -> Result<(), String>,
+    ) -> Result<Vec<u8>, String> {
         guard()?;
-        let document = snapshot.document.as_ref();
         let mut bundled_bytes = Vec::new();
         if embed_used_models {
             let generated_ids = crate::bundled_models::generated_model_ids(document).await?;
@@ -5994,14 +6169,19 @@ impl Runtime {
         }
         let mut local_asset_bytes = BTreeMap::new();
         for asset in &document.assets {
-            let bytes = self
-                .store
-                .load_asset(asset.sha256.clone())
-                .await
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| format!("Missing asset: {}", asset.name))?;
+            let pending_bytes = self.assets.borrow().get(&asset.sha256).cloned();
+            let bytes = match pending_bytes {
+                Some(bytes) => bytes,
+                None => self
+                    .store
+                    .load_asset(asset.sha256.clone())
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| format!("Missing asset: {}", asset.name))?
+                    .to_vec(),
+            };
             guard()?;
-            local_asset_bytes.insert(asset.sha256.clone(), bytes.to_vec());
+            local_asset_bytes.insert(asset.sha256.clone(), bytes);
         }
         let prepared = crate::portable_archive::prepare_archive(
             document,
@@ -6673,6 +6853,15 @@ pub mod project_name_test_support {
     /// `gate_next_persist` / `fail_next_persist`); call `install_memory_persistence` to save
     /// into memory instead.
     pub fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
+        runtime.saved_tokens.borrow_mut().clear();
+        if let Some(accepted) = session.read_model().accepted.as_ref()
+            && let Some(token) = runtime.store.observed_token(&accepted.document.id)
+        {
+            runtime
+                .saved_tokens
+                .borrow_mut()
+                .insert(accepted.document.id.clone(), token);
+        }
         *runtime.session.borrow_mut() = session;
         let adapters = Rc::new(InProcessAdapters::new(core, runtime.store.clone()));
         adapters.attach(runtime);
@@ -6683,6 +6872,7 @@ pub mod project_name_test_support {
     /// Route saves into the in-process memory store. Requires `install` to have run.
     pub fn install_memory_persistence(runtime: &Runtime) {
         installed(runtime).use_memory_saves();
+        runtime.saved_tokens.borrow_mut().clear();
     }
 
     /// Install the in-process adapters with memory saves and open `document` through the real
@@ -7843,5 +8033,214 @@ mod in_process_adapter_tests {
             "a late reply from the replaced executor changes nothing"
         );
         assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod offline_safety_tests {
+    use super::*;
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn conflicting_runtime_preserves_pending_document_and_assets_for_download() {
+        let first = project_name_test_support::new_runtime();
+        project_name_test_support::install(
+            &first,
+            Session::new(),
+            boardstudio_core::CoreEngine::new(),
+        );
+        let mut document = in_process_support::board_document();
+        document.id = format!("runtime-conflict-{}", js_sys::Date::now());
+        document.name = "Original".into();
+        first.submit(Event::Open {
+            operation_id: first.operation(),
+            document: document.clone(),
+        });
+        project_name_test_support::run_pending(&first).await;
+        let second = project_name_test_support::new_runtime();
+        project_name_test_support::install(
+            &second,
+            Session::new(),
+            boardstudio_core::CoreEngine::new(),
+        );
+        let done = project_name_test_support::track_open_saved(&second);
+        second.open_saved(document.id.clone());
+        done.await.unwrap();
+        project_name_test_support::run_pending(&second).await;
+        let stale = second.model().accepted.unwrap();
+        let accepted = first.model().accepted.unwrap();
+        let mut winner = (*accepted.document).clone();
+        winner.name = "First tab saved".into();
+        project_name_test_support::submit_fixed_command(
+            &first,
+            EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: "first-tab".into(),
+                phase: EditPhase::Commit,
+                target_ids: Vec::new(),
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(winner),
+                },
+            },
+        );
+        project_name_test_support::run_pending(&first).await;
+        let mut pending = (*stale.document).clone();
+        pending.name = "Second tab pending".into();
+        let bytes = b"model retained after conflict".to_vec();
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        pending.assets.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"pending-model", "name":"pending.step", "mediaType":"model/step", "sha256":hash
+            }))
+            .unwrap(),
+        );
+        second
+            .assets
+            .borrow_mut()
+            .insert(hash.clone(), bytes.clone());
+        project_name_test_support::submit_fixed_command(
+            &second,
+            EditCommand {
+                base_revision: stale.document.revision,
+                transaction_id: "second-tab".into(),
+                phase: EditPhase::Commit,
+                target_ids: Vec::new(),
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(pending),
+                },
+            },
+        );
+        project_name_test_support::run_pending(&second).await;
+        assert_eq!(second.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(second.has_save_conflict());
+        assert_eq!(second.model().accepted.unwrap().document.name, "Original");
+        assert_eq!(
+            first
+                .store
+                .load_document(document.id.clone())
+                .await
+                .unwrap()
+                .unwrap()
+                .name,
+            "First tab saved"
+        );
+        second.submit(Event::RetrySave {
+            operation_id: second.operation(),
+        });
+        project_name_test_support::run_pending(&second).await;
+        assert!(
+            second.has_save_conflict(),
+            "retry cannot adopt the other tab's token"
+        );
+        let window = web_sys::window().unwrap();
+        let old_confirm = Reflect::get(&window, &"confirm".into()).unwrap();
+        let cancel = Closure::<dyn FnMut(JsValue) -> bool>::new(|_| false);
+        Reflect::set(&window, &"confirm".into(), cancel.as_ref()).unwrap();
+        second.open_saved(document.id.clone());
+        assert_eq!(
+            second.delete_saved_project("another-keyboard".into()).await,
+            Err("Pending edits were kept; no keyboard was deleted.".into())
+        );
+        Reflect::set(&window, &"confirm".into(), &old_confirm).unwrap();
+        drop(cancel);
+        assert_eq!(second.model().lifecycle, Lifecycle::RecoveryRequired);
+        second.submit(Event::RetrySave {
+            operation_id: second.operation(),
+        });
+        project_name_test_support::run_pending(&second).await;
+        assert!(
+            second.has_save_conflict(),
+            "cancelled recovery must not adopt a new storage token"
+        );
+        let (captured, archive) = second.pending_archive().await.unwrap();
+        assert_eq!(captured.name, "Second tab pending");
+        let (reply, buffers) =
+            boardstudio_core::archive::request("{\"kind\":\"unpack-project\"}", &[archive]);
+        let ArchiveReply::Unpacked {
+            project_json,
+            assets,
+        } = serde_json::from_str(&reply).unwrap()
+        else {
+            panic!("pending copy was not a valid archive: {reply}")
+        };
+        let unpacked: ProjectDoc = serde_json::from_str(&project_json).unwrap();
+        assert_eq!(unpacked.name, "Second tab pending");
+        assert_eq!(buffers[assets[0].buffer_index as usize], bytes);
+        assert!(
+            second.store.load_asset(hash).await.unwrap().is_none(),
+            "the conflicting asset write was rolled back"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn archive_exactly_at_size_limit_reaches_normal_validation() {
+        let runtime = project_name_test_support::new_runtime();
+        project_name_test_support::open_document(&runtime, in_process_support::board_document())
+            .await;
+        let imported = ProjectDoc::empty("archive-at-limit", "At limit");
+        let (mut entered, release) =
+            project_name_test_support::gate_import_archive(&runtime, &imported);
+        let done = project_name_test_support::track_import_file(&runtime);
+        let file = web_sys::File::new_with_u8_array_sequence(&Array::new(), "at-limit.boardstudio")
+            .unwrap();
+        let descriptor = Object::new();
+        Reflect::set(
+            &descriptor,
+            &"value".into(),
+            &JsValue::from_f64(128.0 * 1024.0 * 1024.0),
+        )
+        .unwrap();
+        Object::define_property(&Object::from(file.clone()), &"size".into(), &descriptor);
+        runtime.import_file(file);
+        let mut admitted = false;
+        for _ in 0..200 {
+            if matches!(entered.try_recv(), Ok(Some(()))) {
+                admitted = true;
+                break;
+            }
+            TimeoutFuture::new(1).await;
+        }
+        assert!(
+            admitted,
+            "exactly-at-limit files must reach Core: {}",
+            runtime.status()
+        );
+        release.send(()).unwrap();
+        done.await.unwrap();
+        project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "archive-at-limit"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn oversized_import_is_rejected_before_opening_or_reading() {
+        let runtime = project_name_test_support::new_runtime();
+        project_name_test_support::open_document(&runtime, in_process_support::board_document())
+            .await;
+        let before = runtime.model().accepted.unwrap();
+        let file =
+            web_sys::File::new_with_u8_array_sequence(&Array::new(), "oversized.boardstudio")
+                .unwrap();
+        let descriptor = Object::new();
+        Reflect::set(
+            &descriptor,
+            &"value".into(),
+            &JsValue::from_f64(128.0 * 1024.0 * 1024.0 + 1.0),
+        )
+        .unwrap();
+        Object::define_property(&Object::from(file.clone()), &"size".into(), &descriptor);
+        runtime.import_file(file);
+        assert!(
+            runtime.status().contains("128 MiB"),
+            "oversized files must be rejected synchronously: {}",
+            runtime.status()
+        );
+        assert_eq!(runtime.model().accepted.unwrap().token, before.token);
     }
 }

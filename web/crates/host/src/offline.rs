@@ -1,3 +1,7 @@
+/// Storage startup protocol; unknown workers and extra windows defer collection.
+pub const STORAGE_WINDOW_QUERY: &str = "boardstudio-storage-windows-v1";
+pub const STORAGE_WINDOW_ALONE: &str = "boardstudio-storage-alone-v1";
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OfflineManifest {
     pub version: String,

@@ -8,6 +8,9 @@ use boardstudio_application::Event;
 #[cfg(test)]
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 use boardstudio_core::model::{PartKind, ProjectDoc};
+#[cfg(test)]
+use boardstudio_web_host::host::ProjectListing;
+use boardstudio_web_host::host::UnreadableProject;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -419,6 +422,7 @@ pub fn Library(
     let current_project_id = current.as_ref().map(|document| document.id.clone());
     let accepted_identity = current.as_ref().map(|document| document.id.clone());
     let mut saved = use_signal(Vec::<Arc<ProjectDoc>>::new);
+    let mut unreadable = use_signal(Vec::<UnreadableProject>::new);
     let mut search_query = use_signal(String::new);
     let mut pending_delete = use_signal(|| None::<Arc<ProjectDoc>>);
     let deleting_project = use_signal(|| false);
@@ -484,12 +488,15 @@ pub fn Library(
                 Some(result) => {
                     // Hold the test response so the mounted DOM can observe Loading.
                     gloo_timers::future::TimeoutFuture::new(120).await;
-                    result
+                    result.map(|documents| ProjectListing {
+                        documents,
+                        unreadable: Vec::new(),
+                    })
                 }
-                None => runtime.store.list_documents().await,
+                None => runtime.store.list_projects().await,
             };
             #[cfg(not(all(test, target_arch = "wasm32")))]
-            let result = runtime.store.list_documents().await;
+            let result = runtime.store.list_projects().await;
             let latest_identity = runtime
                 .model()
                 .accepted
@@ -502,7 +509,9 @@ pub fn Library(
                 return;
             }
             match result {
-                Ok(mut documents) => {
+                Ok(listing) => {
+                    unreadable.set(listing.unreadable);
+                    let mut documents = listing.documents;
                     sort_saved(&mut documents);
                     saved.set(documents.into_iter().map(Arc::new).collect());
                     status.set(ListStatus::Ready);
@@ -667,6 +676,19 @@ pub fn Library(
                 if status() == ListStatus::Loading {
                     p { role: "status", "Loading saved keyboards…" }
                 }
+                if recovery_required && runtime.has_pending_edits() {
+                    div { role: "alert", class: "m1-save-error",
+                        p { "Your pending edits have not been saved. Download them before reloading if you want to keep them." }
+                        button { r#type: "button", onclick: {
+                            let runtime = runtime.clone();
+                            move |_| runtime.download_pending_edits()
+                        }, "Download my pending edits" }
+                        button { r#type: "button", onclick: {
+                            let runtime = runtime.clone();
+                            move |_| runtime.recover_saved()
+                        }, "Reload saved version" }
+                    }
+                }
                 if status() == ListStatus::Failed {
                     p { role: "alert", "Saved keyboards could not be loaded. "
                         button { class: "m1-library-text-action", r#type: "button", onclick: move |_| {
@@ -690,6 +712,34 @@ pub fn Library(
                     }
                     for (document, is_current) in cards {
                         KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required, deletable: project_menu }
+                    }
+                }
+                for record in unreadable() {
+                    div { class: "m1-save-error", role: "alert",
+                        strong { "Unreadable saved keyboard: {record.label}" }
+                        p { "{record.error}" }
+                        button { class: "m1-project-raw-download", r#type: "button", onclick: {
+                            let runtime = runtime.clone();
+                            let key = record.key.clone();
+                            move |_| runtime.download_raw_project(key.clone())
+                        }, "Download raw saved data" }
+                        button { class: "m1-project-unreadable-delete", r#type: "button", disabled: record.token.is_none(), onclick: {
+                            let runtime = runtime.clone();
+                            let record = record.clone();
+                            move |_| {
+                                if !web_sys::window().and_then(|window| window.confirm_with_message(
+                                    "Permanently delete this unreadable keyboard? Download its raw saved data first if you want to keep it."
+                                ).ok()).unwrap_or(false) { return; }
+                                let runtime = runtime.clone();
+                                let record = record.clone();
+                                spawn_local(async move {
+                                    match runtime.store.delete_unreadable(&record).await {
+                                        Ok(()) => retry += 1,
+                                        Err(error) => runtime.report(format!("The unreadable keyboard was kept: {error}")),
+                                    }
+                                });
+                            }
+                        }, "Delete unreadable keyboard…" }
                     }
                 }
                 if no_search_matches {
@@ -960,6 +1010,113 @@ mod mounted_tests {
         })
         .await;
         list_alert(root).expect("the list alert rendered")
+    }
+
+    struct ConfirmFixture {
+        window: web_sys::Window,
+        original: wasm_bindgen::JsValue,
+        answer: Rc<Cell<bool>>,
+        _callback: wasm_bindgen::closure::Closure<dyn FnMut(wasm_bindgen::JsValue) -> bool>,
+    }
+
+    impl ConfirmFixture {
+        fn new() -> Self {
+            let window = web_sys::window().unwrap();
+            let original = js_sys::Reflect::get(&window, &"confirm".into()).unwrap();
+            let answer = Rc::new(Cell::new(false));
+            let result = answer.clone();
+            let callback =
+                wasm_bindgen::closure::Closure::<dyn FnMut(wasm_bindgen::JsValue) -> bool>::new(
+                    move |_| result.get(),
+                );
+            js_sys::Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
+            Self {
+                window,
+                original,
+                answer,
+                _callback: callback,
+            }
+        }
+    }
+
+    impl Drop for ConfirmFixture {
+        fn drop(&mut self) {
+            js_sys::Reflect::set(&self.window, &"confirm".into(), &self.original).unwrap();
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn unreadable_record_keeps_healthy_card_and_requires_confirmation_to_delete() {
+        PROJECT_LIST_TEST_RESULTS.with(|results| results.borrow_mut().clear());
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let healthy = ProjectDoc::empty("partial-list-healthy", "Healthy saved keyboard");
+        let mut future = ProjectDoc::empty("partial-list-future", "Future saved keyboard");
+        future.format_version = 999;
+        runtime
+            .store
+            .save_document(&healthy, &Default::default())
+            .await
+            .unwrap();
+        runtime
+            .store
+            .save_document(&future, &Default::default())
+            .await
+            .unwrap();
+        let (session, core) = accepted(healthy.clone());
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_menu(runtime.clone(), "partial-list-mounted-regression");
+        wait_until(
+            "healthy card and raw recovery actions render together",
+            || {
+                root.text_content()
+                    .unwrap_or_default()
+                    .contains("Healthy saved keyboard")
+                    && root
+                        .query_selector(".m1-project-raw-download")
+                        .unwrap()
+                        .is_some()
+                    && root
+                        .query_selector(".m1-project-unreadable-delete")
+                        .unwrap()
+                        .is_some()
+            },
+        )
+        .await;
+        assert!(root.text_content().unwrap().contains("partial-list-future"));
+        let confirm = ConfirmFixture::new();
+        click(&root, ".m1-project-unreadable-delete");
+        drain_and_yield(&runtime).await;
+        assert!(
+            runtime
+                .store
+                .raw_project(&wasm_bindgen::JsValue::from_str(&future.id))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        confirm.answer.set(true);
+        click(&root, ".m1-project-unreadable-delete");
+        wait_until_step("confirmed unreadable record is deleted", async || {
+            runtime
+                .store
+                .raw_project(&wasm_bindgen::JsValue::from_str(&future.id))
+                .await
+                .unwrap()
+                .is_none()
+        })
+        .await;
+        assert_eq!(
+            runtime
+                .store
+                .load_document(healthy.id.clone())
+                .await
+                .unwrap()
+                .unwrap(),
+            healthy
+        );
+        drop(confirm);
+        clean_saved_projects(&runtime, &[&healthy.id]).await;
+        remove_test_root("partial-list-mounted-regression");
     }
 
     #[wasm_bindgen_test]
@@ -2584,8 +2741,18 @@ mod mounted_tests {
         })
         .await;
         release.send(()).expect("release the captured old save");
-        // The released save's completion has no observable signal here: this drain is the
-        // only idle check before the negative (recorded as unproven in the Outcome).
+        wait_until_step(
+            "the released old save finishes before fixture cleanup",
+            async || {
+                runtime
+                    .store
+                    .load_document("menu-name-delayed".into())
+                    .await
+                    .unwrap()
+                    .is_some_and(|document| document.name == "Delayed old rename")
+            },
+        )
+        .await;
         drain_and_yield(&runtime).await;
         assert!(
             slot.borrow().is_none(),

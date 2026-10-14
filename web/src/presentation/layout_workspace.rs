@@ -25,6 +25,8 @@ pub(super) struct ToolbarInput {
     pub(super) assembly_3d: bool,
     pub(super) on_view_mode: EventHandler<bool>,
     pub(super) on_retry_save: EventHandler<()>,
+    pub(super) save_conflict: bool,
+    pub(super) on_download_pending: EventHandler<()>,
     pub(super) on_recover_saved: EventHandler<()>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
@@ -404,10 +406,13 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             }
             if let Some(reason) = input.save_failure.as_ref() {
                 p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
-                button { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
+                if !input.save_conflict {
+                    button { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
+                }
+                button { onclick: move |_| input.on_download_pending.call(()), "Download my pending edits" }
             }
             if input.recovery_required {
-                button { onclick: move |_| input.on_recover_saved.call(()), "Reopen last saved version (discard pending changes)" }
+                button { onclick: move |_| input.on_recover_saved.call(()), "Reload saved version" }
             }
         }
         div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",

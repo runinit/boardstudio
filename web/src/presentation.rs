@@ -6827,6 +6827,10 @@ fn Editor() -> Element {
             });
         })
     };
+    let download_pending = {
+        let pending = runtime.clone();
+        EventHandler::new(move |_| pending.download_pending_edits())
+    };
     let recover_saved = {
         let recover = recover.clone();
         EventHandler::new(move |_| recover.recover_saved())
@@ -7257,6 +7261,8 @@ fn Editor() -> Element {
                     assembly_3d: layout_assembly_3d(),
                     on_view_mode: on_layout_view_mode,
                     on_retry_save: retry_save,
+                    save_conflict: runtime.has_save_conflict(),
+                    on_download_pending: download_pending,
                     on_recover_saved: recover_saved,
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),

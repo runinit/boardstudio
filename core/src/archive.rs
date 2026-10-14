@@ -17,8 +17,10 @@ struct Limits {
 }
 
 const MIB: usize = 1024 * 1024;
+/// Maximum compressed project archive accepted by Core and browser file admission.
+pub const MAX_PROJECT_ARCHIVE_BYTES: usize = 128 * MIB;
 const LIMITS: Limits = Limits {
-    compressed: 128 * MIB,
+    compressed: MAX_PROJECT_ARCHIVE_BYTES,
     project: 8 * MIB,
     entry: 64 * MIB,
     total: 256 * MIB,

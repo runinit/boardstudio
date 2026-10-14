@@ -1400,6 +1400,7 @@
   "core_engine::replacing_matrix_switch_remaps_existing_terminal_nets_and_undoes",
   "core_engine::scripts_emit_stable_ids_and_keep_visual_pose",
   "core_engine::undo_redo_increments_revision",
+  "core_engine::undo_retains_only_the_latest_hundred_commits",
   "core_engine::union_difference_make_one_hole",
   "core_engine::wire_roundtrip_matches_contract",
   "current_schema::a_pair_without_a_source_or_halves_stays_unpaired",

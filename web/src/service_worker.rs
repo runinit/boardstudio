@@ -134,6 +134,49 @@ pub fn start_offline_worker(version: String, assets: Vec<String>) -> Result<(), 
     global.add_event_listener_with_callback("activate", activate.as_ref().unchecked_ref())?;
     activate.forget();
 
+    let message = Closure::<dyn FnMut(web_sys::ExtendableMessageEvent)>::new(
+        |event: web_sys::ExtendableMessageEvent| {
+            if event.data().as_string().as_deref()
+                != Some(boardstudio_web_host::offline::STORAGE_WINDOW_QUERY)
+            {
+                return;
+            }
+            let Some(source) = event
+                .source()
+                .and_then(|source| source.dyn_into::<web_sys::Client>().ok())
+            else {
+                return;
+            };
+            let Ok(port) = event.ports().get(0).dyn_into::<web_sys::MessagePort>() else {
+                return;
+            };
+            let promise = future_to_promise(async move {
+                let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
+                let options = web_sys::ClientQueryOptions::new();
+                options.set_include_uncontrolled(true);
+                options.set_type(web_sys::ClientType::Window);
+                let clients = Array::from(
+                    &JsFuture::from(global.clients().match_all_with_options(&options)).await?,
+                );
+                let alone = clients.length() == 1
+                    && clients.iter().all(|client| {
+                        client
+                            .dyn_into::<web_sys::Client>()
+                            .is_ok_and(|client| client.id() == source.id())
+                    });
+                port.post_message(&JsValue::from_str(if alone {
+                    boardstudio_web_host::offline::STORAGE_WINDOW_ALONE
+                } else {
+                    "defer"
+                }))?;
+                Ok(JsValue::UNDEFINED)
+            });
+            let _ = event.wait_until(&promise);
+        },
+    );
+    global.add_event_listener_with_callback("message", message.as_ref().unchecked_ref())?;
+    message.forget();
+
     let scope_url = scope();
     let fetch = Closure::<dyn FnMut(FetchEvent)>::new(move |event: FetchEvent| {
         if event.request().url().starts_with(&scope_url) {

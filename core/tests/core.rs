@@ -4391,3 +4391,63 @@ fn grouped_matrix_cell_actions_deduplicate_linked_halves_and_reject_deleted_targ
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undone.matrices, disabled.matrices);
 }
+
+#[test]
+fn undo_retains_only_the_latest_hundred_commits() {
+    let mut engine = CoreEngine::new();
+    let (_, mut document) = scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: ProjectDoc::empty("bounded-history", "0"),
+    }));
+    for index in 1..=101 {
+        let mut next = document.clone();
+        next.name = index.to_string();
+        (_, document) = scene(engine.handle(edit(
+            document.revision,
+            EditPhase::Commit,
+            EditOperation::ReplaceDocument {
+                document: Box::new(next),
+            },
+        )));
+    }
+    for _ in 0..100 {
+        (_, document) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    }
+    assert_eq!(document.name, "1");
+    assert!(matches!(
+        engine.handle(CoreRequest::Undo {
+            id: "too-old".into()
+        }),
+        CoreReply::Error { .. }
+    ));
+    for _ in 0..100 {
+        (_, document) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    }
+    assert_eq!(document.name, "101");
+    (_, document) = scene(engine.handle(CoreRequest::Undo {
+        id: "branch".into(),
+    }));
+    let mut branch = document.clone();
+    branch.name = "Branch".into();
+    scene(engine.handle(edit(
+        document.revision,
+        EditPhase::Commit,
+        EditOperation::ReplaceDocument {
+            document: Box::new(branch),
+        },
+    )));
+    assert!(matches!(
+        engine.handle(CoreRequest::Redo {
+            id: "no-redo".into()
+        }),
+        CoreReply::Error { .. }
+    ));
+    scene(engine.handle(CoreRequest::Open {
+        id: "fresh".into(),
+        document: ProjectDoc::empty("fresh", "Fresh"),
+    }));
+    assert!(matches!(
+        engine.handle(CoreRequest::Undo { id: "empty".into() }),
+        CoreReply::Error { .. }
+    ));
+}

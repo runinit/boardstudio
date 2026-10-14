@@ -358,14 +358,15 @@ impl DocumentPersistence for TestPersistence {
         &'a self,
         document: &'a ProjectDoc,
         assets: &'a BTreeMap<String, Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>> {
+        expected: Option<&'a StorageToken>,
+    ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>> {
         Box::pin(async move {
             if let Some(behavior) = self.take_behavior() {
                 match behavior {
-                    OneShotBehavior::Fail(reason) => return Err(reason),
+                    OneShotBehavior::Fail(reason) => return Err(SaveError::Storage(reason)),
                     OneShotBehavior::Hold => {
                         let Some((entered, release)) = self.gate.borrow_mut().take() else {
-                            return Err("save gate was not configured".into());
+                            return Err(SaveError::Storage("save gate was not configured".into()));
                         };
                         let _ = entered.send(());
                         let _ = release.await;
@@ -373,11 +374,21 @@ impl DocumentPersistence for TestPersistence {
                 }
             }
             match &*self.target.borrow() {
-                PersistTarget::Store(store) => store
-                    .save_document(document, assets)
-                    .await
-                    .map_err(|error| error.to_string()),
+                PersistTarget::Store(store) => {
+                    store
+                        .save_document_expected(document, assets, expected)
+                        .await
+                }
                 PersistTarget::Memory(saves) => {
+                    let actual = saves
+                        .borrow()
+                        .get(&document.id)
+                        .map(|save| StorageToken::for_document(&save.document))
+                        .transpose()?;
+                    if actual.as_ref() != expected {
+                        return Err(SaveError::Conflict);
+                    }
+                    let token = StorageToken::for_document(document)?;
                     saves.borrow_mut().insert(
                         document.id.clone(),
                         MemorySave {
@@ -385,7 +396,7 @@ impl DocumentPersistence for TestPersistence {
                             assets: assets.clone(),
                         },
                     );
-                    Ok(())
+                    Ok(token)
                 }
             }
         })
