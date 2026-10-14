@@ -27,7 +27,19 @@ and for any bulk action a recorded decision permits.
 - [151](issues/151-explicit-mirror-only-part-placement.md) is resolved and integrated locally
   at `773aee9ad`: explicit mirror-only placement and bilateral linked catalogue additions share
   the prepared transaction. Native, full build/browser, real-WASM transcript and independent
-  review/mutation gates passed. 109b automatic pins and fresh parent19 acceptance remain open.
+  review/mutation gates passed. Parent 19 fresh full acceptance remains open.
+
+- [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md) is resolved and integrated at
+  `d0783ca2` (source `1ee3e52f`). Candidate repository/tooling/lint/typecheck/build, 1,938 native
+  tests, 89 browser page tests, 15 CAD checks, actual Chrome WASM boundary 1/1, and 12 compiled
+  mutation kills passed; production restoration is exact. Automatic assignment reuses the existing
+  resolver in the activated prepared transaction, with source assignments read-only and retained
+  bindings/locks honored. The only approved visibility change is test-support `pub(crate)` access to
+  the shared fixture helper. Root confirmed post-merge repo/test/lint session 6073 exited
+  successfully with 1,938 tests executed; see
+  `.evidence/ticket109b/integration/verification-current.json` and
+  `.evidence/ticket109b/integration/post-merge-checks.log`. Parent 19 remains the next fresh full
+  acceptance and is open.
 
 - Native mirrored halves (ADR-0008 amendment, user 2026-10-09; accepted in
   [16](issues/16-native-mirrored-halves.md), [ADR-0010](../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)):

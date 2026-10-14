@@ -1,6 +1,6 @@
 # 109b: Mirror-only replacement parts receive pins automatically
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [109](109-mirrored-half-exceptions-unlink.md), [111](111-integrate-mirrored-half-reconciliation.md), [151](151-explicit-mirror-only-part-placement.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -34,14 +34,14 @@ Rejoin notice are 109's. This ticket does not change them.
 
 ## Acceptance
 
-- [ ] Placing a replacement after an Omit gives it a free pin immediately, never one held by a
+- [x] Placing a replacement after an Omit gives it a free pin immediately, never one held by a
       mirrored item, and a pin freed by the Omit is a valid choice.
-- [ ] Placing a replacement when no pin is free reports it and changes nothing else.
-- [ ] A Rejoin that reclaims the replacement's pin re-pins the replacement, or reports that none
+- [x] Placing a replacement when no pin is free reports it and changes nothing else.
+- [x] A Rejoin that reclaims the replacement's pin re-pins the replacement, or reports that none
       is free; the Rejoined item has its source pin.
-- [ ] Source pins and the source half are unchanged by every case above.
-- [ ] Undo of the placement restores the previous assignments exactly.
-- [ ] Preview and history behavior follow 111's activation; there is no second assignment path.
+- [x] Source pins and the source half are unchanged by every case above.
+- [x] Undo of the placement restores the previous assignments exactly.
+- [x] Preview and history behavior follow 111's activation; there is no second assignment path.
 
 Use 111's activated prepared transaction, Save/Open and history routes, and 151's explicit
 placement command. Keep automatic assignment in that same transaction. Do not widen the
@@ -53,3 +53,34 @@ visibility of the electrical resolver.
 from this ticket's existing pin-assignment contract. Normal mirror-side AddPart currently creates
 a source Part, so pin verification must use the accepted explicit placement route once 151
 settles it. This does not block 111 or authorize a new operation family inside activation.
+
+## Answer
+
+The 109b implementation is integrated at `d0783ca2` from source commit `1ee3e52f`. The final
+post-merge repo/test/lint gate also passed: root confirmed session 6073 exited successfully with
+1,938 baseline tests executed. Candidate verification evidence is recorded in
+`.evidence/ticket109b/integration/verification-current.json`; final repo/test/lint details are in
+`.evidence/ticket109b/integration/post-merge-checks.log`.
+
+The implementation uses the existing electrical resolver inside the activated prepared transaction,
+after reconciliation, for explicit `AddMirrorOnlyPart` placement and the existing linked-Part
+`SetHalfException` path. Automatic assignment targets only eligible unused pins. Source-document
+assignments and source electrical state remain unchanged. Each board’s protected handoff baseline
+remains independent; retained handoff bindings and user locks stay fixed. Rejoin retries assignment
+for the replacement; when profile capacity leaves no eligible pin, the transaction refuses
+atomically.
+
+All six acceptance cases are covered: placement after Omit frees a pin; linked source pins and
+source state remain unchanged; no available pin refuses; Rejoin re-pins or refuses on
+collision/capacity; placement Undo restores the complete serialized document except revision; and
+Preview reports the proposed placement without publishing it. Save/Open and protected handoff
+baselines are retained.
+
+The production resolver remains private. The owner-approved `pub(crate)` visibility is limited to
+the test-support `supported_source_document` fixture helper so sibling test modules can share the
+fixture; it does not widen production resolver visibility.
+
+Compatibility boundaries remain explicit: a board with no key layout fails the existing wiring
+prerequisite (“Place a key layout on this PCB before resolving wiring”), which is distinct from
+no-free-pin capacity. Existing unsupported-profile/controller and insufficient-profile-capacity
+refusals remain atomic; matrixless and padless compatibility behavior is preserved.
