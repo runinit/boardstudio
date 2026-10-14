@@ -1149,6 +1149,49 @@ fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
     document
 }
 
+fn configure_mirrored_part_pair(document: &mut ProjectDoc) {
+    document.boards[0].part_ids = vec!["selected-part".into()];
+    document.boards.push(Board {
+        id: "mirror-board".into(),
+        name: "Mirror board".into(),
+        outline_ids: vec![],
+        part_ids: vec!["source-part".into()],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "source-part")
+        .unwrap()
+        .pose
+        .at
+        .x = -4.0;
+    document.layouts.clear();
+    document.matrices.clear();
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "topology":"split", "transport":"wireless",
+            "instances":[
+                {"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":null,"mechanical":null},
+                {"id":"mirror-instance","name":"Right half","boardId":"mirror-board","half":"right","role":"secondary","flipped":true,"controllerPartId":null,"mechanical":null}
+            ],
+            "pairs":[{
+                "id":"pair/A","members":["source-instance","mirror-instance"],
+                "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
+                "construction":{"method":"printed","mount":"tray","integratedPlateFrame":false,"plateThickness":1.5,"plateFoamThickness":0.0,"bottomFoamThickness":0.0,"bottomThickness":1.5,"plateToPcb":5.0,"wallThickness":2.0,"clearance":0.2},
+                "constructionSource":"source-instance",
+                "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
+                    {"kind":"part","sourceId":"selected-part","mirrorId":"source-part"}
+                ]}
+            }]
+        }))
+        .expect("the mirrored board pair is valid"),
+    );
+}
+
 /// A runtime whose Core requests run through the in-process engine and whose saves stay
 /// in memory, opened on the fixture document with the given parts selected.
 async fn mounted_runtime_probe(
@@ -1288,38 +1331,7 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
 
     let (probe, root) = mounted_runtime_probe(
         "layout-mirrored-half-round-trip-test-root",
-        |document| {
-            document.boards[0].part_ids = vec!["selected-part".into()];
-            document.boards.push(Board {
-                id: "mirror-board".into(),
-                name: "Mirror board".into(),
-                outline_ids: vec![],
-                part_ids: vec!["source-part".into()],
-                net_ids: vec![],
-                thickness: 1.6,
-                traces: vec![],
-                vias: vec![],
-            });
-            document.parts.iter_mut().find(|part| part.id == "source-part").unwrap().pose.at.x = -4.0;
-            document.layouts.clear();
-            document.matrices.clear();
-            document.hardware = Some(serde_json::from_value(serde_json::json!({
-                "topology":"split", "transport":"wireless",
-                "instances":[
-                    {"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":null,"mechanical":null},
-                    {"id":"mirror-instance","name":"Right half","boardId":"mirror-board","half":"right","role":"secondary","flipped":true,"controllerPartId":null,"mechanical":null}
-                ],
-                "pairs":[{
-                    "id":"pair/A","members":["source-instance","mirror-instance"],
-                    "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
-                    "construction":{"method":"printed","mount":"tray","integratedPlateFrame":false,"plateThickness":1.5,"plateFoamThickness":0.0,"bottomFoamThickness":0.0,"bottomThickness":1.5,"plateToPcb":5.0,"wallThickness":2.0,"clearance":0.2},
-                    "constructionSource":"source-instance",
-                    "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
-                        {"kind":"part","sourceId":"selected-part","mirrorId":"source-part"}
-                    ]}
-                }]
-            })).expect("the mirrored board pair is valid"));
-        },
+        configure_mirrored_part_pair,
         &["selected-part"],
     )
     .await;
@@ -3814,6 +3826,55 @@ fn companion_placement_component_host() -> Element {
     }
 }
 
+fn companion_placement_runtime_host() -> Element {
+    let projection = use_context::<inspector::CompanionPlacementProjection>();
+    let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+    let refuse_as_invalid_pair_tweak = use_context::<Rc<std::cell::Cell<bool>>>();
+    let generation = use_signal(|| 0u64);
+    let _ = generation();
+    use_hook(|| {
+        runtime.subscribe(Rc::new(move || {
+            let mut generation = generation;
+            generation += 1;
+        }));
+    });
+    let pending = use_signal(|| false);
+    let error = use_signal(|| None::<String>);
+    let pending_edits = use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    let action_runtime = runtime.clone();
+    let action_edits = pending_edits;
+    rsx! {
+        inspector::CompanionPlacementInspector {
+            projection,
+            pending,
+            error,
+            pending_edits,
+            on_apply: EventHandler::new(move |mut action: inspector::CompanionPlacementAction| {
+                if refuse_as_invalid_pair_tweak.get() {
+                    action.targets.push(boardstudio_core::model::CompanionPlacementTarget::Pair);
+                    action.tweak = Some(boardstudio_core::model::MirroredCompanionTweak {
+                        x: 0.5,
+                        y: 0.25,
+                        rotation: 2.0,
+                    });
+                }
+                submit_layout_component_edit(
+                    &action_runtime,
+                    action_edits,
+                    layout_component_edits::InspectorField::CompanionPlacement,
+                    layout_component_edits::companion_placement_resolver(
+                        action.pair_id,
+                        action.targets,
+                        action.mode,
+                        action.tweak,
+                    ),
+                    None,
+                );
+            }),
+        }
+    }
+}
+
 fn companion_placement_component_projection(
     disabled_reason: Option<&'static str>,
 ) -> inspector::CompanionPlacementProjection {
@@ -3857,6 +3918,165 @@ fn companion_placement_component_projection(
         mixed_tweak: false,
         disabled_reason,
     }
+}
+
+#[wasm_bindgen_test]
+async fn companion_placement_mounted_edit_undo_and_core_refusal() {
+    use boardstudio_core::model::{CompanionPlacementTarget, MirroredCompanionMode};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+    use wasm_bindgen::JsCast;
+
+    let runtime = crate::runtime::project_name_test_support::new_runtime();
+    crate::runtime::project_name_test_support::install(
+        &runtime,
+        boardstudio_application::Session::new(),
+        boardstudio_core::CoreEngine::new(),
+    );
+    crate::runtime::project_name_test_support::install_memory_persistence(&runtime);
+    runtime.submit(boardstudio_application::Event::Open {
+        operation_id: runtime.operation(),
+        document: runtime_document(configure_mirrored_part_pair),
+    });
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.submit(boardstudio_application::Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["selected-part".into()],
+        range_part_ids: Vec::new(),
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+
+    let model = runtime.model();
+    let snapshot = model.accepted.as_ref().expect("fixture opened");
+    let scope = runtime.scope().expect("fixture scope");
+    let mut projection = companion_placement_component_projection(None);
+    projection.owner.scope = scope.clone();
+    projection.owner.context = objects::ScopedTreeContext {
+        scope,
+        context: objects::context_for_part(&model, "selected-part").expect("selected part context"),
+    };
+    projection.owner.selected_part_ids = model.selected_part_ids.clone();
+    projection.owner.snapshot_token = snapshot.token;
+    projection.owner.revision = snapshot.document.revision;
+    projection.targets = vec![CompanionPlacementTarget::Item {
+        item_kind: boardstudio_core::model::MirroredItemKind::Part,
+        mirror_id: "source-part".into(),
+    }];
+    let reject_pair_tweak = Rc::new(std::cell::Cell::new(false));
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(companion_placement_runtime_host);
+    dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(projection);
+    dom.provide_root_context(reject_pair_tweak.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the live companion placement control mounts", || {
+        root.query_selector("details.m1-layout-companion-placement summary")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    companion_click(&root, "details.m1-layout-companion-placement summary");
+
+    let choose_mode = |value: &str| {
+        let select = root
+            .query_selector("select")
+            .unwrap()
+            .expect("mode selector")
+            .dyn_into::<web_sys::HtmlSelectElement>()
+            .unwrap();
+        select.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        select
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+            .unwrap();
+    };
+    let pair_mode = |runtime: &Rc<crate::runtime::Runtime>| {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .companion_mode
+    };
+
+    let before = runtime.model().accepted.unwrap().document.revision;
+    choose_mode("duplicate-position");
+    companion_click(&root, ".m1-layout-companion-placement-default input");
+    companion_click(&root, "button");
+    wait_until_step("Core accepts the companion default edit", async || {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        pair_mode(&runtime) == MirroredCompanionMode::DuplicatePosition
+            && runtime.model().accepted.unwrap().document.revision > before
+    })
+    .await;
+    let accepted_revision = runtime.model().accepted.unwrap().document.revision;
+    runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    wait_until_step("Undo restores the companion default", async || {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        pair_mode(&runtime) == MirroredCompanionMode::LiteralMirror
+            && runtime.model().accepted.unwrap().document.revision > accepted_revision
+    })
+    .await;
+
+    companion_click(&root, ".m1-layout-companion-placement-default input");
+    choose_mode("literal-mirror-with-tweak");
+    wait_until("the tweak fields mount", || {
+        root.query_selector_all("input[type='number']")
+            .unwrap()
+            .length()
+            == 3
+    })
+    .await;
+    let tweak_inputs = root.query_selector_all("input[type='number']").unwrap();
+    for (index, value) in ["0.5", "0.25", "2"].into_iter().enumerate() {
+        let input = tweak_inputs
+            .item(index as u32)
+            .expect("tweak input")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+    reject_pair_tweak.set(true);
+    companion_click(&root, "button");
+    wait_until_step("Core refusal reaches the Inspector", async || {
+        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        root.query_selector("[role='alert']")
+            .unwrap()
+            .is_some_and(|alert| {
+                alert
+                    .text_content()
+                    .unwrap_or_default()
+                    .contains("cannot carry a companion tweak")
+            })
+    })
+    .await;
+    assert_eq!(pair_mode(&runtime), MirroredCompanionMode::LiteralMirror);
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.revision,
+        accepted_revision + 1,
+        "the refused request leaves accepted state unchanged after Undo"
+    );
+    root.remove();
 }
 
 #[wasm_bindgen_test]
@@ -3920,6 +4140,73 @@ async fn companion_placement_disclosure_submits_typed_targets_and_shows_refusal(
         action.mode,
         boardstudio_core::model::MirroredCompanionMode::LiteralMirror
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn companion_placement_shows_mixed_modes_and_tweaks() {
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use wasm_bindgen::JsCast;
+
+    let mut projection = companion_placement_component_projection(None);
+    projection.mode = None;
+    projection.mixed_mode = true;
+    projection.tweak = None;
+    projection.mixed_tweak = true;
+    let actions = Rc::new(RefCell::new(None::<inspector::CompanionPlacementAction>));
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(companion_placement_component_host);
+    dom.provide_root_context(projection);
+    dom.provide_root_context(actions);
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the mixed companion placement section mounts", || {
+        root.query_selector("details.m1-layout-companion-placement summary")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let summary = root
+        .query_selector("details.m1-layout-companion-placement summary small")
+        .unwrap()
+        .unwrap();
+    assert_eq!(summary.text_content().as_deref(), Some("Mixed"));
+    companion_click(&root, "details.m1-layout-companion-placement summary");
+    let mode = root
+        .query_selector("select")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(mode.value(), "");
+    mode.set_value("literal-mirror-with-tweak");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    mode.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    wait_until("mixed tweak fields mount", || {
+        root.query_selector_all("input[type='number']")
+            .unwrap()
+            .length()
+            == 3
+    })
+    .await;
+    let inputs = root.query_selector_all("input[type='number']").unwrap();
+    for index in 0..inputs.length() {
+        assert_eq!(
+            inputs
+                .item(index)
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap()
+                .placeholder(),
+            "Mixed values"
+        );
+    }
     root.remove();
 }
 

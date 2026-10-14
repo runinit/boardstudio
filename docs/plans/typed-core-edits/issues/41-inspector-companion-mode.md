@@ -55,5 +55,16 @@ accepts either the source or mirror part id; mounted Inspector integration and c
   `repo`, `lint`, `typecheck`, the focused browser suite (36 tests), `cargo fmt --all --check`,
   `git diff --check`, and `impeccable detect --json` passed.
 - Acceptance remains open: the mounted tests do not yet exercise selection through the full
-  Editor, a real refused Core operation, or the edit/Undo round trip. Mixed tweak rendering and
-  the pair-default contract also need integrated verification.
+  Editor. The pair-default contract is recorded and integrated verification is tracked below.
+
+## Progress (2026-10-14, mounted Core edit)
+
+The mounted Companion placement control now drives the typed resolver through Runtime and Core.
+The test changes the pair default, waits for the accepted revision, undoes it, then injects an
+invalid pair-plus-tweak request and verifies Core's refusal appears inline while accepted state
+stays unchanged. A separate mounted check confirms mixed modes and tweaks render as “Mixed values.”
+
+`python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs`:
+39 passed. Formatting passed. These tests use the mounted control with an in-process Runtime/Core
+host; full Editor selection-owner integration remains open, as does running `repo lint typecheck
+browser` at this ticket's acceptance scope.
