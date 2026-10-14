@@ -139,6 +139,7 @@ impl KeycapsWorkspaceState {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -183,14 +184,24 @@ mod workspace_state_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the keycaps finding control renders", || {
+            root.query_selector("#focus-finding")
+                .is_ok_and(|button| button.is_some())
+        })
+        .await;
         let button = document
             .get_element_by_id("focus-finding")
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         button.click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the finding receives its first navigation identity", || {
+            root.query_selector("#focused-navigation-id")
+                .ok()
+                .flatten()
+                .is_some_and(|label| label.text_content().as_deref() == Some("0"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("focused-navigation-id")
@@ -200,7 +211,13 @@ mod workspace_state_tests {
             Some("0")
         );
         button.click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("refocusing advances the navigation identity", || {
+            root.query_selector("#focused-navigation-id")
+                .ok()
+                .flatten()
+                .is_some_and(|label| label.text_content().as_deref() == Some("1"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("focused-navigation-id")

@@ -352,3 +352,9 @@ passing. Remaining #37 suites and acceptance evidence stay open.
 The setup workspace state test now waits for its controls, stage update, and dismissal state rather
 than using three fixed delays. Its filtered wasm test passed (1/1), with `cargo fmt --all --check`
 and `git diff --check` passing. Remaining #37 suites and acceptance evidence stay open.
+
+## Progress (2026-10-14, keycaps workspace state)
+
+The keycaps workspace state test now waits for its control and both navigation identity updates
+instead of sleeping. The filtered wasm modules passed (3/3), with `cargo fmt --all --check` and
+`git diff --check` passing. Remaining #37 suites and acceptance evidence stay open.
