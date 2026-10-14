@@ -33,7 +33,7 @@ this ticket with a pointer to the commits.
 - [x] No parameter differs between source and mirrored parts (mutation-checked). (Ticket 18's verification;
   not re-run here.)
 - [x] Physical setup and the Core operation agree on the reused-PCB result, with every difference pinned and
-  recorded (10 rows, see Verification) on the synthetic fixture. Shipped-project coverage is a follow-up.
+  recorded (zero rows) on the synthetic fixture. Shipped-project coverage is a follow-up.
 
 ## Verification plan
 
@@ -45,12 +45,14 @@ Ticket 18's verification already made the mirror's features linked pair features
 and copies every parameter unchanged (commit after `af4c329fd`). Remaining here:
 
 - The equivalence test in `web/crates/catalogue`: on one accepted document, compare
-  `propose_with_mirror_pair` + `into_submission(Some(&mounting_hole_template()))` against
+  `propose_with_mirror_pair` + `into_mirrored_operation` against
   `CreateMirroredHalf` `ReuseBoard` (instances, pair, features, generated `case-closure/*` parts).
-- Report every difference the comparison exposes (expected: the `halves` record, topology/transport
-  and relabelling, a derived versus supplied map). Do NOT move physical setup onto the Core operation
-  here: that is part of the web adapter, ticket [21](21-mirrored-half-web-adapter.md). Scope of 26 is the
-  equivalence test and its findings only.
+- Report every difference the comparison exposes (at the time, the `halves` record, topology/transport
+  and relabelling, a derived versus supplied map). The 2026-10-14 decision in ticket
+  [21](21-mirrored-half-web-adapter.md) supersedes the adapter-owned topology/transport finding:
+  `CreateMirroredHalf` now owns applying those adapter-selected values atomically. Ticket 21 updated
+  this comparison for the new inputs in commit `fd2f217e`; the live comparison now has no
+  differences. Retain the old results below as historical evidence.
 
 ## Outcome
 
@@ -109,17 +111,19 @@ The pinned difference set is exact: a row that appears or vanishes fails the tes
 
 ### Findings
 
-- **F1 (unexpected, B side).** `CreateMirroredHalf` ReuseBoard labels the mirror from its source's label. In
+- **F1 (unexpected in the unlabelled comparison, B side).** `CreateMirroredHalf` ReuseBoard labels the mirror from its source's label. In
   `core/src/mirrored_half.rs`, `mirror_half_label` (about line 499) keeps every label except left and right, and
   `mirror_instance` takes the role from `half == "right"`. With a unibody source, the mirror becomes half
   unibody, role central, name "Keyboard mirror" (rows 4 to 6). Physical setup's reference is right, peripheral,
-  "Right half". Recommendation, a decision for the user and not fixed here: the ticket 21 adapter must relabel the
-  source to left, central, "Left half" before calling ReuseBoard, as the topology step does. Core should either
-  refuse a ReuseBoard whose source half is neither left nor right, or label a reused board's mirror as the right
-  half, since a reused board is by definition the second half of a split.
-- **Expected, no fix needed.** `topology`, `transport` and `sharedConstruction` are set by the adapter, not by the
-  Core operation (ADR-0010 amendment). Physical setup relabels the primary (rows 1 to 3). `halves` is present only
-  on B (row 7). Both sides store the same pair `construction` and features, so the link itself agrees.
+  "Right half". This synthetic comparison omitted the optional labels that ticket 21 already requires the adapter
+  to pass. The 2026-10-14 contract supplies the physical setup's source and mirror labels atomically, so these
+  historical rows are not a separate Core refusal or relabelling requirement. Ticket 21 updates the comparison
+  with those inputs.
+- **Expected at the time of this test.** `topology`, `transport` and `sharedConstruction` were set by the adapter, not by the
+  Core operation (the 2026-10-10 ADR-0010 amendment). The 2026-10-14 ticket 21 decision moves topology and transport
+  application into `CreateMirroredHalf`; this table remains the pre-change baseline until ticket 21 updates the
+  comparison. Physical setup relabels the primary (rows 1 to 3). `halves` is present only on B (row 7). Both sides
+  store the same pair `construction` and features, so the link itself agrees.
 
 ### Mutation checks (sources restored, verified by hash)
 
@@ -169,8 +173,8 @@ The pinned difference set is exact: a row that appears or vanishes fails the tes
 
 ### Follow-ups for the verifier
 
-- F1 above (the mirror's label rule for a non-left/right source). Decide whether a reused board's mirror is always
-  the right half, and whether ReuseBoard should refuse a unibody source.
+- F1 above is historical behavior when labels are omitted. Ticket 21 supplies explicit physical-setup labels, so no
+  separate decision about Core's generic label fallback is needed.
 
 ## Verification
 
@@ -207,23 +211,17 @@ were taken from the implementer's text search and the mutations were temporary, 
 
 ### Findings
 
-- **F1 judgment: both a Core defect and an adapter responsibility; neither is fixed here.**
+- **F1 judgment at the time: an unlabelled-source result, addressed for physical setup by ticket 21's explicit labels.**
   `mirror_half_label` (`core/src/mirrored_half.rs`) keeps any label other than left and right, so a `unibody` source
   gets a mirror with half `unibody`, role `central` (the role rule is `half == "right"`) and the name "Keyboard
   mirror". The result is a pair of two `central` instances with the same half, which no physical setup produces.
-  - *Adapter (needed whatever Core does).* ADR-0010 says half, role and name are never reflected and are set by the
-    web adapter. Physical setup relabels the primary as left, central, "Left half" before the second half exists (rows
-    1 to 3 are that relabel). When ticket 21 moves physical setup onto `CreateMirroredHalf` it must relabel the source
-    first, in the same proposal, and set topology, transport and `sharedConstruction` afterwards. With that, rows 1 to
-    6 vanish and the test's pinned set shrinks to rows 7 to 10; 21's implementer should update the literal list.
-  - *Core (recommended for the user to decide, a small follow-up).* Core should not invent a meaningless pair: for
-    both modes either refuse a source whose half is neither left nor right with a named error ("a mirrored half needs a
-    left or right source, found unibody"), or label the reused board's mirror as the right half. Refusal is the
-    smaller and safer change (no source in `core/tests/mirrored_half.rs` or `core/src/mirrored_half.rs` is unibody; their sources are shipped left or right halves);
-    it needs one Core test and a note in ADR-0010's "details of creation". Not done here because the choice (refuse or
-    relabel) is a product decision and the fix is not a one-liner with a unique right answer.
-- **Rows 1 to 3 and 7 to 10 are expected** (adapter-set topology, transport, shared construction, relabel of the
-  primary; `halves` only on B). No difference was found in instances' `mechanical`, `flipped`, `constructionOwnership`,
+  The comparison omitted labels; ticket 21 supplies explicit source and mirror labels on the
+  `CreateMirroredHalf` request, resolving the physical-setup case. These rows remain evidence of
+  behavior when labels are omitted, not a Core defect or a separate product decision. Ticket 21's
+  updated parity test should assert the explicit labels.
+- **Rows 1 to 3 and 7 to 10 were expected in this pre-change comparison** (adapter-set topology, transport, shared
+  construction, relabel of the primary; `halves` only on B). Ticket 21 revises topology and transport ownership.
+  No difference was found in instances' `mechanical`, `flipped`, `constructionOwnership`,
   the pair `id`, `members`, `mapping`, `constructionSource`, `construction`, `features`, or the `case-closure/*` parts.
 
 ### Gaps in the test (not fixed; follow-ups)
