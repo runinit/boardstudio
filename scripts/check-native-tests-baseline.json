@@ -1718,6 +1718,7 @@
   "mirrored_half::production_prepared_refusal_keeps_document_revision_and_history_untouched",
   "mirrored_half::production_prepared_routes_commit_exceptions_and_nonempty_unlink_atomically",
   "mirrored_half::production_prepared_routes_mirror_edits_preview_and_history",
+  "mirrored_half::production_rotated_pair_map_mirror_move_preview_commit_and_history",
   "mirrored_half::production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_instances",
   "mirrored_half::refused_requests_name_the_problem_and_leave_the_document_byte_identical",
   "mirrored_half::reuse_board_copies_no_embedded_circuit_because_it_belongs_to_the_board",

@@ -383,7 +383,8 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
 
 - [151](issues/151-explicit-mirror-only-part-placement.md): owner approved dedicated
   AddMirrorOnlyPart and explicit “Only this half” placement; bounded preparation follows 111 and
-  precedes 109b. Ordinary AddPart remains linked; 111 continues independently.
+  precedes 109b. Ordinary additions are required to stay linked; readiness found catalogue and
+  source-side addition gaps that 151 must close. 111 continues independently.
 
 
 - [152](issues/152-reconcile-authored-matrix-cells.md): resolved private authored-cell/local
@@ -444,3 +445,14 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   transport and mounted Editor proof pass in isolated 111; eight mutations are killed.
   Preparation `aef4fd22` merged locally at `684e8e92`; candidate/post-merge repository/test/lint
   pass all 1,859 native tests (three additions, no removals). 111 activation remains unaccepted.
+- [111](issues/111-integrate-mirrored-half-reconciliation.md): resolved coherent activation,
+  candidate `4d63abc1` merged locally at `6c2f77eb` with identical trees. Final repository,
+  1,904 native tests, lint, build, full browser and separate real WASM replay pass. Reviewed
+  test-only rotated-map follow-up `904391c1` passes repository/native/lint with 1,905 native
+  names and 65 public mirrored-half cases; production source remains identical to the full
+  verified candidate. Both review axes cover all deltas. Runtime mutations:
+  fourteen compiled kills, one audited equivalent survivor, zero compile failures and exact
+  restoration. Same-workload paired p50/p95 is 10,699/11,927 µs versus 1,522/1,654 µs before
+  activation; added cost and run spread are recorded, with no invented budget. Next: 151
+  bilateral linked default plus explicit mirror-only placement, then 109b and fresh parent-19
+  acceptance. Parent 19 remains open; nothing pushed.

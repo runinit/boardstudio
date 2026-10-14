@@ -1,6 +1,6 @@
 # 111: Atomically activate prepared mirrored-half reconciliation
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md), [149](149-targeted-mirrored-set-mechanical.md), [150](150-prepare-matrixless-half-exceptions.md), [152](152-reconcile-authored-matrix-cells.md), [153](153-validate-independent-exceptions-with-matrix-owners.md), [154](154-reserve-staged-circuit-member-references.md), [155](155-admit-hosted-addition-correspondences.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -65,12 +65,12 @@ assigned here so activation does not invent an additional permission gate for al
 
 ## Test-first and acceptance
 
-- [ ] Production-seam smoke cases first fail because runtime edit/Open hooks are absent.
-- [ ] One representative rotated-map linked edit from mirror, local/Omit/Rejoin/Unlink
+- [x] Production-seam smoke cases first fail because runtime edit/Open hooks are absent.
+- [x] One representative rotated-map linked edit from mirror, local/Omit/Rejoin/Unlink
       (including nonempty linked closure context), repaired Open and paired preview reaches
       the prepared paths atomically; one Undo/Redo restores both halves.
-- [ ] Refusal publishes no partial data; unchanged legacy/unpaired behavior remains covered.
-- [ ] No new reconciliation or operation-family logic was required to activate; every helper
+- [x] Refusal publishes no partial data; unchanged legacy/unpaired behavior remains covered.
+- [x] No new reconciliation or operation-family logic was required to activate; every helper
       and compatibility decision has independent preparatory verification evidence.
 
 Independent verifier: mutation-check each newly connected runtime route, including canonical
@@ -240,6 +240,67 @@ Open seed ordering compose the already approved preparation/model contract. Pres
 loaded Framed bindings, untouched legacy JSON, and no-op history; do not invent recovery rules.
 Root also assigns `core/src/constraints/retune.rs` solely to remove the obsolete dead-code
 expectation once the existing helper is used in production; no visibility change is included.
+
+## Answer (2026-10-13)
+
+Resolved by coherent activation candidate `4d63abc1`, merged locally into `dev` at
+`6c2f77eb` with the identical tree `1f214cb469650a64a1f73bbeb8f35ded3ef13cfa`.
+The final checklist audit additionally required a public rotated-map mirror edit; test-only
+follow-up `29ef3a12` was reviewed and merged at `904391c1` before resolution.
+Production edit publication, paired Preview, Open repair, exception/Unlink operations and
+explicit Instance-targeted SetMechanical now consume the independently verified preparation.
+The inherited Framed persistence, stamp-only v5→v6 migration, archive/browser handling and
+circuit member-pose composition landed with this activation. Cases remain independently
+authored, and accepted outline ownership decisions are unchanged.
+
+The compiled pre-activation public Preview and Open tests failed on the expected missing hooks.
+Final runtime candidate repository/native/lint/build/full-browser checks pass: 1,904 native tests
+(Core library 801, integration 587), actual CAD smoke 15/15, host storage 11/11 and page
+presentation 89/89. Separate real WASM boundary replay passes 1/1. Post-merge repository,
+native and lint checks pass on `dev`; the final rotated-map follow-up checks pass all
+1,905 native names (Core library 801, integration 588). The public rotated 90° mirror
+MoveParts case verifies literal two-half poses, Preview isolation, one commit and exact
+Undo/Redo snapshots. Its public mirrored-half suite passes 65/65. Production subtrees are
+byte-identical to the fully browser/WASM/mutation/performance-verified candidate, so those
+results are reused for this test-only addition. The inventory's 53 additions and seven removals
+against pre-activation dev were independently reviewed; no required assertion was removed
+to make the checks pass.
+
+Independent Spec and Standards reviews cover the activation and every subsequent changed
+scope. Runtime mutation evidence has fourteen compiled kills, zero compile failures and one
+independently audited equivalent survivor. The positions-only substitution is not reported as
+a kill: accepted linked-companion moves refuse before publication, Local IDs are unchanged,
+and the position slice otherwise cannot distinguish the alternate. The replacement canonical
+application probe fails the existing public source-pose assertion (`-24` instead of `-16`);
+the new constrained-chain test is not credited as its killer. Every temporary mutation was
+restored exactly.
+
+The same existing 186-Part paired benchmark passes all five alternating rounds at both
+snapshots, without compilation during timing. Median run p50/p95 rose from 1,522/1,654 µs
+on pre-activation dev to 10,699/11,927 µs activated: observed added cost +9,177/+10,273 µs.
+The unpaired guard passes at 496/524 versus 503/534 µs. The report retains the run-level tail
+spread and host conditions; no unstated numeric performance budget is claimed.
+
+Root assigned the two CAD verification-helper paths before editing after the unchanged
+Chromium dump-DOM runner stalled on loopback HTTP. The runner now uses the existing
+ChromeDriver prerequisite, preserving the real smoke page, all checks and negative-result
+semantics, with owned-session/profile cleanup. Product CAD code and dependencies are unchanged.
+The preview restoration defect found by full native verification was repaired through the
+existing bounded Matrix backup, including layout membership; unrelated moves keep the Parts
+fast path. No new reconciliation, resolver or preview engine was introduced.
+
+Evidence: main checkout `.evidence/ticket111/integration/` contains the frozen reviews,
+`final-combined-gates.json`, `final-clean-candidate-freshness.json`,
+`final-clean-wasm-transcript.json`, `post-merge-checks.json`,
+`rotated-followup-native-checks.json`, `rotated-followup-production-freshness.json`,
+native inventory reviews and
+`performance/performance-results.md`. Runtime mutation disposition is
+`.evidence/ticket111/runtime-mutations/final/canonical-propagation-disposition.md`.
+
+This resolves activation only. Ticket 151 must establish the approved ordinary linked
+placement from both halves and the dedicated mirror-only placement choice; 109b then completes
+replacement pin resolution. Parent 19 still requires its separate fresh full acceptance.
+All work remains unpushed.
 
 ## Public integration edge coverage (2026-10-13)
 
