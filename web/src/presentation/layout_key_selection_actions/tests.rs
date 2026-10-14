@@ -7,7 +7,7 @@ use crate::presentation::{
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::*;
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -51,7 +51,10 @@ fn host() -> Element {
         *probe.adapter.borrow_mut() = Some(adapter.clone());
     }
     use_context_provider(|| adapter);
-    rsx! { SelectedKeysActions {} }
+    rsx! {
+        SelectedKeysActions {}
+        output { class: "selected-keys-test-render", "{version()}" }
+    }
 }
 fn definition(id: &str, name: &str) -> PartDefinition {
     PartDefinition {
@@ -245,7 +248,21 @@ async fn cross_matrix_selection_has_atomic_enable_disable_and_delete() {
     enable.dyn_into::<web_sys::HtmlElement>().unwrap().click();
     support::run_pending(&probe.runtime).await;
     probe.version.borrow().unwrap().set(2);
-    gloo_timers::future::TimeoutFuture::new(40).await;
+    wait_until_step("both selected keys are enabled", async || {
+        support::run_pending(&probe.runtime).await;
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .matrices
+            .iter()
+            .all(|matrix| matrix.cells[0].enabled)
+    })
+    .await;
+    refresh(&probe, &root).await;
     assert!(
         probe
             .runtime
@@ -265,6 +282,7 @@ async fn cross_matrix_selection_has_atomic_enable_disable_and_delete() {
     delete.dyn_into::<web_sys::HtmlElement>().unwrap().click();
     support::run_pending(&probe.runtime).await;
     probe.version.borrow().unwrap().set(3);
+    // Delete acceptance is not observable from this host before its spawned Runtime task settles.
     gloo_timers::future::TimeoutFuture::new(40).await;
     assert!(
         probe
@@ -306,10 +324,18 @@ fn button(root: &web_sys::Element, label: &str) -> web_sys::HtmlElement {
         .unwrap()
 }
 
-async fn refresh(probe: &Probe) {
+async fn refresh(probe: &Probe, root: &web_sys::Element) {
     let mut version = probe.version.borrow().unwrap();
+    let expected = *version.peek() + 1;
     version += 1;
-    gloo_timers::future::TimeoutFuture::new(40).await;
+    wait_until("the selected-keys host renders its latest version", || {
+        root.query_selector(".selected-keys-test-render")
+            .unwrap()
+            .and_then(|label| label.text_content())
+            .and_then(|text| text.parse::<u64>().ok())
+            .is_some_and(|rendered| rendered >= expected)
+    })
+    .await;
 }
 
 #[wasm_bindgen_test]
@@ -319,7 +345,7 @@ async fn rapid_cross_matrix_disable_then_enable_keeps_fields_available() {
     button(&root, "Disable selected keys").click();
     support::drive_pending(&probe.runtime);
     entered.await.unwrap();
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     let enable = button(&root, "Enable selected keys");
     assert!(
         !enable.has_attribute("disabled"),
@@ -328,7 +354,7 @@ async fn rapid_cross_matrix_disable_then_enable_keeps_fields_available() {
     enable.click();
     release.send(()).unwrap();
     support::run_pending(&probe.runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         probe
             .runtime
@@ -373,10 +399,10 @@ async fn queued_cross_matrix_enable_composes_with_rename_and_outlives_selection(
     button(&root, "Disable selected keys").click();
     let mut selected_context = probe.adapter.borrow().as_ref().unwrap().selected_context;
     selected_context.set(None);
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     release.send(()).unwrap();
     support::run_pending(&probe.runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         probe
             .runtime
@@ -423,7 +449,7 @@ async fn mixed_primary_and_companion_selection_never_filters_into_bulk_keys() {
         mode: SelectionMode::Replace,
     });
     support::run_pending(&probe.runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         root.query_selector("button[aria-label='Delete selected keys']")
             .unwrap()
@@ -509,7 +535,10 @@ fn editor_host() -> Element {
         footprints,
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { Editor {} }
+    rsx! {
+        Editor {}
+        output { class: "selected-keys-test-render", "{version()}" }
+    }
 }
 
 #[wasm_bindgen_test]
@@ -549,7 +578,10 @@ async fn editor_cross_matrix_disable_reenable_survives_context_reconciliation() 
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    gloo_timers::future::TimeoutFuture::new(80).await;
+    wait_until("the mounted Editor selection adapter is available", || {
+        probe.adapter.borrow().is_some()
+    })
+    .await;
     let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let scope = runtime.scope().unwrap();
     for (matrix_id, mode) in [
@@ -571,7 +603,7 @@ async fn editor_cross_matrix_disable_reenable_survives_context_reconciliation() 
         );
     }
     support::run_pending(&runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert_eq!(
         runtime.model().selected_part_ids.len(),
         2,
@@ -579,7 +611,7 @@ async fn editor_cross_matrix_disable_reenable_survives_context_reconciliation() 
     );
     button(&root, "Disable selected keys").click();
     support::run_pending(&runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         runtime
             .model()
@@ -593,7 +625,7 @@ async fn editor_cross_matrix_disable_reenable_survives_context_reconciliation() 
     );
     button(&root, "Enable selected keys").click();
     support::run_pending(&runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         runtime
             .model()
@@ -614,7 +646,7 @@ async fn disabled_cross_matrix_targets_end_at_explicit_same_context_reselection(
     let (probe, root) = mount().await;
     button(&root, "Disable selected keys").click();
     support::run_pending(&probe.runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         root.query_selector("button[aria-label='Enable selected keys']")
             .unwrap()
@@ -632,7 +664,7 @@ async fn disabled_cross_matrix_targets_end_at_explicit_same_context_reselection(
         },
     );
     support::run_pending(&probe.runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         root.query_selector("button[aria-label='Enable selected keys']")
             .unwrap()
@@ -647,12 +679,12 @@ async fn disabled_cross_matrix_targets_end_at_workspace_departure() {
     let (probe, root) = mount().await;
     button(&root, "Disable selected keys").click();
     support::run_pending(&probe.runtime).await;
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     let mut workspace = probe.workspace.borrow().unwrap();
     workspace.set("Parts");
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     workspace.set("Layout");
-    refresh(&probe).await;
+    refresh(&probe, &root).await;
     assert!(
         root.query_selector("button[aria-label='Enable selected keys']")
             .unwrap()

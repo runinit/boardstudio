@@ -132,7 +132,7 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
   `part_placement.rs` (16 and 20 ms), `board_inspector.rs` (50 ms and 10 ms loops), `layout_findings.rs`
   (40 ms x3), `layout_viewer.rs` (30 ms and 10 ms loop), `matrix_edit_test_support.rs` and the `*_pending`
   helpers (10 ms loops).
-- Page binary (current, 2026-10-14): remaining waits are `layout_component_inspector_tests.rs` (57 calls to
+- Page binary (snapshot before the later conversions): remaining waits are `layout_component_inspector_tests.rs` (57 calls to
   `settle_component_inspector`, plus its pending-edit drains), `layout_key_selection_actions/tests.rs` (4 waits: two fixed post-action delays,
   one shared refresh delay, and the full Editor mount), and `case_workspace.rs` (9 x 100 ms in the isolated
   launch). Fixed waits
@@ -467,3 +467,12 @@ gate must be refreshed before closing.
 4.0, lint 4.6, build 54.3, test 31.7, browser 112.3); the page runner again executed all 97 tests.
 The full gate is current, but the remaining above-threshold case/pcb/parts waits, mutation checks,
 name-diff evidence, and two more consecutive browser passes remain.
+
+## Progress (2026-10-14, selected-key action waits)
+
+In `layout_key_selection_actions/tests.rs`, the Editor-mount delay now waits for the selection
+adapter, and the shared refresh helper waits for its render generation. The Enable action waits for
+both accepted matrix cells, then confirms the Inspector render before the next action. That filtered
+accepted-state predicate timed out for Delete, so its 40 ms settle remains with that observed reason.
+The focused module passed 7/7 tests; formatting and diff checks passed. No full repository gate has
+been run after this change.
