@@ -471,7 +471,20 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         .unwrap();
     settle().await;
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    wait_until("the selected keys accept their disabled state", || {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| {
+                snapshot.document.matrices[0]
+                    .cells
+                    .iter()
+                    .all(|cell| !cell.enabled)
+            })
+    })
+    .await;
     let accepted = probe.runtime.model().accepted.unwrap();
     assert!(
         accepted.document.matrices[0]
@@ -495,7 +508,20 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
         .unwrap();
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    wait_until("the same selection accepts its enabled state", || {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| {
+                snapshot.document.matrices[0]
+                    .cells
+                    .iter()
+                    .all(|cell| cell.enabled)
+            })
+    })
+    .await;
     assert!(
         probe.runtime.model().accepted.unwrap().document.matrices[0]
             .cells
@@ -507,7 +533,20 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         operation_id: probe.runtime.operation(),
     });
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    wait_until("Undo restores the disabled selection", || {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| {
+                snapshot.document.matrices[0]
+                    .cells
+                    .iter()
+                    .all(|cell| !cell.enabled)
+            })
+    })
+    .await;
     assert!(
         probe.runtime.model().accepted.unwrap().document.matrices[0]
             .cells
@@ -519,7 +558,20 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         operation_id: probe.runtime.operation(),
     });
     support::run_pending(&probe.runtime).await;
-    settle().await;
+    wait_until("Redo restores the enabled selection", || {
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| {
+                snapshot.document.matrices[0]
+                    .cells
+                    .iter()
+                    .all(|cell| cell.enabled)
+            })
+    })
+    .await;
     assert!(
         probe.runtime.model().accepted.unwrap().document.matrices[0]
             .cells
