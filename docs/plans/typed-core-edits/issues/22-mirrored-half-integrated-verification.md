@@ -63,3 +63,8 @@ After commit `8dc4634c`, `python3 scripts/check.py` passed all steps in **195.1 
 tooling 3.8, lint 3.5, build 46.4, test 28.8, browser 112.3); all 97 page WASM tests passed.
 The synthetic reused-PCB create/edit/exception/Undo/Redo/save-reopen workflow and required
 Standards, Spec, and plan-wide reviews remain outstanding. Acceptance stays open.
+
+After the ui-shared test-wait changes, `python3 scripts/check.py` passed all steps in **207.3 s**
+(repo 0.4, tooling 4.0, lint 4.6, build 54.3, test 31.7, browser 112.3); all 97 page WASM tests
+passed. This refreshes the repository gate; the synthetic reused-PCB workflow and required reviews
+remain outstanding.

@@ -462,3 +462,8 @@ they are intentionally retained. A full repository gate has not yet been rerun a
 runner executed all 97 selected tests with no failures. This is the first full browser pass after
 these changes. The recorded 195.1 s `check.py` gate predates the ui-shared conversion, so #22's full
 gate must be refreshed before closing.
+
+`python3 scripts/check.py` passed all steps after the conversion in **207.3 s** (repo 0.4, tooling
+4.0, lint 4.6, build 54.3, test 31.7, browser 112.3); the page runner again executed all 97 tests.
+The full gate is current, but the remaining above-threshold case/pcb/parts waits, mutation checks,
+name-diff evidence, and two more consecutive browser passes remain.
