@@ -36,13 +36,10 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod derive;
-#[allow(dead_code)] // Ticket 111 activates the inverse translation; 110 prepares it privately.
+#[allow(dead_code)] // Unsupported-ledger cases and fixture helpers remain test-only.
 mod inverse;
-#[allow(dead_code)] // Ticket 111 activates the forward matrix addition; 145 prepares it privately.
 mod matrix_addition;
 mod reconcile;
-#[allow(unused_imports)]
-// Ticket 111 will route production edit preparation through this seam.
 pub(crate) use reconcile::{prepare_open, prepare_transaction};
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
@@ -1105,7 +1102,7 @@ fn reprefix(id: &str, from: &str, to: &str) -> Option<String> {
 }
 
 /// `reference` when the document does not use it yet, otherwise its prefix with the next free number
-/// (`right-U1` becomes `right-U2`), as `modules::circuit` allocates a circuit member's reference.
+/// (`right-U1` becomes `right-U2`), as `modules::allocate_reference` does for circuit members.
 fn free_reference(reference: &str, used: &mut BTreeSet<String>) -> String {
     if used.insert(reference.to_owned()) {
         return reference.to_owned();

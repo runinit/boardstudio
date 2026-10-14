@@ -2,8 +2,8 @@
 //!
 //! An edit made on a linked mirror is an edit of the authored source value (ADR-0010). This
 //! private layer rewrites such a request into the equivalent source request, using the pair map
-//! and the stored correspondences, before the existing operation executes. Nothing calls it
-//! yet: ticket 115 composes the result through apply and resolution, and 111 activates it.
+//! and the stored correspondences, before the existing operation executes. Prepared paired edits
+//! call it before staging the canonical source and mirror changes.
 //!
 //! Where things live (search the names; line numbers drift):
 //! - Seam: [`canonicalize`] is the one exhaustive dispatch over every `EditOperation` variant. It

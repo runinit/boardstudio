@@ -3,8 +3,8 @@
 //! The matrix and part families of ticket 110 live in the parent module. This child module owns
 //! the rest of the inventory 110 named: mounted modules, embedded circuits, nets, scan and wiring
 //! modes and keycap settings, plus `MoveParts`/`RemoveParts` on circuit members (through
-//! [`member_is_linked`]). It is private and inert: nothing calls it yet, 111 activates it and 115
-//! composes it.
+//! [`member_is_linked`]). Prepared paired edits call it through the inverse translator before
+//! staging changes.
 //!
 //! Where things live (search the names; line numbers drift):
 //! - Dispatch: [`translate`], called by `canonicalize`'s arm for these operations. It either
@@ -645,23 +645,6 @@ fn add_module(
 
 // ---- embedded circuits ----------------------------------------------------------------------
 
-/// `modules::circuit::allocate_reference`, which is private to its module: the reference the
-/// mirror board's circuit embed assigns a member.
-fn allocate_reference(source: &str, used: &mut BTreeSet<String>) -> String {
-    if !source.is_empty() && used.insert(source.to_owned()) {
-        return source.to_owned();
-    }
-    let prefix = source.trim_end_matches(|c: char| c.is_ascii_digit());
-    let prefix = if prefix.is_empty() { "U" } else { prefix };
-    for index in 1.. {
-        let candidate = format!("{prefix}{index}");
-        if used.insert(candidate.clone()) {
-            return candidate;
-        }
-    }
-    unreachable!("a finite circuit cannot exhaust component references")
-}
-
 #[allow(clippy::too_many_arguments)] // One field per payload value of the operation.
 fn embed_circuit(
     links: &Links<'_>,
@@ -868,7 +851,7 @@ fn embed_circuit(
         let source_member = format!("{source_prefix}{}", member.id);
         member_references.insert(
             source_member.clone(),
-            allocate_reference(&member.reference, &mut used_references),
+            crate::modules::allocate_reference(&member.reference, &mut used_references),
         );
         member_ids.insert(source_member, format!("{mirror_prefix}{}", member.id));
     }
