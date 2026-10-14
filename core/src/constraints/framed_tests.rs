@@ -281,6 +281,93 @@ fn legacy_records_and_framed_records_share_one_graph() {
     assert_pose(&doc, "free/R", 9.0, 4.0, 55.0);
 }
 
+#[test]
+fn prepared_record_replaces_only_its_stored_id_for_the_solve() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints.push(legacy_offset(
+        "c/replaced",
+        "local/P",
+        "free/Q",
+        100.0,
+        200.0,
+    ));
+    doc.constraints
+        .push(legacy_offset("c/unrelated", "free/Q", "free/R", 1.0, 2.0));
+    let stored = doc.constraints.clone();
+    let replacement = framed(
+        "c/replaced",
+        part_endpoint("local/P"),
+        part_endpoint("free/Q"),
+        offset_5_neg2(),
+    );
+
+    resolve_prepared(&mut doc, &[], &[replacement]).unwrap();
+
+    assert_pose(&doc, "free/Q", 8.0, 2.0, 55.0);
+    assert_pose(&doc, "free/R", 9.0, 4.0, 55.0);
+    assert_eq!(
+        doc.constraints, stored,
+        "solving must not persist replacements"
+    );
+}
+
+#[test]
+fn duplicate_prepared_ids_are_refused_without_changing_stored_records() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints.push(legacy_offset(
+        "c/replaced",
+        "local/P",
+        "free/Q",
+        100.0,
+        200.0,
+    ));
+    let before = doc.clone();
+    let replacement = framed(
+        "c/replaced",
+        part_endpoint("local/P"),
+        part_endpoint("free/Q"),
+        offset_5_neg2(),
+    );
+
+    let error = resolve_prepared(&mut doc, &[], &[replacement.clone(), replacement]).unwrap_err();
+
+    assert!(
+        error.contains("Duplicate or empty constraint ID"),
+        "{error}"
+    );
+    assert_eq!(
+        doc, before,
+        "a refusal must preserve the document and stored records"
+    );
+}
+
+#[test]
+fn invalid_replacement_is_refused_without_changing_its_stored_record() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints.push(legacy_offset(
+        "c/replaced",
+        "local/P",
+        "free/Q",
+        100.0,
+        200.0,
+    ));
+    let before = doc.clone();
+    let replacement = framed(
+        "c/replaced",
+        part_endpoint("local/P"),
+        part_endpoint("missing/part"),
+        offset_5_neg2(),
+    );
+
+    let error = resolve_prepared(&mut doc, &[], &[replacement]).unwrap_err();
+
+    assert!(error.contains("missing"), "{error}");
+    assert_eq!(
+        doc, before,
+        "a refusal must preserve the document and stored record"
+    );
+}
+
 fn refuses(doc: &mut ProjectDoc, records: &[FramedConstraint], needle: &str) {
     let before = doc.clone();
     let message = resolve_prepared(doc, &[], records).unwrap_err();

@@ -222,7 +222,8 @@ fn claim_target<'a>(
     Ok(())
 }
 
-/// Resolves stored and prepared relations in one source-first graph.
+/// Resolves stored and prepared relations in one source-first graph. Prepared records replace
+/// stored records with the same ID for this solve only.
 pub(crate) fn resolve_prepared(
     doc: &mut ProjectDoc,
     positions: &[Position],
@@ -235,9 +236,16 @@ pub(crate) fn resolve_prepared(
         .collect();
     let mut by_target: BTreeMap<String, Driver> = BTreeMap::new();
     let mut ids = BTreeSet::new();
+    let replaced_ids: BTreeSet<_> = framed
+        .iter()
+        .map(|record| match record {
+            FramedConstraint::Framed { id, .. } => id.as_str(),
+        })
+        .collect();
     let stored: Vec<_> = doc
         .constraints
         .iter()
+        .filter(|constraint| !replaced_ids.contains(constraint.id()))
         .map(|constraint| endpoints::compile_legacy(doc, constraint))
         .collect::<Result<_, _>>()?;
     for record in stored.iter().chain(framed) {
@@ -266,8 +274,17 @@ pub(crate) fn resolve_prepared(
         claim_target(&mut by_target, &target.authoritative_id, driver)?;
     }
 
-    // Assemblies are implicit local placements; explicit constraints take priority.
+    // Matrix companion classification reads stored constraints, so give it the same
+    // replacement view used to build the explicit graph.
+    let persisted = std::mem::take(&mut doc.constraints);
+    doc.constraints = persisted
+        .iter()
+        .filter(|constraint| !replaced_ids.contains(constraint.id()))
+        .cloned()
+        .collect();
     let assemblies = crate::matrix::layout::assembly_placements(doc, positions);
+    doc.constraints = persisted;
+    // Assemblies are implicit local placements; explicit constraints take priority.
     // Resolve the combined graph source-first instead of relying on repeated passes.
     let mut resolved = BTreeMap::new();
     let mut visiting = BTreeSet::new();

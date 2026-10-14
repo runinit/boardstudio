@@ -632,7 +632,9 @@ pub(crate) fn prepare_transaction(
 
     let positions = operation_positions(&canonical.operation);
     let mut framed = initial_framed_constraints(&canonical);
-    changed.extend(resolve_with_frames(&mut draft, positions, &framed)?);
+    changed.extend(crate::constraints::resolve_prepared(
+        &mut draft, positions, &framed,
+    )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
     if !lifecycle_before_resolution {
@@ -648,7 +650,9 @@ pub(crate) fn prepare_transaction(
 
     framed = bind_deferred_constraints(&draft, &canonical, &framed)?;
     persist_retuned_constraints(accepted, &mut draft, &canonical, &framed)?;
-    changed.extend(resolve_with_frames(&mut draft, positions, &framed)?);
+    changed.extend(crate::constraints::resolve_prepared(
+        &mut draft, positions, &framed,
+    )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
     let local_parts_baseline = match &canonical.operation {
@@ -935,13 +939,8 @@ fn validate_constraint_postcondition(draft: &ProjectDoc) -> Result<(), String> {
         return Ok(());
     }
     const POSE_TOLERANCE: f64 = 1e-9;
-    let framed = draft
-        .constraints
-        .iter()
-        .map(|constraint| crate::constraints::compile_legacy(draft, constraint))
-        .collect::<Result<Vec<_>, _>>()?;
     let mut checked = draft.clone();
-    resolve_with_frames(&mut checked, &[], &framed)?;
+    crate::constraints::resolve_prepared(&mut checked, &[], &[])?;
     for original in &draft.parts {
         let mut matches = checked.parts.iter().filter(|part| part.id == original.id);
         let Some(solved) = matches.next() else {
@@ -1249,26 +1248,6 @@ fn part_pose(document: &ProjectDoc, id: &str) -> Result<Pose2, String> {
         return Err(format!("Prepared constraint part {id:?} is ambiguous"));
     }
     Ok(part.pose)
-}
-
-fn resolve_with_frames(
-    document: &mut ProjectDoc,
-    positions: &[Position],
-    framed: &[FramedConstraint],
-) -> Result<Vec<String>, String> {
-    let replaced_ids: BTreeSet<_> = framed.iter().map(record_id).collect();
-    if replaced_ids.is_empty() {
-        return crate::constraints::resolve_prepared(document, positions, framed);
-    }
-    let stored = std::mem::take(&mut document.constraints);
-    document.constraints = stored
-        .iter()
-        .filter(|constraint| !replaced_ids.contains(constraint.id()))
-        .cloned()
-        .collect();
-    let resolved = crate::constraints::resolve_prepared(document, positions, framed);
-    document.constraints = stored;
-    resolved
 }
 
 /// Restore Local companion source data after generic matrix sync rematerializes it.
