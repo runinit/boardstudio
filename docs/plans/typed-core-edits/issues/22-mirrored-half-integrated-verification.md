@@ -50,3 +50,9 @@ remain outstanding, so acceptance stays open.
 `python3 scripts/check.py` passed all steps on the current tree in 206.6 s (repo 0.4, tooling 3.8,
 lint 3.6, build 48.8, test 28.7, browser 121.2). All 97 page WASM tests passed. The reused-PCB
 save/reopen workflow and required reviews remain outstanding; acceptance stays open.
+
+## Progress (2026-10-14, current Layout wait conversions)
+
+`python3 scripts/check.py` passed all steps in 201.6 s (repo 0.4, tooling 3.8, lint 3.7, build 49.5,
+test 27.9, browser 116.2). All 97 page WASM tests passed. The synthetic reused-PCB workflow and
+required reviews remain outstanding; acceptance stays open.

@@ -417,3 +417,9 @@ pass. The remaining wait audit, mutation checks, three-run requirement, and base
 Replaced the last four fixed waits in `layout_remainder_tests.rs`: mounted input waits now check the
 Inspector, and queued/Apply edits wait for the accepted positions they must produce. All 10 tests in
 the module passed with formatting and diff checks clean. This file has no fixed sleeps remaining.
+
+## Progress (2026-10-14, current Layout wait conversions)
+
+`python3 scripts/check.py` passed all steps in 201.6 s (repo 0.4, tooling 3.8, lint 3.7, build 49.5,
+test 27.9, browser 116.2); all 97 page WASM tests passed. This is one current-tree full browser
+pass. The remaining wait audit, mutation checks, three-run requirement, and baseline evidence remain.
