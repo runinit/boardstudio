@@ -585,3 +585,8 @@ accepted save results, and Undo/Redo projections; the corresponding 30 ms sleeps
 `module_profile_editor.rs`. The focused workflow passed, and the full Parts suite passed 70/70 in
 14.23 s on the current tree. Remaining Parts waits, production-action mutation coverage, name-list
 comparison, and the ticket-wide repeated/full gates remain open.
+
+The production rotary Save callback was then disabled temporarily; the mounted test failed at
+`wait_until: rotary save enters Core did not hold within 5000 ms`. The mutation runner restored the
+file exactly (`restored_exact: true`). Evidence is in ignored
+`.evidence/ticket37-mutation-results/parts-module-profile-save-action-missing.log` and `results.json`.
