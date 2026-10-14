@@ -56,3 +56,10 @@ save/reopen workflow and required reviews remain outstanding; acceptance stays o
 `python3 scripts/check.py` passed all steps in 201.6 s (repo 0.4, tooling 3.8, lint 3.7, build 49.5,
 test 27.9, browser 116.2). All 97 page WASM tests passed. The synthetic reused-PCB workflow and
 required reviews remain outstanding; acceptance stays open.
+
+## Progress (2026-10-14, component Inspector wait conversion)
+
+After commit `8dc4634c`, `python3 scripts/check.py` passed all steps in **195.1 s** (repo 0.4,
+tooling 3.8, lint 3.5, build 46.4, test 28.8, browser 112.3); all 97 page WASM tests passed.
+The synthetic reused-PCB create/edit/exception/Undo/Redo/save-reopen workflow and required
+Standards, Spec, and plan-wide reviews remain outstanding. Acceptance stays open.
