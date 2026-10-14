@@ -169,3 +169,28 @@ Making an item Local or Omitted used to cut its correspondence and keep its iden
 - **Omit cleans the mirror half and only the mirror half.** Inside one atomic transaction it removes the item's footprint (the generated companion copper that is part of the footprint goes with it), its private nets, and the board copper it owned: traces and vias on those nets, and trace ends and vias lying exactly on an omitted pad. That copper is saved in the overlay as `removedCopper`, with the pad positions it was routed to. The item's MCU pins are freed. Every item still mirrored is locked to the source's pins, so a mirror-authored entry can only use a freed or unused pin. A linked module plugged into an Omitted connector keeps everything but its connection, as deleting the connector clears it. The source half never changes.
 - **Rejoin restores from the current source.** The footprint, nets and pins are re-derived. Saved copper returns only if every saved pad stands where it did, compared exactly (to 1e-6 mm); otherwise no copper is restored and the transaction reports a notice, and the saved copper is dropped with the overlay. A saved trace or via id that is already in use refuses the transaction. Rejoin reclaims its source pins and releases a mirror-authored assignment that took one.
 - **Not decided here.** Mirror-only replacement parts that receive pins automatically when placed, and that are re-pinned after a Rejoin releases them, are specified separately in [ticket 109b](../plans/typed-core-edits/issues/109b-mirror-only-replacement-parts-auto-pins.md).
+
+## Amendment: physical setup creation is atomic in Core (2026-10-14)
+
+The 2026-10-10 creation amendment assigned topology, transport and relabelling to the web adapter.
+That ownership is superseded for mirrored-half creation. Physical setup still chooses the requested
+values, but `CreateMirroredHalf` accepts them and Core applies them in the same atomic operation
+that creates the mirror instance and pair. This keeps topology, transport, physical instance labels,
+and the native mirrored-half record in one ResolveEdit commit and one Undo step; the adapter must
+not submit a whole-document replacement or split these changes across edits.
+
+- Core validates the requested topology/transport combination and the resulting physical instance
+  and pair invariants before accepting the operation. It also validates that the supplied
+  `sharedConstruction` belongs to the configured physical board, then preserves that value exactly.
+  The adapter resolves it using physical setup's established precedence (existing hardware value,
+  otherwise the selected primary's mechanical settings with the existing board-settings and
+  initial-settings fallbacks) and passes it explicitly. An invalid combination or any other
+  creation error leaves the accepted document unchanged.
+- The adapter supplies physical setup's source and mirror label inputs (name, half and role) through
+  the operation's optional `labels`, and supplies topology, transport and `sharedConstruction` as
+  explicit request inputs. Core applies these values atomically with mirror creation; it does not
+  infer labels from source names or half labels.
+- The operation's changed-id report includes the created pair and mirror instance and every existing
+  instance or hardware record changed by topology, transport, or relabelling.
+- This amendment concerns physical setup's mirrored-half creation path. Other adapter-owned
+  topology and transport edits retain their existing ownership unless separately decided.

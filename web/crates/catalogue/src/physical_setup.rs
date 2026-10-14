@@ -1,15 +1,19 @@
 //! Private physical-setup proposal rules. This code prepares values only; it never submits edits.
 
+#[cfg(test)]
 use boardstudio_core::CoreEngine;
-use boardstudio_core::mechanical::change::{
-    MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence,
-};
+use boardstudio_core::mechanical::MechanicalTarget;
+use boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence;
 use boardstudio_core::mechanical::inputs::effective_inputs;
-use boardstudio_core::mechanical::{MechanicalTarget, pair};
+#[cfg(test)]
+use boardstudio_core::mechanical::pair;
+#[cfg(test)]
+use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditPhase};
 use boardstudio_core::model::{
-    CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, HardwareTopology,
-    HardwareTransport, MechanicalConfiguration, MechanicalConstructionOwnership,
-    MechanicalFeatureKind, PartDefinition, PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
+    EditOperation, HardwareTopology, HardwareTransport, MechanicalConfiguration,
+    MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredHalfLabel, MirroredHalfLabels,
+    MirroredHalfMode, MirroredHalfPhysicalSetup, MirroredIdRule, PartDefinition,
+    PhysicalBoardInstance, Pose2, ProjectDoc, Vec2,
 };
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -48,8 +52,7 @@ pub enum SetupIntent {
 
 /// The reviewed `LinkMirrorPair` payload for a setup-established mechanical pair.
 ///
-/// This is exactly the data `MechanicalChange::LinkMirrorPair` carries. A proposal
-/// returns it instead of applying it, so the Case adapter can submit one typed edit
+/// This is the pair data the proposal returns so the Case adapter can submit one typed edit
 /// and the Session settles the complete pair with one Undo step. The persisted pair
 /// (construction subset, features and geometry) is derived by Core at apply time;
 /// this payload never duplicates those rules.
@@ -74,62 +77,69 @@ pub struct PhysicalSetupProposal {
 }
 
 impl PhysicalSetupProposal {
-    /// The single replacement document this setup submits.
-    ///
-    /// A proposal with an eligible mirror pair applies the reviewed
-    /// `MechanicalChange::LinkMirrorPair` through Core's typed mechanical operation
-    /// on the proposed document, so Core derives the pair's construction, linked
-    /// features and generated clearance parts. The result then travels as the
-    /// setup's existing single `ReplaceDocument`: the new halves and the
-    /// established pair become one accepted edit with one Undo step. Any Core error
-    /// aborts the whole proposal, so nothing is submitted.
-    pub fn into_submission(
-        self,
+    /// Turns an eligible topology setup into the same typed Core operation used by Layout.
+    pub fn into_mirrored_operation(
+        &self,
         mounting_hole: Option<&PartDefinition>,
-    ) -> Result<ProjectDoc, String> {
-        let Some(link) = self.mirror_pair else {
-            return Ok(self.document);
+    ) -> Result<Option<(Vec<String>, EditOperation)>, String> {
+        let Some(link) = self.mirror_pair.as_ref() else {
+            return Ok(None);
         };
-        let template = mounting_hole.ok_or_else(|| MISSING_MOUNTING_HOLE.to_string())?;
-        let edit = MechanicalEdit {
-            target: MechanicalTarget::Instance {
-                instance_id: link.members[0].clone(),
-            },
-            change: MechanicalChange::LinkMirrorPair {
+        let hardware = self
+            .document
+            .hardware
+            .as_ref()
+            .ok_or("Physical instances are unavailable")?;
+        let source = hardware
+            .instances
+            .iter()
+            .find(|item| item.id == link.members[0])
+            .ok_or("Physical setup source instance is unavailable")?
+            .clone();
+        let mirror = hardware
+            .instances
+            .iter()
+            .find(|item| item.id == link.members[1])
+            .ok_or("Physical setup mirror instance is unavailable")?;
+        let shared_construction = hardware
+            .shared_construction
+            .clone()
+            .ok_or("Physical setup shared construction is unavailable")?;
+        let labels = MirroredHalfLabels {
+            source: Some(MirroredHalfLabel {
+                name: Some(source.name.clone()),
+                half: Some(source.half.clone()),
+                role: Some(source.role.clone()),
+            }),
+            mirror: Some(MirroredHalfLabel {
+                name: Some(mirror.name.clone()),
+                half: Some(mirror.half.clone()),
+                role: Some(mirror.role.clone()),
+            }),
+        };
+        let mounting_hole = mounting_hole.ok_or_else(|| MISSING_MOUNTING_HOLE.to_string())?;
+        Ok(Some((
+            link.members.to_vec(),
+            EditOperation::CreateMirroredHalf {
                 pair_id: link.pair_id.clone(),
-                members: link.members.clone(),
+                source_instance_id: source.id.clone(),
+                mode: MirroredHalfMode::ReuseBoard {
+                    instance_id: mirror.id.clone(),
+                },
+                labels: Some(labels),
+                physical_setup: Some(MirroredHalfPhysicalSetup {
+                    topology: hardware.topology,
+                    transport: hardware.transport,
+                    shared_construction,
+                    source_instance: source,
+                }),
+                companion_mode: Default::default(),
+                companion_tweak: None,
                 mapping: link.mapping,
-                construction_source: link.construction_source.clone(),
-                correspondences: link.correspondences.clone(),
+                id_rule: MirroredIdRule::BoardPrefix,
+                mounting_hole: Some(Box::new(mounting_hole.clone())),
             },
-            mounting_hole: Some(Box::new(template.clone())),
-        };
-        let mut engine = CoreEngine::new();
-        match engine.handle(CoreRequest::Open {
-            id: "physical-setup-open".into(),
-            document: self.document.clone(),
-        }) {
-            CoreReply::Scene { .. } => {}
-            CoreReply::Error { message, .. } => return Err(message),
-            _ => return Err("Core did not open the physical-setup proposal".into()),
-        }
-        let command = EditCommand {
-            base_revision: self.document.revision,
-            transaction_id: "physical-setup-pair".into(),
-            phase: EditPhase::Commit,
-            target_ids: link.members.to_vec(),
-            operation: EditOperation::ApplyMechanicalEdit {
-                edit: Box::new(edit),
-            },
-        };
-        match engine.handle(CoreRequest::Edit {
-            id: "physical-setup-link".into(),
-            command,
-        }) {
-            CoreReply::Scene { document, .. } => Ok(*document),
-            CoreReply::Error { message, .. } => Err(message),
-            _ => Err("Core did not establish the physical-setup mirror pair".into()),
-        }
+        )))
     }
 }
 
@@ -1857,8 +1867,7 @@ mod tests {
              promotes them to the pair"
         );
 
-        let document = proposal
-            .into_submission(Some(&mounting_hole_template()))
+        let document = submit_physical_setup(&doc, &proposal)
             .expect("the eligible pair is established through Core");
 
         let hardware = document.hardware.as_ref().unwrap();
@@ -1946,11 +1955,8 @@ mod tests {
         .unwrap();
         assert!(proposal.mirror_pair.is_none());
         let expected = proposal.document.clone();
-        assert_eq!(
-            proposal.into_submission(None).unwrap(),
-            expected,
-            "an ineligible pair changes nothing and needs no template"
-        );
+        assert!(proposal.into_mirrored_operation(None).unwrap().is_none());
+        assert_eq!(proposal.document, expected);
     }
 
     #[test]
@@ -1975,7 +1981,7 @@ mod tests {
         .unwrap();
         assert!(proposal.mirror_pair.is_some());
         assert!(
-            proposal.into_submission(None).is_err(),
+            proposal.into_mirrored_operation(None).is_err(),
             "a pair that needs projection without its template publishes nothing"
         );
     }
@@ -2371,7 +2377,7 @@ mod tests {
 
     /// Side A: the physical-setup split, reversible layout on, submitted through Core.
     fn physical_setup_split(start: &ProjectDoc) -> ProjectDoc {
-        propose_with_mirror_pair(
+        let proposal = propose_with_mirror_pair(
             start,
             SetupIntent::Topology {
                 board_id: "board-a".into(),
@@ -2382,17 +2388,53 @@ mod tests {
             },
             keep_definition,
         )
-        .expect("the split proposal is accepted")
-        .into_submission(Some(&mounting_hole_template()))
-        .expect("the physical-setup pair is established through Core")
+        .expect("the split proposal is accepted");
+        submit_physical_setup(start, &proposal)
+            .expect("the physical-setup pair is established through Core")
+    }
+
+    fn submit_physical_setup(
+        start: &ProjectDoc,
+        proposal: &PhysicalSetupProposal,
+    ) -> Result<ProjectDoc, String> {
+        let (target_ids, operation) = proposal
+            .into_mirrored_operation(Some(&mounting_hole_template()))?
+            .ok_or("physical setup did not produce a mirrored-half operation")?;
+        let mut engine = CoreEngine::new();
+        match engine.handle(CoreRequest::Open {
+            id: "physical-setup-open".into(),
+            document: start.clone(),
+        }) {
+            CoreReply::Scene { .. } => {}
+            CoreReply::Error { message, .. } => return Err(message),
+            _ => return Err("Core did not open the physical-setup input".into()),
+        }
+        let command = EditCommand {
+            base_revision: start.revision,
+            transaction_id: "physical-setup-create".into(),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        };
+        match engine.handle(CoreRequest::Edit {
+            id: "physical-setup-create".into(),
+            command,
+        }) {
+            CoreReply::Scene { document, .. } => Ok(*document),
+            CoreReply::Error { message, .. } => Err(message),
+            _ => Err("Core did not create the physical-setup pair".into()),
+        }
     }
 
     /// Side B: the Core `CreateMirroredHalf` ReuseBoard operation on the same starting document,
     /// with the flip map, physical setup's labels and pair id, and the same mounting-hole template.
     fn reuse_board_half(start: &ProjectDoc) -> ProjectDoc {
         use boardstudio_core::model::{
-            MirroredHalfLabel, MirroredHalfLabels, MirroredHalfMode, MirroredIdRule,
+            MirroredHalfLabel, MirroredHalfLabels, MirroredHalfMode, MirroredHalfPhysicalSetup,
+            MirroredIdRule,
         };
+        let source = start.hardware.as_ref().unwrap().instances[0].clone();
+        let shared_construction = source.mechanical.clone().unwrap();
         let mut engine = CoreEngine::new();
         match engine.handle(CoreRequest::Open {
             id: "equivalence-open".into(),
@@ -2420,6 +2462,12 @@ mod tests {
                         half: Some("right".into()),
                         role: Some("peripheral".into()),
                     }),
+                }),
+                physical_setup: Some(MirroredHalfPhysicalSetup {
+                    topology: HardwareTopology::Split,
+                    transport: HardwareTransport::Wireless,
+                    shared_construction,
+                    source_instance: source,
                 }),
                 companion_mode: Default::default(),
                 companion_tweak: None,
@@ -2549,16 +2597,7 @@ mod tests {
         for (path, left, right) in &observed {
             eprintln!("EQUIVALENCE ROW {path} | A={left} | B={right}");
         }
-        // In JSON-pointer order, as `json_differences` reports them.
-        let expected = [
-            // B only: the pair record carries the mirrored-half record.
-            ("/hardware/pairs/0/halves", "<absent>", "object"),
-            // A only: physical setup records the shared construction and the split topology.
-            ("/hardware/sharedConstruction", "object", "null"),
-            ("/hardware/topology", "\"split\"", "\"unibody\""),
-            ("/hardware/transport", "\"wireless\"", "\"none\""),
-        ]
-        .map(|(path, left, right)| (path.to_string(), left.to_string(), right.to_string()));
+        let expected: Vec<(String, String, String)> = vec![];
         assert_eq!(observed, expected, "the differences changed");
     }
 }

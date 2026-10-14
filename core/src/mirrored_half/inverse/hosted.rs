@@ -200,6 +200,7 @@ pub(super) fn translate(
         | Op::SetMechanical { .. }
         | Op::SetCase { .. }
         | Op::SetHalfException { .. }
+        | Op::SetCompanionPlacement { .. }
         | Op::UnlinkHalves { .. }
         | Op::CreateMirroredHalf { .. }
         | Op::ReplaceDocument { .. } => {

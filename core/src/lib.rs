@@ -1344,6 +1344,7 @@ fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -
     if matches!(
         operation,
         EditOperation::AddMirrorOnlyPart { .. }
+            | EditOperation::SetCompanionPlacement { .. }
             | EditOperation::SetHalfException { .. }
             | EditOperation::UnlinkHalves { .. }
             | EditOperation::SetMechanical {
@@ -1994,23 +1995,39 @@ fn apply(
             source_instance_id,
             mode,
             labels,
+            physical_setup,
             companion_mode,
             companion_tweak,
             mapping,
             id_rule,
             mounting_hole,
-        } => mirrored_half::create(
-            doc,
-            pair_id,
-            source_instance_id,
-            mode,
-            *mapping,
-            *id_rule,
-            mounting_hole.as_deref(),
-            *companion_mode,
-            *companion_tweak,
-            labels.as_ref(),
-        ),
+        } => match physical_setup {
+            Some(setup) => mirrored_half::create_with_physical_setup(
+                doc,
+                pair_id,
+                source_instance_id,
+                mode,
+                *mapping,
+                *id_rule,
+                mounting_hole.as_deref(),
+                *companion_mode,
+                *companion_tweak,
+                labels.as_ref(),
+                setup,
+            ),
+            None => mirrored_half::create(
+                doc,
+                pair_id,
+                source_instance_id,
+                mode,
+                *mapping,
+                *id_rule,
+                mounting_hole.as_deref(),
+                *companion_mode,
+                *companion_tweak,
+                labels.as_ref(),
+            ),
+        },
         EditOperation::SetLayout { layout: incoming } => {
             let current = doc
                 .layouts
@@ -2071,7 +2088,9 @@ fn apply(
             crate::mechanical::edit::apply(doc, board_contours, edit)
         }
         EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
-        EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. } => {
+        EditOperation::SetHalfException { .. }
+        | EditOperation::SetCompanionPlacement { .. }
+        | EditOperation::UnlinkHalves { .. } => {
             Err("Mirrored-half lifecycle edits require prepared transaction dispatch".into())
         }
         EditOperation::ReplaceDocument { document } => {

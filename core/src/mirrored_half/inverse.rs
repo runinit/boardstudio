@@ -365,9 +365,12 @@ pub(super) fn canonicalize(
                 Coverage::DeliberatelyUnchanged(SET_MECHANICAL_BOARD_SLOT)
             };
         }
-        Op::SetHalfException { .. } | Op::UnlinkHalves { .. } => {
-            canonical.coverage =
-                Coverage::Delegated("the prepared lifecycle owns pair exceptions and Unlink");
+        Op::SetHalfException { .. }
+        | Op::SetCompanionPlacement { .. }
+        | Op::UnlinkHalves { .. } => {
+            canonical.coverage = Coverage::Delegated(
+                "the prepared lifecycle owns exceptions, companion placement and Unlink",
+            );
         }
         Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

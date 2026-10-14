@@ -149,6 +149,54 @@ fn operation(pair: &str, source: &str, mode: Value, mapping: Value) -> Value {
     })
 }
 
+#[test]
+fn physical_setup_and_pair_creation_are_one_atomic_core_edit() {
+    let mut input = synthetic_half::document();
+    input["hardware"]["topology"] = json!("unibody");
+    input["hardware"]["transport"] = json!("none");
+    let (mut engine, opened) = open(&input);
+    let source = opened["hardware"]["instances"][0].clone();
+    let shared = source["mechanical"].clone();
+    let mut request_op = operation(
+        "pair/right",
+        "left",
+        new_board("right", "right"),
+        mapping(200.0),
+    );
+    request_op["physicalSetup"] = json!({
+        "topology":"split", "transport":"wireless", "sharedConstruction":shared,
+        "sourceInstance":source
+    });
+    request_op["labels"] = json!({
+        "source":{"name":"Left half","half":"left","role":"central"},
+        "mirror":{"name":"Right half","half":"right","role":"peripheral"}
+    });
+    let result = create_with(&mut engine, &opened, "commit", request_op.clone()).unwrap();
+    assert_eq!(result["document"]["hardware"]["topology"], "split");
+    assert_eq!(result["document"]["hardware"]["transport"], "wireless");
+    assert_eq!(result["document"]["hardware"]["sharedConstruction"], shared);
+    assert_eq!(
+        result["document"]["hardware"]["pairs"][0]["id"],
+        "pair/right"
+    );
+    assert_eq!(
+        result["document"]["hardware"]["instances"][0]["name"],
+        "Left half"
+    );
+    let mut undone = request(
+        &mut engine,
+        json!({"id":"undo-physical-setup","kind":"undo"}),
+    )["document"]
+        .clone();
+    undone["revision"] = opened["revision"].clone();
+    assert_eq!(undone, opened, "setup and pair creation undo as one edit");
+
+    let (mut rejected_engine, rejected_opened) = open(&input);
+    request_op["physicalSetup"]["transport"] = json!("none");
+    assert!(create_with(&mut rejected_engine, &rejected_opened, "commit", request_op).is_err());
+    assert_eq!(snapshot(&mut rejected_engine), rejected_opened);
+}
+
 fn create_with(
     engine: &mut CoreEngine,
     document: &Value,
@@ -1873,7 +1921,7 @@ fn a_mirror_circuit_id_already_in_use_refuses_the_record_and_changes_nothing() {
             "pair-right",
             "left",
             new_board("right", "right"),
-            mapping(300.0),
+            json!({"at":{"x":300.0,"y":12.0},"rotation":27.0}),
         ),
     );
     assert!(
@@ -2904,6 +2952,393 @@ fn duplicate_companions_keep_the_source_local_pose() {
         assert_eq!(undone, source);
         let (_, reopened) = open(&made);
         assert_eq!(pair(&reopened, "pair-mode"), pair(&made, "pair-mode"));
+    }
+}
+
+#[test]
+fn companion_placement_operation_updates_pair_default_and_preserves_item_override() {
+    let (mut engine, source) = seed(&runtime_supported_document(), "left");
+    let made = create_with(
+        &mut engine,
+        &source,
+        "commit",
+        operation(
+            "placement-edit",
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
+        ),
+    )
+    .unwrap()["document"]
+        .clone();
+    let mut document = made.clone();
+    let links = document["hardware"]["pairs"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|pair| pair["id"] == "placement-edit")
+        .unwrap()["halves"]["correspondences"]
+        .as_array_mut()
+        .unwrap();
+    let selected = links
+        .iter_mut()
+        .find(|link| {
+            link["kind"] == "part" && link["sourceId"].as_str().unwrap().ends_with("/diode")
+        })
+        .unwrap();
+    selected["companionMode"] = json!("literal-mirror-with-tweak");
+    selected["companionTweak"] = json!({"x": 1.25, "y": -0.5, "rotation": 4.0});
+    let (mut engine, document) = open(&document);
+    let selected_id = pair(&document, "placement-edit")["halves"]["correspondences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|link| link["companionMode"] == "literal-mirror-with-tweak")
+        .unwrap()["mirrorId"]
+        .clone();
+    let another_id = pair(&document, "placement-edit")["halves"]["correspondences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|link| {
+            link["kind"] == "part"
+                && link["sourceId"].as_str().unwrap().ends_with("/diode")
+                && link["mirrorId"] != selected_id
+        })
+        .unwrap()["sourceId"]
+        .clone();
+    let reply = create_with(
+        &mut engine,
+        &document,
+        "commit",
+        json!({"kind":"set-companion-placement", "pairId":"placement-edit",
+            "targets":[{"kind":"pair"},{"kind":"item","itemKind":"part","mirrorId":another_id}],
+            "mode":"duplicate-position", "tweak":null}),
+    )
+    .expect("pair default mode edit");
+    assert_eq!(
+        reply["document"]["hardware"]["pairs"][0]["halves"]["companionMode"],
+        "duplicate-position"
+    );
+    let updated = pair(&reply["document"], "placement-edit")["halves"]["correspondences"]
+        .as_array()
+        .unwrap();
+    assert_eq!(
+        updated
+            .iter()
+            .find(|link| link["mirrorId"] == selected_id)
+            .unwrap()["companionMode"],
+        "literal-mirror-with-tweak"
+    );
+    assert_eq!(
+        updated
+            .iter()
+            .find(|link| link["mirrorId"] == selected_id)
+            .unwrap()["companionTweak"],
+        json!({"x": 1.25, "y": -0.5, "rotation": 4.0})
+    );
+    assert_eq!(
+        updated
+            .iter()
+            .find(|link| link["sourceId"] == another_id)
+            .unwrap()["companionMode"],
+        "duplicate-position"
+    );
+    let undone = request(&mut engine, json!({"id":"undo-placement","kind":"undo"}));
+    let mut before = document;
+    before["revision"] = undone["document"]["revision"].clone();
+    assert_eq!(undone["document"], before);
+}
+
+#[test]
+fn companion_placement_item_and_matrix_selectors_deduplicate_and_apply_tweak() {
+    let (mut engine, source) = seed(&runtime_supported_document(), "left");
+    let made = create_with(
+        &mut engine,
+        &source,
+        "commit",
+        operation(
+            "placement-selectors",
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
+        ),
+    )
+    .unwrap()["document"]
+        .clone();
+    let item = "matrix/left-synthetic-keys/r0c1/diode";
+    let edit = json!({"kind":"set-companion-placement", "pairId":"placement-selectors",
+        "targets":[
+            {"kind":"item", "itemKind":"part", "mirrorId":item},
+            {"kind":"row", "matrixId":"left-synthetic-keys", "row":0},
+            {"kind":"column", "matrixId":"right-synthetic-keys", "column":1},
+            {"kind":"matrix", "matrixId":"left-synthetic-keys"}
+        ], "mode":"literal-mirror-with-tweak", "tweak":{"x":1.25,"y":-0.5,"rotation":4.0}});
+    let reply = create_with(&mut engine, &made, "commit", edit).unwrap();
+    let links = pair(&reply["document"], "placement-selectors")["halves"]["correspondences"]
+        .as_array()
+        .unwrap();
+    let companions: Vec<_> = links
+        .iter()
+        .filter(|link| {
+            link["kind"] == "part"
+                && (link["sourceId"].as_str().unwrap().ends_with("/diode")
+                    || link["sourceId"].as_str().unwrap().ends_with("/led"))
+        })
+        .collect();
+    assert_eq!(companions.len(), 8);
+    for link in companions {
+        assert_eq!(link["companionMode"], "literal-mirror-with-tweak");
+        assert_eq!(
+            link["companionTweak"],
+            json!({"x":1.25,"y":-0.5,"rotation":4.0})
+        );
+    }
+    let expected_changed: BTreeSet<_> = links
+        .iter()
+        .filter(|link| {
+            link["kind"] == "part"
+                && (link["sourceId"].as_str().unwrap().ends_with("/diode")
+                    || link["sourceId"].as_str().unwrap().ends_with("/led"))
+        })
+        .map(|link| link["mirrorId"].as_str().unwrap().to_owned())
+        .collect();
+    let expected_changed = expected_changed
+        .into_iter()
+        .chain([
+            "placement-selectors".to_owned(),
+            "right-synthetic-keys".to_owned(),
+        ])
+        .collect();
+    let reported_changed: BTreeSet<_> = reply["scene"]["changedIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|id| id.as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(reported_changed, expected_changed);
+    assert!(
+        links
+            .iter()
+            .filter(|link| link["sourceId"] == "left/U1")
+            .all(|link| link.get("companionMode").is_none())
+    );
+    let refused = create_with(
+        &mut engine,
+        &reply["document"],
+        "commit",
+        json!({"kind":"set-companion-placement", "pairId":"placement-selectors",
+            "targets":[{"kind":"pair"},{"kind":"item","itemKind":"part","mirrorId":item}],
+            "mode":"literal-mirror", "tweak":{"x":1.0,"y":0.0,"rotation":0.0}}),
+    );
+    assert!(refused.is_err());
+    assert_eq!(snapshot(&mut engine), reply["document"]);
+}
+
+#[test]
+fn each_companion_placement_selector_expands_to_its_exact_cells() {
+    for (target, expected) in [
+        (
+            json!({"kind":"item","itemKind":"part","mirrorId":"matrix/left-synthetic-keys/r0c1/diode"}),
+            vec!["matrix/left-synthetic-keys/r0c1/diode"],
+        ),
+        (
+            json!({"kind":"row","matrixId":"left-synthetic-keys","row":0}),
+            vec![
+                "matrix/left-synthetic-keys/r0c0/diode",
+                "matrix/left-synthetic-keys/r0c0/led",
+                "matrix/left-synthetic-keys/r0c1/diode",
+                "matrix/left-synthetic-keys/r0c1/led",
+            ],
+        ),
+        (
+            json!({"kind":"column","matrixId":"left-synthetic-keys","column":1}),
+            vec![
+                "matrix/left-synthetic-keys/r0c1/diode",
+                "matrix/left-synthetic-keys/r0c1/led",
+                "matrix/left-synthetic-keys/r1c1/diode",
+                "matrix/left-synthetic-keys/r1c1/led",
+            ],
+        ),
+        (
+            json!({"kind":"matrix","matrixId":"left-synthetic-keys"}),
+            vec![
+                "matrix/left-synthetic-keys/r0c0/diode",
+                "matrix/left-synthetic-keys/r0c0/led",
+                "matrix/left-synthetic-keys/r0c1/diode",
+                "matrix/left-synthetic-keys/r0c1/led",
+                "matrix/left-synthetic-keys/r1c0/diode",
+                "matrix/left-synthetic-keys/r1c0/led",
+                "matrix/left-synthetic-keys/r1c1/diode",
+                "matrix/left-synthetic-keys/r1c1/led",
+            ],
+        ),
+    ] {
+        let (mut engine, source) = seed(&runtime_supported_document(), "left");
+        let made = create_with(
+            &mut engine,
+            &source,
+            "commit",
+            operation(
+                "placement-selector-kind",
+                "left",
+                new_board("right", "right"),
+                json!({"at":{"x":300.0,"y":12.0},"rotation":27.0}),
+            ),
+        )
+        .unwrap()["document"]
+            .clone();
+        let reply = create_with(
+            &mut engine,
+            &made,
+            "commit",
+            json!({"kind":"set-companion-placement", "pairId":"placement-selector-kind",
+                "targets":[target], "mode":"duplicate-position", "tweak":null}),
+        )
+        .unwrap();
+        let updated: BTreeSet<_> =
+            pair(&reply["document"], "placement-selector-kind")["halves"]["correspondences"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|link| link["companionMode"] == "duplicate-position")
+                .map(|link| link["sourceId"].as_str().unwrap().to_owned())
+                .collect();
+        assert_eq!(updated, expected.into_iter().map(str::to_owned).collect());
+    }
+}
+
+#[test]
+fn changing_pair_default_preserves_an_inherited_tweak_override() {
+    let (mut engine, source) = seed(&runtime_supported_document(), "left");
+    let made = create_with(
+        &mut engine,
+        &source,
+        "commit",
+        operation(
+            "placement-inherited-tweak",
+            "left",
+            new_board("right", "right"),
+            mapping(300.0),
+        ),
+    )
+    .unwrap()["document"]
+        .clone();
+    let mut with_tweak = made;
+    let halves = with_tweak["hardware"]["pairs"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|pair| pair["id"] == "placement-inherited-tweak")
+        .unwrap()["halves"]
+        .as_object_mut()
+        .unwrap();
+    halves.insert("companionMode".into(), json!("literal-mirror-with-tweak"));
+    let inherited = halves["correspondences"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|link| {
+            link["kind"] == "part" && link["sourceId"].as_str().unwrap().ends_with("/diode")
+        })
+        .unwrap();
+    inherited.as_object_mut().unwrap().remove("companionMode");
+    inherited["companionTweak"] = json!({"x":0.75,"y":-0.25,"rotation":3.0});
+    let (mut engine, accepted) = open(&with_tweak);
+    let reply = create_with(
+        &mut engine,
+        &accepted,
+        "commit",
+        json!({"kind":"set-companion-placement", "pairId":"placement-inherited-tweak",
+            "targets":[{"kind":"pair"}], "mode":"duplicate-position", "tweak":null}),
+    )
+    .unwrap();
+    let changed_link =
+        pair(&reply["document"], "placement-inherited-tweak")["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|link| link["companionTweak"]["x"] == 0.75)
+            .unwrap();
+    assert_eq!(changed_link["companionMode"], "literal-mirror-with-tweak");
+    assert_eq!(
+        changed_link["companionTweak"],
+        json!({"x":0.75,"y":-0.25,"rotation":3.0})
+    );
+}
+
+#[test]
+fn companion_placement_updates_local_and_omitted_records_for_rejoin() {
+    for state in ["local", "omitted"] {
+        let (mut engine, source) = seed(&runtime_supported_document(), "left");
+        let made = create_with(
+            &mut engine,
+            &source,
+            "commit",
+            operation(
+                "placement-exception",
+                "left",
+                new_board("right", "right"),
+                mapping(300.0),
+            ),
+        )
+        .unwrap()["document"]
+            .clone();
+        let mirror_id = "matrix/right-synthetic-keys/r0c0/diode";
+        let exceptional = create_with(
+            &mut engine,
+            &made,
+            "commit",
+            json!({"kind":"set-half-exception", "pairId":"placement-exception",
+                "itemKind":"part", "mirrorId":mirror_id, "state":state}),
+        )
+        .unwrap()["document"]
+            .clone();
+        let before_pose = (state == "local").then(|| part(&exceptional, mirror_id)["pose"].clone());
+        let edited = create_with(
+            &mut engine,
+            &exceptional,
+            "commit",
+            json!({"kind":"set-companion-placement", "pairId":"placement-exception",
+                "targets":[{"kind":"item","itemKind":"part","mirrorId":mirror_id}],
+                "mode":"literal-mirror-with-tweak", "tweak":{"x":1.0,"y":2.0,"rotation":3.0}}),
+        )
+        .unwrap()["document"]
+            .clone();
+        let link = pair(&edited, "placement-exception")["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|link| link["mirrorId"] == mirror_id)
+            .unwrap();
+        assert_eq!(link["companionMode"], "literal-mirror-with-tweak");
+        assert_eq!(
+            link["companionTweak"],
+            json!({"x":1.0,"y":2.0,"rotation":3.0})
+        );
+        if state == "local" {
+            assert_eq!(part(&edited, mirror_id)["pose"], before_pose.unwrap());
+        }
+        let rejoined = create_with(
+            &mut engine,
+            &edited,
+            "commit",
+            json!({"kind":"set-half-exception", "pairId":"placement-exception",
+                "itemKind":"part", "mirrorId":mirror_id, "state":"linked"}),
+        )
+        .unwrap()["document"]
+            .clone();
+        let rejoined_link = pair(&rejoined, "placement-exception")["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|link| link["mirrorId"] == mirror_id)
+            .unwrap();
+        assert_eq!(rejoined_link["companionMode"], "literal-mirror-with-tweak");
+        assert_eq!(
+            rejoined_link["companionTweak"],
+            json!({"x":1.0,"y":2.0,"rotation":3.0})
+        );
     }
 }
 

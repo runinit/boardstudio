@@ -699,15 +699,17 @@ fn setup_resolver(
             | PhysicalSetupIntent::CaseTransport(_)) => {
                 let setup = setup_intent(&accepted.document, &owner, intent, seed)
                     .expect("every project setup intent maps to a catalogue intent");
-                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal_with_pair(
+                match boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal_with_pair(
                     &accepted.document,
                     setup,
-                )
-                // A topology setup establishes its mirror pair through Core's typed
-                // mechanical operation on the proposed document, so the new halves and
-                // the pair are one accepted replacement with one Undo step. A Core error
-                // aborts the whole proposal: nothing is submitted.
-                .and_then(|proposal| proposal.into_submission(prepared.mounting_hole.as_ref()))
+                ) {
+                    Ok(proposal) => match proposal.into_mirrored_operation(prepared.mounting_hole.as_ref()) {
+                        Ok(Some((target_ids, operation))) => return Resolution::submit(target_ids, operation),
+                        Ok(None) => Ok(proposal.document),
+                        Err(reason) => Err(reason),
+                    },
+                    Err(reason) => Err(reason),
+                }
             }
         };
         let proposal = match proposal {

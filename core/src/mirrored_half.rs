@@ -23,13 +23,14 @@ use crate::mechanical::change::{
 };
 use crate::mechanical::{self, MechanicalTarget, halves, inputs::effective_inputs, pair};
 use crate::model::{
-    Board, BoardOutline, ElectricalBoardConfiguration, Finding, Layout, MechanicalConfiguration,
+    Board, BoardOutline, ElectricalBoardConfiguration, Finding, HardwareConfiguration,
+    HardwareTopology, HardwareTransport, Layout, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredCompanionMode,
     MirroredCompanionTweak, MirroredCorrespondence, MirroredHalfLabel, MirroredHalfLabels,
-    MirroredHalfMode, MirroredHalves, MirroredIdRule, MirroredItemKind, Net, OutlineBridge,
-    OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance, OutlineSettings,
-    OutlineSnapshot, OutlineVersion, PartDefinition, PhysicalBoardInstance, Pin, Pose2, ProjectDoc,
-    ProtectedOutlineGap, Scope, Severity, Vec2,
+    MirroredHalfMode, MirroredHalfPhysicalSetup, MirroredHalves, MirroredIdRule, MirroredItemKind,
+    Net, OutlineBridge, OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance,
+    OutlineSettings, OutlineSnapshot, OutlineVersion, PartDefinition, PhysicalBoardInstance, Pin,
+    Pose2, ProjectDoc, ProtectedOutlineGap, Scope, Severity, Vec2,
 };
 use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
@@ -122,6 +123,81 @@ pub(crate) fn create(
     }
     layout::validate(&next)?;
     halves::validate_document(&next)?;
+    changed.sort();
+    changed.dedup();
+    *doc = next;
+    Ok(changed)
+}
+
+/// Applies the web physical-setup values and the pair on one draft, so any refusal leaves the
+/// accepted document untouched.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn create_with_physical_setup(
+    doc: &mut ProjectDoc,
+    pair_id: &str,
+    source_instance_id: &str,
+    mode: &MirroredHalfMode,
+    mapping: Pose2,
+    id_rule: MirroredIdRule,
+    mounting_hole: Option<&PartDefinition>,
+    companion_mode: MirroredCompanionMode,
+    companion_tweak: Option<MirroredCompanionTweak>,
+    labels: Option<&MirroredHalfLabels>,
+    setup: &MirroredHalfPhysicalSetup,
+) -> Result<Vec<String>, String> {
+    if setup.topology != HardwareTopology::Split
+        || !matches!(
+            setup.transport,
+            HardwareTransport::Wired | HardwareTransport::Wireless
+        )
+    {
+        return Err(
+            "Mirrored physical setup requires split topology and wired or wireless transport."
+                .into(),
+        );
+    }
+    let source = &setup.source_instance;
+    if source.id != source_instance_id
+        || source.board_id != setup.shared_construction.board_id
+        || !doc.boards.iter().any(|board| board.id == source.board_id)
+    {
+        return Err(
+            "Physical setup source and shared construction must belong to a configured board."
+                .into(),
+        );
+    }
+    let mut next = doc.clone();
+    let prior_ids = next
+        .hardware
+        .as_ref()
+        .map(|hardware| {
+            hardware
+                .instances
+                .iter()
+                .map(|instance| instance.id.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let hardware = next
+        .hardware
+        .get_or_insert_with(HardwareConfiguration::default);
+    hardware.topology = setup.topology;
+    hardware.transport = setup.transport;
+    hardware.shared_construction = Some(setup.shared_construction.clone());
+    hardware.instances = vec![source.clone()];
+    let mut changed = create(
+        &mut next,
+        pair_id,
+        source_instance_id,
+        mode,
+        mapping,
+        id_rule,
+        mounting_hole,
+        companion_mode,
+        companion_tweak,
+        labels,
+    )?;
+    changed.extend(prior_ids);
     changed.sort();
     changed.dedup();
     *doc = next;

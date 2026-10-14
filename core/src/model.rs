@@ -1250,6 +1250,33 @@ pub struct MirroredCompanionTweak {
     pub rotation: f64,
 }
 
+/// A target for one companion placement edit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum CompanionPlacementTarget {
+    Pair,
+    Item {
+        #[serde(rename = "itemKind")]
+        item_kind: MirroredItemKind,
+        #[serde(rename = "mirrorId")]
+        mirror_id: String,
+    },
+    Row {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        row: u32,
+    },
+    Column {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        column: u32,
+    },
+    Matrix {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+    },
+}
+
 /// Which boards a mirrored pair relates, and how their items correspond.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1387,6 +1414,16 @@ pub struct MirroredHalfLabels {
     pub source: Option<MirroredHalfLabel>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror: Option<MirroredHalfLabel>,
+}
+
+/// Physical setup values applied atomically with creation of its mirror pair.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredHalfPhysicalSetup {
+    pub topology: HardwareTopology,
+    pub transport: HardwareTransport,
+    pub shared_construction: MechanicalConfiguration,
+    pub source_instance: PhysicalBoardInstance,
 }
 
 /// How copied item ids are named. Ids are `<board>/<local>` or `matrix/<board>-<cluster>/...`:
@@ -1789,6 +1826,13 @@ pub enum EditOperation {
         /// Optional source and mirror labels, validated and applied atomically with creation.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         labels: Option<MirroredHalfLabels>,
+        /// Optional physical setup committed in the same edit as pair creation.
+        #[serde(
+            default,
+            rename = "physicalSetup",
+            skip_serializing_if = "Option::is_none"
+        )]
+        physical_setup: Option<MirroredHalfPhysicalSetup>,
         /// Default switch-companion placement for the created pair.
         #[serde(
             default,
@@ -1824,6 +1868,14 @@ pub enum EditOperation {
         #[serde(rename = "mirrorId")]
         mirror_id: String,
         state: HalfExceptionState,
+    },
+    SetCompanionPlacement {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        targets: Vec<CompanionPlacementTarget>,
+        mode: MirroredCompanionMode,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tweak: Option<MirroredCompanionTweak>,
     },
     UnlinkHalves {
         #[serde(rename = "pairId")]

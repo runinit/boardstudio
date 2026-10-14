@@ -10,8 +10,9 @@ use super::{
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
 use crate::model::{
-    BoardContours, EditOperation, Finding, HalfExceptionState, Matrix, MirroredExceptionState,
-    MirroredItemKind, Pose2, Position, ProjectDoc, Scope, Severity,
+    BoardContours, CompanionPlacementTarget, EditOperation, Finding, HalfExceptionState, Matrix,
+    MirroredCompanionMode, MirroredCompanionTweak, MirroredExceptionState, MirroredItemKind, Pose2,
+    Position, ProjectDoc, Scope, Severity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -443,6 +444,160 @@ fn id_exists_outside_parts(document: &ProjectDoc, id: &str) -> bool {
             .any(|item| item.id == id)
 }
 
+fn set_companion_placement(
+    document: &mut ProjectDoc,
+    pair_id: &str,
+    targets: &[CompanionPlacementTarget],
+    mode: MirroredCompanionMode,
+    tweak: Option<MirroredCompanionTweak>,
+) -> Result<Vec<String>, String> {
+    let pair = document
+        .hardware
+        .as_mut()
+        .into_iter()
+        .flat_map(|hardware| &mut hardware.pairs)
+        .find(|pair| pair.id == pair_id);
+    let Some(pair) = pair else {
+        return Ok(Vec::new());
+    };
+    let Some(halves) = pair.halves.as_mut() else {
+        return Ok(Vec::new());
+    };
+    let has_pair = targets
+        .iter()
+        .any(|target| matches!(target, CompanionPlacementTarget::Pair));
+    if has_pair && tweak.is_some() {
+        return Err("A pair default cannot carry a companion tweak".into());
+    }
+    if let Some(tweak) = tweak {
+        crate::mechanical::halves::validate_companion(mode, Some(tweak))?;
+    }
+    let mut eligible = BTreeSet::new();
+    for matrix_link in halves
+        .correspondences
+        .iter()
+        .filter(|link| link.kind == MirroredItemKind::Matrix)
+    {
+        let Some(matrix) = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_link.source_id)
+        else {
+            continue;
+        };
+        for cell in matrix
+            .cells
+            .iter()
+            .filter(|cell| cell.enabled && !cell.deleted)
+        {
+            let key_id = crate::matrix::member_id(&matrix.id, cell.row, cell.column);
+            for assembly in &cell.assemblies {
+                if crate::mirrored_half::SYMMETRIC_DEFINITIONS
+                    .contains(&assembly.definition_id.as_str())
+                {
+                    continue;
+                }
+                let companion_id = crate::matrix::companion_id(&key_id, &assembly.id);
+                eligible.insert(companion_id);
+            }
+        }
+    }
+    let mut selected = BTreeSet::new();
+    for target in targets {
+        match target {
+            CompanionPlacementTarget::Pair => {}
+            CompanionPlacementTarget::Item {
+                item_kind,
+                mirror_id,
+            } => {
+                if let Some(link) = halves.correspondences.iter().find(|link| {
+                    link.kind == *item_kind
+                        && (link.mirror_id == *mirror_id || link.source_id == *mirror_id)
+                }) && link.kind == MirroredItemKind::Part
+                    && eligible.contains(&link.source_id)
+                {
+                    selected.insert(link.mirror_id.clone());
+                }
+            }
+            CompanionPlacementTarget::Row { matrix_id, .. }
+            | CompanionPlacementTarget::Column { matrix_id, .. }
+            | CompanionPlacementTarget::Matrix { matrix_id } => {
+                let Some(matrix_link) = halves.correspondences.iter().find(|link| {
+                    link.kind == MirroredItemKind::Matrix
+                        && (link.source_id == *matrix_id || link.mirror_id == *matrix_id)
+                }) else {
+                    continue;
+                };
+                let Some(matrix) = document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == matrix_link.source_id)
+                else {
+                    continue;
+                };
+                let coordinates: BTreeSet<_> = matrix
+                    .cells
+                    .iter()
+                    .filter(|cell| {
+                        cell.enabled
+                            && !cell.deleted
+                            && match target {
+                                CompanionPlacementTarget::Row { row, .. } => cell.row == *row,
+                                CompanionPlacementTarget::Column { column, .. } => {
+                                    cell.column == *column
+                                }
+                                CompanionPlacementTarget::Matrix { .. } => true,
+                                _ => false,
+                            }
+                    })
+                    .map(|cell| (cell.row, cell.column))
+                    .collect();
+                selected.extend(halves.correspondences.iter().filter_map(|link| {
+                    let belongs = coordinates.iter().any(|(row, column)| {
+                        let key = crate::matrix::member_id(&matrix.id, *row, *column);
+                        link.kind == MirroredItemKind::Part
+                            && eligible.contains(&link.source_id)
+                            && link.source_id.starts_with(&format!("{key}/"))
+                    });
+                    belongs.then(|| link.mirror_id.clone())
+                }));
+            }
+        }
+    }
+    let mut changed = Vec::new();
+    if has_pair && halves.companion_mode != mode {
+        if mode != MirroredCompanionMode::LiteralMirrorWithTweak {
+            for link in &mut halves.correspondences {
+                if link.companion_mode.is_none() && link.companion_tweak.is_some() {
+                    link.companion_mode = Some(MirroredCompanionMode::LiteralMirrorWithTweak);
+                }
+            }
+            for exception in &mut halves.exceptions {
+                if exception.companion_mode.is_none() && exception.companion_tweak.is_some() {
+                    exception.companion_mode = Some(MirroredCompanionMode::LiteralMirrorWithTweak);
+                }
+            }
+        }
+        halves.companion_mode = mode;
+        changed.push(pair_id.to_owned());
+    }
+    for mirror_id in selected {
+        let Some(link) = halves
+            .correspondences
+            .iter_mut()
+            .find(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
+        else {
+            continue;
+        };
+        if link.companion_mode != Some(mode) || link.companion_tweak != tweak {
+            link.companion_mode = Some(mode);
+            link.companion_tweak = tweak;
+            changed.push(mirror_id);
+        }
+    }
+    Ok(changed)
+}
+
 /// Builds a complete document draft for one edit without changing the accepted document.
 pub(crate) fn prepare_transaction(
     accepted: &ProjectDoc,
@@ -828,6 +983,7 @@ fn prepare_lifecycle_pairs(
         canonical.operation,
         EditOperation::AddPart { .. }
             | EditOperation::AddMirrorOnlyPart { .. }
+            | EditOperation::SetCompanionPlacement { .. }
             | EditOperation::ApplyMechanicalEdit { .. }
             | EditOperation::SetMechanical {
                 configuration: Some(_),
@@ -927,6 +1083,15 @@ fn apply_canonical(
         EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. }
     ) {
         return Ok(Vec::new());
+    }
+    if let EditOperation::SetCompanionPlacement {
+        pair_id,
+        targets,
+        mode,
+        tweak,
+    } = &canonical.operation
+    {
+        return set_companion_placement(draft, pair_id, targets, *mode, *tweak);
     }
     if let EditOperation::ApplyMechanicalEdit { edit } = &canonical.operation
         && let crate::mechanical::MechanicalChange::UnlinkMirrorPair { instance_id } = &edit.change
