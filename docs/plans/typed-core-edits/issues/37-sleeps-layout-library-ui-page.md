@@ -522,3 +522,11 @@ loop with bounded waits for their actual controls. Removed four 20 ms post-click
 callbacks update the test probes synchronously. The Parts browser crate passed all 70 tests in
 16.11 s with test names and count unchanged; formatting passed. The remaining wait audit, mutation
 checks, baseline name comparison, and three repeated browser gates remain open.
+
+## Progress (2026-10-14, Parts catalogue and browse waits)
+
+Converted the Parts search/browse UI and catalogue-state tests from fixed 10/30 ms sleeps and
+100-iteration polling loops to bounded checks for the search draft, browse state, loading text, and
+error alert. The Parts browser crate again passed all 70 tests (16.07 s) with unchanged test names
+and count; formatting passed. The remaining broad Parts audit, mutation checks, baseline name
+comparison, and three repeated browser gates remain open.

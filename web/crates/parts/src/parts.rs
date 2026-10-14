@@ -518,6 +518,7 @@ fn add_object_groups<'a>(
 mod add_object_menu_tests {
     use super::*;
     use boardstudio_application::SnapshotToken;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::{cell::RefCell, rc::Rc, sync::Arc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -696,7 +697,12 @@ mod add_object_menu_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until("Parts browse chooser mounts", || {
+            root.query_selector("input[aria-label='Search parts']")
+                .unwrap()
+                .is_some()
+        })
+        .await;
 
         let input = root
             .query_selector("input[aria-label='Search parts']")
@@ -712,16 +718,22 @@ mod add_object_menu_tests {
                 &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(10).await;
+        let signals = signals.borrow().as_ref().copied().unwrap();
+        wait_until("Parts search draft updates", || {
+            (signals.query)() == "battery"
+        })
+        .await;
         root.query_selector("button.m1-add-browse")
             .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(10).await;
+        wait_until("Parts browse action selects the workspace", || {
+            (signals.generation)() == 1 && (signals.workspace)() == "Parts"
+        })
+        .await;
 
-        let signals = signals.borrow().as_ref().copied().unwrap();
         assert_eq!((signals.query)(), "battery");
         assert_eq!((signals.generation)(), 1);
         assert_eq!((signals.workspace)(), "Parts");
@@ -763,35 +775,22 @@ mod add_object_menu_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
 
-        for _ in 0..100 {
-            if root
-                .text_content()
-                .unwrap_or_default()
-                .contains("Loading component catalogue…")
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
-        assert!(
+        wait_until("catalogue loading state renders", || {
             root.text_content()
                 .unwrap_or_default()
                 .contains("Loading component catalogue…")
-        );
+        })
+        .await;
         complete
             .send(Err("controlled catalogue source failure".into()))
             .unwrap();
-        for _ in 0..100 {
-            if root
-                .query_selector("p[role='alert']")
+        wait_until("catalogue source failure renders", || {
+            root.query_selector("p[role='alert']")
                 .unwrap()
                 .and_then(|alert| alert.text_content())
                 .is_some_and(|text| text.contains("controlled catalogue source failure"))
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        })
+        .await;
         let alert = root.query_selector("p[role='alert']").unwrap().unwrap();
         assert!(alert.text_content().unwrap().contains(
             "Component catalogue could not be loaded: controlled catalogue source failure"
