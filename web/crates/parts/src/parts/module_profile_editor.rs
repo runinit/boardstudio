@@ -741,8 +741,13 @@ mod settlement_tests {
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_wait::{wait_until_future, wait_until_step};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
+
+    async fn tick() {
+        gloo_timers::future::TimeoutFuture::new(30).await;
+    }
 
     fn mounted_host() -> Element {
         let runtime = use_context::<Rc<Runtime>>();
@@ -766,10 +771,6 @@ mod settlement_tests {
         let snapshot = runtime.model().accepted.unwrap();
         let definition = snapshot.document.module_definitions[0].clone();
         rsx! { ModuleProfileEditor { snapshot, definition, project_owned: true, scope: runtime.scope(), selected } }
-    }
-
-    async fn tick() {
-        gloo_timers::future::TimeoutFuture::new(30).await;
     }
 
     fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
@@ -938,6 +939,7 @@ mod settlement_tests {
         let mut changed = original_rotary.clone().unwrap();
         changed.steps = Some(24);
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first = support::observe_next(&runtime);
         let mut edits = PendingEdits::default();
         edits.begin(
             &runtime,
@@ -953,7 +955,10 @@ mod settlement_tests {
             ),
         );
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("rotary change enters Core", entered)
+            .await
+            .unwrap();
+        let restore = support::observe_next(&runtime);
         edits.begin(
             &runtime,
             1_u64,
@@ -968,8 +973,11 @@ mod settlement_tests {
             ),
         );
         release.send(()).unwrap();
-        gloo_timers::future::TimeoutFuture::new(30).await;
-        support::run_pending(&runtime).await;
+        wait_until_step("both rotary edits settle", async || {
+            support::run_pending(&runtime).await;
+            first.borrow().is_some() && restore.borrow().is_some()
+        })
+        .await;
         assert!(
             matches!(
                 edits.settle(true).as_slice(),
@@ -997,7 +1005,22 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
+        wait_until_step("undo restores the original rotary value", async || {
+            support::run_pending(&runtime).await;
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .module_definitions[0]
+                .electrical
+                .rotary_profile
+                .as_ref()
+                .unwrap()
+                .steps
+                == Some(24)
+        })
+        .await;
         assert_eq!(
             runtime
                 .model()

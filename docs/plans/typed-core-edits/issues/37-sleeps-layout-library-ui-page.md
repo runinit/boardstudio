@@ -572,3 +572,7 @@ The mounted attachment workflow now waits for its rendered control, admission, C
 module and navigation, silent owner retirement, and failure alert. The fixed ticks around attach,
 departure, landing and failure are removed. Its focused mounted test passed, then the full Parts
 suite passed 70/70 in 14.69 s. Other Parts waits and ticket-wide verification remain open.
+
+The pure queued-rotary profile test also replaces its post-release 30 ms delay and unbounded gate
+wait with bounded waits for both operation outcomes and the Undo state. Its focused browser test
+passed; mounted module-profile editor waits remain to be converted.
