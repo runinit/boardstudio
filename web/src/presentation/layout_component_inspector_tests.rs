@@ -826,6 +826,7 @@ struct MountedProbe {
     runtime: std::rc::Rc<crate::runtime::Runtime>,
     selected_part: std::rc::Rc<RefCell<Option<String>>>,
     context_override: std::rc::Rc<RefCell<Option<objects::ScopedTreeContext>>>,
+    adapter_context: std::rc::Rc<RefCell<Option<objects::ScopedTreeContext>>>,
     selection_kind: std::rc::Rc<RefCell<Option<Signal<objects::LayoutSelectionKind>>>>,
     projection: std::rc::Rc<RefCell<Option<LayoutComponentInspectorProjection>>>,
     action: std::rc::Rc<RefCell<Option<EventHandler<LayoutComponentInspectorAction>>>>,
@@ -979,6 +980,7 @@ fn mounted_component_inspector_host() -> Element {
     if selected_context.peek().clone() != next_context {
         selected_context.set(next_context.clone());
     }
+    *probe.adapter_context.borrow_mut() = selected_context.peek().clone();
     let owner_key =
         layout_component_inspector_owner_key(&model, workspace(), next_context.as_ref());
     let generation = lifetime.update(owner_key);
@@ -1184,6 +1186,7 @@ async fn mounted_runtime_probe(
                 .unwrap_or_default(),
         ))),
         context_override: std::rc::Rc::default(),
+        adapter_context: std::rc::Rc::default(),
         selection_kind: std::rc::Rc::default(),
         projection: std::rc::Rc::default(),
         action: std::rc::Rc::default(),
@@ -1275,6 +1278,229 @@ async fn mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_actio
             ..
         }) if pair_id == "pair/A" && mirror_id == "mirror-part"
     ));
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
+    use boardstudio_core::model::{HalfExceptionState, MirroredExceptionState};
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+
+    let (probe, root) = mounted_runtime_probe(
+        "layout-mirrored-half-round-trip-test-root",
+        |document| {
+            document.boards[0].part_ids = vec!["selected-part".into()];
+            document.boards.push(Board {
+                id: "mirror-board".into(),
+                name: "Mirror board".into(),
+                outline_ids: vec![],
+                part_ids: vec!["source-part".into()],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            });
+            document.parts.iter_mut().find(|part| part.id == "source-part").unwrap().pose.at.x = -4.0;
+            document.layouts.clear();
+            document.matrices.clear();
+            document.hardware = Some(serde_json::from_value(serde_json::json!({
+                "topology":"split", "transport":"wireless",
+                "instances":[
+                    {"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":null,"mechanical":null},
+                    {"id":"mirror-instance","name":"Right half","boardId":"mirror-board","half":"right","role":"secondary","flipped":true,"controllerPartId":null,"mechanical":null}
+                ],
+                "pairs":[{
+                    "id":"pair/A","members":["source-instance","mirror-instance"],
+                    "mapping":{"at":{"x":0.0,"y":0.0},"rotation":0.0},
+                    "construction":{"method":"printed","mount":"tray","integratedPlateFrame":false,"plateThickness":1.5,"plateFoamThickness":0.0,"bottomFoamThickness":0.0,"bottomThickness":1.5,"plateToPcb":5.0,"wallThickness":2.0,"clearance":0.2},
+                    "constructionSource":"source-instance",
+                    "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
+                        {"kind":"part","sourceId":"selected-part","mirrorId":"source-part"}
+                    ]}
+                }]
+            })).expect("the mirrored board pair is valid"));
+        },
+        &["selected-part"],
+    )
+    .await;
+    async fn drive_to_state(
+        probe: &MountedProbe,
+        expected: HalfExceptionState,
+        previous_revision: u64,
+    ) {
+        wait_until_step("the mirrored-half state is accepted", async || {
+            accept_pending(probe).await;
+            let state = probe
+                .runtime
+                .model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .exceptions
+                .iter()
+                .find(|exception| exception.mirror_id == "source-part")
+                .map(|exception| match exception.state {
+                    MirroredExceptionState::Local => HalfExceptionState::Local,
+                    MirroredExceptionState::Omitted => HalfExceptionState::Omitted,
+                })
+                .unwrap_or(HalfExceptionState::Linked);
+            let model = probe.runtime.model();
+            state == expected
+                && model
+                    .accepted
+                    .as_ref()
+                    .is_some_and(|accepted| accepted.document.revision > previous_revision)
+        })
+        .await;
+        let accepted_state = probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .iter()
+            .find(|exception| exception.mirror_id == "source-part")
+            .map(|exception| match exception.state {
+                MirroredExceptionState::Local => HalfExceptionState::Local,
+                MirroredExceptionState::Omitted => HalfExceptionState::Omitted,
+            })
+            .unwrap_or(HalfExceptionState::Linked);
+        assert_eq!(
+            accepted_state,
+            expected,
+            "runtime error: {:?}; revision: {} (expected after {})",
+            probe.runtime.model().last_error,
+            probe.runtime.model().accepted.unwrap().document.revision,
+            previous_revision,
+        );
+        use boardstudio_web_ui_shared::test_wait::wait_until;
+        wait_until(
+            "the Inspector projects the accepted mirrored-half state",
+            || {
+                probe.refresh();
+                probe
+                    .projection
+                    .borrow()
+                    .as_ref()
+                    .and_then(|projection| projection.mirrored_half.as_ref())
+                    .is_some_and(|half| half.state == expected)
+            },
+        )
+        .await;
+    }
+
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    wait_until("the source part Inspector mounts", || {
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .and_then(|projection| projection.mirrored_half.as_ref())
+            .is_some_and(|half| half.state == HalfExceptionState::Linked)
+    })
+    .await;
+    let revision = accepted_revision(&probe);
+    click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
+    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-omit");
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetMirroredHalfState {
+            state: HalfExceptionState::Omitted,
+            ..
+        })
+    ));
+    assert!(
+        probe
+            .pending_edits
+            .borrow()
+            .expect("mounted pending edits")
+            .peek()
+            .is_pending(&layout_component_edits::InspectorField::MirroredHalfState)
+    );
+    drive_to_state(&probe, HalfExceptionState::Omitted, revision).await;
+
+    let revision = accepted_revision(&probe);
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    drive_to_state(&probe, HalfExceptionState::Linked, revision).await;
+
+    probe
+        .runtime
+        .submit(boardstudio_application::Event::Navigate {
+            operation_id: probe.runtime.operation(),
+            board_id: "mirror-board".into(),
+            instance_id: None,
+        });
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    probe.select(Some("source-part"));
+    probe.refresh();
+    wait_until("the counterpart Inspector mounts", || {
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .and_then(|projection| projection.mirrored_half.as_ref())
+            .is_some_and(|half| half.state == HalfExceptionState::Linked)
+    })
+    .await;
+    wait_until("the mirror-board selection owns the Inspector", || {
+        probe
+            .adapter_context
+            .borrow()
+            .as_ref()
+            .is_some_and(|selected| {
+                selected.scope.board_id == "mirror-board"
+                    && matches!(
+                        &selected.context,
+                        objects::TreeContext::Component { part_id: Some(part_id), .. }
+                            if part_id == "source-part"
+                    )
+            })
+    })
+    .await;
+    let revision = accepted_revision(&probe);
+    click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
+    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-local");
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetMirroredHalfState {
+            state: HalfExceptionState::Local,
+            ..
+        })
+    ));
+    assert!(
+        probe
+            .pending_edits
+            .borrow()
+            .expect("mounted pending edits")
+            .peek()
+            .is_pending(&layout_component_edits::InspectorField::MirroredHalfState)
+    );
+    drive_to_state(&probe, HalfExceptionState::Local, revision).await;
+
+    let revision = accepted_revision(&probe);
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    drive_to_state(&probe, HalfExceptionState::Linked, revision).await;
     root.remove();
 }
 

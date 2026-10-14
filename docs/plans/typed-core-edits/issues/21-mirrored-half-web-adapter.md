@@ -41,7 +41,7 @@ Let a user create and manage a mirrored half in the app through the typed operat
 - [x] Core tests cover topology and transport application, valid and invalid combinations, labels,
   exact `sharedConstruction` preservation, unchanged state on refusal, and one atomic undoable
   creation (`physical_setup_and_pair_creation_are_one_atomic_core_edit`).
-- [ ] Mounted browser tests pass; DESIGN.md updated only if a visible control changes.
+- [x] Mounted browser tests pass; DESIGN.md updated only if a visible control changes.
 
 ## Verification
 
@@ -89,3 +89,15 @@ wasm32-unknown-unknown pcb_physical_setup::tests::`): 8 passed. This suite is no
 
 This closes the physical-setup create/Undo evidence gap. End-to-end Layout exception editing from
 both halves, exception Undo, and accepted Core action coverage remain open; acceptance stays open.
+
+## Progress (2026-10-14, mounted Layout exception round trip)
+
+The mounted Layout test `mounted_mirrored_half_actions_work_from_either_board_and_undo` now drives
+Omit and Undo from the source board, then Make local and Undo from the mirror board. Each assertion
+waits for a newer accepted revision as well as the expected projected state; after navigation it
+waits until the selection adapter owns the mirror-board component before dispatching the next edit.
+
+`python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs`:
+37 passed. The physical-setup WASM suite also passed 8/8, including atomic split creation and Undo.
+The mounted browser acceptance item is now checked. This does not complete ticket 22's reused-PCB,
+save/reopen, full-check, boundary-transcript, and review requirements.
