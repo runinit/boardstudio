@@ -794,11 +794,12 @@ mod mounted_tests {
         std::mem::take(&mut *probe.results.borrow_mut())
     }
 
-    async fn settle(runtime: &TestRuntime) {
-        for _ in 0..12 {
+    async fn settle_until(runtime: &TestRuntime, what: &str, condition: impl Fn() -> bool) {
+        crate::test_wait::wait_until_step(what, async || {
             support::run_pending(runtime).await;
-            rendered().await;
-        }
+            condition()
+        })
+        .await;
     }
 
     async fn rendered() {
@@ -810,6 +811,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-field");
         rendered().await;
         support::drive_pending(&runtime);
@@ -826,7 +828,12 @@ mod mounted_tests {
         assert!(failure_message().is_none());
 
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the rename edit reaches a terminal outcome",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle");
         rendered().await;
         assert_eq!(
@@ -851,6 +858,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-field");
         rendered().await;
         assert!(
@@ -860,7 +868,10 @@ mod mounted_tests {
         support::drive_pending(&runtime);
         entered.await.expect("the field action reached Core");
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(&runtime, "the bound field action lands", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle");
         rendered().await;
         assert!(
@@ -882,8 +893,14 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
         support::fail_next_core_reply(&runtime, "engine died");
+        let outcome = support::observe_next(&runtime);
         click("#begin-failing-field");
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the failing field action reports its outcome",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle");
         rendered().await;
         assert_eq!(
@@ -911,13 +928,19 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let _probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-field");
         support::drive_pending(&runtime);
         entered.await.unwrap();
         type_draft("Zephyr v2");
         rendered().await;
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the older rename reaches its terminal outcome",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle");
         rendered().await;
         assert_eq!(
@@ -930,8 +953,14 @@ mod mounted_tests {
         let failing = opened_runtime("Original").await;
         let _probe = mount_fixture(failing.clone()).await;
         support::fail_next_core_reply(&failing, "engine died");
+        let outcome = support::observe_next(&failing);
         click("#begin-failing-field");
-        settle(&failing).await;
+        settle_until(
+            &failing,
+            "the failing rename reaches its terminal outcome",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         type_draft("Zephyr v2");
         rendered().await;
         click("#settle");
@@ -953,6 +982,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-field");
         support::drive_pending(&runtime);
         entered.await.unwrap();
@@ -964,7 +994,10 @@ mod mounted_tests {
             document: document("second-scope", "Second scope"),
         });
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(&runtime, "the retired scope edit reaches Core", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle");
         rendered().await;
         assert_eq!(
@@ -999,6 +1032,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-one-shot");
         support::drive_pending(&runtime);
         entered.await.unwrap();
@@ -1008,7 +1042,12 @@ mod mounted_tests {
             "the control disables while its edit is pending"
         );
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the one-shot edit reaches a terminal outcome",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle");
         rendered().await;
         assert_eq!(
@@ -1029,8 +1068,12 @@ mod mounted_tests {
     async fn an_unchanged_landing_still_restores_the_accepted_value() {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
+        let outcome = support::observe_next(&runtime);
         click("#begin-unchanged-field");
-        settle(&runtime).await;
+        settle_until(&runtime, "the unchanged edit is reported as landed", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle");
         rendered().await;
         assert_eq!(
@@ -1050,15 +1093,22 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first_outcome = support::observe_next(&runtime);
         click("#begin-field");
         support::drive_pending(&runtime);
         entered.await.unwrap();
         type_draft("Second");
         rendered().await;
+        let second_outcome = support::observe_next(&runtime);
         click("#begin-field");
         support::drive_pending(&runtime);
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "both rename operations reach terminal outcomes",
+            || first_outcome.borrow().is_some() && second_outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle");
         rendered().await;
         let results = taken_results(&probe);
@@ -1214,6 +1264,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_typed_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-typed");
         rendered().await;
         support::drive_pending(&runtime);
@@ -1221,7 +1272,12 @@ mod mounted_tests {
         assert!(probe.pending.get());
         assert_eq!(typed_draft_x(), "7.25");
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the typed edit failure reaches the caller",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle-typed");
         rendered().await;
         assert_eq!(
@@ -1248,6 +1304,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_typed_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-typed");
         rendered().await;
         support::drive_pending(&runtime);
@@ -1255,7 +1312,10 @@ mod mounted_tests {
         type_typed_draft_x("8");
         rendered().await;
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(&runtime, "the older typed edit reaches its failure", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle-typed");
         rendered().await;
         assert_eq!(
@@ -1280,8 +1340,12 @@ mod mounted_tests {
     async fn typed_unchanged_landing_projects_accepted_value() {
         let runtime = opened_runtime("Original").await;
         let probe = mount_typed_fixture(runtime.clone()).await;
+        let outcome = support::observe_next(&runtime);
         click("#begin-typed-unchanged");
-        settle(&runtime).await;
+        settle_until(&runtime, "the unchanged typed edit lands", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle-typed");
         rendered().await;
         assert_eq!(typed_draft_x(), "1");
@@ -1397,6 +1461,7 @@ mod mounted_tests {
             "the caller drops its initial draft"
         );
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-retention");
         rendered().await;
         support::drive_pending(&runtime);
@@ -1407,7 +1472,12 @@ mod mounted_tests {
             "the pending draft remains live"
         );
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the retained draft edit reaches a terminal",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         click("#settle-retention");
         rendered().await;
         assert!(matches!(
@@ -1587,6 +1657,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_unbind_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-rename");
         rendered().await;
         support::drive_pending(&runtime);
@@ -1595,7 +1666,10 @@ mod mounted_tests {
         rendered().await;
         assert!(!exists("#child-draft"), "the field component is gone");
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(&runtime, "the unmounted field edit reaches Core", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle-unbind");
         rendered().await;
         assert!(
@@ -1620,11 +1694,13 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_unbind_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first_outcome = support::observe_next(&runtime);
         click("#begin-rename");
         rendered().await;
         support::drive_pending(&runtime);
         entered.await.expect("the first edit reached Core");
         // The newer edit for the same key is the observed one; it is rejected once it runs.
+        let rejected_outcome = support::observe_next(&runtime);
         click("#begin-rejected");
         rendered().await;
         click("#unmount");
@@ -1633,7 +1709,10 @@ mod mounted_tests {
         rendered().await;
         assert_eq!(child_draft(), "Fresh");
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(&runtime, "both field outcomes reach the caller", || {
+            first_outcome.borrow().is_some() && rejected_outcome.borrow().is_some()
+        })
+        .await;
         click("#settle-unbind");
         rendered().await;
         assert_eq!(
@@ -1659,6 +1738,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_unbind_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-other");
         rendered().await;
         assert!(element("#child-other").has_attribute("disabled"));
@@ -1671,7 +1751,12 @@ mod mounted_tests {
             "the control is gone and not remounted"
         );
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(
+            &runtime,
+            "the unmounted one-shot reaches the caller",
+            || outcome.borrow().is_some(),
+        )
+        .await;
         // Releasing a control through its dropped Signal would panic here.
         click("#settle-unbind");
         rendered().await;
@@ -1697,6 +1782,7 @@ mod mounted_tests {
         let runtime = opened_runtime("Original").await;
         let probe = mount_unbind_fixture(runtime.clone()).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
+        let outcome = support::observe_next(&runtime);
         click("#begin-other");
         rendered().await;
         support::drive_pending(&runtime);
@@ -1710,7 +1796,10 @@ mod mounted_tests {
             "the replacement is disabled for reasons of its own"
         );
         release.send(()).unwrap();
-        settle(&runtime).await;
+        settle_until(&runtime, "the old one-shot reaches the caller", || {
+            outcome.borrow().is_some()
+        })
+        .await;
         click("#settle-unbind");
         rendered().await;
         assert!(

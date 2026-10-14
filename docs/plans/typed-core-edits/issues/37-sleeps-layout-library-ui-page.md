@@ -321,3 +321,9 @@ Undo, and inline failures. The keymap WASM suite passed all 40 tests (`wasm-pack
 unchanged. `cargo fmt --all --check` and `git diff --check` passed. The remaining direct 40 ms
 render yields in this file are under the ticket's per-suite one-second stopping threshold; other
 keymap helper files and the broader #37 acceptance gates remain open.
+
+Converted all 17 `pending_edit_helpers.rs` settlement sites from 12 fixed 30 ms drains to bounded
+waits on their observed Runtime operation outcomes. The ui-shared WASM suite passed 34/34 in 2.90 s
+with `wasm-pack test --headless --chrome web/crates/ui-shared --lib -- --nocapture`; this is not a
+comparable before/after measurement against the older full-browser run. Formatting and diff checks
+passed. The file's remaining bare render yields and the other #37 suites remain open.
