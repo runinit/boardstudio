@@ -147,6 +147,14 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
 - Production code, left as is: `library.rs` line 608 has a 120 ms test-only hold that keeps the Loading status on
   screen for two tests (cfg(test) only); the focus helpers' 0 ms `spawn_local` yields.
 
+## Progress (2026-10-14, ZMK export page waits)
+
+Replaced the fixed mount delays in `zmk_firmware_export.rs` with bounded waits for the rendered
+workspace headings and export rows. The remaining ticks in that file surround dispatched actions
+whose next observable effects are handled by the test host; they remain unchanged in this slice.
+`python3 scripts/run-wasm-tests.py --files web/src/presentation/zmk_firmware_export.rs` passed all
+5 tests; `cargo fmt --all --check` and `git diff --check` passed. Ticket acceptance remains open.
+
 **Verification (what I observed).**
 - Mutation checks, one edit each, one filtered run, then restore with `cmp` against a saved copy:
   - library, never-true `Escape restores the accepted name`: `wait_until: Escape restores the accepted name did not

@@ -204,6 +204,7 @@ mod tests {
     use crate::runtime::firmware_export_test_support as runtime_test;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::cell::RefCell;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
@@ -317,7 +318,11 @@ mod tests {
             runtime.electrical_preview_executor_epoch(),
             true,
         ));
-        browser_tick().await;
+        wait_until("the production export panel mounts both workspaces", || {
+            root.query_selector_all("h2")
+                .is_ok_and(|headings| headings.length() == 2)
+        })
+        .await;
 
         let headings = root.query_selector_all("h2").unwrap();
         assert_eq!(headings.length(), 2);
@@ -715,7 +720,11 @@ mod tests {
     #[wasm_bindgen_test]
     async fn row_renders_reference_copy_accessible_name_and_ready_marker() {
         let root = mount_row_fixture();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the ZMK export rows render", || {
+            root.query_selector_all(".m1-export-row")
+                .is_ok_and(|rows| rows.length() == 2)
+        })
+        .await;
         let document = web_sys::window().unwrap().document().unwrap();
         let rows = document
             .query_selector_all("#zmk-export-row-test-root .m1-export-row")
