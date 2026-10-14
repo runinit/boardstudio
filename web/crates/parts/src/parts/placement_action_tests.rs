@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -84,7 +85,13 @@ async fn mounted_action(
         apply_to_key,
     });
     dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
-    gloo_timers::future::TimeoutFuture::new(50).await;
+    wait_until("the Parts Inspector placement control mounts", || {
+        document
+            .query_selector(&format!("#{root_id} .m1-parts-place-component"))
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let button = document
         .query_selector(&format!("#{root_id} .m1-parts-place-component"))
         .unwrap()
@@ -218,16 +225,12 @@ async fn mounted_add_object_chooser(
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    for _ in 0..100 {
-        if root
-            .query_selector("button[aria-label='Add Reset switch']")
+    wait_until("the Add Reset switch action mounts", || {
+        root.query_selector("button[aria-label='Add Reset switch']")
             .unwrap()
             .is_some()
-        {
-            break;
-        }
-        gloo_timers::future::TimeoutFuture::new(10).await;
-    }
+    })
+    .await;
     (actions, root)
 }
 
@@ -249,7 +252,6 @@ async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_o
         .unwrap();
     default.click();
     mirror_only.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert_eq!(
         *actions.borrow(),
         vec![
@@ -292,7 +294,6 @@ async fn inspector_disables_a_non_input_definition_for_a_selected_key() {
             .contains("Clear the key selection to place it as a standalone component.")
     );
     button.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert!(action.borrow().is_none());
 }
 
@@ -309,7 +310,6 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
         Some("Apply to selected key")
     );
     button.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert_eq!(
         action.borrow().as_ref(),
         Some(
@@ -329,7 +329,6 @@ async fn inspector_disables_a_switch_without_independent_press_contacts() {
 
     assert!(button.has_attribute("disabled"));
     button.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert!(action.borrow().is_none());
 }
 

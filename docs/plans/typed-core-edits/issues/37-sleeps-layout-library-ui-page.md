@@ -514,3 +514,11 @@ An unsplit crate run failed only the setup-guide viewport-composition test, whic
 already runs separately; the configured split passed both portions. Formatting and diff checks
 passed. Remaining #37 wait audit, mutation checks, test-name comparison, and three current-tree
 browser gates are still open.
+
+## Progress (2026-10-14, Parts placement chooser waits)
+
+Replaced the Parts Inspector's 50 ms mount delay and the Add Object chooser's 100 × 10 ms polling
+loop with bounded waits for their actual controls. Removed four 20 ms post-click delays: the
+callbacks update the test probes synchronously. The Parts browser crate passed all 70 tests in
+16.11 s with test names and count unchanged; formatting passed. The remaining wait audit, mutation
+checks, baseline name comparison, and three repeated browser gates remain open.
