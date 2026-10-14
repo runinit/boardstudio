@@ -135,6 +135,34 @@ fn linked_and_mirror_only_additions_cross_the_native_wasm_boundary() {
 }
 
 #[test]
+fn electrical_mirror_replacement_is_complete_before_boundary_golden_blessing() {
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let scenario = boundary::electrical_mirror_replacement_case(
+        &mut |request| engine.request(request),
+        &mut |request, buffers| {
+            let (reply, outputs) =
+                boardstudio_core::archive::request(&request.to_string(), buffers);
+            (serde_json::from_str(&reply).unwrap(), outputs)
+        },
+    );
+    for key in [
+        "omitReleasesPerPartCs",
+        "mirrorOnlyPlacementAutomaticallyPinned",
+        "freedCsPinWasAllocatedToReplacement",
+        "rejoinRestoresSourcePinsAndRepinsReplacement",
+        "sourceUnchanged",
+        "previewNonpublishing",
+        "singleStepUndoRedo",
+        "archiveSaveOpenPreservesAssignments",
+        "omittedReplacementArchiveOpenStable",
+        "capacityPlacementRefusalAtomic",
+        "capacityRejoinRefusalAtomic",
+    ] {
+        assert_eq!(scenario[key], true, "{key}: {scenario}");
+    }
+}
+
+#[test]
 #[should_panic(expected = "core[1:splay-preview].n")]
 fn a_mismatch_inside_an_array_names_the_entry_by_its_id() {
     let got = serde_json::json!([{"id": "open", "n": 1}, {"id": "splay-preview", "n": 3}]);

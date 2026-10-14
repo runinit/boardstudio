@@ -3375,25 +3375,52 @@ fn reconcile(
                 .iter()
                 .find(|board| board.board_id == halves.source_board_id)
         });
+        // An item's function keys mention its part id as a whole path segment.
+        let mentions = |key: &str, id: &str| {
+            key == id
+                || key.starts_with(&format!("{id}/"))
+                || key.ends_with(&format!("/{id}"))
+                || key.contains(&format!("/{id}/"))
+        };
+        // Global peripheral role keys are shared by every consumer of that role, unlike
+        // `peripheral/<part-id>/...` keys. Only mirror consumers keep these mapped roles active
+        // after their source consumer is Omitted.
+        let mut source_global_roles = BTreeSet::new();
+        for requirement in
+            crate::electrical_peripherals::describe(document, &halves.source_board_id)
+        {
+            for (_, function) in requirement.gpio_terminals {
+                if !mentions(&function, &requirement.part_id) {
+                    source_global_roles.insert(function);
+                }
+            }
+        }
+        let mut active_mirror_global_roles = BTreeSet::new();
+        for requirement in crate::electrical_peripherals::describe(&staged, &halves.mirror_board_id)
+        {
+            for (_, function) in requirement.gpio_terminals {
+                if !mentions(&function, &requirement.part_id) {
+                    active_mirror_global_roles.insert(function);
+                }
+            }
+        }
         let target = staged.hardware.as_mut().and_then(|hardware| {
             hardware
                 .boards
                 .iter_mut()
                 .find(|board| board.board_id == halves.mirror_board_id)
         });
+        let mut controller_part_to_sync = None;
         if let (Some(source), Some(target)) = (source, target) {
             let local_bindings = target.key_bindings.clone();
+            let local_protected_handoff = target.protected_handoff.clone();
             let mirror_assignments = target.assignments.clone();
             let mirror_locks = target.locks.clone();
-            // An item's function keys mention its part id as a whole path segment.
-            let mentions = |key: &str, id: &str| {
-                key == id
-                    || key.starts_with(&format!("{id}/"))
-                    || key.ends_with(&format!("/{id}"))
-                    || key.contains(&format!("/{id}/"))
-            };
             let mentions_omitted =
                 |key: &str| omitted_part_sources.iter().any(|id| mentions(key, id));
+            let inactive_global_role = |key: &str| {
+                source_global_roles.contains(key) && !active_mirror_global_roles.contains(key)
+            };
             let map_key = |key: &str, ids: &BTreeMap<String, String>| {
                 ids.iter()
                     .fold(key.to_owned(), |mapped, (source_id, target_id)| {
@@ -3431,9 +3458,10 @@ fn reconcile(
             let mut assignments = BTreeMap::new();
             let mut locks = BTreeMap::new();
             // Mirrored items stay on the source's pins, so each mapped assignment is also a
-            // lock. An Omitted item's entries are dropped, which frees its pins.
+            // lock. An Omitted item's entries are dropped, which frees its pins. A global role
+            // is projected only while some mirror peripheral still consumes it.
             for (key, value) in &source.assignments {
-                if mentions_omitted(key) {
+                if mentions_omitted(key) || inactive_global_role(key) {
                     continue;
                 }
                 let (mapped_key, mapped_value) =
@@ -3451,7 +3479,12 @@ fn reconcile(
             // for an item that is mirrored; that entry is released so Rejoin can reclaim the pin.
             let held: BTreeSet<String> = assignments
                 .values()
-                .chain(locks.values())
+                .chain(
+                    locks
+                        .iter()
+                        .filter(|(key, _)| !inactive_global_role(key))
+                        .map(|(_, value)| value),
+                )
                 .cloned()
                 .collect();
             for (key, value) in mirror_assignments {
@@ -3467,7 +3500,23 @@ fn reconcile(
             projected.assignments = assignments;
             projected.locks = locks;
             projected.key_bindings = local_bindings;
+            projected.protected_handoff = local_protected_handoff;
+            controller_part_to_sync = projected.controller_part_id.clone();
             *target = projected;
+        }
+        if let Some(controller_part_id) = controller_part_to_sync {
+            let generated_net_prefix = format!("generated/electrical/{}/", halves.mirror_board_id);
+            if staged
+                .nets
+                .iter()
+                .any(|net| net.id.starts_with(&generated_net_prefix))
+            {
+                let controller_parts = BTreeSet::from([controller_part_id]);
+                crate::electrical::sync_terminal_parameters_for_parts(
+                    &mut staged,
+                    &controller_parts,
+                );
+            }
         }
     }
 

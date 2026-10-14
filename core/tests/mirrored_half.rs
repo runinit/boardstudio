@@ -1,6 +1,8 @@
 //! `CreateMirroredHalf` (ticket 18) through Core's request surface using a small authored input.
 #[path = "mirrored_half/activation_edges.rs"]
 mod activation_edges;
+#[path = "mirrored_half/replacement_pins.rs"]
+mod replacement_pins;
 
 use crate::support::synthetic_half;
 use boardstudio_core::CoreEngine;

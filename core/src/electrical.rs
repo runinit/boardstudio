@@ -1285,33 +1285,10 @@ pub(crate) fn materialize_reviewed(
         .find(|board| board.id == *board_id)
         .unwrap()
         .part_ids
-        .clone();
-    for part in document
-        .parts
-        .iter_mut()
-        .filter(|part| board_parts.contains(&part.id))
-    {
-        let Some(definition) = document.definitions.iter().find(|definition| {
-            definition.id == part.definition_id && definition.generator.is_some()
-        }) else {
-            continue;
-        };
-        for (terminal, pads) in &definition.terminals {
-            let net = document.nets.iter().find(|net| {
-                net.pins
-                    .iter()
-                    .any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id))
-            });
-            let parameters = part
-                .generator_parameters
-                .get_or_insert_with(Default::default);
-            if let Some(net) = net {
-                parameters.insert(terminal.clone(), serde_json::json!(net.name));
-            } else {
-                parameters.remove(terminal);
-            }
-        }
-    }
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    sync_terminal_parameters_for_parts(document, &board_parts);
 
     document
         .boards
@@ -1356,6 +1333,41 @@ pub(crate) fn materialize_reviewed(
     hardware.boards[index].mode = plan.mode;
     hardware.boards[index].controller_part_id = plan.controller_part_id.clone();
     Ok(())
+}
+
+/// Synchronize generated terminal labels from existing nets for selected parts.
+pub(crate) fn sync_terminal_parameters_for_parts(
+    document: &mut ProjectDoc,
+    part_ids: &BTreeSet<String>,
+) {
+    let ProjectDoc {
+        parts,
+        definitions,
+        nets,
+        ..
+    } = document;
+    for part in parts.iter_mut().filter(|part| part_ids.contains(&part.id)) {
+        let Some(definition) = definitions.iter().find(|definition| {
+            definition.id == part.definition_id && definition.generator.is_some()
+        }) else {
+            continue;
+        };
+        for (terminal, pads) in &definition.terminals {
+            let net = nets.iter().find(|net| {
+                net.pins
+                    .iter()
+                    .any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id))
+            });
+            let parameters = part
+                .generator_parameters
+                .get_or_insert_with(Default::default);
+            if let Some(net) = net {
+                parameters.insert(terminal.clone(), serde_json::json!(net.name));
+            } else {
+                parameters.remove(terminal);
+            }
+        }
+    }
 }
 
 pub(crate) fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, String> {

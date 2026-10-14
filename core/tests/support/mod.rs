@@ -2,4 +2,5 @@
 
 use boardstudio_core::migrate::CURRENT_VERSION;
 
+pub(crate) mod replacement_electrical;
 pub(crate) mod synthetic_half;
