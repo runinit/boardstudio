@@ -309,3 +309,8 @@ with `wait_until` on the accepted cell value. Commit `9e4cd640`. The focused mou
 (1 passed); `cargo fmt --all --check` and `git diff --check` passed. A full `python3 scripts/check.py
 browser` rerun passed all browser steps, including 89 page mounted tests. This is one converted wait;
 the broader acceptance items above remain open (including the three-run and mutation requirements).
+
+Converted four additional 60 ms settles in the same mounted test: disable, re-enable, Undo and Redo
+now wait for the matching accepted enabled state. Commit `ce5c397c`; the exact mounted test passed
+again (1 passed), with format and diff checks clean. Five settle waits in this test are now replaced
+by state waits across the two commits; the rest of #37 remains open.
