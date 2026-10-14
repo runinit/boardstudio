@@ -364,3 +364,9 @@ instead of sleeping. The filtered wasm modules passed (3/3), with `cargo fmt --a
 The mounted module selection test now waits for its selector and the accepted module, generation,
 and preview activation values instead of sleeping. Its filtered wasm test passed (1/1), with
 formatting and diff checks clean. Remaining #37 suites and acceptance evidence stay open.
+
+## Progress (2026-10-14, Layout workspace regression waits)
+
+The origin-pick and relationship Escape regression tests now wait for their rendered state changes
+instead of sleeping. All three filtered Layout workspace wasm modules passed (3 tests), with format
+and diff checks clean. Other Layout workspace state waits and broader #37 acceptance remain open.

@@ -993,6 +993,7 @@ fn PendingSplayOriginPickEscape(pending: bool, on_cancel: EventHandler<()>) -> E
 #[cfg(all(test, target_arch = "wasm32"))]
 mod origin_pick_escape_regression_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -1025,7 +1026,11 @@ mod origin_pick_escape_regression_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the origin-pick control renders", || {
+            root.query_selector("#arm-origin-pick")
+                .is_ok_and(|button| button.is_some())
+        })
+        .await;
 
         root.query_selector("#arm-origin-pick")
             .unwrap()
@@ -1033,7 +1038,13 @@ mod origin_pick_escape_regression_tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the origin pick becomes pending", || {
+            root.query_selector("#pending-origin-pick")
+                .ok()
+                .flatten()
+                .is_some_and(|state| state.text_content().as_deref() == Some("true"))
+        })
+        .await;
         let options = web_sys::KeyboardEventInit::new();
         options.set_key("Escape");
         document
@@ -1042,7 +1053,13 @@ mod origin_pick_escape_regression_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("Escape cancels the pending origin pick", || {
+            root.query_selector("#pending-origin-pick")
+                .ok()
+                .flatten()
+                .is_some_and(|state| state.text_content().as_deref() == Some("false"))
+        })
+        .await;
 
         assert_eq!(
             root.query_selector("#pending-origin-pick")
@@ -1061,6 +1078,7 @@ mod origin_pick_escape_regression_tests {
 mod relation_escape_regression_tests {
     use super::*;
     use boardstudio_application::{Scope, SelectionMode, SessionEpoch};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -1131,7 +1149,13 @@ mod relation_escape_regression_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the matrix relationship renders", || {
+            root.query_selector("#selection-context")
+                .ok()
+                .flatten()
+                .is_some_and(|context| context.text_content().as_deref() == Some("component"))
+        })
+        .await;
 
         let options = web_sys::KeyboardEventInit::new();
         options.set_key("Escape");
@@ -1142,7 +1166,13 @@ mod relation_escape_regression_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("Escape returns to the board Inspector context", || {
+            root.query_selector("#selection-context")
+                .ok()
+                .flatten()
+                .is_some_and(|context| context.text_content().as_deref() == Some("board"))
+        })
+        .await;
 
         assert_eq!(
             root.query_selector("#selection-context")
