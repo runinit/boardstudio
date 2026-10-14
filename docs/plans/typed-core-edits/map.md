@@ -24,6 +24,11 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- [151](issues/151-explicit-mirror-only-part-placement.md) is resolved and integrated locally
+  at `773aee9ad`: explicit mirror-only placement and bilateral linked catalogue additions share
+  the prepared transaction. Native, full build/browser, real-WASM transcript and independent
+  review/mutation gates passed. 109b automatic pins and fresh parent19 acceptance remain open.
+
 - Native mirrored halves (ADR-0008 amendment, user 2026-10-09; accepted in
   [16](issues/16-native-mirrored-halves.md), [ADR-0010](../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)):
   one measured half; Core `CreateMirroredHalf` copies, reflects and links matrices,

@@ -1,6 +1,6 @@
 # 151: Provide explicit mirror-only Part placement before replacement pin resolution
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [111](111-integrate-mirrored-half-reconciliation.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -54,17 +54,47 @@ of Omit does not change its meaning. Private helpers and the resolver stay priva
 
 ## Acceptance
 
-- [ ] Dedicated command creates exactly one mirror-board Part, with atomic definition, board,
+- [x] Dedicated command creates exactly one mirror-board Part, with atomic definition, board,
       envelope and optional layout registration; no source Part, correspondence or exception.
-- [ ] Ordinary AddPart's linked/default semantics remain unchanged. Only a unique native mirror
+- [x] Ordinary AddPart's linked/default semantics remain unchanged. Only a unique native mirror
       board is accepted; invalid targets/IDs/definitions/layouts refuse without publication.
-- [ ] Subsequent edits, serde/Save/Open, Preview and one-step Undo/Redo preserve the unassociated
+- [x] Subsequent edits, serde/Save/Open, Preview and one-step Undo/Redo preserve the unassociated
       mirror-only Part and leave source-half data unchanged.
-- [ ] Explicit “Only this half” placement choice emits the typed command; a prior Omit never
+- [x] Explicit “Only this half” placement choice emits the typed command; a prior Omit never
       changes ordinary placement intent. Follow existing product/placement conventions.
-- [ ] Independent Standards/Spec review and meaningful mutation probes cover accidental source
+- [x] Independent Standards/Spec review and meaningful mutation probes cover accidental source
       insertion, missing membership, wrong target and preview/refusal publication. Required
       native/WASM/browser checks pass; root owns baseline/golden/integration gates.
 
 This ticket provides explicit placement, not a second electrical assignment path. 109b consumes
 the accepted route to perform its existing automatic-pin contract in the same transaction.
+
+## Answer
+
+2026-10-13.
+
+Resolved and integrated locally in `773aee9ad`. Ordinary catalogue placement now creates one
+source Part, one mirror Part and one correspondence from either paired board. AddPart accepts
+optional atomic definition/layout metadata while preserving legacy payloads and unpaired behavior.
+The dedicated AddMirrorOnlyPart command and explicit “Only this half” action create only the
+named mirror-board Part, with no source Part, correspondence or exception.
+
+Linked layouts map to their exact counterpart; Local/unmapped target layout membership remains
+target-owned. Existing board/envelope membership is registered atomically and eligible independent
+mirror envelope members survive later projection/Open. Invalid targets, identities, definitions
+and ownership refuse before publication. Placement uses the activated prepared Preview/history
+route, including matrixless pairs, archive Save/Open and one-step Undo/Redo.
+
+Independent Standards and Spec reviews passed, including identity, golden, native inventory and
+full-request assertion follow-ups. Eight unique compiled mutation faults were detected, with no
+survivors or compile failures and exact restoration; five also received public integration
+cross-checks. Full native verification recorded 1,924 executed tests; repository/tooling/lint/type
+checks, full build and browser checks passed. The explicit real-WASM export replay reproduced
+the native transcript, including placement and archive pack/unpack/Open. The official baseline
+adds20 names and replaces one old source-add test; its full authored-operation assertion was
+restored and passed. Post-gate source changes were confined to that reviewed test assertion.
+
+Detailed requirement evidence and exact source hashes are in ignored
+`.evidence/ticket151/integration/acceptance-matrix.md` and `acceptance-current.json`.
+This resolves placement only. 109b automatic pin assignment and fresh parent19 acceptance,
+including performance, remain required. Work is unpushed.
