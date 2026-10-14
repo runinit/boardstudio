@@ -96,5 +96,6 @@ restored and passed. Post-gate source changes were confined to that reviewed tes
 
 Detailed requirement evidence and exact source hashes are in ignored
 `.evidence/ticket151/integration/acceptance-matrix.md` and `acceptance-current.json`.
-This resolves placement only. 109b automatic pin assignment and fresh parent19 acceptance,
-including performance, remain required. Work is unpushed.
+This resolves placement only. The 109b automatic-pin behavior was subsequently integrated at
+`1ee3e52f9`, and fresh parent 19 acceptance, including performance, was integrated at
+`21c5fd1a0`. Work is unpushed.
