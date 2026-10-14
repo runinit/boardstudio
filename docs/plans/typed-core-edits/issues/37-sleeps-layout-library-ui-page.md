@@ -439,3 +439,7 @@ matrix-relations fixture now waits for its host to mount before driving the same
 gate. The focused file run passed all 40 tests; `cargo fmt --all -- --check`, `git diff --check`,
 and a search for fixed `TimeoutFuture`/settle calls in the file passed. The broader #37 wait audit,
 mutation checks, three consecutive browser runs, and before/after suite evidence remain outstanding.
+
+`python3 scripts/check.py` then passed all steps in **195.1 s** (repo 0.4, tooling 3.8, lint 3.5,
+build 46.4, test 28.8, browser 112.3); all 97 page WASM tests passed. This is one full browser
+pass after the Inspector conversion, not the required three consecutive runs.
