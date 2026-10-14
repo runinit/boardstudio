@@ -300,3 +300,12 @@ checking live process arguments and lock PIDs first; no active profile was remov
 
 Raw logs and the three empty name diffs are retained locally under
 `/home/chris/.cache/boardstudio-verification/ticket37-20261010-codex/`.
+
+## Incremental follow-up (2026-10-14)
+
+Replaced the 60 ms settle after the local-X edit in
+`objects::matrix_transform_inspector::mounted_tests::toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys`
+with `wait_until` on the accepted cell value. Commit `9e4cd640`. The focused mounted test passed
+(1 passed); `cargo fmt --all --check` and `git diff --check` passed. A full `python3 scripts/check.py
+browser` rerun passed all browser steps, including 89 page mounted tests. This is one converted wait;
+the broader acceptance items above remain open (including the three-run and mutation requirements).
