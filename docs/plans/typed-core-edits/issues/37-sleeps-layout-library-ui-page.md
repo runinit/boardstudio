@@ -358,3 +358,9 @@ and `git diff --check` passing. Remaining #37 suites and acceptance evidence sta
 The keycaps workspace state test now waits for its control and both navigation identity updates
 instead of sleeping. The filtered wasm modules passed (3/3), with `cargo fmt --all --check` and
 `git diff --check` passing. Remaining #37 suites and acceptance evidence stay open.
+
+## Progress (2026-10-14, parts workspace state)
+
+The mounted module selection test now waits for its selector and the accepted module, generation,
+and preview activation values instead of sleeping. Its filtered wasm test passed (1/1), with
+formatting and diff checks clean. Remaining #37 suites and acceptance evidence stay open.

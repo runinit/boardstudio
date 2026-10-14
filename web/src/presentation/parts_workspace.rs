@@ -170,6 +170,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -213,15 +214,33 @@ mod workspace_state_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the mounted module selector renders", || {
+            root.query_selector("#select-mounted-module")
+                .is_ok_and(|button| button.is_some())
+        })
+        .await;
 
-        document
-            .get_element_by_id("select-mounted-module")
+        root.query_selector("#select-mounted-module")
+            .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until(
+            "selecting the mounted module updates its generation",
+            || {
+                let text = |selector: &str| {
+                    root.query_selector(selector)
+                        .ok()
+                        .flatten()
+                        .and_then(|node| node.text_content())
+                };
+                text("#selected-module").as_deref() == Some("module:module-definition")
+                    && text("#selection-generation").as_deref() == Some("1")
+                    && text("#preview-activation").as_deref() == Some("1")
+            },
+        )
+        .await;
 
         assert_eq!(
             document
