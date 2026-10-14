@@ -476,3 +476,13 @@ both accepted matrix cells, then confirms the Inspector render before the next a
 accepted-state predicate timed out for Delete, so its 40 ms settle remains with that observed reason.
 The focused module passed 7/7 tests; formatting and diff checks passed. No full repository gate has
 been run after this change.
+
+## Progress (2026-10-14, Case contextual layer waits)
+
+Replaced the 76 contextual-layer fixture render delays (60 ms each) with a bounded wait on an
+explicit render-generation signal. All 12 contextual-layer pages mount through the probe host.
+`wasm-pack test --headless --chrome web/crates/case --locked --lib` passed all 81 tests; the
+case test list remains the same size. The 17 waits in `mounted_settlement_tests` total under one
+second and remain below the suite cutoff. The three negative-only `settle_fields` waits remain
+because they need an idle signal or sentinel edit. Formatting and diff checks pass; no full gate
+has been run after this change.

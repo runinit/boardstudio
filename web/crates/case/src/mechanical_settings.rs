@@ -4933,10 +4933,45 @@ mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{MechanicalFeatureKind, Vec3};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    thread_local! {
+        static NEXT_RENDER_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+        static ACTIVE_RENDER_PROBE: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    }
+
+    #[derive(Clone)]
+    struct RenderProbeId(String);
+
+    fn test_page_dom(page: fn() -> Element) -> VirtualDom {
+        let id = NEXT_RENDER_PROBE.with(|next| {
+            let id = format!("case-render-{}", next.get());
+            next.set(next.get() + 1);
+            id
+        });
+        ACTIVE_RENDER_PROBE.with(|active| *active.borrow_mut() = Some(id.clone()));
+        let dom = VirtualDom::new(page_with_render_probe);
+        dom.provide_root_context(page);
+        dom.provide_root_context(RenderProbeId(id));
+        dom
+    }
+
+    #[component]
+    fn page_with_render_probe() -> Element {
+        let page = use_context::<fn() -> Element>();
+        let id = use_context::<RenderProbeId>().0;
+        let mut generation = use_signal(|| 0u64);
+        let content = page();
+        rsx! {
+            {content}
+            button { id: "{id}-advance", onclick: move |_| generation += 1, "render" }
+            output { id: "{id}-generation", "{generation()}" }
+        }
+    }
 
     fn test_identity_with_instance(instance_id: &str) -> MechanicalSettingsIdentity {
         let mut identity = test_identity();
@@ -5236,7 +5271,7 @@ mod contextual_layer_tests {
         root.set_id("case-profile-remove-red-root");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(assigned_profile_guidance_test_page),
+            test_page_dom(assigned_profile_guidance_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -5385,7 +5420,7 @@ mod contextual_layer_tests {
         root.set_id("case-custom-profile-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(custom_profile_test_page),
+            test_page_dom(custom_profile_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -5519,7 +5554,7 @@ mod contextual_layer_tests {
         root.set_id("case-profile-volume-draft-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(custom_profile_test_page),
+            test_page_dom(custom_profile_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -5634,7 +5669,7 @@ mod contextual_layer_tests {
         root.set_id("case-profile-clearance-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(custom_profile_test_page),
+            test_page_dom(custom_profile_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -5889,7 +5924,37 @@ mod contextual_layer_tests {
     }
 
     async fn rendered() {
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        let id = ACTIVE_RENDER_PROBE.with(|active| {
+            active
+                .borrow()
+                .clone()
+                .expect("the current test page has a render probe")
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let label_selector = format!("#{id}-generation");
+        let advance_selector = format!("#{id}-advance");
+        wait_until("the Case test page mounts", || {
+            document.query_selector(&label_selector).unwrap().is_some()
+        })
+        .await;
+        let label = document.query_selector(&label_selector).unwrap().unwrap();
+        let expected = label
+            .text_content()
+            .unwrap()
+            .parse::<u64>()
+            .expect("render probe generation is numeric")
+            + 1;
+        document
+            .query_selector(&advance_selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        wait_until("the Case test page renders its next generation", || {
+            label.text_content().as_deref() == Some(expected.to_string().as_str())
+        })
+        .await;
     }
 
     fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) {
@@ -5898,7 +5963,7 @@ mod contextual_layer_tests {
         root.set_id(root_id);
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(page),
+            test_page_dom(page),
             dioxus_web::Config::new().rootnode(root.into()),
         );
     }
@@ -5913,7 +5978,7 @@ mod contextual_layer_tests {
         root.set_id("case-contextual-mechanical-settings-test-root");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(test_page),
+            test_page_dom(test_page),
             dioxus_web::Config::new().rootnode(root.into()),
         );
         rendered().await;
@@ -6331,7 +6396,7 @@ mod contextual_layer_tests {
         root.set_id("case-pair-feature-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(PairFeatureTestPage),
+            test_page_dom(PairFeatureTestPage),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -6595,7 +6660,7 @@ mod contextual_layer_tests {
         root.set_id("case-legacy-construction-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(LegacyConstructionTestPage),
+            test_page_dom(LegacyConstructionTestPage),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -6672,7 +6737,7 @@ mod contextual_layer_tests {
         root.set_id("case-paired-removal-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(PairedRemovalTestPage),
+            test_page_dom(PairedRemovalTestPage),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -6748,7 +6813,7 @@ mod contextual_layer_tests {
         root.set_id("case-paired-disable-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(PairedDisableTestPage),
+            test_page_dom(PairedDisableTestPage),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -7089,7 +7154,7 @@ mod contextual_layer_tests {
         root.set_id("case-link-projection-port-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(LinkProjectionPortTestPage),
+            test_page_dom(LinkProjectionPortTestPage),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -7209,7 +7274,7 @@ mod contextual_layer_tests {
         root.set_id("case-pair-link-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(PairLinkTestPage),
+            test_page_dom(PairLinkTestPage),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
