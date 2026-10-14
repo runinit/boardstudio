@@ -12,7 +12,7 @@ use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, OffsetAxes, Part, Pose2, ProjectDoc,
     Side, Vec2,
 };
-use boardstudio_web_ui_shared::test_wait::wait_until_step;
+use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
 use std::rc::Rc;
 use wasm_bindgen_test::*;
 
@@ -462,7 +462,11 @@ async fn mounted_old_position_axes_queue_and_translate_from_first_selected_part(
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    gloo_timers::future::TimeoutFuture::new(50).await;
+    wait_until("the old position inputs mount", || {
+        root.query_selector("#m1-position-x")
+            .is_ok_and(|input| input.is_some())
+    })
+    .await;
     let input = |id: &str| {
         root.query_selector(id)
             .unwrap()
@@ -495,10 +499,12 @@ async fn mounted_old_position_axes_queue_and_translate_from_first_selected_part(
     commit("#m1-position-y", "7");
     support::drive_pending(&runtime);
     release.send(()).unwrap();
-    for _ in 0..20 {
+    wait_until_step("queued position axes both land", async || {
         support::run_pending(&runtime).await;
-        gloo_timers::future::TimeoutFuture::new(10).await;
-    }
+        position(&runtime, "b") == Some(Vec2 { x: 45.0, y: 7.0 })
+            && position(&runtime, "a") == Some(Vec2 { x: 5.0, y: 7.0 })
+    })
+    .await;
     assert_eq!(position(&runtime, "b"), Some(Vec2 { x: 45.0, y: 7.0 }));
     assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 5.0, y: 7.0 }));
     assert_eq!(input("#m1-position-x").value(), "45");
@@ -530,7 +536,11 @@ async fn mounted_apply_position_commits_both_axes_as_one_undo_entry() {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    gloo_timers::future::TimeoutFuture::new(50).await;
+    wait_until("the old position inputs mount", || {
+        root.query_selector("#m1-position-x")
+            .is_ok_and(|input| input.is_some())
+    })
+    .await;
     let input = |selector: &str| {
         root.query_selector(selector)
             .unwrap()
@@ -553,13 +563,12 @@ async fn mounted_apply_position_commits_both_axes_as_one_undo_entry() {
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
-    for _ in 0..30 {
+    wait_until_step("Apply commits both position axes", async || {
         support::run_pending(&runtime).await;
-        if position(&runtime, "b") == Some(Vec2 { x: 45.0, y: 7.0 }) {
-            break;
-        }
-        gloo_timers::future::TimeoutFuture::new(10).await;
-    }
+        position(&runtime, "b") == Some(Vec2 { x: 45.0, y: 7.0 })
+            && position(&runtime, "a") == Some(Vec2 { x: 5.0, y: 7.0 })
+    })
+    .await;
     assert_eq!(position(&runtime, "b"), Some(Vec2 { x: 45.0, y: 7.0 }));
     assert_eq!(position(&runtime, "a"), Some(Vec2 { x: 5.0, y: 7.0 }));
     undo(&runtime).await;
