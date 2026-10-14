@@ -37,3 +37,10 @@ Ticket 22 remains open.
 build 46.6, test 28.3, browser 119.5). This run includes 97 presentation and case-workspace WASM
 tests. The reused-PCB save/reopen workflow and required reviews remain outstanding; acceptance stays
 open.
+
+## Progress (2026-10-14, current tree full gate)
+
+`python3 scripts/check.py` passed all steps on the current tree in 203.8 s (repo 0.4, tooling 3.8,
+lint 3.7, build 49.4, test 29.1, browser 117.3). The page WASM run executed 97 tests with no
+failures. The reused-PCB create/edit/exception/Undo/Redo/save-reopen workflow and required reviews
+remain outstanding, so acceptance stays open.

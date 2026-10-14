@@ -396,3 +396,10 @@ signal still needs investigation. Formatting and diff checks pass; #37 remains o
 Converted the mounted position Inspector's mount, pending, landing, failed-save, deselection, and
 reselection waits to bounded DOM/Core state predicates. All 13 filtered Inspector modules passed;
 formatting and diff checks are clean. No fixed delays remain in this file's position draft tests.
+
+## Progress (2026-10-14, full gate on current tree)
+
+`python3 scripts/check.py` passed all steps in 203.8 s (repo 0.4, tooling 3.8, lint 3.7, build 49.4,
+test 29.1, browser 117.3); all 97 page WASM tests passed. This is one current-tree full browser
+pass. It does not complete the required three consecutive browser runs or the remaining wait audit,
+mutation checks, and before/after suite evidence.
