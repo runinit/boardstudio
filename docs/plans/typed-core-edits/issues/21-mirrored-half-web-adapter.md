@@ -101,3 +101,11 @@ waits until the selection adapter owns the mirror-board component before dispatc
 37 passed. The physical-setup WASM suite also passed 8/8, including atomic split creation and Undo.
 The mounted browser acceptance item is now checked. This does not complete ticket 22's reused-PCB,
 save/reopen, full-check, boundary-transcript, and review requirements.
+
+## Progress (2026-10-14, Rejoin)
+
+Added `mounted_rejoin_clears_a_local_exception_and_undo_restores_it`: the mounted Inspector sends
+Rejoin through the edit path, Core removes the Local exception, and one Undo restores it. The full
+Inspector module passed (`python3 scripts/run-wasm-tests.py --files
+web/src/presentation/layout_component_inspector_tests.rs`, 40 tests); `cargo fmt --all --check` and
+`git diff --check` passed. Full Editor selection-owner integration remains open under ticket 41.

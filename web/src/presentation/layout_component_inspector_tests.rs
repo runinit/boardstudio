@@ -1325,6 +1325,102 @@ async fn mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_actio
 }
 
 #[wasm_bindgen_test]
+async fn mounted_rejoin_clears_a_local_exception_and_undo_restores_it() {
+    use boardstudio_core::model::{HalfExceptionState, MirroredExceptionState};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+
+    let (probe, root) = mounted_runtime_probe(
+        "layout-mirrored-half-rejoin-test-root",
+        |document| {
+            configure_mirrored_part_pair(document);
+            document.hardware.as_mut().unwrap().pairs[0]
+                .halves
+                .as_mut()
+                .unwrap()
+                .exceptions
+                .push(
+                    serde_json::from_value(serde_json::json!({
+                        "kind": "part",
+                        "mirrorId": "source-part",
+                        "state": "local"
+                    }))
+                    .expect("the local exception fixture is valid"),
+                );
+        },
+        &["selected-part"],
+    )
+    .await;
+    wait_until("the Local mirrored-half Inspector mounts", || {
+        probe
+            .projection
+            .borrow()
+            .as_ref()
+            .and_then(|projection| projection.mirrored_half.as_ref())
+            .is_some_and(|half| half.state == HalfExceptionState::Local)
+    })
+    .await;
+    let details = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector(&format!(
+            "#{} .m1-layout-component-mirror-state",
+            probe.root_id
+        ))
+        .unwrap()
+        .expect("the Local mirrored-half section remains mounted");
+    if !details.has_attribute("open") {
+        click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
+    }
+    let revision = accepted_revision(&probe);
+    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-rejoin");
+    wait_until_step("Core accepts Rejoin", async || {
+        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        probe.refresh();
+        let accepted = probe.runtime.model().accepted.unwrap();
+        accepted.document.revision > revision
+            && accepted.document.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .exceptions
+                .iter()
+                .all(|exception| exception.mirror_id != "source-part")
+    })
+    .await;
+    assert!(matches!(
+        probe.last_action.borrow().as_ref(),
+        Some(LayoutComponentInspectorAction::SetMirroredHalfState {
+            state: HalfExceptionState::Linked,
+            ..
+        })
+    ));
+
+    let revision = accepted_revision(&probe);
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    wait_until_step("Undo restores the Local exception", async || {
+        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        probe.refresh();
+        let accepted = probe.runtime.model().accepted.unwrap();
+        accepted.document.revision > revision
+            && accepted.document.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .exceptions
+                .iter()
+                .any(|exception| {
+                    exception.mirror_id == "source-part"
+                        && exception.state == MirroredExceptionState::Local
+                })
+    })
+    .await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     use boardstudio_core::model::{HalfExceptionState, MirroredExceptionState};
     use boardstudio_web_ui_shared::test_wait::wait_until_step;
