@@ -1,6 +1,6 @@
 # 151: Provide explicit mirror-only Part placement before replacement pin resolution
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [111](111-integrate-mirrored-half-reconciliation.md)
 Parent: [19](19-reconcile-mirrored-halves.md)
@@ -68,3 +68,50 @@ of Omit does not change its meaning. Private helpers and the resolver stay priva
 
 This ticket provides explicit placement, not a second electrical assignment path. 109b consumes
 the accepted route to perform its existing automatic-pin contract in the same transaction.
+
+## Implementation scope after 111 (2026-10-13)
+
+111 is resolved on local dev `d5028ff3`. The approved ordinary linked default is bilateral:
+one source Part, one mirror Part and one correspondence for placement from either paired board.
+Readiness found two gaps: catalogue AddObject emits ReplaceDocument, and source-side AddPart
+does not create the forward addition plan. Closing these gaps fulfills the approved default;
+preserving the existing missing linkage would not satisfy this ticket.
+
+Extend existing AddPart only with optional `definition` and `layoutId` metadata, so catalogue
+definition/Part/layout placement remains one atomic operation. This is not a mirror-only intent
+flag. Preserve old JSON and unpaired behavior. Reuse private PartAddition and
+IndependentPartTransition::Add for both linked directions, and the existing prepared
+Preview/publication/history route for the dedicated mirror-only operation.
+
+Selected linked mirror Layouts map to their exact source counterpart. Local or unmapped mirror
+Layouts retain target-owned membership while the Part itself stays linked; source-side selected
+Layout ownership is preserved too. Refuse stale, Omitted, duplicate, foreign or inconsistent
+ownership. Register existing board PartEnvelope memberships on both halves for linked additions
+and only on the named mirror for mirror-only additions. Later projection/Open keeps eligible
+uniquely mirror-owned independent unassociated/Local members in stable order, excluding stale,
+foreign, duplicate, generated and hosted ownership. Reuse existing ownership checks.
+
+Root assigns Core source paths `core/src/model.rs`, `core/src/lib.rs`,
+`core/src/mirrored_half/inverse.rs`, `inverse/hosted.rs`, `inverse/layout.rs`,
+`reconcile.rs`, `reconcile/prepare.rs` and `reconcile/outlines.rs`, with their established
+co-located inverse/preparation/outline tests. Public tests belong in `core/tests/core.rs`
+and a bounded `core/tests/mirrored_half/placement.rs` module registered in its parent file;
+`core/tests/generator_parameters.rs` may receive only required AddPart constructor fields.
+Any additional exhaustive-match/compiler inventory path needs root assignment before editing.
+
+Root separately assigns UI paths `web/crates/ui-model/src/state.rs`,
+`web/crates/parts/src/parts.rs`, `web/crates/layout/src/objects.rs` and
+`web/crates/layout/src/part_placement.rs`, including their established tests. Keep the default
+catalogue click linked and expose a distinct one-shot “Only this half” action only for an
+exact unique native mirror board. Preserve controller, inspector, apply-to-key, imported-source
+and unpaired producers. Both actual paired catalogue producers must emit their typed operation.
+
+No helper visibility widening, electrical/resolver change, generic Batch, format migration,
+second transaction engine or unrelated cleanup is assigned. Core/UI changes require stable
+handoffs, independent review axes, meaningful compiled mutation failures, public Core and
+actual producer/mounted coverage, Save/Open/history proof and root-owned full gates before
+integration. 109b and fresh parent 19 acceptance remain separate required work.
+
+Readiness/design evidence is in main `.evidence/ticket151/`: `root-scope-notes.md`,
+`default-linked-placement-design-579bc83c.md`, `design-review-before-implementation.md`,
+`implementation-core-readiness-d502.md` and `implementation-ui-readiness-d502.md`.
