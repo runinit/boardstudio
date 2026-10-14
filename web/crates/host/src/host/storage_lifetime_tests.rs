@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_core::migrate::CURRENT_VERSION;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -274,7 +275,7 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(loaded.format_version, 6);
+    assert_eq!(loaded.format_version, CURRENT_VERSION);
     let loaded_parameters = &loaded.definitions[0].generator.as_ref().unwrap().parameters;
     assert_eq!(loaded_parameters["hole_drill"], 6.6);
     assert_eq!(loaded_parameters["hole_size"], 6.6);
@@ -291,7 +292,10 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
             .unwrap()
             .unwrap(),
     );
-    assert_eq!(raw["formatVersion"], 6, "migration writes back immediately");
+    assert_eq!(
+        raw["formatVersion"], CURRENT_VERSION,
+        "migration writes back immediately"
+    );
     assert_eq!(
         raw["definitions"][0]["generator"]["parameters"]["hole_drill"],
         6.6
@@ -364,9 +368,9 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .await
         .unwrap();
     let listed = store.list_documents().await.unwrap();
-    assert_eq!(listed[0].format_version, 6);
+    assert_eq!(listed[0].format_version, CURRENT_VERSION);
     let loaded = store.load_document("legacy".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, 6);
+    assert_eq!(loaded.format_version, CURRENT_VERSION);
     assert_eq!(
         loaded.parts[0].definition_id,
         "generator:ceoloide/mounting_hole_npth"
@@ -386,7 +390,10 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .unwrap()
         .unwrap();
     let raw: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
-    assert_eq!(raw["formatVersion"], 6, "migration writes back immediately");
+    assert_eq!(
+        raw["formatVersion"], CURRENT_VERSION,
+        "migration writes back immediately"
+    );
     assert!(!raw.to_string().contains("ergogen"));
     assert_eq!(
         store.load_asset(hash).await.unwrap().unwrap().to_vec(),
@@ -833,7 +840,7 @@ async fn stored_v5_mirrored_halves_migrate_and_survive_browser_storage() {
     assert_eq!(raw_before_load["formatVersion"], 5);
 
     let loaded = store.load_document("halves".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, 6);
+    assert_eq!(loaded.format_version, CURRENT_VERSION);
     assert_eq!(loaded.hardware, document.hardware);
     let raw = serde_wasm_bindgen::from_value::<serde_json::Value>(
         load_value(&database_name, PROJECT_STORE, "halves".into())
@@ -846,7 +853,10 @@ async fn stored_v5_mirrored_halves_migrate_and_survive_browser_storage() {
         raw["hardware"]["pairs"][0]["halves"]["sourceBoardId"],
         "left-board"
     );
-    assert_eq!(raw["formatVersion"], 6, "migration writes back immediately");
+    assert_eq!(
+        raw["formatVersion"], CURRENT_VERSION,
+        "migration writes back immediately"
+    );
     assert_eq!(raw["hardware"]["pairs"][0]["constructionSource"], "left");
 }
 
@@ -870,7 +880,7 @@ async fn framed_constraint_endpoints_and_relations_round_trip_through_indexeddb(
          "relation":{"kind":"mirror-line", "at":{"x":2.25,"y":-5.5},"angle":37.0}}
     ]))
     .unwrap();
-    assert_eq!(document.format_version, 6);
+    assert_eq!(document.format_version, CURRENT_VERSION);
     store
         .save_document(&document, &Default::default())
         .await

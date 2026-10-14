@@ -2801,13 +2801,62 @@ fn check_outline(replies: &[Value]) {
     assert_eq!(snapshot["boardOutlines"][0]["activeVersionId"], "v-copy");
 }
 
-fn compact(replies: &mut [Value]) {
-    // The 500-cell draft is only recorded by size to keep the golden file small.
-    let cells = replies[10]["matrixScenes"][0]["cells"]
-        .as_array()
-        .unwrap()
-        .len();
-    replies[10] = json!({ "kind": replies[10]["kind"], "cells": cells });
+fn compact_reply(reply: &mut Value, full_body: bool) {
+    if full_body {
+        return;
+    }
+    let body = serde_json::to_vec(reply).expect("reply serializes");
+    let keys = |name| {
+        reply[name].as_object().map(|object| {
+            let mut keys = object.keys().cloned().collect::<Vec<_>>();
+            keys.sort();
+            keys
+        })
+    };
+    let mut compact = json!({
+        "kind": reply["kind"],
+        "bodyDigest": digest(&body),
+    });
+    for field in ["id", "message", "revision"] {
+        if let Some(value) = reply.get(field) {
+            compact[field] = value.clone();
+        }
+    }
+    if let Some(keys) = keys("document") {
+        compact["documentKeys"] = json!(keys);
+    }
+    if let Some(keys) = keys("scene") {
+        compact["sceneKeys"] = json!(keys);
+    }
+    *reply = compact;
+}
+
+fn compact_replies(replies: &mut [Value]) {
+    for reply in replies {
+        let anchor = matches!(
+            reply["id"].as_str(),
+            Some("open" | "commit" | "invalid-draft" | "draft")
+        );
+        compact_reply(reply, anchor);
+    }
+}
+
+fn compact_archive(transcript: &mut [Value]) {
+    let mut kept_unpack = false;
+    for entry in transcript {
+        let is_unpack = entry["kind"] == "unpack-project" && entry["reply"]["kind"] == "unpacked";
+        if is_unpack && !kept_unpack {
+            kept_unpack = true;
+            continue;
+        }
+        let reply = &mut entry["reply"];
+        let body = serde_json::to_vec(reply).expect("archive reply serializes");
+        let mut compact = json!({ "kind": reply["kind"], "bodyDigest": digest(&body) });
+        if let Some(message) = reply.get("message") {
+            compact["message"] = message.clone();
+        }
+        *reply = compact;
+    }
 }
 
 /// Runs every request and archive case through the transports, asserting the
@@ -2821,7 +2870,7 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
         .collect();
     check_core(&replies);
     check_outline(&replies);
-    compact(&mut replies);
+    compact_replies(&mut replies);
 
     let paired_preview_history = paired_preview_history_case(&mut *core);
     let paired_electrical_preview = paired_electrical_preview_case(&mut *core);
@@ -2896,6 +2945,8 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
         call(json!({ "kind": "unpack-project" }), &measured).0["kind"],
         "unpacked"
     );
+
+    compact_archive(&mut transcript);
 
     json!({
         "core": replies,

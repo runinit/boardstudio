@@ -433,7 +433,7 @@ mod tests {
     fn migrates_a_version_1_document() {
         let (document, changed) = migrate_value(version_1()).unwrap();
         assert!(changed);
-        assert_eq!(document["formatVersion"], 6);
+        assert_eq!(document["formatVersion"], CURRENT_VERSION);
         assert_eq!(document["future"], json!({ "keep": true }));
 
         let definitions = &document["definitions"];
@@ -524,7 +524,7 @@ mod tests {
         });
         let (document, changed) = migrate_value(value).unwrap();
         assert!(changed);
-        assert_eq!(document["formatVersion"], 6);
+        assert_eq!(document["formatVersion"], CURRENT_VERSION);
 
         let canonical = &document["mechanical"]["openings"][0];
         assert_eq!(canonical["id"], "opening-1");
@@ -605,7 +605,7 @@ mod tests {
         let (document, changed) = migrate_value(value.clone()).unwrap();
         assert!(changed);
         let mut expected = value;
-        expected["formatVersion"] = json!(6);
+        expected["formatVersion"] = json!(CURRENT_VERSION);
         assert_eq!(document, expected);
         assert!(document["hardware"]["pairs"][0].get("halves").is_none());
         assert!(
@@ -628,7 +628,7 @@ mod tests {
         });
         let (migrated, changed) = migrate_value(value.clone()).unwrap();
         let mut expected = value;
-        expected["formatVersion"] = json!(6);
+        expected["formatVersion"] = json!(CURRENT_VERSION);
         assert!(changed);
         assert_eq!(migrated, expected);
     }
@@ -660,7 +660,7 @@ mod tests {
         let (migrated, changed) = migrate_value(value).unwrap();
 
         assert!(changed);
-        assert_eq!(migrated["formatVersion"], json!(6));
+        assert_eq!(migrated["formatVersion"], json!(CURRENT_VERSION));
         assert_eq!(migrated["constraints"], original_constraints);
         let mut document: crate::model::ProjectDoc = serde_json::from_value(migrated).unwrap();
         crate::constraints::resolve(&mut document).unwrap();
@@ -697,8 +697,11 @@ mod tests {
 
     #[test]
     fn current_documents_keep_their_text() {
-        let text = r#" { "format":"boardstudio/v2", "formatVersion":6, "x": 1 } "#;
-        assert_eq!(migrate_json(text).unwrap(), (text.to_owned(), false));
+        let text = format!(
+            r#" {{ "format":"boardstudio/v2", "formatVersion":{}, "x": 1 }} "#,
+            CURRENT_VERSION
+        );
+        assert_eq!(migrate_json(&text).unwrap(), (text, false));
     }
 
     #[test]
@@ -761,7 +764,7 @@ mod tests {
             changed,
             "a version 3 document is rewritten at the current version"
         );
-        assert_eq!(value["formatVersion"], 6);
+        assert_eq!(value["formatVersion"], CURRENT_VERSION);
         let document: crate::model::ProjectDoc = serde_json::from_value(value).unwrap();
         let definition = &document.definitions[0];
         let parameters = &definition.generator.as_ref().unwrap().parameters;
@@ -792,7 +795,7 @@ mod tests {
 
         let (migrated, changed) = migrate_value(value).unwrap();
         assert!(changed);
-        assert_eq!(migrated["formatVersion"], 6);
+        assert_eq!(migrated["formatVersion"], CURRENT_VERSION);
         assert_eq!(migrated["future"], json!({ "keep": true }));
         assert_eq!(
             migrated["definitions"][0]["generator"]["parameters"],

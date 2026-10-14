@@ -179,6 +179,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         "layout_layers_fixtures/paired-rejoin-preview.json"
     ))
     .unwrap();
+    fixture["document"]["formatVersion"] = boardstudio_core::migrate::CURRENT_VERSION.into();
     // The captured public fixture has two unrelated source diagnostics. Complete the reset
     // switch definition with its real pad/keycap geometry so this Preview is Info-only.
     let reset = fixture["document"]["definitions"]

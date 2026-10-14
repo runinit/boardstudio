@@ -1,4 +1,7 @@
-use boardstudio_core::model::{MechanicalConfiguration, PartDefinition};
+use boardstudio_core::{
+    migrate::CURRENT_VERSION,
+    model::{MechanicalConfiguration, PartDefinition},
+};
 
 #[test]
 fn rejects_obsolete_single_model_field() {
@@ -115,15 +118,15 @@ fn unknown_mirrored_item_kinds_and_exception_states_are_refused() {
     );
 }
 
-/// Open reads only the current format. A version 4 document must be migrated first, and a
-/// version 7 document is newer than this build: both are refused, not read as version 6.
+/// Open reads only the current format. Older documents must be migrated first, and newer
+/// documents are refused rather than read as the current version.
 #[test]
 fn open_refuses_documents_that_are_not_at_the_current_version() {
     use boardstudio_core::CoreEngine;
     use boardstudio_core::model::{CoreReply, CoreRequest, ProjectDoc};
 
     let mut engine = CoreEngine::new();
-    for version in [4, 7] {
+    for version in [CURRENT_VERSION - 1, CURRENT_VERSION + 1] {
         let mut document = ProjectDoc::empty("doc", "Doc");
         document.format_version = version;
         match engine.handle(CoreRequest::Open {
@@ -137,7 +140,7 @@ fn open_refuses_documents_that_are_not_at_the_current_version() {
         }
     }
     let current = ProjectDoc::empty("doc", "Doc");
-    assert_eq!(current.format_version, 6);
+    assert_eq!(current.format_version, CURRENT_VERSION);
     assert!(matches!(
         engine.handle(CoreRequest::Open {
             id: "open".into(),

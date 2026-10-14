@@ -262,7 +262,6 @@
       }
     ],
     "format": "boardstudio/v2",
-    "formatVersion": 6,
     "hardware": {
       "boards": [
         {

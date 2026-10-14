@@ -369,10 +369,11 @@ fn read_bounded(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::migrate::CURRENT_VERSION;
     use serde_json::json;
 
     fn document(hashes: &[String]) -> String {
-        json!({"format":"boardstudio/v2","formatVersion":6,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
+        json!({"format":"boardstudio/v2","formatVersion":CURRENT_VERSION,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
     }
 
     fn pack_project(json: String, files: &[(String, Vec<u8>)], limits: Limits) -> ArchiveResult {
@@ -410,7 +411,7 @@ mod tests {
             panic!("expected project")
         };
         let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(project["formatVersion"], 6);
+        assert_eq!(project["formatVersion"], CURRENT_VERSION);
         assert_eq!(
             project["definitions"][0]["id"],
             "generator:ceoloide/switch_mx"
@@ -482,7 +483,7 @@ mod tests {
             panic!("expected project")
         };
         let mut expected: serde_json::Value = serde_json::from_str(&json).unwrap();
-        expected["formatVersion"] = json!(6);
+        expected["formatVersion"] = json!(CURRENT_VERSION);
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&project_json).unwrap(),
             expected
@@ -492,7 +493,7 @@ mod tests {
     #[test]
     fn framed_endpoint_relations_cross_the_archive_boundary_without_reinterpretation() {
         let json = json!({
-            "format": "boardstudio/v2", "formatVersion": 6,
+            "format": "boardstudio/v2", "formatVersion": CURRENT_VERSION,
             "constraints": [
                 {"kind":"framed", "id":"c/offset",
                  "source":{"kind":"part", "partId":"left/source"},

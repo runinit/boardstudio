@@ -472,7 +472,12 @@ fn an_unknown_constraint_kind_is_refused_as_an_older_build_would_refuse_part_off
 
 #[test]
 fn the_part_offset_kind_is_persisted_under_the_current_format_version() {
-    assert_eq!(boardstudio_core::migrate::CURRENT_VERSION, 6);
+    let (_, document) = splayed(held_by_board_axes);
+    let encoded = serde_json::to_value(document).unwrap();
+    assert_eq!(
+        encoded["formatVersion"],
+        boardstudio_core::migrate::CURRENT_VERSION
+    );
 }
 
 #[test]
