@@ -64,3 +64,16 @@ in a disk-backed validation copy, its 15 CAD smoke checks passed, and the browse
 mounted tests. The focused host storage suite also passed all 11 tests. The mounted tests do not
 cover physical-setup mirrored-half create/edit/local/undo as required above, so that acceptance
 item remains open.
+
+## Progress (2026-10-14, Layout exception Inspector)
+
+Commit `1ebcd35c` adds linked/local/omitted projection for a mirrored Part and Make local, Omit
+and Rejoin actions submitted through `ResolveEdit` as `SetHalfException`. The selected source or
+mirror part resolves to the same mirror identity. No `ReplaceDocument` is used for exception edits.
+
+`python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs`
+passed all 33 tests, including a mounted disclosure/action test and typed resolver assertions.
+`python3 scripts/check.py typecheck`, `cargo fmt --all --check` and `git diff --check` passed.
+The visible control follows the native disclosure pattern already specified in `DESIGN.md`; no
+design change was needed. Full physical-setup create/edit/local/undo and accepted Core action
+coverage remain outstanding, so acceptance stays open.
