@@ -390,3 +390,9 @@ selected-key action control, and the post-disable delay with a wait for Enable t
 filtered action module passed 7/7 tests. Two later 40 ms waits remain around Enable/Delete acceptance:
 replacing Delete's delay with direct accepted-state polling timed out, so the correct completion
 signal still needs investigation. Formatting and diff checks pass; #37 remains open.
+
+## Progress (2026-10-14, position Inspector waits)
+
+Converted the mounted position Inspector's mount, pending, landing, failed-save, deselection, and
+reselection waits to bounded DOM/Core state predicates. All 13 filtered Inspector modules passed;
+formatting and diff checks are clean. No fixed delays remain in this file's position draft tests.

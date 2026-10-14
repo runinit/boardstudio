@@ -347,6 +347,7 @@ mod tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use wasm_bindgen_test::*;
 
     fn host() -> Element {
@@ -446,7 +447,11 @@ mod tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
+        wait_until("the mounted position Inspector renders", || {
+            root.query_selector("#m1-position-x")
+                .is_ok_and(|input| input.is_some())
+        })
+        .await;
         (runtime, root)
     }
 
@@ -481,7 +486,10 @@ mod tests {
         apply.click();
         support::drive_pending(&runtime);
         entered.await.expect("the position commit reached Core");
-        gloo_timers::future::TimeoutFuture::new(20).await;
+        wait_until("the pending position edit disables Apply", || {
+            apply.has_attribute("disabled")
+        })
+        .await;
         assert!(
             apply.has_attribute("disabled"),
             "Apply remains disabled while its edit is pending"
@@ -491,10 +499,17 @@ mod tests {
         x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
             .unwrap();
         release.send(()).expect("release the held position result");
-        for _ in 0..20 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        wait_until_step(
+            "the position edit lands and preserves the newer draft",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.as_ref().is_some_and(|accepted| {
+                    accepted.document.parts[0].pose.at == Vec2 { x: 5.0, y: 0.0 }
+                }) && x.value() == "0"
+                    && !apply.has_attribute("disabled")
+            },
+        )
+        .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.parts[0].pose.at, Vec2 { x: 5.0, y: 0.0 });
         assert_eq!(
@@ -556,7 +571,12 @@ mod tests {
         x.set_value("9");
         x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(20).await;
+        assert_eq!(
+            y.value(),
+            "7",
+            "the submitted Y stays visible while pending"
+        );
+        assert!(apply.has_attribute("disabled"));
         assert_eq!(
             y.value(),
             "7",
@@ -565,10 +585,17 @@ mod tests {
         assert!(apply.has_attribute("disabled"));
 
         release.send(()).expect("release the held position result");
-        for _ in 0..20 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        wait_until_step(
+            "the failed save enters recovery and renders feedback",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired
+                    && root
+                        .query_selector("[role='alert']")
+                        .is_ok_and(|alert| alert.is_some())
+            },
+        )
+        .await;
         let model = runtime.model();
         assert_eq!(
             model.accepted.unwrap().document.parts[0].pose.at,
@@ -620,10 +647,15 @@ mod tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        for _ in 0..20 {
+        wait_until_step("the position edit is accepted", async || {
             support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+            runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|accepted| accepted.document.parts[0].pose.at.x == 5.0)
+        })
+        .await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.parts[0]
                 .pose
@@ -641,10 +673,12 @@ mod tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        for _ in 0..5 {
+        wait_until_step("deselecting removes the position Inspector", async || {
             support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+            root.query_selector("#m1-position-x")
+                .is_ok_and(|input| input.is_none())
+        })
+        .await;
         assert!(root.query_selector("#m1-position-x").unwrap().is_none());
         root.query_selector("#position-test-select-a")
             .unwrap()
@@ -652,10 +686,18 @@ mod tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        for _ in 0..5 {
+        wait_until_step("reselection restores the accepted position", async || {
             support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+            root.query_selector("#m1-position-x")
+                .ok()
+                .flatten()
+                .is_some_and(|input| {
+                    input
+                        .dyn_ref::<HtmlInputElement>()
+                        .is_some_and(|input| input.value() == "5")
+                })
+        })
+        .await;
         let reselected_x = root
             .query_selector("#m1-position-x")
             .unwrap()
