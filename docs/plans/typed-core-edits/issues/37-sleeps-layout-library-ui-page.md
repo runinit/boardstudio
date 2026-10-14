@@ -134,8 +134,8 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
   helpers (10 ms loops).
 - Page binary (current, 2026-10-14): remaining waits are `layout_component_inspector_tests.rs` (59 calls to
   `settle_component_inspector`, plus its pending-edit drains), `layout_key_selection_actions/tests.rs` (4 waits: two fixed post-action delays,
-  one shared refresh delay, and the full Editor mount), `layout_remainder_tests.rs` (4 fixed waits outside
-  its converted settlement loop), and `case_workspace.rs` (9 x 100 ms in the isolated launch). Fixed waits
+  one shared refresh delay, and the full Editor mount), and `case_workspace.rs` (9 x 100 ms in the isolated
+  launch). Fixed waits
   are removed from `inspector.rs`, `zmk_firmware_export.rs`, `keycaps_workspace_tests.rs`,
   `setup_workspace.rs`, `keycaps_workspace.rs`, `parts_workspace.rs`, and `keymap_workspace.rs`.
 - ui-shared: `pending_edit_helpers.rs` (26 `settle` calls, each 12 x (drain + 30 ms); 47 bare `rendered().await`),
@@ -411,3 +411,9 @@ mutation checks, and before/after suite evidence.
 `python3 scripts/check.py` passed all steps in 206.6 s (repo 0.4, tooling 3.8, lint 3.6, build 48.8,
 test 28.7, browser 121.2); all 97 page WASM tests passed. This is one current-tree full browser
 pass. The remaining wait audit, mutation checks, three-run requirement, and baseline evidence remain.
+
+## Progress (2026-10-14, remaining Layout remainder waits)
+
+Replaced the last four fixed waits in `layout_remainder_tests.rs`: mounted input waits now check the
+Inspector, and queued/Apply edits wait for the accepted positions they must produce. All 10 tests in
+the module passed with formatting and diff checks clean. This file has no fixed sleeps remaining.
