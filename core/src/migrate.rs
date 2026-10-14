@@ -9,7 +9,7 @@ use serde_json::{Map, Value};
 use crate::generators;
 
 /// The version this build reads and writes.
-pub const CURRENT_VERSION: u32 = 5;
+pub const CURRENT_VERSION: u32 = 6;
 /// The version of a document that does not state one.
 pub const LEGACY_VERSION: u32 = 1;
 
@@ -39,6 +39,7 @@ pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
             2 => version_2_to_3(object),
             3 => version_3_to_4(object),
             4 => version_4_to_5(object),
+            5 => version_5_to_6(object),
             _ => unreachable!("every version below the current one has a migration"),
         }
         version += 1;
@@ -184,6 +185,10 @@ fn version_3_to_4(document: &mut Map<String, Value>) {
 /// absence means what version 4 meant. Only the version changes, so an older build refuses a
 /// version 5 document instead of dropping the record (ADR-0004).
 fn version_4_to_5(_document: &mut Map<String, Value>) {}
+
+/// Framed constraints are introduced in version 6. Existing records keep their literal data;
+/// this compatibility step only marks the format a reader that understands the new kind.
+fn version_5_to_6(_document: &mut Map<String, Value>) {}
 
 /// On back-side parts, state the layer the old renderer derived from the part side.
 fn state_back_sides(document: &mut Map<String, Value>) {
@@ -428,7 +433,7 @@ mod tests {
     fn migrates_a_version_1_document() {
         let (document, changed) = migrate_value(version_1()).unwrap();
         assert!(changed);
-        assert_eq!(document["formatVersion"], 5);
+        assert_eq!(document["formatVersion"], 6);
         assert_eq!(document["future"], json!({ "keep": true }));
 
         let definitions = &document["definitions"];
@@ -519,7 +524,7 @@ mod tests {
         });
         let (document, changed) = migrate_value(value).unwrap();
         assert!(changed);
-        assert_eq!(document["formatVersion"], 5);
+        assert_eq!(document["formatVersion"], 6);
 
         let canonical = &document["mechanical"]["openings"][0];
         assert_eq!(canonical["id"], "opening-1");
@@ -581,11 +586,10 @@ mod tests {
         assert_eq!(once, twice);
     }
 
-    /// Version 5 adds optional mirrored-half fields to mechanical pairs. Old documents have none,
-    /// so the step changes only the version: a version 4 document comes out identical apart
-    /// from `formatVersion`, and pairs stay unpaired.
+    /// Version 5 adds optional mirrored-half fields; version 6 adds framed constraints. Neither
+    /// step invents ownership or rewrites existing geometry.
     #[test]
-    fn version_4_to_5_changes_only_the_format_version() {
+    fn version_4_document_migrates_without_changing_its_payload() {
         let value = json!({
             "format": "boardstudio/v2", "formatVersion": 4, "id": "p", "name": "P", "revision": 2,
             "future": { "keep": true },
@@ -601,7 +605,7 @@ mod tests {
         let (document, changed) = migrate_value(value.clone()).unwrap();
         assert!(changed);
         let mut expected = value;
-        expected["formatVersion"] = json!(5);
+        expected["formatVersion"] = json!(6);
         assert_eq!(document, expected);
         assert!(document["hardware"]["pairs"][0].get("halves").is_none());
         assert!(
@@ -612,20 +616,94 @@ mod tests {
     }
 
     #[test]
-    fn version_5_documents_with_mirrored_halves_keep_their_text() {
-        let text = r#" { "format":"boardstudio/v2", "formatVersion":5, "hardware": { "pairs": [ { "id": "pair", "halves": { "sourceBoardId": "a", "mirrorBoardId": "b", "correspondences": [], "exceptions": [] } } ] } } "#;
-        assert_eq!(migrate_json(text).unwrap(), (text.to_owned(), false));
+    fn version_5_migration_only_stamps_the_format_version() {
+        let value = json!({
+            "format": "boardstudio/v2", "formatVersion": 5,
+            "constraints": [{"kind":"offset", "id":"c", "sourcePartId":"a",
+                "targetPartId":"b", "offset":{"x":-0.0,"y":2.0}, "rotation":-0.0}],
+            "hardware": {"pairs": [{"id":"pair", "halves": {
+                "sourceBoardId":"a", "mirrorBoardId":"b", "correspondences":[], "exceptions":[]
+            }}]},
+            "future": {"preserve": true}
+        });
+        let (migrated, changed) = migrate_value(value.clone()).unwrap();
+        let mut expected = value;
+        expected["formatVersion"] = json!(6);
+        assert!(changed);
+        assert_eq!(migrated, expected);
+    }
+
+    #[test]
+    fn version_5_legacy_offsets_and_mirrors_migrate_deserialize_and_resolve_unchanged() {
+        let mut value = serde_json::to_value(crate::model::ProjectDoc::empty("v5", "V5")).unwrap();
+        value["formatVersion"] = json!(5);
+        value["parts"] = json!([
+            {"id":"source", "definitionId":"key", "reference":"SW1", "side":"front",
+             "pose":{"at":{"x":2.0,"y":5.0},"rotation":25.0}},
+            {"id":"offset-target", "definitionId":"key", "reference":"SW2", "side":"front",
+             "pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0}},
+            {"id":"vertical-target", "definitionId":"key", "reference":"SW3", "side":"front",
+             "pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0}},
+            {"id":"horizontal-target", "definitionId":"key", "reference":"SW4", "side":"front",
+             "pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0}}
+        ]);
+        value["constraints"] = json!([
+            {"kind":"offset", "id":"offset", "sourcePartId":"source", "targetPartId":"offset-target",
+             "offset":{"x":1.0,"y":-4.0}, "rotation":7.5},
+            {"kind":"mirror", "id":"vertical", "sourcePartId":"offset-target", "targetPartId":"vertical-target",
+             "axis":"vertical", "coordinate":10.0},
+            {"kind":"mirror", "id":"horizontal", "sourcePartId":"source", "targetPartId":"horizontal-target",
+             "axis":"horizontal", "coordinate":10.0}
+        ]);
+        let original_constraints = value["constraints"].clone();
+
+        let (migrated, changed) = migrate_value(value).unwrap();
+
+        assert!(changed);
+        assert_eq!(migrated["formatVersion"], json!(6));
+        assert_eq!(migrated["constraints"], original_constraints);
+        let mut document: crate::model::ProjectDoc = serde_json::from_value(migrated).unwrap();
+        crate::constraints::resolve(&mut document).unwrap();
+        let pose = |id: &str| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == id)
+                .unwrap()
+                .pose
+        };
+        assert_eq!(
+            pose("offset-target"),
+            crate::model::Pose2 {
+                at: crate::model::Vec2 { x: 3.0, y: 1.0 },
+                rotation: 32.5,
+            }
+        );
+        assert_eq!(
+            pose("vertical-target"),
+            crate::model::Pose2 {
+                at: crate::model::Vec2 { x: 17.0, y: 1.0 },
+                rotation: 147.5,
+            }
+        );
+        assert_eq!(
+            pose("horizontal-target"),
+            crate::model::Pose2 {
+                at: crate::model::Vec2 { x: 2.0, y: 15.0 },
+                rotation: -25.0,
+            }
+        );
     }
 
     #[test]
     fn current_documents_keep_their_text() {
-        let text = r#" { "format":"boardstudio/v2", "formatVersion":5, "x": 1 } "#;
+        let text = r#" { "format":"boardstudio/v2", "formatVersion":6, "x": 1 } "#;
         assert_eq!(migrate_json(text).unwrap(), (text.to_owned(), false));
     }
 
     #[test]
     fn rejects_newer_or_malformed_versions() {
-        let newer = migrate_value(json!({ "formatVersion": 6 })).unwrap_err();
+        let newer = migrate_value(json!({ "formatVersion": 7 })).unwrap_err();
         assert!(newer.contains("newer than this app supports"), "{newer}");
         assert!(migrate_value(json!({ "formatVersion": "2" })).is_err());
         assert!(migrate_value(json!({ "formatVersion": null })).is_err());
@@ -683,7 +761,7 @@ mod tests {
             changed,
             "a version 3 document is rewritten at the current version"
         );
-        assert_eq!(value["formatVersion"], 5);
+        assert_eq!(value["formatVersion"], 6);
         let document: crate::model::ProjectDoc = serde_json::from_value(value).unwrap();
         let definition = &document.definitions[0];
         let parameters = &definition.generator.as_ref().unwrap().parameters;
@@ -714,7 +792,7 @@ mod tests {
 
         let (migrated, changed) = migrate_value(value).unwrap();
         assert!(changed);
-        assert_eq!(migrated["formatVersion"], 5);
+        assert_eq!(migrated["formatVersion"], 6);
         assert_eq!(migrated["future"], json!({ "keep": true }));
         assert_eq!(
             migrated["definitions"][0]["generator"]["parameters"],

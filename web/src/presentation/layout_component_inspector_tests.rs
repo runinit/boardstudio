@@ -5,8 +5,9 @@ use super::inspector::{
 use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
-    Board, Constraint, Layout, LayoutMirrorLink, Matrix, MatrixCell, MatrixScene, MatrixSceneCell,
-    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side,
+    Board, Constraint, ConstraintEndpoint, ConstraintRelation, Layout, LayoutMirrorLink, Matrix,
+    MatrixCell, MatrixScene, MatrixSceneCell, PartDefinition, PartKind, PartOutline, Pose2,
+    ProjectDoc, Readiness, SceneDelta, Side,
 };
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -256,20 +257,28 @@ fn component_projection_supports_group_position_selection_and_rejects_invalid_co
 #[wasm_bindgen_test]
 fn relations_summary_uses_layout_membership_before_constraint_source() {
     let (mut model, selected) = fixture();
+    let framed = Constraint::Framed {
+        id: "constraint".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "source-part".into(),
+        },
+        target: ConstraintEndpoint::Part {
+            part_id: "selected-part".into(),
+        },
+        relation: ConstraintRelation::PartOffset {
+            offset: Vec2 { x: 2.0, y: -3.0 },
+            rotation: 17.0,
+        },
+    };
     {
         let snapshot = model.accepted.as_mut().expect("fixture snapshot");
         Arc::make_mut(&mut snapshot.document)
             .constraints
-            .push(Constraint::Offset {
-                id: "constraint".into(),
-                source_part_id: "source-part".into(),
-                target_part_id: "selected-part".into(),
-                offset: Vec2 { x: 2.0, y: 0.0 },
-                rotation: 0.0,
-            });
+            .push(framed.clone());
     }
     let assigned = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
         .expect("assigned component should project");
+    assert_eq!(assigned.active_constraint, Some(framed.clone()));
     assert!(assigned.relationship_summary.contains("Right half"));
 
     Arc::make_mut(&mut model.accepted.as_mut().expect("fixture snapshot").document).layouts[0]
@@ -278,6 +287,210 @@ fn relations_summary_uses_layout_membership_before_constraint_source() {
     let unassigned = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
         .expect("unassigned component should project");
     assert!(unassigned.relationship_summary.contains("U2 drives U1"));
+    assert_eq!(unassigned.active_constraint, Some(framed));
+}
+
+#[wasm_bindgen_test]
+fn driving_constraint_lookup_finds_the_same_record_from_both_halves_and_rejects_stale_binding() {
+    use serde_json::json;
+
+    let mut document = ProjectDoc::empty("framed-query", "Framed query");
+    document.parts = serde_json::from_value(json!([
+        { "id": "alpha/source", "definitionId": "part", "reference": "U1",
+          "side": "front", "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 } },
+        { "id": "alpha/target", "definitionId": "part", "reference": "U2",
+          "side": "front", "pose": { "at": { "x": 1.0, "y": 0.0 }, "rotation": 0.0 } },
+        { "id": "beta/source", "definitionId": "part", "reference": "U3",
+          "side": "front", "pose": { "at": { "x": 2.0, "y": 0.0 }, "rotation": 0.0 } },
+        { "id": "beta/target", "definitionId": "part", "reference": "U4",
+          "side": "front", "pose": { "at": { "x": 3.0, "y": 0.0 }, "rotation": 0.0 } }
+    ]))
+    .expect("the query fixture parts deserialize");
+    document.hardware = Some(
+        serde_json::from_value(json!({
+            "instances": [
+                { "id": "alpha-instance", "name": "A", "boardId": "alpha", "half": "left",
+                  "role": "primary", "flipped": false, "controllerPartId": null, "mechanical": null },
+                { "id": "beta-instance", "name": "B", "boardId": "beta", "half": "right",
+                  "role": "secondary", "flipped": true, "controllerPartId": null, "mechanical": null }
+            ],
+            "pairs": [{
+                "id": "pair/A", "members": ["alpha-instance", "beta-instance"],
+                "mapping": { "at": { "x": 20.0, "y": -7.0 }, "rotation": 36.86989764584402 },
+                "construction": {
+                    "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0, "bottomFoamThickness": 0.0,
+                    "bottomThickness": 1.5, "plateToPcb": 5.0, "wallThickness": 2.0, "clearance": 0.2
+                },
+                "constructionSource": "alpha-instance",
+                "halves": {
+                    "sourceBoardId": "alpha", "mirrorBoardId": "beta",
+                    "correspondences": [
+                        { "kind": "part", "sourceId": "alpha/source", "mirrorId": "beta/source" },
+                        { "kind": "part", "sourceId": "alpha/target", "mirrorId": "beta/target" }
+                    ]
+                }
+            }]
+        }))
+        .expect("the query fixture pair deserializes"),
+    );
+    let endpoint = |mirror_part_id: &str, source_part_id: &str| ConstraintEndpoint::LinkedMirror {
+        pair_id: "pair/A".into(),
+        source_part_id: source_part_id.into(),
+        mirror_part_id: mirror_part_id.into(),
+    };
+    let constraint = Constraint::Framed {
+        id: "durable/constraint-7".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "alpha/source".into(),
+        },
+        target: endpoint("beta/target", "alpha/target"),
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        },
+    };
+    document.constraints.push(constraint.clone());
+
+    for part_id in ["alpha/target", "beta/target"] {
+        assert_eq!(
+            document
+                .constraint_driving_part(part_id)
+                .expect("both endpoint views resolve"),
+            Some(&constraint),
+            "selecting {part_id} keeps the one stable record"
+        );
+    }
+
+    document.constraints[0] = Constraint::Framed {
+        id: "durable/constraint-7".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "alpha/source".into(),
+        },
+        target: endpoint("beta/target", "alpha/not-target"),
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 15.0,
+        },
+    };
+    assert!(
+        document.constraint_driving_part("beta/target").is_err(),
+        "stale explicit endpoint bindings must refuse the lookup"
+    );
+}
+
+#[wasm_bindgen_test]
+fn inspector_projection_finds_a_driver_authored_against_the_selected_parts_linked_mirror() {
+    use serde_json::json;
+
+    let (mut model, selected) = fixture();
+    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
+    let document = Arc::make_mut(&mut snapshot.document);
+    document.boards[0]
+        .part_ids
+        .retain(|part_id| part_id != "source-part");
+    document.boards[0].part_ids.push("driver-part".into());
+    document.boards.push(Board {
+        id: "mirror-board".into(),
+        name: "Mirror board".into(),
+        outline_ids: vec![],
+        part_ids: vec!["source-part".into()],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    let mut driver = document.parts[0].clone();
+    driver.id = "driver-part".into();
+    driver.reference = "U3".into();
+    document.parts.push(driver);
+    document.hardware = Some(
+        serde_json::from_value(json!({
+            "instances": [
+                { "id": "alpha-instance", "name": "A", "boardId": "board", "half": "left",
+                  "role": "primary", "flipped": false, "controllerPartId": null, "mechanical": null },
+                { "id": "beta-instance", "name": "B", "boardId": "mirror-board", "half": "right",
+                  "role": "secondary", "flipped": true, "controllerPartId": null, "mechanical": null }
+            ],
+            "pairs": [{
+                "id": "pair/A", "members": ["alpha-instance", "beta-instance"],
+                "mapping": { "at": { "x": 20.0, "y": -7.0 }, "rotation": 36.86989764584402 },
+                "construction": {
+                    "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0, "bottomFoamThickness": 0.0,
+                    "bottomThickness": 1.5, "plateToPcb": 5.0, "wallThickness": 2.0, "clearance": 0.2
+                },
+                "constructionSource": "alpha-instance",
+                "halves": {
+                    "sourceBoardId": "board", "mirrorBoardId": "mirror-board",
+                    "correspondences": [
+                        { "kind": "part", "sourceId": "selected-part", "mirrorId": "source-part" }
+                    ]
+                }
+            }]
+        }))
+        .expect("the linked pair fixture deserializes"),
+    );
+    document.constraints.push(Constraint::Framed {
+        id: "stable-driver-id".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "driver-part".into(),
+        },
+        target: ConstraintEndpoint::LinkedMirror {
+            pair_id: "pair/A".into(),
+            source_part_id: "selected-part".into(),
+            mirror_part_id: "source-part".into(),
+        },
+        relation: ConstraintRelation::MirrorLine {
+            at: Vec2 { x: 12.0, y: -9.0 },
+            angle: 31.0,
+        },
+    });
+    let expected_constraint = document.constraints[0].clone();
+
+    let projection = layout_component_inspector_projection(&model, Some(&selected), 7, 3)
+        .expect("the selected authoritative part projects");
+    assert_eq!(
+        projection.active_constraint,
+        Some(expected_constraint.clone()),
+        "inspector projection follows authority through the linked-mirror target"
+    );
+
+    let mut mirror_model = model.clone();
+    mirror_model.active_board_id = "mirror-board".into();
+    mirror_model.selected_part_ids = vec!["source-part".into()];
+    mirror_model.selection_anchor_id = Some("source-part".into());
+    let mut mirror_selected = selected.clone();
+    mirror_selected.scope.board_id = "mirror-board".into();
+    mirror_selected.context = objects::context_for_part(&mirror_model, "source-part")
+        .expect("the linked counterpart has a current mirror-board context");
+    let mirror_projection =
+        layout_component_inspector_projection(&mirror_model, Some(&mirror_selected), 8, 3)
+            .expect("the linked counterpart projects");
+    assert_eq!(
+        mirror_projection.active_constraint,
+        Some(expected_constraint.clone()),
+        "selecting the mirror half resolves the same durable relation"
+    );
+
+    let mut stale_model = model.clone();
+    let stale_document = Arc::make_mut(
+        &mut stale_model
+            .accepted
+            .as_mut()
+            .expect("fixture snapshot")
+            .document,
+    );
+    stale_document.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .correspondences[0]
+        .source_id = "removed-authority".into();
+    assert!(
+        layout_component_inspector_projection(&stale_model, Some(&selected), 9, 3).is_none(),
+        "an invalid stored binding fails closed at the inspector projection"
+    );
 }
 
 #[derive(Clone)]

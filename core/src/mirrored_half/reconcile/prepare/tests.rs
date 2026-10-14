@@ -1,7 +1,9 @@
+use crate::migrate::CURRENT_VERSION;
 use crate::mirrored_half::matrix_addition::tests::pair_document;
 use crate::mirrored_half::prepare_transaction;
 use crate::model::{
-    CaseBody, Constraint, CoreReply, CoreRequest, EditOperation, Position, ProjectDoc, Vec2,
+    CaseBody, Constraint, ConstraintEndpoint, ConstraintRelation, CoreReply, CoreRequest,
+    EditOperation, Position, ProjectDoc, Vec2,
 };
 use serde_json::json;
 
@@ -75,15 +77,17 @@ fn associated_local_circuit_document() -> ProjectDoc {
     document
 }
 
-fn open_pair_engine(document: ProjectDoc) -> crate::CoreEngine {
+fn open_pair_engine(mut document: ProjectDoc) -> crate::CoreEngine {
+    document.format_version = crate::migrate::CURRENT_VERSION;
     let mut engine = crate::CoreEngine::default();
-    assert!(matches!(
-        engine.handle(CoreRequest::Open {
-            id: "open-pair".into(),
-            document,
-        }),
-        CoreReply::Scene { .. }
-    ));
+    let reply = engine.handle(CoreRequest::Open {
+        id: "open-pair".into(),
+        document,
+    });
+    assert!(
+        matches!(&reply, CoreReply::Scene { .. }),
+        "pair fixture Open reply: {reply:?}"
+    );
     engine
 }
 
@@ -300,6 +304,49 @@ fn add_linked_independent_part(document: &mut ProjectDoc) {
             source_id: "left/RST".into(),
             mirror_id: "right/RST".into(),
         });
+}
+
+fn add_unpaired_mirror_board_part(document: &mut ProjectDoc) {
+    let mut free = part(document, "left/U1").clone();
+    free.id = "right/FREE".into();
+    free.reference = "RFREE".into();
+    free.pose = crate::model::Pose2 {
+        at: Vec2 { x: 260.0, y: 80.0 },
+        rotation: -22.0,
+    };
+    document.parts.push(free);
+    document
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .push("right/FREE".into());
+}
+
+fn linked_endpoint(source_part_id: &str, mirror_part_id: &str) -> ConstraintEndpoint {
+    ConstraintEndpoint::LinkedMirror {
+        pair_id: "pair".into(),
+        source_part_id: source_part_id.into(),
+        mirror_part_id: mirror_part_id.into(),
+    }
+}
+
+fn framed_offset(
+    id: &str,
+    source: ConstraintEndpoint,
+    target: ConstraintEndpoint,
+    offset: Vec2,
+) -> Constraint {
+    Constraint::Framed {
+        id: id.into(),
+        source,
+        target,
+        relation: ConstraintRelation::Offset {
+            offset,
+            rotation: 0.0,
+        },
+    }
 }
 
 fn pair_document_with_unrelated_matrix() -> ProjectDoc {
@@ -990,6 +1037,62 @@ fn targeted_set_mechanical_keeps_local_pair_features_on_their_instance() {
     );
 }
 
+fn framed_unlink_endpoint_document(linked_source: bool) -> (ProjectDoc, Constraint) {
+    let mut document = pair_document();
+    add_linked_independent_part(&mut document);
+    let visible_id = "right/RST";
+    let linked = linked_endpoint("left/RST", visible_id);
+    let literal = ConstraintEndpoint::Part {
+        part_id: "left/U1".into(),
+    };
+    let (source, target, source_pose, target_pose) = if linked_source {
+        (
+            linked,
+            literal,
+            part(&document, visible_id).pose,
+            part(&document, "left/U1").pose,
+        )
+    } else {
+        (
+            literal,
+            linked,
+            part(&document, "left/U1").pose,
+            part(&document, visible_id).pose,
+        )
+    };
+    let record = Constraint::Framed {
+        id: if linked_source {
+            "constraint/unlink-source".into()
+        } else {
+            "constraint/unlink-target".into()
+        },
+        source,
+        target,
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 {
+                x: target_pose.at.x - source_pose.at.x,
+                y: target_pose.at.y - source_pose.at.y,
+            },
+            rotation: target_pose.rotation - source_pose.rotation,
+        },
+    };
+    document.constraints.push(record.clone());
+    (document, record)
+}
+
+fn clear_mirror_instance_configuration(document: &mut ProjectDoc) {
+    let right = document
+        .hardware
+        .as_mut()
+        .unwrap()
+        .instances
+        .iter_mut()
+        .find(|instance| instance.id == "right")
+        .unwrap();
+    right.mechanical = None;
+    right.construction_ownership = crate::model::MechanicalConstructionOwnership::Legacy;
+}
+
 #[test]
 fn targeted_set_mechanical_none_unlinks_a_pair_without_a_local_configuration() {
     let mut accepted = pair_document();
@@ -1052,6 +1155,207 @@ fn targeted_set_mechanical_none_unlinks_a_pair_without_a_local_configuration() {
     assert_eq!(
         accepted, before,
         "preparation leaves the accepted document intact"
+    );
+}
+
+#[test]
+fn targeted_set_mechanical_none_flattens_a_framed_mirror_target_before_resolve() {
+    let (mut accepted, original_record) = framed_unlink_endpoint_document(false);
+    clear_mirror_instance_configuration(&mut accepted);
+    let before = accepted.clone();
+    let left_wall_thickness = accepted
+        .hardware
+        .as_ref()
+        .unwrap()
+        .instances
+        .iter()
+        .find(|instance| instance.id == "left")
+        .unwrap()
+        .mechanical
+        .as_ref()
+        .unwrap()
+        .wall_thickness;
+
+    let (prepared, _) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::SetMechanical {
+            configuration: None,
+            target: Some(crate::mechanical::MechanicalTarget::Instance {
+                instance_id: "right".into(),
+            }),
+        },
+    )
+    .expect("the explicit disable unlinks and flattens its framed target before resolution");
+
+    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+    assert!(
+        prepared
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "right")
+            .unwrap()
+            .mechanical
+            .is_none()
+    );
+    assert_eq!(
+        prepared
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|instance| instance.id == "left")
+            .unwrap()
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .wall_thickness,
+        left_wall_thickness,
+        "the surviving half retains its materialized configuration"
+    );
+    let Constraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = &prepared.constraints[0]
+    else {
+        panic!("the visible relation stays framed after its endpoint is flattened");
+    };
+    assert_eq!(id, "constraint/unlink-target");
+    assert_eq!(
+        source,
+        &ConstraintEndpoint::Part {
+            part_id: "left/U1".into()
+        }
+    );
+    assert_eq!(
+        target,
+        &ConstraintEndpoint::Part {
+            part_id: "right/RST".into()
+        }
+    );
+    let Constraint::Framed {
+        relation: original_relation,
+        ..
+    } = original_record
+    else {
+        unreachable!();
+    };
+    assert_eq!(relation, &original_relation);
+    assert_eq!(
+        accepted, before,
+        "prepared disable leaves accepted bytes intact"
+    );
+}
+
+#[test]
+fn targeted_set_mechanical_none_flattens_a_framed_mirror_source_before_resolve() {
+    let (mut accepted, original_record) = framed_unlink_endpoint_document(true);
+    clear_mirror_instance_configuration(&mut accepted);
+    let before = accepted.clone();
+
+    let (prepared, _) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::SetMechanical {
+            configuration: None,
+            target: Some(crate::mechanical::MechanicalTarget::Instance {
+                instance_id: "right".into(),
+            }),
+        },
+    )
+    .expect("the explicit disable unlinks and flattens its framed source before resolution");
+
+    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+    let Constraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = &prepared.constraints[0]
+    else {
+        panic!("the visible relation stays framed after its endpoint is flattened");
+    };
+    assert_eq!(id, "constraint/unlink-source");
+    assert_eq!(
+        source,
+        &ConstraintEndpoint::Part {
+            part_id: "right/RST".into()
+        }
+    );
+    assert_eq!(
+        target,
+        &ConstraintEndpoint::Part {
+            part_id: "left/U1".into()
+        }
+    );
+    let Constraint::Framed {
+        relation: original_relation,
+        ..
+    } = original_record
+    else {
+        unreachable!();
+    };
+    assert_eq!(relation, &original_relation);
+    assert_eq!(
+        accepted, before,
+        "prepared disable leaves accepted bytes intact"
+    );
+}
+
+#[test]
+fn unlink_halves_is_the_framed_constraint_lifecycle_control() {
+    for linked_source in [false, true] {
+        let (accepted, _) = framed_unlink_endpoint_document(linked_source);
+        let (prepared, _) = prepare_transaction(
+            &accepted,
+            &[],
+            &EditOperation::UnlinkHalves {
+                pair_id: "pair".into(),
+            },
+        )
+        .expect("UnlinkHalves passes its endpoint delta through lifecycle preparation");
+
+        assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+        let Constraint::Framed { source, target, .. } = &prepared.constraints[0] else {
+            panic!("UnlinkHalves keeps the framed relation");
+        };
+        let expected = ConstraintEndpoint::Part {
+            part_id: "right/RST".into(),
+        };
+        if linked_source {
+            assert_eq!(source, &expected);
+        } else {
+            assert_eq!(target, &expected);
+        }
+    }
+}
+
+#[test]
+fn apply_mechanical_unlink_remains_a_closure_lifecycle_control() {
+    let accepted = nonempty_closure_pair_document();
+    let operation: EditOperation = serde_json::from_value(serde_json::json!({
+        "kind":"apply-mechanical-edit",
+        "edit":{
+            "target":{"kind":"instance","instanceId":"left"},
+            "change":{"unlink-mirror-pair":{"instance_id":"left"}}
+        }
+    }))
+    .expect("the existing ApplyMechanicalEdit UnlinkMirrorPair control parses");
+
+    let (prepared, _) = prepare_transaction(&accepted, &[], &operation)
+        .expect("ApplyMechanicalEdit continues to materialize its nonempty closure");
+    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
+    assert!(
+        prepared
+            .parts
+            .iter()
+            .any(|part| part.id.starts_with("case-closure/"))
     );
 }
 
@@ -1843,6 +2147,442 @@ fn open_preparation_restores_missing_linked_part_from_its_correspondence() {
         .expect("the reconstructed document is a valid second Open input");
     assert_eq!(reopened, prepared);
     assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_repairs_a_missing_framed_linked_part_before_validating_its_endpoint() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    let source = part(&accepted, "left/U1").pose;
+    let target = part(&accepted, "right/RST").pose;
+    accepted.constraints.push(Constraint::Framed {
+        id: "constraint/open-missing-mirror".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        target: linked_endpoint("left/RST", "right/RST"),
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 {
+                x: target.at.x - source.at.x,
+                y: target.at.y - source.at.y,
+            },
+            rotation: target.rotation - source.rotation,
+        },
+    });
+    accepted.parts.retain(|item| item.id != "right/RST");
+    accepted
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/RST");
+
+    let (prepared, findings) = super::prepare_open(&accepted, &[])
+        .expect("the narrow independent-Part repair precedes final endpoint validation");
+
+    assert!(prepared.parts.iter().any(|item| item.id == "right/RST"));
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].target_ids.contains(&"right/RST".to_owned()));
+    let (reopened, second_findings) = super::prepare_open(&prepared, &[])
+        .expect("the repaired framed document is stable on a second Open");
+    assert_eq!(reopened, prepared);
+    assert!(second_findings.is_empty());
+}
+
+#[test]
+fn open_does_not_repair_a_missing_part_for_a_stale_or_omitted_framed_binding() {
+    let mut stale = pair_document();
+    add_linked_independent_part(&mut stale);
+    stale.constraints.push(framed_offset(
+        "constraint/stale-open-binding",
+        ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        ConstraintEndpoint::LinkedMirror {
+            pair_id: "wrong-pair".into(),
+            source_part_id: "left/RST".into(),
+            mirror_part_id: "right/RST".into(),
+        },
+        Vec2 { x: 236.0, y: 20.0 },
+    ));
+    stale.parts.retain(|item| item.id != "right/RST");
+    stale
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/RST");
+    let stale_error = super::prepare_open(&stale, &[]).unwrap_err();
+    assert!(
+        stale_error.contains("unknown pair wrong-pair"),
+        "{stale_error}"
+    );
+
+    let mut omitted = pair_document();
+    add_linked_independent_part(&mut omitted);
+    omitted.constraints.push(framed_offset(
+        "constraint/omitted-open-binding",
+        ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        linked_endpoint("left/RST", "right/RST"),
+        Vec2 { x: 236.0, y: 20.0 },
+    ));
+    omitted.parts.retain(|item| item.id != "right/RST");
+    omitted
+        .boards
+        .iter_mut()
+        .find(|board| board.id == "right")
+        .unwrap()
+        .part_ids
+        .retain(|id| id != "right/RST");
+    omitted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap()
+        .exceptions
+        .push(crate::model::MirroredException {
+            kind: crate::model::MirroredItemKind::Part,
+            mirror_id: "right/RST".into(),
+            state: crate::model::MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let omitted_error = super::prepare_open(&omitted, &[]).unwrap_err();
+    assert!(omitted_error.contains("omitted"), "{omitted_error}");
+}
+
+#[test]
+fn moving_a_linked_framed_target_persists_its_retuned_binding_and_leaves_legacy_wire_alone() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    accepted.constraints.push(framed_offset(
+        "constraint/retuned",
+        ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        linked_endpoint("left/RST", "right/RST"),
+        Vec2 { x: 236.0, y: 20.0 },
+    ));
+    add_unpaired_mirror_board_part(&mut accepted);
+    let legacy_source = part(&accepted, "left/U1").pose;
+    let legacy_target = part(&accepted, "right/FREE").pose;
+    accepted.constraints.push(Constraint::Offset {
+        id: "constraint/untouched-legacy".into(),
+        source_part_id: "left/U1".into(),
+        target_part_id: "right/FREE".into(),
+        offset: Vec2 {
+            x: legacy_target.at.x - legacy_source.at.x,
+            y: legacy_target.at.y - legacy_source.at.y,
+        },
+        rotation: legacy_target.rotation - legacy_source.rotation,
+    });
+    let untouched_legacy = serde_json::to_value(&accepted.constraints[1]).unwrap();
+
+    let (prepared, _) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/RST".into(),
+                at: Vec2 { x: 220.0, y: 30.0 },
+            }],
+        },
+    )
+    .expect("the framed target drag retunes its linked view");
+
+    let Constraint::Framed {
+        id,
+        target,
+        relation: ConstraintRelation::Offset { offset, .. },
+        ..
+    } = &prepared.constraints[0]
+    else {
+        panic!("the retuned framed relation remains durable");
+    };
+    assert_eq!(id, "constraint/retuned");
+    assert_eq!(target, &linked_endpoint("left/RST", "right/RST"));
+    assert_eq!(*offset, Vec2 { x: 244.0, y: 25.0 });
+    assert_eq!(
+        part(&prepared, "right/RST").pose.at,
+        Vec2 { x: 220.0, y: 30.0 }
+    );
+    assert_eq!(
+        serde_json::to_value(&prepared.constraints[1]).unwrap(),
+        untouched_legacy
+    );
+}
+
+#[test]
+fn linked_companion_target_keeps_the_existing_authored_geometry_refusal() {
+    let mut accepted = pair_document();
+    let source = part(&accepted, "left/U1").pose;
+    let target_id = "matrix/right-keys/r0c0/diode";
+    let target = part(&accepted, target_id).pose;
+    accepted.constraints.push(Constraint::Framed {
+        id: "constraint/deferred-companion".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        target: linked_endpoint("matrix/left-keys/r0c0/diode", target_id),
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 {
+                x: target.at.x - source.at.x,
+                y: target.at.y - source.at.y,
+            },
+            rotation: target.rotation - source.rotation,
+        },
+    });
+    let desired = Vec2 {
+        x: target.at.x + 4.0,
+        y: target.at.y - 1.0,
+    };
+    let refusal = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: target_id.into(),
+                at: desired,
+            }],
+        },
+    )
+    .unwrap_err();
+    assert!(
+        refusal.contains("Linked matrix placements cannot retain authored or constrained geometry"),
+        "the accepted membership contract continues to refuse a constrained linked companion target: {refusal}"
+    );
+}
+
+#[test]
+fn deferred_companion_source_retune_is_persisted_after_its_live_key_resolves() {
+    let mut accepted = pair_document();
+    add_unpaired_mirror_board_part(&mut accepted);
+    let source_id = "matrix/right-keys/r0c0/diode";
+    let source = part(&accepted, source_id).pose;
+    let target_id = "right/FREE";
+    let target = part(&accepted, target_id).pose;
+    accepted.constraints.push(Constraint::Framed {
+        id: "constraint/deferred-companion-source".into(),
+        source: linked_endpoint("matrix/left-keys/r0c0/diode", source_id),
+        target: ConstraintEndpoint::Part {
+            part_id: target_id.into(),
+        },
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 {
+                x: target.at.x - source.at.x,
+                y: target.at.y - source.at.y,
+            },
+            rotation: target.rotation - source.rotation,
+        },
+    });
+    let desired = Vec2 {
+        x: target.at.x + 4.0,
+        y: target.at.y - 1.0,
+    };
+
+    let (prepared, _) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: target_id.into(),
+                at: desired,
+            }],
+        },
+    )
+    .expect("the deferred companion-source retune binds after its live key resolves");
+
+    let Constraint::Framed {
+        source: persisted_source,
+        relation: ConstraintRelation::Offset { offset, .. },
+        ..
+    } = &prepared.constraints[0]
+    else {
+        panic!("the deferred retune is persisted as Framed");
+    };
+    assert_eq!(
+        persisted_source,
+        &linked_endpoint("matrix/left-keys/r0c0/diode", source_id)
+    );
+    assert_eq!(
+        *offset,
+        Vec2 {
+            x: target.at.x - source.at.x + 4.0,
+            y: target.at.y - source.at.y - 1.0,
+        }
+    );
+    assert_eq!(part(&prepared, target_id).pose.at, desired);
+}
+
+#[test]
+fn framed_command_part_endpoint_is_normalized_in_the_stored_document() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    let source = part(&accepted, "left/U1").pose;
+    let target = part(&accepted, "right/RST").pose;
+
+    let (prepared, _) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::SetConstraint {
+            constraint: Constraint::Framed {
+                id: "constraint/new-framed-command".into(),
+                source: ConstraintEndpoint::Part {
+                    part_id: "left/U1".into(),
+                },
+                target: ConstraintEndpoint::Part {
+                    part_id: "right/RST".into(),
+                },
+                relation: ConstraintRelation::Offset {
+                    offset: Vec2 {
+                        x: target.at.x - source.at.x,
+                        y: target.at.y - source.at.y,
+                    },
+                    rotation: target.rotation - source.rotation,
+                },
+            },
+        },
+    )
+    .expect("a new command can name the visible linked mirror by Part");
+
+    let Constraint::Framed { target, .. } = &prepared.constraints[0] else {
+        panic!("the Framed command remains a durable Framed record");
+    };
+    assert_eq!(target, &linked_endpoint("left/RST", "right/RST"));
+}
+
+#[test]
+fn a_new_framed_command_with_a_wrong_explicit_binding_refuses_atomically() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    let before = accepted.clone();
+    let refusal = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::SetConstraint {
+            constraint: framed_offset(
+                "constraint/wrong-command-binding",
+                ConstraintEndpoint::Part {
+                    part_id: "left/U1".into(),
+                },
+                ConstraintEndpoint::LinkedMirror {
+                    pair_id: "wrong-pair".into(),
+                    source_part_id: "left/RST".into(),
+                    mirror_part_id: "right/RST".into(),
+                },
+                Vec2 { x: 236.0, y: 20.0 },
+            ),
+        },
+    )
+    .unwrap_err();
+
+    assert!(refusal.contains("unknown pair wrong-pair"), "{refusal}");
+    assert_eq!(accepted, before);
+}
+
+#[test]
+fn moving_a_loaded_framed_endpoint_with_a_stale_binding_refuses_without_rebinding() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    accepted.constraints.push(framed_offset(
+        "constraint/stale-move-binding",
+        ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        ConstraintEndpoint::LinkedMirror {
+            pair_id: "wrong-pair".into(),
+            source_part_id: "left/RST".into(),
+            mirror_part_id: "right/RST".into(),
+        },
+        Vec2 { x: 236.0, y: 20.0 },
+    ));
+    let before = accepted.clone();
+
+    let refusal = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/RST".into(),
+                at: Vec2 { x: 220.0, y: 30.0 },
+            }],
+        },
+    )
+    .unwrap_err();
+
+    assert!(refusal.contains("unknown pair wrong-pair"), "{refusal}");
+    assert_eq!(accepted, before);
+}
+
+#[test]
+fn accepted_139_private_final_constraint_validator_rejects_tampered_authority() {
+    let mut accepted = pair_document();
+    add_linked_independent_part(&mut accepted);
+    accepted.constraints.push(framed_offset(
+        "constraint/final-postcondition",
+        ConstraintEndpoint::Part {
+            part_id: "left/U1".into(),
+        },
+        linked_endpoint("left/RST", "right/RST"),
+        Vec2 { x: 236.0, y: 20.0 },
+    ));
+    let operation = EditOperation::MoveParts {
+        positions: vec![Position {
+            id: "right/RST".into(),
+            at: Vec2 { x: 212.0, y: 25.0 },
+        }],
+    };
+    let (prepared, _) = prepare_transaction(&accepted, &[], &operation)
+        .expect("the complete prepared draft satisfies its framed relation");
+
+    assert!(super::validate_prepared_draft(&accepted, &prepared, &operation).is_ok());
+
+    let mut tampered = prepared;
+    part_mut(&mut tampered, "left/RST").pose.at.x += 1.0;
+    let refusal = super::validate_prepared_draft(&accepted, &tampered, &operation);
+    assert!(
+        refusal.is_err(),
+        "final validation must detect authority drift from its persisted framed relation"
+    );
+}
+
+#[test]
+fn no_op_move_of_a_legacy_constrained_target_does_not_upgrade_its_wire_shape() {
+    let mut accepted = pair_document();
+    add_unpaired_mirror_board_part(&mut accepted);
+    let source = part(&accepted, "left/U1").pose;
+    let target = part(&accepted, "right/FREE").pose;
+    accepted.constraints.push(Constraint::Offset {
+        id: "constraint/legacy-no-op".into(),
+        source_part_id: "left/U1".into(),
+        target_part_id: "right/FREE".into(),
+        offset: Vec2 {
+            x: target.at.x - source.at.x,
+            y: target.at.y - source.at.y,
+        },
+        rotation: target.rotation - source.rotation,
+    });
+    let before = serde_json::to_value(&accepted.constraints).unwrap();
+    let target_pose = target.at;
+
+    let (prepared, changed) = prepare_transaction(
+        &accepted,
+        &[],
+        &EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "right/FREE".into(),
+                at: target_pose,
+            }],
+        },
+    )
+    .expect("the constrained no-op remains accepted");
+
+    assert_eq!(serde_json::to_value(&prepared.constraints).unwrap(), before);
+    assert!(changed.is_empty());
 }
 
 #[test]

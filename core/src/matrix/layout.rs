@@ -58,9 +58,10 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
             }
         }
     }
-    for constraint in &doc.constraints {
-        if primary_member(doc, constraint.target())
+    for part in &doc.parts {
+        if primary_member(doc, &part.id)
             .is_some_and(|(matrix, _, _)| partner(doc, &matrix.id).is_some())
+            && doc.constraint_driving_part(&part.id)?.is_some()
         {
             return Err("Unlink the halves before constraining a linked key's position".into());
         }
@@ -492,9 +493,10 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
                 .iter()
                 .find(|part| part.id == target_id)
                 .filter(|_| {
-                    doc.constraints
-                        .iter()
-                        .any(|constraint| constraint.target() == target_id)
+                    doc.constraint_driving_part(&target_id)
+                        .ok()
+                        .flatten()
+                        .is_some()
                 })
             {
                 let source_pose = crate::model::Pose2 {
@@ -731,11 +733,16 @@ fn set_component_pose(
         .find(|part| part.id == id)
         .ok_or("Mirrored component source is missing")?
         .pose;
-    if let Some(constraint) = doc
-        .constraints
-        .iter_mut()
-        .find(|constraint| constraint.target() == id)
+    if let Some(constraint_id) = doc
+        .constraint_driving_part(id)?
+        .map(crate::model::Constraint::id)
+        .map(str::to_owned)
     {
+        let constraint = doc
+            .constraints
+            .iter_mut()
+            .find(|constraint| constraint.id() == constraint_id)
+            .ok_or_else(|| format!("Constraint {constraint_id} disappeared"))?;
         let delta = Vec2 {
             x: pose.at.x - current.at.x,
             y: pose.at.y - current.at.y,
@@ -920,8 +927,8 @@ pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> 
         .collect();
     loop {
         let previous = affected.len();
-        for constraint in &doc.constraints {
-            if affected.contains(constraint.source()) {
+        for id in affected.clone() {
+            if let Some(constraint) = doc.constraint_driving_part(id).ok().flatten() {
                 affected.insert(constraint.target());
             }
         }
@@ -948,9 +955,11 @@ pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> 
                     .and_then(serde_json::Value::as_str)
                     == Some(position.id.as_str())
             })
-            || doc.constraints.iter().any(|constraint| {
-                constraint.target() == position.id && constraint.offset_axes().is_some()
-            })
+            || doc
+                .constraint_driving_part(&position.id)
+                .ok()
+                .flatten()
+                .is_some_and(|constraint| constraint.offset_axes().is_some())
     })
 }
 
@@ -979,11 +988,7 @@ pub(crate) fn move_keys(
         if !position.at.x.is_finite() || !position.at.y.is_finite() {
             return Err("Position must be finite".into());
         }
-        if let Some(constraint) = doc
-            .constraints
-            .iter()
-            .find(|constraint| constraint.target() == position.id)
-        {
+        if let Some(constraint) = doc.constraint_driving_part(&position.id)? {
             if constraint.is_mirror() {
                 return Err(crate::constraints::mirror_drag_refusal(&position.id));
             }
@@ -1006,10 +1011,7 @@ pub(crate) fn move_keys(
             for assembly in &cell.assemblies {
                 let id = matrix::companion_id(&position.id, &assembly.id);
                 if positions.iter().any(|position| position.id == id)
-                    || doc
-                        .constraints
-                        .iter()
-                        .any(|constraint| constraint.target() == id)
+                    || doc.constraint_driving_part(&id).ok().flatten().is_some()
                 {
                     continue;
                 }
@@ -1122,11 +1124,7 @@ pub(crate) struct AssemblyPlacement {
 /// key. The placement solver and the scene projection both read this mode, so the
 /// precedence rule has one source.
 pub(crate) fn companion_mode(doc: &ProjectDoc, companion_id: &str) -> MatrixCompanionMode {
-    if let Some(constraint) = doc
-        .constraints
-        .iter()
-        .find(|constraint| constraint.target() == companion_id)
-    {
+    if let Some(constraint) = doc.constraint_driving_part(companion_id).ok().flatten() {
         return MatrixCompanionMode::Constrained {
             constraint_id: constraint.id().to_string(),
             source_part_id: constraint.source().to_string(),

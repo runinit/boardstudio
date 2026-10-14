@@ -179,6 +179,34 @@ modules, and Open remains separate from edit-transaction canonicalization. The r
 proposal is recorded in `.evidence/ticket111/open-seam-proposal.patch`; 111 applies the bridge
 with its coherent production activation after 150 is verified.
 
+## Activation ownership (2026-10-13)
+
+All preparatory prerequisites through 150 are merged locally; 150's post-merge repository,
+native-test and lint gates passed (1,821 tests). This branch claims coherent 111 activation.
+The model/persistence writer owns the assigned model, constraints, migration, archive and host
+storage paths above, plus `core/tests/current_schema.rs` for the known current-format assertion
+and `core/src/matrix/layout.rs` / `placement.rs` only for the accepted authority-aware driver
+queries. The runtime writer owns lib and mirrored-half dispatch/preparation/inverse paths,
+established mirrored-half smoke tests, and `core/tests/support/boundary.rs` /
+`core/tests/boundary_parity.rs` for the additive paired scenario. Root retains the golden, full
+checks, mutation batch, performance/browser verification and local integration.
+
+Writers share one branch with disjoint file ownership. The model writer first publishes the
+exact operation/Framed data shapes and compiler inventory; runtime wiring starts from that
+readiness handoff. No intermediate production activation is merged. These assignments add no
+visibility beyond the inherited serialized model/read-only facade and approved Open entry point.
+New preparation/policy needs must be reported rather than hidden in activation.
+
+Model readiness: SetHalfException's Rust item field remains `kind: MirroredItemKind`, but its
+wire key is `itemKind` because JSON `kind` is already the EditOperation discriminator. Its
+`HalfExceptionState` accepts Local/Omitted/Linked without adding Linked to stored exception
+overlays. This is a serialization clarification of the agreed vocabulary, not a new behavior.
+
+Compiler inventory assigned `core/tests/support/synthetic_half.rs` and `core/tests/outlines.rs`
+to the model writer only for their current-document fixture version stamps; these now use
+`migrate::CURRENT_VERSION`. Preserve intentionally old migration inputs and private-kernel
+fixtures unless an affected check demonstrates a current-format requirement.
+
 ## Production-seam preparation blockers (2026-10-13)
 
 The isolated 111 activation branch has model/persistence and runtime drafts, with paired preview/
@@ -212,3 +240,23 @@ Open seed ordering compose the already approved preparation/model contract. Pres
 loaded Framed bindings, untouched legacy JSON, and no-op history; do not invent recovery rules.
 Root also assigns `core/src/constraints/retune.rs` solely to remove the obsolete dead-code
 expectation once the existing helper is used in production; no visibility change is included.
+
+## Public integration edge coverage (2026-10-13)
+
+Root additionally assigns `core/tests/mirrored_half/activation_edges.rs` as a private child
+of the existing mirrored-half integration tests. It reuses their private test helpers without
+visibility changes. Coverage includes actual nonempty closure lifecycle/history and 147's
+Local-circuit joined-net and linked-controller pin projection edges. No production logic or
+new net policy belongs in this test file.
+
+The dependency integration preserves verified preparation through 155. The exact lifecycle
+helper coalescing and current/intentional-v5 fixture corrections have both independent review
+axes accepted. The existing mechanical evaluator is wired before prepared mechanical commits
+so an actual Unchanged disposition preserves revision/history; its focused public regression
+and the exact-ID circuit absolute typed-placement regression both pass. Full gates remain open.
+
+The ordinary authored companion fixture remains part of acceptance. A passing companion-free
+preview control does not replace all four public preview families on authored companion data.
+Separate preparation follow-up 156 covers selected-cell tombstones and exact legacy unassociated
+child state; these must retain the original public regressions. New edge tests and further
+authored-preview cases are preserved as WIP until actual execution and delta review pass.

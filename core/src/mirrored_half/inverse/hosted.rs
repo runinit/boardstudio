@@ -198,6 +198,8 @@ pub(super) fn translate(
         | Op::ConvertOffsetConstraint { .. }
         | Op::SetMechanical { .. }
         | Op::SetCase { .. }
+        | Op::SetHalfException { .. }
+        | Op::UnlinkHalves { .. }
         | Op::CreateMirroredHalf { .. }
         | Op::ReplaceDocument { .. } => {
             return Err("this family is not translated by the hosted inverse".into());

@@ -225,46 +225,23 @@ impl CoreEngine {
                 Ok(package) => CoreReply::FirmwareGenerated { id, package },
                 Err(message) => self.error(id, &message),
             },
-            CoreRequest::Open { id, mut document } => {
+            CoreRequest::Open { id, document } => {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
                 }
                 if document.format_version != migrate::CURRENT_VERSION {
                     return self.error(id, "Document must be migrated before it is opened");
                 }
-                if let Some(map) = &document.keymap
-                    && let Err(message) = keymap::validate(map)
-                {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = script::apply_scripts(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = layout::resolve(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = constraints::resolve(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = layout::sync_components(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = constraints::resolve(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = layout::sync_components(&mut document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = generators::document_error(&document) {
-                    return self.error(id, &message);
-                }
-                if let Err(message) = mechanical::halves::validate_document(&document) {
-                    return self.error(id, &message);
-                }
+                let (document, repaired_findings) =
+                    match mirrored_half::prepare_open(&document, &[]) {
+                        Ok(prepared) => prepared,
+                        Err(message) => return self.error(id, &message),
+                    };
                 self.document = document;
                 self.undo.clear();
                 self.redo.clear();
                 self.recompute();
+                self.findings.extend(repaired_findings);
                 self.scene(
                     id,
                     SceneInput {
@@ -505,6 +482,10 @@ impl CoreEngine {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
+        let prepared_route = uses_prepared_transaction(&self.document, &command.operation);
+        if command.phase == EditPhase::Preview && prepared_route {
+            return self.preview_prepared_edit(id, command);
+        }
         if command.phase == EditPhase::Preview
             && matches!(
                 &command.operation,
@@ -516,57 +497,128 @@ impl CoreEngine {
         {
             return self.preview_edit(id, command);
         }
-        let mut next = self.document.clone();
-        // Mechanical edits resolve against the accepted outline projection the user
-        // sees, not a stale or re-derived one, so the accepted cache supplies it.
-        let accepted_contours;
-        let board_contours: &[BoardContours] =
-            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
-                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
-                &accepted_contours
+        let prepared_mechanical_contours = if prepared_route
+            && command.phase == EditPhase::Commit
+            && matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. })
+        {
+            Some(geometry::board_contours(&self.document, &self.outline_cache).0)
+        } else {
+            None
+        };
+        if let (Some(board_contours), EditOperation::ApplyMechanicalEdit { edit }) =
+            (&prepared_mechanical_contours, &command.operation)
+            && matches!(
+                mechanical::evaluate_edit(&self.document, board_contours, edit),
+                Ok(mechanical::MechanicalEditDisposition::Unchanged)
+            )
+        {
+            return self.scene(
+                id,
+                SceneInput {
+                    transaction: &command.transaction_id,
+                    changed: vec![],
+                    document: &self.document,
+                    contours: &self.contours,
+                    geom_findings: &self.findings,
+                    cache: &self.outline_cache,
+                    kind: SceneKind::Committed,
+                },
+            );
+        }
+        let next;
+        let changed;
+        if prepared_route {
+            let accepted_contours;
+            let board_contours: &[BoardContours] = if matches!(
+                command.operation,
+                EditOperation::ApplyMechanicalEdit { .. }
+                    | EditOperation::SetMechanical {
+                        target: Some(mechanical::MechanicalTarget::Instance { .. }),
+                        ..
+                    }
+            ) {
+                if let Some(board_contours) = &prepared_mechanical_contours {
+                    board_contours
+                } else {
+                    accepted_contours =
+                        geometry::board_contours(&self.document, &self.outline_cache).0;
+                    &accepted_contours
+                }
             } else {
                 &[]
             };
-        let changed = match apply(&mut next, board_contours, &command.operation) {
-            Ok(changed) => changed,
-            Err(message) => return self.error(id, &message),
-        };
-        if let Some(map) = &next.keymap
-            && let Err(message) = keymap::validate(map)
-        {
-            return self.error(id, &message);
-        }
-        let mut changed = changed;
-        electrical::preserve_handoff(&self.document, &mut next);
-        if let Err(message) = layout::validate(&next) {
-            return self.error(id, &message);
-        }
-        match constraints::resolve_edit(&mut next, &command.operation) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        match layout::sync_components(&mut next) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        match constraints::resolve_edit(&mut next, &command.operation) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        match layout::sync_components(&mut next) {
-            Ok(ids) => changed.extend(ids),
-            Err(message) => return self.error(id, &message),
-        }
-        outline_controls::detach_removed(&self.document.parts, &mut next);
-        changed.extend(prune_removed_components(&self.document.parts, &mut next));
-        changed.sort();
-        changed.dedup();
-        // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
-        if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
-            && let Err(message) =
-                generators::introduced_error(&generators::parameter_problems(&self.document), &next)
-        {
-            return self.error(id, &message);
+            match mirrored_half::prepare_transaction(
+                &self.document,
+                board_contours,
+                &command.operation,
+            ) {
+                Ok((draft, prepared_changed)) => {
+                    next = draft;
+                    changed = prepared_changed;
+                }
+                Err(message) => return self.error(id, &message),
+            }
+        } else {
+            let mut raw_next = self.document.clone();
+            // Mechanical edits resolve against the accepted outline projection the user
+            // sees, not a stale or re-derived one, so the accepted cache supplies it.
+            let accepted_contours;
+            let board_contours: &[BoardContours] =
+                if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                    accepted_contours =
+                        geometry::board_contours(&self.document, &self.outline_cache).0;
+                    &accepted_contours
+                } else {
+                    &[]
+                };
+            let raw_changed = match apply(&mut raw_next, board_contours, &command.operation) {
+                Ok(changed) => changed,
+                Err(message) => return self.error(id, &message),
+            };
+            if let Some(map) = &raw_next.keymap
+                && let Err(message) = keymap::validate(map)
+            {
+                return self.error(id, &message);
+            }
+            let mut raw_changed = raw_changed;
+            electrical::preserve_handoff(&self.document, &mut raw_next);
+            if let Err(message) = layout::validate(&raw_next) {
+                return self.error(id, &message);
+            }
+            match constraints::resolve_edit(&mut raw_next, &command.operation) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            match layout::sync_components(&mut raw_next) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            match constraints::resolve_edit(&mut raw_next, &command.operation) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            match layout::sync_components(&mut raw_next) {
+                Ok(ids) => raw_changed.extend(ids),
+                Err(message) => return self.error(id, &message),
+            }
+            outline_controls::detach_removed(&self.document.parts, &mut raw_next);
+            raw_changed.extend(prune_removed_components(
+                &self.document.parts,
+                &mut raw_next,
+            ));
+            raw_changed.sort();
+            raw_changed.dedup();
+            // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
+            if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
+                && let Err(message) = generators::introduced_error(
+                    &generators::parameter_problems(&self.document),
+                    &raw_next,
+                )
+            {
+                return self.error(id, &message);
+            }
+            next = raw_next;
+            changed = raw_changed;
         }
         // A committed mechanical edit that reports nothing changed is a no-op: return
         // the current committed scene without a revision bump, an undo entry or a redo
@@ -591,7 +643,7 @@ impl CoreEngine {
                 },
             );
         }
-        let (cache, contours, findings) = if affects_outline(&command.operation) {
+        let (cache, contours, findings) = if prepared_route || affects_outline(&command.operation) {
             let previous = if matches!(command.operation, EditOperation::MoveParts { .. }) {
                 Some(&self.outline_cache)
             } else {
@@ -659,6 +711,45 @@ impl CoreEngine {
                 geom_findings: &self.findings,
                 cache: &self.outline_cache,
                 kind: SceneKind::Committed,
+            },
+        )
+    }
+
+    fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
+        let accepted_contours;
+        let board_contours: &[BoardContours] = if matches!(
+            command.operation,
+            EditOperation::ApplyMechanicalEdit { .. }
+                | EditOperation::SetMechanical {
+                    target: Some(mechanical::MechanicalTarget::Instance { .. }),
+                    ..
+                }
+        ) {
+            accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+            &accepted_contours
+        } else {
+            &[]
+        };
+        let (draft, changed) = match mirrored_half::prepare_transaction(
+            &self.document,
+            board_contours,
+            &command.operation,
+        ) {
+            Ok(prepared) => prepared,
+            Err(message) => return self.error(id, &message),
+        };
+        let (cache, contours, mut findings) = outlines(&draft, None, &changed);
+        findings.extend(preview_electrical_loss_findings(&self.document, &draft));
+        self.scene(
+            id,
+            SceneInput {
+                transaction: &command.transaction_id,
+                changed,
+                document: &draft,
+                contours: &contours,
+                geom_findings: &findings,
+                cache: &cache,
+                kind: SceneKind::Preview,
             },
         )
     }
@@ -1039,6 +1130,7 @@ enum PreviewBackup {
         definition_len: usize,
         parts: Vec<Part>,
         matrices: Vec<Matrix>,
+        layouts: Vec<Layout>,
         nets: Vec<Net>,
         outline: Vec<OutlineFeature>,
         boards: Vec<Board>,
@@ -1067,19 +1159,26 @@ impl PreviewBackup {
                     break;
                 }
             }
-            return Self::Parts(
-                doc.parts
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, part)| affected.contains(&part.id))
-                    .map(|(index, part)| (index, part.pose, part.properties.clone()))
-                    .collect(),
-            );
+            // Settling a constrained key can rewrite its matrix and regenerate members.
+            let reaches_matrix_key = affected
+                .iter()
+                .any(|id| id.starts_with("matrix/") && layout::is_matrix_key(doc, id));
+            if !reaches_matrix_key {
+                return Self::Parts(
+                    doc.parts
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, part)| affected.contains(&part.id))
+                        .map(|(index, part)| (index, part.pose, part.properties.clone()))
+                        .collect(),
+                );
+            }
         }
         Self::Matrix {
             definition_len: doc.definitions.len(),
             parts: doc.parts.clone(),
             matrices: doc.matrices.clone(),
+            layouts: doc.layouts.clone(),
             nets: doc.nets.clone(),
             outline: doc.outline.clone(),
             boards: doc.boards.clone(),
@@ -1099,6 +1198,7 @@ impl PreviewBackup {
                 definition_len,
                 parts,
                 matrices,
+                layouts,
                 nets,
                 outline,
                 boards,
@@ -1107,6 +1207,7 @@ impl PreviewBackup {
                 doc.definitions.truncate(definition_len);
                 doc.parts = parts;
                 doc.matrices = matrices;
+                doc.layouts = layouts;
                 doc.nets = nets;
                 doc.outline = outline;
                 doc.boards = boards;
@@ -1114,6 +1215,147 @@ impl PreviewBackup {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod preview_backup_tests {
+    use super::*;
+
+    fn part(id: &str) -> Part {
+        Part {
+            keycap: None,
+            outline: None,
+            id: id.into(),
+            definition_id: "switch".into(),
+            reference: id.into(),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: None,
+            properties: None,
+            generator_parameters: None,
+        }
+    }
+
+    fn matrix() -> Matrix {
+        Matrix {
+            id: "main".into(),
+            name: None,
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.0, y: 19.0 },
+            origin: Vec2::default(),
+            definition_id: "switch".into(),
+            part_ids: vec!["matrix/main/r0c0".into()],
+            board_id: None,
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_offsets: vec![],
+            column_offsets: vec![],
+            column_staggers: vec![],
+            column_splays: vec![],
+            column_origins: vec![],
+            cells: vec![MatrixCell {
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: true,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }],
+        }
+    }
+
+    fn document() -> ProjectDoc {
+        let mut document = ProjectDoc::empty("preview-backup", "Preview backup");
+        document.parts = vec![part("anchor"), part("matrix/main/r0c0")];
+        document.matrices.push(matrix());
+        document.layouts.push(Layout {
+            id: "layout:main".into(),
+            name: "Main".into(),
+            board_id: "board:main".into(),
+            matrix_id: "main".into(),
+            part_ids: vec!["layout-component".into()],
+            mirror_link: None,
+        });
+        document.constraints.push(Constraint::Offset {
+            id: "key-anchor".into(),
+            source_part_id: "anchor".into(),
+            target_part_id: "matrix/main/r0c0".into(),
+            offset: Vec2::default(),
+            rotation: 0.0,
+        });
+        document
+    }
+
+    #[test]
+    fn matrix_reaching_preview_restores_layout_membership() {
+        let mut document = document();
+        let accepted_layouts = document.layouts.clone();
+        let backup = PreviewBackup::capture(
+            &document,
+            &EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: "anchor".into(),
+                    at: Vec2 { x: 3.0, y: 4.0 },
+                }],
+            },
+        );
+        assert!(matches!(&backup, PreviewBackup::Matrix { .. }));
+
+        document.layouts[0]
+            .part_ids
+            .push("adopted-during-preview".into());
+        backup.restore(&mut document);
+
+        assert_eq!(document.layouts, accepted_layouts);
+    }
+
+    #[test]
+    fn unrelated_part_move_keeps_the_parts_only_backup() {
+        let mut document = document();
+        document.constraints.clear();
+        let backup = PreviewBackup::capture(
+            &document,
+            &EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: "anchor".into(),
+                    at: Vec2 { x: 3.0, y: 4.0 },
+                }],
+            },
+        );
+
+        assert!(matches!(&backup, PreviewBackup::Parts(_)));
+    }
+}
+
+fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -> bool {
+    if matches!(
+        operation,
+        EditOperation::SetHalfException { .. }
+            | EditOperation::UnlinkHalves { .. }
+            | EditOperation::SetMechanical {
+                target: Some(mechanical::MechanicalTarget::Instance { .. }),
+                ..
+            }
+    ) {
+        return true;
+    }
+    document.hardware.as_ref().is_some_and(|hardware| {
+        hardware.pairs.iter().any(|pair| {
+            pair.halves
+                .as_ref()
+                .is_some_and(|halves| halves.source_board_id != halves.mirror_board_id)
+        })
+    })
 }
 
 fn affects_outline(op: &EditOperation) -> bool {
@@ -1716,6 +1958,9 @@ fn apply(
             crate::mechanical::edit::apply(doc, board_contours, edit)
         }
         EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
+        EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. } => {
+            Err("Mirrored-half lifecycle edits require prepared transaction dispatch".into())
+        }
         EditOperation::ReplaceDocument { document } => {
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
@@ -1755,7 +2000,6 @@ fn changed_ids(a: &ProjectDoc, b: &ProjectDoc) -> Vec<String> {
     ids.into_iter().collect()
 }
 
-#[cfg(test)]
 fn preview_electrical_loss_findings(accepted: &ProjectDoc, staged: &ProjectDoc) -> Vec<Finding> {
     let mut accepted_nets: BTreeMap<&str, &str> = BTreeMap::new();
     let mut accepted_pins = BTreeSet::new();
@@ -1869,7 +2113,6 @@ fn preview_electrical_loss_findings(accepted: &ProjectDoc, staged: &ProjectDoc) 
     findings.into_values().collect()
 }
 
-#[cfg(test)]
 fn preview_electrical_notice_id(kind: &str, identity: &[&str]) -> String {
     let mut id = format!("preview:electrical:{kind}");
     for component in identity {
@@ -2504,6 +2747,7 @@ mod mechanical_edit_engine_tests {
     fn pure_settings_edits_preserve_the_outline_recovery_snapshot() {
         let mut source: ProjectDoc =
             serde_json::from_str(include_str!("../tests/fixtures/synthetic-outline.json")).unwrap();
+        source.format_version = crate::migrate::CURRENT_VERSION;
         // Use only two authored square courtyards with a 4 mm gap. This creates
         // an independent automatic bridge pocket for the recovery contract.
         source

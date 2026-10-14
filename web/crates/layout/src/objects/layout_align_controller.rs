@@ -482,7 +482,6 @@ fn project(
         .iter()
         .filter(|part| board.part_ids.contains(&part.id))
         .collect();
-    let board_part_ids: BTreeSet<_> = board.part_ids.iter().map(String::as_str).collect();
     let moving_matrix = context_matrix(&selected.context).or_else(|| {
         moving_ids.iter().find_map(|id| {
             snapshot
@@ -541,12 +540,7 @@ fn project(
         };
     }
     let locked_or_driven = moving_parts.iter().any(|part| {
-        part.locked == Some(true)
-            || snapshot.document.constraints.iter().any(|constraint| {
-                board_part_ids.contains(constraint.source())
-                    && board_part_ids.contains(constraint.target())
-                    && constraint.target() == part.id
-            })
+        part.locked == Some(true) || snapshot.document.constraint_driving_part(&part.id) != Ok(None)
     });
     let row_scope = matches!(selected.context, TreeContext::Row { .. });
     let supported_scope = matches!(
@@ -736,16 +730,8 @@ fn align_resolver(
         if moving_parts.len() != moving_ids.len() {
             return Resolution::Retire("A selected part no longer exists.".into());
         }
-        let board_part_ids: BTreeSet<&str> = document
-            .boards
-            .iter()
-            .flat_map(|board| board.part_ids.iter().map(String::as_str))
-            .collect();
         if moving_parts.iter().any(|part| {
-            part.locked == Some(true)
-                || document.constraints.iter().any(|constraint| {
-                    constraint.target() == part.id && board_part_ids.contains(constraint.source())
-                })
+            part.locked == Some(true) || document.constraint_driving_part(&part.id) != Ok(None)
         }) {
             return Resolution::Retire(
                 "A selected part is locked or driven by a relationship.".into(),

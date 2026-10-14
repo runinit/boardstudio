@@ -8,7 +8,10 @@ use super::layout_component_edits::{
 };
 use crate::edit_ticket::{EditTicket, Settlement};
 use crate::runtime::{Runtime, project_name_test_support as support};
-use boardstudio_core::model::{Board, Constraint, OffsetAxes, Part, Pose2, ProjectDoc, Side, Vec2};
+use boardstudio_core::model::{
+    Board, Constraint, ConstraintEndpoint, ConstraintRelation, OffsetAxes, Part, Pose2, ProjectDoc,
+    Side, Vec2,
+};
 use std::rc::Rc;
 use wasm_bindgen_test::*;
 
@@ -240,6 +243,153 @@ async fn constraint_set_then_remove_queued_back_to_back_both_land() {
             .constraints
             .is_empty(),
         "the queued removal applied on top of the queued set"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn updating_a_constraint_reuses_its_durable_id_before_removal() {
+    let runtime = open().await;
+    let create = EditTicket::begin(
+        &runtime,
+        "layout-inspector-constraint",
+        Some("layout".into()),
+        constraint_resolver(
+            "b".into(),
+            "board".into(),
+            "a".into(),
+            LayoutConstraintValues::Offset {
+                offset: Vec2 { x: 20.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            9,
+        ),
+    );
+    support::drive_pending(&runtime);
+    settle(&runtime, &create).await;
+    assert!(matches!(create.settlement(true), Settlement::Landed { .. }));
+
+    let update = EditTicket::begin(
+        &runtime,
+        "layout-inspector-constraint",
+        Some("layout".into()),
+        constraint_resolver(
+            "b".into(),
+            "board".into(),
+            "a".into(),
+            LayoutConstraintValues::Offset {
+                offset: Vec2 { x: 25.0, y: -3.0 },
+                rotation: 12.0,
+            },
+            77,
+        ),
+    );
+    support::drive_pending(&runtime);
+    settle(&runtime, &update).await;
+    assert!(matches!(update.settlement(true), Settlement::Landed { .. }));
+
+    let accepted = runtime.model().accepted.unwrap();
+    let constraints = &accepted.document.constraints;
+    assert!(
+        matches!(
+            constraints.as_slice(),
+            [Constraint::Offset { id, offset, rotation, .. }]
+                if id == "layout-component-constraint-9"
+                    && *offset == (Vec2 { x: 25.0, y: -3.0 })
+                    && *rotation == 12.0
+        ),
+        "update retains the original ID and exact authored payload: {constraints:?}"
+    );
+
+    let remove = EditTicket::begin(
+        &runtime,
+        "layout-inspector-remove-constraint",
+        Some("layout".into()),
+        remove_constraint_resolver("b".into(), "layout-component-constraint-9".into()),
+    );
+    support::drive_pending(&runtime);
+    settle(&runtime, &remove).await;
+    assert!(matches!(remove.settlement(true), Settlement::Landed { .. }));
+    assert!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .constraints
+            .is_empty()
+    );
+}
+
+#[wasm_bindgen_test]
+async fn typed_constraint_update_preserves_id_and_endpoints_for_every_relation_then_removes() {
+    let runtime = open().await;
+    let values = [
+        ConstraintRelation::Offset {
+            offset: Vec2 { x: 5.0, y: -2.0 },
+            rotation: 17.0,
+        },
+        ConstraintRelation::PartOffset {
+            offset: Vec2 { x: -3.0, y: 4.0 },
+            rotation: -11.0,
+        },
+        ConstraintRelation::MirrorLine {
+            at: Vec2 { x: 12.0, y: -9.0 },
+            angle: 31.0,
+        },
+    ];
+
+    for (index, relation) in values.into_iter().enumerate() {
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector-constraint",
+            Some("layout".into()),
+            constraint_resolver(
+                "b".into(),
+                "board".into(),
+                "a".into(),
+                LayoutConstraintValues::Framed {
+                    relation: relation.clone(),
+                },
+                if index == 0 { 9 } else { 77 },
+            ),
+        );
+        support::drive_pending(&runtime);
+        settle(&runtime, &ticket).await;
+        assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert!(
+            matches!(
+                accepted.document.constraints.as_slice(),
+                [Constraint::Framed { id, source: ConstraintEndpoint::Part { part_id: source }, target: ConstraintEndpoint::Part { part_id: target }, relation: saved }]
+                    if id == "layout-component-constraint-9"
+                        && source == "a"
+                        && target == "b"
+                        && saved == &relation
+            ),
+            "typed update preserves the durable id, endpoint frames and exact relation: {:?}",
+            accepted.document.constraints
+        );
+    }
+
+    let remove = EditTicket::begin(
+        &runtime,
+        "layout-inspector-remove-constraint",
+        Some("layout".into()),
+        remove_constraint_resolver("b".into(), "layout-component-constraint-9".into()),
+    );
+    support::drive_pending(&runtime);
+    settle(&runtime, &remove).await;
+    assert!(matches!(remove.settlement(true), Settlement::Landed { .. }));
+    assert!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .constraints
+            .is_empty(),
+        "the same stable record can be removed through the facade-backed resolver"
     );
 }
 

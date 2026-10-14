@@ -274,7 +274,7 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(loaded.format_version, 5);
+    assert_eq!(loaded.format_version, 6);
     let loaded_parameters = &loaded.definitions[0].generator.as_ref().unwrap().parameters;
     assert_eq!(loaded_parameters["hole_drill"], 6.6);
     assert_eq!(loaded_parameters["hole_size"], 6.6);
@@ -291,7 +291,7 @@ async fn version_3_closure_project_with_saved_strings_migrates_and_is_written_ba
             .unwrap()
             .unwrap(),
     );
-    assert_eq!(raw["formatVersion"], 5, "migration writes back immediately");
+    assert_eq!(raw["formatVersion"], 6, "migration writes back immediately");
     assert_eq!(
         raw["definitions"][0]["generator"]["parameters"]["hole_drill"],
         6.6
@@ -364,9 +364,9 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .await
         .unwrap();
     let listed = store.list_documents().await.unwrap();
-    assert_eq!(listed[0].format_version, 5);
+    assert_eq!(listed[0].format_version, 6);
     let loaded = store.load_document("legacy".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, 5);
+    assert_eq!(loaded.format_version, 6);
     assert_eq!(
         loaded.parts[0].definition_id,
         "generator:ceoloide/mounting_hole_npth"
@@ -386,7 +386,7 @@ async fn legacy_generator_project_migrates_and_is_written_back_with_assets_intac
         .unwrap()
         .unwrap();
     let raw: serde_json::Value = serde_wasm_bindgen::from_value(raw).unwrap();
-    assert_eq!(raw["formatVersion"], 5, "migration writes back immediately");
+    assert_eq!(raw["formatVersion"], 6, "migration writes back immediately");
     assert!(!raw.to_string().contains("ergogen"));
     assert_eq!(
         store.load_asset(hash).await.unwrap().unwrap().to_vec(),
@@ -795,10 +795,11 @@ async fn a_disabled_pairs_identity_reservation_survives_indexeddb() {
 }
 
 #[wasm_bindgen_test]
-async fn mirrored_halves_survive_browser_storage_at_format_five() {
+async fn stored_v5_mirrored_halves_migrate_and_survive_browser_storage() {
     let database_name = format!("boardstudio-idb-halves-{}", js_sys::Date::now());
     let store = BrowserStore::new(&database_name).unwrap();
     let mut document = ProjectDoc::empty("halves", "Mirrored halves");
+    document.format_version = 5;
     document.hardware = Some(
         serde_json::from_value(serde_json::json!({
             "pairs": [{
@@ -822,8 +823,17 @@ async fn mirrored_halves_survive_browser_storage_at_format_five() {
         .await
         .unwrap();
 
+    let raw_before_load = serde_wasm_bindgen::from_value::<serde_json::Value>(
+        load_value(&database_name, PROJECT_STORE, "halves".into())
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(raw_before_load["formatVersion"], 5);
+
     let loaded = store.load_document("halves".into()).await.unwrap().unwrap();
-    assert_eq!(loaded.format_version, 5);
+    assert_eq!(loaded.format_version, 6);
     assert_eq!(loaded.hardware, document.hardware);
     let raw = serde_wasm_bindgen::from_value::<serde_json::Value>(
         load_value(&database_name, PROJECT_STORE, "halves".into())
@@ -836,5 +846,37 @@ async fn mirrored_halves_survive_browser_storage_at_format_five() {
         raw["hardware"]["pairs"][0]["halves"]["sourceBoardId"],
         "left-board"
     );
+    assert_eq!(raw["formatVersion"], 6, "migration writes back immediately");
     assert_eq!(raw["hardware"]["pairs"][0]["constructionSource"], "left");
+}
+
+#[wasm_bindgen_test]
+async fn framed_constraint_endpoints_and_relations_round_trip_through_indexeddb() {
+    let database_name = format!("boardstudio-idb-framed-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&database_name).unwrap();
+    let mut document = ProjectDoc::empty("framed", "Framed constraints");
+    document.constraints = serde_json::from_value(serde_json::json!([
+        {"kind":"framed", "id":"c/offset",
+         "source":{"kind":"part", "partId":"left/source"},
+         "target":{"kind":"linked-mirror", "pairId":"pair", "sourcePartId":"left/target", "mirrorPartId":"right/target"},
+         "relation":{"kind":"offset", "offset":{"x":5.0,"y":-2.0},"rotation":15.0}},
+        {"kind":"framed", "id":"c/part-offset",
+         "source":{"kind":"linked-mirror", "pairId":"pair", "sourcePartId":"left/source", "mirrorPartId":"right/source"},
+         "target":{"kind":"part", "partId":"local/target"},
+         "relation":{"kind":"part-offset", "offset":{"x":-3.0,"y":8.0},"rotation":-22.0}},
+        {"kind":"framed", "id":"c/mirror-line",
+         "source":{"kind":"part", "partId":"local/source"},
+         "target":{"kind":"part", "partId":"local/target-2"},
+         "relation":{"kind":"mirror-line", "at":{"x":2.25,"y":-5.5},"angle":37.0}}
+    ]))
+    .unwrap();
+    assert_eq!(document.format_version, 6);
+    store
+        .save_document(&document, &Default::default())
+        .await
+        .unwrap();
+
+    let loaded = store.load_document("framed".into()).await.unwrap().unwrap();
+
+    assert_eq!(loaded.constraints, document.constraints);
 }

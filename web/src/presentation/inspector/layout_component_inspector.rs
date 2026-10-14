@@ -1,7 +1,9 @@
 //! Contextual Properties and Relations for one accepted standalone Layout part.
 use crate::presentation::layout_workspace::LayoutInspectorTab;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, PartOutline, Vec2};
+use boardstudio_core::model::{
+    Constraint, ConstraintRelation, MirrorAxis, OffsetAxes, PartOutline, Vec2,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{
@@ -95,6 +97,7 @@ pub enum LayoutConstraintValues {
     Offset { offset: Vec2, rotation: f64 },
     PartOffset { offset: Vec2, rotation: f64 },
     Mirror { axis: MirrorAxis, coordinate: f64 },
+    Framed { relation: ConstraintRelation },
 }
 
 /// A new offset from a matrix key follows the key's own axes; any other source uses the board's.
@@ -143,18 +146,23 @@ pub(crate) struct OffsetDrafts {
     pub rotation: String,
 }
 
-/// The drafts for `part_id` given the constraint that drives it, if any. A saved offset
-/// constraint shows its own source, axes and numbers. Otherwise the source is the first
-/// other part on the board, the axes follow the default for that source, and the numbers
-/// are zero.
+/// The drafts for `part_id` given the constraint that drives it, if any. A saved Framed
+/// constraint keeps its endpoint source, even when that part is on the paired board. A legacy
+/// constraint with an off-board source falls back to the first other part. Saved offset axes
+/// and numbers are preserved; otherwise axes follow the source and numbers are zero.
 pub(crate) fn offset_drafts(
     constraint: Option<&Constraint>,
     board_parts: &[BoardPartChoice],
     part_id: &str,
 ) -> OffsetDrafts {
     let source_part_id = constraint
+        .filter(|constraint| {
+            matches!(constraint, Constraint::Framed { .. })
+                || board_parts
+                    .iter()
+                    .any(|part| part.id == constraint.source())
+        })
         .map(Constraint::source)
-        .filter(|source| board_parts.iter().any(|part| part.id == *source))
         .map(str::to_owned)
         .or_else(|| {
             board_parts
@@ -280,6 +288,7 @@ pub struct LayoutComponentInspectorProps {
 enum ConstraintKind {
     Offset,
     Mirror,
+    MirrorLine,
 }
 
 /// X/Y are unavailable when the part is locked or when a saved relationship on
@@ -306,7 +315,9 @@ mod offset_axes_tests {
         offset_axes_value, offset_drafts, offset_values,
     };
     use crate::presentation::inspector::LayoutConstraintValues;
-    use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
+    use boardstudio_core::model::{
+        Constraint, ConstraintEndpoint, ConstraintRelation, MirrorAxis, OffsetAxes, Vec2,
+    };
 
     fn offsets() -> (Constraint, Constraint, Constraint) {
         let board = Constraint::Offset {
@@ -446,6 +457,58 @@ mod offset_axes_tests {
         let (off_board, _, _) = offsets();
         let drafts = offset_drafts(Some(&off_board), &board(), "key");
         assert_eq!(drafts.source_part_id, "diode");
+        assert_eq!(
+            drafts,
+            OffsetDrafts {
+                source_part_id: "diode".into(),
+                axes: OffsetAxes::Board,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_off_board_part_offset_keeps_saved_axes_instead_of_the_fallback_default() {
+        let (_, off_board, _) = offsets();
+        assert_eq!(
+            offset_drafts(Some(&off_board), &board(), "key"),
+            OffsetDrafts {
+                source_part_id: "diode".into(),
+                axes: OffsetAxes::Part,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_off_board_framed_source_keeps_its_endpoint_axes_and_numbers() {
+        let framed = Constraint::Framed {
+            id: "framed-offset".into(),
+            source: ConstraintEndpoint::Part {
+                part_id: "paired-board-source".into(),
+            },
+            target: ConstraintEndpoint::Part {
+                part_id: "key".into(),
+            },
+            relation: ConstraintRelation::PartOffset {
+                offset: Vec2 { x: 1.0, y: -4.0 },
+                rotation: 5.0,
+            },
+        };
+        assert_eq!(
+            offset_drafts(Some(&framed), &board(), "key"),
+            OffsetDrafts {
+                source_part_id: "paired-board-source".into(),
+                axes: OffsetAxes::Part,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -512,6 +575,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let margin_failure = props.margin_failure;
     let mut constraint_kind = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { .. },
+            ..
+        }) => ConstraintKind::MirrorLine,
         _ => ConstraintKind::Offset,
     });
     let drafts = offset_drafts(
@@ -531,6 +598,27 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let mut mirror_coordinate = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { coordinate, .. }) => coordinate.to_string(),
         _ => "0".to_owned(),
+    });
+    let mut mirror_line_x = use_signal(|| match projection.active_constraint.as_ref() {
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { at, .. },
+            ..
+        }) => at.x.to_string(),
+        _ => "0".to_owned(),
+    });
+    let mut mirror_line_y = use_signal(|| match projection.active_constraint.as_ref() {
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { at, .. },
+            ..
+        }) => at.y.to_string(),
+        _ => "0".to_owned(),
+    });
+    let mut mirror_line_angle = use_signal(|| match projection.active_constraint.as_ref() {
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { angle, .. },
+            ..
+        }) => angle.to_string(),
+        _ => "90".to_owned(),
     });
     let mut error = props.error;
     let pending = props.pending_edits.peek().clone();
@@ -633,10 +721,13 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     use_effect(use_reactive((&accepted_constraint,), {
         move |((_, constraint),)| {
             constraint_open.set(constraint.is_some());
-            constraint_kind.set(if matches!(constraint, Some(Constraint::Mirror { .. })) {
-                ConstraintKind::Mirror
-            } else {
-                ConstraintKind::Offset
+            constraint_kind.set(match constraint.as_ref() {
+                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+                Some(Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { .. },
+                    ..
+                }) => ConstraintKind::MirrorLine,
+                _ => ConstraintKind::Offset,
             });
             let drafts = offset_drafts(constraint.as_ref(), &board_parts, &part_id);
             source_part_id.set(drafts.source_part_id);
@@ -651,9 +742,20 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     mirror_axis.set(axis.clone());
                     mirror_coordinate.set(coordinate.to_string());
                 }
+                Some(Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { at, angle },
+                    ..
+                }) => {
+                    mirror_line_x.set(at.x.to_string());
+                    mirror_line_y.set(at.y.to_string());
+                    mirror_line_angle.set(angle.to_string());
+                }
                 _ => {
                     mirror_axis.set(MirrorAxis::Vertical);
                     mirror_coordinate.set("0".to_owned());
+                    mirror_line_x.set("0".to_owned());
+                    mirror_line_y.set("0".to_owned());
+                    mirror_line_angle.set("90".to_owned());
                 }
             }
             error.set(None);
@@ -672,6 +774,9 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let mut rotation = rotation;
         let mut mirror_axis = mirror_axis;
         let mut mirror_coordinate = mirror_coordinate;
+        let mut mirror_line_x = mirror_line_x;
+        let mut mirror_line_y = mirror_line_y;
+        let mut mirror_line_angle = mirror_line_angle;
         let mut error = error;
         let initial_margin = initial_outline.margin;
         let initial_constraint = initial_constraint.clone();
@@ -685,13 +790,14 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     .unwrap_or_default(),
             );
             constraint_open.set(initial_constraint.is_some());
-            constraint_kind.set(
-                if matches!(initial_constraint.as_ref(), Some(Constraint::Mirror { .. })) {
-                    ConstraintKind::Mirror
-                } else {
-                    ConstraintKind::Offset
-                },
-            );
+            constraint_kind.set(match initial_constraint.as_ref() {
+                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+                Some(Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { .. },
+                    ..
+                }) => ConstraintKind::MirrorLine,
+                _ => ConstraintKind::Offset,
+            });
             let drafts = initial_drafts.clone();
             source_part_id.set(drafts.source_part_id);
             offset_axes.set(drafts.axes);
@@ -705,9 +811,20 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     mirror_axis.set(axis.clone());
                     mirror_coordinate.set(coordinate.to_string());
                 }
+                Some(Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { at, angle },
+                    ..
+                }) => {
+                    mirror_line_x.set(at.x.to_string());
+                    mirror_line_y.set(at.y.to_string());
+                    mirror_line_angle.set(angle.to_string());
+                }
                 _ => {
                     mirror_axis.set(MirrorAxis::Vertical);
                     mirror_coordinate.set("0".to_owned());
+                    mirror_line_x.set("0".to_owned());
+                    mirror_line_y.set("0".to_owned());
+                    mirror_line_angle.set("90".to_owned());
                 }
             }
             error.set(None);
@@ -844,6 +961,13 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     let save_constraint = {
         let latest_capture = latest_capture;
         let offset_axes = offset_axes;
+        let mirror_line_x = mirror_line_x;
+        let mirror_line_y = mirror_line_y;
+        let mirror_line_angle = mirror_line_angle;
+        let retain_legacy_form = projection
+            .active_constraint
+            .as_ref()
+            .is_some_and(|constraint| !matches!(constraint, Constraint::Framed { .. }));
         let action = props.on_action;
         let mut error = error;
         move |_| {
@@ -867,7 +991,21 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         error.set(Some("Enter finite constraint values.".to_owned()));
                         return;
                     }
-                    offset_values(offset_axes(), Vec2 { x, y }, rotation)
+                    let offset = Vec2 { x, y };
+                    if retain_legacy_form {
+                        offset_values(offset_axes(), offset, rotation)
+                    } else {
+                        LayoutConstraintValues::Framed {
+                            relation: match offset_axes() {
+                                OffsetAxes::Board => {
+                                    ConstraintRelation::Offset { offset, rotation }
+                                }
+                                OffsetAxes::Part => {
+                                    ConstraintRelation::PartOffset { offset, rotation }
+                                }
+                            },
+                        }
+                    }
                 }
                 ConstraintKind::Mirror => {
                     let Ok(coordinate) = mirror_coordinate().parse::<f64>() else {
@@ -878,9 +1016,53 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         error.set(Some("Enter a finite axis coordinate.".to_owned()));
                         return;
                     }
-                    LayoutConstraintValues::Mirror {
-                        axis: mirror_axis(),
-                        coordinate,
+                    if retain_legacy_form {
+                        LayoutConstraintValues::Mirror {
+                            axis: mirror_axis(),
+                            coordinate,
+                        }
+                    } else {
+                        let axis = mirror_axis();
+                        let at = match axis {
+                            MirrorAxis::Vertical => Vec2 {
+                                x: coordinate,
+                                y: 0.0,
+                            },
+                            MirrorAxis::Horizontal => Vec2 {
+                                x: 0.0,
+                                y: coordinate,
+                            },
+                        };
+                        LayoutConstraintValues::Framed {
+                            relation: ConstraintRelation::MirrorLine {
+                                at,
+                                angle: if axis == MirrorAxis::Vertical {
+                                    90.0
+                                } else {
+                                    0.0
+                                },
+                            },
+                        }
+                    }
+                }
+                ConstraintKind::MirrorLine => {
+                    let (Ok(x), Ok(y), Ok(angle)) = (
+                        mirror_line_x().parse::<f64>(),
+                        mirror_line_y().parse::<f64>(),
+                        mirror_line_angle().parse::<f64>(),
+                    ) else {
+                        error.set(Some("Enter finite mirror line values.".to_owned()));
+                        return;
+                    };
+                    if !x.is_finite() || !y.is_finite() || !angle.is_finite() {
+                        error.set(Some("Enter finite mirror line values.".to_owned()));
+                        return;
+                    }
+                    LayoutConstraintValues::Framed {
+                        relation: ConstraintRelation::MirrorLine {
+                            at: Vec2 { x, y },
+                            angle,
+                        },
                     }
                 }
             };
@@ -919,9 +1101,20 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             board_parts
                 .iter()
                 .find(|part| part.id == constraint.source())
+                .map(|part| part.reference.clone())
+                .or_else(|| Some(constraint.source().to_owned()))
         })
-        .map(|part| part.reference.clone())
         .unwrap_or_else(|| "A part".to_owned());
+    let constraint_target_reference = active_constraint
+        .as_ref()
+        .and_then(|constraint| {
+            board_parts
+                .iter()
+                .find(|part| part.id == constraint.target())
+                .map(|part| part.reference.clone())
+                .or_else(|| Some(constraint.target().to_owned()))
+        })
+        .unwrap_or_else(|| projection.reference.clone());
 
     rsx! {
         section { class: "m1-layout-component-inspector", aria_label: "Component inspector",
@@ -1060,9 +1253,10 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     summary { onclick: move |_| constraint_open.set(!constraint_open()), span { "Layout constraint" } small { if active_constraint.is_some() { "Active" } else { "Optional" } } }
                     if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
                         label { "Constraint type"
-                            select { aria_label: "Constraint type", value: if constraint_kind() == ConstraintKind::Offset { "offset" } else { "mirror" }, onchange: move |event| constraint_kind.set(if event.value() == "mirror" { ConstraintKind::Mirror } else { ConstraintKind::Offset }),
+                            select { aria_label: "Constraint type", value: match constraint_kind() { ConstraintKind::Offset => "offset", ConstraintKind::Mirror => "mirror", ConstraintKind::MirrorLine => "mirror-line" }, onchange: move |event| constraint_kind.set(match event.value().as_str() { "mirror" => ConstraintKind::Mirror, "mirror-line" => ConstraintKind::MirrorLine, _ => ConstraintKind::Offset }),
                                 option { value: "offset", selected: constraint_kind() == ConstraintKind::Offset, "Offset from part" }
                                 option { value: "mirror", selected: constraint_kind() == ConstraintKind::Mirror, "Mirror placement across axis" }
+                                option { value: "mirror-line", selected: constraint_kind() == ConstraintKind::MirrorLine, "Mirror line" }
                             }
                         }
                         label { "Source part"
@@ -1076,6 +1270,9 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                         source_part_id.set(value);
                                     }
                                 },
+                                if !board_parts.iter().any(|part| part.id == source_part_id()) {
+                                    option { value: "{source_part_id}", selected: true, "{constraint_source_reference}" }
+                                }
                                 for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
                                     option {
                                         value: "{part.id}",
@@ -1097,7 +1294,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                 label { "Offset Y (mm)" input { r#type: "number", step: "any", aria_label: "Offset Y (mm)", value: "{offset_y}", oninput: move |event| offset_y.set(event.value()) } }
                             }
                             label { "Rotation (degrees)" input { r#type: "number", step: "any", aria_label: "Rotation (degrees)", value: "{rotation}", oninput: move |event| rotation.set(event.value()) } }
-                        } else {
+                        } else if constraint_kind() == ConstraintKind::Mirror {
                             label { "Axis"
                                 select { aria_label: "Mirror axis", value: if mirror_axis() == MirrorAxis::Vertical { "vertical" } else { "horizontal" }, onchange: move |event| mirror_axis.set(if event.value() == "horizontal" { MirrorAxis::Horizontal } else { MirrorAxis::Vertical }),
                                     option { value: "vertical", selected: mirror_axis() == MirrorAxis::Vertical, "Vertical" }
@@ -1106,9 +1303,16 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                             label { "Axis coordinate (mm)" input { r#type: "number", step: "any", aria_label: "Axis coordinate (mm)", value: "{mirror_coordinate}", oninput: move |event| mirror_coordinate.set(event.value()) } }
                             p { "Footprint geometry stays unchanged. Use a handed definition where needed." }
+                        } else {
+                            div { class: "m1-layout-component-constraint-grid",
+                                label { "Line anchor X (mm)" input { r#type: "number", step: "any", aria_label: "Mirror line anchor X (mm)", value: "{mirror_line_x}", oninput: move |event| mirror_line_x.set(event.value()) } }
+                                label { "Line anchor Y (mm)" input { r#type: "number", step: "any", aria_label: "Mirror line anchor Y (mm)", value: "{mirror_line_y}", oninput: move |event| mirror_line_y.set(event.value()) } }
+                            }
+                            label { "Line angle (degrees)" input { r#type: "number", step: "any", aria_label: "Mirror line angle (degrees)", value: "{mirror_line_angle}", oninput: move |event| mirror_line_angle.set(event.value()) } }
+                            p { "Footprint geometry stays unchanged. Use a handed definition where needed." }
                         }
                         if active_constraint.is_some() {
-                            p { class: "m1-layout-component-constraint-note", "{constraint_source_reference} drives {projection.reference}." }
+                            p { class: "m1-layout-component-constraint-note", "{constraint_source_reference} drives {constraint_target_reference}." }
                         }
                         div { class: "m1-layout-component-constraint-actions",
                             button { r#type: "button", disabled: (props.constraint_pending)(), onclick: save_constraint, if active_constraint.is_some() { "Save constraint" } else { "Add constraint" } }

@@ -116,14 +116,14 @@ fn unknown_mirrored_item_kinds_and_exception_states_are_refused() {
 }
 
 /// Open reads only the current format. A version 4 document must be migrated first, and a
-/// version 6 document is newer than this build: both are refused, not read as version 5.
+/// version 7 document is newer than this build: both are refused, not read as version 6.
 #[test]
 fn open_refuses_documents_that_are_not_at_the_current_version() {
     use boardstudio_core::CoreEngine;
     use boardstudio_core::model::{CoreReply, CoreRequest, ProjectDoc};
 
     let mut engine = CoreEngine::new();
-    for version in [4, 6] {
+    for version in [4, 7] {
         let mut document = ProjectDoc::empty("doc", "Doc");
         document.format_version = version;
         match engine.handle(CoreRequest::Open {
@@ -137,7 +137,7 @@ fn open_refuses_documents_that_are_not_at_the_current_version() {
         }
     }
     let current = ProjectDoc::empty("doc", "Doc");
-    assert_eq!(current.format_version, 5);
+    assert_eq!(current.format_version, 6);
     assert!(matches!(
         engine.handle(CoreRequest::Open {
             id: "open".into(),

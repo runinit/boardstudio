@@ -349,10 +349,16 @@ pub(super) fn canonicalize(
                 Coverage::DeliberatelyUnchanged(SET_MECHANICAL_BOARD_SLOT)
             };
         }
+        Op::SetHalfException { .. } | Op::UnlinkHalves { .. } => {
+            canonical.coverage =
+                Coverage::Delegated("the prepared lifecycle owns pair exceptions and Unlink");
+        }
         Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }
         | Op::ConvertOffsetConstraint { .. } => {
-            if let Some(prepared) = constraints::prepare(document, operation)? {
+            canonical.operation = constraints::normalize_command(document, &links, operation)
+                .map_err(Refusal::Request)?;
+            if let Some(prepared) = constraints::prepare(document, &canonical.operation)? {
                 canonical.prepared_constraints.push(prepared);
             }
         }
@@ -362,6 +368,7 @@ pub(super) fn canonicalize(
 
 /// One pair with a `halves` record.
 struct PairView<'a> {
+    pair_id: &'a str,
     mapping: Pose2,
     halves: &'a MirroredHalves,
 }
@@ -396,6 +403,7 @@ impl<'a> Links<'a> {
             .flat_map(|hardware| &hardware.pairs)
             .filter_map(|pair| {
                 pair.halves.as_ref().map(|halves| PairView {
+                    pair_id: &pair.id,
                     mapping: pair.mapping,
                     halves,
                 })

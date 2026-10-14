@@ -1,0 +1,1361 @@
+{
+  "document": {
+    "assets": [],
+    "boards": [
+      {
+        "id": "left",
+        "name": "Synthetic left",
+        "netIds": [
+          "synthetic/column/0/0",
+          "synthetic/column/0/1",
+          "synthetic/column/1/0",
+          "synthetic/column/1/1",
+          "left/omit-controller-net"
+        ],
+        "outlineIds": [
+          "synthetic-boundary",
+          "left/synthetic-envelope"
+        ],
+        "partIds": [
+          "matrix/left-synthetic-keys/r0c0",
+          "matrix/left-synthetic-keys/r0c1",
+          "matrix/left-synthetic-keys/r1c0",
+          "matrix/left-synthetic-keys/r1c1",
+          "left/U1",
+          "left/RST",
+          "left/TRRS",
+          "matrix/left-synthetic-keys/r0c0/diode",
+          "matrix/left-synthetic-keys/r0c0/led",
+          "matrix/left-synthetic-keys/r0c1/diode",
+          "matrix/left-synthetic-keys/r0c1/led",
+          "matrix/left-synthetic-keys/r1c0/diode",
+          "matrix/left-synthetic-keys/r1c0/led",
+          "matrix/left-synthetic-keys/r1c1/diode",
+          "matrix/left-synthetic-keys/r1c1/led"
+        ],
+        "thickness": 1.6
+      },
+      {
+        "id": "right",
+        "name": "Synthetic left (mirror)",
+        "netIds": [
+          "right/synthetic/column/0/0",
+          "right/synthetic/column/0/1",
+          "right/synthetic/column/1/0",
+          "right/synthetic/column/1/1",
+          "right/omit-controller-net"
+        ],
+        "outlineIds": [
+          "right/synthetic-boundary",
+          "right/synthetic-envelope"
+        ],
+        "partIds": [
+          "matrix/right-synthetic-keys/r0c0",
+          "matrix/right-synthetic-keys/r0c1",
+          "matrix/right-synthetic-keys/r1c0",
+          "matrix/right-synthetic-keys/r1c1",
+          "right/U1",
+          "right/TRRS",
+          "matrix/right-synthetic-keys/r0c0/diode",
+          "matrix/right-synthetic-keys/r0c0/led",
+          "matrix/right-synthetic-keys/r0c1/diode",
+          "matrix/right-synthetic-keys/r0c1/led",
+          "matrix/right-synthetic-keys/r1c0/diode",
+          "matrix/right-synthetic-keys/r1c0/led",
+          "matrix/right-synthetic-keys/r1c1/diode",
+          "matrix/right-synthetic-keys/r1c1/led"
+        ],
+        "thickness": 1.6
+      }
+    ],
+    "caseBodies": [],
+    "constraints": [],
+    "definitions": [
+      {
+        "courtyard": [
+          {
+            "x": -9.0,
+            "y": -9.0
+          },
+          {
+            "x": 9.0,
+            "y": -9.0
+          },
+          {
+            "x": 9.0,
+            "y": 9.0
+          },
+          {
+            "x": -9.0,
+            "y": 9.0
+          }
+        ],
+        "generator": {
+          "parameters": {
+            "hotswap": true,
+            "solder": false
+          },
+          "source": "ceoloide/switch_mx",
+          "version": "bundled-1"
+        },
+        "id": "generator:ceoloide/switch_mx",
+        "keycap": {
+          "x": 18.0,
+          "y": 18.0
+        },
+        "kind": "switch",
+        "matrixTerminals": {
+          "column": "column",
+          "row": "row"
+        },
+        "name": "Synthetic switch",
+        "pads": [],
+        "terminals": {
+          "column": [
+            "pad-2"
+          ],
+          "row": [
+            "pad-1"
+          ]
+        }
+      },
+      {
+        "courtyard": [
+          {
+            "x": -2.0,
+            "y": -1.0
+          },
+          {
+            "x": 2.0,
+            "y": -1.0
+          },
+          {
+            "x": 2.0,
+            "y": 1.0
+          },
+          {
+            "x": -2.0,
+            "y": 1.0
+          }
+        ],
+        "generator": {
+          "parameters": {
+            "side": "B"
+          },
+          "source": "ceoloide/diode_tht_sod123",
+          "version": "bundled-1"
+        },
+        "id": "generator:ceoloide/diode_tht_sod123",
+        "kind": "passive",
+        "name": "Synthetic diode",
+        "pads": []
+      },
+      {
+        "courtyard": [
+          {
+            "x": -1.5,
+            "y": -1.5
+          },
+          {
+            "x": 1.5,
+            "y": -1.5
+          },
+          {
+            "x": 1.5,
+            "y": 1.5
+          },
+          {
+            "x": -1.5,
+            "y": 1.5
+          }
+        ],
+        "id": "synthetic/led",
+        "kind": "passive",
+        "name": "Synthetic indicator",
+        "pads": []
+      },
+      {
+        "courtyard": [
+          {
+            "x": -5.0,
+            "y": -4.0
+          },
+          {
+            "x": 5.0,
+            "y": -4.0
+          },
+          {
+            "x": 5.0,
+            "y": 4.0
+          },
+          {
+            "x": -5.0,
+            "y": 4.0
+          }
+        ],
+        "id": "synthetic/controller",
+        "kind": "controller",
+        "name": "Synthetic controller",
+        "pads": [
+          {
+            "at": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "id": "pad-1",
+            "number": "1",
+            "shape": "circle",
+            "size": {
+              "x": 1.0,
+              "y": 1.0
+            }
+          }
+        ]
+      },
+      {
+        "courtyard": [
+          {
+            "x": -3.0,
+            "y": -3.0
+          },
+          {
+            "x": 3.0,
+            "y": -3.0
+          },
+          {
+            "x": 3.0,
+            "y": 3.0
+          },
+          {
+            "x": -3.0,
+            "y": 3.0
+          }
+        ],
+        "id": "synthetic/reset",
+        "kind": "switch",
+        "name": "Synthetic reset",
+        "pads": []
+      },
+      {
+        "courtyard": [
+          {
+            "x": -4.0,
+            "y": -2.0
+          },
+          {
+            "x": 4.0,
+            "y": -2.0
+          },
+          {
+            "x": 4.0,
+            "y": 2.0
+          },
+          {
+            "x": -4.0,
+            "y": 2.0
+          }
+        ],
+        "id": "synthetic/connector",
+        "kind": "connector",
+        "name": "Synthetic connector",
+        "pads": []
+      }
+    ],
+    "format": "boardstudio/v2",
+    "formatVersion": 6,
+    "hardware": {
+      "boards": [
+        {
+          "assignments": {},
+          "boardId": "left",
+          "controllerPartId": "left/U1",
+          "jumperStates": {},
+          "keyBindings": {},
+          "locks": {},
+          "mode": "matrix",
+          "protectedHandoff": null
+        },
+        {
+          "assignments": {},
+          "boardId": "right",
+          "controllerPartId": "right/U1",
+          "jumperStates": {},
+          "keyBindings": {},
+          "locks": {},
+          "mode": "matrix",
+          "protectedHandoff": null
+        }
+      ],
+      "instances": [
+        {
+          "boardId": "left",
+          "constructionOwnership": "pair",
+          "controllerPartId": "left/U1",
+          "flipped": false,
+          "half": "left",
+          "id": "left",
+          "mechanical": {
+            "batteryHeight": 0.0,
+            "boardId": "left",
+            "bottomFoamThickness": 0.0,
+            "bottomStyle": "shell",
+            "bottomThickness": 2.0,
+            "clearance": 0.2,
+            "closureMounts": [],
+            "integratedPlateFrame": false,
+            "method": "printed",
+            "mount": "rigid",
+            "mounts": [],
+            "openings": [],
+            "pcbThickness": 1.6,
+            "plateFoamThickness": 0.0,
+            "plateThickness": 1.5,
+            "plateToPcb": 3.5,
+            "profiles": [],
+            "wallThickness": 2.0
+          },
+          "name": "Synthetic left",
+          "role": "central"
+        },
+        {
+          "boardId": "right",
+          "constructionOwnership": "pair",
+          "controllerPartId": "right/U1",
+          "flipped": false,
+          "half": "right",
+          "id": "right",
+          "mechanical": {
+            "batteryHeight": 0.0,
+            "boardId": "right",
+            "bottomFoamThickness": 0.0,
+            "bottomStyle": "shell",
+            "bottomThickness": 2.0,
+            "clearance": 0.2,
+            "closureMounts": [],
+            "integratedPlateFrame": false,
+            "method": "printed",
+            "mount": "rigid",
+            "mounts": [],
+            "openings": [],
+            "pcbThickness": 1.6,
+            "plateFoamThickness": 0.0,
+            "plateThickness": 1.5,
+            "plateToPcb": 3.5,
+            "profiles": [],
+            "stabilizers": [],
+            "wallThickness": 2.0
+          },
+          "name": "Right half",
+          "role": "peripheral"
+        }
+      ],
+      "pairs": [
+        {
+          "construction": {
+            "bottomFoamThickness": 0.0,
+            "bottomStyle": "shell",
+            "bottomThickness": 2.0,
+            "clearance": 0.2,
+            "integratedPlateFrame": false,
+            "method": "printed",
+            "mount": "rigid",
+            "plateFoamThickness": 0.0,
+            "plateThickness": 1.5,
+            "plateToPcb": 3.5,
+            "wallThickness": 2.0
+          },
+          "constructionSource": "left",
+          "halves": {
+            "correspondences": [
+              {
+                "kind": "outline",
+                "mirrorId": "right/synthetic-boundary",
+                "sourceId": "synthetic-boundary"
+              },
+              {
+                "kind": "outline",
+                "mirrorId": "right/synthetic-envelope",
+                "sourceId": "left/synthetic-envelope"
+              },
+              {
+                "kind": "matrix",
+                "mirrorId": "right-synthetic-keys",
+                "sourceId": "left-synthetic-keys"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r0c0",
+                "sourceId": "matrix/left-synthetic-keys/r0c0"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r0c1",
+                "sourceId": "matrix/left-synthetic-keys/r0c1"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r1c0",
+                "sourceId": "matrix/left-synthetic-keys/r1c0"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r1c1",
+                "sourceId": "matrix/left-synthetic-keys/r1c1"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "right/U1",
+                "sourceId": "left/U1"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "right/RST",
+                "sourceId": "left/RST"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "right/TRRS",
+                "sourceId": "left/TRRS"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r0c0/diode",
+                "sourceId": "matrix/left-synthetic-keys/r0c0/diode"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r0c0/led",
+                "sourceId": "matrix/left-synthetic-keys/r0c0/led"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r0c1/diode",
+                "sourceId": "matrix/left-synthetic-keys/r0c1/diode"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r0c1/led",
+                "sourceId": "matrix/left-synthetic-keys/r0c1/led"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r1c0/diode",
+                "sourceId": "matrix/left-synthetic-keys/r1c0/diode"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r1c0/led",
+                "sourceId": "matrix/left-synthetic-keys/r1c0/led"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r1c1/diode",
+                "sourceId": "matrix/left-synthetic-keys/r1c1/diode"
+              },
+              {
+                "companionMode": "literal-mirror",
+                "kind": "part",
+                "mirrorId": "matrix/right-synthetic-keys/r1c1/led",
+                "sourceId": "matrix/left-synthetic-keys/r1c1/led"
+              },
+              {
+                "kind": "layout",
+                "mirrorId": "right-synthetic-keys-layout",
+                "sourceId": "left-synthetic-keys-layout"
+              },
+              {
+                "kind": "net",
+                "mirrorId": "right/synthetic/column/0/0",
+                "sourceId": "synthetic/column/0/0"
+              },
+              {
+                "kind": "net",
+                "mirrorId": "right/synthetic/column/0/1",
+                "sourceId": "synthetic/column/0/1"
+              },
+              {
+                "kind": "net",
+                "mirrorId": "right/synthetic/column/1/0",
+                "sourceId": "synthetic/column/1/0"
+              },
+              {
+                "kind": "net",
+                "mirrorId": "right/synthetic/column/1/1",
+                "sourceId": "synthetic/column/1/1"
+              },
+              {
+                "kind": "net",
+                "mirrorId": "right/omit-controller-net",
+                "sourceId": "left/omit-controller-net"
+              },
+              {
+                "kind": "electrical-board",
+                "mirrorId": "right",
+                "sourceId": "left"
+              }
+            ],
+            "exceptions": [
+              {
+                "kind": "part",
+                "mirrorId": "right/U1",
+                "state": "local"
+              },
+              {
+                "kind": "part",
+                "mirrorId": "right/RST",
+                "state": "omitted"
+              }
+            ],
+            "mirrorBoardId": "right",
+            "sourceBoardId": "left"
+          },
+          "id": "activation-private-net-pair",
+          "mapping": {
+            "at": {
+              "x": 200.0,
+              "y": 0.0
+            },
+            "rotation": 0.0
+          },
+          "members": [
+            "left",
+            "right"
+          ]
+        }
+      ],
+      "sharedConstruction": null,
+      "topology": "split",
+      "transport": "wired"
+    },
+    "id": "synthetic-mirror",
+    "layouts": [
+      {
+        "boardId": "left",
+        "id": "left-synthetic-keys-layout",
+        "matrixId": "left-synthetic-keys",
+        "name": "Synthetic keys",
+        "partIds": []
+      },
+      {
+        "boardId": "right",
+        "id": "right-synthetic-keys-layout",
+        "matrixId": "right-synthetic-keys",
+        "name": "Synthetic keys",
+        "partIds": []
+      }
+    ],
+    "materials": [],
+    "matrices": [
+      {
+        "boardId": "left",
+        "cells": [
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": 8.0,
+                  "y": -2.0
+                },
+                "rotation": 90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": -3.0,
+                  "y": 4.0
+                },
+                "rotation": 0.0,
+                "side": "front"
+              }
+            ],
+            "column": 0,
+            "enabled": true,
+            "row": 0
+          },
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": 8.0,
+                  "y": -2.0
+                },
+                "rotation": 90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": -3.0,
+                  "y": 4.0
+                },
+                "rotation": 0.0,
+                "side": "front"
+              }
+            ],
+            "column": 1,
+            "enabled": true,
+            "row": 0
+          },
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": 8.0,
+                  "y": -2.0
+                },
+                "rotation": 90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": -3.0,
+                  "y": 4.0
+                },
+                "rotation": 0.0,
+                "side": "front"
+              }
+            ],
+            "column": 0,
+            "enabled": true,
+            "row": 1
+          },
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": 8.0,
+                  "y": -2.0
+                },
+                "rotation": 90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": -3.0,
+                  "y": 4.0
+                },
+                "rotation": 0.0,
+                "side": "front"
+              }
+            ],
+            "column": 1,
+            "enabled": true,
+            "row": 1
+          }
+        ],
+        "columns": 2,
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "left-synthetic-keys",
+        "name": "Synthetic keys",
+        "origin": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "partIds": [
+          "matrix/left-synthetic-keys/r0c0",
+          "matrix/left-synthetic-keys/r0c1",
+          "matrix/left-synthetic-keys/r1c0",
+          "matrix/left-synthetic-keys/r1c1",
+          "matrix/left-synthetic-keys/r0c0/diode",
+          "matrix/left-synthetic-keys/r0c0/led",
+          "matrix/left-synthetic-keys/r0c1/diode",
+          "matrix/left-synthetic-keys/r0c1/led",
+          "matrix/left-synthetic-keys/r1c0/diode",
+          "matrix/left-synthetic-keys/r1c0/led",
+          "matrix/left-synthetic-keys/r1c1/diode",
+          "matrix/left-synthetic-keys/r1c1/led"
+        ],
+        "pitch": {
+          "x": 19.0,
+          "y": 21.0
+        },
+        "rows": 2
+      },
+      {
+        "boardId": "right",
+        "cells": [
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": -8.0,
+                  "y": -2.0
+                },
+                "rotation": -90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": 3.0,
+                  "y": 4.0
+                },
+                "rotation": -0.0,
+                "side": "front"
+              }
+            ],
+            "column": 0,
+            "enabled": true,
+            "row": 0
+          },
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": -8.0,
+                  "y": -2.0
+                },
+                "rotation": -90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": 3.0,
+                  "y": 4.0
+                },
+                "rotation": -0.0,
+                "side": "front"
+              }
+            ],
+            "column": 1,
+            "enabled": true,
+            "row": 0
+          },
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": -8.0,
+                  "y": -2.0
+                },
+                "rotation": -90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": 3.0,
+                  "y": 4.0
+                },
+                "rotation": -0.0,
+                "side": "front"
+              }
+            ],
+            "column": 0,
+            "enabled": true,
+            "row": 1
+          },
+          {
+            "assemblies": [
+              {
+                "definitionId": "generator:ceoloide/diode_tht_sod123",
+                "id": "diode",
+                "offset": {
+                  "x": -8.0,
+                  "y": -2.0
+                },
+                "rotation": -90.0,
+                "side": "back"
+              },
+              {
+                "definitionId": "synthetic/led",
+                "id": "led",
+                "offset": {
+                  "x": 3.0,
+                  "y": 4.0
+                },
+                "rotation": -0.0,
+                "side": "front"
+              }
+            ],
+            "column": 1,
+            "enabled": true,
+            "row": 1
+          }
+        ],
+        "columns": 2,
+        "definitionId": "generator:ceoloide/switch_mx",
+        "edgeGap": {
+          "x": 1.0,
+          "y": 1.0
+        },
+        "id": "right-synthetic-keys",
+        "mirror": "x",
+        "name": "Synthetic keys",
+        "origin": {
+          "x": 200.0,
+          "y": 0.0
+        },
+        "partIds": [
+          "matrix/right-synthetic-keys/r0c0",
+          "matrix/right-synthetic-keys/r0c0/diode",
+          "matrix/right-synthetic-keys/r0c0/led",
+          "matrix/right-synthetic-keys/r0c1",
+          "matrix/right-synthetic-keys/r0c1/diode",
+          "matrix/right-synthetic-keys/r0c1/led",
+          "matrix/right-synthetic-keys/r1c0",
+          "matrix/right-synthetic-keys/r1c0/diode",
+          "matrix/right-synthetic-keys/r1c0/led",
+          "matrix/right-synthetic-keys/r1c1",
+          "matrix/right-synthetic-keys/r1c1/diode",
+          "matrix/right-synthetic-keys/r1c1/led"
+        ],
+        "pitch": {
+          "x": 19.0,
+          "y": 21.0
+        },
+        "rows": 2
+      }
+    ],
+    "name": "Synthetic mirror contract",
+    "nets": [
+      {
+        "id": "synthetic/column/0/0",
+        "name": "Synthetic column 0/0",
+        "pins": []
+      },
+      {
+        "id": "synthetic/column/0/1",
+        "name": "Synthetic column 0/1",
+        "pins": []
+      },
+      {
+        "id": "synthetic/column/1/0",
+        "name": "Synthetic column 1/0",
+        "pins": []
+      },
+      {
+        "id": "synthetic/column/1/1",
+        "name": "Synthetic column 1/1",
+        "pins": []
+      },
+      {
+        "id": "left/omit-controller-net",
+        "name": "OMIT_CONTROLLER",
+        "pins": [
+          {
+            "padId": "pad-1",
+            "partId": "left/RST"
+          }
+        ]
+      },
+      {
+        "id": "right/synthetic/column/0/0",
+        "name": "Synthetic column 0/0",
+        "pins": []
+      },
+      {
+        "id": "right/synthetic/column/0/1",
+        "name": "Synthetic column 0/1",
+        "pins": []
+      },
+      {
+        "id": "right/synthetic/column/1/0",
+        "name": "Synthetic column 1/0",
+        "pins": []
+      },
+      {
+        "id": "right/synthetic/column/1/1",
+        "name": "Synthetic column 1/1",
+        "pins": []
+      },
+      {
+        "id": "right/omit-controller-net",
+        "name": "OMIT_CONTROLLER",
+        "pins": [
+          {
+            "padId": "pad-1",
+            "partId": "right/U1"
+          }
+        ]
+      }
+    ],
+    "outline": [
+      {
+        "id": "left/synthetic-envelope",
+        "kind": "part-envelope",
+        "margin": 4.0,
+        "operation": "add",
+        "partIds": [
+          "left/U1",
+          "left/RST",
+          "left/TRRS"
+        ],
+        "settings": {
+          "bridgeWidth": 10.0,
+          "corners": "fillet",
+          "size": 2.0
+        }
+      },
+      {
+        "center": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "id": "synthetic-boundary",
+        "kind": "rect",
+        "operation": "add",
+        "radius": 0.0,
+        "size": {
+          "x": 100.0,
+          "y": 80.0
+        }
+      },
+      {
+        "center": {
+          "x": 200.0,
+          "y": 0.0
+        },
+        "id": "right/synthetic-boundary",
+        "kind": "rect",
+        "operation": "add",
+        "radius": 0.0,
+        "size": {
+          "x": 100.0,
+          "y": 80.0
+        }
+      },
+      {
+        "id": "right/synthetic-envelope",
+        "kind": "part-envelope",
+        "margin": 4.0,
+        "operation": "add",
+        "partIds": [
+          "right/U1",
+          "right/RST",
+          "right/TRRS"
+        ],
+        "settings": {
+          "bridgeWidth": 10.0,
+          "corners": "fillet",
+          "size": 2.0
+        }
+      }
+    ],
+    "parameters": {},
+    "parts": [
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/left-synthetic-keys/r0c0",
+        "pose": {
+          "at": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW00",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/left-synthetic-keys/r0c1",
+        "pose": {
+          "at": {
+            "x": 19.0,
+            "y": 0.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW01",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/left-synthetic-keys/r1c0",
+        "pose": {
+          "at": {
+            "x": 0.0,
+            "y": 21.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW10",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/left-synthetic-keys/r1c1",
+        "pose": {
+          "at": {
+            "x": 19.0,
+            "y": 21.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW11",
+        "side": "front"
+      },
+      {
+        "definitionId": "synthetic/controller",
+        "id": "left/U1",
+        "pose": {
+          "at": {
+            "x": -24.0,
+            "y": 0.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "U1",
+        "side": "front"
+      },
+      {
+        "definitionId": "synthetic/reset",
+        "id": "left/RST",
+        "pose": {
+          "at": {
+            "x": -24.0,
+            "y": 16.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "RST",
+        "side": "front"
+      },
+      {
+        "definitionId": "synthetic/connector",
+        "id": "left/TRRS",
+        "pose": {
+          "at": {
+            "x": -24.0,
+            "y": -16.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "J1",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/left-synthetic-keys/r0c0/diode",
+        "pose": {
+          "at": {
+            "x": 8.0,
+            "y": -2.0
+          },
+          "rotation": 90.0
+        },
+        "reference": "SW1",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/left-synthetic-keys/r0c0/led",
+        "pose": {
+          "at": {
+            "x": -3.0,
+            "y": 4.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW2",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/left-synthetic-keys/r0c1/diode",
+        "pose": {
+          "at": {
+            "x": 27.0,
+            "y": -2.0
+          },
+          "rotation": 90.0
+        },
+        "reference": "SW3",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/left-synthetic-keys/r0c1/led",
+        "pose": {
+          "at": {
+            "x": 16.0,
+            "y": 4.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW4",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/left-synthetic-keys/r1c0/diode",
+        "pose": {
+          "at": {
+            "x": 8.0,
+            "y": 19.0
+          },
+          "rotation": 90.0
+        },
+        "reference": "SW5",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/left-synthetic-keys/r1c0/led",
+        "pose": {
+          "at": {
+            "x": -3.0,
+            "y": 25.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW6",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/left-synthetic-keys/r1c1/diode",
+        "pose": {
+          "at": {
+            "x": 27.0,
+            "y": 19.0
+          },
+          "rotation": 90.0
+        },
+        "reference": "SW7",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/left-synthetic-keys/r1c1/led",
+        "pose": {
+          "at": {
+            "x": 16.0,
+            "y": 25.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW8",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/right-synthetic-keys/r0c0",
+        "pose": {
+          "at": {
+            "x": 200.0,
+            "y": 0.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW9",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/right-synthetic-keys/r0c0/diode",
+        "pose": {
+          "at": {
+            "x": 192.0,
+            "y": -2.0
+          },
+          "rotation": -90.0
+        },
+        "reference": "SW12",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/right-synthetic-keys/r0c0/led",
+        "pose": {
+          "at": {
+            "x": 203.0,
+            "y": 4.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW13",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/right-synthetic-keys/r0c1",
+        "pose": {
+          "at": {
+            "x": 181.0,
+            "y": 0.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW14",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/right-synthetic-keys/r0c1/diode",
+        "pose": {
+          "at": {
+            "x": 173.0,
+            "y": -2.0
+          },
+          "rotation": -90.0
+        },
+        "reference": "SW15",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/right-synthetic-keys/r0c1/led",
+        "pose": {
+          "at": {
+            "x": 184.0,
+            "y": 4.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW16",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/right-synthetic-keys/r1c0",
+        "pose": {
+          "at": {
+            "x": 200.0,
+            "y": 21.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW17",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/right-synthetic-keys/r1c0/diode",
+        "pose": {
+          "at": {
+            "x": 192.0,
+            "y": 19.0
+          },
+          "rotation": -90.0
+        },
+        "reference": "SW18",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/right-synthetic-keys/r1c0/led",
+        "pose": {
+          "at": {
+            "x": 203.0,
+            "y": 25.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW19",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/switch_mx",
+        "id": "matrix/right-synthetic-keys/r1c1",
+        "pose": {
+          "at": {
+            "x": 181.0,
+            "y": 21.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW20",
+        "side": "front"
+      },
+      {
+        "definitionId": "generator:ceoloide/diode_tht_sod123",
+        "id": "matrix/right-synthetic-keys/r1c1/diode",
+        "pose": {
+          "at": {
+            "x": 173.0,
+            "y": 19.0
+          },
+          "rotation": -90.0
+        },
+        "reference": "SW21",
+        "side": "back"
+      },
+      {
+        "definitionId": "synthetic/led",
+        "id": "matrix/right-synthetic-keys/r1c1/led",
+        "pose": {
+          "at": {
+            "x": 184.0,
+            "y": 25.0
+          },
+          "rotation": 0.0
+        },
+        "reference": "SW22",
+        "side": "front"
+      },
+      {
+        "definitionId": "synthetic/controller",
+        "id": "right/U1",
+        "pose": {
+          "at": {
+            "x": 224.0,
+            "y": 0.0
+          },
+          "rotation": 180.0
+        },
+        "reference": "right-U1",
+        "side": "front"
+      },
+      {
+        "definitionId": "synthetic/connector",
+        "id": "right/TRRS",
+        "pose": {
+          "at": {
+            "x": 224.0,
+            "y": -16.0
+          },
+          "rotation": 180.0
+        },
+        "reference": "right-J1",
+        "side": "front"
+      }
+    ],
+    "revision": 4,
+    "scripts": []
+  },
+  "netId": "right/omit-controller-net",
+  "operation": {
+    "itemKind": "part",
+    "kind": "set-half-exception",
+    "mirrorId": "right/U1",
+    "pairId": "activation-private-net-pair",
+    "state": "linked"
+  },
+  "targetIds": [
+    "right/U1"
+  ]
+}

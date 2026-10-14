@@ -1,27 +1,8 @@
 use crate::model::{Constraint, MirrorAxis, Pose2, Vec2};
-use serde::{Deserialize, Serialize};
+
+pub(crate) use crate::model::ConstraintRelation;
 
 /// A directional relation evaluated between the source and target endpoint views.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub(crate) enum ConstraintRelation {
-    /// `offset` is a vector along the board's axes, added to the source position.
-    Offset {
-        offset: Vec2,
-        rotation: f64,
-    },
-    /// `offset` runs along the source's own axes: it is turned by the source's heading before
-    /// it is added, so the target keeps its pose in the source's frame (ADR-0011).
-    PartOffset {
-        offset: Vec2,
-        rotation: f64,
-    },
-    MirrorLine {
-        at: Vec2,
-        angle: f64,
-    },
-}
-
 #[cfg_attr(not(test), expect(dead_code))] // `from_legacy` and `inverse` have no production caller yet: the compile-all-records pass and the drag seam land with 114/115.
 impl ConstraintRelation {
     /// The relation a stored record states, so every record kind is compiled by one path.
@@ -65,6 +46,7 @@ impl ConstraintRelation {
                     angle: 0.0,
                 },
             },
+            Constraint::Framed { relation, .. } => relation.clone(),
         }
     }
 
@@ -216,6 +198,35 @@ mod tests {
                 at: Vec2 { x: 7.44, y: 0.92 },
                 rotation: 81.26020470831196,
             },
+        );
+    }
+
+    #[test]
+    fn persisted_slanted_reflection_keeps_the_reviewed_position_and_heading_bits() {
+        // Persisting this general relation makes the current operation order part of the wire
+        // contract; the literal pins prevent later algebraic rearrangement from changing it.
+        let relation = ConstraintRelation::MirrorLine {
+            at: Vec2 { x: 1.0, y: -2.0 },
+            angle: 53.13010235415598,
+        };
+        let result = relation
+            .apply(Pose2 {
+                at: Vec2 { x: 2.0, y: 5.0 },
+                rotation: 25.0,
+            })
+            .unwrap();
+
+        assert_eq!(
+            (
+                result.at.x.to_bits(),
+                result.at.y.to_bits(),
+                result.rotation.to_bits()
+            ),
+            (
+                0x401d_c28f_5c28_f5c4,
+                0x3fed_70a3_d70a_3d60,
+                0x4054_50a7_31a6_1dc4
+            )
         );
     }
 

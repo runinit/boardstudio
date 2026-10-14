@@ -8,8 +8,8 @@
 //! decide precedence.
 
 use boardstudio_core::model::{
-    Constraint, Matrix, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, Mirror,
-    ProjectDoc, Vec2,
+    Constraint, ConstraintEndpoint, ConstraintRelation, Matrix, MatrixCompanionMode,
+    MatrixCompanionPlacement, MatrixScene, Mirror, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -52,6 +52,7 @@ pub enum ConstraintKind {
     Offset,
     PartOffset,
     Mirror,
+    MirrorLine,
 }
 
 /// A separately authored constraint touching the selection.
@@ -59,6 +60,13 @@ pub enum ConstraintKind {
 pub struct ConstraintItem {
     pub id: String,
     pub kind: ConstraintKind,
+    /// The authored endpoint views. These retain LinkedMirror binding data as well as the
+    /// visible IDs used by the reference buttons below.
+    pub source_endpoint: ConstraintEndpoint,
+    pub target_endpoint: ConstraintEndpoint,
+    /// Present for Framed records. Legacy records retain their existing kind and are not
+    /// rewritten into a guessed framed relation during projection.
+    pub relation: Option<ConstraintRelation>,
     pub source: PartReference,
     pub target: PartReference,
     /// The constraint wins over the target companion's attachment to its key.
@@ -325,6 +333,34 @@ impl View<'_> {
                 Constraint::Offset { .. } => ConstraintKind::Offset,
                 Constraint::PartOffset { .. } => ConstraintKind::PartOffset,
                 Constraint::Mirror { .. } => ConstraintKind::Mirror,
+                Constraint::Framed {
+                    relation: ConstraintRelation::Offset { .. },
+                    ..
+                } => ConstraintKind::Offset,
+                Constraint::Framed {
+                    relation: ConstraintRelation::PartOffset { .. },
+                    ..
+                } => ConstraintKind::PartOffset,
+                Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { .. },
+                    ..
+                } => ConstraintKind::MirrorLine,
+            },
+            source_endpoint: match constraint {
+                Constraint::Framed { source, .. } => source.clone(),
+                _ => ConstraintEndpoint::Part {
+                    part_id: constraint.source().to_owned(),
+                },
+            },
+            target_endpoint: match constraint {
+                Constraint::Framed { target, .. } => target.clone(),
+                _ => ConstraintEndpoint::Part {
+                    part_id: constraint.target().to_owned(),
+                },
+            },
+            relation: match constraint {
+                Constraint::Framed { relation, .. } => Some(relation.clone()),
+                _ => None,
             },
             source: self.reference(constraint.source()),
             target: self.reference(constraint.target()),

@@ -2,6 +2,7 @@
 
 use super::*;
 use boardstudio_core::CoreEngine;
+use boardstudio_core::model::{ConstraintEndpoint, ConstraintRelation};
 use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
 use serde_json::json;
 
@@ -316,6 +317,88 @@ fn companions_show_their_core_mode_and_a_constrained_one_names_its_source() {
     .unwrap();
     assert_eq!(value(&component.structure, "Placement"), constrained);
     assert_eq!(component.constraints.len(), 1);
+}
+
+#[test]
+fn framed_constraints_project_their_relation_kind_and_authored_endpoint_views() {
+    let generated = world(matrix(
+        1,
+        1,
+        json!({ "cells": [{ "row": 0, "column": 0, "enabled": true,
+            "assemblies": [{ "id": "D1", "definitionId": "diode", "offset": { "x": 0.0, "y": 8.0 } }] }] }),
+    ));
+    let key_id = generated.scene.cells[0]
+        .member_id
+        .clone()
+        .expect("the matrix creates its key");
+    let diode_id = generated.scene.companions[0].part_id.clone();
+    let endpoints = || {
+        (
+            ConstraintEndpoint::Part {
+                part_id: key_id.clone(),
+            },
+            ConstraintEndpoint::Part {
+                part_id: diode_id.clone(),
+            },
+        )
+    };
+    let cases = [
+        (
+            "board-offset",
+            ConstraintRelation::Offset {
+                offset: Vec2 { x: 1.0, y: 2.0 },
+                rotation: 3.0,
+            },
+            ConstraintKind::Offset,
+        ),
+        (
+            "part-offset",
+            ConstraintRelation::PartOffset {
+                offset: Vec2 { x: 4.0, y: 5.0 },
+                rotation: 6.0,
+            },
+            ConstraintKind::PartOffset,
+        ),
+        (
+            "mirror-line",
+            ConstraintRelation::MirrorLine {
+                at: Vec2 { x: 7.0, y: -8.0 },
+                angle: 37.0,
+            },
+            ConstraintKind::MirrorLine,
+        ),
+    ];
+
+    for (id, relation, kind) in cases {
+        let (source, target) = endpoints();
+        let mut document = generated.document.clone();
+        document.constraints.push(Constraint::Framed {
+            id: id.into(),
+            source: source.clone(),
+            target: target.clone(),
+            relation: relation.clone(),
+        });
+        let world = reopen(document, MATRIX);
+        let projected = relations(&world, key(0, 0)).expect("the key projects");
+        let item = projected
+            .constraints
+            .iter()
+            .find(|item| item.id == id)
+            .unwrap_or_else(|| panic!("the framed constraint {id:?} is listed"));
+
+        assert_eq!(item.kind, kind, "the relation kind is not flattened");
+        assert_eq!(
+            item.source_endpoint, source,
+            "the authored source view survives"
+        );
+        assert_eq!(
+            item.target_endpoint, target,
+            "the authored target view survives"
+        );
+        assert_eq!(item.relation.as_ref(), Some(&relation));
+        assert_eq!(item.source.part_id, key_id);
+        assert_eq!(item.target.part_id, diode_id);
+    }
 }
 
 #[test]

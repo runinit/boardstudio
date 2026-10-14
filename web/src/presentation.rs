@@ -1404,17 +1404,17 @@ fn layout_component_inspector_projection(
                     matrix.id == layout.matrix_id && matrix.part_ids.contains(part_id)
                 }))
     });
-    let active_constraint = document
-        .constraints
-        .iter()
-        .find(|constraint| {
-            model
-                .selected_part_ids
-                .iter()
-                .any(|id| constraint.target() == id)
-                && board.part_ids.iter().any(|id| id == constraint.source())
-        })
-        .cloned();
+    let mut active_constraint = None;
+    for selected_id in &model.selected_part_ids {
+        match document.constraint_driving_part(selected_id) {
+            Ok(Some(constraint)) => {
+                active_constraint = Some(constraint.clone());
+                break;
+            }
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+    }
     let relationship_summary =
         layout_relationship_summary(document, board, active_layout, Some(part));
     let definition_kind = match &definition.kind {
@@ -1571,27 +1571,30 @@ fn layout_relationship_summary(
         return "This layout is independent. Its geometry and components can be edited separately."
             .to_owned();
     }
-    let driven = active_part.and_then(|target| {
-        document
-            .constraints
-            .iter()
-            .find(|constraint| {
-                constraint.target() == target.id.as_str()
-                    && board
-                        .part_ids
+    let driven =
+        active_part.and_then(
+            |target| match document.constraint_driving_part(&target.id) {
+                Ok(Some(constraint)) => {
+                    let source = document
+                        .parts
                         .iter()
-                        .any(|part_id| part_id == constraint.source())
-            })
-            .map(|constraint| {
-                let source = document
-                    .parts
-                    .iter()
-                    .find(|part| part.id == constraint.source())
-                    .map(|part| part.reference.as_str())
-                    .unwrap_or("A part");
-                format!("{source} drives {}.", target.reference)
-            })
-    });
+                        .find(|part| part.id == constraint.source())
+                        .map(|part| part.reference.as_str())
+                        .unwrap_or(constraint.source());
+                    let driven = document
+                        .parts
+                        .iter()
+                        .find(|part| part.id == constraint.target())
+                        .map(|part| part.reference.as_str())
+                        .unwrap_or(constraint.target());
+                    Some(format!("{source} drives {driven}."))
+                }
+                Ok(None) => None,
+                Err(_) => {
+                    Some("The saved placement relationship could not be verified.".to_owned())
+                }
+            },
+        );
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 

@@ -1,28 +1,11 @@
-use crate::constraints::relation::ConstraintRelation;
 use crate::mechanical::pair;
 use crate::model::{
-    MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence, MirroredExceptionState,
-    MirroredHalves, MirroredItemKind, Pose2, ProjectDoc, Vec2,
+    ConstraintRelation, MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence,
+    MirroredExceptionState, MirroredHalves, MirroredItemKind, Pose2, ProjectDoc, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
-/// The authored, visible identity of a framed relation endpoint.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub(crate) enum ConstraintEndpoint {
-    Part {
-        #[serde(rename = "partId")]
-        part_id: String,
-    },
-    LinkedMirror {
-        #[serde(rename = "pairId")]
-        pair_id: String,
-        #[serde(rename = "sourcePartId")]
-        source_part_id: String,
-        #[serde(rename = "mirrorPartId")]
-        mirror_part_id: String,
-    },
-}
+pub(crate) use crate::model::ConstraintEndpoint;
 
 /// Private wire-shape candidate; the existing global constraint ID stays attached to the record.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -59,6 +42,21 @@ pub(crate) fn compile_legacy(
     document: &ProjectDoc,
     constraint: &crate::model::Constraint,
 ) -> Result<FramedConstraint, String> {
+    if let crate::model::Constraint::Framed {
+        id,
+        source,
+        target,
+        relation,
+    } = constraint
+    {
+        return Ok(FramedConstraint::Framed {
+            id: id.clone(),
+            source: source.clone(),
+            target: target.clone(),
+            relation: relation.clone(),
+        });
+    }
+
     let source = legacy_endpoint(document, constraint.id(), Side::Source, constraint.source())?;
     let target = legacy_endpoint(document, constraint.id(), Side::Target, constraint.target())?;
     Ok(FramedConstraint::Framed {

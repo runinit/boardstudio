@@ -124,6 +124,29 @@ fn compiling_legacy_mirror_endpoints_retains_authored_views_and_literal_offset()
     );
 }
 
+#[test]
+fn compile_legacy_preserves_a_stored_framed_binding_verbatim() {
+    let doc = document((20.0, -7.0));
+    let record = Constraint::Framed {
+        id: "durable/stale-binding".into(),
+        source: part_endpoint("local/P"),
+        target: linked("alpha/S", "beta/T"),
+        relation: offset_5_neg2(),
+    };
+
+    let compiled = super::endpoints::compile_legacy(&doc, &record).unwrap();
+
+    assert_eq!(
+        compiled,
+        FramedConstraint::Framed {
+            id: "durable/stale-binding".into(),
+            source: part_endpoint("local/P"),
+            target: linked("alpha/S", "beta/T"),
+            relation: offset_5_neg2(),
+        }
+    );
+}
+
 fn framed(
     id: &str,
     source: ConstraintEndpoint,
@@ -458,11 +481,10 @@ fn an_unrelated_part_is_left_alone() {
     assert_eq!(pose_of(&doc, "free/R"), before);
 }
 
-/// Every stored kind, compiled into a framed relation between plain parts, places its target
-/// where the stored solver does, within 1e-9: the exact (bit-for-bit) pin for axis-aligned
-/// mirrors is `axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit` in relation.rs.
+/// Stored kinds keep the same arithmetic when compiled into the shared graph. Axis-aligned
+/// mirrors also have an independent bit pin in relation.rs.
 #[test]
-fn stored_records_and_their_compiled_relations_place_targets_within_tolerance() {
+fn stored_records_and_their_compiled_relations_keep_exact_target_bits() {
     use crate::model::{MirrorAxis, OffsetAxes};
 
     let stored = |kind: usize| match kind {
@@ -516,28 +538,90 @@ fn stored_records_and_their_compiled_relations_place_targets_within_tolerance() 
             resolve_prepared(&mut by_relation, &[], &[record]).unwrap();
 
             let expected = pose_of(&by_store, "free/Q");
-            assert_pose(
-                &by_relation,
-                "free/Q",
-                expected.at.x,
-                expected.at.y,
-                expected.rotation,
+            let actual = pose_of(&by_relation, "free/Q");
+            assert_eq!(
+                (
+                    actual.at.x.to_bits(),
+                    actual.at.y.to_bits(),
+                    actual.rotation.to_bits()
+                ),
+                (
+                    expected.at.x.to_bits(),
+                    expected.at.y.to_bits(),
+                    expected.rotation.to_bits()
+                ),
+                "kind {kind}, source ({x}, {y}) heading {heading}"
             );
         }
     }
 }
 
-/// Until the persisted arm and format 6 land together with 111, a framed record cannot be
-/// stored: an older reader must refuse it rather than drop it.
 #[test]
-fn a_framed_record_is_not_a_storable_constraint_kind_yet() {
-    let record = json!({
-        "kind": "framed", "id": "c",
-        "source": {"kind": "part", "partId": "a"},
-        "target": {"kind": "part", "partId": "b"},
-        "relation": {"kind": "mirror-line", "at": {"x": 0, "y": 0}, "angle": 10}
+fn framed_constraint_endpoints_and_relations_round_trip() {
+    let records = [
+        Constraint::Framed {
+            id: "framed/offset".into(),
+            source: part_endpoint("alpha/S"),
+            target: linked("alpha/T", "beta/T"),
+            relation: ConstraintRelation::Offset {
+                offset: Vec2 { x: 5.0, y: -2.0 },
+                rotation: 15.0,
+            },
+        },
+        Constraint::Framed {
+            id: "framed/part-offset".into(),
+            source: linked("alpha/S", "beta/S"),
+            target: part_endpoint("local/P"),
+            relation: ConstraintRelation::PartOffset {
+                offset: Vec2 { x: -3.0, y: 8.0 },
+                rotation: -22.0,
+            },
+        },
+        Constraint::Framed {
+            id: "framed/mirror-line".into(),
+            source: part_endpoint("local/P"),
+            target: part_endpoint("free/Q"),
+            relation: ConstraintRelation::MirrorLine {
+                at: Vec2 { x: 2.25, y: -5.5 },
+                angle: 37.0,
+            },
+        },
+    ];
+
+    for record in records {
+        let encoded = serde_json::to_value(&record).unwrap();
+        let decoded: Constraint = serde_json::from_value(encoded.clone()).unwrap();
+        assert_eq!(decoded, record);
+        assert_eq!(serde_json::to_value(decoded).unwrap(), encoded);
+    }
+}
+
+#[test]
+fn persisted_framed_constraints_solve_through_the_stored_document_path() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints.push(Constraint::Framed {
+        id: "durable/framed".into(),
+        source: part_endpoint("local/P"),
+        target: linked("alpha/T", "beta/T"),
+        relation: offset_5_neg2(),
     });
-    assert!(serde_json::from_value::<Constraint>(record).is_err());
+
+    super::resolve(&mut doc).unwrap();
+
+    assert_pose(&doc, "alpha/T", 4.2, 14.4, 161.86989764584402);
+}
+
+#[test]
+fn a_persisted_framed_constraint_with_a_stale_binding_is_refused_atomically() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints.push(Constraint::Framed {
+        id: "durable/stale".into(),
+        source: part_endpoint("local/P"),
+        target: linked("alpha/T", "beta/S"),
+        relation: offset_5_neg2(),
+    });
+
+    refuses(&mut doc, &[], "correspondence");
 }
 
 #[test]
@@ -742,11 +826,38 @@ fn the_driving_record_is_found_through_either_half_of_a_linked_pair() {
     doc.constraints
         .push(legacy_offset("c/legacy", "free/Q", "alpha/T", 1.0, 2.0));
     for asked in ["alpha/T", "beta/T"] {
-        let found = super::driving_constraint(&doc, asked).unwrap();
+        let found = doc.constraint_driving_part(asked).unwrap();
         assert_eq!(found.map(Constraint::id), Some("c/legacy"), "{asked}");
     }
-    assert_eq!(super::driving_constraint(&doc, "free/R").unwrap(), None);
-    assert_eq!(super::driving_constraint(&doc, "local/P").unwrap(), None);
+    assert_eq!(doc.constraint_driving_part("free/R").unwrap(), None);
+    assert_eq!(doc.constraint_driving_part("local/P").unwrap(), None);
+}
+
+#[test]
+fn the_driving_lookup_refuses_a_stale_explicit_mirror_binding() {
+    let mut doc = document((20.0, -7.0));
+    doc.constraints.push(Constraint::Framed {
+        id: "c/stale-binding".into(),
+        source: part_endpoint("local/P"),
+        target: linked("alpha/S", "beta/T"),
+        relation: offset_5_neg2(),
+    });
+
+    let message = doc.constraint_driving_part("beta/T").unwrap_err();
+
+    assert!(
+        message.contains("does not match a current part correspondence")
+            && message.contains("pair/A"),
+        "{message}"
+    );
+
+    let message = doc.constraint_driving_part("alpha/S").unwrap_err();
+
+    assert!(
+        message.contains("does not match a current part correspondence")
+            && message.contains("pair/A"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -776,17 +887,56 @@ fn two_records_on_one_authority_are_a_located_error_not_a_guess() {
     );
 }
 
-/// The lookup is the activation-time contract; the production solver still takes two stored
-/// records that name a source and its visible mirror, as every existing document may hold.
+/// Format 6 activates the private ownership compiler for existing legacy records too. Two
+/// literal IDs that resolve to one canonical target must refuse before changing any pose.
 #[test]
-fn a_stored_pair_on_one_authority_is_a_lookup_error_the_solver_accepts() {
+fn a_stored_pair_on_one_authority_is_a_located_solver_conflict() {
     let mut doc = document((20.0, -7.0));
     doc.constraints
         .push(legacy_offset("c/one", "free/Q", "alpha/T", 1.0, 2.0));
     doc.constraints
         .push(legacy_offset("c/two", "free/R", "beta/T", 1.0, 2.0));
     assert!(super::driving_constraint(&doc, "alpha/T").is_err());
-    super::resolve(&mut doc).unwrap();
+    let before = doc.clone();
+    let message = super::resolve(&mut doc).unwrap_err();
+    assert!(
+        message.contains("alpha/T") && message.contains("multiple constraints"),
+        "{message}"
+    );
+    assert_eq!(
+        doc, before,
+        "refusing a canonical conflict changed the document"
+    );
+}
+
+#[test]
+fn a_native_legacy_offset_to_a_linked_mirror_survives_open_reconciliation() {
+    let mut doc = document((20.0, -7.0));
+    doc.definitions = serde_json::from_value(json!([{
+        "id": "key", "name": "Key", "kind": "switch", "courtyard": [], "pads": []
+    }]))
+    .unwrap();
+    doc.boards = serde_json::from_value(json!([
+        {"id":"alpha", "name":"Alpha", "outlineIds":[], "partIds":["alpha/T","alpha/S"], "netIds":[], "thickness":1.6},
+        {"id":"beta", "name":"Beta", "outlineIds":[], "partIds":["beta/T","beta/S"], "netIds":[], "thickness":1.6}
+    ]))
+    .unwrap();
+    doc.constraints.push(legacy_offset(
+        "c/legacy-linked",
+        "alpha/S",
+        "beta/T",
+        5.0,
+        -2.0,
+    ));
+
+    let (opened, _) = crate::mirrored_half::prepare_open(&doc, &[])
+        .expect("the legacy relation compiles through ownership and survives mirror reconcile");
+
+    let source = pose_of(&opened, "alpha/S");
+    let target = pose_of(&opened, "beta/T");
+    assert!((target.at.x - source.at.x - 5.0).abs() < TOLERANCE);
+    assert!((target.at.y - source.at.y + 2.0).abs() < TOLERANCE);
+    assert_eq!(target.rotation, source.rotation);
 }
 
 #[test]

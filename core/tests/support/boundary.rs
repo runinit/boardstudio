@@ -1,13 +1,21 @@
 //! Requests, semantic assertions and golden comparison for the native/WASM
 //! boundary parity check. The native test (`core/tests/boundary_parity.rs`)
 //! records and verifies the golden transcript; the browser test
-//! (`web/tests/boundary_parity.rs`) replays the same requests through the real
+//! (`web/crates/host/src/boundary_parity.rs`) replays the same requests through the real
 //! `CoreEngine` and `archive_request` WASM exports and must reproduce it.
 //! Ported from `scripts/check-rust-boundaries.mjs`.
 #![allow(dead_code)]
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::support::synthetic_half;
+#[cfg(target_arch = "wasm32")]
+use boardstudio_core::migrate::CURRENT_VERSION;
 use boardstudio_core::model::ProjectDoc;
 use serde_json::{Value, json};
+
+#[cfg(target_arch = "wasm32")]
+#[path = "synthetic_half.rs"]
+mod synthetic_half;
 
 /// SHA-256 of [`ASSET`]; the native test recomputes it to guard the constant.
 pub const ASSET: &[u8] = b"STEP fixture bytes\n";
@@ -275,18 +283,13 @@ pub fn core_requests() -> Vec<Value> {
     requests
 }
 
-/// Runs the paired Preview → Undo → Redo case beside the golden transcript. Keeping it
-/// separate leaves the existing cross-runtime golden untouched until a maintainer blesses it.
+/// Runs the paired Preview → Undo → Redo case through the shared Core JSON transport.
+/// Its compact projection is included in the transcript returned by `run`.
 pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
     let call = |core: &mut CoreTransport<'_>, request: Value| {
         serde_json::from_str::<Value>(&core(&request.to_string())).expect("core reply is JSON")
     };
-    let mut source = crate::support::synthetic_half::document();
-    for cell in source["matrices"][0]["cells"].as_array_mut().unwrap() {
-        let object = cell.as_object_mut().unwrap();
-        object.remove("assembliesLocal");
-        object.remove("definitionId");
-    }
+    let source = supported_synthetic_half();
     let open = call(
         &mut core,
         json!({
@@ -306,7 +309,7 @@ pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
                 "transactionId":"paired-create",
                 "phase":"commit",
                 "targetIds":[],
-                "operation":crate::support::synthetic_half::create_mirrored_half_operation(
+                "operation":synthetic_half::create_mirrored_half_operation(
                     "boundary-pair",
                     "right"
                 )
@@ -332,16 +335,28 @@ pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
         }),
     );
     assert_eq!(preview["kind"], "preview", "{preview}");
-    // Production paired-preview routing remains deferred to ticket 111. This additive boundary
-    // case captures the current preview transport and accepted-document isolation; linked draft
-    // projection is exercised directly through the inert prepared transaction in unit tests.
-    assert!(
-        preview["scene"]["changedIds"]
+    let preview_part_x = |id: &str| {
+        preview["scene"]["transforms"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|id| id == "right/U1")
-    );
+            .find(|part| part["id"] == id)
+            .unwrap_or_else(|| panic!("preview Part {id} is missing"))["pose"]["at"]["x"]
+            .as_f64()
+            .unwrap()
+    };
+    assert_eq!(preview_part_x("left/U1"), -16.0);
+    assert_eq!(preview_part_x("right/U1"), 216.0);
+    for id in ["left/U1", "right/U1"] {
+        assert!(
+            preview["scene"]["changedIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|changed| changed == id),
+            "paired preview omitted {id}"
+        );
+    }
     let after_preview = call(&mut core, json!({"id":"paired-after","kind":"snapshot"}));
     assert_eq!(after_preview["document"], before_preview["document"]);
 
@@ -364,13 +379,297 @@ pub fn paired_preview_history_case(mut core: CoreTransport<'_>) -> Value {
     );
 
     json!({
-        "open":open,
-        "created":created,
-        "beforePreview":before_preview,
-        "preview":preview,
-        "afterPreview":after_preview,
-        "undo":undo,
-        "redo":redo
+        "open":{"kind":open["kind"]},
+        "created":{"kind":created["kind"],"pairCount":created["document"]["hardware"]["pairs"].as_array().unwrap().len()},
+        "beforePreview":{"kind":before_preview["kind"]},
+        "preview":{
+            "kind":preview["kind"],
+            "partX":{"left/U1":preview_part_x("left/U1"),"right/U1":preview_part_x("right/U1")},
+            "changedIds":["left/U1","right/U1"]
+        },
+        "afterPreview":{"kind":after_preview["kind"],"documentUnchanged":true},
+        "undo":{"kind":undo["kind"],"pairCount":undo["document"]["hardware"]["pairs"].as_array().map_or(0, Vec::len)},
+        "redo":{"kind":redo["kind"],"pairCount":redo["document"]["hardware"]["pairs"].as_array().unwrap().len()}
+    })
+}
+
+/// Shared, current-format seed accepted by both the native and browser/WASM
+/// boundary tests. `synthetic_half` is also used by Core integration tests, but
+/// the boundary support module must not depend on the test crate's `support`
+/// namespace because it is included from the separate host crate.
+fn supported_synthetic_half() -> Value {
+    let mut source = synthetic_half::document();
+    for cell in source["matrices"][0]["cells"].as_array_mut().unwrap() {
+        let object = cell.as_object_mut().unwrap();
+        object.remove("assembliesLocal");
+        object.remove("definitionId");
+    }
+    source
+}
+
+fn boundary_exception(pair_id: &str, mirror_id: &str, state: &str) -> Value {
+    json!({
+        "kind":"set-half-exception",
+        "pairId":pair_id,
+        "itemKind":"part",
+        "mirrorId":mirror_id,
+        "state":state
+    })
+}
+
+fn electrical_notice_id(kind: &str, identities: &[&str]) -> String {
+    let mut id = format!("preview:electrical:{kind}");
+    for identity in identities {
+        id.push_str(&format!(":{}-", identity.len()));
+        for byte in identity.as_bytes() {
+            id.push_str(&format!("{byte:02x}"));
+        }
+    }
+    id
+}
+
+/// Proves ticket 160's exact Rejoin pin/net/registration loss through the same
+/// JSON Core transport used by the native golden and the browser/WASM replay.
+fn paired_electrical_preview_case(mut core: CoreTransport<'_>) -> Value {
+    let call = |core: &mut CoreTransport<'_>, request: Value| {
+        serde_json::from_str::<Value>(&core(&request.to_string())).expect("core reply is JSON")
+    };
+    let mut source = supported_synthetic_half();
+    source["definitions"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|definition| definition["id"] == "synthetic/controller")
+        .unwrap()["pads"] = json!([{
+        "id":"pad-1","number":"1","at":{"x":0.0,"y":0.0},
+        "size":{"x":1.0,"y":1.0},"shape":"circle"
+    }]);
+    source["nets"].as_array_mut().unwrap().push(json!({
+        "id":"left/omit-controller-net","name":"OMIT_CONTROLLER",
+        "pins":[{"partId":"left/RST","padId":"pad-1"}]
+    }));
+    source["boards"][0]["netIds"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("left/omit-controller-net"));
+
+    let open = call(
+        &mut core,
+        json!({"id":"electrical-open","kind":"open","document":source}),
+    );
+    assert_eq!(open["kind"], "scene", "{open}");
+    let created = call(
+        &mut core,
+        json!({
+            "id":"electrical-create",
+            "kind":"edit",
+            "command":{
+                "baseRevision":open["document"]["revision"],
+                "transactionId":"electrical-create",
+                "phase":"commit",
+                "targetIds":[],
+                "operation":synthetic_half::create_mirrored_half_operation(
+                    "boundary-electrical-pair",
+                    "right"
+                )
+            }
+        }),
+    );
+    assert_eq!(created["kind"], "scene", "{created}");
+    let pair_id = "boundary-electrical-pair";
+    let source_net_id = "left/omit-controller-net";
+    let mirror_net_id = created["document"]["hardware"]["pairs"][0]["halves"]["correspondences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["kind"] == "net" && item["sourceId"] == source_net_id)
+        .unwrap_or_else(|| panic!("plain net correspondence for {source_net_id} is missing"))["mirrorId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let localized = call(
+        &mut core,
+        json!({
+            "id":"electrical-local-controller","kind":"edit",
+            "command":{"baseRevision":created["document"]["revision"],
+                "transactionId":"electrical-local-controller","phase":"commit",
+                "targetIds":["right/U1"],
+                "operation":boundary_exception(pair_id,"right/U1","local")}
+        }),
+    );
+    assert_eq!(localized["kind"], "scene", "{localized}");
+    let mut accepted_with_local_controller = localized["document"].clone();
+    let mirror_net = accepted_with_local_controller["nets"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|net| net["id"] == mirror_net_id)
+        .unwrap_or_else(|| panic!("mirror net {mirror_net_id} is missing"));
+    mirror_net["pins"].as_array_mut().unwrap().push(json!({
+        "partId":"right/U1","padId":"pad-1"
+    }));
+    let seeded = call(
+        &mut core,
+        json!({
+            "id":"electrical-seed-mirror-pin","kind":"edit",
+            "command":{"baseRevision":accepted_with_local_controller["revision"],
+                "transactionId":"electrical-seed-mirror-pin","phase":"commit","targetIds":[],
+                "operation":{"kind":"replace-document","document":accepted_with_local_controller}}
+        }),
+    );
+    assert_eq!(seeded["kind"], "scene", "{seeded}");
+    let accepted_with_mirror_pin = seeded["document"].clone();
+    assert!(
+        accepted_with_mirror_pin["nets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|net| net["id"] == mirror_net_id)
+            .unwrap()["pins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pin| pin["partId"] == "right/U1" && pin["padId"] == "pad-1")
+    );
+
+    let omitted = call(
+        &mut core,
+        json!({
+            "id":"electrical-omit-reset","kind":"edit",
+            "command":{"baseRevision":accepted_with_mirror_pin["revision"],
+                "transactionId":"electrical-omit-reset","phase":"commit",
+                "targetIds":["right/RST"],
+                "operation":boundary_exception(pair_id,"right/RST","omitted")}
+        }),
+    );
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    let accepted = omitted["document"].clone();
+    let right_board_name = accepted["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|board| board["id"] == "right")
+        .unwrap()["name"]
+        .as_str()
+        .unwrap();
+    let mirror_net_name = accepted["nets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|net| net["id"] == mirror_net_id)
+        .unwrap()["name"]
+        .as_str()
+        .unwrap();
+    let controller_reference = accepted["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|part| part["id"] == "right/U1")
+        .unwrap()["reference"]
+        .as_str()
+        .unwrap();
+
+    let preview = call(
+        &mut core,
+        json!({
+            "id":"electrical-rejoin-preview","kind":"edit",
+            "command":{"baseRevision":accepted["revision"],
+                "transactionId":"electrical-rejoin","phase":"preview",
+                "targetIds":["right/U1"],
+                "operation":boundary_exception(pair_id,"right/U1","linked")}
+        }),
+    );
+    assert_eq!(preview["kind"], "preview", "{preview}");
+    let mut expected_notices = vec![
+        json!({
+            "id":electrical_notice_id("pin", &[&mirror_net_id,"right/U1","pad-1"]),
+            "severity":"info","scope":"pcb",
+            "message":format!("Preview removes pad pad-1 on {controller_reference} (right/U1) from net {mirror_net_name} ({mirror_net_id})."),
+            "targetIds":[mirror_net_id,"right/U1"]
+        }),
+        json!({
+            "id":electrical_notice_id("net", &[&mirror_net_id]),
+            "severity":"info","scope":"pcb",
+            "message":format!("Preview removes net {mirror_net_name} ({mirror_net_id})."),
+            "targetIds":[mirror_net_id]
+        }),
+        json!({
+            "id":electrical_notice_id("registration", &["right",&mirror_net_id]),
+            "severity":"info","scope":"pcb",
+            "message":format!("Preview removes net {mirror_net_name} ({mirror_net_id}) from board {right_board_name} (right)."),
+            "targetIds":["right",mirror_net_id]
+        }),
+    ];
+    expected_notices.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    let mut electrical_notices: Vec<Value> = preview["scene"]["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|finding| {
+            finding["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("preview:electrical:"))
+        })
+        .cloned()
+        .collect();
+    electrical_notices.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    assert_eq!(electrical_notices, expected_notices, "{preview}");
+    let after_preview = call(
+        &mut core,
+        json!({"id":"electrical-after-preview","kind":"snapshot"}),
+    );
+    assert_eq!(
+        after_preview["document"], accepted,
+        "Preview must not publish Rejoin"
+    );
+
+    let committed = call(
+        &mut core,
+        json!({
+            "id":"electrical-rejoin-commit","kind":"edit",
+            "command":{"baseRevision":accepted["revision"],
+                "transactionId":"electrical-rejoin","phase":"commit",
+                "targetIds":["right/U1"],
+                "operation":boundary_exception(pair_id,"right/U1","linked")}
+        }),
+    );
+    assert_eq!(committed["kind"], "scene", "{committed}");
+    assert!(
+        committed["document"]["nets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|net| net["id"] != mirror_net_id)
+    );
+    assert!(
+        committed["document"]["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|board| board["id"] == "right")
+            .unwrap()["netIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|net_id| net_id != &mirror_net_id)
+    );
+    assert!(
+        committed["scene"]["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|finding| finding["id"]
+                .as_str()
+                .is_none_or(|id| !id.starts_with("preview:electrical:")))
+    );
+
+    json!({
+        "open":{"kind":open["kind"]},
+        "created":{"kind":created["kind"],"pairId":pair_id,"mirrorNetId":mirror_net_id},
+        "preview":{"kind":preview["kind"],"findings":electrical_notices,"acceptedDocumentUnchanged":true},
+        "afterPreview":{"kind":after_preview["kind"],"documentUnchanged":true},
+        "commit":{"kind":committed["kind"],"mirrorNetRemoved":true,"previewNoticeCount":0}
     })
 }
 
@@ -1385,7 +1684,14 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
         "unpacked"
     );
 
-    json!({ "core": replies, "archive": transcript })
+    let paired_preview_history = paired_preview_history_case(&mut *core);
+    let paired_electrical_preview = paired_electrical_preview_case(&mut *core);
+    json!({
+        "core": replies,
+        "archive": transcript,
+        "pairedPreviewHistory": paired_preview_history,
+        "pairedElectricalPreview": paired_electrical_preview
+    })
 }
 
 pub fn assert_golden(actual: &Value, golden: &Value) {

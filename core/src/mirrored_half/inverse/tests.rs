@@ -286,6 +286,51 @@ fn set_constraint_prepares_one_global_record_with_two_live_mirror_views() {
 }
 
 #[test]
+fn a_new_framed_part_endpoint_naming_a_linked_mirror_normalizes_to_its_binding() {
+    let document = rotated_fixture();
+    let constraint = Constraint::Framed {
+        id: "constraint/framed-command".into(),
+        source: crate::model::ConstraintEndpoint::Part {
+            part_id: "right/U1".into(),
+        },
+        target: crate::model::ConstraintEndpoint::Part {
+            part_id: "left/U2".into(),
+        },
+        relation: crate::model::ConstraintRelation::Offset {
+            offset: Vec2 { x: 3.0, y: -8.0 },
+            rotation: 17.0,
+        },
+    };
+
+    let canonical = canonicalize(&document, &EditOperation::SetConstraint { constraint })
+        .expect("a new Part endpoint naming a linked mirror is normalized");
+
+    let super::constraints::PreparedConstraintEdit::Upsert(record) =
+        &canonical.prepared_constraints[0]
+    else {
+        panic!("the Framed command compiles into one prepared record");
+    };
+    assert_eq!(
+        record,
+        &crate::constraints::FramedConstraint::Framed {
+            id: "constraint/framed-command".into(),
+            source: crate::constraints::ConstraintEndpoint::LinkedMirror {
+                pair_id: "pair".into(),
+                source_part_id: "left/U1".into(),
+                mirror_part_id: "right/U1".into(),
+            },
+            target: crate::constraints::ConstraintEndpoint::Part {
+                part_id: "left/U2".into(),
+            },
+            relation: crate::constraints::ConstraintRelation::Offset {
+                offset: Vec2 { x: 3.0, y: -8.0 },
+                rotation: 17.0,
+            },
+        }
+    );
+}
+
+#[test]
 fn local_constraint_edit_stays_local_and_remove_keeps_the_exact_global_id() {
     let document = rotated_fixture();
     let constraint = Constraint::Offset {

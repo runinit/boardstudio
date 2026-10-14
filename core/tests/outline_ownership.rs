@@ -7,7 +7,10 @@
 use boardstudio_core::{CoreEngine, model::*};
 
 fn fixture() -> ProjectDoc {
-    serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap()
+    let mut document: ProjectDoc =
+        serde_json::from_str(include_str!("fixtures/synthetic-outline.json")).unwrap();
+    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
+    document
 }
 
 fn scene(reply: CoreReply) -> SceneDelta {
